@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -256,19 +257,35 @@ def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
     )
 
     workspace = OperationsWorkspace(tmp_path / "plant-a")
-    initialize_operations_workspace(workspace)
+    other = OperationsWorkspace(tmp_path / "plant-b")
+    for item in (workspace, other):
+        initialize_operations_workspace(item)
+        item.logs_path.mkdir(parents=True, exist_ok=True)
     assert main(["operations", "stop", str(workspace.root)]) == 0
     assert "stop=already-stopped last_state=none" in capsys.readouterr().out
 
-    # A supervisor that vanished while its analysis kept running, and an unrelated process
-    # that happens to sit at the recorded collection PID.
-    workspace.logs_path.mkdir(parents=True, exist_ok=True)
-    log = (workspace.logs_path / "analysis.log").open("ab")
-    left = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)"], stdout=log, stderr=log
+    sleeper = [sys.executable, "-c", "import time; time.sleep(60)"]
+    logs = []
+
+    def spawn(log_root: OperationsWorkspace, kind: str, *role: str) -> subprocess.Popen:
+        log = (log_root.logs_path / f"{kind}.log").open("ab")
+        logs.append(log)
+        return subprocess.Popen([*sleeper, *role], stdout=log, stderr=log)
+
+    analysis_role = ("internal", "window-analysis", "--workspace")
+    # Left by a vanished supervisor of plant-a: its analysis role, workspace and log.
+    left = spawn(workspace, "analysis", *analysis_role, str(workspace.root))
+    # Each misses one identity condition and must keep running.
+    other_workspace = spawn(other, "analysis", *analysis_role, str(other.root))
+    wrong_role = spawn(
+        workspace, "collection", "internal", "window-analysis", "--workspace", str(workspace.root)
     )
-    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    unrelated = subprocess.Popen(sleeper)
     at = datetime(2026, 10, 14, 1, 0, tzinfo=UTC)
+
+    def recorded(kind: OperationsComponentKind, pid: int) -> OperationsChildProcessState:
+        return OperationsChildProcessState(kind, pid, workspace.logs_path / f"{kind.value}.log")
+
     OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
         OperationsSupervisorState(
             state=OperationsSupervisorStateKind.RUNNING,
@@ -276,14 +293,9 @@ def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
             started_at=at,
             updated_at=at,
             components=(
-                OperationsChildProcessState(
-                    OperationsComponentKind.COLLECTION,
-                    unrelated.pid,
-                    workspace.logs_path / "collection.log",
-                ),
-                OperationsChildProcessState(
-                    OperationsComponentKind.ANALYSIS, left.pid, workspace.logs_path / "analysis.log"
-                ),
+                recorded(OperationsComponentKind.COLLECTION, wrong_role.pid),
+                recorded(OperationsComponentKind.ANALYSIS, left.pid),
+                recorded(OperationsComponentKind.UI, other_workspace.pid),
             ),
         )
     )
@@ -293,14 +305,38 @@ def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
         assert "last_state=ended-without-stopping" in out
         assert f"leftover_stopped={left.pid}" in out
         assert left.wait(timeout=5) is not None
-        assert unrelated.poll() is None
-        recorded = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
-        assert recorded is not None and recorded.state == OperationsSupervisorStateKind.FAILED
-        assert recorded.failure == "supervisor ended without stopping its components"
+        assert all(p.poll() is None for p in (other_workspace, wrong_role, unrelated))
+        state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
+        assert state is not None and state.state == OperationsSupervisorStateKind.FAILED
+        assert state.failure == "supervisor ended without stopping its components"
         assert main(["operations", "stop", str(workspace.root)]) == 0
         assert "last_state=failed" in capsys.readouterr().out
     finally:
-        log.close()
-        for process in (left, unrelated):
+        for log in logs:
+            log.close()
+        for process in (left, other_workspace, wrong_role, unrelated):
             process.kill()
             process.wait()
+
+
+def test_operations_up_names_a_port_held_by_another_process(tmp_path: Path, capsys) -> None:
+    import socket
+
+    from industrial_phm.runtime.operations_config import (
+        OperationsUiConfig,
+        write_operations_runtime_config,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    result = initialize_operations_workspace(workspace)
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        write_operations_runtime_config(
+            workspace.config_path, replace(result.config, ui=OperationsUiConfig(port=port))
+        )
+        assert main(["operations", "up", str(workspace.root)]) == 1
+    error = capsys.readouterr().err
+    assert f"127.0.0.1:{port} is used by another process" in error
+    assert not workspace.supervisor_state_path.exists()

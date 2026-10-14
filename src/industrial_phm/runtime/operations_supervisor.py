@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import select
 import signal
+import socket
 import subprocess
 import tempfile
 import threading
@@ -295,18 +297,46 @@ def request_operations_supervisor_stop(
     return state.supervisor_pid
 
 
+# What each component's command line names: its role, and the argument holding the workspace.
+_ROLE_MARKERS = {
+    OperationsComponentKind.COLLECTION: ("collection-service", "--workspace"),
+    OperationsComponentKind.ANALYSIS: ("window-analysis", "--workspace"),
+    OperationsComponentKind.UI: ("industrial_phm.runtime.operations_web_preview", None),
+}
+
+
+def _is_workspace_component(
+    pid: int, kind: OperationsComponentKind, workspace: OperationsWorkspace
+) -> bool:
+    """The process runs this component role, for this workspace, writing to its log."""
+    proc = Path("/proc") / str(pid)
+    try:
+        argv = (proc / "cmdline").read_bytes().decode(errors="replace").split("\0")
+        cwd = Path(os.readlink(proc / "cwd"))
+        stdout = Path(os.readlink(proc / "fd" / "1"))
+    except OSError:
+        return False
+    role, flag = _ROLE_MARKERS[kind]
+    if role not in argv:
+        return False
+    at = argv.index(flag) + 1 if flag is not None and flag in argv else argv.index(role) + 1
+    if at >= len(argv) or (cwd / argv[at]).resolve() != workspace.root.resolve():
+        return False
+    return stdout == (workspace.logs_path / f"{kind.value}.log").resolve()
+
+
 def stop_leftover_components(
     workspace: OperationsWorkspace, *, timeout_seconds: float = 10.0
 ) -> tuple[int, ...]:
     """Stop components a vanished supervisor left running, and only those.
 
-    A process counts as this workspace's component only when no supervisor holds the
-    workspace lock and its stdout is that component's log file in this workspace, so a
-    process that merely reused a recorded PID is never signaled.
+    Nothing is signaled while a supervisor holds the workspace lock. A recorded PID is
+    stopped only when its command line names that component role for this workspace and
+    its stdout is that component's log here; the check and the signals go through one
+    pidfd, so a PID reused by another process in between is never signaled.
     """
     state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
-    proc = Path("/proc")
-    if state is None or fcntl is None or not proc.is_dir():
+    if state is None or fcntl is None or not hasattr(os, "pidfd_open"):
         return ()
     lock_path = workspace.supervisor_lock_path
     if lock_path.is_file():
@@ -316,14 +346,6 @@ def stop_leftover_components(
             except BlockingIOError:
                 return ()  # a live supervisor owns these processes
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    leftover = []
-    for component in state.components:
-        expected = (workspace.logs_path / component.log_path.name).resolve()
-        try:
-            if Path(os.readlink(proc / str(component.pid) / "fd" / "1")) == expected:
-                leftover.append(component.pid)
-        except OSError:
-            continue
     if state.state == OperationsSupervisorStateKind.RUNNING:
         # The record still says running; say how that run really ended.
         OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
@@ -334,17 +356,52 @@ def stop_leftover_components(
                 failure="supervisor ended without stopping its components",
             )
         )
-    for pid in leftover:
-        with suppress(ProcessLookupError):
-            os.kill(pid, signal.SIGINT)
-    deadline = time.monotonic() + timeout_seconds
-    for pid in leftover:
-        while (proc / str(pid)).exists() and time.monotonic() < deadline:
-            time.sleep(0.1)
-        if (proc / str(pid)).exists():
+    pidfds: list[tuple[int, int]] = []
+    for component in state.components:
+        try:
+            pidfd = os.pidfd_open(component.pid)
+        except OSError:
+            continue
+        if _is_workspace_component(component.pid, component.kind, workspace):
+            pidfds.append((component.pid, pidfd))
+        else:
+            os.close(pidfd)
+    try:
+        for _, pidfd in pidfds:
             with suppress(ProcessLookupError):
-                os.kill(pid, signal.SIGKILL)
-    return tuple(leftover)
+                signal.pidfd_send_signal(pidfd, signal.SIGINT)
+        deadline = time.monotonic() + timeout_seconds
+        for _, pidfd in pidfds:
+            remaining = max(0.0, deadline - time.monotonic())
+            if not select.select([pidfd], [], [], remaining)[0]:
+                with suppress(ProcessLookupError):
+                    signal.pidfd_send_signal(pidfd, signal.SIGKILL)
+                select.select([pidfd], [], [], 5.0)
+    finally:
+        for _, pidfd in pidfds:
+            os.close(pidfd)
+    return tuple(pid for pid, _ in pidfds)
+
+
+def supervisor_is_live(workspace: OperationsWorkspace) -> bool:
+    """A supervisor holds this workspace's lock right now."""
+    if fcntl is None or not workspace.supervisor_lock_path.is_file():
+        return False
+    with workspace.supervisor_lock_path.open("a+") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    return False
+
+
+def port_in_use(host: str, port: int) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=0.5):
+            return True
+    except OSError:
+        return False
 
 
 def run_operations_supervisor(
