@@ -10,7 +10,7 @@ import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import ExplanationProvider, generate_local_explanation
+from industrial_phm.genai.local_explanation import ExplanationProvider, complete_json
 from industrial_phm.runtime.operations_web_phm_explanation import (
     ExplanationManager,
     request_phm_review,
@@ -52,34 +52,31 @@ def test_provider_rejects_unconfigured_remote_or_credentials_in_url(url: str) ->
         ExplanationProvider(base_url=url)
 
 
-@pytest.mark.parametrize("chat_only", [False, True])
-def test_stateless_responses_and_chat_fallback_preserve_named_model_and_context(
-    chat_only: bool,
+@pytest.mark.parametrize("chat_status", [200, 422])
+def test_schema_constrained_chat_and_responses_fallback_keep_model_and_messages(
+    chat_status: int,
 ) -> None:
     seen = []
+    answer = {"summary": "stored comparison answer"}
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             seen.append((self.path, body))
-            if chat_only and self.path.endswith("/responses"):
-                self.send_response(404)
+            if chat_status != 200 and self.path.endswith("/chat/completions"):
+                self.send_response(chat_status)
                 self.end_headers()
                 return
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
+            text = json.dumps(answer)
             payload = (
-                {"choices": [{"message": {"content": "stored score explanation"}}]}
-                if chat_only
+                {"choices": [{"message": {"content": text}}]}
+                if self.path.endswith("/chat/completions")
                 else {
                     "output": [
-                        {
-                            "type": "message",
-                            "content": [
-                                {"type": "output_text", "text": "stored score explanation"}
-                            ],
-                        }
+                        {"type": "message", "content": [{"type": "output_text", "text": text}]}
                     ]
                 }
             )
@@ -91,36 +88,30 @@ def test_stateless_responses_and_chat_fallback_preserve_named_model_and_context(
     server = HTTPServer(("127.0.0.1", 0), Handler)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+    messages = [
+        {"role": "system", "content": "rules"},
+        {"role": "user", "content": "{}"},
+        {"role": "assistant", "content": "draft"},
+        {"role": "user", "content": "fix"},
+    ]
     try:
-        text = generate_local_explanation(
-            {
-                "output": {
-                    "task": "rul-estimate",
-                    "estimate": 7.79,
-                    "unit": "acquisition-interval",
-                    "change_from_previous": -0.008506,
-                    "endpoint_semantics": "last-recorded-acquisition",
-                },
-                "model": {
-                    "validation": {"acceptance": "not-yet-evaluated", "MAE": 73.94},
-                    "applicability": {"operating_condition": ["35Hz12kN"]},
-                },
-                "facts": ["운영 합격 판정 기록: not-yet-evaluated", "연구 검증 MAE 73.94"],
-            },
+        result = complete_json(
             ExplanationProvider(base_url=f"http://127.0.0.1:{server.server_port}/v1"),
+            messages,
+            schema,
         )
-        assert text == "stored score explanation"
-        assert all(body["model"] == "local-main" and body["store"] is False for _, body in seen)
-        assert len(seen) == (2 if chat_only else 1)
-        for _, body in seen:
-            prompt = body.get("instructions") or body["messages"][0]["content"]
-            sent = json.loads(body.get("input") or body["messages"][1]["content"])
-            assert sent["output"]["estimate"] == 7.79
-            assert sent["output"]["change_from_previous"] == -0.008506
-            assert "마지막 획득 지점" in " ".join(sent["facts"])
-            assert "73.94" not in json.dumps(sent) and "not-yet-evaluated" not in json.dumps(sent)
-            assert "35Hz12kN" not in json.dumps(sent) and "model" not in sent
-            assert "3~5문장" in prompt and "네 부분" not in prompt
+        assert result == answer
+        assert len(seen) == (1 if chat_status == 200 else 2)
+        chat = seen[0][1]
+        assert chat["model"] == "local-main" and "store" not in chat
+        assert chat["messages"] == messages
+        assert chat["response_format"]["json_schema"]["schema"] == schema
+        if chat_status != 200:
+            responses = seen[1][1]
+            assert responses["instructions"] == "rules" and responses["store"] is False
+            assert [m["role"] for m in responses["input"]] == ["user", "assistant", "user"]
+            assert responses["text"]["format"]["schema"] == schema
     finally:
         server.shutdown()
         server.server_close()
@@ -148,9 +139,14 @@ def test_explanation_manager_never_changes_score_and_review_cannot_link_other_re
     analyze(workspace)
     from industrial_phm.runtime import operations_web_phm_explanation as runtime
 
-    monkeypatch.setattr(
-        runtime, "generate_local_explanation", lambda context, provider: "source-bound explanation"
-    )
+    answer = {
+        "summary": "source-bound answer",
+        "observations": [],
+        "next_signals": [],
+        "next_step": "next",
+        "checks": {"summary_source": "model"},
+    }
+    monkeypatch.setattr(runtime, "generate_grounded_answer", lambda context, provider: answer)
     manager = ExplanationManager(workspace.root)
     job = manager.request("anomaly-a", 3)
     for _ in range(100):
@@ -159,6 +155,7 @@ def test_explanation_manager_never_changes_score_and_review_cannot_link_other_re
             break
         time.sleep(0.01)
     assert record["status"] == "complete" and record["context"]["position"] == 3
+    assert record["answer"] == answer and record["text"] == "source-bound answer next"
     linked = request_phm_review(
         workspace.root, {"binding_id": "anomaly-a", "position": 3, "explanation_id": record["id"]}
     )
@@ -225,94 +222,3 @@ def test_status_verdicts_are_flagged_but_negations_are_not() -> None:
         "위험이 낮",
         "이상 징후가 심각하지 않",
     ]
-
-
-def test_numbers_absent_from_the_stored_context_are_flagged() -> None:
-    from industrial_phm.genai.local_explanation import ungrounded_numbers
-
-    context = {
-        "output": {"score": 0.7281648, "threshold": 0.7543955},
-        "x": "35Hz12kN",
-        "m": 1081.03,
-    }
-    assert ungrounded_numbers("점수 0.728, 임계값 0.754, 1,081, 35Hz", context) == []
-    assert ungrounded_numbers("고장 확률 87.5%, 신뢰구간 ±12.4", context) == ["87.5", "12.4"]
-
-
-@pytest.mark.parametrize(
-    ("context_value", "statement", "unsupported"),
-    [
-        (-25.0, "RUL 25", ["25"]),
-        (25.0, "RUL -25", ["-25"]),
-        (-5.0, "RUL 5", ["5"]),
-        (5.0, "RUL -5", ["-5"]),
-        (5.0, "RUL 4", ["4"]),
-        (-5.0, "RUL -5", []),
-        (5.0, "RUL 5", []),
-        (5.0, "1. 점검\nRUL 5", []),
-    ],
-)
-def test_grounding_warning_preserves_sign_and_checks_small_rul_integers(
-    context_value: float, statement: str, unsupported: list[str]
-) -> None:
-    from industrial_phm.genai.local_explanation import ungrounded_numbers
-
-    assert ungrounded_numbers(statement, {"output": {"estimate": context_value}}) == unsupported
-
-
-def test_manager_stores_grounding_warnings_with_the_explanation(
-    tmp_path: Path, monkeypatch
-) -> None:
-    workspace = phm_workspace(tmp_path / "ws")
-    for i in range(1, 4):
-        deliver(workspace, tmp_path / "waves", i, 0.5)
-    analyze(workspace)
-    from industrial_phm.runtime import operations_web_phm_explanation as runtime
-
-    monkeypatch.setattr(
-        runtime, "generate_local_explanation", lambda context, provider: "고장 확률 93.7%입니다."
-    )
-    manager = ExplanationManager(workspace.root)
-    job = manager.request("anomaly-a", 3, question="고장 확률 93.7% 맞나요?")
-    for _ in range(100):
-        record = manager.store.get(job["explanation_id"])
-        if record["status"] != "pending":
-            break
-        time.sleep(0.01)
-    assert record["status"] == "complete" and record["warnings"] == ["93.7"]
-
-
-def test_comparison_checks_numeric_roles_not_only_membership() -> None:
-    from industrial_phm.genai.local_explanation import comparison_claim_warnings
-
-    context = {
-        "output": {"task": "anomaly-score", "score": 0.178873},
-        "signal_comparison": {
-            "previous_output": {"score": 0.007501659},
-            "output_changes": {"score": 0.171372},
-        },
-    }
-    assert comparison_claim_warnings("점수는 0.007502에서 0.1789로 증가했습니다.", context) == []
-    assert comparison_claim_warnings("점수는 0.007502에서 0.1714로 증가했습니다.", context) == [
-        "내용 확인: 모델의 이전값·현재값 비교가 선택한 저장 결과와 다릅니다"
-    ]
-    assert comparison_claim_warnings("직전 대비 -0.04 감소했습니다.", context) == [
-        "표현 확인: 음수 변화량과 감소 표현이 겹칩니다"
-    ]
-    assert comparison_claim_warnings("변화 -0.04입니다.", context) == []
-
-
-def test_two_point_observation_does_not_establish_causality_or_a_long_term_trend() -> None:
-    from industrial_phm.genai.local_explanation import comparison_claim_warnings
-
-    context = {"output": {}, "signal_comparison": {}}
-    assert comparison_claim_warnings("전류 불평형 증가에서 기인합니다.", context) == [
-        "내용 확인: 두 시점의 동반 변화를 원인으로 단정했습니다"
-    ]
-    assert comparison_claim_warnings("잔여 구간 추정은 감소하는 추세를 보였습니다.", context) == [
-        "내용 확인: 두 시점 비교의 추세·변화 순위를 과장했습니다"
-    ]
-    assert (
-        comparison_claim_warnings("신호가 함께 증가했습니다. 원인으로 단정할 수 없습니다.", context)
-        == []
-    )

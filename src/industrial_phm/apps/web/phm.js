@@ -33,7 +33,7 @@ const INPUT_MISMATCH = /^(package expects |channels differ |sampling rate .+ dif
 const inputGuide = (reason) => INPUT_MISMATCH.test(reason || "") ? " · " + INPUT_GUIDE : "";
 const FEATURE_LABEL = {
   rms: "RMS", mean: "평균", standard_deviation: "표준편차", absolute_peak: "절대 피크",
-  peak_to_peak: "피크-피크", crest_factor: "파고율", skewness: "왜도", excess_kurtosis: "첨도(초과)",
+  peak_to_peak: "피크-피크", crest_factor: "파고율", skewness: "왜도", excess_kurtosis: "초과 첨도",
 };
 
 let bindings = [];
@@ -309,20 +309,21 @@ function phasePlot(steps, group, axis, domain, onPick, width = 800) {
 
 const channelLabel = (channel) => channel.replace("_vibration_signals", "").replace("Horizontal", "수평 진동").replace("Vertical", "수직 진동");
 
+// The same names the AI answer uses (phm_signal_comparison.feature_label), so text and table match.
 function featureLabel(name) {
   const electrical = {
-    "current.phase_r.mean_a": "R상 평균 전류 · A", "current.phase_s.mean_a": "S상 평균 전류 · A",
-    "current.phase_t.mean_a": "T상 평균 전류 · A", "voltage.phase_r.mean_v": "R상 평균 전압 · V",
-    "voltage.phase_s.mean_v": "S상 평균 전압 · V", "voltage.phase_t.mean_v": "T상 평균 전압 · V",
-    "current.unbalance.mean_percent": "전류 불평형 평균 · %",
-    "voltage.unbalance.mean_percent": "전압 불평형 평균 · %",
-    "current.three_phase_mean.std_a": "3상 평균 전류의 변동 · A",
-    "frequency.mean_hz": "평균 주파수 · Hz",
+    "current.phase_r.mean_a": "R상 평균 전류(A)", "current.phase_s.mean_a": "S상 평균 전류(A)",
+    "current.phase_t.mean_a": "T상 평균 전류(A)", "voltage.phase_r.mean_v": "R상 평균 전압(V)",
+    "voltage.phase_s.mean_v": "S상 평균 전압(V)", "voltage.phase_t.mean_v": "T상 평균 전압(V)",
+    "current.unbalance.mean_percent": "전류 불평형 평균(%)",
+    "voltage.unbalance.mean_percent": "전압 불평형 평균(%)",
+    "current.three_phase_mean.std_a": "3상 평균 전류 변동(A)",
+    "frequency.mean_hz": "평균 주파수(Hz)",
   };
   if (electrical[name]) return electrical[name];
   const parts = name.split(".");
   const statistic = parts.at(-1), channel = parts.slice(1, -1).join(".");
-  return channelLabel(channel) + " · " + (FEATURE_LABEL[statistic] || statistic);
+  return channelLabel(channel) + " " + (FEATURE_LABEL[statistic] || statistic);
 }
 
 // Anomaly screen ---------------------------------------------------------------

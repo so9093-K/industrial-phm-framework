@@ -33,11 +33,13 @@ class PhmExplanationStore:
             "position INTEGER, analysis_run_id TEXT, package_id TEXT, context TEXT, "
             "model TEXT, owner TEXT, "
             "status TEXT, text TEXT, error TEXT, requested_at TEXT, "
-            "finished_at TEXT, finding_id TEXT, warnings TEXT)"
+            "finished_at TEXT, finding_id TEXT, warnings TEXT, answer TEXT)"
         )
         columns = {row[1] for row in connection.execute("PRAGMA table_info(explanation)")}
         if "warnings" not in columns:  # stores created before numeric grounding checks
             connection.execute("ALTER TABLE explanation ADD COLUMN warnings TEXT")
+        if "answer" not in columns:  # stores created before structured answers
+            connection.execute("ALTER TABLE explanation ADD COLUMN answer TEXT")
         return connection
 
     def request(self, context: dict[str, Any], *, model: str, owner: str) -> str:
@@ -79,18 +81,19 @@ class PhmExplanationStore:
         owner: str,
         text: str = "",
         error: str | None = None,
-        warnings: list[str] | None = None,
+        answer: dict[str, Any] | None = None,
     ) -> None:
         with self._connect() as connection:
             connection.execute(
-                "UPDATE explanation SET status=?, text=?, error=?, finished_at=?, warnings=? "
-                "WHERE id=? AND owner=? AND status='pending'",
+                "UPDATE explanation SET status=?, text=?, error=?, finished_at=?, warnings=?, "
+                "answer=? WHERE id=? AND owner=? AND status='pending'",
                 (
                     "failed" if error else "complete",
                     text,
                     error,
                     datetime.now(UTC).isoformat(),
-                    json.dumps(warnings or [], ensure_ascii=False),
+                    "[]",
+                    None if answer is None else json.dumps(answer, ensure_ascii=False),
                     identifier,
                     owner,
                 ),
@@ -120,6 +123,7 @@ class PhmExplanationStore:
         data.pop("owner")
         data["context"] = json.loads(data["context"])
         data["warnings"] = json.loads(data["warnings"]) if data.get("warnings") else []
+        data["answer"] = json.loads(data["answer"]) if data.get("answer") else None
         return data
 
     def list_for(self, binding_id: str, position: int) -> list[dict[str, Any]]:

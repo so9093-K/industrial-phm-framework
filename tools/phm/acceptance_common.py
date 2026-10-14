@@ -177,31 +177,23 @@ def reflection_latency(
 
 
 def check_explanation(checks: Checks, suffix: str, panel: Any, *, window: bool) -> dict[str, Any]:
-    """Record the explanation panel and judge what the product guarantees about it.
+    """Record the answer card and judge what the product guarantees about it.
 
-    Numbers must all come from the stored result. A status verdict ("정상 범위", "고장입니다")
-    is model text the product cannot prevent, so it must be flagged on the screen when present.
+    The answer text is checked before it is stored: it carries no status verdict, and every
+    signal it lists links to a stored feature of the selected comparison.
     """
     from industrial_phm.genai.local_explanation import verdict_phrases
 
+    card = panel.locator(".phm-answer")
     item = {
-        "heading": panel.locator("h3").inner_text(),
-        "text": panel.locator(".phm-ai-text").inner_text(),
-        "warning": panel.locator(".phm-ai-warning").inner_text(),
-        "status": panel.locator(".phm-ai-details [role=status]").inner_text(),
+        "heading": panel.locator("h3").first.inner_text(),
+        "text": card.locator(".phm-ai-text").inner_text(),
+        "signals": card.locator(".phm-answer-signals li").all_inner_texts(),
+        "status": panel.locator("[role=status]").first.inner_text(),
     }
     item["verdict_phrases"] = verdict_phrases(item["text"])
     checks.add(f"real-local-main-explanation{suffix}", bool(item["text"].strip()), item["status"])
-    checks.add(
-        f"explanation-numbers-grounded{suffix}",
-        "근거 대조 경고" not in item["warning"],
-        item["warning"],
-    )
-    checks.add(
-        f"explanation-status-verdict-flagged{suffix}",
-        not item["verdict_phrases"] or "판정 표현 경고" in item["warning"],
-        item["verdict_phrases"],
-    )
+    checks.add(f"answer-has-no-status-verdict{suffix}", not item["verdict_phrases"], item["text"])
     named = item["heading"].startswith("분석 윈도우 ") if window else "분석 #" in item["heading"]
     checks.add(f"explanation-names-the-step{suffix}", named, item["heading"])
     return item

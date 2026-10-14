@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshot,
@@ -159,3 +160,35 @@ def analyze(workspace: OperationsWorkspace) -> None:
         PackageCache(workspace.models_path),
         now=lambda: T0,
     )
+
+
+class ScriptedModel:
+    """Stands in for the local model: answers drafts in order; the reviewer finds nothing.
+
+    Patch it over ``industrial_phm.genai.phm_answer.complete_json`` so every check, rewrite
+    and fallback around the model runs for real.
+    """
+
+    def __init__(self, *drafts: dict[str, Any]) -> None:
+        self.drafts = list(drafts)
+        self.requests: list[list[dict[str, str]]] = []
+
+    def __call__(
+        self,
+        provider: object,
+        messages: list[dict[str, str]],
+        schema: dict[str, Any],
+        *,
+        max_tokens: int = 1200,
+    ) -> dict[str, Any]:
+        if "causal" in schema["properties"]:
+            return {
+                "causal": False,
+                "trend": False,
+                "contradiction": False,
+                "verdict": False,
+                "answers_question": True,
+                "quote": "",
+            }
+        self.requests.append(messages)
+        return self.drafts.pop(0) if len(self.drafts) > 1 else dict(self.drafts[0])

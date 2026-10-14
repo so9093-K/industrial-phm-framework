@@ -11,10 +11,11 @@ from typing import Any
 
 import pytest
 
+from industrial_phm.genai import phm_answer
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.phm import analyze, deliver, phm_workspace
+from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 
 
 def test_explanation_and_review_lifecycle_are_readable_without_touching_model_output(
@@ -24,13 +25,17 @@ def test_explanation_and_review_lifecycle_are_readable_without_touching_model_ou
     for ordinal, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
         deliver(workspace, tmp_path / "waves", ordinal, scale)
     analyze(workspace)
-    seen: list[dict[str, Any]] = []
-
-    def fake_provider(context: dict[str, Any], provider: object) -> str:
-        seen.append(context)
-        return "저장된 점수 설명"
-
-    monkeypatch.setattr(explanation_runtime, "generate_local_explanation", fake_provider)
+    model = ScriptedModel(
+        {
+            "summary": "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다.",
+            "observations": [
+                {"feature": "feature.Horizontal_vibration_signals.rms", "change": "증가"}
+            ],
+            "next_signals": [],
+            "next_step": "두 시점의 원본 파형을 비교해 보세요.",
+        }
+    )
+    monkeypatch.setattr(phm_answer, "complete_json", model)
     monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
     root = workspace.root.resolve()
     job = execute_web_source_action(
@@ -59,8 +64,16 @@ def test_explanation_and_review_lifecycle_are_readable_without_touching_model_ou
         assert status == 200
         (record,) = body["explanations"]
         assert record["id"] == job["explanation_id"] and record["status"] == "complete"
-        assert record["text"] == "저장된 점수 설명" and record["model"] == "local-main"
-        assert record["context"]["output"] == seen[0]["output"]
+        assert record["model"] == "local-main"
+        assert (
+            record["answer"]["summary"] == "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다."
+        )
+        assert record["answer"]["observations"] == [
+            {"feature": "feature.Horizontal_vibration_signals.rms", "relation": "increased"}
+        ]
+        assert record["text"].startswith(record["answer"]["summary"])
+        sent = json.loads(model.requests[0][1]["content"])
+        assert sent["primary"]["name"] == "이상 점수" and sent["question"]
         assert "owner" not in record and str(tmp_path) not in json.dumps(body)
 
         status, review = get("/api/v1/phm/review?" + query)
