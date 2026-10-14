@@ -120,23 +120,23 @@
       <section id="anomaly" class="panel phm-panel" data-views="anomaly" aria-labelledby="anomaly-title">
         <div class="panel-header"><div><h2 id="anomaly-title">이상 탐지</h2></div><span id="anomaly-replay" class="tag replay hidden">기록 재생</span></div>
         <div class="phm-controls"><label for="anomaly-binding">분석 모델</label><select id="anomaly-binding" disabled><option>조회 중</option></select><label for="anomaly-range">표시 구간</label><select id="anomaly-range"><option value="recent">선택 시점의 연속 기록</option><option value="all">전체 기록</option></select><button id="anomaly-latest" type="button" hidden>최신 기록으로</button></div>
-        <header class="phm-summary"><h3 id="anomaly-asset-title">설비 선택 대기</h3><p id="anomaly-observation" class="phm-observation">분석 결과를 조회하고 있습니다.</p><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p></header>
+        <header class="phm-summary"><h3 id="anomaly-asset-title">설비 선택 대기</h3><p id="anomaly-observation" class="phm-observation">분석 결과를 조회하고 있습니다.</p><p id="anomaly-freshness" class="muted" role="status" aria-live="polite"></p><p id="anomaly-meaning" class="phm-result-meaning"></p><div class="phm-summary-actions"><label>선택한 기록<select id="anomaly-position" aria-label="선택한 기록" disabled><option>분석 기록 없음</option></select></label><button id="anomaly-ask" type="button" disabled>이 변화 질문하기</button></div></header>
         <p id="anomaly-state" class="state" role="status" aria-live="polite">이상 탐지 결과를 조회하고 있습니다.</p>
         <div id="anomaly-connect"></div>
         <div id="anomaly-cards" class="condition-cards"></div>
         <div class="phm-trends"><section><div class="phm-chart-heading"><h3 id="anomaly-score-title">이상 점수</h3></div><div id="anomaly-score-chart"></div></section><section><div class="phm-chart-heading"><h3>측정 크기</h3><select id="anomaly-signal" aria-label="추세 신호"></select></div><div id="anomaly-feature-chart" class="phm-features"></div></section></div>
         <div id="anomaly-detail" class="condition-detail" tabindex="-1"></div>
+        <section id="anomaly-assistant" class="phm-assistant" aria-label="선택 시점의 변화 분석"></section>
         <details class="phm-options" id="anomaly-periods"><summary>기준 초과 구간</summary><div id="anomaly-intervals" class="condition-events"></div></details>
         <details class="phm-options"><summary>추세에 표시할 다른 특징</summary><fieldset id="anomaly-features" class="channel-fieldset choices"></fieldset></details>
-        <section id="anomaly-assistant" class="phm-assistant" aria-label="선택 시점의 변화 분석"></section>
         <details id="anomaly-review-options" class="phm-options"><summary>사람 검토</summary><section id="anomaly-explanation" class="condition-detail"></section></details>
         <div id="anomaly-connect-more"></div>
         <details id="anomaly-model" class="condition-method-details"></details>
       </section>
       <section id="rul" class="panel phm-panel" data-views="rul" aria-labelledby="rul-title">
-        <div class="panel-header"><div><h2 id="rul-title">잔여 수명(RUL)</h2></div><span id="rul-replay" class="tag replay hidden">기록 재생</span></div>
+        <div class="panel-header"><div><h2 id="rul-title">잔여 구간 추정(RUL)</h2></div><span id="rul-replay" class="tag replay hidden">기록 재생</span></div>
         <div class="phm-controls"><label for="rul-binding">분석 모델</label><select id="rul-binding" disabled><option>조회 중</option></select></div>
-        <header class="phm-summary"><h3 id="rul-asset-title">설비 선택 대기</h3><p id="rul-observation" class="phm-observation">RUL 추정을 불러오고 있습니다.</p><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p></header>
+        <header class="phm-summary"><h3 id="rul-asset-title">설비 선택 대기</h3><p id="rul-observation" class="phm-observation">RUL 추정을 불러오고 있습니다.</p><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p><p id="rul-meaning" class="phm-result-meaning"></p><div class="phm-summary-actions"><label>선택한 기록<select id="rul-position" aria-label="선택한 기록" disabled><option>분석 기록 없음</option></select></label><button id="rul-ask" type="button" disabled>이 변화 질문하기</button></div></header>
         <p id="rul-state" class="state" role="status" aria-live="polite">RUL 추정을 조회하고 있습니다.</p>
         <div id="rul-connect"></div>
         <div id="rul-cards" class="condition-cards"></div>
@@ -159,7 +159,7 @@
         <div class="panel-header"><div><h2 id="csv-start-title">CSV 파일로 시작</h2><p class="muted">파일의 실제 신호를 먼저 보고, 서버에서 점검한 뒤 저장하면 모니터링에서 같은 신호를 봅니다.</p></div></div>
         <ol id="csv-start-steps" class="csv-start-steps" aria-label="진행 단계"><li data-step="file" aria-current="step">파일 확인</li><li data-step="asset">설비 정보</li><li data-step="check">서버 점검</li><li data-step="save">등록·이력 저장</li><li data-step="monitor">모니터링</li></ol>
         <label class="csv-start-file">CSV 파일 선택 (UTF-8 · 20MiB 이하)<input id="csv-start-file" type="file" accept=".csv,text/csv"></label>
-        <div class="csv-start-examples" aria-label="예시 파일"><span>예시 파일로 해보기</span>
+        <div class="csv-start-examples" aria-label="예시 파일"><span>CSV 형식과 측정값 미리보기</span>
           <button id="csv-start-example-motor" type="button" class="secondary">합성 CSV 미리보기 · 저장하지 않음</button>
           <button id="csv-start-example-invalid" type="button" class="secondary">오류 예시 · 시간대 없음·빈 값</button>
         </div>

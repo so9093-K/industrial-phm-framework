@@ -84,6 +84,11 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 pw.expect(panel.get_by_role("button", name="검토 확인")).to_have_count(0)
                 assistant = page.locator("#anomaly-assistant")
                 pw.expect(assistant).to_be_visible()
+                pw.expect(assistant.locator(".phm-comparison-details")).not_to_have_attribute(
+                    "open", ""
+                )
+                page.locator("#anomaly-ask").click()
+                pw.expect(assistant.get_by_label("분석 질문")).to_be_focused()
                 assistant.get_by_label("비교 시점").select_option("1")
                 assistant.get_by_label("분석 질문").fill("수평 진동은 어떻게 달라졌나요?")
                 assistant.get_by_role("button", name="AI에 질문").click()
@@ -102,6 +107,14 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 pw.expect(mentioned).to_have_count(1)
                 pw.expect(mentioned.first).to_contain_text("수평 진동 RMS")
                 flow = assistant.locator(".phm-range")
+                pw.expect(
+                    assistant.get_by_role(
+                        "button", name="구간 전체에서 어떤 흐름을 보였어?", exact=True
+                    )
+                ).to_have_count(0)
+                pw.expect(assistant.locator(".phm-question-scope")).to_contain_text(
+                    "두 시점의 차이"
+                )
                 pw.expect(flow).to_contain_text("구간 흐름 · #1 → #4 · 분석 4개")
                 pw.expect(flow.locator("tr").nth(1)).to_contain_text("모델 점수")
                 pw.expect(flow.locator("tr").nth(1)).to_contain_text("기록 부족")
@@ -114,9 +127,9 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 assert received[-1]["signal_comparison"]["original_current"]["available"]
                 assert "'때문'" in model.requests[-1][-1]["content"]
                 # A suggested question continues the same comparison with the earlier answer.
-                assistant.get_by_role("button", name="언제부터 신호가 달라졌어?").click()
+                assistant.get_by_role("button", name="이전보다 어떤 측정값이 달라졌어?").click()
                 pw.expect(card.locator(".phm-answer-question").first).to_have_text(
-                    "언제부터 신호가 달라졌어?"
+                    "이전보다 어떤 측정값이 달라졌어?"
                 )
                 pw.expect(card.locator(".phm-answer-thread summary")).to_have_text(
                     "이어서 답한 앞선 질문 1개"
@@ -128,7 +141,12 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 signal.get_by_role("button", name="수평 진동 RMS").click()
                 pw.expect(page.locator("#anomaly-signal")).to_have_value(json.dumps([rms]))
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
-                assistant.get_by_role("button", name="비교 시점의 원본 신호 보기").click()
+                assistant.locator(".phm-comparison-details > summary").click()
+                if width == 390:
+                    table = assistant.locator(".phm-feature-comparison").first
+                    assert table.locator("tr").nth(1).bounding_box()["width"] < width
+                    pw.expect(table.locator(".phm-feature-span").first).to_be_visible()
+                assistant.get_by_role("button", name="#1의 비교 원본 신호 확인").click()
                 pw.expect(assistant.locator(".phm-comparison-original h4")).to_contain_text("#1")
                 pw.expect(assistant.locator(".phm-comparison-original .phm-wave")).to_have_count(2)
                 # An answer for the old comparison must disappear as soon as selection changes.
@@ -140,7 +158,7 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 page.reload()
                 pw.expect(assistant.get_by_label("비교 시점")).to_have_value("2")
                 pw.expect(assistant.get_by_label("분석 질문")).to_have_value(
-                    "언제부터 신호가 달라졌어?"
+                    "이전보다 어떤 측정값이 달라졌어?"
                 )
                 pw.expect(assistant.locator(".phm-ai-text")).to_have_text(answer["summary"])
                 page.locator("#anomaly-review-options > summary").click()
@@ -204,6 +222,17 @@ def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
                 assistant = page.locator("#anomaly-assistant")
                 assistant.get_by_label("비교 시점").select_option("1")
                 flow = assistant.locator(".phm-range")
+                pw.expect(
+                    assistant.get_by_role(
+                        "button", name="구간 전체에서 어떤 흐름을 보였어?", exact=True
+                    )
+                ).to_be_visible()
+                pw.expect(
+                    assistant.get_by_role(
+                        "button", name="어느 지점에서 수준이 달라졌어?", exact=True
+                    )
+                ).to_be_visible()
+                assistant.locator(".phm-comparison-details > summary").click()
                 flow.get_by_role("button", name="수준 변화 #5 ↑").first.click()
                 chip = assistant.locator(".phm-focus")
                 pw.expect(chip).to_contain_text("질문 기준 지점 · #5 · 모델 점수 수준 변화")

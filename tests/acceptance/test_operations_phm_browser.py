@@ -131,7 +131,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#rul-observation")).to_contain_text(
-                    "마지막으로 분석된 이전 입력"
+                    "선택 기록 #7의 이전 분석 결과"
                 )
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 분석 RUL 추정")
                 pw.expect(page.locator("#rul-freshness")).to_contain_text("최신 분석 #7")

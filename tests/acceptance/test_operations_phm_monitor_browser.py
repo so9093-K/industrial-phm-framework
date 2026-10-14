@@ -151,3 +151,118 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_attention_actions_open_the_matching_problem_with_visible_context(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    from industrial_phm.application import JsonSourceRepository, OpcUaSourceConfig, RegisteredSource
+    from industrial_phm.connectors import OpcUaNodeMapping
+    from industrial_phm.runtime.operations_web_phm_explanation import request_phm_review
+
+    workspace = phm_workspace(tmp_path / "ws")
+    registry = JsonSourceRepository(workspace.source_registry_path)
+    for source, asset in (("compressor-link", "compressor-01"), ("other-link", "compressor-02")):
+        registry.register(
+            RegisteredSource(
+                source,
+                source,
+                OpcUaSourceConfig(
+                    "opc.tcp://127.0.0.1:4840",
+                    asset,
+                    (OpcUaNodeMapping(channel_id="pressure", node_id="ns=2;s=pressure"),),
+                ),
+                T0,
+            )
+        )
+    for ordinal, scale in enumerate((0.5, 3.0), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    request_phm_review(
+        workspace.root, {"binding_id": "anomaly-a", "position": 2, "explanation_id": None}
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                base = f"http://127.0.0.1:{server.server_port}/web/"
+                page.goto(base + "#monitor")
+                alert = page.locator('.monitor-attention-item[data-asset-id="bearing-a"]')
+                change_action = alert.get_by_role("link", name="신호 변화 확인")
+                change_action.focus()
+                old_action = change_action.element_handle()
+                # Periodic refresh may rebuild cards, but must keep keyboard focus.
+                with page.expect_response("**/api/v1/phm/monitor"):
+                    pw.expect(change_action).to_be_focused()
+                page.wait_for_function("old => !old.isConnected", arg=old_action)
+                pw.expect(change_action).to_be_focused()
+                change_action.press("Enter")
+                pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-a")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("2")
+                pw.expect(page.locator("#anomaly-observation")).to_contain_text("높아졌습니다")
+                pw.expect(page.locator("#anomaly-meaning")).to_contain_text("기준을 넘었습니다")
+                pw.expect(page.locator("#anomaly-meaning")).to_contain_text("확정할 수 없습니다")
+                page.goto(base + "#monitor")
+                alert.get_by_role("link", name="검토 기록 확인").click()
+                panel = page.locator("#anomaly-explanation")
+                pw.expect(panel).to_be_focused()
+                pw.expect(panel).to_contain_text("분석 #2")
+                pw.expect(panel.locator(".phm-review-status")).to_contain_text("확인 대기")
+                pw.expect(panel.locator(".phm-review-help")).to_contain_text("담당자")
+                page.goto(base + "#monitor")
+                receipt = page.locator('.monitor-attention-item[data-asset-id="compressor-01"]')
+                receipt.get_by_role("link", name="데이터 연결 상태 확인").click()
+                connection = page.locator('.source-record[data-source-id="compressor-link"]')
+                pw.expect(connection).to_be_focused()
+                pw.expect(connection.locator(".source-diagnostics")).to_have_attribute("open", "")
+                assert "connect_source=compressor-link" in page.url
+                box = connection.bounding_box()
+                assert box and 0 <= box["y"] < 900
+                pw.expect(page.locator("#asset-switch")).to_have_value("compressor-01")
+                # A different source must not stand in for a missing connection.
+                page.goto(base + "?connect_asset=compressor-01&connect_source=missing#connect")
+                pw.expect(page.locator("#source-status")).to_contain_text(
+                    "선택한 연결을 찾지 못했습니다"
+                )
+                page.goto(base + "#monitor")
+                deliver(workspace, tmp_path / "waves", 3, 4.0)
+                (tmp_path / "waves/3.csv").write_text("corrupted after delivery")
+                analyze(workspace)
+                alert.get_by_role("button", name="분석 입력·모델 확인").click()
+                model = page.locator('.monitor-model[data-binding-id="anomaly-a"]')
+                pw.expect(model).to_be_focused()
+                pw.expect(model).to_contain_text("분석 거부")
+                pw.expect(model.locator("details")).to_have_attribute("open", "")
+                box = model.bounding_box()
+                assert box and 0 <= box["y"] < 900
+                deliver(workspace, tmp_path / "waves", 4, 0.6)
+                alert.get_by_role("button", name="분석 진행 확인").click()
+                pw.expect(model).to_contain_text("새 입력 분석 대기")
+                page.goto(base + "?phm_binding=rul-a&phm_position=1&phm_view=rul#rul")
+                pw.expect(page.locator("#rul-title")).to_have_text("기록 기반 잔여 구간 추정(RUL)")
+                pw.expect(page.locator("#rul-meaning")).to_contain_text("남은 운전시간")
+                page.locator("#rul-position").focus()
+                with page.expect_response("**/api/v1/phm/series?*"):
+                    pw.expect(page.locator("#rul-position")).to_be_focused()
+                pw.expect(page.locator("#rul-position")).to_be_focused()
+                page.locator("#rul-position").press("ArrowDown")
+                pw.expect(page.locator("#rul-observation")).to_contain_text("선택 기록 #2")
+                assert "phm_position=2" in page.url
+                page.reload()
+                pw.expect(page.locator("#rul-position")).to_have_value("2")
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

@@ -467,28 +467,28 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(listing.locator(".source-diagnostics")).not_to_have_attribute("open", "")
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 0개")
                 pw.expect(page.locator("#onboarding-source-select")).to_have_value("journey-file")
-                page.get_by_role("button", name="소스 활성화 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="소스 활성화")).to_be_focused()
+                page.get_by_role("button", name="이 연결 사용하기 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="이 연결 사용하기")).to_be_focused()
                 pw.expect(handoff).to_be_hidden()
                 assert not workspace.history_catalog_path.exists()
-                listing.get_by_role("button", name="소스 활성화").click()
+                listing.get_by_role("button", name="이 연결 사용하기").click()
                 pw.expect(listing).to_contain_text("관리 상태: active")
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 1개")
                 pw.expect(page.locator("#onboarding-next")).to_contain_text("수신을 확인하세요")
-                page.get_by_role("button", name="FILE 수신 확인 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="FILE 수신 확인")).to_be_focused()
+                page.get_by_role("button", name="파일 읽기 확인 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="파일 읽기 확인")).to_be_focused()
                 pw.expect(handoff).to_be_hidden()
-                listing.get_by_role("button", name="FILE 수신 확인").click()
-                pw.expect(listing).to_contain_text("CSV 수신 확인됨")
-                pw.expect(listing.locator(".receipt-confirmed")).to_contain_text("CSV 수신 확인됨")
+                listing.get_by_role("button", name="파일 읽기 확인").click()
+                pw.expect(listing).to_contain_text("파일 읽기 확인됨")
+                pw.expect(listing.locator(".receipt-confirmed")).to_contain_text("파일 읽기 확인됨")
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "사용 중이면서 수신을 확인한 소스 1개"
                 )
                 pw.expect(page.locator("#onboarding-next")).to_contain_text(
                     "모니터링에서 측정값을 볼 수 있습니다"
                 )
-                page.get_by_role("button", name="FILE 이력 적재 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="FILE 이력 적재")).to_be_focused()
+                page.get_by_role("button", name="측정 이력 저장 버튼 찾기").click()
+                pw.expect(listing.get_by_role("button", name="측정 이력 저장")).to_be_focused()
                 page.locator('nav a[href="#connect"]').click()
                 if page.locator("#connection-progress").get_attribute("open") is None:
                     page.locator("#connection-progress > summary").click()
@@ -499,7 +499,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     "aria-current", "page"
                 )
                 page.locator('nav a[href="#connect"]').click()
-                listing.get_by_role("button", name="FILE 이력 적재").click()
+                listing.get_by_role("button", name="측정 이력 저장").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "6개 이벤트", timeout=30000
                 )
@@ -586,10 +586,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 phase_card = page.locator('.source-record[data-source-id="phase-file"]')
                 pw.expect(phase_card).to_contain_text("등록된 3상 역할 3개", timeout=30000)
-                phase_card.get_by_role("button", name="소스 활성화").click()
+                phase_card.get_by_role("button", name="이 연결 사용하기").click()
                 pw.expect(phase_card).to_contain_text("관리 상태: active")
-                phase_card.get_by_role("button", name="FILE 수신 확인").click()
-                pw.expect(phase_card).to_contain_text("CSV 수신 확인됨")
+                phase_card.get_by_role("button", name="파일 읽기 확인").click()
+                pw.expect(phase_card).to_contain_text("파일 읽기 확인됨")
                 phase_card.locator(".source-settings > summary").click()
                 phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
@@ -598,9 +598,9 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 assert not SqlitePhaseUnbalanceRepository(
                     workspace.phase_unbalance_state_path
                 ).list_results()
-                phase_card.get_by_role("button", name="FILE 이력 적재").click()
+                phase_card.get_by_role("button", name="측정 이력 저장").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "DuckLake 이력 적재 완료", timeout=30000
+                    "측정 이력 저장 완료", timeout=30000
                 )
                 phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
@@ -1558,7 +1558,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text("수신 미확인")
                 assert not workspace.history_catalog_path.exists()
 
-                listing.get_by_role("button", name="소스 활성화").click()
+                listing.get_by_role("button", name="이 연결 사용하기").click()
                 pw.expect(listing).to_contain_text("관리 상태: active")
                 listing.locator(".source-settings > summary").click()
                 listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
