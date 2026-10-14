@@ -47,6 +47,7 @@ from industrial_phm.runtime import (
     OperationsComponentKind,
     OperationsProcessEvidence,
     OperationsRuntimeConfig,
+    OperationsSupervisorNotRunning,
     OperationsSupervisorStateKind,
     OperationsUiMode,
     OperationsWorkspace,
@@ -66,6 +67,7 @@ from industrial_phm.runtime import (
     restore_operations_backup,
     run_collection_service,
     run_operations_supervisor,
+    stop_leftover_components,
     tail_operations_component_log,
 )
 from industrial_phm.runtime.operations_retention import apply_operations_retention
@@ -98,6 +100,12 @@ def _run_operations_up(args: argparse.Namespace) -> int:
         else "existing"
     )
     print(f"workspace={workspace.root} state={state}", flush=True)
+    if leftover := stop_leftover_components(workspace):
+        print(
+            f"workspace={workspace.root} leftover_stopped={','.join(map(str, leftover))} "
+            "(components of an earlier run that ended without stopping them)",
+            flush=True,
+        )
     return _start_operations_workspace(
         workspace, initialization.config, ui_mode=OperationsUiMode(args.ui)
     )
@@ -271,6 +279,24 @@ def _run_operations_stop(args: argparse.Namespace) -> int:
     workspace = OperationsWorkspace(args.workspace)
     try:
         pid = request_operations_supervisor_stop(workspace)
+    except OperationsSupervisorNotRunning as error:
+        # Stopping what is already stopped is done: clear what a vanished supervisor left
+        # running, and say how it last ended.
+        last = error.state
+        leftover = stop_leftover_components(workspace)
+        ended = (
+            "none"
+            if last is None
+            else "ended-without-stopping"
+            if last.state.value == "running"
+            else last.state.value
+        )
+        print(
+            f"workspace={workspace.root} stop=already-stopped last_state={ended}"
+            + (f" detail={last.failure}" if last is not None and last.failure else "")
+            + (f" leftover_stopped={','.join(map(str, leftover))}" if leftover else "")
+        )
+        return 0
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime stop failed: {error}", file=sys.stderr)
         return 1

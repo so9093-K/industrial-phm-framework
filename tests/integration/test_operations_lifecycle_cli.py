@@ -238,3 +238,69 @@ def test_operations_stop_requests_supervisor_shutdown(
     assert exit_code == 0
     assert captured["workspace"] == workspace
     assert "stop=requested supervisor_pid=701" in capsys.readouterr().out
+
+
+def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
+    tmp_path: Path, capsys
+) -> None:
+    import subprocess
+    import sys
+    from datetime import UTC, datetime
+
+    from industrial_phm.runtime.operations_runtime import OperationsComponentKind
+    from industrial_phm.runtime.operations_supervisor import (
+        OperationsChildProcessState,
+        OperationsSupervisorState,
+        OperationsSupervisorStateKind,
+        OperationsSupervisorStateRepository,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "plant-a")
+    initialize_operations_workspace(workspace)
+    assert main(["operations", "stop", str(workspace.root)]) == 0
+    assert "stop=already-stopped last_state=none" in capsys.readouterr().out
+
+    # A supervisor that vanished while its analysis kept running, and an unrelated process
+    # that happens to sit at the recorded collection PID.
+    workspace.logs_path.mkdir(parents=True, exist_ok=True)
+    log = (workspace.logs_path / "analysis.log").open("ab")
+    left = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"], stdout=log, stderr=log
+    )
+    unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    at = datetime(2026, 10, 14, 1, 0, tzinfo=UTC)
+    OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
+        OperationsSupervisorState(
+            state=OperationsSupervisorStateKind.RUNNING,
+            supervisor_pid=unrelated.pid,
+            started_at=at,
+            updated_at=at,
+            components=(
+                OperationsChildProcessState(
+                    OperationsComponentKind.COLLECTION,
+                    unrelated.pid,
+                    workspace.logs_path / "collection.log",
+                ),
+                OperationsChildProcessState(
+                    OperationsComponentKind.ANALYSIS, left.pid, workspace.logs_path / "analysis.log"
+                ),
+            ),
+        )
+    )
+    try:
+        assert main(["operations", "stop", str(workspace.root)]) == 0
+        out = capsys.readouterr().out
+        assert "last_state=ended-without-stopping" in out
+        assert f"leftover_stopped={left.pid}" in out
+        assert left.wait(timeout=5) is not None
+        assert unrelated.poll() is None
+        recorded = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
+        assert recorded is not None and recorded.state == OperationsSupervisorStateKind.FAILED
+        assert recorded.failure == "supervisor ended without stopping its components"
+        assert main(["operations", "stop", str(workspace.root)]) == 0
+        assert "last_state=failed" in capsys.readouterr().out
+    finally:
+        log.close()
+        for process in (left, unrelated):
+            process.kill()
+            process.wait()

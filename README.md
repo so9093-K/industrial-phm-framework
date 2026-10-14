@@ -39,6 +39,10 @@ make logs
 make down
 ```
 
+실행 중인 터미널에서 Ctrl-C로 멈춰도 정상 종료로 기록됩니다. `make down`은 이미 멈춰 있으면 마지막 종료 상태만
+알려주고, 이전 실행이 비정상 종료돼 수집·분석·Web 프로세스가 남아 있으면 그 작업공간의 프로세스만 골라 정리합니다.
+`make up`도 시작 전에 같은 정리를 합니다.
+
 기본 작업공간은 `artifacts/operations`입니다. 별도 작업공간은
 `make up WORKSPACE=/absolute/path`처럼 지정합니다.
 원본 데이터 없이 흐름을 확인하려면 별도 합성 작업공간을 사용하는 `make demo`를 실행할 수 있습니다.

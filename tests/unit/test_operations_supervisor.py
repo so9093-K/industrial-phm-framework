@@ -351,3 +351,53 @@ def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> 
     assert result.exit_code == 0
     assert result.state.state == OperationsSupervisorStateKind.STOPPED
     assert all(process.signals == [signal.SIGINT] for process in processes.values())
+
+
+def _interrupted_run(tmp_path: Path, raised_signal: int | None):
+    """Analysis already exited 130 when first polled: a terminal Ctrl-C reached it first."""
+    plan = _plan(tmp_path / "plant-a")
+    repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
+    processes: dict[OperationsComponentKind, _FakeProcess] = {}
+
+    def launch(component: OperationsComponentLaunch) -> _FakeProcess:
+        process = _FakeProcess(
+            800 + len(processes),
+            return_code=130 if component.kind == OperationsComponentKind.ANALYSIS else None,
+        )
+        processes[component.kind] = process
+        return process
+
+    start = datetime(2026, 10, 14, 1, 0, tzinfo=UTC)
+    times = iter(start + timedelta(seconds=i) for i in range(10))
+    raised = False
+
+    def deliver_own_signal(_seconds: float) -> None:
+        nonlocal raised
+        if raised_signal is not None and not raised:
+            raised = True
+            signal.raise_signal(raised_signal)
+
+    return run_operations_supervisor(
+        plan,
+        repository=repository,
+        process_launcher=launch,
+        now=lambda: next(times),
+        sleep=deliver_own_signal,
+    )
+
+
+@pytest.mark.parametrize("own_signal", [signal.SIGINT, signal.SIGHUP])
+def test_terminal_interrupt_that_reaches_components_first_is_a_clean_stop(
+    tmp_path: Path, own_signal: int
+) -> None:
+    result = _interrupted_run(tmp_path, own_signal)
+    assert result.exit_code == 0
+    assert result.state.state == OperationsSupervisorStateKind.STOPPED
+    assert result.state.failure is None
+
+
+def test_component_interrupted_without_a_stop_request_is_still_a_failure(tmp_path: Path) -> None:
+    result = _interrupted_run(tmp_path, None)
+    assert result.exit_code == 1
+    assert result.state.state == OperationsSupervisorStateKind.FAILED
+    assert result.state.failure == "analysis exited with code 130"

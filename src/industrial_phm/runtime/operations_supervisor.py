@@ -10,7 +10,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -214,6 +214,18 @@ class OperationsSupervisorResult:
             raise ValueError("exit_code must be an integer")
 
 
+class OperationsSupervisorNotRunning(RuntimeError):
+    """No live supervisor owns the workspace; there is nothing to stop."""
+
+    def __init__(self, message: str, state: OperationsSupervisorState | None) -> None:
+        super().__init__(message)
+        self.state = state
+
+
+# Exit codes of a component that stopped because it was interrupted, not because it failed.
+_INTERRUPTED = {0, 130, 143, -signal.SIGINT, -signal.SIGTERM, -signal.SIGHUP}
+
+
 def request_operations_supervisor_stop(
     workspace: OperationsWorkspace,
     *,
@@ -232,15 +244,19 @@ def request_operations_supervisor_stop(
 
     state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
     if state is None:
-        raise RuntimeError(f"Operations supervisor state is unavailable for {workspace.root}")
+        raise OperationsSupervisorNotRunning(
+            f"Operations supervisor has not run for {workspace.root}", None
+        )
     if state.state != OperationsSupervisorStateKind.RUNNING:
-        raise RuntimeError(
-            f"Operations supervisor is not running for {workspace.root}: {state.state.value}"
+        raise OperationsSupervisorNotRunning(
+            f"Operations supervisor is not running for {workspace.root}: {state.state.value}", state
         )
 
     lock_path = workspace.supervisor_lock_path
     if not lock_path.is_file():
-        raise RuntimeError(f"Operations supervisor lock is unavailable for {workspace.root}")
+        raise OperationsSupervisorNotRunning(
+            f"Operations supervisor lock is unavailable for {workspace.root}", state
+        )
     with lock_path.open("a+") as handle:
         try:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -259,22 +275,76 @@ def request_operations_supervisor_stop(
                     f"{workspace.root}: state_pid={state.supervisor_pid} lock_pid={owner_pid}"
                 ) from None
         else:
+            # The supervisor ended without recording it (for example it was killed).
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-            raise RuntimeError(
-                f"Operations supervisor lock is not owned for {workspace.root}; refusing stale PID"
+            raise OperationsSupervisorNotRunning(
+                f"Operations supervisor lock is not owned for {workspace.root}; refusing stale PID",
+                state,
             )
 
     try:
         signal_sender(state.supervisor_pid, signal.SIGINT)
     except ProcessLookupError as error:
-        raise RuntimeError(
-            f"Operations supervisor process no longer exists: pid={state.supervisor_pid}"
+        raise OperationsSupervisorNotRunning(
+            f"Operations supervisor process no longer exists: pid={state.supervisor_pid}", state
         ) from error
     except PermissionError as error:
         raise RuntimeError(
             f"permission denied signaling Operations supervisor: pid={state.supervisor_pid}"
         ) from error
     return state.supervisor_pid
+
+
+def stop_leftover_components(
+    workspace: OperationsWorkspace, *, timeout_seconds: float = 10.0
+) -> tuple[int, ...]:
+    """Stop components a vanished supervisor left running, and only those.
+
+    A process counts as this workspace's component only when no supervisor holds the
+    workspace lock and its stdout is that component's log file in this workspace, so a
+    process that merely reused a recorded PID is never signaled.
+    """
+    state = OperationsSupervisorStateRepository(workspace.supervisor_state_path).load()
+    proc = Path("/proc")
+    if state is None or fcntl is None or not proc.is_dir():
+        return ()
+    lock_path = workspace.supervisor_lock_path
+    if lock_path.is_file():
+        with lock_path.open("a+") as handle:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return ()  # a live supervisor owns these processes
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    leftover = []
+    for component in state.components:
+        expected = (workspace.logs_path / component.log_path.name).resolve()
+        try:
+            if Path(os.readlink(proc / str(component.pid) / "fd" / "1")) == expected:
+                leftover.append(component.pid)
+        except OSError:
+            continue
+    if state.state == OperationsSupervisorStateKind.RUNNING:
+        # The record still says running; say how that run really ended.
+        OperationsSupervisorStateRepository(workspace.supervisor_state_path).write(
+            replace(
+                state,
+                state=OperationsSupervisorStateKind.FAILED,
+                updated_at=max(state.updated_at, datetime.now(UTC)),
+                failure="supervisor ended without stopping its components",
+            )
+        )
+    for pid in leftover:
+        with suppress(ProcessLookupError):
+            os.kill(pid, signal.SIGINT)
+    deadline = time.monotonic() + timeout_seconds
+    for pid in leftover:
+        while (proc / str(pid)).exists() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if (proc / str(pid)).exists():
+            with suppress(ProcessLookupError):
+                os.kill(pid, signal.SIGKILL)
+    return tuple(leftover)
 
 
 def run_operations_supervisor(
@@ -367,6 +437,10 @@ def run_operations_supervisor(
             ),
         )
         last_heartbeat_at = started_at
+
+        def stopping() -> bool:
+            return effective_stop_requested() or signal_stop_requested()
+
         try:
             effective_repository.write(running_state)
             while True:
@@ -375,7 +449,11 @@ def run_operations_supervisor(
                     for launch, child in children
                     if (return_code := child.poll()) is not None
                 )
-                if exited:
+                # A terminal Ctrl-C or hangup reaches the components and this process together;
+                # a component that stops first for it is part of the stop, not a failure.
+                if exited and not stopping() and all(c in _INTERRUPTED for *_, c in exited):
+                    sleep(poll_interval_seconds)
+                if exited and not stopping():
                     detail = ", ".join(
                         f"{launch.kind.value} exited with code {return_code}"
                         for launch, _, return_code in exited
@@ -397,7 +475,7 @@ def run_operations_supervisor(
                     effective_repository.write(state)
                     return OperationsSupervisorResult(state, 1)
 
-                if effective_stop_requested() or signal_stop_requested():
+                if stopping():
                     _stop_children(
                         children,
                         graceful_timeout_seconds=graceful_timeout_seconds,
@@ -464,7 +542,7 @@ def _supervisor_web_command_scope(
 
 @contextmanager
 def _supervisor_stop_signal() -> Iterator[Callable[[], bool]]:
-    """Translate SIGINT/SIGTERM into the supervisor's coordinated stop path."""
+    """Translate SIGINT/SIGTERM/SIGHUP (terminal closed) into the coordinated stop path."""
     requested = False
 
     if threading.current_thread() is not threading.main_thread():
@@ -478,7 +556,7 @@ def _supervisor_stop_signal() -> Iterator[Callable[[], bool]]:
         requested = True
 
     try:
-        for item in (signal.SIGINT, signal.SIGTERM):
+        for item in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             previous_handlers[item] = signal.getsignal(item)
             signal.signal(item, request_stop)
         yield lambda: requested
