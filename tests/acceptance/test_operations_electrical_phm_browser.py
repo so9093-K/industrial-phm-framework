@@ -81,6 +81,20 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(raw).to_contain_text("관측 5개")
                 page.get_by_label("원본 측정 신호").select_option("Hz")
                 pw.expect(raw.locator(".monitor-raw-line")).to_have_count(1)
+                assistant = page.locator("#anomaly-assistant")
+                page.locator("#anomaly-ask").click()
+                assistant.locator(".phm-feature-comparison").get_by_role(
+                    "button", name="R상 평균 전류(A)"
+                ).click()
+                original = assistant.locator(".phm-comparison-original")
+                pw.expect(original.locator(".phm-original-context")).to_contain_text(
+                    "선택한 특징: R상 평균 전류(A) · 관련 원본: R상 전류(A) 측정 윈도우"
+                )
+                pw.expect(original.get_by_label("원본 측정 신호")).to_have_value("A")
+                pw.expect(original.locator(".phm-original-selected-line")).to_have_count(1)
+                pw.expect(original.locator(".phm-original-selected-line")).to_have_class(
+                    re.compile("phase-0")
+                )
                 windows.record_window(electrical_window("w3", START + timedelta(minutes=15), 10.0))
                 run_window_bindings(store, windows, PackageCache(workspace.models_path))
                 page.locator("#refresh").click()

@@ -410,3 +410,17 @@ button.monitor-next{background:white;border:1px solid #b9cad5;padding:6px 10px}
   .phm-feature-span{display:block;font-size:.9rem;color:#526c79}.phm-ai-mentioned td:first-child{box-shadow:none}
   .phm-answer-signals li{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px}.phm-answer-signals li button{grid-column:1/-1}
 }
+.phm-panel .condition-card small{font-size:.9rem;line-height:1.6}
+.phm-mae-meaning{display:block;margin:6px 0;line-height:1.6}
+.phm-validation-note button{font-size:.94rem;min-height:40px;margin-top:5px;background:#fff;color:#245d70;border-color:#b9cad5}
+.phm-original-context{font-size:.98rem;font-weight:650;line-height:1.6;color:#245d70;overflow-wrap:anywhere}
+.phm-original-selected{border:2px solid #438a8b;border-radius:8px;padding:8px;background:#eef7f4}
+.phm-original-selected-line{stroke-width:3!important}
+@media(max-width:650px){
+  .phm-range-table tr{display:grid;grid-template-columns:1fr;gap:8px;padding:12px;background:#fff;border:1px solid #d3e2e9;border-radius:9px;margin:10px 0}
+  .phm-range-table tr:first-child{display:none}.phm-range-table td{border:0;padding:0;overflow-wrap:anywhere}
+  .phm-range-table td:first-child{font-weight:700;color:#254a5e}
+  .phm-range-table .phm-range-trend::before{content:"흐름 · ";color:#526c79}
+  .phm-range-table .phm-range-points{display:grid;gap:8px;border-top:1px solid #edf2f5;padding-top:8px}
+  .phm-range-table .phm-range-points button{display:block;width:100%;text-align:left;white-space:normal;line-height:1.6}
+}
