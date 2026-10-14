@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
                 panel.get_by_role("button", name="검토 확인").click()
                 expect(panel.locator(".phm-review-status")).to_contain_text("종료 가능")
                 panel.get_by_role("button", name="검토 종료").click()
-                expect(panel.locator(".phm-review-status")).to_contain_text("정비 완료 아님")
+                expect(panel.locator(".phm-review-status")).to_contain_text("검토 완료")
                 checks.add(args.scenario + "-ai-unavailable-does-not-block-review", True)
                 page.screenshot(
                     path=str(output / f"{args.scenario}-ai-unavailable-review-1440.png"),

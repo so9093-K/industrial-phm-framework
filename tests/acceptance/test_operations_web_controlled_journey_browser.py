@@ -412,21 +412,6 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#asset-switch")).to_be_disabled()
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
-                page.locator("#operator-guide > summary").click()
-                guide = page.locator("#operator-reference-en")
-                pw.expect(guide.locator("summary")).to_have_attribute("lang", "en")
-                guide.locator("summary").click()
-                pw.expect(guide.locator('div[lang="en"]')).to_contain_text("Accepted receipt:")
-                pw.expect(guide.locator('div[lang="en"]')).to_contain_text(
-                    "not evidence of physical maintenance"
-                )
-                pw.expect(page.get_by_role("heading", name="화면 상태 해석 기준")).to_be_visible()
-                pw.expect(page.locator("#operator-meaning")).to_contain_text(
-                    "최근 데이터 수신은 설비 정상·고장 진단이 아닙니다"
-                )
-                pw.expect(page.locator("#operator-meaning")).to_contain_text(
-                    "검토 기록 종료도 실제 정비 완료"
-                )
                 assert page.locator("#last-values .latest-item").count() == 0
                 page.get_by_role("link", name="데이터 연결", exact=True).click()
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
@@ -1599,7 +1584,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                     "OPC UA 이력 저장(DuckLake 커밋):", timeout=30000
                 )
                 pw.expect(_stored_values(page)).to_contain_text(source_id, timeout=30000)
-                pw.expect(page.locator("#last-values")).to_contain_text("현재 상태가 아님")
+                pw.expect(page.locator("#last-values")).to_contain_text("마지막 저장된 측정값")
                 browser_evidence(page, "receiving")
                 page.locator('nav a[href="#connect"]').click()
 
@@ -1623,9 +1608,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록:", timeout=30000)
                 pw.expect(listing).to_contain_text("현재 연결 미확인")
                 pw.expect(listing).not_to_contain_text("OPC UA 세션 마지막 기록: CONNECTED")
-                pw.expect(_stored_values(page)).to_contain_text(
-                    "마지막 저장된 측정값 · 현재 상태가 아님"
-                )
+                pw.expect(_stored_values(page)).to_contain_text("마지막 저장된 측정값")
                 browser_evidence(page, "disconnected")
                 page.locator('nav a[href="#connect"]').click()
 

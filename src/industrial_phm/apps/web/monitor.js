@@ -10,11 +10,13 @@ const time = (at) => formatTime(at, {missing: "미확인"});
 const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미평가";
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
 const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
-const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 종료 · 정비 완료 아님"};
+const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 완료"};
 // Data-flow evidence of the asset, independent of any connected model.
-const flowLabels = {running: "수신 흐름 근거 있음", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지", "needs-attention": "수신 확인 필요",
-  error: "수신 오류", unavailable: "수신 상태 미확인", "stored-history": "저장된 과거 기록"};
+const flowLabels = {running: "수신 중", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지", "needs-attention": "수신 확인 필요",
+  error: "수신 오류", unavailable: "수신 상태 미확인", "stored-history": "저장된 기록"};
 const HISTORY = "stored-history";
+// A connection or processing problem is shown as what it is, never as a change of the equipment.
+const NOTE_KIND = {threshold: "신호 변화", refusal: "분석 처리", unavailable: "분석 처리", pending: "분석 처리", receipt: "데이터 수신", read: "데이터 수신", review: "검토"};
 let timer = null, running = false, refreshRequested = false, readOperations;
 let lastData = null, lastBase = null, selectedAsset = currentAsset(), selectedStream = "", previousInput = false;
 let explicitStream = false;
@@ -51,17 +53,18 @@ function assetFacts(assetId, items, base) {
   const count = (state) => items.filter((i) => i.processing_state === state).length;
   if (count("rejected")) {
     const causes = [...new Set(items.filter((i) => i.processing_state === "rejected").map((i) => friendlyReason(i.processing_reason)))];
-    notes.push({kind: "refusal", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 0});
+    notes.push({kind: "refusal", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 1});
   }
-  if (count("unavailable")) notes.push({kind: "unavailable", label: "분석 실행 불가", detail: count("unavailable") + "개 분석의 입력·모델 확인", priority: 0});
+  if (count("unavailable")) notes.push({kind: "unavailable", label: "분석 실행 불가", detail: count("unavailable") + "개 분석의 입력·모델 확인", priority: 1});
   const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === assetId && s.continuous_collection_supported);
-  if (base.errors.length) notes.push({kind: "read", label: "수신 근거 조회 미확인", detail: "데이터 연결 확인", priority: 1});
-  else if (sources.some((s) => !s.last_live_receive_fresh)) notes.push({kind: "receipt", label: "최근 수신 미확인", detail: "30초 이내 수신 근거 없음 · 연결·재생 여부 확인", priority: 1});
-  if (count("pending")) notes.push({kind: "pending", label: "새 입력 분석 대기", detail: count("pending") + "개 분석 · 이전 결과와 구분", priority: 2});
+  if (base.errors.length) notes.push({kind: "read", label: "수신 상태를 읽지 못함", detail: "데이터 연결 확인", priority: 2});
+  else if (sources.some((s) => !s.last_live_receive_fresh)) notes.push({kind: "receipt", label: "최근 30초 수신 없음", detail: "연결·재생 상태 확인", priority: 2});
+  if (count("pending")) notes.push({kind: "pending", label: "새 입력 분석 대기", detail: count("pending") + "개 분석", priority: 3});
   const compared = items.filter((i) => i.processing_state === "processed" && typeof i.latest_analyzed?.output.exceeds_threshold === "boolean");
   const exceeded = compared.filter((i) => i.latest_analyzed.output.exceeds_threshold);
-  if (exceeded.length) notes.push({kind: "threshold", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "진동 변화 확인 필요" : "전기 신호 변화 확인 필요", detail: "저장된 참고 기준 초과 · 신호 추세 확인 (" + exceeded.length + "개 분석)", priority: 3});
-  if (items.some((i) => ["open", "acknowledged"].includes(i.latest_review_status))) notes.push({kind: "review", label: "사람 검토 대기", detail: "선택 분석의 검토 상태 확인", priority: 4});
+  if (exceeded.length) notes.push({kind: "threshold", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "진동 변화 확인 필요" : "전기 신호 변화 확인 필요", detail: "참고 기준 초과 " + exceeded.length + "개 분석 · 신호 추세 확인", priority: 0});
+  if (items.some((i) => ["open", "acknowledged"].includes(i.latest_review_status))) notes.push({kind: "review", label: "검토 진행 중", detail: "분석 결과의 검토 상태 확인", priority: 4});
+  notes.sort((a, b) => a.priority - b.priority);
   return {assetId, items, notes, compared, exceeded, warmup: count("warmup"), waiting: count("waiting"), priority: notes[0]?.priority ?? 5};
 }
 // The shared asset bar owns the selection; this view resets its own stream state when it changes.
@@ -104,11 +107,13 @@ function render(data, base) {
     + (data.review_read_error ? " · 검토 조회 미확인" : "");
   const attention = facts.filter((f) => f.notes.length);
   const attentionRoot = byId("monitor-attention-list");attentionRoot.replaceChildren();
-  byId("monitor-attention-count").textContent = attention.length + "대 · 운영 확인 항목";
-  if (!attention.length) attentionRoot.append(node("p", "현재 조회 범위에 별도 확인 항목이 없습니다. 설비 정상 판정이 아닙니다.", "muted"));
+  byId("monitor-attention-count").textContent = attention.length + "대";
+  if (!attention.length) attentionRoot.append(node("p", "지금 확인할 항목이 없습니다.", "muted"));
   for (const f of attention.slice(0, 4)) {
     const button = node("button", "", "monitor-attention-item");button.type = "button";button.dataset.assetId = f.assetId;
-    button.append(node("strong", assetName(f.assetId)), node("span", f.notes.map((n) => n.label).join(" · ")), node("small", f.notes[0].detail + " → 신호 보기"));
+    const kinds = node("span", "", "monitor-attention-notes");
+    for (const n of f.notes) {const line = node("span");line.append(node("b", NOTE_KIND[n.kind] + " ", "monitor-attention-kind"), document.createTextNode(n.label));kinds.append(line);}
+    button.append(node("strong", assetName(f.assetId)), kinds, node("small", f.notes[0].detail + " → 신호 보기"));
     const observation = node("small", "", "monitor-attention-observation");observation.hidden = true;button.append(observation);
     button.addEventListener("click", () => {selectAsset(f.assetId);byId("monitor-signal-title").focus({preventScroll: true});});attentionRoot.append(button);
   }
@@ -126,13 +131,13 @@ function render(data, base) {
       : flowLabels[row?.data_flow_status] || "수신 상태 미확인");
     const assetSources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === f.assetId);
     const fileOnly = assetSources.length && assetSources.every((s) => s.source_type === "file");
-    const collection = fileOnly ? assetSources.some((s) => s.receipt_confirmed) ? "파일 검증 수신 확인" : "파일 수신 미확인"
-      : flowLabels[row?.data_flow_status] || "수신 상태 미확인";
+    // Live freshness applies only to continuous collection; files and replays are stored records.
+    const collection = fileOnly ? "파일 데이터" : !row ? (f.items.some(replay) ? "기록 재생" : "분석 입력")
+      : flowLabels[row.data_flow_status] || "수신 상태 미확인";
     button.append(heading, node("span", "수집 · " + collection, "monitor-asset-status"));
-    button.append(node("span", "분석 · " + (f.items.length ? message : data.unavailable ? "조회 실패" : "PHM 연결 없음"), f.notes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
+    button.append(node("span", "분석 · " + (f.items.length ? message : data.unavailable ? "조회 실패" : "연결된 모델 없음"), analysisNotes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
     button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : dataTime(row)));
-    if (!f.items.length) button.append(node("small", data.unavailable ? "PHM 분석 조회 실패" : "PHM 분석 연결 안 됨"));
     button.append(node("small", "", "monitor-asset-observation"));
     button.addEventListener("click", () => selectAsset(f.assetId));root.append(button);
   }
@@ -163,7 +168,7 @@ function render(data, base) {
   }
   streamSelect.value = selectedStream;byId("monitor-stream-field").hidden = streamSelect.options.length < 2;
   byId("monitor-signal-title").textContent = assetName(selectedAsset) + " · 측정 신호";byId("monitor-signal-title").tabIndex = -1;
-  byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결 분석 " + selected.items.length + "개 · 기준 비교는 고장 판정이 아닙니다.";
+  byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결된 분석 " + selected.items.length + "개";
   if (byId("monitor-analysis-details").open) renderDetails(selected);
   else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
   if (!item) {
@@ -328,7 +333,7 @@ function paintSignal() {
     const absent = steps.at(-1).position - steps[0].position + 1 - steps.length;
     const rejected = steps.filter((s) => s.state === "skipped").length;
     byId("monitor-signal-legend").textContent = (all ? "조회 기록" : "최근 연속 기록") + " #" + shown[0].position + "–#" + shown.at(-1).position
-      + (absent || rejected ? " · 기록 공백 " + absent + "개 · 분석 거부 " + rejected + "개" : "") + " · 크기 변화는 고장 판정이 아닙니다.";
+      + (absent || rejected ? " · 기록 공백 " + absent + "개 · 분석 거부 " + rejected + "개" : "");
     return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);

@@ -30,7 +30,6 @@ def test_empty_workspace_start_routes_and_read_failures(tmp_path: Path, width: i
                 pw.expect(page.locator("#workspace-start")).to_be_visible()
                 pw.expect(page.locator("#first-run")).to_be_hidden()
                 pw.expect(page.locator("#connect")).to_be_hidden()
-                pw.expect(page.locator("#operator-meaning")).to_be_hidden()
                 for link in page.locator("#workspace-start a").all():
                     box = link.bounding_box()
                     assert box and box["y"] >= 0 and box["y"] + box["height"] <= 800

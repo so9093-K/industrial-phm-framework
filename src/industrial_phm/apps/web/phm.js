@@ -360,7 +360,7 @@ function renderAnomaly() {
       : "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
   } else {
     state.className = "state";
-    state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") + " · 점수는 고장 확률이나 진단이 아닙니다.";
+    state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") ;
   }
   if (analyzed.length && steps.at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + steps.at(-1).reason;
   if (entry.package && entry.package.validation && entry.package.validation.acceptance === "not-yet-evaluated") {
@@ -544,7 +544,7 @@ async function focusStep(position, pin = true) {
     for (const [name, value] of Object.entries(step.output.feature_contributions).sort((a, b) => b[1] - a[1])) {
       contributions.append(node("span", featureLabel(name) + " · " + number(value)));
     }
-    metadata.append(contributions, node("p", "잔차 기여는 모델 점수의 분해이며 물리적 고장 원인 판정은 아닙니다.", "muted"));
+    metadata.append(contributions, node("p", "모델 점수에 각 특징이 기여한 크기입니다.", "muted"));
   }
   root.append(metadata);
   if (entry.binding.step_kind === "observation-window") {
@@ -646,11 +646,11 @@ function renderRul() {
   const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
   byId("rul-observation").textContent = latestRulSkipped
     ? "최근 입력은 분석되지 않았습니다. 아래 추정은 마지막으로 분석된 이전 입력의 결과입니다."
-    : "기록된 마지막 획득 시점까지의 추정입니다. 실제 고장 시점 예측이 아닙니다.";
+    : "마지막 기록 시점까지의 입력으로 계산한 잔여 수명 추정입니다.";
   const unit = unitText(last.output.unit);
   const period = output.step_period_seconds;
   state.className = "state";
-  state.textContent = "종료점 의미: " + endpointText(last.output.endpoint_semantics) + " · 신뢰구간은 검증되지 않아 표시하지 않습니다.";
+  state.textContent = "종료점: " + endpointText(last.output.endpoint_semantics);
   const validation = (entry.package && entry.package.validation) || {};
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
@@ -661,14 +661,10 @@ function renderRul() {
   const mae = validation.mean_asset_mean_absolute_error;
   byId("rul-validation-note").textContent = typeof mae === "number"
     ? (validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차" : "검증 오차") + " (MAE) " + number(mae, 1) + " " + unit
-      + (sameAsset ? " · 이 설비 검증 MAE " + number(sameAsset.mean_absolute_error, 1) : " · 이 설비에서 직접 검증된 수치가 아닙니다.")
-      + " · 이 수치는 개별 추정의 신뢰구간이 아닙니다."
-    : "이 추정의 검증 오차를 표시할 근거가 없습니다.";
+      + (sameAsset ? " · 이 설비 MAE " + number(sameAsset.mean_absolute_error, 1) : "")
+    : "";
   if (last.output.sequence_positions) {
     state.textContent += " · 과거 " + last.output.sequence_positions.length + "개 획득으로 계산";
-  }
-  if (validation.metrics_origin === "recorded-research-model") {
-    state.textContent += " · MAE는 기존 연구 수치이며 이 가중치의 별도 성능 검증이 아닙니다.";
   }
   if (orderedSteps(entry).at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + orderedSteps(entry).at(-1).reason;
   const axis = axisFor(entry);
@@ -676,7 +672,7 @@ function renderRul() {
   byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
     threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "", width: byId("rul-chart").clientWidth,
     onPick: (step) => {rulFocusPosition = step.position;updateMonitorTarget("rul", step.position);renderRul();}}));
-  byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력만으로 계산한 추정입니다. 점선은 0(기록 종료점)이며 신뢰구간이 아닙니다.", "muted"));
+  byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력으로 계산한 추정 · 점선은 0(기록 종료점)", "muted"));
   const recent = byId("rul-recent");
   recent.append(node("h3", "최근 추정 갱신"));
   const table = node("table", "", "phm-table");

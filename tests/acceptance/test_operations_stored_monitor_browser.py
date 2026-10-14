@@ -81,8 +81,8 @@ def test_model_less_asset_shows_stored_signal_and_follows_new_history(
                 )
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#monitor")
                 asset = page.locator(f'.monitor-asset[data-asset-id="{ASSET}"]')
-                pw.expect(asset).to_contain_text("저장된 과거 기록", timeout=15_000)
-                pw.expect(asset).to_contain_text("PHM 분석 연결 안 됨")
+                pw.expect(asset).to_contain_text("저장된 기록", timeout=15_000)
+                pw.expect(asset).to_contain_text("연결된 모델 없음")
                 pw.expect(page.locator("#monitor-signal-mode")).to_have_text("저장 측정 이력")
                 pw.expect(page.locator("#monitor-detection-results")).to_contain_text(
                     "연결된 PHM 분석 모델 없음"
@@ -91,7 +91,7 @@ def test_model_less_asset_shows_stored_signal_and_follows_new_history(
                 # The original 00:59:50 UTC record is shown as KST and is not called a receipt.
                 pw.expect(reading).to_contain_text("원본 측정 2020-03-02 09:59:50 KST")
                 pw.expect(reading).to_contain_text(f"{first[-1][1]:g}")
-                pw.expect(reading).to_contain_text("단위 미확인")
+                pw.expect(reading).to_contain_text("단위 정보 없음")
                 line = page.locator("#monitor-signal-chart .monitor-raw-line")
                 pw.expect(line).to_have_count(1)
                 # The stored gap stays a gap: two separate segments, never one joined line.
@@ -133,7 +133,7 @@ def test_model_less_asset_shows_stored_signal_and_follows_new_history(
                 pw.expect(page.locator("#phm-monitor-state")).to_contain_text(
                     "PHM 조회 실패", timeout=10_000
                 )
-                pw.expect(asset).to_contain_text("PHM 분석 조회 실패")
+                pw.expect(asset).to_contain_text("분석 · 조회 실패")
                 pw.expect(page.locator("#monitor-signal-chart svg").first).to_be_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
                 assert not errors, errors

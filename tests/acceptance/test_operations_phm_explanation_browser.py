@@ -85,9 +85,9 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 pw.expect(panel.get_by_role("button", name="검토 종료")).to_be_visible()
                 pw.expect(panel.locator(".phm-review-history")).to_contain_text("수평 진동 RMS")
                 panel.get_by_role("button", name="검토 종료").click()
-                pw.expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+                pw.expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
                 pw.expect(panel.get_by_role("button", name="검토 종료")).to_have_count(0)
-                pw.expect(panel.locator(".phm-review-status")).to_contain_text("정비 완료 아님")
+                pw.expect(panel.locator(".phm-review-status")).to_contain_text("검토 완료")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
                     "PHM review page overflows the viewport"
                 )
