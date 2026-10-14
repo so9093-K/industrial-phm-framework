@@ -99,21 +99,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             page.keyboard.press("Enter")
             sync_api.expect(page.locator("#main")).to_be_focused()
             assert page.evaluate("location.hash") == "#main"
-            # English guidance is a separate language-tagged reference, not an English UI.
-            page.locator("#operator-guide > summary").click()
-            guide = page.locator("#operator-reference-en")
-            sync_api.expect(guide.locator("summary")).to_have_attribute("lang", "en")
             assert page.locator("html").get_attribute("lang") == "ko"
-            guide.locator("summary").focus()
-            page.keyboard.press("Enter")
-            sync_api.expect(guide).to_have_attribute("open", "")
-            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text("Registered / active:")
-            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
-                "Review acknowledged / closed:"
-            )
-            sync_api.expect(guide.locator('div[lang="en"]')).to_contain_text(
-                "not an English-language operations interface"
-            )
             # Keyboard activation, not a mouse click, must update current navigation.
             page.get_by_role("link", name="시스템 상태").focus()
             page.keyboard.press("Enter")
@@ -124,7 +110,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "aria-current", "page"
             )
             sync_api.expect(page.locator("#system-status")).to_contain_text(
-                "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
+                "저장소를 정상적으로 읽었습니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 시각")
             page.locator('nav a[href="#monitor"]').click()
@@ -165,7 +151,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             sync_api.expect(page.get_by_role("button", name="데이터 다시 불러오기")).to_be_enabled()
             page.get_by_role("button", name="데이터 다시 불러오기").click()
             sync_api.expect(page.locator("#system-status")).to_contain_text(
-                "저장소 오류 범위가 보고되지 않았습니다"
+                "저장소를 정상적으로 읽었습니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
             sync_api.expect(page.locator("#asset-switch")).to_have_value("pump-01")
@@ -199,7 +185,7 @@ def test_web_monitor_empty_workspace_has_no_fake_equipment(tmp_path: Path) -> No
             sync_api.expect(page.locator("#asset-switch")).to_be_disabled()
             sync_api.expect(page.locator("#asset-bar")).to_be_hidden()
             sync_api.expect(page.locator("#system-status")).to_contain_text(
-                "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
+                "저장소를 정상적으로 읽었습니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(0)

@@ -363,7 +363,7 @@ def main(argv: list[str] | None = None) -> int:
             panel.get_by_role("button", name="검토 확인").click()
             expect(panel.locator(".phm-review-history")).to_contain_text("검토 확인됨")
             panel.get_by_role("button", name="검토 종료").click()
-            expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+            expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
             page.screenshot(path=str(output / "anomaly-reviewed.png"), full_page=True)
             page.goto(url + "#rul")
             expect(page.locator("#rul-state")).to_contain_text(
@@ -403,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
             page.select_option("#anomaly-binding", "aihub-1338")
             panel = page.locator("#anomaly-explanation")
             expect(panel.locator(".phm-ai-text")).to_have_text(explanation["text"], timeout=15_000)
-            expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+            expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
             checks.add("restart-keeps-explanation-and-review", True)
             page.screenshot(path=str(output / "anomaly-after-restart.png"), full_page=True)
             checks.add("no-browser-errors", not errors, errors)

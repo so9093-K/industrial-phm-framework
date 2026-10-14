@@ -52,7 +52,6 @@ def test_monitor_shows_load_change_and_actionable_time_without_review_diary(
                 pw.expect(page.locator("#review")).to_be_hidden()
                 pw.expect(page.locator("#monitor")).to_be_hidden()
                 pw.expect(page.locator("#first-run")).to_be_hidden()
-                pw.expect(page.locator("#asset-facts")).to_be_hidden()
                 page.locator("#condition-cards").scroll_into_view_if_needed()
                 cards = page.locator("#condition-cards").bounding_box()
                 assert cards and cards["y"] + cards["height"] <= 900

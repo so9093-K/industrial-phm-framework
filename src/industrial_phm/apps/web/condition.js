@@ -131,7 +131,7 @@ function render(data) {
       + pattern.scored_samples + "개 (" + number(pattern.above_reference_percent, "%") + ")."));
     if (!pattern.above_reference_count) insights.append(node("p", "이번 구간에서는 기준 점수 범위를 넘는 패턴이 관측되지 않았습니다."));
   } else insights.append(node("p", "패턴 비교에 필요한 기준 데이터가 부족하거나 거의 일정합니다. 기준 기간을 변경하세요."));
-  insights.append(node("p", "패턴 차이는 고장 확률이 아닙니다. 운전 조건 변화와 함께 해석하세요.", "muted"));
+  insights.append(node("p", "운전 조건 변화와 함께 보세요.", "muted"));
   const events = byId("condition-events");events.append(node("h3", "먼저 확인할 시각"));
   const notable = pattern.notable?.filter((point) => point.above_reference) || [];
   for (const item of notable) {

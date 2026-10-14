@@ -440,7 +440,7 @@ function showTrend(data) {
   
   points.forEach((point) => sourceHistory.set(point.source_id, data.snapshot_id));
   renderWorkspace();renderOnboardingGuide();
-  if (points.length) latest.append(create("h3", null, "마지막 저장된 측정값 · 현재 상태가 아님"));
+  if (points.length) latest.append(create("h3", null, "마지막 저장된 측정값"));
   points.forEach((p) => {
     const item = create("div","latest-item");
     item.append(create("small",null,p.channel_id + " / " + p.source_id));
@@ -533,7 +533,7 @@ async function loadRuntimeStatus() {
     if (!Object.hasOwn(runtimeConditions, supervisor.condition)) throw new Error("schema-mismatch");
     state.className = data.ready ? "state" : "state error";
     state.textContent = data.ready
-      ? "로컬 서비스의 프로세스·heartbeat·Web listener 준비 근거가 확인됐습니다. 실제 데이터 수신 또는 설비 정상 판정은 아닙니다."
+      ? "로컬 서비스가 실행 중입니다."
       : "로컬 서비스가 완전히 준비됐는지 확인되지 않습니다. 아래 구성 요소 상태를 확인하고 필요하면 CLI 로그를 조회하세요.";
     facts.append(
       withText("조회 시각", formatTime(data.assessed_at)),
@@ -570,7 +570,7 @@ function systemViews(snapshot) {
   status.className = scopes.length ? "state error" : "state";
   status.textContent = scopes.length
     ? "일부 저장소 조회 범위에 오류가 있습니다. 표시되지 않은 관측·분석·검토 근거가 있을 수 있습니다."
-    : "이번 조회에서 저장소 오류 범위가 보고되지 않았습니다. 수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다.";
+    : "저장소를 정상적으로 읽었습니다.";
   details.append(
     withText("조회 시각", formatTime(snapshot.assessed_at)),
     withText("조회된 설비 수", snapshot.assets && snapshot.assets.total),
@@ -585,7 +585,7 @@ function renderMonitorAttention(snapshot) {
   const entries = rows(snapshot, "attention");
   target.classList.toggle("hidden", !entries.length);
   if (!entries.length) {
-    target.append(create("p", "muted", "현재 조회 근거에 별도 운영 상태 확인 항목이 없습니다. 이는 설비 정상 또는 안전 판정이 아닙니다."));
+    target.append(create("p", "muted", "확인할 운영 항목이 없습니다."));
     return;
   }
   target.append(create("h2", null, "운영 상태 확인 필요 · " + entries.length + "건"));
@@ -699,7 +699,7 @@ let onboardingIncomplete = false;
 function onboardingStepFor(source) {
   if (["registered", "paused", "error"].includes(source.lifecycle_state)) {
     return ["소스 활성화", "현재 관리 상태는 " + source.lifecycle_state
-      + "입니다. 활성화는 연결·수신 성공을 뜻하지 않습니다."];
+      + "입니다."];
   }
   if (source.lifecycle_state !== "active") {
     return [null, "관리 상태가 확인되지 않았습니다. 상태를 새로 조회하세요."];
@@ -817,7 +817,7 @@ function setOnboardingUnknown(message) {
   clear(steps);
   steps.append(create("li", null, message));
   byId("onboarding-next").textContent =
-    "수신 준비 여부를 확인할 수 없습니다. 저장된 기록을 읽을 수 있어도 현재 수신이 확인됐다는 뜻은 아닙니다.";
+    "수신 준비 여부를 확인할 수 없습니다.";
 }
 function setOnboardingEvidence(items, data, evidenceReadError) {
   const steps = byId("onboarding-steps");
@@ -905,7 +905,7 @@ async function loadSources() {
       card.append(create("span", null, "설비: " + item.asset_id + " · 유형: " + item.source_type));
       card.append(create("span", null, "관리 상태: " + fmt(item.lifecycle_state) + " (접속 상태 아님)"));
       const evidenceMeaning = !item.receipt_confirmed
-        ? "현재 확인된 단계: 소스 등록 정보만 확인. 활성화는 실제 연결·수신·이력 저장의 근거가 아닙니다."
+        ? "현재 확인된 단계: 소스 등록 정보만 확인."
         : item.source_type === "file"
         ? "현재 확인된 단계: FILE 검증 수신 근거 확인. 이력 저장·연속 수집·분석 성공 여부는 별도 확인이 필요합니다."
         : "현재 확인된 단계: 수신 근거 확인. 현재 연결·최근 live 수신·이력 저장 여부는 각각 별도로 확인하세요.";
@@ -1015,7 +1015,7 @@ async function loadSources() {
       list.append(card);
     });
     updateSourceProgress();
-    if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다. 전체 수신 상태를 뜻하지 않습니다."));
+    if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다."));
   } catch (error) {
     if (token !== sourcesRequestSequence) return;
     state.textContent = presentError(error);
@@ -1154,7 +1154,7 @@ async function analyzeFile(sourceId, button) {
         || typeof saved.evidence_id !== "string" || !saved.evidence_id
         || typeof saved.source_snapshot_sha256 !== "string") throw new Error("schema-mismatch");
     output.textContent = sourceId + " · 신규 분석 근거 저장 완료 · Run " + saved.analysis_run_id
-      + " · Evidence " + saved.evidence_id + " · 이력 적재·고장 진단 아님";
+      + " · Evidence " + saved.evidence_id;
     await refresh();
     if (rows(monitor, "file_feature_analyses").some((run) =>
       run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
@@ -1186,7 +1186,7 @@ async function analyzeFile(sourceId, button) {
 
 async function analyzeFilePhase(sourceId, button) {
   const output = byId("source-control-result");
-  if (!window.confirm(sourceId + " · 명시적 V/A·R/S/T 의미가 저장된 DuckLake FILE 이력으로 3상 불평형률을 분석합니다.\\n이 계산은 고장 진단이나 자동 경보가 아닙니다.")) return;
+  if (!window.confirm(sourceId + " · 명시적 V/A·R/S/T 의미가 저장된 DuckLake FILE 이력으로 3상 불평형률을 분석합니다.")) return;
   button.disabled = true;
   output.className = "";
   output.textContent = sourceId + " · 저장된 3상 이력 분석 중";
@@ -1217,7 +1217,7 @@ async function analyzeFilePhase(sourceId, button) {
     }
     output.textContent = sourceId + " · 신규 3상 분석 기록 완료 · snapshot #"
       + saved.history_snapshot_id + " · Run " + saved.analysis_run_id
-      + " · Evidence " + saved.evidence_id + " · 고장 진단 아님";
+      + " · Evidence " + saved.evidence_id;
     await refresh();
     if (rows(monitor, "phase_unbalance_analyses").some((run) =>
       run.analysis_run_id === saved.analysis_run_id && run.evidence_id === saved.evidence_id)) {
@@ -1613,7 +1613,7 @@ async function browseOpcua() {
   const button = byId("browse-opcua");
   clear(resultNode);
   button.disabled = true;
-  resultNode.textContent = "로컬 OPC UA 주소공간 탐색 중 · 수신이나 등록이 아닙니다.";
+  resultNode.textContent = "로컬 OPC UA 주소공간 탐색 중";
   try {
     const result = await opcuaPost("/api/v1/sources/opcua/browse",
       {endpoint_url: endpoint, start_node_id: startNode});
@@ -1680,7 +1680,7 @@ async function registerOpcua(event) {
   };
   button.disabled = true;
   resultNode.className = "";
-  resultNode.textContent = "매핑 등록 중 · 네트워크 연결이나 수신은 확인하지 않습니다.";
+  resultNode.textContent = "매핑 등록 중";
   let saved = false;
   try {
     const result = await opcuaPost("/api/v1/sources/opcua", payload);
@@ -1826,7 +1826,7 @@ sampleCommand("status");
 
 getJSON("/api/v1/session").then((session) => {
   if (session.workspace_kind !== "synthetic-demo") return;
-  const notice = create("section", "notice synthetic-context", "합성 예시 · 별도 작업공간 · 읽기 전용 · 실제 설비 측정이 아닙니다. ");
+  const notice = create("section", "notice synthetic-context", "합성 예시 데이터 · 별도 작업공간 · 읽기 전용 ");
   const target = new URLSearchParams(location.search).get("return_to");
   if (target && /^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/#monitor$/.test(target)) {
     const link = create("a", null, "내 작업공간으로 돌아가기");link.href = target;notice.append(link);

@@ -409,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
                 panel.get_by_role("button", name="검토 확인").click()
                 expect(panel.locator(".phm-review-history")).to_contain_text("검토 확인됨")
                 panel.get_by_role("button", name="검토 종료").click()
-                expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+                expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
                 page.screenshot(path=str(output / f"{view}-reviewed.png"), full_page=True)
             evidence["explanations"] = explanations
 
@@ -427,7 +427,7 @@ def main(argv: list[str] | None = None) -> int:
                 expect(panel.locator(".phm-ai-text")).to_have_text(
                     explanations[view]["text"], timeout=15_000
                 )
-                expect(panel.locator(".phm-review-history")).to_contain_text("정비 완료 아님")
+                expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
                 checks.add(f"restart-keeps-explanation-and-review-{view}", True)
                 page.screenshot(path=str(output / f"{view}-after-restart.png"), full_page=True)
             checks.add("no-browser-errors", not errors, errors)

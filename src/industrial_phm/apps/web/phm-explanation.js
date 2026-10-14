@@ -32,7 +32,6 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   if (!key) return;
   const current = () => states.get(view) === state;
   const heading = element("h3", "분석 " + stepName + " · 사람 검토");
-  const note = element("p", "검토 종료는 정비 완료를 의미하지 않습니다.");note.className = "muted";
   const reviewStatus = element("p", "검토 상태를 조회 중입니다.");reviewStatus.className = "phm-review-status";
   reviewStatus.setAttribute("role", "status");
   const status = element("p", "저장된 AI 설명을 조회 중입니다.");status.setAttribute("role", "status");
@@ -50,7 +49,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   reviewHistory.append(element("summary", "검토 처리 이력 보기"), history);
   const aiDetails = element("details");aiDetails.className = "phm-ai-details";
   aiDetails.append(element("summary", "AI 참고 설명 보기"), generate, status, text);
-  root.append(heading, note, reviewStatus, review, ack, close, memoLabel, save, grounding, aiDetails, reviewHistory);
+  root.append(heading, reviewStatus, review, ack, close, memoLabel, save, grounding, aiDetails, reviewHistory);
   let finding = null, writable = false;
   for (const button of [generate, review, ack, close, save]) {button.disabled = true;button.hidden = true;}
   memoLabel.hidden = true;
@@ -68,7 +67,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     review.disabled = review.hidden;ack.disabled = ack.hidden;
     close.disabled = close.hidden;save.disabled = save.hidden;
     const labels = {open: "검토 요청됨 · 확인 대기", acknowledged: "검토 확인됨 · 종료 가능",
-      closed: "검토 종료됨 · 정비 완료 아님"};
+      closed: "검토 완료"};
     const stateText = finding ? labels[currentStep] || "검토 상태를 확인할 수 없음" : "아직 검토 요청이 없습니다.";
     reviewStatus.textContent = stateText;
     history.replaceChildren(element("p", stateText));
@@ -114,7 +113,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   session().then((auth) => {
     if (!current()) return;
     writable = auth.write_scope === "supervisor-owned-source-control";
-    if (!writable) note.textContent += " 검토 기록은 감독 화면에서만 수정할 수 있습니다.";
+    if (!writable) reviewStatus.after(Object.assign(element("p", "검토 기록은 감독형 Web에서만 바꿀 수 있습니다."), {className: "muted"}));
     refreshExplanation();refreshReview().catch(() => {reviewStatus.textContent = "검토 상태를 조회하지 못했습니다.";});
   });
 

@@ -10,7 +10,6 @@ const MAX_GROUPS = 3;
 const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;e.className = className;return e;};
 const number = (n) => typeof n === "number" && Number.isFinite(n) ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "—";
-const quality = {good: "원본 품질 정상 표시", "non-good": "원본 품질 문제", unknown: "원본 품질 정보 없음"};
 const channelCache = new Map();
 const context = new URLSearchParams(location.search);
 let selected = {assetId: context.get("monitor_asset") || "", channel: context.get("monitor_channel") || "", range: ["15m", "1h", "24h", "7d"].includes(context.get("monitor_range")) ? context.get("monitor_range") : "1h", sourceId: context.get("monitor_source") || ""};
@@ -114,9 +113,9 @@ export function showStored({assetId, asset, dataKey, historyError, onChange}) {
 
 function receiptText(asset) {
   if (!asset) return "저장된 측정 이력 · 이 설비의 수신 상태는 확인되지 않았습니다.";
-  if (asset.data_flow_status === "stored-history") return "저장된 과거 기록 · 등록된 수신 소스가 없어 최근 수신 근거가 없습니다.";
+  if (asset.data_flow_status === "stored-history") return "저장된 기록 · 등록된 수신 소스 없음";
   return "저장된 측정 이력 · " + (asset.last_data_at ? "마지막 수신 " + formatTime(asset.last_data_at) : "수신 근거 없음")
-    + " · 수신과 이력 저장은 서로 다른 시점일 수 있습니다.";
+;
 }
 
 async function load(assetId, channel, range, selectionKey, dataKey, request, onChange) {
@@ -158,11 +157,13 @@ function paint(data) {
   for (const point of latest) {
     const cell = node("div");
     const unit = unitFor(point.source_id, point.measurement_point_id);
-    cell.append(node("small", "마지막 저장 측정값 · " + point.source_id + (point.measurement_point_id ? " / " + point.measurement_point_id : "")
-      + (unit ? "" : " · 단위 미확인")),
-      node("strong", point.usable_for_display ? number(point.value) + (unit ? " " + unit : "") : "표시 불가 (결측·품질·충돌)"),
-      node("small", "원본 측정 " + formatTime(point.event_at)),
-      node("small", (quality[point.source_quality] || "원본 품질 " + point.source_quality) + (point.conflicting_duplicate ? " · 중복 값 충돌" : "")));
+    // The signal is the headline; the source and an unusual quality are supporting detail.
+    const issue = point.source_quality === "non-good" ? "원본 품질 문제" : point.conflicting_duplicate ? "중복 값 충돌" : "";
+    cell.append(node("small", channel + " · 마지막 측정값"),
+      node("strong", point.usable_for_display ? number(point.value) + (unit ? " " + unit : "") : "표시할 수 없는 값"),
+      node("small", "원본 측정 " + formatTime(point.event_at) + " · " + point.source_id + (point.measurement_point_id ? " / " + point.measurement_point_id : "")
+        + (unit ? "" : " · 단위 정보 없음")));
+    if (issue) cell.append(node("small", issue, "monitor-reading-issue"));
     reading.append(cell);
   }
   reading.hidden = !latest.length;
@@ -185,7 +186,7 @@ function paint(data) {
     : "선택한 구간에 저장된 측정값이 없습니다. 표시 구간을 넓혀 보세요.";
   byId("monitor-signal-legend").textContent = shown.length
     ? "사용 가능 " + counts.usable_count + " · 결측 " + counts.null_count + " · 품질 문제 " + counts.non_good_count + " · 중복 충돌 "
-      + counts.conflict_count + " · 평소 측정 간격보다 긴 공백은 연결하지 않으며, 측정값은 설비 정상·고장 판정이 아닙니다."
+      + counts.conflict_count + " · 평소 측정 간격보다 긴 공백은 선을 잇지 않습니다."
       + (groups.size > MAX_GROUPS ? " · 출처 " + groups.size + "개 중 " + MAX_GROUPS + "개 표시" : "")
     : "";
 }

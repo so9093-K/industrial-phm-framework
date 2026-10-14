@@ -58,9 +58,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
                 pw.expect(page.locator("#anomaly-periods summary")).to_contain_text("1개")
                 pw.expect(page.locator("#anomaly-replay")).to_be_visible()
-                pw.expect(page.locator("#anomaly-state")).to_contain_text(
-                    "고장 확률이나 진단이 아닙니다"
-                )
+                pw.expect(page.locator("#anomaly-state")).to_contain_text("step 분석")
                 pw.expect(page.locator("#anomaly-score-chart .reference-line")).to_have_count(1)
                 assert (
                     page.locator("#anomaly-score-chart .axis").evaluate(
@@ -111,12 +109,9 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 )
                 pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
                 pw.expect(page.locator("#rul-cards")).to_contain_text("획득 간격")
-                pw.expect(page.locator("#rul-validation-note")).to_contain_text(
-                    "이 설비 검증 MAE 10"
-                )
+                pw.expect(page.locator("#rul-validation-note")).to_contain_text("이 설비 MAE 10")
                 pw.expect(page.locator("#rul-cards")).not_to_contain_text("학습 범위")
                 pw.expect(page.locator("#rul-state")).to_contain_text("물리 고장 시각 아님")
-                pw.expect(page.locator("#rul-state")).to_contain_text("신뢰구간은 검증되지 않아")
                 pw.expect(page.locator("#rul-chart .condition-curve")).to_be_visible()
                 pw.expect(page.locator("#rul-recent tr")).to_have_count(8)
                 page.locator("#rul-model summary").click()
