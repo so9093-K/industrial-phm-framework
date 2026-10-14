@@ -141,6 +141,14 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 signal.get_by_role("button", name="수평 진동 RMS").click()
                 pw.expect(page.locator("#anomaly-signal")).to_have_value(json.dumps([rms]))
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
+                original = assistant.locator(".phm-comparison-original")
+                pw.expect(original.locator(".phm-original-context")).to_contain_text(
+                    "선택한 특징: 수평 진동 RMS · 관련 원본: 수평 진동 파형 #4"
+                )
+                pw.expect(original.locator(".phm-original-selected")).to_have_count(1)
+                pw.expect(original.locator(".phm-original-selected")).to_have_attribute(
+                    "data-channel", "Horizontal_vibration_signals"
+                )
                 assistant.locator(".phm-comparison-details > summary").click()
                 if width == 390:
                     table = assistant.locator(".phm-feature-comparison").first
@@ -189,8 +197,9 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
         thread.join(timeout=10)
 
 
+@pytest.mark.parametrize("width", [390, 1024, 1440])
 def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
 ) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")
@@ -215,7 +224,7 @@ def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
-                page = browser.new_page(viewport={"width": 1024, "height": 900}, locale="ko-KR")
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
@@ -233,6 +242,16 @@ def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
                     )
                 ).to_be_visible()
                 assistant.locator(".phm-comparison-details > summary").click()
+                if width == 390:
+                    row = flow.locator(".phm-range-table tr").nth(1)
+                    cells = row.locator("td").all()
+                    boxes = [cell.bounding_box() for cell in cells]
+                    assert boxes[1]["y"] >= boxes[0]["y"] + boxes[0]["height"]
+                    assert boxes[2]["y"] >= boxes[1]["y"] + boxes[1]["height"]
+                    points = cells[2].get_by_role("button").all()
+                    assert len(points) >= 2
+                    a, b = [point.bounding_box() for point in points[:2]]
+                    assert b["y"] >= a["y"] + a["height"]
                 flow.get_by_role("button", name="수준 변화 #5 ↑").first.click()
                 chip = assistant.locator(".phm-focus")
                 pw.expect(chip).to_contain_text("질문 기준 지점 · #5 · 모델 점수 수준 변화")
@@ -254,6 +273,142 @@ def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
                 assert sent["focus"]["selected_series"] == "수평 진동 RMS"
                 chip.get_by_role("button", name="질문 기준 지점 해제").click()
                 pw.expect(chip).to_be_hidden()
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+@pytest.mark.parametrize("session_failed", [False, True])
+def test_read_only_header_opens_comparison_and_rul_explains_evaluation_scope(
+    tmp_path: Path, width: int, session_failed: bool
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    for position, scale in enumerate((0.5, 0.6), start=1):
+        deliver(workspace, tmp_path / "waves", position, scale)
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                if session_failed:
+                    page.route("**/api/v1/session", lambda route: route.abort())
+                for view in ("anomaly", "rul"):
+                    page.goto(f"http://127.0.0.1:{server.server_port}/web/#{view}")
+                    assistant = page.locator(f"#{view}-assistant")
+                    action = page.locator(f"#{view}-ask")
+                    pw.expect(action).to_be_enabled()
+                    pw.expect(action).to_have_text("측정값 비교 보기")
+                    action.click()
+                    pw.expect(
+                        assistant.locator(".phm-comparison-details > summary")
+                    ).to_be_focused()
+                    pw.expect(assistant.locator(".phm-feature-comparison").first).to_be_visible()
+                    pw.expect(assistant.get_by_label("분석 질문")).not_to_be_visible()
+                    pw.expect(assistant.get_by_label("분석 질문")).to_be_disabled()
+                    pw.expect(assistant.get_by_role("button", name="AI에 질문")).to_have_count(0)
+                    pw.expect(assistant.locator("h3")).to_have_text("측정값 비교")
+                    if session_failed:
+                        pw.expect(assistant).to_contain_text("질문 권한을 확인하지 못했습니다")
+                    assistant.get_by_label("비교 시점").select_option("1")
+                    pw.expect(action).to_have_text("측정값 비교 보기")
+                    if view == "rul":
+                        note = page.locator("#rul-validation-note")
+                        pw.expect(note).to_contain_text("평균 절대 오차")
+                        pw.expect(note).to_contain_text("오차 범위나 신뢰구간은 아닙니다")
+                        pw.expect(page.locator("#rul-cards")).to_contain_text(
+                            "모델 추정값의 변화이며 실제 경과 시간이 아닙니다"
+                        )
+                        cards = page.locator("#rul-cards").inner_text()
+                        note.get_by_role("button", name="평가 대상·적용 범위 보기").click()
+                        model = page.locator("#rul-model")
+                        pw.expect(model).to_be_focused()
+                        pw.expect(model).to_have_attribute("open", "")
+                        pw.expect(model).to_contain_text("등록된 평가 대상")
+                        pw.expect(model).to_contain_text("bearing-a")
+                        pw.expect(model).to_contain_text("적용 운전 조건")
+                        pw.expect(page.locator("#rul-cards")).to_have_text(
+                            cards, use_inner_text=True
+                        )
+                        pw.expect(page.locator("#rul-position")).to_have_value("2")
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+def test_rul_answer_keeps_the_selected_feature_and_original_channel_together(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    for position, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", position, scale)
+    analyze(workspace)
+    rms = "feature.Horizontal_vibration_signals.rms"
+    monkeypatch.setattr(
+        phm_answer,
+        "complete_json",
+        ScriptedModel(
+            {
+                "summary": "잔여 구간 추정이 감소했고 수평 진동 RMS가 증가했습니다.",
+                "observations": [{"feature": rms, "change": "증가"}],
+                "next_signals": [],
+                "next_step": "수평 진동 파형을 확인해 보세요.",
+            }
+        ),
+    )
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    root = workspace.root.resolve()
+    server = create_operations_web_read_server(root, command_client=_InProcessSupervisor(root))  # type: ignore[arg-type]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/#rul")
+                action = page.locator("#rul-ask")
+                pw.expect(action).to_have_text("이 변화 질문하기")
+                action.click()
+                assistant = page.locator("#rul-assistant")
+                pw.expect(assistant.get_by_label("분석 질문")).to_be_focused()
+                assistant.get_by_label("비교 시점").select_option("1")
+                assistant.get_by_role("button", name="AI에 질문").click()
+                assistant.locator(".phm-answer-signals").get_by_role(
+                    "button", name="수평 진동 RMS"
+                ).click()
+                original = assistant.locator(".phm-comparison-original")
+                pw.expect(original.locator(".phm-original-context")).to_have_text(
+                    "선택한 특징: 수평 진동 RMS · 관련 원본: 수평 진동 파형 #4"
+                )
+                pw.expect(original).to_contain_text("파형에서 계산한 값")
+                pw.expect(original.locator(".phm-original-selected")).to_have_count(1)
+                pw.expect(original.locator(".phm-original-selected")).to_have_attribute(
+                    "data-channel", "Horizontal_vibration_signals"
+                )
+                pw.expect(original.locator(".phm-wave")).to_have_count(2)
+                pw.expect(page.locator("#rul-position")).to_have_value("4")
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                 assert not errors, errors
             finally:
                 browser.close()

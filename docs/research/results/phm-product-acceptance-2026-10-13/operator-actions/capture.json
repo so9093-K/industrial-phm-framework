@@ -8,12 +8,13 @@
   "page_errors": [],
   "human_usability_acceptance": "not established",
   "images": {
-    "monitor-1440.png": "3ebc18b244b5b36e9513dc221763872c12e9f4278715e3b2a080446e937a754f",
-    "anomaly-1440.png": "35bea202b6f2e2bb2c3e093d4bd3bfa2c006416e86cba8b3ea3fa6b57664015f",
-    "comparison-390.png": "41af1d8232a167e703d177fbd9afea050f8a38c3cfea3613000831b89ebefc49",
-    "rul-1024.png": "fa101f56d48aca41f778bcf6741de7c7f4dab0ff0339eb47d1fb0bce61dee0ff"
+    "monitor-1440.png": "2fc686e6975760416944bcd0baf8bca82a874b7c60e6e531d516f51cf3156f9f",
+    "anomaly-1440.png": "25ea7cfe120a367d4449234b4c4a7707df7d66c6ab2e8ff568123f586fdfe9d2",
+    "comparison-390.png": "d3949ace8a5f7b1fe282a5d80401f1da56a2a8025d8da234dbcae9fb9a6797d6",
+    "rul-1024.png": "a922d046ee1e056e1b8228606ac97df5eb963703975973b166b90c0e2686d107",
+    "rul-original-390.png": "a8dad1d84d24b10409c415dd71e94ec971058941db23d58bb5bc6508cd484787"
   },
-  "code_revision": "3caecd04908694bb644efdd2e49c497823725976",
+  "code_revision": "f3873f994a7b89045edf8fde806a08d54f17ef4c",
   "server_scope": "read-only browser capture; writable questions and reviews checked separately in supervised browser tests",
   "fixture_scope": "actual Bearing1_1 records plus deliberately incompatible pump-x and unavailable pump-y test bindings",
   "web_assets": {
@@ -25,21 +26,22 @@
     "example-invalid.csv": "3ffff89dc07501d62093de94394f9855365873ce81710cd83425e5edeaa6c6e1",
     "example-motor.csv": "13c1c169f0855d5b0005635b1af835090e869ba432a38da25e1702ab757dffe3",
     "file-registration.js": "914c1e4f59b161e9be29e35d90a7e004b35462de88005f7d164d360a8dcfdffd",
-    "index.html": "f276ee86d3712b1518b121c065c2670f5aaaf287455c91b7e1b6b83ae4ae4f8c",
+    "index.html": "33d225a911148e34c2ee147136bc614c08931d14779720864358a0bdd9f25577",
     "monitor-history.js": "682171ac24ef41f6cfd24001b49b44c44547bfaa854c580dd637005032cf50a6",
     "monitor-signal.js": "8a8c95c2a10f24743146f68e6feeb2e9898f1d93663d84e34e120f52831122d8",
     "monitor.js": "e188b7dbed0ac352fa955afb0c6020d8ff4aaadf4bce2140a4800795f2ededf9",
     "navigation.js": "100bb4658ec7caa7483a3e5ce46d9fb0e10b64906b493b9f542f8503ffb1b5a3",
     "opcua-registration.js": "c957428650c4657bbf86d792aeade8c404d7475112f0334ffb15deaef7b19ce3",
     "phm-connect.js": "0e4cc634d4f4bcfefbc27ca9014bab0515911c3509c9f17e31cd165b6de954bb",
-    "phm-explanation.js": "af89fed8ac152b86e3f697f0f0f57515f50d5790697a046f621f36d623074db0",
-    "phm.js": "b472785f3ad98e107294cc5f85ec8584984460436b8c9f23c2dc1228cd47b4f6",
+    "phm-explanation.js": "8d1826ceb22b4ffdaed3c0b84a1714a280170d64d3f35be0236959f844809d9c",
+    "phm.js": "00c8d32d03ab2cdd9110b2d72fc002e68264ce924c448b4f11a8e8116c85ad19",
     "source-card.js": "06d0489d55a233f9baece1c7e979ea9ed95ecc7daaa72d218b7fd1f0453bfa79",
     "source-management.js": "6fdf63489bee2cfc7faf1dc9593c165b32f2625518c3e73a291caf98e6df9f15",
-    "styles.css": "883ded8c6ab901506ff6537317ac9b80ce98edfb042fd436e2a64c3d55c6f6bb",
+    "styles.css": "af4fb414929e383e7d673002cce099420320990903d58f7e880c1ce5f1376d0e",
     "synthetic-demo.js": "66fc82676802a459ad9d439c52ff22c3a96bebee062eebbce39703d28c500780",
     "system-status.js": "6568438b1f3c2135137f0468adedc13352504678a36da04f7a054974250523d7",
     "time.js": "90f67f9e0b6cbd46117fda6274d0f1af08ca06f5a49e1ac1c675ba94a2b5a602",
     "web-utils.js": "d4bcbfcae1eeb88a57fa4974b4e4fc7138b8f7fee42734cab36dbde323a0a72c"
-  }
+  },
+  "read_only_behavior": "header opens measurements, question input is hidden; RUL original capture uses a measurement-feature link, no new AI request"
 }

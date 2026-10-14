@@ -1,5 +1,5 @@
 import { navigate } from "./navigation.js";
-import { renderPhmExplanation } from "./phm-explanation.js";
+import { openPhmAssistant, renderPhmExplanation } from "./phm-explanation.js";
 import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
 import { assetName, currentAsset, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
@@ -341,7 +341,7 @@ function resetAnalysisActions(view) {
   byId(view + "-meaning").textContent = "";
   const entry = series.get(selected[view]), position = view === "anomaly" ? focusPosition : rulFocusPosition;
   const available = !readError && entry && (position === null ? orderedSteps(entry).some((step) => step.state === "analyzed") : entry.steps.get(position)?.state === "analyzed");
-  byId(view + "-ask").disabled = !available;byId(view + "-position").disabled = !available;
+  if (!available) byId(view + "-ask").disabled = true;byId(view + "-position").disabled = !available;
 }
 function selectAnalysisRecord(view, entry, steps, position) {
   const picker = byId(view + "-position");
@@ -349,7 +349,7 @@ function selectAnalysisRecord(view, entry, steps, position) {
   if (JSON.stringify([...picker.options].map((o) => ({value: o.value, label: o.textContent}))) !== JSON.stringify(choices)) {
     picker.replaceChildren(...choices.map(({value, label}) => {const option = node("option", label);option.value = value;return option;}));
   }
-  picker.disabled = false;picker.value = String(position);byId(view + "-ask").disabled = false;
+  picker.disabled = false;picker.value = String(position);
 }
 
 function renderAnomaly() {
@@ -506,7 +506,7 @@ function renderAnomaly() {
                          steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
                          openSignal: (position, feature) => {
                            if (feature) {chosenFeatures = [feature];renderAnomaly();}
-                           showComparisonOriginal("anomaly", entry, position);
+                           showComparisonOriginal("anomaly", entry, position, feature);
                          },
                        });
 }
@@ -614,16 +614,37 @@ async function focusStep(position, pin = true) {
   }
 }
 
-function rawSignals(preview) {
+function originalChannelLabel(channel) {
+  if (channel.channel) return channelLabel(channel.channel);
+  const phase = channel.scope?.match(/^phase ([RST])$/)?.[1];
+  const kind = channel.unit === "A" ? "전류" : channel.unit === "V" ? "전압" : "";
+  return phase && kind ? phase + "상 " + kind + "(" + channel.unit + ")" : channel.unit === "Hz" ? "주파수(Hz)" : channel.channel_id;
+}
+function relatedChannels(preview, feature) {
+  if (!feature || !preview.available) return [];
+  if (feature.startsWith("feature.")) {
+    const channel = feature.split(".").slice(1, -1).join(".");
+    return preview.channels.filter((item) => item.channel === channel);
+  }
+  const unit = feature.startsWith("current.") ? "A" : feature.startsWith("voltage.") ? "V" : feature.startsWith("frequency.") ? "Hz" : null;
+  const property = unit === "A" ? "phase current" : unit === "V" ? "phase voltage" : "frequency";
+  const phase = feature.match(/\.phase_([rst])\./)?.[1]?.toUpperCase();
+  return unit ? preview.channels.filter((item) => item.unit === unit && item.observed_property === property && (!phase || item.scope === "phase " + phase)) : [];
+}
+function rawSignals(preview, related = []) {
   const box = node("div");
   if (!preview.available) {box.append(node("p", "원본 신호 조회 불가: " + preview.reason));return box;}
   const select = node("select");select.setAttribute("aria-label", "원본 측정 신호");
   const choices = signalChoices(preview);
   for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
+  if (related.length) select.value = related[0].unit;
   const plot = node("div", "", "phm-original-plot"), caption = node("p", "", "muted");box.append(select, plot, caption);
   const render = () => {
     const choice = choices.find((c) => c.id === select.value);
     drawSignal(plot, preview, select.value);
+    for (const [index, channel] of (choice?.channels || []).entries()) {
+      if (related.includes(channel)) plot.querySelectorAll(".monitor-raw-line.phase-" + index).forEach((line) => line.classList.add("phm-original-selected-line"));
+    }
     const unavailable = (choice?.channels || []).flatMap((c) => c.points).filter((p) => p.quality !== "good").length;
     caption.textContent = (choice?.channels.length === 3 ? "R상 ━ · S상 ┄ · T상 ⋯ · " : "") + "관측 " + (choice?.channels[0]?.points.length || 0) + "개/채널 · 사용 불가 " + unavailable + "개 · 누락은 연결하지 않음";
   };
@@ -631,12 +652,12 @@ function rawSignals(preview) {
   return box;
 }
 
-function waveform(preview) {
+function waveform(preview, related = []) {
   const box = node("div");
   if (!preview.available) {box.append(node("p", "원본 파형 확인 불가: " + preview.reason, "muted"));return box;}
   const plots = node("div", "", "phm-original-waveforms");box.append(plots);
   for (const [index, channel] of preview.channels.entries()) {
-    const group = node("div");group.append(node("p", channelLabel(channel.channel) + " · 단위 미확인", "phm-feature-title"));
+    const group = node("div", "", related.includes(channel) ? "phm-original-selected" : "");group.dataset.channel = channel.channel;group.append(node("p", channelLabel(channel.channel) + " · 단위 미확인", "phm-feature-title"));
     const plot = node("div", "", "phm-original-plot");group.append(plot);plots.append(group);
     const render = () => {drawSignal(plot, preview, String(index), 130);plot.querySelector("svg")?.classList.add("phm-wave");};
     plot.redraw = render;requestAnimationFrame(render);
@@ -708,13 +729,17 @@ function renderRul() {
     card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 2) + " " + unit,
       "선택 기록 " + stepLabel(entry, last.position)),
     card("직전 분석 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit,
-      previousAnalyzed ? stepLabel(entry, previousAnalyzed.position) + " → " + stepLabel(entry, last.position) : "직전 분석과 비교"),
+      (previousAnalyzed ? stepLabel(entry, previousAnalyzed.position) + " → " + stepLabel(entry, last.position) : "직전 분석과 비교") + " · 모델 추정값의 변화이며 실제 경과 시간이 아닙니다."),
   );
   const mae = validation.mean_asset_mean_absolute_error;
-  byId("rul-validation-note").textContent = typeof mae === "number"
-    ? (validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차" : "검증 오차") + " (MAE) " + number(mae, 1) + " " + unit
-      + (sameAsset ? " · 이 설비 MAE " + number(sameAsset.mean_absolute_error, 1) : "")
-    : "";
+  const note = byId("rul-validation-note");note.replaceChildren();
+  if (typeof mae === "number") {
+    note.append(node("span", (validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차" : "검증 오차") + " (MAE) " + number(mae, 1) + " " + unit
+      + (sameAsset ? " · 이 설비 MAE " + number(sameAsset.mean_absolute_error, 1) : "")),
+      node("span", (validation.metrics_origin === "recorded-research-model" ? "과거 연구 평가에서" : "등록된 검증 평가에서") + " 관측된 평균 절대 오차입니다. 현재 선택한 추정값의 오차 범위나 신뢰구간은 아닙니다.", "phm-mae-meaning"));
+    const details = node("button", "평가 대상·적용 범위 보기");details.type = "button";
+    details.addEventListener("click", () => {byId("rul-model").open = true;byId("rul-model").tabIndex = -1;navigate("#rul", byId("rul-model"));});note.append(details);
+  }
   if (last.output.sequence_positions) {
     state.textContent += " · 과거 " + last.output.sequence_positions.length + "개 획득으로 계산";
   }
@@ -748,10 +773,10 @@ function renderRul() {
   const explained = rulFocusPosition ?? last.position;
   renderPhmExplanation("rul", selected.rul, explained,
                        () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
-                         openSignal: (position) => showComparisonOriginal("rul", entry, position)});
+                         openSignal: (position, feature) => showComparisonOriginal("rul", entry, position, feature)});
 }
 
-async function showComparisonOriginal(view, entry, position) {
+async function showComparisonOriginal(view, entry, position, feature = "") {
   const assistant = byId(view + "-assistant");
   assistant.querySelector(".phm-comparison-original")?.remove();
   const holder = node("div", "", "phm-comparison-original");
@@ -765,7 +790,16 @@ async function showComparisonOriginal(view, entry, position) {
     const preview = await getJson("/api/v1/phm/" + path + "?binding_id=" + encodeURIComponent(entry.binding.binding_id)
       + "&position=" + position + (path === "snapshot" ? "&bins=400" : ""));
     if (!holder.isConnected || currentAsset() !== entry.binding.asset_id) return;
-    plot.replaceChildren(path === "snapshot" ? waveform(preview) : rawSignals(preview));
+    const channels = relatedChannels(preview, feature);
+    if (feature) {
+      const names = channels.map(originalChannelLabel);
+      const context = node("p", "선택한 특징: " + featureLabel(feature) + " · " + (names.length
+        ? "관련 원본: " + names.join(" · ") + (path === "snapshot" ? " 파형 " : " 측정 ") + stepLabel(entry, position)
+        : "관련 원본 채널을 확인할 수 없습니다."), "phm-original-context");
+      holder.insertBefore(context, plot);
+      if (path === "snapshot") holder.insertBefore(node("p", "선택한 특징은 파형에서 계산한 값입니다. 아래에는 실제 원본 파형을 표시합니다.", "muted"), plot);
+    }
+    plot.replaceChildren(path === "snapshot" ? waveform(preview, channels) : rawSignals(preview, channels));
   } catch {if (holder.isConnected) plot.replaceChildren(node("p", "원본 신호를 확인할 수 없습니다."));}
   if (holder.isConnected) holder.scrollIntoView({block: "center"});
 }
@@ -804,6 +838,7 @@ function renderModelCard(root, pkg) {
   if (pkg.input) add("입력 규격", inputSpec(pkg.input));
   add("학습 데이터", [scope.dataset_id, scope.fold_id, scope.partition].filter(Boolean).join(" · ") + (scope.asset_ids ? " · " + scope.asset_ids.length + "개 설비" : ""));
   if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스 입력", "과거 " + pkg.input.sequence_length + "개 획득 · 현재 시점이 오른쪽 끝");
+  add("등록된 평가 대상", (validation.per_asset || []).map((item) => item.asset_id).join(" · ") || "평가 대상 설비 기록 없음");
   if (validation.performance_note) add("성능 수치 범위", validation.performance_note);
   if (scope.member) add("참조 기록", scope.member);
   if (scope.period) add("학습 기간", scope.period);
@@ -899,7 +934,7 @@ function clearMonitorTarget() {
 let followingTarget = false;
 export function initializePhm() {
   for (const view of ["anomaly", "rul"]) {
-    byId(view + "-ask").addEventListener("click", () => navigate("#" + view, byId(view + "-assistant").querySelector("textarea")));
+    byId(view + "-ask").addEventListener("click", () => openPhmAssistant(view));
   }
   byId("anomaly-position").addEventListener("change", (event) => focusStep(Number(event.target.value)));
   byId("rul-position").addEventListener("change", (event) => {rulFocusPosition = Number(event.target.value);updateMonitorTarget("rul", rulFocusPosition);renderRul();});
