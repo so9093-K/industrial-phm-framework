@@ -1,4 +1,4 @@
-"""Structural regressions for repository marimo applications."""
+"""Structural regressions for optional research notebooks."""
 
 import ast
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-APPS = sorted((REPO / "apps").glob("*.py"))
+NOTEBOOKS = sorted((REPO / "notebooks").glob("*.py"))
 
 
 def _ui_values_read_in_creating_cell(path: Path) -> list[str]:
@@ -43,7 +43,7 @@ def _ui_values_read_in_creating_cell(path: Path) -> list[str]:
     return problems
 
 
-@pytest.mark.parametrize("path", APPS, ids=lambda path: path.name)
+@pytest.mark.parametrize("path", NOTEBOOKS, ids=lambda path: path.name)
 def test_no_cell_reads_the_value_of_a_ui_element_it_creates(path: Path) -> None:
     # marimo 0.24.2 raises this at runtime; its strict linter does not statically own it.
     assert _ui_values_read_in_creating_cell(path) == []

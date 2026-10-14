@@ -280,6 +280,14 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
             ("/web/navigation.js", "text/javascript", b"renderView"),
             ("/web/asset-context.js", "text/javascript", b"monitor_asset"),
             ("/web/phm.js", "text/javascript", b"/api/v1/phm/series"),
+            ("/web/source-management.js", "text/javascript", b"/api/v1/sources"),
+            ("/web/source-card.js", "text/javascript", b"renderSourceCard"),
+            ("/web/file-registration.js", "text/javascript", b"csvRequest"),
+            ("/web/opcua-registration.js", "text/javascript", b"opcuaPost"),
+            ("/web/analysis-records.js", "text/javascript", b"createAnalysisRecords"),
+            ("/web/system-status.js", "text/javascript", b"/api/v1/system/runtime"),
+            ("/web/synthetic-demo.js", "text/javascript", b"/api/v1/demo/synthetic/"),
+            ("/web/web-utils.js", "text/javascript", b"getJSON"),
             ("/web/phm-explanation.js", "text/javascript", b"/api/v1/phm/explanations"),
         ):
             status, headers, data = request(path)

@@ -30,6 +30,10 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 
 .source-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .source-actions button{font-size:.8rem;padding:7px 10px}
+.source-record details{margin-top:10px;font-size:.8rem}
+.source-record details summary{cursor:pointer;color:#385464}
+.source-record details p{margin:8px 0;overflow-wrap:anywhere}
+.source-primary{margin-bottom:12px}
 #source-control-result{font-size:.83rem;color:#365b69;min-height:1.4rem}
 #source-control-result.error{color:#9b3333}
 
@@ -39,7 +43,6 @@ main{padding:30px clamp(18px,3.2vw,48px);min-width:0;max-width:1780px;width:100%
 .review-form button,.record>button{justify-self:start;margin-top:4px}
 
 /* Keep operational facts distinct from operator interpretation, without alarm colors. */
-.source-record .source-meaning,.record .review-meaning{color:#254c62;background:#ebf2f6;border-left:3px solid #517f96;border-radius:4px;padding:8px 10px;margin:9px 0;line-height:1.5;font-size:.83rem}
 
 
 /* Return from a review only to an exact persisted Run/Evidence within this asset. */

@@ -463,7 +463,8 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 assert len(saved_uploads) == 1
                 assert saved_uploads[0].read_bytes() == (inputs / "vibration.csv").read_bytes()
                 pw.expect(listing).to_contain_text("수신 미확인")
-                pw.expect(listing.locator(".source-meaning")).to_contain_text("등록만 된 상태")
+                pw.expect(listing.locator(".receipt-missing")).to_contain_text("파일 확인 대기")
+                pw.expect(listing.locator(".source-diagnostics")).not_to_have_attribute("open", "")
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 0개")
                 pw.expect(page.locator("#onboarding-source-select")).to_have_value("journey-file")
                 page.get_by_role("button", name="소스 활성화 버튼 찾기").click()
@@ -479,9 +480,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(handoff).to_be_hidden()
                 listing.get_by_role("button", name="FILE 수신 확인").click()
                 pw.expect(listing).to_contain_text("CSV 수신 확인됨")
-                pw.expect(listing.locator(".source-meaning")).to_contain_text(
-                    "CSV 수신을 확인했습니다"
-                )
+                pw.expect(listing.locator(".receipt-confirmed")).to_contain_text("CSV 수신 확인됨")
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "사용 중이면서 수신을 확인한 소스 1개"
                 )
@@ -507,6 +506,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(_stored_values(page)).to_contain_text("1.5", timeout=30000)
                 page.locator('nav a[href="#connect"]').click()
                 assert workspace.history_catalog_path.exists()
+                listing.locator(".source-settings > summary").click()
                 listing.get_by_role("button", name="신호 통계 분석").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "신호 통계 분석 저장 완료", timeout=30000
@@ -585,11 +585,12 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 )
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 phase_card = page.locator('.source-record[data-source-id="phase-file"]')
-                pw.expect(phase_card).to_contain_text("검증할 3상 역할 3개", timeout=30000)
+                pw.expect(phase_card).to_contain_text("등록된 3상 역할 3개", timeout=30000)
                 phase_card.get_by_role("button", name="소스 활성화").click()
                 pw.expect(phase_card).to_contain_text("관리 상태: active")
                 phase_card.get_by_role("button", name="FILE 수신 확인").click()
                 pw.expect(phase_card).to_contain_text("CSV 수신 확인됨")
+                phase_card.locator(".source-settings > summary").click()
                 phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "분석 불가", timeout=30000
@@ -1559,6 +1560,7 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
 
                 listing.get_by_role("button", name="소스 활성화").click()
                 pw.expect(listing).to_contain_text("관리 상태: active")
+                listing.locator(".source-settings > summary").click()
                 listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "수신 근거 기록 완료", timeout=30000
