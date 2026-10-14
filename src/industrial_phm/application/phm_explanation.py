@@ -149,6 +149,18 @@ def explanation_context(
     package = next(
         item["package"] for item in summaries["bindings"] if item["binding_id"] == binding_id
     )
+    previous = store.latest_result(binding_id, state=StepState.ANALYZED, before_position=position)
+    score, prior_score = (
+        result.output.get("score"),
+        None if previous is None else previous.output.get("score"),
+    )
+    comparison = None
+    if isinstance(score, (int, float)) and isinstance(prior_score, (int, float)):
+        comparison = {
+            "previous_score": prior_score,
+            "score_change": score - prior_score,
+            "previous_position": previous.position if previous else None,
+        }
     return {
         "schema_version": 1,
         "binding_id": binding_id,
@@ -163,6 +175,7 @@ def explanation_context(
         "processed_at": result.processed_at.isoformat(),
         "features": dict(result.features or {}),
         "output": dict(result.output),
+        "comparison": comparison,
         "input_reference": dict(result.input_reference),
         "model": None
         if package is None
@@ -174,6 +187,81 @@ def explanation_context(
             asset_id=binding.asset_id,
             recorded_replay=result.replay,
         ),
+    }
+
+
+def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
+    """Bounded operator input; the complete immutable context stays in the explanation store.
+
+    Research acceptance, MAE, training conditions and expected RUL decrement are available
+    in model details, not requested as operator advice. No model output is changed here.
+    """
+    original = context.get("output") or {}
+    output = {
+        key: original[key]
+        for key in (
+            "task",
+            "score",
+            "threshold",
+            "exceeds_threshold",
+            "estimate",
+            "unit",
+            "endpoint_semantics",
+            "change_from_previous",
+            "feature_contributions",
+        )
+        if key in original
+    }
+    task = output.get("task")
+    model = context.get("model") or {}
+    recipe = str(model.get("recipe_id") or "")
+    label = "재구성 오차" if "pca" in recipe or "autoencoder" in recipe else "이상 점수"
+    facts = []
+    if task == "rul-estimate":
+        unit = (
+            "획득 간격"
+            if output.get("unit") == "acquisition-interval"
+            else str(output.get("unit") or "단위 미기록")
+        )
+        facts.append(f"선택 시점의 잔여 구간 추정은 {_n(output.get('estimate'))} {unit}입니다.")
+        if output.get("endpoint_semantics") == "last-recorded-acquisition":
+            facts.append(
+                "종료점은 이 기록의 마지막 획득 지점입니다. 실제 고장 시각을 예측한 값이 아닙니다."
+            )
+        else:
+            facts.append(
+                "종료점은 output에 기록된 의미만 사용하세요. 물리적 고장 시각으로 해석하지 마세요."
+            )
+        change = output.get("change_from_previous")
+        if isinstance(change, (int, float)):
+            facts.append(f"직전 추정 대비 변화는 {_n(change)} {unit}입니다.")
+        if isinstance(output.get("estimate"), (int, float)) and output["estimate"] < 0:
+            facts.append(
+                "음수 추정은 모델이 기록 종료점을 지났다고 출력한 것이며 "
+                "음수 수명을 의미하지 않습니다."
+            )
+    elif task == "anomaly-score":
+        facts.append(
+            f"{label} {_n(output.get('score'))}는 학습 기준과의 차이를 나타내며 "
+            "높을수록 더 다릅니다."
+        )
+        facts.append(
+            f"참고 기준 {_n(output.get('threshold'))} "
+            f"{'초과' if output.get('exceeds_threshold') else '이하'}입니다. "
+            "정상·고장 판정이 아닙니다."
+        )
+        if not output.get("feature_contributions"):
+            facts.append("변수별 기여도가 없으므로 원인 신호를 추정하지 마세요.")
+        else:
+            facts.append("기여도는 모델 점수에 대한 잔차 기여이며 고장의 원인이 아닙니다.")
+    return {
+        "asset_id": context.get("asset_id"),
+        "recorded_replay": context.get("recorded_replay"),
+        "event_start": context.get("event_start"),
+        "output": output,
+        "comparison": context.get("comparison"),
+        "value_label": label if task == "anomaly-score" else "잔여 구간 추정",
+        "facts": facts,
     }
 
 

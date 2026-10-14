@@ -93,12 +93,34 @@ def test_stateless_responses_and_chat_fallback_preserve_named_model_and_context(
     thread.start()
     try:
         text = generate_local_explanation(
-            {"output": {"score": 0.5}},
+            {
+                "output": {
+                    "task": "rul-estimate",
+                    "estimate": 7.79,
+                    "unit": "acquisition-interval",
+                    "change_from_previous": -0.008506,
+                    "endpoint_semantics": "last-recorded-acquisition",
+                },
+                "model": {
+                    "validation": {"acceptance": "not-yet-evaluated", "MAE": 73.94},
+                    "applicability": {"operating_condition": ["35Hz12kN"]},
+                },
+                "facts": ["운영 합격 판정 기록: not-yet-evaluated", "연구 검증 MAE 73.94"],
+            },
             ExplanationProvider(base_url=f"http://127.0.0.1:{server.server_port}/v1"),
         )
         assert text == "stored score explanation"
         assert all(body["model"] == "local-main" and body["store"] is False for _, body in seen)
         assert len(seen) == (2 if chat_only else 1)
+        for _, body in seen:
+            prompt = body.get("instructions") or body["messages"][0]["content"]
+            sent = json.loads(body.get("input") or body["messages"][1]["content"])
+            assert sent["output"]["estimate"] == 7.79
+            assert sent["output"]["change_from_previous"] == -0.008506
+            assert "마지막 획득 지점" in " ".join(sent["facts"])
+            assert "73.94" not in json.dumps(sent) and "not-yet-evaluated" not in json.dumps(sent)
+            assert "35Hz12kN" not in json.dumps(sent) and "model" not in sent
+            assert "2~3문장" in prompt and "네 부분" not in prompt
     finally:
         server.shutdown()
         server.server_close()
