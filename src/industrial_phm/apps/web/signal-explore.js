@@ -483,7 +483,7 @@ function seriesCard(item) {
     const direction = b.quantiles[2] > a.quantiles[2] ? "높습니다" : b.quantiles[2] < a.quantiles[2] ? "낮습니다" : "같습니다";
     card.append(create("p", "explore-interpretation",
       "살펴볼 구간 B의 중앙값은 비교 구간 A보다 " + direction
-      + " 중앙값은 값을 크기순으로 놓았을 때 가운데 값이며, 증가·감소만으로 설비의 이상이나 원인을 확정할 수 없습니다."));
+      + ". 중앙값은 값을 크기순으로 놓았을 때 가운데 값이며, 증가·감소만으로 설비의 이상이나 원인을 확정할 수 없습니다."));
     card.append(chart(item));
   } else {
     card.append(create("p", "empty", !a.quantiles && !b.quantiles ? "두 구간 모두 사용할 수 있는 값이 없습니다." : (a.quantiles ? "구간 B" : "구간 A") + "에 사용할 수 있는 값이 없습니다."));
