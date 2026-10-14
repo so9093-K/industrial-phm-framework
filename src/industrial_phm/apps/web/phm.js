@@ -664,6 +664,7 @@ function renderRul() {
     renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = waitingMessage(entry);renderModelCard(byId("rul-model"), entry.package);return;
   }
   const last = analyzed.find((s) => s.position === rulFocusPosition) || analyzed.at(-1);
+  const previousAnalyzed = analyzed.filter((s) => s.position < last.position).at(-1);
   updateMonitorTarget("rul", last.position);
   const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
   byId("rul-observation").textContent = latestRulSkipped
@@ -677,8 +678,9 @@ function renderRul() {
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
     card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 2) + " " + unit,
-      (period ? "기록 주기 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
-    card("이전 추정 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit, "직전 추정값과 비교"),
+      (period ? "원 기록 간격 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
+    card("직전 분석 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit,
+      previousAnalyzed ? stepLabel(entry, previousAnalyzed.position) + " → " + stepLabel(entry, last.position) : "직전 분석과 비교"),
   );
   const mae = validation.mean_asset_mean_absolute_error;
   byId("rul-validation-note").textContent = typeof mae === "number"

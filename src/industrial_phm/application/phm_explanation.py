@@ -12,6 +12,7 @@ from uuid import uuid4
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
+from industrial_phm.application.phm_range import range_analysis
 from industrial_phm.application.phm_read import project_phm_bindings
 from industrial_phm.application.phm_signal_comparison import (
     feature_comparison,
@@ -184,14 +185,15 @@ def explanation_context(
             "score_change": score - prior_score,
             "previous_position": previous.position if previous else None,
         }
-    signal_comparison = {
+    features = feature_comparison(result, previous)
+    signal_comparison: dict[str, Any] = {
         "current_position": position,
         "previous_position": None if previous is None else previous.position,
         "previous_event_start": None
         if previous is None or previous.event_start is None
         else previous.event_start.isoformat(),
         "previous_output": None if previous is None else dict(previous.output),
-        "features": feature_comparison(result, previous),
+        "features": features,
         "output_changes": {
             key: result.output[key] - previous.output[key]
             for key in ("score", "estimate")
@@ -206,6 +208,15 @@ def explanation_context(
         if previous is None or not include_signals
         else raw_signal_summary(store, snapshots, windows, binding, previous),
     }
+    if previous is not None and include_signals:
+        signal_comparison["range"] = range_analysis(
+            store,
+            binding_id,
+            binding.step_kind,
+            previous.position,
+            position,
+            [row["feature"] for row in features[:8]],
+        )
     related = []
     for other in store.list_bindings()[:100]:
         if other.binding_id == binding_id or (

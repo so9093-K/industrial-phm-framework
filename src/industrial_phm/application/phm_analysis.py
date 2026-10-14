@@ -398,6 +398,31 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows)
 
+    def analyzed_between(
+        self, binding_id: str, first: int, last: int, *, max_points: int = 512
+    ) -> tuple[tuple[StepResult, ...], int]:
+        """Analyzed results across ``first <= position <= last`` and how many there are.
+
+        A longer range is sampled evenly over its whole length, always keeping its last result,
+        so the shape of a long range is never read from its beginning only.
+        """
+        where = "binding_id = ? AND state = ? AND position BETWEEN ? AND ?"
+        args = (binding_id, StepState.ANALYZED.value, first, last)
+        connection = self._connect()
+        try:
+            total = connection.execute(f"SELECT COUNT(*) FROM step_result WHERE {where}", args)
+            count = int(total.fetchone()[0])
+            stride = max(1, -(-count // max_points))
+            rows = connection.execute(
+                "SELECT * FROM (SELECT *, ROW_NUMBER() OVER (ORDER BY position) AS rank "
+                f"FROM step_result WHERE {where}) WHERE (rank - 1) % ? = 0 OR rank = ? "
+                "ORDER BY position",
+                (*args, stride, count),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_result(row) for row in rows), count
+
     def recent_results(self, binding_id: str, *, limit: int = 64) -> tuple[StepResult, ...]:
         """Bounded chronological tail for a selected asset's displayed trace."""
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 128:
@@ -411,6 +436,61 @@ class SqlitePhmAnalysisStore:
         finally:
             connection.close()
         return tuple(_result(row) for row in reversed(rows))
+
+    def analyzed_change_stats(
+        self, binding_id: str, first: int, last: int, *, output_key: str, features: Sequence[str]
+    ) -> dict[str, dict[str, Any]]:
+        """Exact adjacent-result changes over the full interval, with bounded return size.
+
+        SQL keeps the scan out of Python. A missing feature breaks a pair rather than
+        turning two nonadjacent analyzed results into a single feature change.
+        """
+        metrics = [("primary", "output", output_key)] + [
+            (name, "features", name) for name in features
+        ]
+        connection = self._connect()
+        summaries = {}
+        try:
+            for name, column, key in metrics:
+                # column is chosen only by this fixed mapping; feature keys are parameters.
+                row = connection.execute(
+                    "WITH readings AS (SELECT position, "
+                    f"(SELECT value FROM json_each({column}) WHERE key = ? "
+                    "AND type IN ('integer', 'real')) AS value FROM step_result "
+                    "WHERE binding_id = ? AND state = ? AND position BETWEEN ? AND ?), "
+                    "changes AS (SELECT *, LAG(position) OVER (ORDER BY position) AS previous, "
+                    "value - LAG(value) OVER (ORDER BY position) AS delta FROM readings), "
+                    "stats AS (SELECT COUNT(value) AS count, MIN(value) AS low, "
+                    "MAX(value) AS high, "
+                    "COUNT(delta) AS pairs, SUM(delta > 0) AS rises, SUM(delta < 0) AS falls, "
+                    "MAX(delta) AS biggest_rise, MIN(delta) AS biggest_fall FROM changes) "
+                    "SELECT stats.*, previous, position, delta FROM stats LEFT JOIN "
+                    "(SELECT previous, position, delta FROM changes WHERE delta IS NOT NULL "
+                    "ORDER BY ABS(delta) DESC, position LIMIT 1) ON 1 = 1",
+                    (key, binding_id, StepState.ANALYZED.value, first, last),
+                ).fetchone()
+                summaries[name] = dict(
+                    zip(
+                        (
+                            "count",
+                            "low",
+                            "high",
+                            "pairs",
+                            "rises",
+                            "falls",
+                            "biggest_rise",
+                            "biggest_fall",
+                            "from",
+                            "to",
+                            "delta",
+                        ),
+                        row,
+                        strict=True,
+                    )
+                )
+        finally:
+            connection.close()
+        return summaries
 
     def get_result(self, binding_id: str, position: int) -> StepResult | None:
         connection = self._connect()

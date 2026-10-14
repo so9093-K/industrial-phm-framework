@@ -38,6 +38,7 @@ from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     initialize_operations_workspace,
 )
+from tests.support.phm import analyze, deliver, phm_workspace
 
 T0 = datetime(2026, 10, 12, tzinfo=UTC)
 CHANNELS = ("h", "v")
@@ -355,6 +356,38 @@ def test_web_lists_fitting_models_and_connects_one_to_the_asset(tmp_path: Path) 
         assert [s["state"] for s in series["steps"]] == ["analyzed"] * 3
         status, models = get("/api/v1/phm/models?asset_id=bearing-a")
         assert models["packages"][0]["candidates"][0]["connected"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_range_route_reads_the_shape_between_two_stored_results(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.5, 0.55, 0.5, 3.0, 3.1, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def get(path: str) -> tuple[int, dict[str, Any]]:
+        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+        try:
+            connection.request("GET", path, headers={"Host": f"127.0.0.1:{server.server_port}"})
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    try:
+        status, span = get("/api/v1/phm/range?binding_id=anomaly-a&from=1&to=8")
+        assert status == 200 and span["steps"] == 8
+        assert span["primary"]["level_shift"]["at"] == 5
+        assert "feature.Horizontal_vibration_signals.rms" in span["features"]
+        assert get("/api/v1/phm/range?binding_id=anomaly-a&from=8&to=1")[0] == 400
+        assert get("/api/v1/phm/range?binding_id=anomaly-a&from=1&to=99")[0] == 400
+        assert get("/api/v1/phm/range?binding_id=nope&from=1&to=8")[0] == 404
     finally:
         server.shutdown()
         server.server_close()

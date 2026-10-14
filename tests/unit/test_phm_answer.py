@@ -47,7 +47,7 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
     payload = answer_input(contexts["anomaly-a"])
     assert payload["primary"] == {
         "name": "이상 점수",
-        "model": "이상 점수",
+        "model": "진동 변화 탐지",
         "change": "증가",
         "input_acquisitions": 1,
         "reference": "참고 기준 초과",
@@ -59,7 +59,7 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
     rul = answer_input(contexts["rul-a"])
     assert rul["primary"]["name"] == "잔여 구간 추정" and rul["primary"]["change"] == "감소"
     assert rul["related_models"] == [
-        {"name": "이상 점수", "change": "증가", "input_acquisitions": 1}
+        {"name": "진동 변화 탐지", "change": "증가", "input_acquisitions": 1}
     ]
 
 
