@@ -54,6 +54,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     item.value = String(step.position);compare.append(item);
   }
   if (!earlier.length) {compare.append(element("option", "이전 분석 없음"));compare.disabled = true;}
+  const savedCompare = new URL(location.href).searchParams.get("phm_compare");
+  if (earlier.some((step) => String(step.position) === savedCompare)) compare.value = savedCompare;
   compareLabel.append(compare);
   const questionLabel = element("label", "궁금한 점");
   const question = element("textarea");question.rows = 2;question.maxLength = 600;
@@ -98,7 +100,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   }
   assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, generate, status, grounding, text);
   renderComparison();
-  compare.addEventListener("change", () => {state.askedQuestion = null;text.textContent = "";grounding.textContent = "";renderComparison();refreshExplanation();});
+  compare.addEventListener("change", () => {
+    const url = new URL(location.href);url.searchParams.set("phm_compare", compare.value);
+    window.history.replaceState(null, "", url);state.askedQuestion = null;state.explanation = null;text.textContent = "";grounding.textContent = "";renderComparison();refreshExplanation();});
   const review = element("button", "검토 요청");review.type = "button";
   const ack = element("button", "검토 확인");ack.type = "button";
   const close = element("button", "검토 종료");close.type = "button";
@@ -158,6 +162,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   generate.addEventListener("click", async () => {
     if (!question.value.trim()) {question.focus();return;}
     pin();generate.disabled = true;state.askedQuestion = question.value.trim();
+    state.explanation = null;text.textContent = "";grounding.textContent = "";
     try {await post("/api/v1/phm/explanations/request", {binding_id: bindingId, position,
       compare_position: comparisonPosition(), question: state.askedQuestion});await refreshExplanation();}
     catch {if (current()) {status.textContent = "AI 설명 생성 불가 · 직접 검토는 계속할 수 있습니다.";generate.disabled = false;}}

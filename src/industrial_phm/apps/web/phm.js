@@ -862,7 +862,7 @@ function updateMonitorTarget(view, position) {
 }
 function clearMonitorTarget() {
   requestedResult = null;
-  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");
+  const url = new URL(location.href);url.searchParams.delete("phm_binding");url.searchParams.delete("phm_position");url.searchParams.delete("phm_view");url.searchParams.delete("phm_compare");
   history.replaceState(history.state, "", url);
 }
 let followingTarget = false;

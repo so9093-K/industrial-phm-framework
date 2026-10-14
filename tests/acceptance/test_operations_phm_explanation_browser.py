@@ -91,6 +91,13 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 assistant.get_by_role("button", name="AI에 질문").click()
                 pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
                 assert received[-1]["signal_comparison"]["previous_position"] == 2
+                page.reload()
+                pw.expect(assistant.get_by_label("비교 시점")).to_have_value("2")
+                pw.expect(assistant.get_by_label("분석 질문")).to_have_value(
+                    "수평 진동은 어떻게 달라졌나요?"
+                )
+                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                page.locator("#anomaly-review-options > summary").click()
 
                 panel.get_by_role("button", name="검토 요청").click()
                 pw.expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
