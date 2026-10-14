@@ -46,9 +46,7 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 pw.expect(panel.locator("#explore-result-intro")).to_contain_text(
                     "구간 A는 사용자가 고른 비교 구간"
                 )
-                pw.expect(panel.locator(".explore-interpretation").first).to_contain_text(
-                    "중앙값"
-                )
+                pw.expect(panel.locator(".explore-interpretation").first).to_contain_text("중앙값")
                 cards = panel.locator(".explore-series")
                 pw.expect(cards).to_have_count(2)
                 horizontal = cards.filter(has_text="수평 진동 RMS")
