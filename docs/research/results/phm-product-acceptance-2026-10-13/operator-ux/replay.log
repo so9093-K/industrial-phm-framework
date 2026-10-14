@@ -1,0 +1,30 @@
+PASS page-open-before-inputs-two-assets-five-models 
+PASS model-details-not-expanded-by-default 
+PASS real-lstm-warmup-visible-on-monitor Bearing1_1
+기록 재생
+수집 · 기록 재생
+분석 · 입력 준비 중
+입력 #2
+수평 진동이 직전 기록 #1보다 4.5% 커짐
+PASS both-assets-change-without-manual-refresh 
+PASS real-analysis-pause-keeps-input-and-last-output-distinct 
+PASS real-refused-input-does-not-look-like-new-analysis Bearing1_1
+기록 재생
+수집 · 기록 재생
+분석 · 최근 진동 파형을 읽을 수 없음
+입력 #10
+PASS four-refusals-grouped-under-one-asset 
+PASS attention-visible-without-scrolling-1440 
+PASS node-outage-clears-old-results-on-monitor 
+PASS restart-recovers-monitor-and-all-backlogged-model-inputs 
+PASS previous-model-results-unchanged 
+PASS steady-monitor-never-loads-model-history-or-refits-condition 
+PASS overview-three-requests-plus-selected-input-and-bounded-trace 
+PASS monitor-1440-no-document-overflow 
+PASS monitor-1024-no-document-overflow 
+PASS monitor-390-no-document-overflow 
+PASS reconstruction-error-and-nonconsecutive-change-visible-without-details 
+PASS actual-signal-visible-on-first-screen-1440 
+PASS two-assets-visible-on-first-screen-1440 
+PASS monitor-handoff-preserves-exact-model-position-waveform-after-reload 
+PASS no-browser-page-errors []

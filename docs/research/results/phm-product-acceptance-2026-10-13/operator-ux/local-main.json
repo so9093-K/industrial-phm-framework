@@ -1,0 +1,57 @@
+[
+  {
+    "task": "anomaly-score",
+    "binding_id": "anomaly-score-Bearing1_1",
+    "position": 69,
+    "operator_input": {
+      "asset_id": "Bearing1_1",
+      "recorded_replay": true,
+      "event_start": null,
+      "output": {
+        "task": "anomaly-score",
+        "score": 0.563460879582034,
+        "threshold": 0.7543955575234664,
+        "exceeds_threshold": false
+      },
+      "comparison": {
+        "previous_score": 0.5189434963246822,
+        "score_change": 0.04451738325735177,
+        "previous_position": 68
+      },
+      "value_label": "이상 점수",
+      "facts": [
+        "이상 점수 0.5635는 학습 기준과의 차이를 나타내며 높을수록 더 다릅니다.",
+        "참고 기준 0.7544 이하입니다. 정상·고장 판정이 아닙니다.",
+        "변수별 기여도가 없으므로 원인 신호를 추정하지 마세요."
+      ]
+    },
+    "text": "현재 설비의 이상 점수는 0.5635이며, 이는 직전 값인 0.5189에서 0.0445 증가했습니다. 이 점수는 참고 기준인 0.7544 이하입니다. 이상 점수는 학습 기준과의 차이를 나타내며, 변수별 기여도가 없어 원인 신호 추정은 어렵습니다.",
+    "grounding_warnings": []
+  },
+  {
+    "task": "rul-estimate",
+    "binding_id": "lstm-lstm-rul-v1-Bearing1_1",
+    "position": 69,
+    "operator_input": {
+      "asset_id": "Bearing1_1",
+      "recorded_replay": true,
+      "event_start": null,
+      "output": {
+        "task": "rul-estimate",
+        "estimate": 85.4310073852539,
+        "unit": "acquisition-interval",
+        "endpoint_semantics": "last-recorded-acquisition",
+        "change_from_previous": -0.03691864013671875
+      },
+      "comparison": null,
+      "value_label": "잔여 구간 추정",
+      "facts": [
+        "선택 시점의 잔여 구간 추정은 85.43 획득 간격입니다.",
+        "종료점은 이 기록의 마지막 획득 지점입니다. 실제 고장 시각을 예측한 값이 아닙니다.",
+        "직전 추정 대비 변화는 -0.03692 획득 간격입니다."
+      ]
+    },
+    "text": "선택 시점의 잔여 구간 추정값은 85.43 획득 간격이며, 이는 이 기록의 마지막 획득 지점을 기준으로 합니다. 직전 추정 대비 잔여 구간 추정값은 -0.03692 획득 간격 감소했습니다.",
+    "grounding_warnings": []
+  }
+]

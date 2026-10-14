@@ -1,0 +1,512 @@
+.............FFF...........ss.................F.....F................... [ 65%]
+........F.............................                                   [100%]
+=================================== FAILURES ===================================
+___ test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[390] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_phm_screen_names_the_mism0')
+width = 390
+
+    @pytest.mark.parametrize("width", [390, 1024, 1440])
+    def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
+        tmp_path: Path, width: int
+    ) -> None:
+        """New data that does not fit the package is refused with what differs and what is needed."""
+        pw = pytest.importorskip("playwright.sync_api")
+        workspace = phm_workspace(tmp_path / "ws")
+        store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+        package_id = next(b.package_id for b in store.list_bindings() if b.binding_id == "anomaly-a")
+        store.create_binding(
+            PhmBinding("anomaly-pump", package_id, "bench", "pump-1", StepKind.ACQUISITION_SNAPSHOT, T0)
+        )
+        path = tmp_path / "pump-1.csv"
+        path.write_text("x,y\n" + "\n".join("1,2" for _ in range(SAMPLES)) + "\n", encoding="utf-8")
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path).record(
+            AcquisitionSnapshot(
+                source_id="bench",
+                asset_id="pump-1",
+                ordinal=1,
+                file_path=path.resolve(),
+                sha256=file_sha256(path),
+                channels=("x", "y"),
+                sampling_rate_hz=1000.0,
+                sample_count=SAMPLES,
+                delivered_at=T0,
+                replay=True,
+                acquisition_period_seconds=60.0,
+                metadata={},
+            )
+        )
+        analyze(workspace)
+        # A sequence model still collecting its window skips too, but the package fits the input.
+        store.create_binding(
+            PhmBinding(
+                "anomaly-warmup", package_id, "bench", "fan-1", StepKind.ACQUISITION_SNAPSHOT, T0
+            )
+        )
+        store.commit_step(
+            "anomaly-warmup",
+            PreparedStep("warmup:1", 1, True, {}, skip_reason="sequence warm-up: 1/8 acquisitions"),
+            evaluate=lambda state, step: StepEvaluation(StepState.SKIPPED, {}, state, step.skip_reason),
+            package_id=package_id,
+            processed_at=T0,
+            feature_names=(),
+        )
+        server = create_operations_web_read_server(workspace.root)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with pw.sync_playwright() as runtime:
+                browser = runtime.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                    page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
+                    # Anomaly results belong to the selected asset; switching asset switches models.
+                    page.select_option("#asset-switch", "fan-1")
+                    pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-warmup")
+                    state = page.locator("#anomaly-state")
+>                   pw.expect(state).to_contain_text("sequence warm-up: 1/8")
+E                   AssertionError: Locator expected to contain text 'sequence warm-up: 1/8'
+E                   Actual value: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다. 
+E                   Call log:
+E                     - Expect "to_contain_text" locator("#anomaly-state") with timeout 5000ms
+E                     - waiting for locator("#anomaly-state")
+E                       14 × locator resolved to <p class="state" role="status" id="anomaly-state" aria-live="polite">모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.</p>
+E                          - unexpected value "모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다."
+E                   
+E                   Aria snapshot:
+E                   - status: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.
+
+tests/acceptance/test_operations_phm_browser.py:254: AssertionError
+___ test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[1024] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_phm_screen_names_the_mism1')
+width = 1024
+
+    @pytest.mark.parametrize("width", [390, 1024, 1440])
+    def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
+        tmp_path: Path, width: int
+    ) -> None:
+        """New data that does not fit the package is refused with what differs and what is needed."""
+        pw = pytest.importorskip("playwright.sync_api")
+        workspace = phm_workspace(tmp_path / "ws")
+        store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+        package_id = next(b.package_id for b in store.list_bindings() if b.binding_id == "anomaly-a")
+        store.create_binding(
+            PhmBinding("anomaly-pump", package_id, "bench", "pump-1", StepKind.ACQUISITION_SNAPSHOT, T0)
+        )
+        path = tmp_path / "pump-1.csv"
+        path.write_text("x,y\n" + "\n".join("1,2" for _ in range(SAMPLES)) + "\n", encoding="utf-8")
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path).record(
+            AcquisitionSnapshot(
+                source_id="bench",
+                asset_id="pump-1",
+                ordinal=1,
+                file_path=path.resolve(),
+                sha256=file_sha256(path),
+                channels=("x", "y"),
+                sampling_rate_hz=1000.0,
+                sample_count=SAMPLES,
+                delivered_at=T0,
+                replay=True,
+                acquisition_period_seconds=60.0,
+                metadata={},
+            )
+        )
+        analyze(workspace)
+        # A sequence model still collecting its window skips too, but the package fits the input.
+        store.create_binding(
+            PhmBinding(
+                "anomaly-warmup", package_id, "bench", "fan-1", StepKind.ACQUISITION_SNAPSHOT, T0
+            )
+        )
+        store.commit_step(
+            "anomaly-warmup",
+            PreparedStep("warmup:1", 1, True, {}, skip_reason="sequence warm-up: 1/8 acquisitions"),
+            evaluate=lambda state, step: StepEvaluation(StepState.SKIPPED, {}, state, step.skip_reason),
+            package_id=package_id,
+            processed_at=T0,
+            feature_names=(),
+        )
+        server = create_operations_web_read_server(workspace.root)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with pw.sync_playwright() as runtime:
+                browser = runtime.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                    page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
+                    # Anomaly results belong to the selected asset; switching asset switches models.
+                    page.select_option("#asset-switch", "fan-1")
+                    pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-warmup")
+                    state = page.locator("#anomaly-state")
+>                   pw.expect(state).to_contain_text("sequence warm-up: 1/8")
+E                   AssertionError: Locator expected to contain text 'sequence warm-up: 1/8'
+E                   Actual value: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다. 
+E                   Call log:
+E                     - Expect "to_contain_text" locator("#anomaly-state") with timeout 5000ms
+E                     - waiting for locator("#anomaly-state")
+E                       14 × locator resolved to <p class="state" role="status" id="anomaly-state" aria-live="polite">모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.</p>
+E                          - unexpected value "모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다."
+E                   
+E                   Aria snapshot:
+E                   - status: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.
+
+tests/acceptance/test_operations_phm_browser.py:254: AssertionError
+___ test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[1440] ___
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_phm_screen_names_the_mism2')
+width = 1440
+
+    @pytest.mark.parametrize("width", [390, 1024, 1440])
+    def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
+        tmp_path: Path, width: int
+    ) -> None:
+        """New data that does not fit the package is refused with what differs and what is needed."""
+        pw = pytest.importorskip("playwright.sync_api")
+        workspace = phm_workspace(tmp_path / "ws")
+        store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+        package_id = next(b.package_id for b in store.list_bindings() if b.binding_id == "anomaly-a")
+        store.create_binding(
+            PhmBinding("anomaly-pump", package_id, "bench", "pump-1", StepKind.ACQUISITION_SNAPSHOT, T0)
+        )
+        path = tmp_path / "pump-1.csv"
+        path.write_text("x,y\n" + "\n".join("1,2" for _ in range(SAMPLES)) + "\n", encoding="utf-8")
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path).record(
+            AcquisitionSnapshot(
+                source_id="bench",
+                asset_id="pump-1",
+                ordinal=1,
+                file_path=path.resolve(),
+                sha256=file_sha256(path),
+                channels=("x", "y"),
+                sampling_rate_hz=1000.0,
+                sample_count=SAMPLES,
+                delivered_at=T0,
+                replay=True,
+                acquisition_period_seconds=60.0,
+                metadata={},
+            )
+        )
+        analyze(workspace)
+        # A sequence model still collecting its window skips too, but the package fits the input.
+        store.create_binding(
+            PhmBinding(
+                "anomaly-warmup", package_id, "bench", "fan-1", StepKind.ACQUISITION_SNAPSHOT, T0
+            )
+        )
+        store.commit_step(
+            "anomaly-warmup",
+            PreparedStep("warmup:1", 1, True, {}, skip_reason="sequence warm-up: 1/8 acquisitions"),
+            evaluate=lambda state, step: StepEvaluation(StepState.SKIPPED, {}, state, step.skip_reason),
+            package_id=package_id,
+            processed_at=T0,
+            feature_names=(),
+        )
+        server = create_operations_web_read_server(workspace.root)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with pw.sync_playwright() as runtime:
+                browser = runtime.chromium.launch(headless=True)
+                try:
+                    page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                    page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
+                    # Anomaly results belong to the selected asset; switching asset switches models.
+                    page.select_option("#asset-switch", "fan-1")
+                    pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-warmup")
+                    state = page.locator("#anomaly-state")
+>                   pw.expect(state).to_contain_text("sequence warm-up: 1/8")
+E                   AssertionError: Locator expected to contain text 'sequence warm-up: 1/8'
+E                   Actual value: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다. 
+E                   Call log:
+E                     - Expect "to_contain_text" locator("#anomaly-state") with timeout 5000ms
+E                     - waiting for locator("#anomaly-state")
+E                       14 × locator resolved to <p class="state" role="status" id="anomaly-state" aria-live="polite">모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.</p>
+E                          - unexpected value "모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다."
+E                   
+E                   Aria snapshot:
+E                   - status: 모델 연결됨 · 분석에 필요한 연속 입력을 모으고 있습니다.
+
+tests/acceptance/test_operations_phm_browser.py:254: AssertionError
+________ test_web_monitor_reads_actual_stored_signals_in_browser[1024] _________
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_web_monitor_reads_actual_0')
+width = 1024
+
+    @pytest.mark.parametrize("width", [1024, 1440])
+    def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, width: int) -> None:
+        sync_api = pytest.importorskip("playwright.sync_api")
+        pytest.importorskip("duckdb")
+        workspace = OperationsWorkspace(tmp_path / "actual-data")
+        initialize_operations_workspace(workspace)
+        event_at = datetime.now(UTC) - timedelta(minutes=3)
+        source_path = tmp_path / "real-observations.csv"
+        source_path.write_text(
+            "time,phase-R,phase-S,phase-T\n"
+            f"{event_at.isoformat()},220.5,219.3,220.1\n"
+            f"{(event_at + timedelta(seconds=1)).isoformat()},220.7,219.4,220.2\n",
+            encoding="utf-8",
+        )
+        source = RegisteredSource(
+            source_id="test-phase-source",
+            name="실제 FILE 측정",
+            config=FileSourceConfig(
+                source_path=str(source_path),
+                asset_id="pump-01",
+                measurement_point_id="panel-main",
+                channel_columns=("phase-R", "phase-S", "phase-T"),
+                timestamp_column="time",
+            ),
+            registered_at=event_at - timedelta(minutes=1),
+        )
+        JsonSourceRepository(workspace.source_registry_path).register(source)
+        repository = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(
+                catalog_path=workspace.history_catalog_path,
+                data_path=workspace.history_data_path,
+            )
+        )
+        assert (
+            backfill_registered_file_source(
+                JsonSourceRepository(workspace.source_registry_path), repository, source.source_id
+            ).event_count
+            == 6
+        )
+    
+        server = create_operations_web_read_server(workspace.root)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with sync_api.sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors: list[str] = []
+                external: list[str] = []
+                page.on("pageerror", lambda exc: errors.append(str(exc)))
+                page.on(
+                    "request",
+                    lambda req: (
+                        external.append(req.url)
+                        if not req.url.startswith(f"http://127.0.0.1:{server.server_port}/")
+                        else None
+                    ),
+                )
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+                sync_api.expect(page.get_by_role("heading", name="설비 모니터링")).to_be_visible()
+                # The first keyboard stop on a new page is the visible skip link.
+                page.keyboard.press("Tab")
+                sync_api.expect(page.locator(".skip-link")).to_be_focused()
+                page.keyboard.press("Enter")
+                sync_api.expect(page.locator("#main")).to_be_focused()
+                assert page.evaluate("location.hash") == "#main"
+                assert page.locator("html").get_attribute("lang") == "ko"
+                # Keyboard activation, not a mouse click, must update current navigation.
+                page.get_by_role("link", name="시스템 상태").focus()
+                page.keyboard.press("Enter")
+                assert page.evaluate("location.hash") == "#system"
+                sync_api.expect(page.locator("#asset-bar")).to_be_hidden()
+                page.get_by_role("link", name="시스템 상태").click()
+                sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
+                    "aria-current", "page"
+                )
+>               sync_api.expect(page.locator("#system-status")).to_contain_text(
+                    "저장소를 정상적으로 읽었습니다"
+                )
+E               AssertionError: Locator expected to contain text '저장소를 정상적으로 읽었습니다'
+E               Actual value: 시스템 상태를 확인하는 중입니다. 
+E               Call log:
+E                 - Expect "to_contain_text" locator("#system-status") with timeout 5000ms
+E                 - waiting for locator("#system-status")
+E                   14 × locator resolved to <p class="state" role="status" id="system-status" aria-live="polite">시스템 상태를 확인하는 중입니다.</p>
+E                      - unexpected value "시스템 상태를 확인하는 중입니다."
+E               
+E               Aria snapshot:
+E               - status: 시스템 상태를 확인하는 중입니다.
+
+tests/acceptance/test_operations_web_monitor_browser.py:112: AssertionError
+_____________ test_web_file_receipt_browser_keeps_history_separate _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_web_file_receipt_browser_0')
+
+    def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None:
+        sync_api = pytest.importorskip("playwright.sync_api")
+        from industrial_phm.application import JsonSourceRuntimeRepository
+    
+        workspace = OperationsWorkspace(tmp_path / "file-receipt-browser")
+        initialize_operations_workspace(workspace)
+        inputs = workspace.root / "inputs"
+        inputs.mkdir()
+        (inputs / "phase.csv").write_text(
+            "timestamp,phase-R,phase-S,phase-T\n2026-10-08T12:00:00+00:00,220,219,221\n",
+            encoding="utf-8",
+        )
+        server = create_operations_web_read_server(workspace.root)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with sync_api.sync_playwright() as playwright:
+                browser = playwright.chromium.launch(headless=True)
+                page = browser.new_page(viewport={"width": 1024, "height": 900})
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/#connect", wait_until="networkidle"
+                )
+                page.locator("#advanced-file-registration > summary").click()
+                page.locator('#file-form input[name="source_id"]').fill("file-receipt")
+                page.locator('#file-form input[name="name"]').fill("FILE receipt")
+                page.locator('#file-form input[name="asset_id"]').fill("pump-01")
+                page.locator('input[name="file_path"]').fill("inputs/phase.csv")
+                page.locator('input[name="channel_columns"]').fill("phase-R,phase-S,phase-T")
+                page.locator('input[name="timestamp_column"]').fill("timestamp")
+                page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
+                sync_api.expect(page.locator("#source-list")).to_contain_text("수신 미확인")
+                page.on("dialog", lambda dialog: dialog.accept())
+                page.locator("#source-list").get_by_role("button", name="소스 활성화").click()
+                sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: active")
+                page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
+                sync_api.expect(page.locator("#source-control-result")).to_contain_text(
+                    "FILE 검증 수신 근거 기록 완료"
+                )
+                sync_api.expect(page.locator("#source-list")).to_contain_text("CSV 수신 확인됨")
+                sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 1개")
+                page.locator("#connection-progress > summary").click()
+                handoff = page.locator("#onboarding-monitor-link")
+                sync_api.expect(handoff).to_be_visible()
+                sync_api.expect(page.locator("#onboarding-steps")).to_contain_text(
+                    "사용 중이면서 수신을 확인한 소스 1개"
+                )
+>               page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
+
+tests/acceptance/test_operations_web_monitor_browser.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/sync_api/_generated.py:11021: in click
+    self._sync(
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_locator.py:174: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_frame.py:598: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7eeca37d6950>
+cb = <function Channel.send.<locals>.<lambda> at 0x7eeca4f1c7d0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for locator("#source-list").get_by_role("button", name="소스 일시정지")
+
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_connection.py:636: TimeoutError
+_______________________ test_web_opcua_full_browser_flow _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-so/pytest-44/test_web_opcua_full_browser_fl0')
+
+    def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
+        sync_api = pytest.importorskip("playwright.sync_api")
+        pytest.importorskip("asyncua")
+        workspace = OperationsWorkspace(tmp_path / "opcua-browser")
+        initialize_operations_workspace(workspace)
+        with (
+            _opc_server() as (endpoint, node_id),
+            _web(workspace) as port,
+            sync_api.sync_playwright() as playwright,
+        ):
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1024, "height": 900})
+            errors: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
+            page.locator('nav a[href="#connect"]').click()
+            page.locator("#opcua-registration > summary").click()
+            page.locator("#opcua-endpoint").fill(endpoint)
+            page.get_by_role("button", name="로컬 변수 탐색").click()
+            sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(
+                "Machine 객체 내부 탐색"
+            )
+            page.get_by_role("button", name="Machine 객체 내부 탐색").click()
+            sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
+            assert page.locator("#opcua-browse-start").input_value() != "i=85"
+            sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
+            page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
+            page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
+            page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
+            page.locator('#opcua-form textarea[name="node_mappings"]').fill("vibration_x=" + node_id)
+            page.get_by_role("button", name="OPC UA 매핑 등록").click()
+            listing = page.locator("#source-list")
+            sync_api.expect(listing).to_contain_text("web-opcua-1")
+            sync_api.expect(listing).to_contain_text("수신 미확인")
+            page.on("dialog", lambda dialog: dialog.accept())
+            listing.get_by_role("button", name="소스 활성화").click()
+            sync_api.expect(listing).to_contain_text("관리 상태: active")
+>           listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
+
+tests/integration/test_operations_web_opcua.py:288: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/sync_api/_generated.py:11021: in click
+    self._sync(
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_locator.py:174: in click
+    return await self._frame._click(self._selector, strict=True, **params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_frame.py:598: in _click
+    await self._channel.send("click", self._timeout, locals_to_params(locals()))
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_connection.py:78: in send
+    return await self._connection.wrap_api_call(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <playwright._impl._connection.Connection object at 0x7eeca5043550>
+cb = <function Channel.send.<locals>.<lambda> at 0x7eeca41c56f0>
+is_internal = False, title = None
+
+    async def wrap_api_call(
+        self, cb: Callable[[], Any], is_internal: bool = False, title: str = None
+    ) -> Any:
+        if self._api_zone.get():
+            return await cb()
+        task = asyncio.current_task(self._loop)
+        parsed_st = _attach_api_call_information(
+            getattr(task, "__pw_stack__", None) or _capture_stack_trace(),
+            is_internal,
+            title,
+        )
+        self._api_zone.set(parsed_st)
+        try:
+            return await cb()
+        except Exception as error:
+>           raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+E           playwright._impl._errors.TimeoutError: Locator.click: Timeout 30000ms exceeded.
+E           Call log:
+E             - waiting for locator("#source-list").get_by_role("button", name="OPC UA 1회 수신 진단")
+
+/home/so/.cache/uv/archive-v0/4gqYu4Q8r_oyuGtE/lib/python3.14/site-packages/playwright/_impl/_connection.py:636: TimeoutError
+------------------------------ Captured log call -------------------------------
+WARNING  asyncua.server.server:server.py:489 No encrypting policy available, password may get transferred in plaintext
+WARNING  asyncua.server.server:server.py:433 Endpoints other than open requested but private key and certificate are not set.
+WARNING  asyncua.client.client:client.py:803 Requested session timeout to be 3600000ms, got 600000ms instead
+WARNING  asyncua.client.client:client.py:803 Requested session timeout to be 3600000ms, got 600000ms instead
+=========================== short test summary info ============================
+SKIPPED [2] tests/acceptance/test_operations_recorded_reference_browser.py:35: opt-in local recorded data: set PHM_RECORDED_REFERENCE
+FAILED tests/acceptance/test_operations_phm_browser.py::test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[390]
+FAILED tests/acceptance/test_operations_phm_browser.py::test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[1024]
+FAILED tests/acceptance/test_operations_phm_browser.py::test_phm_screen_names_the_mismatch_and_the_input_the_package_needs[1440]
+FAILED tests/acceptance/test_operations_web_monitor_browser.py::test_web_monitor_reads_actual_stored_signals_in_browser[1024]
+FAILED tests/acceptance/test_operations_web_monitor_browser.py::test_web_file_receipt_browser_keeps_history_separate
+FAILED tests/integration/test_operations_web_opcua.py::test_web_opcua_full_browser_flow
+6 failed, 102 passed, 2 skipped in 563.53s (0:09:23)

@@ -1,0 +1,22 @@
+{
+  "code_revision": "5b302f58e29b916e46f619093fa15fb72533afad",
+  "workspace": "existing AI-Hub replay workspace; read-only, no new inference",
+  "checks": [
+    "monitor-real-stored-data-three-widths",
+    "connect-real-stored-data-three-widths",
+    "anomaly-real-stored-data-three-widths"
+  ],
+  "page_errors": [],
+  "images": {
+    "monitor-1440.png": "c9b0e8d94242691cc7a0f15b0d6b8c4a1d9971e94f2493dc7972596037b4dd99",
+    "monitor-1024.png": "0543d0fc0af43c9bf93377f765074607de7d20c04a72e8ed3781cbe30c2aa345",
+    "monitor-390.png": "51b9cc60b6414d7459831e6c11f6a66655dd092f43401def3303218f3dce0b54",
+    "connect-1440.png": "86db989c56cd483507f6def5cbdec2aca3d1ec4db780e4f0c6ff6b3eb51d9ca4",
+    "connect-1024.png": "37a74485a74600fcbd4e90a50d057aebdfe8fa94825c00621842eecd3d7bd26d",
+    "connect-390.png": "d76f0234f11dc4281c8a24a9fee395853fb3bb9dd0251cd665d321534ecf7742",
+    "anomaly-1440.png": "32dfee3b6b368992b823a6ad451eded44514179094f0c1cc2df6fbbac7812d9f",
+    "anomaly-1024.png": "520f0441c32e5fc4599616a3cef52cc918c583c960a8e911eccc4878b4adbb2a",
+    "anomaly-390.png": "3a8dff0155dea7026cdbbae562d38b2b523bf070ade90adca04982ffb386bca4"
+  },
+  "human_usability_acceptance": "not established"
+}
