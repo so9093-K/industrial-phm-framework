@@ -10,6 +10,7 @@ from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSna
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import explanation_context
 from industrial_phm.genai import phm_answer
+from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.genai.phm_answer import (
     answer_input,
@@ -144,21 +145,33 @@ def test_common_two_point_phrasing_is_rewritten_not_rejected() -> None:
     assert soften("전압이 감소하는 추세를 보이며 전류는") == "전압이 감소하며 전류는"
 
 
-def _fake_model(monkeypatch: pytest.MonkeyPatch, drafts: list[dict[str, Any]], review=None):
+CLEAN_REVIEW = {
+    "causal": False,
+    "trend": False,
+    "contradiction": False,
+    "verdict": False,
+    "answers_question": True,
+    "quote": "",
+}
+
+
+def _fake_model(
+    monkeypatch: pytest.MonkeyPatch,
+    drafts: list[Any],
+    reviews: list[dict[str, Any]] | None = None,
+):
+    """Drafts in order (an exception instance is raised); reviews in order, then clean."""
     calls: list[list[dict[str, str]]] = []
+    pending = list(reviews or [])
 
     def complete(provider, messages, schema, *, max_tokens=1200):
         calls.append(messages)
         if "causal" in schema["properties"]:
-            return review or {
-                "causal": False,
-                "trend": False,
-                "contradiction": False,
-                "verdict": False,
-                "answers_question": True,
-                "quote": "",
-            }
-        return drafts.pop(0)
+            return pending.pop(0) if pending else CLEAN_REVIEW
+        draft = drafts.pop(0)
+        if isinstance(draft, Exception):
+            raise draft
+        return draft
 
     monkeypatch.setattr(phm_answer, "complete_json", complete)
     return calls
@@ -204,22 +217,77 @@ def test_failed_draft_is_rewritten_once_with_the_reasons(
     assert answer["checks"]["first_summary"].endswith("때문입니다.")
 
 
-def test_reviewer_only_triggers_a_rewrite_and_never_replaces_the_answer(
+def _causal(quote: str) -> dict[str, Any]:
+    return {**CLEAN_REVIEW, "causal": True, "quote": quote}
+
+
+def test_a_rewrite_the_reviewer_accepts_is_shown(
     contexts: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    review = {
-        "causal": True,
-        "trend": False,
-        "contradiction": False,
-        "verdict": False,
-        "answers_question": True,
-        "quote": "커졌습니다",
-    }
-    text = "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다."
-    calls = _fake_model(monkeypatch, [_draft(text), _draft(text)], review)
+    calls = _fake_model(
+        monkeypatch,
+        [
+            _draft("이상 점수가 증가했고 진폭이 점수를 끌어올렸습니다."),
+            _draft("이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다."),
+        ],
+        [_causal("끌어올렸습니다")],
+    )
     answer = generate_grounded_answer(contexts["anomaly-a"], ExplanationProvider())
-    assert answer["summary"] == text and answer["checks"]["summary_source"] == "model"
-    assert len(calls) == 3
+    assert answer["summary"] == "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다."
+    assert answer["checks"]["summary_source"] == "model" and answer["checks"]["rewritten"]
+    assert len(calls) == 4  # draft, review, rewrite, review of the rewrite
+
+
+def test_a_problem_the_reviewer_finds_again_is_not_shown(
+    contexts: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rewrite = "이상 점수가 증가했습니다. 진폭이 점수를 밀어 올렸습니다."
+    _fake_model(
+        monkeypatch,
+        [_draft("이상 점수가 증가했고 진폭이 점수를 끌어올렸습니다."), _draft(rewrite)],
+        [_causal("끌어올렸습니다"), _causal("밀어 올렸습니다")],
+    )
+    answer = generate_grounded_answer(contexts["anomaly-a"], ExplanationProvider())
+    assert answer["summary"] == "이상 점수가 증가했습니다."
+    assert answer["checks"]["summary_source"] == "model-trimmed"
+
+
+def test_a_problem_that_cannot_be_located_leaves_the_stored_comparison(
+    contexts: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_model(
+        monkeypatch,
+        [_draft("이상 점수가 증가했고 진폭이 점수를 끌어올렸습니다.")] * 2,
+        [_causal("끌어올렸습니다"), _causal("")],
+    )
+    answer = generate_grounded_answer(contexts["anomaly-a"], ExplanationProvider())
+    assert answer["checks"]["summary_source"] == "verified-comparison"
+    assert answer["summary"].startswith("두 시점 사이에 이상 점수가 높아졌습니다.")
+
+
+def test_a_failed_rewrite_call_still_answers_from_the_verified_draft(
+    contexts: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_model(
+        monkeypatch,
+        [
+            _draft("이상 점수가 증가했습니다. 진폭이 커졌기 때문입니다."),
+            AnalysisExplanationError("provider unavailable"),
+        ],
+    )
+    answer = generate_grounded_answer(contexts["anomaly-a"], ExplanationProvider())
+    assert answer["summary"] == "이상 점수가 증가했습니다."
+    assert answer["checks"]["rewrite_failed"] and not answer["checks"]["rewritten"]
+    assert answer["checks"]["summary_source"] == "model-trimmed"
+
+
+def test_without_any_model_answer_the_stored_comparison_answers(
+    contexts: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_model(monkeypatch, [AnalysisExplanationError("provider unavailable")])
+    answer = generate_grounded_answer(contexts["anomaly-a"], ExplanationProvider())
+    assert answer["checks"] == {"summary_source": "verified-comparison", "model_unavailable": True}
+    assert answer["summary"].startswith("두 시점 사이에 이상 점수가 높아졌습니다.")
 
 
 def test_sentences_that_still_fail_are_dropped_and_stored_facts_fill_the_gap(

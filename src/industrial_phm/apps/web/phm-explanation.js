@@ -150,7 +150,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
         answerBox.append(next);
       }
     }
-    if (answer.checks?.summary_source && answer.checks.summary_source !== "model") {
+    if (answer.checks?.summary_source && answer.checks.summary_source !== "model" && !answer.checks.model_unavailable) {
       answerBox.append(Object.assign(element("p", "확인되지 않은 문장은 빼고 저장된 비교로 채웠습니다."), {className: "muted"}));
     }
   }
@@ -205,6 +205,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호 비교 · AI 질문은 감독형 Web에서 사용할 수 있습니다."
         : item.status === "pending" ? "선택한 두 시점의 신호와 모델 결과를 비교하고 있습니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
+        : item.answer?.checks?.model_unavailable ? "AI 응답 없음 · 저장된 비교로 답했습니다 · 선택 시점 " + stepName
         : "AI 분석 답변 · " + item.model + " · 선택 시점 " + stepName;
       question.disabled = !writable;generate.hidden = !writable;
       generate.disabled = !writable || Boolean(item && item.status === "pending");

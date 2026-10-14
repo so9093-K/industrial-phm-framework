@@ -432,8 +432,11 @@ _REVIEW_SCHEMA = {
 
 def review_answer(
     provider: ExplanationProvider, payload: dict[str, Any], answer: dict[str, Any]
-) -> list[str]:
-    """A second, narrow reading for meaning that wording checks cannot see."""
+) -> list[dict[str, str]]:
+    """A second, narrow reading for meaning that wording checks cannot see.
+
+    Each finding names its kind, the quoted wording and the instruction for a rewrite.
+    """
     facts = [f"{payload['primary']['name']}: {payload['primary']['change'] or '비교 없음'}"]
     facts += [
         f"{item['name']}: {item['change'] or '비교 없음'}" for item in payload["related_models"]
@@ -460,20 +463,28 @@ def review_answer(
         return []
     quote = str(verdict.get("quote") or "").strip()
     cite = f" ('{quote}')" if quote else ""
-    issues = []
-    if verdict.get("causal") is True:
-        issues.append(
-            "두 시점의 동반 변화를 원인처럼 단정했습니다" + cite + ". 관측된 변화로만 쓰세요."
-        )
-    if verdict.get("trend") is True:
-        issues.append("두 시점 비교를 기간 전체 추세처럼 썼습니다" + cite + ".")
-    if verdict.get("contradiction") is True:
-        issues.append("저장된 증가·감소 방향과 다르게 썼습니다" + cite + ".")
-    if verdict.get("verdict") is True:
-        issues.append("설비 상태를 판정하거나 정비를 지시했습니다" + cite + ".")
+    flagged = {
+        "causal": "두 시점의 동반 변화를 원인처럼 단정했습니다"
+        + cite
+        + ". 관측된 변화로만 쓰세요.",
+        "trend": "두 시점 비교를 기간 전체 추세처럼 썼습니다" + cite + ".",
+        "contradiction": "저장된 증가·감소 방향과 다르게 썼습니다" + cite + ".",
+        "verdict": "설비 상태를 판정하거나 정비를 지시했습니다" + cite + ".",
+    }
+    findings = [
+        {"kind": kind, "quote": quote, "message": message}
+        for kind, message in flagged.items()
+        if verdict.get(kind) is True
+    ]
     if verdict.get("answers_question") is False:
-        issues.append("question에 직접 답하지 않았습니다. 질문이 묻는 내용부터 답하세요.")
-    return issues
+        findings.append(
+            {
+                "kind": "off_question",
+                "quote": "",
+                "message": "question에 직접 답하지 않았습니다. 질문이 묻는 내용부터 답하세요.",
+            }
+        )
+    return findings
 
 
 def _subject(word: str) -> str:
@@ -529,11 +540,25 @@ def generate_grounded_answer(
         {"role": "system", "content": answer_instructions(payload, context["output"].get("task"))},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False, allow_nan=False)},
     ]
-    raw = complete_json(provider, messages, schema)
+    try:
+        raw = complete_json(provider, messages, schema)
+    except AnalysisExplanationError:
+        # No model answer at all: the stored comparison still answers, marked as such.
+        summary, next_step, observed = verified_summary(payload)
+        return {
+            "summary": summary,
+            "observations": observed,
+            "next_signals": [],
+            "next_step": next_step,
+            "checks": {"summary_source": "verified-comparison", "model_unavailable": True},
+        }
     answer, issues = check_answer(raw, payload)
-    if not issues:
-        issues = review_answer(provider, payload, answer)
+    findings = [] if issues else review_answer(provider, payload, answer)
+    issues += [finding["message"] for finding in findings]
     first_issues, first_summary = list(issues), answer["summary"]
+    # Meaning problems the reviewer located, which the shown answer must not keep.
+    located = [f for f in findings if f["kind"] != "off_question"]
+    rewrite_failed = False
     if issues:
         messages += [
             {"role": "assistant", "content": json.dumps(raw, ensure_ascii=False)},
@@ -543,30 +568,49 @@ def generate_grounded_answer(
                 + "\n- ".join(issues),
             },
         ]
-        raw = complete_json(provider, messages, schema)
-        # The reviewer only triggers a rewrite: its false positives must never replace an answer.
-        answer, issues = check_answer(raw, payload)
+        try:
+            raw = complete_json(provider, messages, schema)
+        except AnalysisExplanationError:
+            rewrite_failed = True  # the draft stays; its failing sentences are dropped below
+        else:
+            answer, issues = check_answer(raw, payload)
+            if not issues and located:
+                # The rewrite is read again for the kinds of problem found in the draft.
+                kinds = {f["kind"] for f in located}
+                located = [
+                    f for f in review_answer(provider, payload, answer) if f["kind"] in kinds
+                ]
+                issues = [f["message"] for f in located]
+            elif not issues:
+                located = []
     source, rejected = "model", answer["summary"]
     if issues:
         # Unverifiable sentences are dropped; the verified rest of the answer stays.
         summary, next_step, observed = verified_summary(payload)
+        quotes = [f["quote"] for f in located]
+        written = sentences(answer["summary"])
         kept = [
             sentence
-            for sentence in sentences(answer["summary"])
+            for sentence in written
             if not claim_issues(sentence, payload, field="summary")
+            and not any(quote and quote in sentence for quote in quotes)
         ]
+        if any(not quote or not any(quote in s for s in written) for quote in quotes):
+            kept = []  # a meaning problem that cannot be located leaves nothing to trust
         if kept:
             text = " ".join(kept)
             if not mentions_primary(text, payload):
                 text = sentences(summary)[0] + " " + text
-            answer["summary"], source = text, "model-trimmed"
+            answer["summary"] = text
+            source = "model" if text == " ".join(written) else "model-trimmed"
         else:
             answer["summary"], source = summary, "verified-comparison"
         if text_issues(answer["next_step"], payload, field="next_step") or not answer["next_step"]:
             answer["next_step"] = next_step
         answer["observations"] = answer["observations"] or observed
     answer["checks"] = {
-        "rewritten": bool(first_issues),
+        "rewritten": bool(first_issues) and not rewrite_failed,
+        "rewrite_failed": rewrite_failed,
         "first_issues": first_issues,
         "first_summary": first_summary if first_issues else None,
         "rejected_summary": rejected if issues else None,
