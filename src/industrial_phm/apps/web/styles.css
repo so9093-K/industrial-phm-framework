@@ -200,9 +200,8 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 
 /* PHM review is the main action; optional AI prose and history stay secondary. */
 .phm-review-status{font-size:.92rem;font-weight:650;color:#254a5e;margin:12px 0}
-.phm-review-details,.phm-ai-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
-.phm-review-details summary,.phm-ai-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
-.phm-ai-details>button{margin:8px 0}
+.phm-review-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
+.phm-review-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
 .phm-review-details .phm-review-history{padding-top:8px}
 #anomaly-explanation>button:not([hidden]),#rul-explanation>button:not([hidden]){margin:8px 8px 6px 0}
 #anomaly-explanation>label:not([hidden]),#rul-explanation>label:not([hidden]){margin:12px 0 7px}
@@ -370,3 +369,5 @@ body[data-view="signals"] .layout,body[data-view="evidence"] .below{grid-templat
 .phm-assistant [role=status]{font-size:.8rem;color:#526c79}
 
 .phm-assistant textarea{resize:vertical;min-height:64px;line-height:1.5;font:inherit;font-size:.85rem}
+
+.phm-disputed-reply{font-size:.82rem;margin-top:8px;color:#526c79}

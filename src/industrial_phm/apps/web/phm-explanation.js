@@ -43,6 +43,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const status = element("p", "저장된 AI 설명을 조회 중입니다.");status.setAttribute("role", "status");
   const text = element("p");text.className = "phm-ai-text";
   const grounding = element("p");grounding.className = "phm-ai-warning";grounding.setAttribute("role", "alert");
+  const disputed = element("details");disputed.className = "phm-disputed-reply";disputed.hidden = true;
+  disputed.append(element("summary", "확인이 필요한 응답 원문 보기"));
   const generate = element("button", "AI에 질문");generate.type = "button";
   const steps = options.steps || [];
   const selectedStep = steps.find((step) => step.position === position);
@@ -98,7 +100,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       open.addEventListener("click", () => options.openSignal(prior.position));summary.append(open);
     }
   }
-  assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, generate, status, grounding, text);
+  assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, generate, status, grounding, text, disputed);
   renderComparison();
   compare.addEventListener("change", () => {
     const url = new URL(location.href);url.searchParams.set("phm_compare", compare.value);
@@ -147,6 +149,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       if (item && asked === null) {question.value = item.context.question;state.askedQuestion = item.context.question;}
       text.textContent = item && item.status === "complete" ? item.text : "";
       grounding.textContent = item && item.status === "complete" ? warningText(item.warnings || []) : "";
+      disputed.hidden = !grounding.textContent;disputed.open = false;
+      if (grounding.textContent) disputed.append(text);
+      else assistant.insertBefore(text, disputed);
       status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호 비교 · AI 질문은 감독형 Web에서 사용할 수 있습니다."
         : item.status === "pending" ? "선택한 두 시점의 신호와 모델 결과를 비교하고 있습니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."

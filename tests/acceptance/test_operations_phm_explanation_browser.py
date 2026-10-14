@@ -81,6 +81,9 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                     "판정 표현 경고: 설명이 '정상 상태'처럼"
                 )
                 pw.expect(assistant.locator(".phm-ai-warning")).to_be_visible()
+                pw.expect(assistant.locator(".phm-ai-text")).not_to_be_visible()
+                assistant.get_by_text("확인이 필요한 응답 원문 보기", exact=True).click()
+                pw.expect(assistant.locator(".phm-ai-text")).to_be_visible()
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
                 assistant.get_by_role("button", name="비교 시점의 원본 신호 보기").click()
                 pw.expect(assistant.locator(".phm-comparison-original h4")).to_contain_text("#1")

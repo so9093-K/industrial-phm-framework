@@ -300,3 +300,19 @@ def test_comparison_checks_numeric_roles_not_only_membership() -> None:
         "표현 확인: 음수 변화량과 감소 표현이 겹칩니다"
     ]
     assert comparison_claim_warnings("변화 -0.04입니다.", context) == []
+
+
+def test_two_point_observation_does_not_establish_causality_or_a_long_term_trend() -> None:
+    from industrial_phm.genai.local_explanation import comparison_claim_warnings
+
+    context = {"output": {}, "signal_comparison": {}}
+    assert comparison_claim_warnings("전류 불평형 증가에서 기인합니다.", context) == [
+        "내용 확인: 두 시점의 동반 변화를 원인으로 단정했습니다"
+    ]
+    assert comparison_claim_warnings("잔여 구간 추정은 감소하는 추세를 보였습니다.", context) == [
+        "내용 확인: 두 시점 비교의 추세·변화 순위를 과장했습니다"
+    ]
+    assert (
+        comparison_claim_warnings("신호가 함께 증가했습니다. 원인으로 단정할 수 없습니다.", context)
+        == []
+    )
