@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from threading import Lock, Thread
+from typing import Any
 from uuid import uuid4
 
 from industrial_phm.application import JsonFindingReviewRepository, JsonOperationalFindingRepository
@@ -14,6 +15,7 @@ from industrial_phm.application.observation_window_sqlite import SqliteObservati
 from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
+from industrial_phm.application.phm_range import focus_point
 from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
@@ -37,6 +39,9 @@ class ExplanationManager:
         *,
         compare_position: int | None = None,
         question: str = "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.",
+        parent_id: str | None = None,
+        focus_position: int | None = None,
+        focus_series: str | None = None,
     ) -> dict[str, object]:
         workspace = self.workspace
         context = explanation_context(
@@ -49,6 +54,24 @@ class ExplanationManager:
             question=question,
             windows=SqliteObservationWindowRepository(workspace.window_state_path),
         )
+        if parent_id is not None:
+            context["parent_id"] = parent_id
+            context["history"] = self._history(parent_id, context)
+        if focus_position is not None:
+            span = context["signal_comparison"].get("range")
+            if not span:
+                raise ValueError("focus needs a selected comparison range")
+            store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+            binding = next(b for b in store.list_bindings() if b.binding_id == binding_id)
+            context["focus"] = focus_point(
+                store,
+                binding_id,
+                binding.step_kind,
+                span,
+                focus_position,
+                list(span["features"]),
+                series=focus_series,
+            )
         provider = ExplanationProvider(
             base_url=os.environ.get("INDUSTRIAL_PHM_GENAI_BASE_URL", "http://127.0.0.1:9400/v1"),
             model=os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "local-main"),
@@ -75,6 +98,26 @@ class ExplanationManager:
             "position": position,
         }
 
+    def _history(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
+        """Earlier questions and answers of the same comparison, oldest first, at most three."""
+        parent = self.store.get(parent_id)
+        same = parent is not None and (
+            parent["binding_id"],
+            parent["position"],
+            parent["context"]["signal_comparison"]["previous_position"],
+        ) == (
+            context["binding_id"],
+            context["position"],
+            context["signal_comparison"]["previous_position"],
+        )
+        if parent is None or not same or parent["status"] != "complete" or not parent["answer"]:
+            raise ValueError("follow-up must continue a completed answer of the same comparison")
+        earlier = list(parent["context"].get("history") or [])
+        earlier.append(
+            {"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}
+        )
+        return earlier[-3:]
+
 
 def initialize_explanation_manager(root: Path) -> ExplanationManager:
     with _LOCK:
@@ -91,6 +134,9 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
         "position",
         "compare_position",
         "question",
+        "parent_id",
+        "focus_position",
+        "focus_series",
     }:
         raise ValueError("unexpected explanation fields")
     binding_id, position = payload["binding_id"], payload["position"]
@@ -102,6 +148,19 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
     ):
         raise ValueError("invalid explanation selection")
     compare_position = payload.get("compare_position")
+    parent_id = payload.get("parent_id")
+    if parent_id is not None and (not isinstance(parent_id, str) or len(parent_id) > 128):
+        raise ValueError("invalid follow-up")
+    focus_position = payload.get("focus_position")
+    focus_series = payload.get("focus_series")
+    if focus_series is not None and (
+        not isinstance(focus_series, str) or focus_position is None or len(focus_series) > 512
+    ):
+        raise ValueError("invalid focus series")
+    if focus_position is not None and (
+        isinstance(focus_position, bool) or not isinstance(focus_position, int)
+    ):
+        raise ValueError("invalid focus point")
     question = payload.get(
         "question", "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요."
     )
@@ -115,7 +174,13 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
     ):
         raise ValueError("invalid analysis question or comparison")
     return initialize_explanation_manager(root).request(
-        binding_id, position, compare_position=compare_position, question=question.strip()
+        binding_id,
+        position,
+        compare_position=compare_position,
+        question=question.strip(),
+        parent_id=parent_id,
+        focus_position=focus_position,
+        focus_series=focus_series,
     )
 
 

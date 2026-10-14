@@ -200,3 +200,60 @@ def test_spike_omitted_from_the_flow_sample_is_still_the_exact_largest_change(
         "anomaly-a", 2501, 2504, output_key="score", features=["sparse"]
     )
     assert missing["sparse"]["pairs"] == 0 and missing["sparse"]["delta"] is None
+
+
+def test_a_picked_point_names_what_happened_there_and_before_vs_after(
+    stored: dict[str, Any],
+) -> None:
+    from industrial_phm.application.phm_range import focus_point
+
+    store = stored["store"]
+    rms = "feature.Horizontal_vibration_signals.rms"
+    span = range_analysis(store, "anomaly-a", StepKind.ACQUISITION_SNAPSHOT, 1, 8, [rms])
+    focus = focus_point(store, "anomaly-a", StepKind.ACQUISITION_SNAPSHOT, span, 5, [rms])
+    assert focus["label"] == "#5"
+    assert {(e["series"], e["event"]) for e in focus["events"]} >= {("primary", "level_shift")}
+    before, after = focus["before_after"]["primary"].values()
+    assert after > before
+    with pytest.raises(ValueError, match="inside the selected range"):
+        focus_point(store, "anomaly-a", StepKind.ACQUISITION_SNAPSHOT, span, 1, [rms])
+
+    context = {**stored["context"], "focus": focus, "question": "이 지점 전후로 무엇이 달라졌어?"}
+    payload = answer_input(context)
+    assert payload["focus"]["at"] == "#5"
+    assert "이상 점수 수준이 이 지점에서 높아짐" in payload["focus"]["events"]
+    assert {"name": "이상 점수", "after_vs_before": "증가"} in payload["focus"]["before_after"]
+    missing = text_issues("이상 점수가 증가했습니다.", payload, field="summary")
+    assert any("#5" in issue for issue in missing)
+    summary, _, _ = verified_summary(payload)
+    assert summary.startswith("#5(이상 점수 수준이 이 지점에서 높아짐)을 기준으로 보면")
+    copied = text_issues(
+        "focus.at의 지점을 기준으로 #5 이상 점수가 증가했습니다.", payload, field="summary"
+    )
+    assert any("필드 이름" in issue for issue in copied)
+
+
+def test_focus_keeps_the_clicked_signal_when_multiple_signals_change_at_one_point(
+    stored: dict[str, Any],
+) -> None:
+    from industrial_phm.application.phm_range import focus_point
+
+    rms = "feature.Horizontal_vibration_signals.rms"
+    span = range_analysis(stored["store"], "anomaly-a", StepKind.ACQUISITION_SNAPSHOT, 1, 8, [rms])
+    focus = focus_point(
+        stored["store"], "anomaly-a", StepKind.ACQUISITION_SNAPSHOT, span, 5, [rms], series=rms
+    )
+    assert focus["series"] == rms
+    assert focus["events"] and all(event["series"] == rms for event in focus["events"])
+    context = {**stored["context"], "focus": focus}
+    assert answer_input(context)["focus"]["selected_series"] == "수평 진동 RMS"
+    with pytest.raises(ValueError, match="focus series"):
+        focus_point(
+            stored["store"],
+            "anomaly-a",
+            StepKind.ACQUISITION_SNAPSHOT,
+            span,
+            5,
+            [rms],
+            series="unknown",
+        )

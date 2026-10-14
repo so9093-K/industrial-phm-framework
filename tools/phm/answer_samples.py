@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import time
+from collections import Counter
 from pathlib import Path
 
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
@@ -45,6 +46,8 @@ def main() -> None:
         model=os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "local-main"),
         api_key=os.environ.get("INDUSTRIAL_PHM_GENAI_API_KEY"),
     )
+    sources: Counter[str] = Counter()
+    rewritten = 0
     for question in args.question or DEFAULT_QUESTIONS:
         context = explanation_context(
             SqlitePhmAnalysisStore(workspace.phm_analysis_path),
@@ -61,6 +64,13 @@ def main() -> None:
         answer["question"] = question
         answer["seconds"] = round(time.monotonic() - started, 1)
         print(json.dumps(answer, ensure_ascii=False, indent=2))
+        sources[answer["checks"]["summary_source"]] += 1
+        rewritten += bool(answer["checks"].get("rewritten"))
+    # How often the model's own wording survived, was trimmed, or was replaced.
+    print(
+        f"answers={sum(sources.values())} rewritten={rewritten} "
+        + " ".join(f"{name}={count}" for name, count in sorted(sources.items()))
+    )
 
 
 if __name__ == "__main__":

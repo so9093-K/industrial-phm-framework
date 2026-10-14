@@ -141,6 +141,13 @@ function stepLabel(entry, position) {
   return step && step.event_start ? "윈도우 " + time(step.event_start) : "#" + position;
 }
 
+// Short form for tables and answers; the same "MM-DD HH:MM" the AI answer cites for windows.
+function shortStepLabel(entry, position) {
+  const step = entry.binding.step_kind === "observation-window"
+    ? orderedSteps(entry).find((item) => item.position === position) : null;
+  return step && step.event_start ? formatTime(step.event_start, {seconds: false, zone: false}).slice(5) : "#" + position;
+}
+
 function freshness(entry) {
   const delivered = entry.latestDelivered, analyzed = entry.latestAnalyzed, processed = entry.latestProcessed;
   if (!analyzed && !delivered) return "아직 공급된 step이 없습니다.";
@@ -474,7 +481,7 @@ function renderAnomaly() {
   const explained = focusPosition ?? last.position;
   renderPhmExplanation("anomaly", selected.anomaly, explained,
                        () => {focusPosition = focusPosition ?? last.position;}, stepLabel(entry, explained), {
-                         steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position),
+                         steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
                          openSignal: (position, feature) => {
                            if (feature) {chosenFeatures = [feature];renderAnomaly();}
                            showComparisonOriginal("anomaly", entry, position);
@@ -719,7 +726,7 @@ function renderRul() {
   }
   const explained = rulFocusPosition ?? last.position;
   renderPhmExplanation("rul", selected.rul, explained,
-                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position),
+                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
                          openSignal: (position) => showComparisonOriginal("rul", entry, position)});
 }
 

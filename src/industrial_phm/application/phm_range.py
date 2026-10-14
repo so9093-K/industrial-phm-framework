@@ -213,3 +213,61 @@ def range_analysis(
         "primary": primary,
         "features": shapes,
     }
+
+
+def focus_point(
+    store: SqlitePhmAnalysisStore,
+    binding_id: str,
+    step_kind: StepKind,
+    span: dict[str, Any],
+    position: int,
+    features: Sequence[str],
+    *,
+    series: str | None = None,
+) -> dict[str, Any]:
+    """A point the user picked inside the range: what happened there, and before vs after it."""
+    if not span["first"] < position <= span["last"]:
+        raise ValueError("focus must lie inside the selected range")
+    if series is not None and series != "primary" and series not in features:
+        raise ValueError("focus series must belong to the selected range")
+    result = store.get_result(binding_id, position)
+    if result is None or result.state.value != "analyzed":
+        raise ValueError("focus must be an analyzed result")
+    results, _ = store.analyzed_between(binding_id, span["first"], span["last"])
+    task = result.output.get("task")
+    key = "estimate" if task == "rul-estimate" else "score"
+
+    def means(read: Any) -> tuple[float | None, float | None]:
+        before: list[float] = []
+        after: list[float] = []
+        for item in results:
+            value = read(item)
+            if isinstance(value, (int, float)) and math.isfinite(value):
+                (after if item.position >= position else before).append(float(value))
+        return (
+            math.fsum(before) / len(before) if before else None,
+            math.fsum(after) / len(after) if after else None,
+        )
+
+    split = {"primary": means(lambda r: r.output.get(key))}
+    split.update({name: means(lambda r, n=name: (r.features or {}).get(n)) for name in features})
+    events = []
+    for name, shape in [("primary", span["primary"]), *span["features"].items()]:
+        if series is not None and name != series:
+            continue
+        if (shape.get("level_shift") or {}).get("at") == position:
+            events.append({"series": name, "event": "level_shift", **shape["level_shift"]})
+        if (shape.get("largest_step") or {}).get("to") == position:
+            events.append({"series": name, "event": "largest_step", **shape["largest_step"]})
+    return {
+        "position": position,
+        "label": position_label(result, step_kind),
+        "series": series,
+        "mean_basis": "sampled-results" if span.get("sampled") else "all-results",
+        "events": events,
+        "before_after": {
+            name: {"before_mean": before, "after_mean": after}
+            for name, (before, after) in split.items()
+            if series is None or name in {"primary", series}
+        },
+    }

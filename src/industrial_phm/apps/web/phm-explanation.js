@@ -18,6 +18,10 @@ const SHAPE = /\.(mean|skewness|excess_kurtosis)$/;
 const TREND = {increasing: "대체로 증가", decreasing: "대체로 감소", mixed: "오르내림", flat: "변화 없음", insufficient: "기록 부족"};
 const trendText = (shape) => (shape.steady ? TREND[shape.trend].replace("대체로", "꾸준히") : TREND[shape.trend]) || shape.trend;
 const STEP_ARROW = {increase: "↑", decrease: "↓"};
+const SUGGESTED = {
+  anomaly: ["왜 점수가 달라졌어?", "언제부터 신호가 달라졌어?", "다음에 무엇을 보면 좋을까?"],
+  rul: ["RUL이 변한 구간과 함께 움직인 측정값은?", "언제부터 신호가 달라졌어?", "같은 입력의 다른 모델 결과와 비교하면?"],
+};
 const ARROW = {increased: "↑ 증가", decreased: "↓ 감소", unchanged: "→ 거의 같음"};
 
 export function renderPhmExplanation(view, bindingId, position, pin = () => {}, stepName = "#" + position, options = {}) {
@@ -44,6 +48,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const earlier = steps.filter((step) => step.position < position).slice(-128).reverse();
   const label = (name) => options.featureLabel ? options.featureLabel(name) : name;
   const stepText = (at) => options.stepLabel ? options.stepLabel(at) : "#" + at;
+  const shortText = (at) => options.shortLabel ? options.shortLabel(at) : "#" + at;
   const compareLabel = element("label", "비교 시점");
   const compare = element("select");compare.setAttribute("aria-label", "비교 시점");
   for (const step of earlier) {
@@ -58,6 +63,28 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const question = element("textarea");question.rows = 2;question.maxLength = 600;
   question.value = "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.";
   question.setAttribute("aria-label", "분석 질문");questionLabel.append(question);
+  // One click asks a question that the stored comparison can answer.
+  const suggestions = element("div");suggestions.className = "phm-suggestions";suggestions.hidden = true;
+  for (const text of SUGGESTED[view] || []) {
+    const ask = element("button", text);ask.type = "button";
+    ask.addEventListener("click", () => {question.value = text;generate.click();});
+    suggestions.append(ask);
+  }
+  // A point picked in the range table is what "this point" means in the next question.
+  const focusChip = element("p");focusChip.className = "phm-focus";focusChip.hidden = true;
+  state.focus = null;
+  function setFocus(at, what, series) {
+    state.focus = at === null ? null : {position: at, what, series};
+    focusChip.replaceChildren();focusChip.hidden = state.focus === null;
+    suggestions.querySelector(".phm-focus-ask")?.remove();
+    if (state.focus === null) return;
+    const clear = element("button", "✕");clear.type = "button";clear.setAttribute("aria-label", "질문 기준 지점 해제");
+    clear.addEventListener("click", () => setFocus(null));
+    focusChip.append(element("span", "질문 기준 지점 · " + shortText(at) + " · " + what), clear);
+    const ask = element("button", "이 지점 전후로 무엇이 달라졌어?");ask.type = "button";ask.className = "phm-focus-ask";
+    ask.addEventListener("click", () => {question.value = ask.textContent;generate.click();});
+    suggestions.prepend(ask);
+  }
   state.askedQuestion = null;
   let mentioned = [], nextSignals = [];
   const summary = element("div");summary.className = "phm-comparison";
@@ -74,7 +101,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   };
   const inputText = (output, at) => {
     const sequence = output?.sequence_positions;
-    return sequence?.length ? stepText(sequence[0]) + "–" + stepText(sequence.at(-1)) + " (" + sequence.length + "개 획득)" : stepText(at) + " 한 입력";
+    return sequence?.length ? shortText(sequence[0]) + "–" + shortText(sequence.at(-1)) + " (" + sequence.length + "개 획득)" : shortText(at) + " 한 입력";
   };
   const openButton = (name, text = label(name)) => {
     const open = element("button", text);open.type = "button";
@@ -103,7 +130,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     const unit = view === "rul" ? output.unit === "acquisition-interval" ? "개 기록 구간" : output.unit || "단위 미기록" : "";
     summary.append(element("p", (view === "rul" ? "기록 종료까지 남은 구간 추정" : "모델 점수") + " · "
       + (prior ? format(before[valueKey]) + " → " : "") + format(output[valueKey]) + " " + unit
-      + (prior ? " · " + stepText(prior.position) + " → " + stepText(position) : "")
+      + (prior ? " · " + shortText(prior.position) + " → " + shortText(position) : "")
       + (output.sequence_positions ? " · 입력 " + inputText(output, position) : "")));
     const names = Object.keys(selectedStep?.features || {});
     const difference = (name) => Math.abs((selectedStep.features[name] - (prior?.features?.[name] ?? selectedStep.features[name])))
@@ -128,9 +155,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   // How the values moved between the two ends, from every analyzed result in between.
   const rangeBox = element("div");rangeBox.className = "phm-range";
   const ranges = new Map();
-  const moment = (at, text) => {
+  const moment = (at, text, what, series) => {
     const go = element("button", text);go.type = "button";
-    if (options.openSignal) go.addEventListener("click", () => options.openSignal(at));else go.disabled = true;
+    go.addEventListener("click", () => {setFocus(at, what, series);options.openSignal?.(at);});
     return go;
   };
   async function renderRange() {
@@ -143,20 +170,21 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     } catch {rangeBox.append(element("p", "구간 흐름을 불러오지 못했습니다."));return;}
     if (!current() || comparisonPosition() !== from) return;
     const data = ranges.get(rangeKey);
-    rangeBox.append(element("p", "구간 흐름 · " + stepText(from) + " → " + stepText(position) + " · 분석 " + data.steps + "개"
+    rangeBox.append(element("p", "구간 흐름 · " + shortText(from) + " → " + shortText(position) + " · 분석 " + data.steps + "개"
       + (data.sampled ? " · 흐름은 " + data.points + "개 표본, 최대 변화는 전체 기록" : "")));
+
     const table = element("table");table.className = "phm-table";
-    const head = element("tr");for (const title of ["항목", "흐름", "수준이 바뀐 지점", "가장 큰 단일 변화"]) head.append(element("th", title));table.append(head);
-    const rows = [[view === "rul" ? "잔여 구간 추정" : "모델 점수", data.primary],
-      ...Object.entries(data.features).slice(0, 3).map(([name, shape]) => [label(name), shape])];
-    for (const [title, shape] of rows) {
+    const head = element("tr");for (const title of ["항목", "흐름", "주요 지점"]) head.append(element("th", title));table.append(head);
+    const rows = [[view === "rul" ? "잔여 구간 추정" : "모델 점수", data.primary, "primary"],
+      ...Object.entries(data.features).slice(0, 3).map(([name, shape]) => [label(name), shape, name])];
+    for (const [title, shape, series] of rows) {
       const row = element("tr");
-      const shift = element("td"), jump = element("td");
-      if (shape.level_shift) shift.append(moment(shape.level_shift.at, stepText(shape.level_shift.at) + " " + STEP_ARROW[shape.level_shift.direction]));
-      else shift.textContent = "—";
-      if (shape.largest_step) jump.append(moment(shape.largest_step.to, stepText(shape.largest_step.from) + " → " + stepText(shape.largest_step.to) + " " + STEP_ARROW[shape.largest_step.direction]));
-      else jump.textContent = "—";
-      row.append(element("td", title), element("td", trendText(shape)), shift, jump);
+      const points = element("td");points.className = "phm-range-points";
+      if (shape.level_shift) points.append(moment(shape.level_shift.at, "수준 변화 " + shortText(shape.level_shift.at) + " " + STEP_ARROW[shape.level_shift.direction], title + " 수준 변화", series));
+      if (shape.largest_step) points.append(moment(shape.largest_step.to, "가장 큰 변화 " + shortText(shape.largest_step.from) + " → " + shortText(shape.largest_step.to) + " " + STEP_ARROW[shape.largest_step.direction], title + " 가장 큰 변화", series));
+      if (!points.childElementCount) points.textContent = "—";
+      const trend = element("td", trendText(shape));trend.className = "phm-range-trend";
+      row.append(element("td", title), trend, points);
       table.append(row);
     }
     rangeBox.append(table);
@@ -177,7 +205,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     const prior = steps.find((step) => step.position === comparisonPosition());
     const asked = element("p", item.context?.question || "");asked.className = "phm-answer-question";
     const text = element("p", answer.summary);text.className = "phm-ai-text";
-    answerBox.append(asked, text);
+    answerBox.append(asked);
+    if (item.context?.focus) answerBox.append(Object.assign(element("p", "기준 지점 · " + shortText(item.context.focus.position) + (item.context.focus.series ? " · " + (item.context.focus.series === "primary" ? view === "rul" ? "잔여 구간 추정" : "모델 점수" : label(item.context.focus.series)) : "")), {className: "phm-answer-question"}));
+    answerBox.append(text);
     if (answer.observations.length) {
       const list = element("ul");list.className = "phm-answer-signals";
       for (const {feature, relation} of answer.observations) {
@@ -211,13 +241,25 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     if (answer.checks?.summary_source && answer.checks.summary_source !== "model" && !answer.checks.model_unavailable) {
       answerBox.append(Object.assign(element("p", "확인되지 않은 문장은 빼고 저장된 비교로 채웠습니다."), {className: "muted"}));
     }
+    // The earlier turns this answer continued: exactly what the model received.
+    const earlier = item.context?.history || [];
+    if (earlier.length) {
+      const thread = element("details");thread.className = "phm-answer-thread";
+      thread.append(element("summary", "이어서 답한 앞선 질문 " + earlier.length + "개"));
+      for (const turn of earlier) {
+        const block = element("div");
+        block.append(Object.assign(element("p", turn.question), {className: "phm-answer-question"}), element("p", turn.answer));
+        thread.append(block);
+      }
+      answerBox.append(thread);
+    }
   }
-  assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, generate, status, answerBox);
+  assistant.append(element("h3", "선택 시점의 변화 분석"), compareLabel, summary, questionLabel, focusChip, suggestions, generate, status, answerBox);
   renderComparison();
   renderRange();
   compare.addEventListener("change", () => {
     const url = new URL(location.href);url.searchParams.set("phm_compare", compare.value);
-    window.history.replaceState(null, "", url);state.askedQuestion = null;state.explanation = null;renderAnswer(null);renderRange();refreshExplanation();});
+    window.history.replaceState(null, "", url);state.askedQuestion = null;state.explanation = null;setFocus(null);renderAnswer(null);renderRange();refreshExplanation();});
   const review = element("button", "검토 요청");review.type = "button";
   const ack = element("button", "검토 확인");ack.type = "button";
   const close = element("button", "검토 종료");close.type = "button";
@@ -257,8 +299,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       const selection = comparisonPosition(), asked = state.askedQuestion;
       const data = await get(url("explanations"));
       if (!current() || selection !== comparisonPosition() || asked !== state.askedQuestion) return;
-      const item = data.explanations.find((item) => item.context?.signal_comparison?.previous_position === selection
-        && (asked === null || item.context?.question === asked));state.explanation = item || null;
+      // Answers of this comparison, newest first; the shown one continues the earlier ones.
+      const thread = data.explanations.filter((item) => item.context?.signal_comparison?.previous_position === selection);
+      const item = thread.find((item) => asked === null || item.context?.question === asked);state.explanation = item || null;
       if (item && asked === null) {question.value = item.context.question;state.askedQuestion = item.context.question;}
       renderAnswer(item);
       status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호 비교 · AI 질문은 감독형 Web에서 사용할 수 있습니다."
@@ -266,7 +309,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
         : item.answer?.checks?.model_unavailable ? "AI 응답 없음 · 저장된 비교로 답했습니다 · 선택 시점 " + stepName
         : "AI 분석 답변 · " + item.model + " · 선택 시점 " + stepName;
-      question.disabled = !writable;generate.hidden = !writable;
+      question.disabled = !writable;generate.hidden = !writable;suggestions.hidden = !writable;
+      for (const button of suggestions.querySelectorAll("button")) button.disabled = Boolean(item && item.status === "pending");
       generate.disabled = !writable || Boolean(item && item.status === "pending");
       if (item && item.status === "pending" && !document.hidden && document.body.dataset.view === view) {
         state.timer = setTimeout(() => {state.timer = null;refreshExplanation();}, 1000);
@@ -276,10 +320,12 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   state.refresh = refreshExplanation;
   generate.addEventListener("click", async () => {
     if (!question.value.trim()) {question.focus();return;}
+    const previous = state.explanation?.status === "complete" && state.explanation.answer ? state.explanation.id : null;
     pin();generate.disabled = true;state.askedQuestion = question.value.trim();
     state.explanation = null;renderAnswer(null);
     try {await post("/api/v1/phm/explanations/request", {binding_id: bindingId, position,
-      compare_position: comparisonPosition(), question: state.askedQuestion});await refreshExplanation();}
+      compare_position: comparisonPosition(), question: state.askedQuestion, ...(previous ? {parent_id: previous} : {}),
+      ...(state.focus ? {focus_position: state.focus.position, focus_series: state.focus.series} : {})});await refreshExplanation();}
     catch {if (current()) {status.textContent = "AI 설명 생성 불가 · 직접 검토는 계속할 수 있습니다.";generate.disabled = false;}}
   });
   review.addEventListener("click", async () => {

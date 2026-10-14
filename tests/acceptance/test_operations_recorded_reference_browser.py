@@ -133,6 +133,8 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 page.locator("#time-anchor").select_option("latest")
                 pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
                 page.locator('nav a[href="#connect"]').click()
+                # Source operations other than the next step are folded under 연결 설정.
+                card.locator(".source-settings > summary").click()
                 card.get_by_role("button", name="저장된 3상 이력 분석 실행", exact=True).click()
                 pw.expect(page.locator("#source-control-result")).to_contain_text(
                     "신규 3상 분석 기록 완료"

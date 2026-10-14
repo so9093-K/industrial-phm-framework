@@ -113,6 +113,18 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 assert received[-1]["question"] == "수평 진동은 어떻게 달라졌나요?"
                 assert received[-1]["signal_comparison"]["original_current"]["available"]
                 assert "'때문'" in model.requests[-1][-1]["content"]
+                # A suggested question continues the same comparison with the earlier answer.
+                assistant.get_by_role("button", name="언제부터 신호가 달라졌어?").click()
+                pw.expect(card.locator(".phm-answer-question").first).to_have_text(
+                    "언제부터 신호가 달라졌어?"
+                )
+                pw.expect(card.locator(".phm-answer-thread summary")).to_have_text(
+                    "이어서 답한 앞선 질문 1개"
+                )
+                sent = json.loads(model.requests[-1][1]["content"])
+                assert sent["history"] == [
+                    {"question": "수평 진동은 어떻게 달라졌나요?", "answer": answer["summary"]}
+                ]
                 signal.get_by_role("button", name="수평 진동 RMS").click()
                 pw.expect(page.locator("#anomaly-signal")).to_have_value(json.dumps([rms]))
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
@@ -128,7 +140,7 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 page.reload()
                 pw.expect(assistant.get_by_label("비교 시점")).to_have_value("2")
                 pw.expect(assistant.get_by_label("분석 질문")).to_have_value(
-                    "수평 진동은 어떻게 달라졌나요?"
+                    "언제부터 신호가 달라졌어?"
                 )
                 pw.expect(assistant.locator(".phm-ai-text")).to_have_text(answer["summary"])
                 page.locator("#anomaly-review-options > summary").click()
@@ -150,6 +162,69 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
                     "PHM review page overflows the viewport"
                 )
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_a_point_picked_in_the_range_becomes_what_the_question_is_about(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.5, 0.55, 0.5, 3.0, 3.1, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    model = ScriptedModel(
+        {
+            "summary": "#5의 이상 점수 수준 변화를 기준으로 보면 이후 이상 점수가 증가했습니다.",
+            "observations": [],
+            "next_signals": [],
+            "next_step": "#5 전후의 원본 파형을 비교해 보세요.",
+        }
+    )
+    monkeypatch.setattr(phm_answer, "complete_json", model)
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    root = workspace.root.resolve()
+    server = create_operations_web_read_server(root, command_client=_InProcessSupervisor(root))  # type: ignore[arg-type]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1024, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/#anomaly")
+                assistant = page.locator("#anomaly-assistant")
+                assistant.get_by_label("비교 시점").select_option("1")
+                flow = assistant.locator(".phm-range")
+                flow.get_by_role("button", name="수준 변화 #5 ↑").first.click()
+                chip = assistant.locator(".phm-focus")
+                pw.expect(chip).to_contain_text("질문 기준 지점 · #5 · 모델 점수 수준 변화")
+                assistant.get_by_role("button", name="이 지점 전후로 무엇이 달라졌어?").click()
+                card = assistant.locator(".phm-answer")
+                pw.expect(card).to_contain_text("기준 지점 · #5")
+                pw.expect(card.locator(".phm-ai-text")).to_contain_text("#5의 이상 점수 수준 변화")
+                sent = json.loads(model.requests[-1][1]["content"])
+                assert sent["focus"]["at"] == "#5"
+                assert sent["focus"]["selected_series"] == "이상 점수"
+                assert "이상 점수 수준이 이 지점에서 높아짐" in sent["focus"]["events"]
+                # The same moment in another row must retain which signal was clicked.
+                flow.locator("tr").filter(has_text="수평 진동 RMS").get_by_role(
+                    "button"
+                ).first.click()
+                assistant.get_by_role("button", name="이 지점 전후로 무엇이 달라졌어?").click()
+                pw.expect(card).to_contain_text("수평 진동 RMS")
+                sent = json.loads(model.requests[-1][1]["content"])
+                assert sent["focus"]["selected_series"] == "수평 진동 RMS"
+                chip.get_by_role("button", name="질문 기준 지점 해제").click()
+                pw.expect(chip).to_be_hidden()
                 assert not errors, errors
             finally:
                 browser.close()
