@@ -8,7 +8,9 @@ from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSna
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
+    acquisition_relation,
     acquisition_series,
+    acquisition_spectrum,
     comparison,
 )
 from tests.support.phm import analyze, deliver, phm_workspace
@@ -72,3 +74,21 @@ def test_shape_features_report_change_without_percent(tmp_path: Path) -> None:
     (series,) = acquisition_series(store, snapshots, binding, [SKEW], [("a", 1, 2), ("b", 3, 4)])
     assert series["comparison"]["median_change_percent"] is None
     assert series["comparison"]["median_change"] is not None
+
+
+def test_relation_and_spectrum_reach_the_end_of_a_long_range(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    binding = acquisition_binding(store, "bearing-a")
+    assert binding is not None
+    peak = "feature.Horizontal_vibration_signals.peak_to_peak"
+    periods = [("a", 1, 1), ("b", 1, 8)]
+    _, b = acquisition_relation(store, binding, RMS, peak, periods, max_points=4)
+    assert b["sampled"] is True and b["analyzed_count"] == 8
+    assert b["points"][-1][0] == 8 and b["pair_count"] == 5
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    spectrum = acquisition_spectrum(snapshots, binding, periods, per_period=3)
+    assert spectrum["acquisitions"]["b"] == [1, 5, 8]

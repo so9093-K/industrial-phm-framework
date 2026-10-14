@@ -53,6 +53,8 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 pw.expect(relation.locator("table")).to_contain_text("4 / 4")
                 pw.expect(relation).to_contain_text("같은 획득의 두 특징을 짝지었습니다")
                 spectrum = panel.locator(".explore-spectrum")
+                pw.expect(spectrum.locator("svg.explore-spectrum-chart")).to_have_count(0)
+                spectrum.get_by_role("button", name="주파수 성분 계산").click()
                 pw.expect(spectrum.locator("svg.explore-spectrum-chart")).to_be_visible()
                 pw.expect(spectrum.locator(".explore-band-changes li").first).to_contain_text(
                     "구간 B가 A보다 +"

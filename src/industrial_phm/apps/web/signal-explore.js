@@ -13,6 +13,9 @@ const svgNode = (name, attributes = {}) => {
   return node;
 };
 let sources = null, kind = null, loadedKey = "", request = 0, loadTicket = 0;
+// An answer belongs to the comparison it was asked for: a newer comparison, asset or
+// axis choice makes it stale.
+const stale = (owner, box) => owner !== request || !box.isConnected;
 
 async function getJson(url) {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin"});
@@ -239,14 +242,18 @@ function relationSection(data) {
   };
   const x = pick("가로축", 0), y = pick("세로축", 1);
   const output = create("div");
+  const owner = request;
+  let drawn = 0;
   const draw = async () => {
+    const ticket = ++drawn;
     if (x.value === y.value) {output.replaceChildren(create("p", "muted", "서로 다른 두 항목을 고르세요."));return;}
     output.replaceChildren(create("p", "muted", "짝지은 관측을 계산합니다."));
     const query = new URLSearchParams({asset_id: currentAsset(), kind: data.kind, x: x.value, y: y.value, ...periodQuery(data)});
     try {
       const relation = await getJson("/api/v1/explore/relation?" + query.toString());
+      if (ticket !== drawn || stale(owner, box)) return;
       output.replaceChildren(...relationView(relation, choices));
-    } catch {output.replaceChildren(create("p", "muted", "관계를 계산하지 못했습니다."));}
+    } catch {if (ticket === drawn && !stale(owner, box)) output.replaceChildren(create("p", "muted", "관계를 계산하지 못했습니다."));}
   };
   x.addEventListener("change", draw);y.addEventListener("change", draw);
   box.append(controls, output);
@@ -258,7 +265,15 @@ function relationView(relation, choices) {
   const name = (key) => choices.find((choice) => choice.key === key)?.label || key;
   const groups = relation.groups.filter((group) => group.pair_count > 0);
   if (!groups.length) return [create("p", "muted", "두 항목이 같은 시각에 함께 기록된 관측이 없습니다.")];
-  const all = groups.flatMap((group) => group.points);
+  // A channel whose unit or meaning changed is computed per meaning; only one meaning is drawn,
+  // so the scatter never puts values of different units on one axis.
+  const place = (group) => [group.period, group.source_id, group.measurement_point_id || ""].join("\u0000");
+  const meanings = new Map();
+  for (const group of relation.groups) meanings.set(place(group), (meanings.get(place(group)) || new Set()).add(group.meaning_id));
+  const split = [...meanings.values()].some((ids) => ids.size > 1);
+  const main = groups.reduce((best, group) => group.pair_count > best.pair_count ? group : best).meaning_id;
+  const several = new Set(relation.groups.map((group) => group.source_id + "\u0000" + (group.measurement_point_id || ""))).size > 1;
+  const all = groups.filter((group) => !split || group.meaning_id === main).flatMap((group) => group.points);
   const xs = all.map((point) => point[1]), ys = all.map((point) => point[2]);
   const bounds = (values) => {const low = Math.min(...values), high = Math.max(...values);return high > low ? [low, high] : [low - 1, high + 1];};
   const [x0, x1] = bounds(xs), [y0, y1] = bounds(ys);
@@ -266,6 +281,7 @@ function relationView(relation, choices) {
     "aria-label": name(relation.x) + "와 " + name(relation.y) + "의 짝지은 관측 산점도"});
   svg.append(svgNode("path", {d: "M40 10 V224 H410", class: "axis"}));
   for (const group of groups) {
+    if (split && group.meaning_id !== main) continue;
     for (const [, vx, vy] of group.points) {
       svg.append(svgNode("circle", {cx: 40 + (vx - x0) / (x1 - x0) * 370, cy: 224 - (vy - y0) / (y1 - y0) * 214, r: 2.6,
         class: "explore-dot-" + group.period}));
@@ -280,35 +296,56 @@ function relationView(relation, choices) {
   const r = (value) => typeof value === "number" ? value.toLocaleString("ko-KR", {maximumFractionDigits: 2}) : "—";
   for (const group of relation.groups) {
     const row = create("tr");
-    row.append(create("th", null, "구간 " + group.period.toUpperCase() + (relation.groups.length > 2 ? " · " + group.source_id : "")),
+    const where = several ? " · " + group.source_id + (group.measurement_point_id ? " / " + group.measurement_point_id : "") : "";
+    const units = split ? " · 단위 " + (group.x_unit || "없음") + " / " + (group.y_unit || "없음") : "";
+    row.append(create("th", null, "구간 " + group.period.toUpperCase() + where + units),
       create("td", null, num(group.pair_count) + " / " + num(Math.max(group.x_usable_count, group.y_usable_count))),
       create("td", null, r(group.pearson)), create("td", null, r(group.spearman)));
     table.append(row);
   }
   const how = relation.pairing === "same-acquisition" ? "같은 획득의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
-  return [svg, create("p", "muted", "세로축 " + name(relation.y) + " · 회색 구간 A, 청록 구간 B"), table,
-    create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다.")];
+  const notes = [create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다.")];
+  if (split) notes.push(create("p", "muted", "측정 해석(단위·의미)이 바뀐 기록은 따로 계산했고, 산점도에는 짝이 가장 많은 해석만 그렸습니다."));
+  for (const group of relation.groups.filter((item) => item.sampled)) {
+    notes.push(create("p", "muted", "구간 " + group.period.toUpperCase() + "은 분석된 획득 " + num(group.analyzed_count)
+      + "개가 많아 구간 전체에서 고르게 고른 " + num(group.pair_count) + "개로 계산했습니다."));
+  }
+  return [svg, create("p", "muted", "세로축 " + name(relation.y) + " · 회색 구간 A, 청록 구간 B"), table, ...notes];
 }
 
 // Where vibration energy sits and how it moved, from verified raw waveforms of both ranges.
 function spectrumSection(data) {
   const box = create("section", "explore-spectrum");
   box.append(create("h3", null, "진동 주파수 성분"));
-  const output = create("div");output.append(create("p", "muted", "원본 파형으로 주파수 성분을 계산합니다."));
+  // Reading raw waveforms takes a moment, so it runs when asked, not with every comparison.
+  const output = create("div");
+  const start = create("button", "secondary", "주파수 성분 계산");start.type = "button";
+  output.append(create("p", "muted", "구간마다 처음부터 끝까지 고르게 고른 원본 파형 최대 8개로 계산합니다."), start);
   box.append(output);
-  const query = new URLSearchParams({asset_id: currentAsset(), ...periodQuery(data)});
-  getJson("/api/v1/explore/spectrum?" + query.toString()).then((spectrum) => {
-    output.replaceChildren();
+  const owner = request;
+  const run = async () => {
+    start.disabled = true;start.textContent = "계산 중";
+    const query = new URLSearchParams({asset_id: currentAsset(), ...periodQuery(data)});
+    let spectrum;
+    try {spectrum = await getJson("/api/v1/explore/spectrum?" + query.toString());}
+    catch {
+      if (stale(owner, box)) return;
+      start.disabled = false;start.textContent = "다시 계산";
+      output.replaceChildren(create("p", "muted", "원본 파형을 읽지 못해 주파수 성분을 계산하지 못했습니다."), start);
+      return;
+    }
+    if (stale(owner, box)) return;
     const channel = create("select");channel.setAttribute("aria-label", "주파수 채널");
     spectrum.channels.forEach((item, index) => channel.append(Object.assign(create("option", null, item.label), {value: String(index)})));
     const view = create("div");
     const show = () => view.replaceChildren(...spectrumView(spectrum, spectrum.channels[Number(channel.value)]));
     channel.addEventListener("change", show);
     const field = create("label", null, "채널");field.append(channel);
-    output.append(field, view);show();
+    output.replaceChildren(field, view);show();
     output.append(create("p", "muted", "Welch PSD · " + num(spectrum.segment) + "점 구간 · 샘플링 " + num(spectrum.sampling_rate_hz / 1000) + " kHz · 구간 A 획득 "
       + spectrum.acquisitions.a.map((n) => "#" + n).join(" ") + " / 구간 B 획득 " + spectrum.acquisitions.b.map((n) => "#" + n).join(" ") + " 평균"));
-  }).catch(() => output.replaceChildren(create("p", "muted", "원본 파형을 읽지 못해 주파수 성분을 계산하지 못했습니다.")));
+  };
+  start.addEventListener("click", () => void run());
   return box;
 }
 

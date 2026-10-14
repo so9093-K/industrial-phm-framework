@@ -137,13 +137,31 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         )
         for index in range(60)
     ]
+    # The voltage mapping changes from V to kV halfway through the second period.
+    events += [
+        FileBackfillEvent(
+            raw_evidence_id=f"file:motor:{'b' * 64}:v{index}",
+            source_id="motor-file",
+            asset_id="motor-01",
+            channel_id="voltage",
+            source_file="motor.csv",
+            source_sha256="b" * 64,
+            source_size_bytes=10,
+            sample_index=100 + index,
+            event_at=BASE + timedelta(minutes=index),
+            value=(380.0 + index) / (1000 if index >= 45 else 1),
+            source_metadata_json='{"binding":{"definition":{"unit":"%s"}}}'
+            % ("kV" if index >= 45 else "V"),
+        )
+        for index in range(60)
+    ]
     history.append_file_batch(tuple(events), batch_id="motor")
     get, stop = _serve(workspace.root)
     try:
         status, sources = get("/api/v1/explore/sources", asset_id="motor-01")
         assert status == 200 and sources["acquisition"] is None
-        assert sources["history"]["channels"] == ["current"]
-        assert sources["history"]["measurement_count"] == 60
+        assert sources["history"]["channels"] == ["current", "voltage"]
+        assert sources["history"]["measurement_count"] == 120
         middle = BASE + timedelta(minutes=30)
         status, body = get(
             "/api/v1/explore/profile",
@@ -163,6 +181,20 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         assert a["median_interval_seconds"] == 60 and a["largest_gap"]["seconds"] == 60
         assert series["comparison"]["median_change"] == pytest.approx(5.0)
         assert series["comparison"]["b_outside_a_band_percent"] == 100
+        status, relation = get(
+            "/api/v1/explore/relation",
+            asset_id="motor-01",
+            kind="history",
+            x="current",
+            y="voltage",
+            a_from=BASE.isoformat(),
+            a_to=middle.isoformat(),
+            b_from=middle.isoformat(),
+            b_to=(BASE + timedelta(hours=1)).isoformat(),
+        )
+        assert status == 200
+        units = sorted((g["period"], g["y_unit"], g["pair_count"]) for g in relation["groups"])
+        assert units == [("a", "V", 30), ("b", "V", 15), ("b", "kV", 15)]
         assert (
             get(
                 "/api/v1/explore/spectrum", asset_id="motor-01", a_from=1, a_to=2, b_from=3, b_to=4
