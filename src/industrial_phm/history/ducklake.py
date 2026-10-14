@@ -41,6 +41,7 @@ from industrial_phm.application.measurement_history import (
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
+    MeasurementPairGroup,
     MeasurementProfile,
     MultiSignalMeasurementHistoryAggregation,
     MultiSignalMeasurementHistoryBucket,
@@ -1717,84 +1718,16 @@ class DuckLakeAssetHistory:
         catalog from raw observations, never from display buckets.
         """
         channels = tuple(dict.fromkeys(channel_ids))
-        if not channels or len(channels) > 8:
-            raise ValueError("profiles need 1 to 8 channels")
-        for channel_id in channels:
-            _validate_identifier(channel_id, "channel_id")
-        if not 1 <= len(periods) <= 2 or len({name for name, _, _ in periods}) != len(periods):
-            raise ValueError("profiles need one or two named periods")
-        for _, start_at, end_at in periods:
-            validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
-            if end_at - start_at > timedelta(days=31):
-                raise ValueError("a profile period must not exceed 31 days")
+        _validate_profile_periods(asset_id, channels, periods)
         _validate_positive_int(bins, "bins")
         if bins > 64:
             raise ValueError("bins must not exceed 64")
-        low = min(start for _, start, _ in periods)
-        high = max(end for _, _, end in periods)
-        period_values = ", ".join("(?, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ)" for _ in periods)
         keys = "period, channel_id, source_id, source_type, point_key, interpretation"
         identity = "channel_id, source_id, source_type, point_key, interpretation"
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            connection.execute(
-                f"""
-                CREATE TEMP TABLE profile_points AS
-                WITH periods(period, start_at, end_at) AS (VALUES {period_values}),
-                selected AS (
-                    SELECT m.*, p.period,
-                        count(DISTINCT m.value) OVER identity_window
-                        + max(CASE WHEN m.value IS NULL THEN 1 ELSE 0 END) OVER identity_window
-                        > 1 AS conflict
-                    FROM {_CATALOG_NAME}.history.measurement m
-                    JOIN periods p ON m.event_at >= p.start_at AND m.event_at < p.end_at
-                    WHERE m.asset_id = ?
-                        AND m.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND m.event_at >= ? AND m.event_at < ?
-                    WINDOW identity_window AS (
-                        PARTITION BY p.period, m.source_id, m.measurement_point_id,
-                            m.channel_id, m.event_at
-                    )
-                ), raw_metadata AS (
-                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.file_measurement f
-                    WHERE f.asset_id = ?
-                        AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND f.source_timestamp >= ? AND f.source_timestamp < ?
-                    UNION ALL
-                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
-                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
-                                = o.source_id
-                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
-                                = o.channel_id
-                        THEN json_object(
-                            'schema', 'opcua-semantic-snapshot',
-                            'semantics', json(o.semantic_binding_json)
-                        )::VARCHAR END AS source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
-                    WHERE o.asset_id = ?
-                        AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND o.event_at >= ? AND o.event_at < ?
-                )
-                SELECT s.period, s.channel_id, s.source_id, s.source_type,
-                    coalesce(s.measurement_point_id, '') AS point_key, s.event_at, s.value,
-                    json_object(
-                        'binding', json_extract(f.source_metadata_json, '$.binding'),
-                        'semantics', json_extract(f.source_metadata_json, '$.semantics')
-                    )::VARCHAR AS interpretation,
-                    s.source_type != 'file' AND NOT s.status_good AS non_good,
-                    s.conflict,
-                    s.value IS NOT NULL AND NOT s.conflict
-                        AND (s.source_type = 'file' OR s.status_good) AS usable
-                FROM selected s LEFT JOIN raw_metadata f
-                    ON s.raw_evidence_id = f.raw_evidence_id AND s.source_type = f.source_type
-                """,
-                [
-                    *(item for name, start, end in periods for item in (name, start, end)),
-                    *(asset_id, list(channels), low, high) * 3,
-                ],
-            )
+            _create_profile_points(connection, asset_id, channels, periods)
             # One value per usable timestamp (a conflict is never usable).
             connection.execute(
                 f"""
@@ -1943,6 +1876,116 @@ class DuckLakeAssetHistory:
                 )
             )
         return tuple(profiles)
+
+    def query_measurement_pairs(
+        self,
+        asset_id: str,
+        *,
+        x_channel: str,
+        y_channel: str,
+        periods: Sequence[tuple[str, datetime, datetime]],
+        max_points: int = 1500,
+    ) -> tuple[MeasurementPairGroup, ...]:
+        """Pair two channels at identical timestamps, per period, source, point and meaning.
+
+        Pearson uses the values; Spearman uses average ranks, so ties count once each way.
+        """
+        if x_channel == y_channel:
+            raise ValueError("pairs need two different channels")
+        _validate_profile_periods(asset_id, (x_channel, y_channel), periods)
+        _validate_positive_int(max_points, "max_points")
+        groups = "period, source_id, point_key, x_meaning, y_meaning"
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            _create_profile_points(connection, asset_id, (x_channel, y_channel), periods)
+            connection.execute(
+                """
+                CREATE TEMP TABLE profile_side AS
+                SELECT channel_id, period, source_id, point_key, interpretation, event_at,
+                    any_value(value) AS value
+                FROM profile_points WHERE usable AND channel_id IN (?, ?) GROUP BY ALL
+                """,
+                [x_channel, y_channel],
+            )
+            connection.execute(
+                """
+                CREATE TEMP TABLE profile_pairs AS
+                SELECT x.period, x.source_id, x.point_key, x.interpretation AS x_meaning,
+                    y.interpretation AS y_meaning, x.event_at, x.value AS x, y.value AS y
+                FROM profile_side x JOIN profile_side y
+                    ON x.period = y.period AND x.source_id = y.source_id
+                    AND x.point_key = y.point_key AND x.event_at = y.event_at
+                WHERE x.channel_id = ? AND y.channel_id = ?
+                """,
+                [x_channel, y_channel],
+            )
+            stats = connection.execute(
+                f"""
+                WITH x_counts AS (
+                    SELECT period, source_id, point_key, interpretation AS x_meaning,
+                        count(*) AS x_usable
+                    FROM profile_side WHERE channel_id = ? GROUP BY ALL
+                ), y_counts AS (
+                    SELECT period, source_id, point_key, interpretation AS y_meaning,
+                        count(*) AS y_usable
+                    FROM profile_side WHERE channel_id = ? GROUP BY ALL
+                ), ranked AS (
+                    SELECT *,
+                        rank() OVER (PARTITION BY {groups} ORDER BY x)
+                            + (count(*) OVER (PARTITION BY {groups}, x) - 1) / 2.0 AS rx,
+                        rank() OVER (PARTITION BY {groups} ORDER BY y)
+                            + (count(*) OVER (PARTITION BY {groups}, y) - 1) / 2.0 AS ry
+                    FROM profile_pairs
+                ), correlations AS (
+                    SELECT {groups}, count(*) AS pairs, corr(x, y) AS pearson,
+                        corr(rx, ry) AS spearman
+                    FROM ranked GROUP BY ALL
+                )
+                SELECT x.period, x.source_id, x.point_key, x.x_meaning, y.y_meaning,
+                    x.x_usable, y.y_usable, coalesce(c.pairs, 0), c.pearson, c.spearman
+                FROM x_counts x
+                JOIN y_counts y USING (period, source_id, point_key)
+                LEFT JOIN correlations c USING ({groups})
+                ORDER BY x.source_id, x.point_key, x.period, coalesce(c.pairs, 0) DESC
+                LIMIT 101
+                """,
+                [x_channel, y_channel],
+            ).fetchall()
+            if len(stats) > 100:
+                raise ValueError("pairs exceed 100 source/point/meaning groups; narrow the query")
+            sample = connection.execute(
+                f"""
+                SELECT {groups}, event_at, x, y FROM (
+                    SELECT *, row_number() OVER (PARTITION BY {groups} ORDER BY event_at) AS n,
+                        ceil(count(*) OVER (PARTITION BY {groups}) / ?) AS stride
+                    FROM profile_pairs
+                ) WHERE (n - 1) % stride = 0
+                ORDER BY period, source_id, point_key, event_at
+                """,
+                [max(1, max_points // max(1, len(stats)))],
+            ).fetchall()
+        finally:
+            connection.close()
+        points: dict[tuple[str, ...], list[tuple[datetime, float, float]]] = {}
+        for row in sample:
+            points.setdefault(tuple(row[:5]), []).append((row[5], float(row[6]), float(row[7])))
+        return tuple(
+            MeasurementPairGroup(
+                period=row[0],
+                source_id=row[1],
+                measurement_point_id=row[2] or None,
+                x_interpretation_json=row[3],
+                y_interpretation_json=row[4],
+                x_usable_count=int(row[5]),
+                y_usable_count=int(row[6]),
+                pair_count=int(row[7]),
+                pearson=_finite(row[8]),
+                spearman=_finite(row[9]),
+                points=tuple(points.get(tuple(row[:5]), [])),
+            )
+            for row in stats
+        )
 
     def query_measurement_aggregation(
         self,
@@ -3503,6 +3546,101 @@ def _insert_columns(
             f"INSERT INTO {_CATALOG_NAME}.{table} ({names}) SELECT {values}",
             [list(column) for column in zip(*rows, strict=True)],
         )
+
+
+def _finite(value: object) -> float | None:
+    if value is None:
+        return None
+    number = float(value)  # type: ignore[arg-type]
+    return number if isfinite(number) else None
+
+
+def _validate_profile_periods(
+    asset_id: str, channels: Sequence[str], periods: Sequence[tuple[str, datetime, datetime]]
+) -> None:
+    if not channels or len(channels) > 8:
+        raise ValueError("profiles need 1 to 8 channels")
+    for channel_id in channels:
+        _validate_identifier(channel_id, "channel_id")
+    if not 1 <= len(periods) <= 2 or len({name for name, _, _ in periods}) != len(periods):
+        raise ValueError("profiles need one or two named periods")
+    for _, start_at, end_at in periods:
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        if end_at - start_at > timedelta(days=31):
+            raise ValueError("a profile period must not exceed 31 days")
+
+
+def _create_profile_points(
+    connection: Any,
+    asset_id: str,
+    channels: Sequence[str],
+    periods: Sequence[tuple[str, datetime, datetime]],
+) -> None:
+    """Raw observations of the periods with their usability, as temp table profile_points.
+
+    Usable means a value that is neither null, protocol non-good nor one of several values at
+    the same source/point/channel/time; the interpretation keeps unlike meanings apart.
+    """
+    low = min(start for _, start, _ in periods)
+    high = max(end for _, _, end in periods)
+    period_values = ", ".join("(?, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ)" for _ in periods)
+    connection.execute(
+        f"""
+        CREATE TEMP TABLE profile_points AS
+        WITH periods(period, start_at, end_at) AS (VALUES {period_values}),
+        selected AS (
+            SELECT m.*, p.period,
+                count(DISTINCT m.value) OVER identity_window
+                + max(CASE WHEN m.value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                > 1 AS conflict
+            FROM {_CATALOG_NAME}.history.measurement m
+            JOIN periods p ON m.event_at >= p.start_at AND m.event_at < p.end_at
+            WHERE m.asset_id = ?
+                AND m.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                AND m.event_at >= ? AND m.event_at < ?
+            WINDOW identity_window AS (
+                PARTITION BY p.period, m.source_id, m.measurement_point_id,
+                    m.channel_id, m.event_at
+            )
+        ), raw_metadata AS (
+            SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+            FROM {_CATALOG_NAME}.raw.file_measurement f
+            WHERE f.asset_id = ?
+                AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                AND f.source_timestamp >= ? AND f.source_timestamp < ?
+            UNION ALL
+            SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                        = o.source_id
+                    AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                        = o.channel_id
+                THEN json_object(
+                    'schema', 'opcua-semantic-snapshot',
+                    'semantics', json(o.semantic_binding_json)
+                )::VARCHAR END AS source_metadata_json
+            FROM {_CATALOG_NAME}.raw.opcua_data_change o
+            WHERE o.asset_id = ?
+                AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                AND o.event_at >= ? AND o.event_at < ?
+        )
+        SELECT s.period, s.channel_id, s.source_id, s.source_type,
+            coalesce(s.measurement_point_id, '') AS point_key, s.event_at, s.value,
+            json_object(
+                'binding', json_extract(f.source_metadata_json, '$.binding'),
+                'semantics', json_extract(f.source_metadata_json, '$.semantics')
+            )::VARCHAR AS interpretation,
+            s.source_type != 'file' AND NOT s.status_good AS non_good,
+            s.conflict,
+            s.value IS NOT NULL AND NOT s.conflict
+                AND (s.source_type = 'file' OR s.status_good) AS usable
+        FROM selected s LEFT JOIN raw_metadata f
+            ON s.raw_evidence_id = f.raw_evidence_id AND s.source_type = f.source_type
+        """,
+        [
+            *(item for name, start, end in periods for item in (name, start, end)),
+            *(asset_id, list(channels), low, high) * 3,
+        ],
+    )
 
 
 def _opcua_display_metadata_sql(*, upper_bound: bool) -> str:

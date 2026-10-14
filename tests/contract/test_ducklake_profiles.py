@@ -14,7 +14,9 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 BASE = datetime(2026, 10, 14, 0, 0, tzinfo=UTC)
 
 
-def _event(index: int, seconds: int, value: float | None, *, channel: str = "current"):
+def _event(
+    index: int, seconds: int, value: float | None, *, channel: str = "current", unit: str = "A"
+):
     return FileBackfillEvent(
         raw_evidence_id=f"file:device-a:{'a' * 64}:{channel}:{index}",
         source_id="device-a",
@@ -26,7 +28,7 @@ def _event(index: int, seconds: int, value: float | None, *, channel: str = "cur
         sample_index=index,
         event_at=BASE + timedelta(seconds=seconds),
         value=value,
-        source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
+        source_metadata_json=f'{{"binding":{{"definition":{{"unit":"{unit}"}}}}}}',
     )
 
 
@@ -88,3 +90,48 @@ def test_profile_inputs_are_bounded(history: DuckLakeAssetHistory) -> None:
         history.query_measurement_profiles(
             "pump-01", channel_ids=[], periods=[("a", BASE, BASE + timedelta(hours=1))]
         )
+
+
+def test_two_channels_pair_only_at_identical_timestamps(history: DuckLakeAssetHistory) -> None:
+    voltage = [
+        _event(100 + i, seconds, value, channel="voltage")
+        for i, (seconds, value) in enumerate([(0, 10.0), (10, 20.0), (20, 30.0), (25, 99.0)])
+    ]
+    history.append_file_batch(tuple(voltage), batch_id="voltage")
+    (group,) = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="current",
+        y_channel="voltage",
+        periods=[("a", BASE, BASE + timedelta(seconds=600))],
+    )
+    # current exists at 0/10/20 s with 1, 2, 3; voltage's 25 s value has no partner.
+    assert (group.pair_count, group.x_usable_count, group.y_usable_count) == (3, 9, 4)
+    assert group.pearson == pytest.approx(1.0) and group.spearman == pytest.approx(1.0)
+    assert [point[1:] for point in group.points] == [(1.0, 10.0), (2.0, 20.0), (3.0, 30.0)]
+    with pytest.raises(ValueError, match="two different channels"):
+        history.query_measurement_pairs(
+            "pump-01", x_channel="current", y_channel="current", periods=[("a", BASE, BASE)]
+        )
+
+
+def test_pairs_never_mix_two_meanings_of_one_channel(history: DuckLakeAssetHistory) -> None:
+    # The voltage mapping changed from V to mV at 20 s: one correlation across both would
+    # compare numbers that do not mean the same thing.
+    voltage = [
+        _event(200 + i, seconds, value, channel="voltage", unit=unit)
+        for i, (seconds, value, unit) in enumerate(
+            [(0, 10.0, "V"), (10, 20.0, "V"), (20, 3000.0, "mV"), (30, 4000.0, "mV")]
+        )
+    ]
+    history.append_file_batch(tuple(voltage), batch_id="voltage-units")
+    groups = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="current",
+        y_channel="voltage",
+        periods=[("a", BASE, BASE + timedelta(seconds=600))],
+    )
+    by_unit = {'"mV"' in g.y_interpretation_json: g for g in groups}
+    assert len(groups) == 2 and set(by_unit) == {True, False}
+    assert [(p[1], p[2]) for p in by_unit[False].points] == [(1.0, 10.0), (2.0, 20.0)]
+    assert [(p[1], p[2]) for p in by_unit[True].points] == [(3.0, 3000.0), (4.0, 4000.0)]
+    assert by_unit[True].pair_count == by_unit[True].y_usable_count == 2

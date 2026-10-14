@@ -82,6 +82,27 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert sum(series["histogram"]["a"]) == 4 and sum(series["histogram"]["b"]) == 4
         assert str(tmp_path) not in json.dumps(body)
 
+        ranges = {"a_from": 1, "a_to": 4, "b_from": 5, "b_to": 8}
+        status, relation = get(
+            "/api/v1/explore/relation",
+            asset_id="bearing-a",
+            kind="acquisition",
+            x=RMS,
+            y="feature.Horizontal_vibration_signals.peak_to_peak",
+            **ranges,
+        )
+        assert status == 200 and relation["pairing"] == "same-acquisition"
+        assert [g["pair_count"] for g in relation["groups"]] == [4, 4]
+        assert relation["groups"][1]["points"][0][0] == 5
+
+        status, spectrum = get("/api/v1/explore/spectrum", asset_id="bearing-a", **ranges)
+        assert status == 200 and spectrum["sampling_rate_hz"] == 1000
+        assert spectrum["acquisitions"] == {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]}
+        horizontal = spectrum["channels"][0]
+        assert len(horizontal["a"]) == len(horizontal["b"]) == len(spectrum["frequencies"])
+        # B carries six times the amplitude of A: about 15 dB more power in its strongest band.
+        assert max(band["change_db"] for band in horizontal["band_changes"]) > 10
+
         assert get("/api/v1/explore/profile", asset_id="bearing-a", kind="acquisition")[0] == 400
         bad = {"a_from": 4, "a_to": 1, "b_from": 5, "b_to": 8}
         query = {"asset_id": "bearing-a", "kind": "acquisition", "series": [RMS], **bad}
@@ -116,13 +137,31 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         )
         for index in range(60)
     ]
+    # The voltage mapping changes from V to kV halfway through the second period.
+    events += [
+        FileBackfillEvent(
+            raw_evidence_id=f"file:motor:{'b' * 64}:v{index}",
+            source_id="motor-file",
+            asset_id="motor-01",
+            channel_id="voltage",
+            source_file="motor.csv",
+            source_sha256="b" * 64,
+            source_size_bytes=10,
+            sample_index=100 + index,
+            event_at=BASE + timedelta(minutes=index),
+            value=(380.0 + index) / (1000 if index >= 45 else 1),
+            source_metadata_json='{"binding":{"definition":{"unit":"%s"}}}'
+            % ("kV" if index >= 45 else "V"),
+        )
+        for index in range(60)
+    ]
     history.append_file_batch(tuple(events), batch_id="motor")
     get, stop = _serve(workspace.root)
     try:
         status, sources = get("/api/v1/explore/sources", asset_id="motor-01")
         assert status == 200 and sources["acquisition"] is None
-        assert sources["history"]["channels"] == ["current"]
-        assert sources["history"]["measurement_count"] == 60
+        assert sources["history"]["channels"] == ["current", "voltage"]
+        assert sources["history"]["measurement_count"] == 120
         middle = BASE + timedelta(minutes=30)
         status, body = get(
             "/api/v1/explore/profile",
@@ -142,5 +181,25 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         assert a["median_interval_seconds"] == 60 and a["largest_gap"]["seconds"] == 60
         assert series["comparison"]["median_change"] == pytest.approx(5.0)
         assert series["comparison"]["b_outside_a_band_percent"] == 100
+        status, relation = get(
+            "/api/v1/explore/relation",
+            asset_id="motor-01",
+            kind="history",
+            x="current",
+            y="voltage",
+            a_from=BASE.isoformat(),
+            a_to=middle.isoformat(),
+            b_from=middle.isoformat(),
+            b_to=(BASE + timedelta(hours=1)).isoformat(),
+        )
+        assert status == 200
+        units = sorted((g["period"], g["y_unit"], g["pair_count"]) for g in relation["groups"])
+        assert units == [("a", "V", 30), ("b", "V", 15), ("b", "kV", 15)]
+        assert (
+            get(
+                "/api/v1/explore/spectrum", asset_id="motor-01", a_from=1, a_to=2, b_from=3, b_to=4
+            )[0]
+            == 404
+        )
     finally:
         stop()

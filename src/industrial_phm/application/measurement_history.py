@@ -194,3 +194,26 @@ class MeasurementProfile:
 
 
 PROFILE_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementPairGroup:
+    """Two channels paired at identical timestamps of one source and measurement point.
+
+    Only usable observations pair; nothing is interpolated or shifted in time. Each channel's
+    interpretation (unit and meaning) is part of the group, so a mapping that changed within
+    the period yields separate groups instead of one mixed correlation. Correlations use every
+    pair; ``points`` is an even sample of them for drawing.
+    """
+
+    period: str
+    source_id: str
+    measurement_point_id: str | None
+    x_interpretation_json: str
+    y_interpretation_json: str
+    x_usable_count: int
+    y_usable_count: int
+    pair_count: int
+    pearson: float | None
+    spearman: float | None
+    points: tuple[tuple[datetime, float, float], ...]

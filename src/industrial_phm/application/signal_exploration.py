@@ -18,8 +18,15 @@ from typing import Any
 
 import numpy as np
 
-from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
-from industrial_phm.application.measurement_history import PROFILE_QUANTILES, MeasurementProfile
+from industrial_phm.application.acquisition_snapshot import (
+    SqliteAcquisitionSnapshotRepository,
+    read_snapshot_waveform,
+)
+from industrial_phm.application.measurement_history import (
+    PROFILE_QUANTILES,
+    MeasurementPairGroup,
+    MeasurementProfile,
+)
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.models.package import StepKind
@@ -321,3 +328,206 @@ def _constant_run(points: Sequence[tuple[int, float]]) -> dict[str, int | None]:
                 best = (length, points[start][0], points[index - 1][0])
             start = index
     return {"count": best[0], "start": best[1], "end": best[2]}
+
+
+def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, Any]]:
+    """Paired observations per period, source/point and meaning, with both correlations."""
+    return [
+        {
+            "period": group.period,
+            "source_id": group.source_id,
+            "measurement_point_id": group.measurement_point_id,
+            "x_unit": _unit(group.x_interpretation_json),
+            "y_unit": _unit(group.y_interpretation_json),
+            "meaning_id": hashlib.sha256(
+                (group.x_interpretation_json + "\0" + group.y_interpretation_json).encode()
+            ).hexdigest()[:16],
+            "x_usable_count": group.x_usable_count,
+            "y_usable_count": group.y_usable_count,
+            "pair_count": group.pair_count,
+            "pearson": group.pearson,
+            "spearman": group.spearman,
+            "sampled": False,
+            "points": [[_time(at), x, y] for at, x, y in group.points],
+        }
+        for group in groups
+    ]
+
+
+def _average_ranks(values: np.ndarray) -> np.ndarray:
+    order = np.argsort(values, kind="mergesort")
+    ranks = np.empty(len(values))
+    ranks[order] = np.arange(1, len(values) + 1)
+    for value in np.unique(values):
+        tied = values == value
+        ranks[tied] = ranks[tied].mean()
+    return ranks
+
+
+def _correlation(x: np.ndarray, y: np.ndarray) -> float | None:
+    if len(x) < 3 or np.std(x) == 0 or np.std(y) == 0:
+        return None
+    return float(np.corrcoef(x, y)[0, 1])
+
+
+def acquisition_relation(
+    store: SqlitePhmAnalysisStore,
+    binding: PhmBinding,
+    x_feature: str,
+    y_feature: str,
+    periods: Sequence[tuple[str, int, int]],
+    *,
+    max_points: int = MAX_ACQUISITIONS,
+    drawn: int = 750,
+) -> list[dict[str, Any]]:
+    """Two features of the same acquisitions; each pair is one recorded acquisition.
+
+    A range with more than ``max_points`` analyzed acquisitions is sampled evenly over its
+    whole length and reported as sampled; ``drawn`` of the pairs are returned for drawing.
+    """
+    if x_feature == y_feature:
+        raise ValueError("pairs need two different features")
+    groups = []
+    for name, first, last in periods:
+        if not 0 <= first <= last:
+            raise ValueError("an acquisition range must be increasing")
+        results, total = store.analyzed_between(
+            binding.binding_id, first, last, max_points=max_points
+        )
+        pairs = [
+            (r.position, float(f[x_feature]), float(f[y_feature]))
+            for r in results
+            if (f := r.features or {})
+            and isinstance(f.get(x_feature), (int, float))
+            and isinstance(f.get(y_feature), (int, float))
+            and math.isfinite(float(f[x_feature]))
+            and math.isfinite(float(f[y_feature]))
+        ]
+        groups.append(_acquisition_group(name, pairs, binding, total, total > len(results), drawn))
+    return groups
+
+
+def _acquisition_group(
+    name: str,
+    pairs: Sequence[tuple[int, float, float]],
+    binding: PhmBinding,
+    analyzed: int,
+    sampled: bool,
+    drawn: int,
+) -> dict[str, Any]:
+    x = np.asarray([p[1] for p in pairs], dtype=float)
+    y = np.asarray([p[2] for p in pairs], dtype=float)
+    step = max(1, -(-len(pairs) // drawn))
+    return {
+        "period": name,
+        "source_id": binding.source_id,
+        "measurement_point_id": None,
+        "analyzed_count": analyzed,
+        "x_usable_count": len(pairs),
+        "y_usable_count": len(pairs),
+        "pair_count": len(pairs),
+        "pearson": _correlation(x, y),
+        "spearman": _correlation(_average_ranks(x), _average_ranks(y)) if len(pairs) else None,
+        "sampled": sampled,
+        "points": [[position, a, b] for position, a, b in pairs[::step]],
+    }
+
+
+SPECTRUM_SEGMENT = 4096
+SPECTRUM_POINTS = 400
+SPECTRUM_BANDS = 16
+
+
+def welch_psd(values: np.ndarray, sampling_rate_hz: float) -> tuple[np.ndarray, np.ndarray]:
+    """One-sided Welch PSD: Hann-windowed segments with 50 % overlap, mean removed."""
+    size = min(SPECTRUM_SEGMENT, len(values))
+    window = np.hanning(size)
+    scale = sampling_rate_hz * float((window**2).sum())
+    centered = values - values.mean()
+    starts = range(0, len(centered) - size + 1, size // 2)
+    spectra = [np.abs(np.fft.rfft(centered[i : i + size] * window)) ** 2 / scale for i in starts]
+    psd = np.mean(spectra, axis=0)
+    psd[1:-1] *= 2
+    return np.fft.rfftfreq(size, 1 / sampling_rate_hz), psd
+
+
+def acquisition_spectrum(
+    snapshots: SqliteAcquisitionSnapshotRepository,
+    binding: PhmBinding,
+    periods: Sequence[tuple[str, int, int]],
+    *,
+    per_period: int = 8,
+) -> dict[str, Any]:
+    """Mean Welch PSD of verified raw waveforms, up to ``per_period`` acquisitions per range.
+
+    Acquisitions are spread evenly through each whole range, first and last included. The
+    spectrum shows where vibration energy sits and how it moved between the ranges; it does
+    not name a fault frequency.
+    """
+    rates = set()
+    channels: tuple[str, ...] | None = None
+    spectra: dict[str, dict[str, list[np.ndarray]]] = {}
+    used: dict[str, list[int]] = {}
+    frequencies = np.zeros(0)
+    for name, first, last in periods:
+        delivered = snapshots.ordinals_between(binding.source_id, binding.asset_id, first, last)
+        if not delivered:
+            raise LookupError(f"no delivered acquisition in range {name}")
+        indexes = dict.fromkeys(round(i) for i in np.linspace(0, len(delivered) - 1, per_period))
+        chosen = [
+            snapshot
+            for index in indexes
+            if (snapshot := snapshots.get(binding.source_id, binding.asset_id, delivered[index][0]))
+            is not None
+        ]
+        used[name] = [item.ordinal for item in chosen]
+        for snapshot in chosen:
+            waveform = read_snapshot_waveform(snapshot)
+            values = np.asarray(waveform.values, dtype=float)
+            channels = channels or tuple(waveform.channels)
+            if tuple(waveform.channels) != channels:
+                raise ValueError("acquisitions in the ranges have different channels")
+            rates.add(snapshot.sampling_rate_hz)
+            for index, channel in enumerate(channels):
+                frequencies, psd = welch_psd(values[:, index], snapshot.sampling_rate_hz)
+                spectra.setdefault(channel, {}).setdefault(name, []).append(psd)
+    if len(rates) != 1 or channels is None:
+        raise ValueError("acquisitions in the ranges have different sampling rates")
+    rate = rates.pop()
+    # Display bins average neighbouring frequencies; band changes use the full resolution.
+    edges = np.linspace(0, len(frequencies), SPECTRUM_POINTS + 1).astype(int)
+    shown = [float(frequencies[a:b].mean()) for a, b in pairwise(edges) if b > a]
+    bands = np.linspace(0, len(frequencies), SPECTRUM_BANDS + 1).astype(int)
+    result = []
+    for channel in channels:
+        mean = {name: np.mean(spectra[channel][name], axis=0) for name, _, _ in periods}
+        changes = []
+        for a, b in pairwise(bands):
+            power = {name: float(mean[name][a:b].sum()) for name in mean}
+            if power.get("a", 0) > 0 and power.get("b", 0) > 0:
+                changes.append(
+                    {
+                        "from_hz": float(frequencies[a]),
+                        "to_hz": float(frequencies[b - 1]),
+                        "change_db": 10 * math.log10(power["b"] / power["a"]),
+                    }
+                )
+        changes.sort(key=lambda item: -abs(item["change_db"]))
+        result.append(
+            {
+                "channel": channel,
+                "label": feature_label(f"feature.{channel}.rms").removesuffix(" RMS"),
+                **{
+                    name: [float(mean[name][a:b].mean()) for a, b in pairwise(edges) if b > a]
+                    for name in mean
+                },
+                "band_changes": changes[:3],
+            }
+        )
+    return {
+        "sampling_rate_hz": rate,
+        "segment": min(SPECTRUM_SEGMENT, len(frequencies) * 2 - 2),
+        "frequencies": shown,
+        "acquisitions": used,
+        "channels": result,
+    }
