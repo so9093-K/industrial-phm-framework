@@ -432,6 +432,7 @@ button.monitor-next{background:white;border:1px solid #b9cad5;padding:6px 10px}
 .csv-start-summary{margin:10px 0;overflow-x:auto}.csv-start-summary h3{font-size:.9rem;margin:0 0 6px}.csv-start-summary .phm-table{font-size:.78rem}
 
 /* Guided exploration: approachable choices without hiding original evidence or expert controls. */
+.csv-first-guide{padding:10px 13px;border-left:3px solid #438a8b;background:#f1f8f6;color:#295563;font-size:.95rem;line-height:1.65;margin:0 0 14px}
 .monitor-time-explanation{padding:11px 14px;margin:8px 0 14px;border-left:3px solid #438a8b;background:#eef7f4;color:#234b51;font-size:.96rem;line-height:1.65}
 .source-record .source-time-explanation{font-size:.86rem;line-height:1.55;color:#365765}
 .explore-guide{padding:16px;margin:0 0 14px;background:#f5faf9;border:1px solid #c5dedb;border-radius:12px}
