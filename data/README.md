@@ -19,7 +19,7 @@ Source of Truth는 `src/industrial_phm/data/manifests/`에 유지합니다.
 
 | 자산 | 확인 경로 | 원본·재실행 구분 |
 | --- | --- | --- |
-| XJTU-SY / IMS / MIMII 연구 결과 | `docs/research/results/` 및 Web의 **기존 연구 결과** | 결과 JSON은 Git에 포함. 원본 데이터는 별도이며 조회가 재실행 가능성을 뜻하지 않음 |
+| XJTU-SY / IMS / MIMII 연구 결과 | `docs/research/results/` | 결과 JSON은 Git에 포함. 원본 데이터는 별도이며 조회가 재실행 가능성을 뜻하지 않음 |
 | AI-Hub 239 보일러 원본 | `data/raw/aihub/239/archives/training/raw/5.보일러.zip` | Git 제외. 승인·키로 다운로드 후 local manifest의 SHA-256 확인 |
 | 보일러 2297 대표 기록 | `5.보일러/SourceData_211.json`, 변화 분석은 원본 local time 2020-11-13–14 이틀; 연결 테스트는 첫 1시간 | 과거 전류 부하·전압 변화. timezone과 물리 asset identity는 개발용 binding 가정 |
 | 대표 Web 입력 | `artifacts/aihub-239/reference/recorded-phase.csv`와 `provenance.json` | 명시적으로 생성한 3상 전압 발췌. 원본 인덱스·해시·시간대 가정 보존 |

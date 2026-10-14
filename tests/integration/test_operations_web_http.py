@@ -278,10 +278,9 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
             ("/web/app.js", "text/javascript", b"/api/v1/monitor"),
             ("/web/styles.css", "text/css", b"focus-visible"),
             ("/web/navigation.js", "text/javascript", b"renderView"),
-            ("/web/research.js", "text/javascript", b"research-results.json"),
+            ("/web/asset-context.js", "text/javascript", b"monitor_asset"),
             ("/web/phm.js", "text/javascript", b"/api/v1/phm/series"),
             ("/web/phm-explanation.js", "text/javascript", b"/api/v1/phm/explanations"),
-            ("/web/research-results.json", "application/json", b"artifact_sha256"),
         ):
             status, headers, data = request(path)
             assert status == 200
@@ -302,8 +301,10 @@ def test_packaged_web_static_assets_are_exactly_allowlisted_and_same_origin(
         assert request("/web/app.js?debug=1")[0] == 404
         assert request("/web/", host="remote.example")[0] == 403
         assert request("/web/", origin="https://remote.example")[0] == 403
-        assert request("/web/research-results.json", host="remote.example")[0] == 403
-        assert request("/web/research-results.json?path=../../.env")[0] == 404
+        assert request("/web/styles.css", host="remote.example")[0] == 403
+        assert request("/web/styles.css?path=../../.env")[0] == 404
+        # The research catalog is no longer part of the operations product.
+        assert request("/web/research-results.json")[0] == 404
     finally:
         server.shutdown()
         server.server_close()

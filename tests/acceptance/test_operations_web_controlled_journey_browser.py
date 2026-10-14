@@ -15,6 +15,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta, timezone
 from http.client import HTTPConnection
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -401,7 +402,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
                     "aria-current", "page"
                 )
-                pw.expect(page.locator("#asset-select")).to_be_disabled()
+                pw.expect(page.locator("#asset-switch")).to_be_disabled()
                 assert page.locator(".skip-link").get_attribute("href") == "#main"
                 assert page.locator("html").get_attribute("lang") == "ko"
                 page.locator("#operator-guide > summary").click()
@@ -456,7 +457,7 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
                 listing = page.locator("#source-list")
                 pw.expect(listing).to_contain_text("journey-file", timeout=30000)
-                pw.expect(page.locator("#asset-select")).to_have_value(asset_id)
+                pw.expect(page.locator("#asset-switch")).to_have_value(asset_id)
                 saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
                 assert len(saved_uploads) == 1
                 assert saved_uploads[0].read_bytes() == (inputs / "vibration.csv").read_bytes()
@@ -527,53 +528,34 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                     analysis.evidence.source_snapshot_sha256
                     == hashlib.sha256((inputs / "vibration.csv").read_bytes()).hexdigest()
                 )
-                page.get_by_role("link", name="분석 결과").click()
+                page.locator('.asset-tabs a[data-tab="evidence"]').click()
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
                     analysis.evidence.evidence_id
                 )
-                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                page.get_by_role("button", name="확인·메모 시작").click()
                 pw.expect(page.locator("#review-results")).to_contain_text(
                     analysis.run.analysis_run_id, timeout=30000
                 )
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 1건")
-                page.locator("#review-inbox-list button").first.click()
                 pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                page.get_by_role("link", name="분석 결과").click()
-                page.get_by_role("button", name="이 분석의 검토 기록 열기").click()
+                page.get_by_role("button", name="확인 기록 보기").click()
                 pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                page.get_by_role("textbox", name="검토 메모 (물리 정비 완료 기록 아님)").fill(
-                    "증거 확인"
-                )
-                page.get_by_role("button", name="메모 기록").click()
-                page.get_by_role("button", name="확인됨으로 표시").click()
-                pw.expect(page.locator("#review-results")).to_contain_text("acknowledged")
-                page.get_by_role("button", name="검토 기록 종료").click()
-                pw.expect(page.locator("#review-results")).to_contain_text("closed")
-                pw.expect(page.locator("#review-results .review-meaning")).to_contain_text(
-                    "검토 기록 종료됨 · 실제 정비 완료, "
-                    "고장 해결 또는 설비 안전 확인의 근거가 아닙니다"
-                )
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 0건")
-                pw.expect(page.locator("#review-inbox-list")).to_contain_text(
-                    "표시 조건에 맞는 검토 기록이 없습니다"
-                )
-                page.locator("#review-filter").select_option("closed")
-                pw.expect(page.locator("#review-inbox-list")).to_contain_text(
-                    analysis.run.analysis_run_id
-                )
-                page.locator("#review-inbox-list button").first.click()
-                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                # A closed review still links only to the exact persisted Run/Evidence.
+                page.get_by_role("textbox", name="메모").fill("증거 확인")
+                page.get_by_role("button", name="메모 저장").click()
+                page.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 확인함")
+                page.get_by_role("button", name="완료로 표시").click()
+                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
+                # A completed record still links only to the exact persisted Run/Evidence.
                 evidence_link = page.locator("#review-results").get_by_role(
                     "button",
-                    name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
+                    name=f"분석 결과로 이동 · {analysis.evidence.evidence_id}",
                 )
                 evidence_link.click()
                 target = page.locator("#evidence-results .evidence-target")
                 pw.expect(target).to_be_focused()
                 pw.expect(target).to_contain_text(analysis.run.analysis_run_id)
                 pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
-                pw.expect(page.locator('nav a[href="#evidence"]')).to_have_attribute(
+                pw.expect(page.locator('.asset-tabs a[data-tab="evidence"]')).to_have_attribute(
                     "aria-current", "page"
                 )
                 # A distinct CSV with deliberately non-phase column names
@@ -640,11 +622,10 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#evidence-results")).to_contain_text(
                     phase_analysis.evidence.evidence_id
                 )
-                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                page.get_by_role("button", name="확인·메모 시작").click()
                 pw.expect(page.locator("#review-results")).to_contain_text(
                     phase_analysis.run.analysis_run_id, timeout=30000
                 )
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text("미처리 1건")
                 _no_overflow(page, width)
                 assert not errors, errors
                 assert not external, external
@@ -673,15 +654,13 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
             browser = runtime.chromium.launch(headless=True)
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900})
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                pw.expect(page.locator("#review-results")).to_contain_text("closed", timeout=30000)
-                pw.expect(
-                    page.locator("#review-results .review-meaning").filter(
-                        has_text="검토 기록 종료됨"
-                    )
-                ).to_contain_text("실제 정비 완료, 고장 해결 또는 설비 안전 확인의 근거가 아닙니다")
+                page.goto(f"http://127.0.0.1:{port}/web/#evidence", wait_until="domcontentloaded")
+                pw.expect(page.locator("#review-results")).to_contain_text(
+                    "확인 기록 · 완료", timeout=30000
+                )
                 # The newest FILE source is now phase-file; the history preview
                 # must reflect its stored values rather than the earlier vibration CSV.
+                page.locator('.asset-tabs a[data-tab="signals"]').click()
                 pw.expect(page.locator("#last-values")).to_contain_text(
                     "leg_a / phase-file", timeout=30000
                 )
@@ -708,14 +687,13 @@ def test_supervised_web_first_run_to_review_persists_across_restart(
                 pw.expect(page.locator("#onboarding-steps")).to_contain_text(
                     "active와 수신을 모두 확인한 소스 2개"
                 )
-                pw.expect(
-                    page.get_by_role("button", name="이 근거에 사람 검토 요청")
-                ).to_have_count(0)
-                pw.expect(page.get_by_role("button", name="검토 기록 종료")).to_have_count(0)
-                page.locator('nav a[href="#review"]').click()
+                page.locator('nav a[href="#monitor"]').click()
+                page.locator('.asset-tabs a[data-tab="evidence"]').click()
+                pw.expect(page.get_by_role("button", name="확인·메모 시작")).to_have_count(0)
+                pw.expect(page.get_by_role("button", name="완료로 표시")).to_have_count(0)
                 page.locator("#review-results").get_by_role(
                     "button",
-                    name=f"연결된 분석 근거 확인 · {analysis.evidence.evidence_id}",
+                    name=f"분석 결과로 이동 · {analysis.evidence.evidence_id}",
                 ).click()
                 target = page.locator("#evidence-results .evidence-target").filter(
                     has_text=analysis.run.analysis_run_id
@@ -1326,7 +1304,7 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                 page.on("pageerror", lambda exc: errors.append(str(exc)))
                 page.on("dialog", lambda dialog: dialog.accept())
                 page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                selector = page.locator("#asset-select")
+                selector = page.locator("#asset-switch")
                 pw.expect(selector).to_be_enabled(timeout=30000)
 
                 # The real stored System status must not become a false green
@@ -1350,56 +1328,37 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
                 )
                 pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
 
-                page.locator('nav a[href="#evidence"]').click()
+                page.locator('nav a[href="#monitor"]').click()
+                page.locator('.asset-tabs a[data-tab="evidence"]').click()
                 selector.select_option(first.run.asset_id)
                 evidence = page.locator("#evidence-results")
                 review = page.locator("#review-results")
                 pw.expect(evidence).to_contain_text(first.evidence.evidence_id)
                 pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
-                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
-                    "미처리 1건", timeout=30000
-                )
-                pw.expect(review).to_contain_text(first.run.analysis_run_id)
+                page.get_by_role("button", name="확인·메모 시작").click()
+                pw.expect(review).to_contain_text(first.run.analysis_run_id, timeout=30000)
                 pw.expect(review).not_to_contain_text(second.run.analysis_run_id)
 
                 selector.select_option(second_asset_id)
                 pw.expect(evidence).to_contain_text(second.evidence.evidence_id)
                 pw.expect(evidence).not_to_contain_text(first.evidence.evidence_id)
                 pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
-                pw.expect(review).to_contain_text("이 설비에 기록된 검토 요청이 없습니다")
-                inbox = page.locator("#review-inbox-list")
-                pw.expect(inbox).to_contain_text(first.run.analysis_run_id)
-                pw.expect(inbox).to_contain_text(first.evidence.evidence_id)
+                pw.expect(review).to_contain_text("남긴 확인·메모가 없습니다")
 
-                # The global inbox switches selected asset, exact Run/Evidence
-                # and keyboard focus; it must not open the newer asset's record.
-                first_finding_id = "finding-review-" + first.run.analysis_run_id
-                page.locator('nav a[href="#review"]').click()
-                inbox.get_by_role(
-                    "button",
-                    name=f"검토 열기 · {first.run.asset_id} · {first_finding_id}",
-                ).click()
-                pw.expect(selector).to_have_value(first.run.asset_id)
-                pw.expect(review.locator(".review-record")).to_be_focused()
+                # Returning to the first asset reopens only its exact record and analysis.
+                selector.select_option(first.run.asset_id)
                 pw.expect(review).to_contain_text(first.evidence.evidence_id)
                 pw.expect(review).not_to_contain_text(second.evidence.evidence_id)
                 review.get_by_role(
-                    "button", name=f"연결된 분석 근거 확인 · {first.evidence.evidence_id}"
+                    "button", name=f"분석 결과로 이동 · {first.evidence.evidence_id}"
                 ).click()
                 pw.expect(evidence.locator(".evidence-target")).to_be_focused()
                 pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
 
                 selector.select_option(second_asset_id)
-                page.locator('nav a[href="#evidence"]').click()
-                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
-                    "미처리 2건", timeout=30000
-                )
-                pw.expect(review).to_contain_text(second.run.analysis_run_id)
+                page.get_by_role("button", name="확인·메모 시작").click()
+                pw.expect(review).to_contain_text(second.run.analysis_run_id, timeout=30000)
                 pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
-                pw.expect(inbox).to_contain_text(first.run.analysis_run_id)
-                pw.expect(inbox).to_contain_text(second.run.analysis_run_id)
                 _no_overflow(page, width)
                 assert not errors, errors
             finally:
@@ -1422,15 +1381,16 @@ def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact
             browser = runtime.chromium.launch(headless=True)
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                # The default route is the Monitor; the review asset selector belongs to #review.
-                page.goto(f"http://127.0.0.1:{port}/web/#review", wait_until="domcontentloaded")
-                pw.expect(page.locator("#review-inbox-summary")).to_contain_text(
-                    "미처리 2건", timeout=30000
+                # A link to one asset's records reopens that asset after a restart.
+                page.goto(
+                    f"http://127.0.0.1:{port}/web/?monitor_asset={quote(second_asset_id)}#evidence",
+                    wait_until="domcontentloaded",
                 )
-                selector = page.locator("#asset-select")
-                selector.select_option(second_asset_id)
+                pw.expect(page.locator("#asset-switch")).to_have_value(
+                    second_asset_id, timeout=30000
+                )
                 pw.expect(page.locator("#review-results")).to_contain_text(
-                    second.evidence.evidence_id
+                    second.evidence.evidence_id, timeout=30000
                 )
                 pw.expect(page.locator("#review-results")).not_to_contain_text(
                     first.evidence.evidence_id

@@ -1,4 +1,4 @@
-"""Users can find a starting action and separate research from workspace evidence."""
+"""Users can find a starting action; retired screens open their replacement."""
 
 from pathlib import Path
 from threading import Thread
@@ -10,9 +10,7 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 
 
 @pytest.mark.parametrize("width", [1024, 1440])
-def test_empty_workspace_start_routes_research_and_read_failures(
-    tmp_path: Path, width: int
-) -> None:
+def test_empty_workspace_start_routes_and_read_failures(tmp_path: Path, width: int) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "empty")
     initialize_operations_workspace(workspace)
@@ -36,24 +34,21 @@ def test_empty_workspace_start_routes_research_and_read_failures(
                 for link in page.locator("#workspace-start a").all():
                     box = link.bounding_box()
                     assert box and box["y"] >= 0 and box["y"] + box["height"] <= 800
-                page.get_by_role("link", name="연구 데이터 확인").click()
-                pw.expect(page.locator("#view-title")).to_have_text("연구 · 검증 결과")
-                pw.expect(page.locator("#workspace-start")).to_be_hidden()
-                catalog = page.request.get(base + "research-results.json").json()
-                count = len(catalog["items"])
-                pw.expect(page.locator("#research-state")).to_contain_text(f"{count}건")
-                pw.expect(page.locator(".research-result")).to_have_count(count)
-                result = page.locator(".research-result").filter(
-                    has_text="xjtu-sy-lstm-autoencoder-fold-1-development-v1"
-                )
-                result.locator("summary").click()
-                pw.expect(result).to_contain_text("원본 데이터는 함께 배포되지 않습니다")
-                pw.expect(result).to_contain_text("Declared code revision")
-                pw.expect(result).to_contain_text("Unsupported")
+                # Two product destinations; diagnostics is a secondary link.
+                assert page.locator('nav[aria-label="주요 화면"] a').all_inner_texts() == [
+                    "설비 모니터링",
+                    "데이터 연결",
+                ]
+                pw.expect(page.locator("#asset-bar")).to_be_hidden()
                 assert page.locator("#asset-count").inner_text() == "0"
                 assert page.locator("#analysis-count").inner_text() == "0"
-                page.go_back(wait_until="networkidle")
+                # Retired screens open their replacement instead of an empty page.
+                page.goto(base + "#research", wait_until="networkidle")
                 pw.expect(page.locator("#view-title")).to_have_text("설비 모니터링")
+                assert page.evaluate("location.hash") == "#monitor"
+                page.goto(base + "#review", wait_until="networkidle")
+                assert page.evaluate("location.hash") == "#evidence"
+                page.goto(base + "#monitor", wait_until="networkidle")
                 page.get_by_role("link", name="파일에서 시작").click()
                 pw.expect(page.locator("#view-title")).to_have_text("데이터 연결")
                 pw.expect(page.locator("#csv-start-file")).to_be_focused()

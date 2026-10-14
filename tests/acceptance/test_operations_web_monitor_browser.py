@@ -115,11 +115,11 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "not an English-language operations interface"
             )
             # Keyboard activation, not a mouse click, must update current navigation.
-            page.get_by_role("link", name="운영 관리").focus()
+            page.get_by_role("link", name="시스템 상태").focus()
             page.keyboard.press("Enter")
             assert page.evaluate("location.hash") == "#system"
-            sync_api.expect(page.get_by_role("combobox", name="설비 ID")).to_be_hidden()
-            page.get_by_role("link", name="운영 관리").click()
+            sync_api.expect(page.locator("#asset-bar")).to_be_hidden()
+            page.get_by_role("link", name="시스템 상태").click()
             sync_api.expect(page.locator('nav a[href="#system"]')).to_have_attribute(
                 "aria-current", "page"
             )
@@ -127,8 +127,9 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회 시각")
-            page.locator('nav a[href="#signals"]').click()
-            sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
+            page.locator('nav a[href="#monitor"]').click()
+            page.locator('.asset-tabs a[data-tab="signals"]').click()
+            sync_api.expect(page.locator("#asset-switch")).to_have_value("pump-01")
             sync_api.expect(page.locator("#channel-options input:checked")).to_have_count(1)
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(1)
             sync_api.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
@@ -143,7 +144,9 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             sync_api.expect(page.locator("#evidence-results")).to_contain_text(
                 "분석 기록이 없습니다"
             )
-            sync_api.expect(page.locator("#review-results")).to_contain_text("검토 요청이 없습니다")
+            sync_api.expect(page.locator("#review-results")).to_contain_text(
+                "남긴 확인·메모가 없습니다"
+            )
             # Fail the real monitor HTTP request after a populated read. The browser
             # must discard stale facts rather than present them as current evidence.
             page.route("**/api/v1/monitor", lambda route: route.abort("failed"))
@@ -153,10 +156,9 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
             )
             sync_api.expect(page.locator("#system-facts .fact")).to_have_count(0)
             sync_api.expect(page.locator("#asset-count")).to_have_text("—")
-            sync_api.expect(page.locator("#asset-select")).to_be_disabled()
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(0)
             sync_api.expect(page.locator("#review-results")).to_contain_text(
-                "조회 실패 · 이전 데이터를 현재 상태로 표시하지 않습니다"
+                "기록을 읽지 못했습니다"
             )
             # Recover the transport, then require a new server-backed snapshot.
             page.unroute("**/api/v1/monitor")
@@ -166,7 +168,7 @@ def test_web_monitor_reads_actual_stored_signals_in_browser(tmp_path: Path, widt
                 "저장소 오류 범위가 보고되지 않았습니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
-            sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
+            sync_api.expect(page.locator("#asset-switch")).to_have_value("pump-01")
             sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
             assert not errors, errors
             assert not external, external
@@ -194,12 +196,12 @@ def test_web_monitor_empty_workspace_has_no_fake_equipment(tmp_path: Path) -> No
             browser = playwright.chromium.launch(headless=True)
             page = browser.new_page(viewport={"width": 1024, "height": 800})
             page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
-            sync_api.expect(page.locator("#asset-select")).to_be_disabled()
+            sync_api.expect(page.locator("#asset-switch")).to_be_disabled()
+            sync_api.expect(page.locator("#asset-bar")).to_be_hidden()
             sync_api.expect(page.locator("#system-status")).to_contain_text(
                 "수집기 가동·실시간 연결·설비 정상 또는 안전 판정이 아닙니다"
             )
             sync_api.expect(page.locator("#system-facts")).to_contain_text("조회된 설비 수")
-            sync_api.expect(page.locator("#asset-facts")).to_contain_text("설비가 없습니다")
             sync_api.expect(page.locator("#last-values .latest-item")).to_have_count(0)
             assert "현재 설비 정상" not in page.locator("body").inner_text()
             browser.close()
@@ -257,7 +259,7 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
                 "등록된 소스를 활성화하세요"
             )
-            sync_api.expect(page.locator("#asset-select")).to_have_value("pump-01")
+            sync_api.expect(page.locator("#asset-switch")).to_have_value("pump-01")
             assert (
                 JsonSourceRepository(workspace.source_registry_path).get("web-file-01").asset_id
                 == "pump-01"
@@ -538,29 +540,24 @@ def test_web_review_buttons_follow_persisted_evidence_in_browser(
                     f"http://127.0.0.1:{server.server_port}/web/#evidence",
                     wait_until="domcontentloaded",
                 )
-                sync_api.expect(page.locator("#asset-select")).to_have_value(
+                sync_api.expect(page.locator("#asset-switch")).to_have_value(
                     phase.run.asset_id, timeout=30000
                 )
-                sync_api.expect(
-                    page.get_by_role("button", name="이 근거에 사람 검토 요청")
-                ).to_be_visible()
-                page.get_by_role("button", name="이 근거에 사람 검토 요청").click()
+                start = page.get_by_role("button", name="확인·메모 시작")
+                sync_api.expect(start).to_be_visible()
+                start.click()
                 sync_api.expect(page.locator("#review-results")).to_contain_text(
                     "finding-review-" + phase.run.analysis_run_id
                 )
-                sync_api.expect(
-                    page.get_by_role("button", name="이 근거에 사람 검토 요청")
-                ).to_have_count(0)
-                page.get_by_role("textbox", name="검토 메모 (물리 정비 완료 기록 아님)").fill(
-                    "근거 및 측정 시점 확인"
-                )
-                page.get_by_role("button", name="메모 기록").click()
-                sync_api.expect(page.locator("#review-results")).to_contain_text("open")
-                page.get_by_role("button", name="확인됨으로 표시").click()
-                sync_api.expect(page.locator("#review-results")).to_contain_text("acknowledged")
-                page.get_by_role("button", name="검토 기록 종료").click()
-                sync_api.expect(page.locator("#review-results")).to_contain_text("closed")
-                sync_api.expect(page.get_by_role("button", name="검토 기록 종료")).to_have_count(0)
+                sync_api.expect(start).to_have_count(0)
+                page.get_by_role("textbox", name="메모").fill("근거 및 측정 시점 확인")
+                page.get_by_role("button", name="메모 저장").click()
+                sync_api.expect(page.locator("#review-results")).to_contain_text("확인 필요")
+                page.get_by_role("button", name="확인함으로 표시").click()
+                sync_api.expect(page.locator("#review-results")).to_contain_text("확인함")
+                page.get_by_role("button", name="완료로 표시").click()
+                sync_api.expect(page.locator("#review-results")).to_contain_text("완료")
+                sync_api.expect(page.get_by_role("button", name="완료로 표시")).to_have_count(0)
                 assert not errors, errors
                 assert not external, external
                 browser.close()

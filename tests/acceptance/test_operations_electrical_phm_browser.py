@@ -100,7 +100,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
                 page.locator('a[href="#rul"]').click()
                 pw.expect(page.locator("#rul-state")).to_contain_text(
-                    "근거가 없는 설비에는 표시하지 않습니다"
+                    "모델을 연결하면 잔여 수명 추정"
                 )
                 pw.expect(page.locator("#rul-cards>*")).to_have_count(0)
                 assert not errors
