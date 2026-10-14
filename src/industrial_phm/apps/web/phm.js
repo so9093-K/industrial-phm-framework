@@ -2,6 +2,7 @@ import { renderPhmExplanation } from "./phm-explanation.js";
 import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
 import { assetName, currentAsset, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
+import { modelFamily, renderModelConnect } from "./phm-connect.js";
 // PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score, an interval or an estimate.
@@ -109,9 +110,7 @@ function fillSelect(select, items, current) {
     return "";
   }
   for (const item of items) {
-    const recipe = item.package.recipe_id || "";
-    const family = /autoencoder/.test(recipe) ? "재구성 오차 · LSTM" : /pca/.test(recipe) ? "재구성 오차 · PCA" : /iforest/.test(recipe) ? "이상 점수 · IF" : /lstm/.test(recipe) ? "RUL · LSTM" : /ridge/.test(recipe) ? "RUL · Ridge" : TASK_LABEL[item.package.output.task];
-    const option = node("option", family);
+    const option = node("option", modelFamily(item.package.recipe_id || "", item.package.output.task));
     option.value = item.binding_id;
     select.append(option);
   }
@@ -357,7 +356,7 @@ function renderAnomaly() {
   } else if (!analyzed.length) {
     state.className = "state";state.textContent = steps.length
       ? "입력을 분석할 수 없습니다: " + (steps.at(-1).reason || "모델 입력 조건 불충족") + inputGuide(steps.at(-1).reason)
-      : "분석된 step이 아직 없습니다. 데이터가 공급되면 자동으로 갱신됩니다.";
+      : "아직 분석 결과가 없습니다. 입력이 분석되면 자동으로 표시됩니다.";
   } else {
     state.className = "state";
     state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") ;
@@ -639,7 +638,7 @@ function renderRul() {
   }
   if (!analyzed.length) {
     byId("rul-observation").textContent = "분석 가능한 입력을 기다리고 있습니다.";
-    renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다.";renderModelCard(byId("rul-model"), entry.package);return;
+    renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = orderedSteps(entry).length ? "입력 조건 확인: " + orderedSteps(entry).at(-1).reason + inputGuide(orderedSteps(entry).at(-1).reason) : "아직 추정이 없습니다. 입력이 분석되면 자동으로 표시됩니다.";renderModelCard(byId("rul-model"), entry.package);return;
   }
   const last = analyzed.find((s) => s.position === rulFocusPosition) || analyzed.at(-1);
   updateMonitorTarget("rul", last.position);
@@ -790,6 +789,12 @@ async function cycle() {
     }
   }
   if (activeView() === "rul") renderRul();
+  const shown = activeView();
+  if (shown) void renderModelConnect(shown, readError ? "" : currentAsset(), Boolean(selected[shown]), (bindingId) => {
+    clearMonitorTarget();selected[shown] = bindingId;
+    if (shown === "anomaly") {zoom.anomaly = null;focusPosition = null;chosenFeatures = [];} else rulFocusPosition = null;
+    void cycle();
+  });
 }
 
 function schedule() {

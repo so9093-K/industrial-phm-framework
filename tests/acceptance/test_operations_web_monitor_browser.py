@@ -236,10 +236,10 @@ def test_first_run_registers_prepared_file_without_faking_receipt(
             page.locator('input[name="timestamp_column"]').fill("timestamp")
             page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
             sync_api.expect(page.locator("#register-result")).to_contain_text(
-                "등록 완료 · 수신 근거 미확인"
+                "등록 완료. 아래 등록된 소스에서"
             )
             sync_api.expect(page.locator("#source-list")).to_contain_text("web-file-01")
-            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
+            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 미확인")
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 0개")
             sync_api.expect(page.locator("#onboarding-monitor-link")).to_be_hidden()
             sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
@@ -296,7 +296,7 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
                 timeout=60_000,
             )
             listing = page.locator("#source-list")
-            sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+            sync_api.expect(listing).to_contain_text("수신 미확인")
             page.on("dialog", lambda dialog: dialog.accept())
             listing.get_by_role("button", name="소스 활성화").click()
             sync_api.expect(listing).to_contain_text("관리 상태: active")
@@ -318,7 +318,7 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
             sync_api.expect(page.locator("#notice")).to_contain_text(
                 "이력 저장소를 확인할 수 없습니다"
             )
-            sync_api.expect(listing).to_contain_text("수신 근거 미확인")
+            sync_api.expect(listing).to_contain_text("수신 미확인")
             stored = SqliteCollectionControlRepository(workspace.collection_control_path).get(
                 "web-opcua"
             )
@@ -361,7 +361,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             page.locator('input[name="channel_columns"]').fill("phase-R,phase-S,phase-T")
             page.locator('input[name="timestamp_column"]').fill("timestamp")
             page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
-            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 근거 미확인")
+            sync_api.expect(page.locator("#source-list")).to_contain_text("수신 미확인")
             page.on("dialog", lambda dialog: dialog.accept())
             page.locator("#source-list").get_by_role("button", name="소스 활성화").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: active")
@@ -369,17 +369,13 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
                 "FILE 검증 수신 근거 기록 완료"
             )
-            sync_api.expect(page.locator("#source-list")).to_contain_text(
-                "FILE 검증 수신 근거 있음"
-            )
-            sync_api.expect(page.locator("#onboarding-state")).to_contain_text(
-                "저장된 시계열은 별도로 확인해야 합니다"
-            )
+            sync_api.expect(page.locator("#source-list")).to_contain_text("CSV 수신 확인됨")
+            sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 1개")
             page.locator("#connection-progress > summary").click()
             handoff = page.locator("#onboarding-monitor-link")
             sync_api.expect(handoff).to_be_visible()
             sync_api.expect(page.locator("#onboarding-steps")).to_contain_text(
-                "active와 수신을 모두 확인한 소스 1개"
+                "사용 중이면서 수신을 확인한 소스 1개"
             )
             page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: paused")
@@ -444,7 +440,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             listing.get_by_role("button", name="소스 활성화").click()
             sync_api.expect(listing).to_contain_text("관리 상태: active")
             page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
-            sync_api.expect(listing).to_contain_text("FILE 검증 수신 근거 있음")
+            sync_api.expect(listing).to_contain_text("CSV 수신 확인됨")
             assert not workspace.history_catalog_path.exists()
             listing.get_by_role("button", name="FILE 이력 적재").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(

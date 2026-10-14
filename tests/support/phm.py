@@ -85,8 +85,8 @@ def _linear(
     return manifest.package_id
 
 
-def phm_workspace(root: Path) -> OperationsWorkspace:
-    """Workspace with an anomaly and a RUL binding over one synthetic bearing stream."""
+def phm_workspace(root: Path, *, bind: bool = True) -> OperationsWorkspace:
+    """Workspace with an anomaly and a RUL package, bound to one synthetic bearing stream."""
     workspace = OperationsWorkspace(root)
     initialize_operations_workspace(workspace)
     rms = "feature.Horizontal_vibration_signals.rms"
@@ -117,6 +117,8 @@ def phm_workspace(root: Path) -> OperationsWorkspace:
         {rms: -10.0},
         40.0,
     )
+    if not bind:
+        return workspace
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     for binding_id, package_id in (("anomaly-a", anomaly), ("rul-a", rul)):
         store.create_binding(

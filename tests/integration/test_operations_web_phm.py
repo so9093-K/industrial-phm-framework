@@ -9,6 +9,8 @@ from pathlib import Path
 from threading import Thread
 from typing import Any
 
+import pytest
+
 from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshot,
     SqliteAcquisitionSnapshotRepository,
@@ -29,7 +31,9 @@ from industrial_phm.models.package import (
     StepKind,
     write_model_package,
 )
+from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     initialize_operations_workspace,
@@ -210,6 +214,97 @@ def test_bound_package_results_are_served_incrementally_without_paths(
         assert get("/api/v1/phm/series")[0] == 400
         assert get("/api/v1/phm/snapshot?binding_id=b1&position=0")[0] == 400
         assert get("/api/v1/phm/series?binding_id=b1&since=-1")[0] == 400
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_web_lists_fitting_models_and_connects_one_to_the_asset(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    package_id = _package(workspace)
+    waveforms = tmp_path / "waveforms"
+    waveforms.mkdir()
+    repo = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    for ordinal, scale in enumerate((0.5, 3.0, 3.0), start=1):
+        _deliver(repo, waveforms, ordinal, scale)
+    other = waveforms / "other.csv"
+    other.write_text("x\n" + "0.0\n" * 64, encoding="utf-8")
+    repo.record(
+        AcquisitionSnapshot(
+            source_id="bench",
+            asset_id="pump-b",
+            ordinal=1,
+            file_path=other.resolve(),
+            sha256=file_sha256(other),
+            channels=("x",),
+            sampling_rate_hz=1000.0,
+            sample_count=64,
+            delivered_at=T0,
+            replay=False,
+        )
+    )
+
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def get(path: str) -> tuple[int, dict[str, Any]]:
+        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+        try:
+            connection.request("GET", path, headers={"Host": f"127.0.0.1:{server.server_port}"})
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    try:
+        status, models = get("/api/v1/phm/models?asset_id=bearing-a")
+        assert status == 200
+        (package,) = models["packages"]
+        assert package["package_id"] == package_id and package["task"] == "anomaly-score"
+        (candidate,) = package["candidates"]
+        assert candidate == {
+            "source_id": "bench",
+            "measurement_point_id": None,
+            "compatible": True,
+            "reason": None,
+            "connected": False,
+        }
+        status, models = get("/api/v1/phm/models?asset_id=pump-b")
+        assert models["packages"][0]["candidates"][0]["reason"] == "채널 구성이 다릅니다"
+        assert get("/api/v1/phm/models")[0] == 400
+
+        payload: dict[str, object] = {
+            "package_id": package_id,
+            "source_id": "bench",
+            "asset_id": "bearing-a",
+        }
+        connected = execute_web_source_action(
+            workspace.root, "/api/v1/phm/bindings/create", payload
+        )
+        assert connected["created"] is True and connected["task"] == "anomaly-score"
+        again = execute_web_source_action(workspace.root, "/api/v1/phm/bindings/create", payload)
+        assert again["binding_id"] == connected["binding_id"] and again["created"] is False
+        with pytest.raises(SourceControlConflict):
+            execute_web_source_action(
+                workspace.root, "/api/v1/phm/bindings/create", {**payload, "asset_id": "pump-b"}
+            )
+        with pytest.raises(SourceControlConflict):
+            execute_web_source_action(
+                workspace.root,
+                "/api/v1/phm/bindings/create",
+                {**payload, "package_id": "missing-000"},
+            )
+
+        # Already stored inputs are analyzed once the runner sees the new binding.
+        store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+        run_snapshot_bindings(store, repo, PackageCache(workspace.models_path), now=lambda: T0)
+        status, series = get(f"/api/v1/phm/series?binding_id={connected['binding_id']}")
+        assert [s["state"] for s in series["steps"]] == ["analyzed"] * 3
+        status, models = get("/api/v1/phm/models?asset_id=bearing-a")
+        assert models["packages"][0]["candidates"][0]["connected"] is True
     finally:
         server.shutdown()
         server.server_close()

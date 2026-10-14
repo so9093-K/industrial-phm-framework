@@ -7,6 +7,7 @@ import {formatTime} from "./time.js";
 // keeps its own contract and result; the browser preview is never presented as validation or storage.
 const MAX_BYTES = 20 * 1024 * 1024;
 const HISTORY_WAIT_MS = 15 * 60 * 1000;
+const ANALYSIS_MAX_BYTES = 1024 * 1024;
 const MAX_CHANNELS = 12;
 const PREVIEW_BUCKETS = 120;
 const byId = (id) => document.getElementById(id);
@@ -451,7 +452,7 @@ function finish() {
   const timeIndex = Number(byId("csv-start-time").value), timing = timeIssues(timeIndex);
   const span = timing.parsed.length ? timing.parsed.at(-1).at - timing.parsed[0].at : 0;
   const range = span >= 86400000 ? "7d" : span >= 3600000 ? "24h" : span >= 900000 ? "1h" : "15m";
-  byId("csv-start-save-result").textContent = "저장 완료 · 설비 " + values.asset_id + "에 측정값 " + stored.event_count.toLocaleString("ko-KR") + "개를 원래 측정 시각으로 저장했습니다. PHM 분석은 실행하지 않았습니다.";
+  byId("csv-start-save-result").textContent = "저장 완료 · 설비 " + values.asset_id + "에 측정값 " + stored.event_count.toLocaleString("ko-KR") + "개를 원래 측정 시각으로 저장했습니다.";
   byId("csv-start-done").hidden = false;byId("csv-start-save").hidden = true;
   setCurrent("monitor");
   const open = byId("csv-start-open-monitor");
@@ -459,6 +460,11 @@ function finish() {
     openMonitorAsset(values.asset_id, {channel: byId("csv-start-preview-channel").value || values.channel_columns[0], range, sourceId: values.source_id});
     navigate("#monitor", byId("monitor-signal-title"));
   };
+  // Signal statistics run synchronously on the supervisor, so only files it can read in time.
+  const analyze = byId("csv-start-analyze");
+  analyze.hidden = Boolean(file && file.size > ANALYSIS_MAX_BYTES);
+  analyze.onclick = () => document.dispatchEvent(new CustomEvent("file-analysis-request",
+    {detail: {sourceId: values.source_id, button: analyze, output: byId("csv-start-analyze-result")}}));
   open.focus();
 }
 
