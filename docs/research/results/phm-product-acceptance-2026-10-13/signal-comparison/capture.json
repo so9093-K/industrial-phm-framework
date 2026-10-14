@@ -1,5 +1,5 @@
 {
-  "code_revision": "35057f9355f566fcbbfe02f6c0571926fe082117",
+  "code_revision": "a5df027a35b867311368497e01d8d6d70e2ff627",
   "working_tree": "clean product code; documentation captured afterwards",
   "scope": "read-only servers over isolated copies of fixed replay workspaces; saved real local-main outputs",
   "captures": [
