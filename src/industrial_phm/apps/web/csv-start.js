@@ -14,6 +14,8 @@ const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;if (className) e.className = className;return e;};
 const ISO = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?(Z|[+-]\d{2}:?\d{2})?$/;
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+// One reading of a cell for the column check, the summary and the chart: "1e999" is not a value.
+const numberOf = (text) => text && NUMBER.test(text) && Number.isFinite(Number(text)) ? Number(text) : null;
 const TIME_NAME = /time|timestamp|date|시각|시간|일시/i;
 const STEPS = ["register", "activate", "receive", "store"];
 const stepState = {pending: "대기", running: "진행 중", done: "완료", failed: "실패", unknown: "결과 확인 필요"};
@@ -62,7 +64,7 @@ function inspect(rows) {
       if (!value) {column.missing++;column.firstMissing ??= line;continue;}
       const iso = ISO.exec(value);
       if (iso) {column.iso++;if (iso[1]) column.zoned++;} else column.firstNonIso ??= line;
-      if (NUMBER.test(value) && Number.isFinite(Number(value))) column.numeric++;
+      if (numberOf(value) !== null) column.numeric++;
       else {column.invalid++;column.firstInvalid ??= line;}
     }
   });
@@ -222,10 +224,47 @@ function drawPreview() {
   if (!channels.length) list.push(["error", "저장할 숫자 측정 컬럼을 하나 이상 선택하세요."]);
   if (!list.length) list.push(["ok", "브라우저에서 확인한 구조 문제는 없습니다. 서버 점검으로 최종 확인합니다."]);
   for (const [kind, text] of list) issues.append(node("li", text, kind === "error" ? "error" : ""));
+  renderSummary(timing, channels);
   const select = byId("csv-start-preview-channel"), previous = select.value;
   select.replaceChildren(...channels.map((name) => Object.assign(node("option", name), {value: name})));
   select.value = channels.includes(previous) ? previous : channels[0] || "";
   drawChart();
+}
+
+// What each chosen column holds and how regularly rows were measured, before anything is saved.
+function renderSummary(timing, channels) {
+  const box = byId("csv-start-summary");box.replaceChildren();
+  if (!channels.length) return;
+  const median = (sorted) => sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  const format = (value) => typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("ko-KR", {maximumSignificantDigits: 5}) : "—";
+  const summary = node("table", "", "phm-table");
+  const head = node("tr");for (const title of ["측정 컬럼", "값", "빈 값", "최소", "중앙값", "최대", "평균"]) head.append(node("th", title));summary.append(head);
+  for (const name of channels) {
+    const column = table.columns.find((c) => c.name === name);
+    const values = [];
+    for (const row of table.rows) {
+      if (row.length !== table.header.length) continue;
+      const value = numberOf(row[column.index].trim());
+      if (value !== null) values.push(value);
+    }
+    const sorted = values.slice().sort((a, b) => a - b);
+    let total = 0;for (const value of values) total += value;
+    const row = node("tr");
+    for (const text of [name, values.length.toLocaleString("ko-KR"), column.missing.toLocaleString("ko-KR"), format(sorted[0]),
+      format(sorted.length ? median(sorted) : null), format(sorted.at(-1)), format(values.length ? total / values.length : null)]) row.append(node("td", text));
+    summary.append(row);
+  }
+  box.append(node("h3", "측정 컬럼 요약"), summary);
+  if (!timing || timing.parsed.length < 3) return;
+  const gaps = [];
+  for (let i = 1; i < timing.parsed.length; i++) gaps.push({seconds: (timing.parsed[i].at - timing.parsed[i - 1].at) / 1000, index: i});
+  const usual = median(gaps.map((gap) => gap.seconds).filter((value) => value > 0).sort((a, b) => a - b));
+  const uneven = gaps.filter((gap) => usual > 0 && (gap.seconds > usual * 1.5 || gap.seconds < usual * 0.5)).length;
+  const longest = gaps.reduce((best, gap) => gap.seconds > best.seconds ? gap : best, gaps[0]);
+  const duration = (seconds) => seconds >= 3600 ? format(seconds / 3600) + "시간" : seconds >= 60 ? format(seconds / 60) + "분" : format(seconds) + "초";
+  const line = node("p", "측정 간격 · 보통 " + duration(usual) + " · 간격이 크게 다른 곳 " + uneven.toLocaleString("ko-KR") + "곳 · 가장 긴 공백 "
+    + duration(longest.seconds) + (longest.seconds > usual * 1.5 && !timing.naive ? " (" + formatTime(timing.parsed[longest.index - 1].at, {seconds: false}) + " 이후)" : ""), "muted");
+  box.append(line);
 }
 
 function drawChart() {
@@ -246,8 +285,8 @@ function drawChart() {
   for (const {at, row} of points) {
     const index = Math.max(0, Math.min(PREVIEW_BUCKETS - 1, Math.floor((at - start) / step)));
     const bucket = buckets.get(index) || {bucket_start: new Date(start + index * step).toISOString(), usable_count: 0, sum: 0, minimum: null, maximum: null};
-    const text = row[column.index].trim(), value = Number(text);
-    if (text && NUMBER.test(text) && Number.isFinite(value)) {
+    const value = numberOf(row[column.index].trim());
+    if (value !== null) {
       bucket.usable_count++;bucket.sum += value;
       bucket.minimum = bucket.minimum === null ? value : Math.min(bucket.minimum, value);
       bucket.maximum = bucket.maximum === null ? value : Math.max(bucket.maximum, value);
