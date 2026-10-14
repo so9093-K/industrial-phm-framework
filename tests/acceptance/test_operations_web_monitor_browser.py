@@ -1,6 +1,6 @@
 """Chromium acceptance for the opt-in, real-data read-only Web monitor.
 
-This does not launch or switch the supervised marimo Operations product.
+This does not launch or switch a supervised Operations process.
 A real FILE→DuckLake ingestion is queried through the same local HTTP routes
 that the packaged browser JS fetches. No mocked API, diagnostic or live claim.
 """
@@ -377,6 +377,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             sync_api.expect(page.locator("#onboarding-steps")).to_contain_text(
                 "사용 중이면서 수신을 확인한 소스 1개"
             )
+            page.locator("#source-list .source-settings > summary").click()
             page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: paused")
             sync_api.expect(handoff).to_be_hidden()
@@ -452,6 +453,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             sync_api.expect(page.locator("#last-values")).to_contain_text("220.7")
             page.locator('nav a[href="#connect"]').click()
             assert workspace.history_catalog_path.exists()
+            listing.locator(".source-settings > summary").click()
             listing.get_by_role("button", name="FILE 이력 적재").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
                 "재사용 배치 1개"

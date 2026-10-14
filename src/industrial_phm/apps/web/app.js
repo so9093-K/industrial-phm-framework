@@ -311,6 +311,7 @@ byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
 onAssetChange(() => void selectAsset());
 window.addEventListener("hashchange", () => {
   if (document.body.dataset.view === "signals" && signalsLoadedFor !== selectedAsset) void loadSignals();
+  if (document.body.dataset.view === "system") {void refresh();void loadRuntimeStatus();}
 });
 byId("show-trend").addEventListener("click",() => loadTrend());
 byId("range-select").addEventListener("change",() => loadTrend());
