@@ -1,4 +1,5 @@
 import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, recentMeasuredSegment, channelName} from "./monitor-signal.js";
+import {navigate} from "./navigation.js";
 import {formatTime} from "./time.js";
 import {assetName, currentAsset, onAssetChange, registerAssets, setAsset} from "./asset-context.js";
 import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored, clearStoredSource} from "./monitor-history.js";
@@ -16,7 +17,6 @@ const flowLabels = {running: "수신 중", waiting: "수신 대기", delayed: "�
   error: "수신 오류", unavailable: "수신 상태 미확인", "stored-history": "저장된 기록"};
 const HISTORY = "stored-history";
 // A connection or processing problem is shown as what it is, never as a change of the equipment.
-const NOTE_KIND = {threshold: "신호 변화", refusal: "분석 처리", unavailable: "분석 처리", pending: "분석 처리", receipt: "데이터 수신", read: "데이터 수신", review: "검토"};
 let timer = null, running = false, refreshRequested = false, readOperations;
 let lastData = null, lastBase = null, selectedAsset = currentAsset(), selectedStream = "", previousInput = false;
 let explicitStream = false;
@@ -45,6 +45,7 @@ function role(item) {
 }
 function detailLink(item, position = item.latest_analyzed?.position) {
   const url = new URL(location.href), view = item.task === "rul-estimate" ? "rul" : "anomaly";
+  for (const key of ["phm_compare", "phm_review"]) url.searchParams.delete(key);
   url.searchParams.set("phm_binding", item.binding_id);url.searchParams.set("phm_position", position);
   url.searchParams.set("phm_view", view);url.searchParams.set("monitor_asset", item.asset_id);url.hash = view;return url.pathname + url.search + url.hash;
 }
@@ -53,7 +54,7 @@ function assetFacts(assetId, items, base) {
   const count = (state) => items.filter((i) => i.processing_state === state).length;
   if (count("rejected")) {
     const causes = [...new Set(items.filter((i) => i.processing_state === "rejected").map((i) => friendlyReason(i.processing_reason)))];
-    notes.push({kind: "refusal", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 1});
+    notes.push({kind: "refusal", label: causes.includes("필요한 입력 규격과 다름") ? "입력 조건이 맞지 않아 분석하지 못함" : items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 1});
   }
   if (count("unavailable")) notes.push({kind: "unavailable", label: "분석 실행 불가", detail: count("unavailable") + "개 분석의 입력·모델 확인", priority: 1});
   const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === assetId && s.continuous_collection_supported);
@@ -106,16 +107,52 @@ function render(data, base) {
     + (data.truncated || base.monitor?.assets?.truncated ? " · 일부 설비·모델은 조회 범위 밖 (모델 " + data.items.length + "/" + data.total + ")" : "")
     + (data.review_read_error ? " · 검토 조회 미확인" : "");
   const attention = facts.filter((f) => f.notes.length);
-  const attentionRoot = byId("monitor-attention-list");attentionRoot.replaceChildren();
+  const attentionRoot = byId("monitor-attention-list");
+  const focusedAction = attentionRoot.contains(document.activeElement) ? document.activeElement : null;
+  const focusedIssue = focusedAction?.closest(".monitor-attention-issue");
+  const focusedAsset = focusedIssue?.closest(".monitor-attention-item")?.dataset.assetId;
+  const focusedKind = focusedIssue?.dataset.noteKind;
+  attentionRoot.replaceChildren();
   byId("monitor-attention-count").textContent = attention.length + "대";
   if (!attention.length) attentionRoot.append(node("p", "지금 확인할 항목이 없습니다.", "muted"));
   for (const f of attention.slice(0, 4)) {
-    const button = node("button", "", "monitor-attention-item");button.type = "button";button.dataset.assetId = f.assetId;
-    const kinds = node("span", "", "monitor-attention-notes");
-    for (const n of f.notes) {const line = node("span");line.append(node("b", NOTE_KIND[n.kind] + " ", "monitor-attention-kind"), document.createTextNode(n.label));kinds.append(line);}
-    button.append(node("strong", assetName(f.assetId)), kinds, node("small", f.notes[0].detail + " → 신호 보기"));
-    const observation = node("small", "", "monitor-attention-observation");observation.hidden = true;button.append(observation);
-    button.addEventListener("click", () => {selectAsset(f.assetId);byId("monitor-signal-title").focus({preventScroll: true});});attentionRoot.append(button);
+    const card = node("article", "", "monitor-attention-item");card.dataset.assetId = f.assetId;
+    card.append(node("strong", assetName(f.assetId)));
+    const kinds = node("div", "", "monitor-attention-notes");
+    for (const n of f.notes) {
+      const issue = node("div", "", "monitor-attention-issue");issue.dataset.noteKind = n.kind;
+      issue.append(node("b", n.label), node("p", n.detail));
+      const model = n.kind === "threshold" ? f.exceeded[0] : n.kind === "review"
+        ? f.items.find((i) => ["open", "acknowledged"].includes(i.latest_review_status))
+        : f.items.find((i) => i.processing_state === ({refusal: "rejected", unavailable: "unavailable", pending: "pending"})[n.kind]);
+      if (n.kind === "threshold" || n.kind === "review") {
+        const link = node("a", n.kind === "threshold" ? "신호 변화 확인 →" : "검토 기록 확인 →", "monitor-next");
+        const url = new URL(detailLink(model), location.origin);
+        if (n.kind === "review") url.searchParams.set("phm_review", "1");
+        link.href = url.pathname + url.search + url.hash;issue.append(link);
+      } else if (["receipt", "read"].includes(n.kind)) {
+        const url = new URL(location.href);url.hash = "connect";
+        url.searchParams.set("connect_asset", f.assetId);
+        const source = (base.sources?.sources?.items || []).find((i) => i.asset_id === f.assetId && i.continuous_collection_supported && !i.last_live_receive_fresh);
+        if (source) url.searchParams.set("connect_source", source.source_id);else url.searchParams.delete("connect_source");
+        const link = node("a", "데이터 연결 상태 확인 →", "monitor-next");link.href = url.pathname + url.search + url.hash;issue.append(link);
+      } else {
+        const action = node("button", n.kind === "pending" ? "분석 진행 확인 →" : "분석 입력·모델 확인 →", "monitor-next");action.type = "button";
+        action.addEventListener("click", () => {
+          selectAsset(f.assetId);byId("monitor-analysis-details").open = true;renderDetails(f);
+          const row = [...byId("monitor-analysis-models").children].find((i) => i.dataset.bindingId === model?.binding_id);
+          if (row) {row.tabIndex = -1;row.querySelector("details").open = true;}
+          navigate("#monitor", row || byId("monitor-analysis-details"));
+        });issue.append(action);
+      }
+      kinds.append(issue);
+      if (f.assetId === focusedAsset && n.kind === focusedKind) {
+        requestAnimationFrame(() => {const action = issue.querySelector(".monitor-next");if (action?.isConnected && document.activeElement === document.body) action.focus({preventScroll: true});});
+      }
+    }
+    card.append(kinds);
+    const observation = node("small", "", "monitor-attention-observation");observation.hidden = true;card.append(observation);
+    attentionRoot.append(card);
   }
   if (attention.length > 4) attentionRoot.append(node("p", "추가 " + (attention.length - 4) + "대는 아래 설비 목록에서 확인", "muted"));
   const root = byId("phm-monitor-assets");
@@ -139,7 +176,7 @@ function render(data, base) {
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
     button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : dataTime(row)));
     button.append(node("small", "", "monitor-asset-observation"));
-    button.addEventListener("click", () => selectAsset(f.assetId));root.append(button);
+    button.addEventListener("click", () => {selectAsset(f.assetId);navigate("#monitor", byId("monitor-signal-title"));});root.append(button);
   }
   if (focusAsset) [...root.children].find((b) => b.dataset.assetId === focusAsset)?.focus({preventScroll: true});
   byId("monitor-board").hidden = !facts.length;

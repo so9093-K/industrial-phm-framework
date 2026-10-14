@@ -283,7 +283,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
         sync_api.expect(listing).to_contain_text("web-opcua-1")
         sync_api.expect(listing).to_contain_text("수신 미확인")
         page.on("dialog", lambda dialog: dialog.accept())
-        listing.get_by_role("button", name="소스 활성화").click()
+        listing.get_by_role("button", name="이 연결 사용하기").click()
         sync_api.expect(listing).to_contain_text("관리 상태: active")
         listing.locator(".source-settings > summary").click()
         listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()

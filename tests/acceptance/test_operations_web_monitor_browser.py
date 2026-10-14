@@ -298,7 +298,7 @@ def test_opcua_web_control_requests_do_not_claim_live_receipts(tmp_path: Path) -
             listing = page.locator("#source-list")
             sync_api.expect(listing).to_contain_text("수신 미확인")
             page.on("dialog", lambda dialog: dialog.accept())
-            listing.get_by_role("button", name="소스 활성화").click()
+            listing.get_by_role("button", name="이 연결 사용하기").click()
             sync_api.expect(listing).to_contain_text("관리 상태: active")
             # A failed monitor refresh must not turn a persisted control request
             # into a reported mutation failure.
@@ -363,13 +363,13 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
             page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("수신 미확인")
             page.on("dialog", lambda dialog: dialog.accept())
-            page.locator("#source-list").get_by_role("button", name="소스 활성화").click()
+            page.locator("#source-list").get_by_role("button", name="이 연결 사용하기").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: active")
-            page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
+            page.locator("#source-list").get_by_role("button", name="파일 읽기 확인").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
-                "FILE 검증 수신 근거 기록 완료"
+                "파일 읽기 확인 완료"
             )
-            sync_api.expect(page.locator("#source-list")).to_contain_text("CSV 수신 확인됨")
+            sync_api.expect(page.locator("#source-list")).to_contain_text("파일 읽기 확인됨")
             sync_api.expect(page.locator("#onboarding-state")).to_contain_text("수신 확인 1개")
             page.locator("#connection-progress > summary").click()
             handoff = page.locator("#onboarding-monitor-link")
@@ -378,7 +378,7 @@ def test_web_file_receipt_browser_keeps_history_separate(tmp_path: Path) -> None
                 "사용 중이면서 수신을 확인한 소스 1개"
             )
             page.locator("#source-list .source-settings > summary").click()
-            page.locator("#source-list").get_by_role("button", name="소스 일시정지").click()
+            page.locator("#source-list").get_by_role("button", name="연결 일시정지").click()
             sync_api.expect(page.locator("#source-list")).to_contain_text("관리 상태: paused")
             sync_api.expect(handoff).to_be_hidden()
             sync_api.expect(page.locator("#onboarding-next")).to_contain_text(
@@ -438,14 +438,14 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             listing = page.locator("#source-list")
             sync_api.expect(listing).to_contain_text("web-history-01")
             page.on("dialog", lambda dialog: dialog.accept())
-            listing.get_by_role("button", name="소스 활성화").click()
+            listing.get_by_role("button", name="이 연결 사용하기").click()
             sync_api.expect(listing).to_contain_text("관리 상태: active")
-            page.locator("#source-list").get_by_role("button", name="FILE 수신 확인").click()
-            sync_api.expect(listing).to_contain_text("CSV 수신 확인됨")
+            page.locator("#source-list").get_by_role("button", name="파일 읽기 확인").click()
+            sync_api.expect(listing).to_contain_text("파일 읽기 확인됨")
             assert not workspace.history_catalog_path.exists()
-            listing.get_by_role("button", name="FILE 이력 적재").click()
+            listing.get_by_role("button", name="측정 이력 저장").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
-                "DuckLake 이력 적재 완료"
+                "측정 이력 저장 완료"
             )
             sync_api.expect(page.locator("#source-control-result")).to_contain_text("6개 이벤트")
             page.locator('nav a[href="#monitor"]').click()
@@ -454,7 +454,7 @@ def test_web_file_backfill_browser_shows_actual_stored_history(tmp_path: Path, w
             page.locator('nav a[href="#connect"]').click()
             assert workspace.history_catalog_path.exists()
             listing.locator(".source-settings > summary").click()
-            listing.get_by_role("button", name="FILE 이력 적재").click()
+            listing.get_by_role("button", name="측정 이력 저장").click()
             sync_api.expect(page.locator("#source-control-result")).to_contain_text(
                 "재사용 배치 1개"
             )

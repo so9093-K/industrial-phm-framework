@@ -11,12 +11,13 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
   // Source reads can overlap after control actions. Only the newest successful read
   // may decide whether the operator sees an evidence-backed Monitor handoff.
   let sourcesRequestSequence = 0;
+  let connectionTargetHandled = false;
   let selectedOnboardingSourceId = "";
   let onboardingSources = [];
   let onboardingIncomplete = false;
   function onboardingStepFor(source) {
     if (["registered", "paused", "error"].includes(source.lifecycle_state)) {
-      return ["소스 활성화", "현재 관리 상태는 " + source.lifecycle_state
+      return ["이 연결 사용하기", "현재 관리 상태는 " + source.lifecycle_state
         + "입니다."];
     }
     if (source.lifecycle_state !== "active") {
@@ -28,8 +29,8 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       if (savedAnalysis) return [null, "저장된 분석이 있습니다. 설비의 분석 기록 탭에서 볼 수 있습니다."];
       if (sourceHistory.has(source.source_id)) return ["신호 통계 분석", "측정 이력이 저장됐습니다. 신호 통계 분석을 실행할 수 있습니다."];
       return source.receipt_confirmed
-        ? ["FILE 이력 적재", "수신을 확인했습니다. 측정 이력을 저장하면 모니터링에서 그래프로 볼 수 있습니다."]
-        : ["FILE 수신 확인", "활성화됐습니다. 다음은 CSV 수신 확인입니다."];
+        ? ["측정 이력 저장", "수신을 확인했습니다. 측정 이력을 저장하면 모니터링에서 그래프로 볼 수 있습니다."]
+        : ["파일 읽기 확인", "활성화됐습니다. 다음은 CSV 수신 확인입니다."];
     }
     if (source.source_type === "opcua") {
       if (!source.receipt_confirmed) {
@@ -221,6 +222,14 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
         controlSource, receiveFile, backfillFile, analyzeFile, analyzeFilePhase, diagnoseOpcua,
       }));
       updateSourceProgress();
+      const params = new URLSearchParams(location.search), asset = params.get("connect_asset"), source = params.get("connect_source");
+      if (!connectionTargetHandled && asset && document.body.dataset.view === "connect") {
+        connectionTargetHandled = true;setAsset(asset);
+        const cards = [...list.querySelectorAll(".source-record")];
+        const target = cards.find((card) => items.some((item) => item.source_id === card.dataset.sourceId && item.asset_id === asset && (!source || item.source_id === source)));
+        if (target) {target.tabIndex = -1;target.classList.add("source-target");target.querySelector(".source-diagnostics").open = true;navigate("#connect", target);}
+        else {state.tabIndex = -1;state.textContent += " · 선택한 연결을 찾지 못했습니다. 등록된 연결을 확인하세요.";navigate("#connect", state);}
+      }
       if (data.sources.truncated) list.append(create("p", "hint", "소스 100건만 표시됩니다."));
     } catch (error) {
       if (token !== sourcesRequestSequence) return;
@@ -286,10 +295,10 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
 
   async function receiveFile(sourceId, button) {
     const result = byId("source-control-result");
-    if (!window.confirm(sourceId + " · 준비된 FILE을 다시 검증하고 수신 근거를 기록합니다.\n이력 적재·연속 수집·분석은 실행하지 않습니다.")) return;
+    if (!window.confirm(sourceId + " · 파일을 다시 읽고 결과를 기록합니다.\n측정 이력 저장·연속 수집·분석은 별도입니다.")) return;
     button.disabled = true;
     result.className = "";
-    result.textContent = sourceId + " · FILE 검증 수신 요청 중";
+    result.textContent = sourceId + " · 파일 읽기 확인 중";
     let accepted = false;
     try {
       const session = await getJSON("/api/v1/session");
@@ -313,12 +322,12 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       accepted = outcome.cycle_state === "succeeded" && outcome.accepted_new_receipt === true;
       result.className = accepted ? "" : "error";
       result.textContent = accepted
-        ? sourceId + " · FILE 검증 수신 근거 기록 완료 · 이력 적재는 별도"
-        : sourceId + " · FILE 검증 수신 실패 (" + fmt(outcome.failure_scope) + ") · 저장된 수신 근거를 다시 확인하세요.";
+        ? sourceId + " · 파일 읽기 확인 완료 · 측정 이력 저장은 별도"
+        : sourceId + " · 파일 읽기 확인 실패 (" + fmt(outcome.failure_scope) + ") · 저장된 수신 근거를 다시 확인하세요.";
     } catch (error) {
       result.className = "error";
       if (error.message === "control-conflict") {
-        result.textContent = "FILE 수신 불가 · ACTIVE 상태, 소스 유형 및 작업공간 내부 CSV 경로를 확인하세요.";
+        result.textContent = "파일을 읽을 수 없습니다. 이 연결을 사용 중인지, CSV 경로가 작업공간 안에 있는지 확인하세요.";
       } else if (error.message === "source-missing") {
         result.textContent = "등록되지 않은 소스입니다. 목록을 다시 조회하세요.";
       } else {
@@ -430,10 +439,10 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
 
   async function backfillFile(sourceId, button) {
     const output = byId("source-control-result");
-    if (!window.confirm(sourceId + " · CSV의 타임스탬프를 사용해 DuckLake에 실제 이력을 적재합니다.\nSupervisor가 백그라운드에서 저장하며, 같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
+    if (!window.confirm(sourceId + " · CSV의 측정 시각과 값을 이력으로 저장합니다.\nSupervisor가 백그라운드에서 저장하며, 같은 파일의 재시도는 기존 배치 커밋을 재사용합니다. 수집·분석은 시작하지 않습니다.")) return;
     button.disabled = true;
     output.className = "";
-    output.textContent = sourceId + " · FILE 이력 적재 요청 중";
+    output.textContent = sourceId + " · 측정 이력 저장 요청 중";
     try {
       const session = await getJSON("/api/v1/session");
       // The supervisor owns long history writes as a background job. A standalone preview keeps
@@ -463,7 +472,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       let job = !background ? {...started, state: "succeeded"} : started.state === "succeeded" ? started : null;
       while (!job || job.state === "running") {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-        output.textContent = sourceId + " · 백그라운드 이력 적재 중 · 경과 " + Math.round((Date.now() - begun) / 1000) + "초";
+        output.textContent = sourceId + " · 측정 이력 저장 중 · 경과 " + Math.round((Date.now() - begun) / 1000) + "초";
         try {
           const data = await getJSON("/api/v1/sources");
           job = rows(data, "sources").find((item) => item.source_id === sourceId)?.file_history_job || job;
@@ -472,13 +481,13 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       }
       if (job.state === "interrupted") throw new Error("history-interrupted");
       if (job.state !== "succeeded" || !Number.isSafeInteger(job.event_count)) throw new Error("history-failed");
-      output.textContent = sourceId + " · DuckLake 이력 적재 완료 · "
+      output.textContent = sourceId + " · 측정 이력 저장 완료 · "
         + job.event_count + "개 이벤트 · snapshot #" + job.history_snapshot_id
         + " · 재사용 배치 " + job.recovered_segment_count + "개 · 분석·실시간 수집 아님";
     } catch (error) {
       output.className = "error";
       if (error.message === "control-conflict") {
-        output.textContent = "적재 불가 · ACTIVE FILE, 검증 receipt, 시간 컬럼, CSV 크기(감독형 Web 20MiB·독립 Preview 1MiB 이하), 작업공간 경계와 다른 이력 적재 진행 여부를 확인하세요.";
+        output.textContent = "이력을 저장할 수 없습니다. 파일 읽기 확인, 시각 컬럼, CSV 크기(감독형 Web 20MiB·독립 Preview 1MiB 이하), 작업공간 안의 경로와 다른 저장 작업의 진행 여부를 확인하세요.";
       } else if (error.message === "source-missing") {
         output.textContent = "등록되지 않은 소스입니다.";
       } else if (error.message === "history-interrupted") {

@@ -1,3 +1,4 @@
+import { navigate } from "./navigation.js";
 import { renderPhmExplanation } from "./phm-explanation.js";
 import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
@@ -335,9 +336,26 @@ function featureLabel(name) {
 
 // Anomaly screen ---------------------------------------------------------------
 
+// Static selects remain focusable across polling; they share the chart's selected result.
+function resetAnalysisActions(view) {
+  byId(view + "-meaning").textContent = "";
+  const entry = series.get(selected[view]), position = view === "anomaly" ? focusPosition : rulFocusPosition;
+  const available = !readError && entry && (position === null ? orderedSteps(entry).some((step) => step.state === "analyzed") : entry.steps.get(position)?.state === "analyzed");
+  byId(view + "-ask").disabled = !available;byId(view + "-position").disabled = !available;
+}
+function selectAnalysisRecord(view, entry, steps, position) {
+  const picker = byId(view + "-position");
+  const choices = steps.map((step) => ({value: String(step.position), label: stepLabel(entry, step.position)}));
+  if (JSON.stringify([...picker.options].map((o) => ({value: o.value, label: o.textContent}))) !== JSON.stringify(choices)) {
+    picker.replaceChildren(...choices.map(({value, label}) => {const option = node("option", label);option.value = value;return option;}));
+  }
+  picker.disabled = false;picker.value = String(position);byId(view + "-ask").disabled = false;
+}
+
 function renderAnomaly() {
   const choices = bindingsFor("anomaly-score");
   selected.anomaly = fillSelect(byId("anomaly-binding"), choices, selected.anomaly);
+  resetAnalysisActions("anomaly");
   const state = byId("anomaly-state");
   byId("anomaly-latest").hidden = focusPosition === null;
   state.hidden = false;
@@ -402,11 +420,15 @@ function renderAnomaly() {
   const latestSkipped = steps.at(-1)?.state === "skipped";
   const rms = Object.keys(last.features || {}).find((k) => /Horizontal.+\.rms$/.test(k));
   const change = rms && prior?.features?.[rms] > 0 ? (last.features[rms] / prior.features[rms] - 1) * 100 : null;
+  const scoreDirection = !prior ? "첫 분석 결과입니다" : last.output.score > prior.output.score ? "앞선 분석보다 높아졌습니다"
+    : last.output.score < prior.output.score ? "앞선 분석보다 낮아졌습니다" : "앞선 분석과 같습니다";
   byId("anomaly-observation").textContent = latestSkipped
     ? "최근 입력은 분석되지 않았습니다. 선택한 이전 기록 " + stepLabel(entry, last.position) + "의 결과입니다."
-    : "선택 기록 " + stepLabel(entry, last.position)
-      + (change === null ? "" : " · 수평 진동 크기 " + number(Math.abs(change), 1) + "% " + (change >= 0 ? "증가" : "감소"))
-      + " · " + scoreName + (last.output.exceeds_threshold ? " 참고 기준 초과" : " 참고 기준 이내");
+    : "선택 기록 " + stepLabel(entry, last.position) + " · " + scoreName + (prior ? "가 " + scoreDirection : " 첫 분석 결과입니다");
+  byId("anomaly-meaning").textContent = (last.output.exceeds_threshold ? "모델의 참고 기준을 넘었습니다." : "모델의 참고 기준을 넘지 않았습니다.")
+    + (change === null ? "" : " 수평 진동 크기는 " + (change === 0 ? "같습니다." : number(Math.abs(change), 1) + "% " + (change > 0 ? "증가했습니다." : "감소했습니다.")))
+    + " 정상·고장 여부는 이 결과만으로 확정할 수 없습니다.";
+  selectAnalysisRecord("anomaly", entry, analyzed, last.position);
   state.hidden = !latestSkipped && binding?.health !== "unavailable";
   const threshold = last.output.threshold;
   const cards = byId("anomaly-cards");
@@ -549,12 +571,7 @@ async function focusStep(position, pin = true) {
   if (!step) return;
   const heading = node("div", "", "phm-input-heading");
   heading.append(node("h3", (step.event_start ? time(step.event_start) : "획득 #" + step.position) + " · 원본 신호"));
-  const picker = node("select");picker.setAttribute("aria-label", "선택한 기록");picker.id = "anomaly-position";
-  const pickable = orderedSteps(entry).filter((s) => s.state === "analyzed").slice(-64);
-  if (!pickable.some((s) => s.position === position)) pickable.unshift(step);
-  for (const candidate of pickable) {const option = node("option", stepLabel(entry, candidate.position));option.value = String(candidate.position);picker.append(option);}
-  picker.value = String(position);picker.addEventListener("change", () => focusStep(Number(picker.value)));
-  heading.append(picker);root.append(heading);
+  root.append(heading);
   if (step.state !== "analyzed") {root.append(node("p", "분석 불가: " + step.reason));return;}
   const metadata = node("details", "", "phm-input-details");metadata.append(node("summary", "입력 특징·오차 분해"));
   metadata.append(node("p", "이상 점수 " + number(step.output.score) + " · 참고 기준 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
@@ -630,8 +647,10 @@ function waveform(preview) {
 // RUL screen ---------------------------------------------------------------------
 
 function renderRul() {
+  byId("rul-title").textContent = "잔여 수명 추정(RUL)";
   const choices = bindingsFor("rul-estimate");
   selected.rul = fillSelect(byId("rul-binding"), choices, selected.rul);
+  resetAnalysisActions("rul");
   const state = byId("rul-state");
   for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model", "rul-selected"]) byId(id).replaceChildren();
   if (readError) {
@@ -660,7 +679,6 @@ function renderRul() {
   byId("rul-freshness").textContent = freshness(entry);
   setReplayTag("rul-replay", entry);
   const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
-  const output = (entry.package && entry.package.output) || {};
   if (rulFocusPosition !== null && entry.steps.get(rulFocusPosition)?.state !== "analyzed") {
     state.className = "state error";state.textContent = "선택한 기록 " + stepLabel(entry, rulFocusPosition) + "은 분석되지 않았습니다.";
     byId("rul-observation").textContent = "선택한 입력의 RUL을 표시할 수 없습니다.";
@@ -674,18 +692,21 @@ function renderRul() {
   const previousAnalyzed = analyzed.filter((s) => s.position < last.position).at(-1);
   updateMonitorTarget("rul", last.position);
   const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
+  const recorded = last.output.unit === "acquisition-interval" && last.output.endpoint_semantics === "last-recorded-acquisition";
+  byId("rul-title").textContent = recorded ? "기록 기반 잔여 구간 추정(RUL)" : "잔여 수명 추정(RUL)";
   byId("rul-observation").textContent = latestRulSkipped
-    ? "최근 입력은 분석되지 않았습니다. 아래 추정은 마지막으로 분석된 이전 입력의 결과입니다."
-    : "마지막 기록 시점까지의 입력으로 계산한 잔여 수명 추정입니다.";
+    ? "최근 입력은 분석되지 않았습니다. 선택 기록 " + stepLabel(entry, last.position) + "의 이전 분석 결과입니다."
+    : "선택 기록 " + stepLabel(entry, last.position) + (recorded ? " · 데이터셋 마지막 기록까지 약 " + number(last.output.estimate, 1) + "개 기록 구간으로 추정했습니다." : " · 이 시점까지의 입력으로 계산한 추정입니다.");
+  byId("rul-meaning").textContent = recorded ? "실제 설비의 남은 운전시간이나 고장 시점을 뜻하지 않습니다." : "추정 단위와 종료점은 아래 모델 정보를 확인하세요.";
+  selectAnalysisRecord("rul", entry, analyzed, last.position);
   const unit = unitText(last.output.unit);
-  const period = output.step_period_seconds;
   state.className = "state";
   state.textContent = "종료점: " + endpointText(last.output.endpoint_semantics);
   const validation = (entry.package && entry.package.validation) || {};
   const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
   byId("rul-cards").append(
     card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 2) + " " + unit,
-      (period ? "원 기록 간격 " + period + "초 기준 약 " + number(last.output.estimate * period / 3600, 1) + "시간 · " : "") + "획득 #" + last.position),
+      "선택 기록 " + stepLabel(entry, last.position)),
     card("직전 분석 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit,
       previousAnalyzed ? stepLabel(entry, previousAnalyzed.position) + " → " + stepLabel(entry, last.position) : "직전 분석과 비교"),
   );
@@ -877,6 +898,11 @@ function clearMonitorTarget() {
 }
 let followingTarget = false;
 export function initializePhm() {
+  for (const view of ["anomaly", "rul"]) {
+    byId(view + "-ask").addEventListener("click", () => navigate("#" + view, byId(view + "-assistant").querySelector("textarea")));
+  }
+  byId("anomaly-position").addEventListener("change", (event) => focusStep(Number(event.target.value)));
+  byId("rul-position").addEventListener("change", (event) => {rulFocusPosition = Number(event.target.value);updateMonitorTarget("rul", rulFocusPosition);renderRul();});
   onAssetChange(() => {
     // A pending result link decides the asset itself; an earlier default selection must not erase it.
     if (followingTarget || requestedResult) return;

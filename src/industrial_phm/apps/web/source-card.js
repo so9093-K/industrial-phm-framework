@@ -22,7 +22,7 @@ export function renderSourceCard(item, actions) {
     : live ? disconnected ? "현재 연결 미확인" : item.last_live_receive_fresh ? "수신 확인됨"
       : item.last_live_received_at ? "최근 수신 미확인"
       : item.receipt_confirmed ? "1회 수신 확인 · 연속 수신 미확인" : "수신 미확인"
-    : item.receipt_confirmed ? "CSV 수신 확인됨" : "파일 확인 대기";
+    : item.receipt_confirmed ? "파일 읽기 확인됨" : "파일 확인 대기";
   card.append(node("strong", item.name), node("span", (live ? "OPC UA" : "CSV") + " · " + assetName(item.asset_id)),
     node("span", status, item.live_telemetry_read_error ? "error" : item.receipt_confirmed || item.last_live_receive_fresh ? "receipt-confirmed" : "receipt-missing"),
     node("span", "마지막 수신: " + formatTime(live ? item.last_live_received_at : item.last_accepted_received_at)));
@@ -49,12 +49,12 @@ export function renderSourceCard(item, actions) {
   primary.append(graph);
   if (item.lifecycle_state) {
     const activate = item.lifecycle_state !== "active";
-    action(activate ? "소스 활성화" : "소스 일시정지", (b) => actions.controlSource(item.source_id, "lifecycle", activate ? "active" : "paused", b), activate ? "activate" : "pause");
+    action(activate ? "이 연결 사용하기" : "연결 일시정지", (b) => actions.controlSource(item.source_id, "lifecycle", activate ? "active" : "paused", b), activate ? "activate" : "pause");
   }
   if (item.source_type === "file" && item.lifecycle_state === "active") {
-    action("FILE 수신 확인", (b) => actions.receiveFile(item.source_id, b), "receive");
+    action("파일 읽기 확인", (b) => actions.receiveFile(item.source_id, b), "receive");
     if (item.receipt_confirmed) {
-      action("FILE 이력 적재", (b) => actions.backfillFile(item.source_id, b), "store");
+      action("측정 이력 저장", (b) => actions.backfillFile(item.source_id, b), "store");
       action("신호 통계 분석", (b) => actions.analyzeFile(item.source_id, b), "analyze");
       if (item.phase_binding_count >= 3) action("저장된 3상 이력 분석 실행", (b) => actions.analyzeFilePhase(item.source_id, b), "phase");
     }
