@@ -440,7 +440,7 @@ button.monitor-next{background:white;border:1px solid #b9cad5;padding:6px 10px}
 .explore-goal{display:grid;gap:6px;align-content:start;text-align:left;border:1px solid #c7d8de;border-radius:10px;color:#244b5d;background:white;min-height:92px;padding:13px}
 .explore-goal strong{font-size:.98rem}.explore-goal span{font-size:.89rem;line-height:1.5;font-weight:450}
 .explore-goal:hover:not(:disabled),.explore-goal[aria-pressed=true]{border-color:#42897f;background:#e6f4f0;color:#184b45}
-.explore-goal:disabled{opacity:.55}
+.explore-goal:disabled{opacity:.55}.explore-goal[hidden]{display:none}
 .explore-guide .explore-goal-hint{margin:12px 0 0;font-size:.94rem;color:#315b63;line-height:1.6}
 .explore-result-intro{background:#eef5f8;border-radius:9px;padding:12px 14px;color:#285361;font-size:.96rem;line-height:1.65;margin:12px 0}
 .explore-interpretation{font-size:.94rem;line-height:1.65;color:#345b64;margin:9px 0}
