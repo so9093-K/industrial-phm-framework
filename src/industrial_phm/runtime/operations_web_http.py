@@ -43,6 +43,10 @@ from industrial_phm.runtime.operations_web_condition import (
     ConditionSelectionError,
     project_electrical_condition,
 )
+from industrial_phm.runtime.operations_web_explore import (
+    EXPLORE_READ_ROUTES,
+    handle_explore_read,
+)
 from industrial_phm.runtime.operations_web_file_history import read_file_history_jobs
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
@@ -89,6 +93,7 @@ _WEB_ASSET_MIME = {
             "synthetic-demo.js",
             "file-registration.js",
             "opcua-registration.js",
+            "signal-explore.js",
         ),
         "text/javascript; charset=utf-8",
     ),
@@ -318,6 +323,12 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[asset_path])
                 return
             parts = urlsplit(self.path)
+            if parts.path in EXPLORE_READ_ROUTES:
+                status, explore_payload = handle_explore_read(
+                    OperationsWorkspace(root), parts.path, parts.query
+                )
+                self._send_json(status, explore_payload)
+                return
             if parts.path in PHM_READ_ROUTES:
                 status, phm_payload = handle_phm_read(
                     OperationsWorkspace(root), parts.path, parts.query

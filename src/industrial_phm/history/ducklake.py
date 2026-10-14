@@ -35,11 +35,13 @@ from industrial_phm.application.asset_history import (
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.history_retention import RetentionProtection
 from industrial_phm.application.measurement_history import (
+    PROFILE_QUANTILES,
     HistoryAssetSummary,
     MeasurementHistoryAggregation,
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
+    MeasurementProfile,
     MultiSignalMeasurementHistoryAggregation,
     MultiSignalMeasurementHistoryBucket,
 )
@@ -1699,6 +1701,248 @@ class DuckLakeAssetHistory:
                 for r in rows
             ),
         )
+
+    def query_measurement_profiles(
+        self,
+        asset_id: str,
+        *,
+        channel_ids: Sequence[str],
+        periods: Sequence[tuple[str, datetime, datetime]],
+        bins: int = 20,
+    ) -> tuple[MeasurementProfile, ...]:
+        """Exact per-period statistics for each channel/source/point/interpretation.
+
+        Two periods share histogram edges so their distributions can be overlaid. Nothing is
+        interpolated, resampled or merged across identities; aggregates are computed in the
+        catalog from raw observations, never from display buckets.
+        """
+        channels = tuple(dict.fromkeys(channel_ids))
+        if not channels or len(channels) > 8:
+            raise ValueError("profiles need 1 to 8 channels")
+        for channel_id in channels:
+            _validate_identifier(channel_id, "channel_id")
+        if not 1 <= len(periods) <= 2 or len({name for name, _, _ in periods}) != len(periods):
+            raise ValueError("profiles need one or two named periods")
+        for _, start_at, end_at in periods:
+            validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+            if end_at - start_at > timedelta(days=31):
+                raise ValueError("a profile period must not exceed 31 days")
+        _validate_positive_int(bins, "bins")
+        if bins > 64:
+            raise ValueError("bins must not exceed 64")
+        low = min(start for _, start, _ in periods)
+        high = max(end for _, _, end in periods)
+        period_values = ", ".join("(?, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ)" for _ in periods)
+        keys = "period, channel_id, source_id, source_type, point_key, interpretation"
+        identity = "channel_id, source_id, source_type, point_key, interpretation"
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            connection.execute(
+                f"""
+                CREATE TEMP TABLE profile_points AS
+                WITH periods(period, start_at, end_at) AS (VALUES {period_values}),
+                selected AS (
+                    SELECT m.*, p.period,
+                        count(DISTINCT m.value) OVER identity_window
+                        + max(CASE WHEN m.value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                        > 1 AS conflict
+                    FROM {_CATALOG_NAME}.history.measurement m
+                    JOIN periods p ON m.event_at >= p.start_at AND m.event_at < p.end_at
+                    WHERE m.asset_id = ?
+                        AND m.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND m.event_at >= ? AND m.event_at < ?
+                    WINDOW identity_window AS (
+                        PARTITION BY p.period, m.source_id, m.measurement_point_id,
+                            m.channel_id, m.event_at
+                    )
+                ), raw_metadata AS (
+                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    WHERE f.asset_id = ?
+                        AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND f.source_timestamp >= ? AND f.source_timestamp < ?
+                    UNION ALL
+                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                                = o.source_id
+                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                                = o.channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(o.semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    WHERE o.asset_id = ?
+                        AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND o.event_at >= ? AND o.event_at < ?
+                )
+                SELECT s.period, s.channel_id, s.source_id, s.source_type,
+                    coalesce(s.measurement_point_id, '') AS point_key, s.event_at, s.value,
+                    json_object(
+                        'binding', json_extract(f.source_metadata_json, '$.binding'),
+                        'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                    )::VARCHAR AS interpretation,
+                    s.source_type != 'file' AND NOT s.status_good AS non_good,
+                    s.conflict,
+                    s.value IS NOT NULL AND NOT s.conflict
+                        AND (s.source_type = 'file' OR s.status_good) AS usable
+                FROM selected s LEFT JOIN raw_metadata f
+                    ON s.raw_evidence_id = f.raw_evidence_id AND s.source_type = f.source_type
+                """,
+                [
+                    *(item for name, start, end in periods for item in (name, start, end)),
+                    *(asset_id, list(channels), low, high) * 3,
+                ],
+            )
+            # One value per usable timestamp (a conflict is never usable).
+            connection.execute(
+                f"""
+                CREATE TEMP TABLE profile_steps AS
+                SELECT *, lag(event_at) OVER w AS prev_at, lag(value) OVER w AS prev_value
+                FROM (
+                    SELECT {keys}, event_at, any_value(value) AS value
+                    FROM profile_points WHERE usable GROUP BY ALL
+                )
+                WINDOW w AS (PARTITION BY {keys} ORDER BY event_at)
+                """
+            )
+            stats = connection.execute(
+                f"""
+                WITH counts AS (
+                    SELECT {keys}, count(*) AS total, count(*) FILTER (WHERE usable) AS usable,
+                        count(*) FILTER (WHERE value IS NULL) AS nulls,
+                        count(*) FILTER (WHERE non_good) AS non_good,
+                        count(*) FILTER (WHERE conflict) AS conflicts,
+                        min(event_at) AS first_at, max(event_at) AS last_at,
+                        min(value) FILTER (WHERE usable) AS low,
+                        max(value) FILTER (WHERE usable) AS high,
+                        avg(value) FILTER (WHERE usable) AS mean,
+                        stddev_samp(value) FILTER (WHERE usable) AS deviation,
+                        quantile_cont(value, {list(PROFILE_QUANTILES)}) FILTER (WHERE usable)
+                            AS quantiles
+                    FROM profile_points GROUP BY ALL
+                ), timing AS (
+                    SELECT {keys}, median(epoch(event_at - prev_at)) AS median_interval,
+                        max(epoch(event_at - prev_at)) AS largest_gap,
+                        arg_max(prev_at, epoch(event_at - prev_at)) AS gap_start,
+                        arg_max(event_at, epoch(event_at - prev_at)) AS gap_end
+                    FROM profile_steps WHERE prev_at IS NOT NULL GROUP BY ALL
+                ), long_gaps AS (
+                    SELECT s.period, s.channel_id, s.source_id, s.source_type, s.point_key,
+                        s.interpretation, count(*) AS long_gaps
+                    FROM profile_steps s JOIN timing t USING ({keys})
+                    WHERE s.prev_at IS NOT NULL
+                        AND epoch(s.event_at - s.prev_at) > 3 * t.median_interval
+                    GROUP BY ALL
+                ), runs AS (
+                    SELECT {keys}, run, count(*) AS length, min(event_at) AS run_start,
+                        max(event_at) AS run_end
+                    FROM (
+                        SELECT *, sum(CASE WHEN prev_value = value THEN 0 ELSE 1 END)
+                            OVER (PARTITION BY {keys} ORDER BY event_at
+                                ROWS UNBOUNDED PRECEDING) AS run
+                        FROM profile_steps
+                    ) GROUP BY ALL
+                ), constant AS (
+                    SELECT {keys}, max(length) AS longest, arg_max(run_start, length) AS run_start,
+                        arg_max(run_end, length) AS run_end
+                    FROM runs GROUP BY ALL
+                )
+                SELECT c.*, t.median_interval, t.largest_gap, t.gap_start, t.gap_end,
+                    coalesce(g.long_gaps, 0), k.longest, k.run_start, k.run_end
+                FROM counts c
+                LEFT JOIN timing t USING ({keys})
+                LEFT JOIN long_gaps g USING ({keys})
+                LEFT JOIN constant k USING ({keys})
+                ORDER BY channel_id, source_id, point_key, interpretation, period
+                LIMIT 1001
+                """
+            ).fetchall()
+            if len(stats) > 1000:
+                raise ValueError("profile exceeds 1000 signal identities; narrow the query")
+            histogram = connection.execute(
+                f"""
+                WITH edges AS (
+                    SELECT {identity}, min(value) AS low, max(value) AS high
+                    FROM profile_steps GROUP BY ALL
+                )
+                SELECT s.period, s.channel_id, s.source_id, s.source_type, s.point_key,
+                    s.interpretation, e.low, e.high,
+                    least(CASE WHEN e.high > e.low
+                        THEN floor((s.value - e.low) / (e.high - e.low) * ?)::INTEGER
+                        ELSE 0 END, ? - 1) AS bin,
+                    count(*)
+                FROM profile_steps s JOIN edges e USING ({identity})
+                GROUP BY ALL
+                """,
+                [bins, bins],
+            ).fetchall()
+            band = connection.execute(
+                f"""
+                WITH bands AS (
+                    SELECT {keys},
+                        quantile_cont(value, 0.05) AS low, quantile_cont(value, 0.95) AS high
+                    FROM profile_steps GROUP BY ALL
+                )
+                SELECT s.period, s.channel_id, s.source_id, s.source_type, s.point_key,
+                    s.interpretation,
+                    count(*) FILTER (WHERE s.value < b.low OR s.value > b.high)
+                FROM profile_steps s JOIN bands b
+                    ON s.channel_id = b.channel_id AND s.source_id = b.source_id
+                    AND s.source_type = b.source_type AND s.point_key = b.point_key
+                    AND s.interpretation = b.interpretation AND s.period != b.period
+                GROUP BY ALL
+                """
+            ).fetchall()
+        finally:
+            connection.close()
+        bins_by_key: dict[tuple[str, ...], list[int]] = {}
+        edges_by_key: dict[tuple[str, ...], tuple[float, float]] = {}
+        for row in histogram:
+            key = tuple(row[:6])
+            edges_by_key[key[1:]] = (float(row[6]), float(row[7]))
+            bins_by_key.setdefault(key, [0] * bins)[int(row[8])] += int(row[9])
+        outside = {tuple(row[:6]): int(row[6]) for row in band}
+        profiles = []
+        for row in stats:
+            key = tuple(row[:6])
+            low_high = edges_by_key.get(key[1:])
+            profiles.append(
+                MeasurementProfile(
+                    period=_require_str(row[0], "period"),
+                    channel_id=_require_str(row[1], "channel_id"),
+                    source_id=_require_str(row[2], "source_id"),
+                    source_type=_require_str(row[3], "source_type"),
+                    measurement_point_id=row[4] or None,
+                    interpretation_json=_require_str(row[5], "interpretation"),
+                    observation_count=int(row[6]),
+                    usable_count=int(row[7]),
+                    null_count=int(row[8]),
+                    non_good_count=int(row[9]),
+                    conflict_count=int(row[10]),
+                    first_event_at=row[11],
+                    last_event_at=row[12],
+                    minimum=_optional_float(row[13], "minimum"),
+                    maximum=_optional_float(row[14], "maximum"),
+                    mean=_optional_float(row[15], "mean"),
+                    standard_deviation=_optional_float(row[16], "standard_deviation"),
+                    quantiles=None if row[17] is None else tuple(float(q) for q in row[17]),
+                    median_interval_seconds=_optional_float(row[18], "median_interval"),
+                    largest_gap_seconds=_optional_float(row[19], "largest_gap"),
+                    largest_gap_start=row[20],
+                    largest_gap_end=row[21],
+                    long_gap_count=int(row[22]),
+                    longest_constant_count=int(row[23] or 0),
+                    longest_constant_start=row[24],
+                    longest_constant_end=row[25],
+                    histogram_low=None if low_high is None else low_high[0],
+                    histogram_high=None if low_high is None else low_high[1],
+                    histogram=tuple(bins_by_key.get(key, [0] * bins)),
+                    outside_other_band=outside.get(key) if len(periods) == 2 else None,
+                )
+            )
+        return tuple(profiles)
 
     def query_measurement_aggregation(
         self,

@@ -350,6 +350,7 @@ def _step_brief(result: StepResult) -> dict[str, Any]:
         "position": result.position,
         "state": result.state.value,
         "event_start": _iso(result.event_start),
+        "event_end": _iso(result.event_end),
         "processed_at": result.processed_at.isoformat(),
         "replay": result.replay,
     }

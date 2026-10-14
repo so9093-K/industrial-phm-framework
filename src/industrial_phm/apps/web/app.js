@@ -10,6 +10,7 @@ import { initializeMonitor, refreshMonitor } from "./monitor.js";
 import { currentAsset, initializeAssetContext, onAssetChange, registerAssets } from "./asset-context.js";
 import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
+import { initializeSignalExplore } from "./signal-explore.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
 let phmModelCount = 0;
@@ -229,7 +230,7 @@ async function loadSignals(token = generation) {
   if (monitor && !rows(monitor, "assets").some((asset) => asset.asset_id === selectedAsset)) {
     const box = byId("channel-options");
     box.replaceChildren(create("legend", null, "비교할 신호 (최대 6개)"), create("p", "empty", "이 설비에는 저장된 측정 이력이 없습니다."));
-    trendState("원본 신호는 개요와 이상 탐지 탭에서 볼 수 있습니다.");
+    trendState("획득별 특징은 아래 구간 비교에서, 원본 파형은 개요와 이상 탐지 탭에서 볼 수 있습니다.");
     return;
   }
   trendState("설비의 저장된 신호 목록을 확인합니다.");
@@ -324,6 +325,7 @@ byId("start-example").addEventListener("click", () => void exploreExample());
 byId("start-file").addEventListener("click", () => navigate("#connect", byId("csv-start-file")));
 byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").open = true;navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]'));});
 initializeCsvStart();
+initializeSignalExplore();
 records.initialize();loadRuntimeStatus();
 // Automatic Monitor updates retain selection/forms and never call condition fitting or history trends.
 async function readMonitorFacts() {

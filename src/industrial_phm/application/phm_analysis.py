@@ -423,6 +423,21 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in rows), count
 
+    def results_between(
+        self, binding_id: str, first: int, last: int, *, limit: int = 4096
+    ) -> tuple[StepResult, ...]:
+        """Every stored result (analyzed or not) with ``first <= position <= last``."""
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM step_result WHERE binding_id = ? AND position BETWEEN ? AND ? "
+                "ORDER BY position LIMIT ?",
+                (binding_id, first, last, limit),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_result(row) for row in rows)
+
     def recent_results(self, binding_id: str, *, limit: int = 64) -> tuple[StepResult, ...]:
         """Bounded chronological tail for a selected asset's displayed trace."""
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 128:

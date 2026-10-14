@@ -150,3 +150,47 @@ class MultiSignalMeasurementHistoryAggregation:
     bucket_seconds: float
     snapshot_id: int
     buckets: tuple[MultiSignalMeasurementHistoryBucket, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MeasurementProfile:
+    """Exact statistics of one signal identity in one period, from its raw observations.
+
+    Usable values exclude nulls, protocol non-good and conflicting observations. Intervals
+    are between consecutive usable timestamps; a constant run is consecutive usable
+    observations with one value. The histogram shares its edges with the other period.
+    """
+
+    period: str
+    channel_id: str
+    source_id: str
+    source_type: str
+    measurement_point_id: str | None
+    interpretation_json: str
+    observation_count: int
+    usable_count: int
+    null_count: int
+    non_good_count: int
+    conflict_count: int
+    first_event_at: datetime | None
+    last_event_at: datetime | None
+    minimum: float | None
+    maximum: float | None
+    mean: float | None
+    standard_deviation: float | None
+    quantiles: tuple[float, ...] | None  # 5, 25, 50, 75, 95 %
+    median_interval_seconds: float | None
+    largest_gap_seconds: float | None
+    largest_gap_start: datetime | None
+    largest_gap_end: datetime | None
+    long_gap_count: int
+    longest_constant_count: int
+    longest_constant_start: datetime | None
+    longest_constant_end: datetime | None
+    histogram_low: float | None
+    histogram_high: float | None
+    histogram: tuple[int, ...]
+    outside_other_band: int | None  # values outside the other period's 5-95 % range
+
+
+PROFILE_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)

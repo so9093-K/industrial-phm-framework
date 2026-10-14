@@ -51,7 +51,7 @@ function streamText(stream) {
 }
 
 function emptyText(view, packages, streams) {
-  if (!streams.length) return "이 설비에는 모델 입력으로 쓸 진동 파형이나 OPC UA 관측 데이터가 없습니다. CSV로 저장한 측정값은 개요와 신호 비교에서 볼 수 있습니다.";
+  if (!streams.length) return "이 설비에는 모델 입력으로 쓸 진동 파형이나 OPC UA 관측 데이터가 없습니다. CSV로 저장한 측정값은 개요와 신호 탐색에서 볼 수 있습니다.";
   if (!packages.length) return "작업공간에 " + NOUN[view] + " 모델이 없습니다. 모델 패키지를 작업공간 models 폴더에 넣으면 여기에서 연결할 수 있습니다.";
   return "이 설비 데이터와 입력 형식이 맞는 " + NOUN[view] + " 모델이 없습니다.";
 }
