@@ -182,6 +182,12 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 chooser.set_input_files(str(files / "motor.csv"))
                 pw.expect(page.locator("#csv-start-chart svg")).to_be_visible()
                 pw.expect(issues).to_contain_text("구조 문제는 없습니다")
+                summary = page.locator("#csv-start-summary")
+                pw.expect(summary).to_contain_text("측정 컬럼 요약")
+                pw.expect(summary.locator("tr").nth(1)).to_contain_text(f"{len(rows):,}")
+                pw.expect(summary).to_contain_text(
+                    "측정 간격 · 보통 30초 · 간격이 크게 다른 곳 0곳"
+                )
                 status = page.locator('#csv-start-channels input[value="status"]')
                 pw.expect(status).to_be_disabled()
                 pw.expect(status).not_to_be_checked()

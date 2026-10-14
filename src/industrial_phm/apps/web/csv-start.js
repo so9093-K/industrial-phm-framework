@@ -222,10 +222,47 @@ function drawPreview() {
   if (!channels.length) list.push(["error", "저장할 숫자 측정 컬럼을 하나 이상 선택하세요."]);
   if (!list.length) list.push(["ok", "브라우저에서 확인한 구조 문제는 없습니다. 서버 점검으로 최종 확인합니다."]);
   for (const [kind, text] of list) issues.append(node("li", text, kind === "error" ? "error" : ""));
+  renderSummary(timing, channels);
   const select = byId("csv-start-preview-channel"), previous = select.value;
   select.replaceChildren(...channels.map((name) => Object.assign(node("option", name), {value: name})));
   select.value = channels.includes(previous) ? previous : channels[0] || "";
   drawChart();
+}
+
+// What each chosen column holds and how regularly rows were measured, before anything is saved.
+function renderSummary(timing, channels) {
+  const box = byId("csv-start-summary");box.replaceChildren();
+  if (!channels.length) return;
+  const median = (sorted) => sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+  const format = (value) => typeof value === "number" && Number.isFinite(value) ? value.toLocaleString("ko-KR", {maximumSignificantDigits: 5}) : "—";
+  const summary = node("table", "", "phm-table");
+  const head = node("tr");for (const title of ["측정 컬럼", "값", "빈 값", "최소", "중앙값", "최대", "평균"]) head.append(node("th", title));summary.append(head);
+  for (const name of channels) {
+    const column = table.columns.find((c) => c.name === name);
+    const values = [];
+    for (const row of table.rows) {
+      if (row.length !== table.header.length) continue;
+      const text = row[column.index].trim();
+      if (text && NUMBER.test(text)) values.push(Number(text));
+    }
+    const sorted = values.slice().sort((a, b) => a - b);
+    let total = 0;for (const value of values) total += value;
+    const row = node("tr");
+    for (const text of [name, values.length.toLocaleString("ko-KR"), column.missing.toLocaleString("ko-KR"), format(sorted[0]),
+      format(sorted.length ? median(sorted) : null), format(sorted.at(-1)), format(values.length ? total / values.length : null)]) row.append(node("td", text));
+    summary.append(row);
+  }
+  box.append(node("h3", "측정 컬럼 요약"), summary);
+  if (!timing || timing.parsed.length < 3) return;
+  const gaps = [];
+  for (let i = 1; i < timing.parsed.length; i++) gaps.push({seconds: (timing.parsed[i].at - timing.parsed[i - 1].at) / 1000, index: i});
+  const usual = median(gaps.map((gap) => gap.seconds).filter((value) => value > 0).sort((a, b) => a - b));
+  const uneven = gaps.filter((gap) => usual > 0 && (gap.seconds > usual * 1.5 || gap.seconds < usual * 0.5)).length;
+  const longest = gaps.reduce((best, gap) => gap.seconds > best.seconds ? gap : best, gaps[0]);
+  const duration = (seconds) => seconds >= 3600 ? format(seconds / 3600) + "시간" : seconds >= 60 ? format(seconds / 60) + "분" : format(seconds) + "초";
+  const line = node("p", "측정 간격 · 보통 " + duration(usual) + " · 간격이 크게 다른 곳 " + uneven.toLocaleString("ko-KR") + "곳 · 가장 긴 공백 "
+    + duration(longest.seconds) + (longest.seconds > usual * 1.5 && !timing.naive ? " (" + formatTime(timing.parsed[longest.index - 1].at, {seconds: false}) + " 이후)" : ""), "muted");
+  box.append(line);
 }
 
 function drawChart() {
