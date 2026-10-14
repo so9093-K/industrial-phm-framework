@@ -263,6 +263,14 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
                 pw.expect(page.locator("#anomaly-model")).to_contain_text(
                     "획득 파형 · 채널 " + ", ".join(CHANNELS) + " · 1,000 Hz · 64 샘플/step"
                 )
+                page.locator('nav a[href="#monitor"]').click()
+                alert = page.locator('.monitor-attention-item[data-asset-id="pump-1"]')
+                pw.expect(alert).to_contain_text("입력 조건이 맞지 않아 분석하지 못함")
+                pw.expect(alert).not_to_contain_text("파형을 읽을 수 없음")
+                alert.get_by_role("button", name="분석 입력·모델 확인").click()
+                model = page.locator('.monitor-model[data-binding-id="anomaly-pump"]')
+                pw.expect(model).to_be_focused()
+                pw.expect(model).to_contain_text("channels differ")
             finally:
                 browser.close()
     finally:
