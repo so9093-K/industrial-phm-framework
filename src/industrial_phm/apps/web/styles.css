@@ -430,3 +430,30 @@ button.monitor-next{background:white;border:1px solid #b9cad5;padding:6px 10px}
 .explore-relation,.explore-spectrum{border-top:1px solid #e3ebef;margin-top:14px;padding-top:12px}.explore-relation h3,.explore-spectrum h3{margin:0 0 8px;font-size:.95rem}.explore-relation-controls{display:flex;flex-wrap:wrap;gap:10px}.explore-relation-controls select,.explore-spectrum select{display:block;margin-top:4px;max-width:100%}.explore-scatter{display:block;width:100%;max-width:560px;height:auto}.explore-dot-a{fill:#8a9aa3;opacity:.7}.explore-dot-b{fill:#2f8f8f;opacity:.75}.explore-spectrum-chart{display:block;width:100%;height:auto}.explore-psd-a{fill:none;stroke:#8a9aa3;stroke-width:1.4}.explore-psd-b{fill:none;stroke:#1f6f6b;stroke-width:1.6}.explore-band-changes{margin:4px 0;padding-left:18px;font-size:.84rem}
 .explore-chart .axis,.explore-scatter .axis,.explore-spectrum-chart .axis{fill:none}
 .csv-start-summary{margin:10px 0;overflow-x:auto}.csv-start-summary h3{font-size:.9rem;margin:0 0 6px}.csv-start-summary .phm-table{font-size:.78rem}
+
+/* Guided exploration: approachable choices without hiding original evidence or expert controls. */
+.monitor-time-explanation{padding:11px 14px;margin:8px 0 14px;border-left:3px solid #438a8b;background:#eef7f4;color:#234b51;font-size:.96rem;line-height:1.65}
+.source-record .source-time-explanation{font-size:.86rem;line-height:1.55;color:#365765}
+.explore-guide{padding:16px;margin:0 0 14px;background:#f5faf9;border:1px solid #c5dedb;border-radius:12px}
+.explore-guide h3{margin:0 0 5px;font-size:1.07rem}.explore-guide>p{margin:6px 0 12px;font-size:.96rem;line-height:1.6}
+.explore-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.explore-goal{display:grid;gap:6px;align-content:start;text-align:left;border:1px solid #c7d8de;border-radius:10px;color:#244b5d;background:white;min-height:92px;padding:13px}
+.explore-goal strong{font-size:.98rem}.explore-goal span{font-size:.89rem;line-height:1.5;font-weight:450}
+.explore-goal:hover:not(:disabled),.explore-goal[aria-pressed=true]{border-color:#42897f;background:#e6f4f0;color:#184b45}
+.explore-goal:disabled{opacity:.55}
+.explore-guide .explore-goal-hint{margin:12px 0 0;font-size:.94rem;color:#315b63;line-height:1.6}
+.explore-result-intro{background:#eef5f8;border-radius:9px;padding:12px 14px;color:#285361;font-size:.96rem;line-height:1.65;margin:12px 0}
+.explore-interpretation{font-size:.94rem;line-height:1.65;color:#345b64;margin:9px 0}
+.explore-glossary{padding:8px 10px;margin:10px 0;border:1px solid #d6e1e7;border-radius:9px;background:#fff}
+.explore-glossary summary{cursor:pointer;font-size:.96rem;font-weight:650;min-height:36px}
+.explore-glossary p{font-size:.92rem;line-height:1.7}
+.explore-series .explore-lead{line-height:1.6}.explore-quality-card small{line-height:1.5}
+@media(max-width:700px){
+  .explore-goals{grid-template-columns:1fr}.explore-goal{min-height:0;padding:12px}
+  .sidebar{gap:8px;padding:12px 14px}.sidebar nav{gap:3px}.sidebar nav a{padding:8px 10px}
+  main{padding:16px 14px}.topbar{margin-bottom:12px}.asset-bar{gap:9px;padding:9px 10px}
+  .asset-tabs{flex-wrap:nowrap;overflow-x:auto;max-width:100%;min-width:0;padding-bottom:3px}
+  .asset-tabs a{flex-shrink:0;white-space:nowrap;min-height:40px;display:inline-flex;align-items:center}
+  .explore-guide{padding:12px}.explore-periods{min-width:0}
+}
+@media(max-width:450px){.brand small{display:none}.sidebar-secondary{margin-top:0}.monitor-time-explanation{font-size:.92rem}}
