@@ -319,7 +319,9 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   const details = element("details");details.className = "phm-options phm-comparison-details";
   details.append(element("summary", "측정값 비교·구간 흐름 자세히 보기"), summary);
   const assistantHeading = element("h3", "측정값 비교");
-  assistant.append(assistantHeading, compareLabel, rangeHint, questionLabel, focusChip, suggestions, generate, status, answerBox, details);
+  const assistantHelp = element("p", "저장된 측정 신호와 모델 결과를 선택한 시점끼리 비교합니다. 함께 바뀐 신호가 있더라도 실제 고장 원인이 확인된 것은 아닙니다.");
+  assistantHelp.className = "phm-question-scope";
+  assistant.append(assistantHeading, assistantHelp, compareLabel, rangeHint, questionLabel, focusChip, suggestions, generate, status, answerBox, details);
   renderComparison();
   renderRange();
   compare.addEventListener("change", () => {
