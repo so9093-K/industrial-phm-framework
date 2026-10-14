@@ -222,3 +222,54 @@ def test_status_verdicts_are_flagged_but_negations_are_not() -> None:
         "위험이 낮",
         "이상 징후가 심각하지 않",
     ]
+
+
+def test_follow_up_carries_earlier_answers_of_the_same_comparison_only(
+    tmp_path: Path, monkeypatch
+) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for i in range(1, 5):
+        deliver(workspace, tmp_path / "waves", i, 0.5 * i)
+    analyze(workspace)
+    from industrial_phm.runtime import operations_web_phm_explanation as runtime
+
+    seen: list[dict] = []
+
+    def answer(context, provider):
+        seen.append(context)
+        return {
+            "summary": f"답 {len(seen)}",
+            "observations": [],
+            "next_signals": [],
+            "next_step": "",
+            "checks": {"summary_source": "model"},
+        }
+
+    monkeypatch.setattr(runtime, "generate_grounded_answer", answer)
+    manager = ExplanationManager(workspace.root)
+
+    def finished(job: dict) -> dict:
+        for _ in range(200):
+            record = manager.store.get(job["explanation_id"])
+            if record["status"] != "pending":
+                return record
+            time.sleep(0.01)
+        raise AssertionError("explanation did not finish")
+
+    first = finished(manager.request("anomaly-a", 4, compare_position=1, question="처음 질문"))
+    second = finished(
+        manager.request(
+            "anomaly-a", 4, compare_position=1, question="이어서", parent_id=first["id"]
+        )
+    )
+    assert seen[1]["history"] == [{"question": "처음 질문", "answer": "답 1"}]
+    finished(
+        manager.request(
+            "anomaly-a", 4, compare_position=1, question="세 번째", parent_id=second["id"]
+        )
+    )
+    assert [turn["question"] for turn in seen[2]["history"]] == ["처음 질문", "이어서"]
+    with pytest.raises(ValueError, match="same comparison"):
+        manager.request(
+            "anomaly-a", 4, compare_position=2, question="다른 비교", parent_id=first["id"]
+        )
