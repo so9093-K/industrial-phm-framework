@@ -219,6 +219,36 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       table.append(row);
     }
     rangeBox.append(table);
+    const explore = exploreLink(from, data);
+    if (explore) rangeBox.append(explore);
+  }
+  // The same range in the signal exploration: before vs after the picked point, level shift
+  // or middle, as period A and period B of stored measurements.
+  function exploreLink(from, data) {
+    const between = steps.filter((step) => step.position >= from && step.position <= position);
+    const split = state.focus?.position ?? data.primary?.level_shift?.at ?? between[Math.floor(between.length / 2)]?.position;
+    const before = between.filter((step) => step.position < split), after = between.filter((step) => step.position >= split);
+    if (!before.length || !after.length || !options.stepKind) return null;
+    const url = new URL(location.href);
+    if (options.stepKind === "acquisition-snapshot") {
+      url.searchParams.set("explore_kind", "acquisition");
+      url.searchParams.set("explore_a", before[0].position + "~" + before.at(-1).position);
+      url.searchParams.set("explore_b", after[0].position + "~" + after.at(-1).position);
+      const features = [...new Set([...mentioned, ...Object.keys(data.features || {})])].filter((name) => name.startsWith("feature.")).slice(0, 6);
+      if (features.length) url.searchParams.set("explore_series", features.join(","));
+      else url.searchParams.delete("explore_series");
+    } else {
+      const start = (step) => step.event_start, end = (step) => step.event_end || step.event_start;
+      if (!start(before[0]) || !start(after[0])) return null;
+      url.searchParams.set("explore_kind", "history");url.searchParams.delete("explore_series");
+      url.searchParams.set("explore_a", start(before[0]) + "~" + start(after[0]));
+      url.searchParams.set("explore_b", start(after[0]) + "~" + end(after.at(-1)));
+    }
+    url.hash = "signals";
+    const link = element("a", "구간 비교에서 자세히 보기 · A " + shortText(before[0].position) + "–" + shortText(before.at(-1).position)
+      + " / B " + shortText(after[0].position) + "–" + shortText(after.at(-1).position));
+    link.href = url.pathname + url.search + url.hash;link.className = "phm-explore-link";
+    return link;
   }
   function renderAnswer(item) {
     answerBox.replaceChildren();

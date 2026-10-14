@@ -503,7 +503,7 @@ function renderAnomaly() {
   const explained = focusPosition ?? last.position;
   renderPhmExplanation("anomaly", selected.anomaly, explained,
                        () => {focusPosition = focusPosition ?? last.position;}, stepLabel(entry, explained), {
-                         steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
+                         steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position), stepKind: entry.binding.step_kind,
                          openSignal: (position, feature) => {
                            if (feature) {chosenFeatures = [feature];renderAnomaly();}
                            showComparisonOriginal("anomaly", entry, position, feature);
@@ -772,7 +772,7 @@ function renderRul() {
   }
   const explained = rulFocusPosition ?? last.position;
   renderPhmExplanation("rul", selected.rul, explained,
-                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position),
+                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position), stepKind: entry.binding.step_kind,
                          openSignal: (position, feature) => showComparisonOriginal("rul", entry, position, feature)});
 }
 
