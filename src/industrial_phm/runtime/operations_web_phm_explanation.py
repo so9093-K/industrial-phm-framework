@@ -13,19 +13,10 @@ from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSna
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
-from industrial_phm.application.phm_explanation import (
-    PhmExplanationStore,
-    explanation_context,
-    operator_explanation_context,
-)
+from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import (
-    ExplanationProvider,
-    comparison_claim_warnings,
-    generate_local_explanation,
-    ungrounded_numbers,
-    verdict_phrases,
-)
+from industrial_phm.genai.local_explanation import ExplanationProvider
+from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MANAGERS: dict[Path, ExplanationManager] = {}
@@ -68,21 +59,13 @@ class ExplanationManager:
 
         def generate() -> None:
             try:
-                text = generate_local_explanation(context, provider)
+                answer = generate_grounded_answer(context, provider)
             except AnalysisExplanationError:
                 self.store.finish(identifier, owner=self.owner, error="AI explanation unavailable")
             else:
-                grounding_context = operator_explanation_context(context)
-                grounding_context.pop("question", None)
-                # The model must only restate supplied values; flag any number it invented.
-                self.store.finish(
-                    identifier,
-                    owner=self.owner,
-                    text=text,
-                    warnings=ungrounded_numbers(text, grounding_context)
-                    + verdict_phrases(text)
-                    + comparison_claim_warnings(text, grounding_context),
-                )
+                # Every reference in the answer was checked against the stored comparison.
+                text = (answer["summary"] + " " + answer["next_step"]).strip()
+                self.store.finish(identifier, owner=self.owner, text=text, answer=answer)
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
         return {

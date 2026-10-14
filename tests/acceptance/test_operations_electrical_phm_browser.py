@@ -68,7 +68,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                     )
                     == "none"
                 )
-                pw.expect(page.locator("#anomaly-features")).to_contain_text("R상 평균 전류 · A")
+                pw.expect(page.locator("#anomaly-features")).to_contain_text("R상 평균 전류(A)")
                 pw.expect(page.locator("#notice")).not_to_be_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), (
                     "PHM page overflows the viewport"

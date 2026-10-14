@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from threading import Thread
 from typing import Any
 
 import pytest
 
+from industrial_phm.genai import phm_answer
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.phm import analyze, deliver, phm_workspace
+from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 
 
 class _InProcessSupervisor:
@@ -27,7 +29,7 @@ class _InProcessSupervisor:
 
 
 @pytest.mark.parametrize("width", [390, 1024, 1440])
-def test_explanation_is_marked_reference_text_and_review_moves_through_its_states(
+def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_through_states(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
 ) -> None:
     pw = pytest.importorskip("playwright.sync_api")
@@ -36,16 +38,30 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
         deliver(workspace, tmp_path / "waves", ordinal, scale)
     analyze(workspace)
 
-    received = []
+    rms = "feature.Horizontal_vibration_signals.rms"
+    answer = {
+        "summary": "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다.",
+        "observations": [{"feature": rms, "change": "증가"}],
+        "next_signals": ["feature.Horizontal_vibration_signals.peak_to_peak"],
+        "next_step": "두 시점의 원본 파형에서 수평 진동의 진폭을 비교해 보세요.",
+    }
+    # The first draft overstates two results; the user only sees the checked rewrite.
+    model = ScriptedModel(
+        {
+            **answer,
+            "summary": "고장 확률 91.3%입니다. 수평 진동이 커졌기 때문에 점수가 올랐습니다.",
+        },
+        answer,
+    )
+    monkeypatch.setattr(phm_answer, "complete_json", model)
+    received: list[dict[str, Any]] = []
+    grounded = explanation_runtime.generate_grounded_answer
 
-    def provider(context: dict[str, Any], _: object) -> str:
+    def recording(context: dict[str, Any], provider: object) -> dict[str, Any]:
         received.append(context)
-        return (
-            "관측 사실\n점수가 임계값을 넘었습니다. 고장 확률 91.3%로 보입니다. "
-            "설비는 정상 상태입니다."
-        )
+        return grounded(context, provider)  # type: ignore[arg-type]
 
-    monkeypatch.setattr(explanation_runtime, "generate_local_explanation", provider)
+    monkeypatch.setattr(explanation_runtime, "generate_grounded_answer", recording)
     monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
     root = workspace.root.resolve()
     server = create_operations_web_read_server(root, command_client=_InProcessSupervisor(root))  # type: ignore[arg-type]
@@ -71,35 +87,42 @@ def test_explanation_is_marked_reference_text_and_review_moves_through_its_state
                 assistant.get_by_label("비교 시점").select_option("1")
                 assistant.get_by_label("분석 질문").fill("수평 진동은 어떻게 달라졌나요?")
                 assistant.get_by_role("button", name="AI에 질문").click()
-                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                card = assistant.locator(".phm-answer")
+                pw.expect(card.locator(".phm-ai-text")).to_have_text(answer["summary"])
                 pw.expect(assistant).to_contain_text("local-main")
+                pw.expect(card).to_contain_text("수평 진동은 어떻게 달라졌나요?")
+                pw.expect(card).not_to_contain_text("91.3")
+                signal = card.locator(".phm-answer-signals li")
+                pw.expect(signal).to_have_count(1)
+                pw.expect(signal).to_contain_text("수평 진동 RMS")
+                pw.expect(signal).to_contain_text("↑ 증가")
+                pw.expect(signal).to_contain_text("%")
+                pw.expect(card).to_contain_text("수평 진동의 진폭을 비교")
+                mentioned = assistant.locator(".phm-comparison tr.phm-ai-mentioned")
+                pw.expect(mentioned).to_have_count(1)
+                pw.expect(mentioned.first).to_contain_text("수평 진동 RMS")
                 assert received[-1]["signal_comparison"]["previous_position"] == 1
                 assert received[-1]["question"] == "수평 진동은 어떻게 달라졌나요?"
                 assert received[-1]["signal_comparison"]["original_current"]["available"]
-                pw.expect(assistant.locator(".phm-ai-warning")).to_contain_text("91.3")
-                pw.expect(assistant.locator(".phm-ai-warning")).to_contain_text(
-                    "판정 표현 경고: 설명이 '정상 상태'처럼"
-                )
-                pw.expect(assistant.locator(".phm-ai-warning")).to_be_visible()
-                pw.expect(assistant.locator(".phm-ai-text")).not_to_be_visible()
-                assistant.get_by_text("확인이 필요한 응답 원문 보기", exact=True).click()
-                pw.expect(assistant.locator(".phm-ai-text")).to_be_visible()
+                assert "'때문'" in model.requests[-1][-1]["content"]
+                signal.get_by_role("button", name="수평 진동 RMS").click()
+                pw.expect(page.locator("#anomaly-signal")).to_have_value(json.dumps([rms]))
                 pw.expect(panel.locator("h3")).to_contain_text("분석 #4 · ")
                 assistant.get_by_role("button", name="비교 시점의 원본 신호 보기").click()
                 pw.expect(assistant.locator(".phm-comparison-original h4")).to_contain_text("#1")
                 pw.expect(assistant.locator(".phm-comparison-original .phm-wave")).to_have_count(2)
                 # An answer for the old comparison must disappear as soon as selection changes.
                 assistant.get_by_label("비교 시점").select_option("2")
-                pw.expect(assistant.locator(".phm-ai-text")).to_have_text("")
+                pw.expect(assistant.locator(".phm-answer")).to_be_empty()
                 assistant.get_by_role("button", name="AI에 질문").click()
-                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                pw.expect(assistant.locator(".phm-ai-text")).to_have_text(answer["summary"])
                 assert received[-1]["signal_comparison"]["previous_position"] == 2
                 page.reload()
                 pw.expect(assistant.get_by_label("비교 시점")).to_have_value("2")
                 pw.expect(assistant.get_by_label("분석 질문")).to_have_value(
                     "수평 진동은 어떻게 달라졌나요?"
                 )
-                pw.expect(assistant.locator(".phm-ai-text")).to_contain_text("임계값을 넘었습니다")
+                pw.expect(assistant.locator(".phm-ai-text")).to_have_text(answer["summary"])
                 page.locator("#anomaly-review-options > summary").click()
 
                 panel.get_by_role("button", name="검토 요청").click()

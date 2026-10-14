@@ -172,7 +172,6 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 
 /* AI explanation text is a reference reading of stored results, never model output. */
 .phm-ai-text:not(:empty){white-space:pre-wrap;background:#f7fafb;border-left:3px solid #517f96;padding:10px 12px;font-size:.84rem;line-height:1.6}
-.phm-ai-warning:not(:empty){color:#833c3c;background:#fff0f0;border-radius:6px;padding:8px 10px;font-size:.82rem}
 .phm-review-history p{margin:4px 0;font-size:.8rem;color:#45616f}
 
 /* PHM overview: data provenance precedes model scores; technical details remain available. */
@@ -370,4 +369,6 @@ body[data-view="signals"] .layout,body[data-view="evidence"] .below{grid-templat
 
 .phm-assistant textarea{resize:vertical;min-height:64px;line-height:1.5;font:inherit;font-size:.85rem}
 
-.phm-disputed-reply{font-size:.82rem;margin-top:8px;color:#526c79}
+
+.phm-answer:not(:empty){margin-top:12px;padding:14px 16px;background:#fff;border:1px solid #d3e2e9;border-radius:10px}.phm-answer h4{margin:14px 0 6px;font-size:.86rem}.phm-answer p{margin:6px 0;font-size:.86rem;line-height:1.6}.phm-answer .phm-answer-question{color:#526c79;font-size:.8rem}.phm-answer-signals{list-style:none;margin:0;padding:0;display:grid;gap:4px}.phm-answer-signals li{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;border-bottom:1px solid #edf2f5;padding:4px 0;font-size:.84rem}.phm-answer-signals li:last-child{border:0}.phm-answer-signals span{color:#526c79;font-size:.78rem}.phm-answer button{font-size:.84rem;background:transparent;color:#265d75;border:0;padding:4px 0;text-align:left;text-decoration:underline;min-height:32px}.phm-answer-next{display:flex;flex-wrap:wrap;gap:4px 14px}.phm-ai-mentioned{background:#eef7f4}.phm-ai-mentioned td:first-child{box-shadow:inset 3px 0 #3f8f86}.phm-answer .phm-ai-text{background:none;border:0;padding:0;font-size:.9rem}
+.phm-answer button:hover,.phm-comparison .phm-table button:hover{background:#e3f0f4;color:#173f50}
