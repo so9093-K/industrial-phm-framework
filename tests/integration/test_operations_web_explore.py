@@ -82,6 +82,27 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert sum(series["histogram"]["a"]) == 4 and sum(series["histogram"]["b"]) == 4
         assert str(tmp_path) not in json.dumps(body)
 
+        ranges = {"a_from": 1, "a_to": 4, "b_from": 5, "b_to": 8}
+        status, relation = get(
+            "/api/v1/explore/relation",
+            asset_id="bearing-a",
+            kind="acquisition",
+            x=RMS,
+            y="feature.Horizontal_vibration_signals.peak_to_peak",
+            **ranges,
+        )
+        assert status == 200 and relation["pairing"] == "same-acquisition"
+        assert [g["pair_count"] for g in relation["groups"]] == [4, 4]
+        assert relation["groups"][1]["points"][0][0] == 5
+
+        status, spectrum = get("/api/v1/explore/spectrum", asset_id="bearing-a", **ranges)
+        assert status == 200 and spectrum["sampling_rate_hz"] == 1000
+        assert spectrum["acquisitions"] == {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]}
+        horizontal = spectrum["channels"][0]
+        assert len(horizontal["a"]) == len(horizontal["b"]) == len(spectrum["frequencies"])
+        # B carries six times the amplitude of A: about 15 dB more power in its strongest band.
+        assert max(band["change_db"] for band in horizontal["band_changes"]) > 10
+
         assert get("/api/v1/explore/profile", asset_id="bearing-a", kind="acquisition")[0] == 400
         bad = {"a_from": 4, "a_to": 1, "b_from": 5, "b_to": 8}
         query = {"asset_id": "bearing-a", "kind": "acquisition", "series": [RMS], **bad}
@@ -142,5 +163,11 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         assert a["median_interval_seconds"] == 60 and a["largest_gap"]["seconds"] == 60
         assert series["comparison"]["median_change"] == pytest.approx(5.0)
         assert series["comparison"]["b_outside_a_band_percent"] == 100
+        assert (
+            get(
+                "/api/v1/explore/spectrum", asset_id="motor-01", a_from=1, a_to=2, b_from=3, b_to=4
+            )[0]
+            == 404
+        )
     finally:
         stop()

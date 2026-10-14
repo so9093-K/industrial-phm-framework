@@ -88,3 +88,25 @@ def test_profile_inputs_are_bounded(history: DuckLakeAssetHistory) -> None:
         history.query_measurement_profiles(
             "pump-01", channel_ids=[], periods=[("a", BASE, BASE + timedelta(hours=1))]
         )
+
+
+def test_two_channels_pair_only_at_identical_timestamps(history: DuckLakeAssetHistory) -> None:
+    voltage = [
+        _event(100 + i, seconds, value, channel="voltage")
+        for i, (seconds, value) in enumerate([(0, 10.0), (10, 20.0), (20, 30.0), (25, 99.0)])
+    ]
+    history.append_file_batch(tuple(voltage), batch_id="voltage")
+    (group,) = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="current",
+        y_channel="voltage",
+        periods=[("a", BASE, BASE + timedelta(seconds=600))],
+    )
+    # current exists at 0/10/20 s with 1, 2, 3; voltage's 25 s value has no partner.
+    assert (group.pair_count, group.x_usable_count, group.y_usable_count) == (3, 9, 4)
+    assert group.pearson == pytest.approx(1.0) and group.spearman == pytest.approx(1.0)
+    assert [point[1:] for point in group.points] == [(1.0, 10.0), (2.0, 20.0), (3.0, 30.0)]
+    with pytest.raises(ValueError, match="two different channels"):
+        history.query_measurement_pairs(
+            "pump-01", x_channel="current", y_channel="current", periods=[("a", BASE, BASE)]
+        )

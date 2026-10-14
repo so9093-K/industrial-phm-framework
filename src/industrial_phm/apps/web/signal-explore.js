@@ -202,6 +202,131 @@ function render(data) {
   for (const item of data.series) results.append(seriesCard(item));
   const links = modelLinks(data);
   if (links) results.append(links);
+  results.append(relationSection(data));
+  if (data.kind === "acquisition") results.append(spectrumSection(data));
+}
+
+const periodQuery = (data) => ({a_from: String(data.periods.a.from), a_to: String(data.periods.a.to),
+  b_from: String(data.periods.b.from), b_to: String(data.periods.b.to)});
+
+// How two measured series moved together in each period, from paired observations only.
+function relationSection(data) {
+  const box = create("section", "explore-relation");
+  box.append(create("h3", null, "두 항목의 관계"));
+  const choices = data.series.map((item) => ({key: item.key, label: item.label}));
+  if (choices.length < 2) {
+    box.append(create("p", "muted", "관계를 보려면 위에서 항목을 두 개 이상 고르세요."));
+    return box;
+  }
+  const controls = create("div", "explore-relation-controls");
+  const pick = (name, index) => {
+    const label = create("label", null, name);
+    const select = create("select");
+    for (const choice of choices) select.append(Object.assign(create("option", null, choice.label), {value: choice.key}));
+    select.value = choices[index].key;label.append(select);controls.append(label);
+    return select;
+  };
+  const x = pick("가로축", 0), y = pick("세로축", 1);
+  const output = create("div");
+  const draw = async () => {
+    if (x.value === y.value) {output.replaceChildren(create("p", "muted", "서로 다른 두 항목을 고르세요."));return;}
+    output.replaceChildren(create("p", "muted", "짝지은 관측을 계산합니다."));
+    const query = new URLSearchParams({asset_id: currentAsset(), kind: data.kind, x: x.value, y: y.value, ...periodQuery(data)});
+    try {
+      const relation = await getJson("/api/v1/explore/relation?" + query.toString());
+      output.replaceChildren(...relationView(relation, choices));
+    } catch {output.replaceChildren(create("p", "muted", "관계를 계산하지 못했습니다."));}
+  };
+  x.addEventListener("change", draw);y.addEventListener("change", draw);
+  box.append(controls, output);
+  void draw();
+  return box;
+}
+
+function relationView(relation, choices) {
+  const name = (key) => choices.find((choice) => choice.key === key)?.label || key;
+  const groups = relation.groups.filter((group) => group.pair_count > 0);
+  if (!groups.length) return [create("p", "muted", "두 항목이 같은 시각에 함께 기록된 관측이 없습니다.")];
+  const all = groups.flatMap((group) => group.points);
+  const xs = all.map((point) => point[1]), ys = all.map((point) => point[2]);
+  const bounds = (values) => {const low = Math.min(...values), high = Math.max(...values);return high > low ? [low, high] : [low - 1, high + 1];};
+  const [x0, x1] = bounds(xs), [y0, y1] = bounds(ys);
+  const svg = svgNode("svg", {viewBox: "0 0 420 260", class: "explore-scatter", role: "img",
+    "aria-label": name(relation.x) + "와 " + name(relation.y) + "의 짝지은 관측 산점도"});
+  svg.append(svgNode("path", {d: "M40 10 V224 H410", class: "axis"}));
+  for (const group of groups) {
+    for (const [, vx, vy] of group.points) {
+      svg.append(svgNode("circle", {cx: 40 + (vx - x0) / (x1 - x0) * 370, cy: 224 - (vy - y0) / (y1 - y0) * 214, r: 2.6,
+        class: "explore-dot-" + group.period}));
+    }
+  }
+  const text = (content, attributes) => {const node = svgNode("text", attributes);node.textContent = content;svg.append(node);};
+  text(num(x0), {x: 40, y: 240, class: "explore-axis-label"});text(num(x1), {x: 410, y: 240, "text-anchor": "end", class: "explore-axis-label"});
+  text(num(y1), {x: 36, y: 16, "text-anchor": "end", class: "explore-axis-label"});text(num(y0), {x: 36, y: 224, "text-anchor": "end", class: "explore-axis-label"});
+  text(name(relation.x), {x: 225, y: 256, "text-anchor": "middle", class: "explore-axis-label"});
+  const table = create("table", "phm-table explore-table");
+  const head = create("tr");for (const title of ["", "짝지은 관측", "Pearson", "Spearman"]) head.append(create("th", null, title));table.append(head);
+  const r = (value) => typeof value === "number" ? value.toLocaleString("ko-KR", {maximumFractionDigits: 2}) : "—";
+  for (const group of relation.groups) {
+    const row = create("tr");
+    row.append(create("th", null, "구간 " + group.period.toUpperCase() + (relation.groups.length > 2 ? " · " + group.source_id : "")),
+      create("td", null, num(group.pair_count) + " / " + num(Math.max(group.x_usable_count, group.y_usable_count))),
+      create("td", null, r(group.pearson)), create("td", null, r(group.spearman)));
+    table.append(row);
+  }
+  const how = relation.pairing === "same-acquisition" ? "같은 획득의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
+  return [svg, create("p", "muted", "세로축 " + name(relation.y) + " · 회색 구간 A, 청록 구간 B"), table,
+    create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다.")];
+}
+
+// Where vibration energy sits and how it moved, from verified raw waveforms of both ranges.
+function spectrumSection(data) {
+  const box = create("section", "explore-spectrum");
+  box.append(create("h3", null, "진동 주파수 성분"));
+  const output = create("div");output.append(create("p", "muted", "원본 파형으로 주파수 성분을 계산합니다."));
+  box.append(output);
+  const query = new URLSearchParams({asset_id: currentAsset(), ...periodQuery(data)});
+  getJson("/api/v1/explore/spectrum?" + query.toString()).then((spectrum) => {
+    output.replaceChildren();
+    const channel = create("select");channel.setAttribute("aria-label", "주파수 채널");
+    spectrum.channels.forEach((item, index) => channel.append(Object.assign(create("option", null, item.label), {value: String(index)})));
+    const view = create("div");
+    const show = () => view.replaceChildren(...spectrumView(spectrum, spectrum.channels[Number(channel.value)]));
+    channel.addEventListener("change", show);
+    const field = create("label", null, "채널");field.append(channel);
+    output.append(field, view);show();
+    output.append(create("p", "muted", "Welch PSD · " + num(spectrum.segment) + "점 구간 · 샘플링 " + num(spectrum.sampling_rate_hz / 1000) + " kHz · 구간 A 획득 "
+      + spectrum.acquisitions.a.map((n) => "#" + n).join(" ") + " / 구간 B 획득 " + spectrum.acquisitions.b.map((n) => "#" + n).join(" ") + " 평균"));
+  }).catch(() => output.replaceChildren(create("p", "muted", "원본 파형을 읽지 못해 주파수 성분을 계산하지 못했습니다.")));
+  return box;
+}
+
+function spectrumView(spectrum, channel) {
+  const width = 900, height = 220, left = 46, right = 890, top = 10, bottom = 190;
+  const svg = svgNode("svg", {viewBox: "0 0 " + width + " " + height, class: "explore-spectrum-chart", role: "img",
+    "aria-label": channel.label + " 구간 A와 B의 주파수 성분"});
+  const values = [...channel.a, ...channel.b].filter((value) => value > 0);
+  const low = Math.log10(Math.min(...values)), high = Math.log10(Math.max(...values));
+  const topHz = spectrum.frequencies.at(-1);
+  const x = (hz) => left + hz / topHz * (right - left);
+  const y = (value) => value > 0 ? bottom - (Math.log10(value) - low) / (high - low || 1) * (bottom - top) : bottom;
+  svg.append(svgNode("path", {d: "M" + left + " " + top + " V" + bottom + " H" + right, class: "axis"}));
+  for (const name of ["a", "b"]) {
+    const path = channel[name].map((value, index) => (index ? "L" : "M") + x(spectrum.frequencies[index]).toFixed(1) + " " + y(value).toFixed(1)).join(" ");
+    svg.append(svgNode("path", {d: path, class: "explore-psd-" + name}));
+  }
+  [0, 0.25, 0.5, 0.75, 1].forEach((share, index, all) => {
+    const anchor = index === 0 ? "start" : index === all.length - 1 ? "end" : "middle";
+    const label = svgNode("text", {x: x(topHz * share), y: 206, "text-anchor": anchor, class: "explore-axis-label"});
+    label.textContent = (topHz * share / 1000).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + " kHz";svg.append(label);
+  });
+  const list = create("ul", "explore-band-changes");
+  for (const band of channel.band_changes) {
+    const khz = (hz) => (hz / 1000).toLocaleString("ko-KR", {maximumFractionDigits: 1});
+    list.append(create("li", null, khz(band.from_hz) + "–" + khz(band.to_hz) + " kHz · 구간 B가 A보다 "
+      + (band.change_db > 0 ? "+" : "") + band.change_db.toLocaleString("ko-KR", {maximumFractionDigits: 1}) + " dB"));
+  }
+  return [svg, create("p", "muted", "로그 세로축 · 회색 구간 A, 청록 구간 B · 크게 달라진 대역"), list];
 }
 
 // What the data itself says before any value: how much was recorded, missing or unusable.

@@ -48,6 +48,16 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 quality = panel.locator(".explore-quality-card")
                 pw.expect(quality).to_have_count(2)
                 pw.expect(quality.first).to_contain_text("전달된 획득")
+                relation = panel.locator(".explore-relation")
+                pw.expect(relation.locator("svg.explore-scatter circle")).to_have_count(8)
+                pw.expect(relation.locator("table")).to_contain_text("4 / 4")
+                pw.expect(relation).to_contain_text("같은 획득의 두 특징을 짝지었습니다")
+                spectrum = panel.locator(".explore-spectrum")
+                pw.expect(spectrum.locator("svg.explore-spectrum-chart")).to_be_visible()
+                pw.expect(spectrum.locator(".explore-band-changes li").first).to_contain_text(
+                    "구간 B가 A보다 +"
+                )
+                pw.expect(spectrum).to_contain_text("구간 A 획득 #1 #2 #3 #4")
 
                 panel.get_by_role("button", name="처음 1/4 · 마지막 1/4").click()
                 pw.expect(state).to_contain_text("구간 A #1–#3 · 구간 B #6–#8")
