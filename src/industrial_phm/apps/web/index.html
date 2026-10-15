@@ -53,6 +53,7 @@
 
           </section>
         </div>
+        <section id="asset-capabilities" class="asset-capabilities" aria-live="polite" hidden></section>
         <details id="monitor-analysis-details" class="monitor-analysis"><summary>모델·입력 상세</summary><p id="monitor-analysis-context" class="muted"></p><div class="monitor-score"><p id="monitor-score-state" class="muted"></p><div id="monitor-score-chart" aria-label="선택한 연결 모델의 저장된 결과 추세"></div></div><div id="monitor-analysis-models"></div></details>
       </section>
       <section id="workspace-overview" class="panel workspace-overview" data-views="monitor" aria-label="현재 작업공간">
@@ -60,16 +61,19 @@
         <p id="workspace-detail" role="status" aria-live="polite">관측·등록·조회 오류를 확인합니다.</p>
       </section>
       <section id="workspace-start" class="panel hidden" data-views="monitor" aria-labelledby="start-title">
-        <h2 id="start-title">설비 데이터를 연결하세요</h2>
-        <p class="muted">아직 이 작업공간에 측정 데이터가 없습니다. 예시 데이터로 먼저 둘러보거나 내 데이터를 연결하세요.</p>
-        <div class="start-example">
-          <button id="start-example" type="button">예시 데이터로 둘러보기</button>
-          <p>별도 작업공간의 합성 모터 신호를 둘러봅니다. 현재 작업공간에 예시 소스나 측정값을 저장하지 않습니다.</p>
-        </div>
+        <h2 id="start-title">측정 데이터 추가</h2>
+        <p class="muted">이 작업공간에는 아직 저장된 측정이 없습니다.</p>
         <div class="start-options">
-          <a id="start-file" href="#connect"><strong>파일에서 시작</strong><span>CSV 파일의 실제 신호와 컬럼을 먼저 확인하고 점검한 뒤 저장</span></a>
-          <a id="start-opcua" href="#connect"><strong>설비 연결 (OPC UA)</strong><span>로컬 OPC UA 서버의 변수를 탐색·등록하고 수신을 확인</span></a>
+          <button id="start-example" type="button" class="start-option"><strong>예시 데이터로 둘러보기</strong><span>합성 3상 모터 신호를 별도 작업공간에서 엽니다. 현재 작업공간에는 저장하지 않습니다.</span></button>
+          <a id="start-file" href="#connect"><strong>파일에서 시작 (CSV)</strong><span>저장 전에 컬럼·측정 시각·빈 값과 실제 그래프를 확인합니다.</span></a>
+          <a id="start-opcua" href="#connect"><strong>설비 연결 (OPC UA)</strong><span>로컬 OPC UA 서버의 변수를 찾아 등록하고 수신을 확인합니다.</span></a>
         </div>
+        <table class="start-scope">
+          <caption>데이터별 분석 범위</caption>
+          <tr><th scope="row">시간별 측정값 (CSV·OPC UA)</th><td>측정 신호, 구간 비교, 신호 관계</td></tr>
+          <tr><th scope="row">진동 획득 파형</th><td>모델 연결 후 획득별 특징 비교, 주파수 성분</td></tr>
+          <tr><th scope="row">연결된 모델의 결과</th><td>이상 탐지, RUL, AI 질문(감독형 Web)</td></tr>
+        </table>
       </section>
       <section data-views="system" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
       <section data-views="system" class="kpis" id="monitor" aria-label="관측 요약">
@@ -230,6 +234,7 @@
             <button id="csv-start-restart" type="button" class="secondary">다른 파일로 시작</button>
             <p id="csv-start-analyze-result" role="status" aria-live="polite"></p>
             <p id="csv-start-analysis-limit" class="muted"></p>
+            <section id="csv-start-capabilities" class="asset-capabilities" aria-live="polite" hidden></section>
           </div>
         </div>
       </section>

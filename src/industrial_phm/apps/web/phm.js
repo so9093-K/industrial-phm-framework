@@ -957,6 +957,8 @@ export function initializePhm() {
     for (const plot of document.querySelectorAll(".phm-original-plot")) if (plot.isConnected) plot.redraw?.();
   });
   byId("rul-binding").addEventListener("change", (event) => {clearMonitorTarget();selected.rul = event.target.value;rulFocusPosition = null;cycle();});
+  // Assets known only through a connected model belong in the asset switch on every view.
+  void refreshBindings().catch(() => {});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", () => {
     const params = new URLSearchParams(location.search);
