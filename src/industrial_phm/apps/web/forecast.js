@@ -150,7 +150,7 @@ function renderControls() {
     input.type = "number";input.min = String(min);input.max = String(max);input.step = String(step);
     input.value = params().get(id.replaceAll("-", "_")) || initial;field.append(input);advanced.append(field);return input;
   };
-  const prior = numeric("forecast-prior", "추세 민감도 (0.001–0.5)", "0.05", 0.001, 0.5, 0.001);
+  const prior = numeric("forecast-prior", "추세 민감도 (0.001-0.5)", "0.05", 0.001, 0.5, 0.001);
   const changeRange = numeric("forecast-range", "변화점 탐색 범위 (0.5–0.95)", "0.9", 0.5, 0.95, 0.01);
   const training = numeric("forecast-training", "최근 학습 획득·측정 수 (선택)", "", 20, 1000, 1);
   const seasonality = create("select");seasonality.id = "forecast-seasonality";
