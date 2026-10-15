@@ -80,7 +80,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(panel.locator("line.forecast-threshold")).to_have_count(1)
                 assert "forecast_threshold=14.3" in page.url
                 panel.locator("#forecast-details > summary").click()
-                panel.get_by_label("추세 민감도 (0.001–0.5)").fill("0.1")
+                panel.get_by_label("추세 민감도 (0.001-0.5)").fill("0.1")
                 panel.get_by_role("button", name="설정 적용").click()
                 pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
                     "추세 민감도 0.1", timeout=30000
