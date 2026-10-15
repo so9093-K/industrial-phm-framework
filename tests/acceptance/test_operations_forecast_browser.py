@@ -63,10 +63,11 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
-                summary = panel.locator(".forecast-summary")
+                summary = panel.locator("#forecast-result > .forecast-summary")
                 pw.expect(summary).to_contain_text("증가 · 마지막 측정")
                 pw.expect(summary).to_contain_text("1시간 뒤")
-                pw.expect(summary).to_contain_text("과거 자료로 확인")
+                pw.expect(summary).to_contain_text("과거 자료 확인")
+                pw.expect(panel.get_by_text("설비 상태 전망", exact=True)).to_be_visible()
                 pw.expect(panel.get_by_role("button", name="24시간")).to_be_disabled()
                 pw.expect(panel.get_by_role("button", name="1시간")).to_have_attribute(
                     "aria-pressed", "true"
@@ -78,6 +79,18 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(summary).to_contain_text("예상 도달")
                 pw.expect(panel.locator("line.forecast-threshold")).to_have_count(1)
                 assert "forecast_threshold=14.3" in page.url
+                panel.locator("#forecast-details > summary").click()
+                panel.get_by_label("추세 민감도 (0.001–0.5)").fill("0.1")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "추세 민감도 0.1", timeout=30000
+                )
+                panel.get_by_role("button", name="여러 과거 시점 비교").click()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "여러 과거 시점", timeout=30000
+                )
+                assert "forecast_prior=0.1" in page.url
+
                 page.reload()
                 pw.expect(summary).to_contain_text("관리 기준 14.3 A", timeout=30000)
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
