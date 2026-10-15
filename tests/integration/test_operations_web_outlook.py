@@ -14,6 +14,7 @@ pytest.importorskip("duckdb")
 
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from tests.integration.test_operations_web_forecast import _serve
 from tests.support.phm import analyze, deliver, phm_workspace
 
@@ -181,8 +182,23 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
                 source_id="unrelated",
                 measurement_point_id=None,
                 kind="acquisition",
+                feature="feature.Horizontal_vibration_signals.rms",
             )
             is None
         )
+        # Even models on the same source are unrelated if the selected feature
+        # is not one of their declared model inputs.
+        for binding in SqlitePhmAnalysisStore(workspace.phm_analysis_path).list_bindings():
+            path = workspace.models_path / binding.package_id / "package.json"
+            document = json.loads(path.read_text())
+            document["input"]["feature_names"] = ["feature.unrelated.rms"]
+            path.write_text(json.dumps(document))
+        status, unmatched = get(
+            "/api/v1/outlook",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series="feature.Horizontal_vibration_signals.rms",
+        )
+        assert status == 200 and unmatched["anomaly_model"] is None
     finally:
         stop()
