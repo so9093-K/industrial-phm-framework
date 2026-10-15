@@ -50,7 +50,7 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
         "model": "진동 변화 탐지",
         "change": "증가",
         "input_acquisitions": 1,
-        "reference": "참고 기준 초과",
+        "reference": "모델 기준 초과",
     }
     rows = {item["id"]: item for item in payload["candidates"]}
     assert rows[RMS] == {"id": RMS, "label": "수평 진동 RMS", "change": "증가", "size": "뚜렷함"}
@@ -99,9 +99,9 @@ def test_references_keep_their_stored_direction_and_unknown_ones_are_dropped(
         ("이상 점수가 증가했고 수평 진동이 가장 크게 변했습니다.", ["가장 크"]),
         ("이상 점수가 감소했습니다.", ["저장된 방향"]),
         ("수평 진동 RMS가 증가했습니다.", ["먼저 말하세요"]),
-        ("이상 점수가 증가했지만 참고 기준 이하입니다.", ["기준 비교는"]),
-        ("이상 점수가 증가해 참고 기준보다 높아졌습니다.", ["기준 비교는"]),
-        ("이상 점수가 증가해 참고 기준 초과입니다.", []),
+        ("이상 점수가 증가했지만 모델 기준 이하입니다.", ["기준 비교는"]),
+        ("이상 점수가 증가해 모델 기준보다 높아졌습니다.", ["기준 비교는"]),
+        ("이상 점수가 증가해 모델 기준 초과입니다.", []),
         ("#4를 기준으로 보면 이상 점수가 증가했습니다.", []),
         ("이상 점수가 증가했고 설비는 정상 상태입니다.", ["판정"]),
         ("이상 점수가 증가했고 수평 진동 RMS가 점수에 크게 반영됐습니다.", ["반영 정도"]),

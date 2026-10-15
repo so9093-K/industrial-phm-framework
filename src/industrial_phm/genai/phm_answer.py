@@ -139,7 +139,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
         "input_acquisitions": input_range(output, position)["count"],
     }
     if task == "anomaly-score":
-        primary["reference"] = "참고 기준 " + (
+        primary["reference"] = "모델 기준 " + (
             "초과" if output.get("exceeds_threshold") else "이하"
         )
     candidates = [
@@ -346,7 +346,7 @@ _TASK = {
         "primary는 이상 점수입니다. 학습 기준과 얼마나 다른지를 나타내며 고장 확률이 아닙니다. "
         "primary.name이 재구성 오차이면 재구성 오차가 곧 이 모델의 점수이므로 "
         "'재구성 오차가 높아져 점수가 올랐다'처럼 같은 값을 원인처럼 반복하지 마세요. "
-        "기준 비교는 '참고 기준 초과' 또는 '참고 기준 이하'로만 쓰세요."
+        "기준 비교는 '모델 기준 초과' 또는 '모델 기준 이하'로만 쓰세요."
     ),
 }
 

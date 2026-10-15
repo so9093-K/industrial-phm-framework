@@ -28,6 +28,12 @@ on:
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
       - "tests/acceptance/test_operations_forecast_browser.py"
+      - "tests/acceptance/test_operations_phm_browser.py"
+      - "tests/acceptance/test_operations_phm_connect_browser.py"
+      - "tests/acceptance/test_operations_phm_monitor_browser.py"
+      - "tests/acceptance/test_operations_electrical_phm_browser.py"
+      - "tests/acceptance/test_operations_signal_explore_browser.py"
+      - "tests/acceptance/test_operations_stored_monitor_browser.py"
   push:
     branches: [main]
     paths:
@@ -56,6 +62,12 @@ on:
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
       - "tests/acceptance/test_operations_forecast_browser.py"
+      - "tests/acceptance/test_operations_phm_browser.py"
+      - "tests/acceptance/test_operations_phm_connect_browser.py"
+      - "tests/acceptance/test_operations_phm_monitor_browser.py"
+      - "tests/acceptance/test_operations_electrical_phm_browser.py"
+      - "tests/acceptance/test_operations_signal_explore_browser.py"
+      - "tests/acceptance/test_operations_stored_monitor_browser.py"
 
 permissions:
   contents: read
@@ -97,4 +109,9 @@ jobs:
       - name: Forecast Web browser acceptance
         run: >-
           uv run --no-sync pytest tests/acceptance/test_operations_forecast_browser.py
-          tests/acceptance/test_operations_outlook_browser.py
+          tests/acceptance/test_operations_outlook_browser.py tests/acceptance/test_operations_phm_browser.py
+          tests/acceptance/test_operations_phm_connect_browser.py
+          tests/acceptance/test_operations_phm_monitor_browser.py
+          tests/acceptance/test_operations_electrical_phm_browser.py
+          tests/acceptance/test_operations_signal_explore_browser.py
+          tests/acceptance/test_operations_stored_monitor_browser.py

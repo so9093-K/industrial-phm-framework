@@ -66,15 +66,18 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(lead).to_contain_text("최근 획득당 +0.067씩")
                 figures = outlook.locator(".outlook-figures")
                 pw.expect(figures).to_contain_text("관리 상한 2.4까지")
-                pw.expect(figures).to_contain_text("잔여수명 · 종료 기준 3까지")
-                pw.expect(outlook.locator(".outlook-details")).to_contain_text("이상 탐지 모델")
-                pw.expect(outlook.locator(".outlook-details")).to_contain_text("처음 초과 #62")
-                pw.expect(outlook.locator(".outlook-scenarios tbody tr")).to_have_count(4)
+                pw.expect(figures).to_contain_text("잔여수명 · 종료 기준 3")
+                pw.expect(figures).to_contain_text("모델 기준 초과")
+                details = page.locator("#outlook-evidence .outlook-details")
+                pw.expect(details).to_contain_text("이상 탐지 모델")
+                pw.expect(details).to_contain_text("처음 초과 #62")
+                rows = page.locator("#outlook-more .outlook-scenarios tbody tr")
+                pw.expect(rows).to_have_count(4)
                 pw.expect(page.locator("#forecast-chart-section .forecast-chart")).to_be_visible(
                     timeout=30000
                 )
 
-                briefing = outlook.locator("#outlook-briefing")
+                briefing = page.locator("#outlook-briefing")
                 ask = briefing.get_by_role("button", name="기준까지 얼마나 남았어?")
                 pw.expect(ask).to_be_enabled(timeout=10000)
                 ask.click()

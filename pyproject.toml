@@ -47,7 +47,7 @@ forecast = [
   "prophet>=1.5,<2",
 ]
 operations = [
-  "industrial-phm-framework[history,opcua,forecast]",
+  "industrial-phm-framework[history,opcua,forecast,deep-learning]",
 ]
 aihub = [
     "ijson>=3.4,<4",

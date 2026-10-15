@@ -322,7 +322,7 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             "높을수록 더 다릅니다."
         )
         facts.append(
-            f"참고 기준 {_n(output.get('threshold'))} "
+            f"모델 기준 {_n(output.get('threshold'))} "
             f"{'초과' if output.get('exceeds_threshold') else '이하'}입니다. "
             "정상·고장 판정이 아닙니다."
         )
