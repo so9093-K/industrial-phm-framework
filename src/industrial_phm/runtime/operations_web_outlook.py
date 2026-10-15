@@ -315,10 +315,7 @@ def anomaly_evidence(
         and binding.step_kind.value
         == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
-        and (
-            kind != "acquisition"
-            or _package_uses_feature(workspace, binding.package_id, feature)
-        )
+        and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
     ]
     if not bindings:
         return None
@@ -377,13 +374,11 @@ def anomaly_evidence(
     }
 
 
-def _package_uses_feature(
-    workspace: OperationsWorkspace, package_id: str, feature: str
-) -> bool:
+def _package_uses_feature(workspace: OperationsWorkspace, package_id: str, feature: str) -> bool:
     """Only show model scores tied to the selected feature in the declared package input."""
     try:
         manifest = json.loads((workspace.models_path / package_id / "package.json").read_text())
         names = manifest["input"]["feature_names"]
-    except (OSError, ValueError, TypeError, KeyError):
+    except OSError, ValueError, TypeError, KeyError:
         return False
     return isinstance(names, list) and feature in names
