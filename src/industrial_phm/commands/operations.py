@@ -225,18 +225,9 @@ def _start_operations_workspace(
             f"workspace={workspace.root} operations_url={plan.ui_url} mode=foreground",
             flush=True,
         )
-        if ui_mode == OperationsUiMode.WEB_PREVIEW:
-            print(
-                "ui=web-preview writes=blocked supervisor_owned=yes "
-                "(read-only diagnostics; writing blocked)",
-                flush=True,
-            )
-        elif ui_mode == OperationsUiMode.WEB_CONTROLLED:
-            print(
-                "ui=web-controlled writes=supervisor-command-broker "
-                "(default local single-user pilot)",
-                flush=True,
-            )
+        print(
+            "ui=web writes=supervisor-command-broker (local single-user operations)", flush=True
+        )
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)

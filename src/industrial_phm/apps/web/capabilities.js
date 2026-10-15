@@ -41,7 +41,7 @@ function fact(item, data) {
     case "input-mismatch": return "모델 입력 조건 불일치" + (facts.details?.length ? " (" + facts.details.join(", ") + ")" : "");
     case "single-signal": return "신호 1개";
     case "single-moment": return "측정 시각 1개";
-    case "read-only": return "감독형 Web에서 사용";
+    case "read-only": return "운영을 시작한 화면에서 사용 (make up)";
     case "needs-results": return "모델 결과 없음";
     default: return "";
   }

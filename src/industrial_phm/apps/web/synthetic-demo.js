@@ -1,4 +1,4 @@
-import { byId, create, getJSON } from "./web-utils.js";
+import { byId, create, getJSON, canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { navigate } from "./navigation.js";
 
 export function initializeSyntheticDemo() {
@@ -45,9 +45,9 @@ export function initializeSyntheticDemo() {
     byId("sample-refresh").disabled = true;
     try {
       const session = await getJSON("/api/v1/session");
-      if (session.write_scope !== "supervisor-owned-source-control") {
+      if (!canChange(session)) {
         sampleSupervisorAvailable = false;
-        setSampleState("unknown", "샘플은 감독형 Web에서만 실행할 수 있습니다. 이 화면은 읽기 전용입니다.");
+        setSampleState("unknown", "예시를 열 수 없습니다. " + OPERATIONS_REQUIRED);
         return;
       }
       sampleSupervisorAvailable = true;

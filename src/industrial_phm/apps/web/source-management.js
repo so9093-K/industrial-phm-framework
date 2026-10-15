@@ -1,6 +1,6 @@
 import { initializeFileRegistration } from "./file-registration.js";
 import { initializeOpcuaRegistration } from "./opcua-registration.js";
-import { byId, create, clear, fmt, rows, empty, getJSON, presentError, checkWorkspaceWriterConflict } from "./web-utils.js";
+import { byId, create, clear, fmt, rows, empty, getJSON, presentError, checkWorkspaceWriterConflict, canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { setAsset } from "./asset-context.js";
 import { navigate } from "./navigation.js";
 import { formatTime } from "./time.js";
@@ -345,7 +345,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
     output.textContent = sourceId + " · 신호 통계 분석 중";
     try {
       const session = await getJSON("/api/v1/session");
-      if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+      if (!canChange(session)) throw new Error("read-only");
       const response = await fetch("/api/v1/analysis/file", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
@@ -378,7 +378,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
         : error.message === "analysis-input-invalid"
         ? "분석 불가 · 시간대가 포함된 시각 컬럼, 서로 다른 값이 있는 두 개 이상 표본과 유한한 수치를 확인하세요."
         : error.message === "read-only"
-        ? "신규 분석은 감독형 Web에서만 실행할 수 있습니다."
+        ? "신규 분석을 실행할 수 없습니다. " + OPERATIONS_REQUIRED
         : presentError(error);
     } finally {
       button.disabled = false;
@@ -393,7 +393,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
     output.textContent = sourceId + " · 저장된 3상 이력 분석 중";
     try {
       const session = await getJSON("/api/v1/session");
-      if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+      if (!canChange(session)) throw new Error("read-only");
       const response = await fetch("/api/v1/analysis/phase-file", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
@@ -430,7 +430,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
         : error.message === "phase-ineligible"
         ? "3상 분석 대상 없음 · 완전한 R/S/T 표본, 같은 시각의 유효 측정값과 신호 임계조건을 확인하세요."
         : error.message === "read-only"
-        ? "3상 분석은 감독형 Web에서만 실행할 수 있습니다."
+        ? "3상 분석을 실행할 수 없습니다. " + OPERATIONS_REQUIRED
         : presentError(error);
     } finally {
       button.disabled = false;
@@ -447,7 +447,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
       const session = await getJSON("/api/v1/session");
       // The supervisor owns long history writes as a background job. A standalone preview keeps
       // the existing synchronous path, which is bounded to small files.
-      const background = session.write_scope === "supervisor-owned-source-control";
+      const background = canChange(session);
       const response = await fetch(background ? "/api/v1/sources/file/backfill/start" : "/api/v1/sources/file/backfill", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
@@ -487,7 +487,7 @@ export function createSourceManagement({getMonitor, sourceHistory, onSourceRead,
     } catch (error) {
       output.className = "error";
       if (error.message === "control-conflict") {
-        output.textContent = "이력을 저장할 수 없습니다. 파일 읽기 확인, 시각 컬럼, CSV 크기(감독형 Web 20MiB·독립 Preview 1MiB 이하), 작업공간 안의 경로와 다른 저장 작업의 진행 여부를 확인하세요.";
+        output.textContent = "이력을 저장할 수 없습니다. 파일 읽기 확인, 시각 컬럼, CSV 크기(20MiB 이하), 작업공간 안의 경로와 다른 저장 작업의 진행 여부를 확인하세요.";
       } else if (error.message === "source-missing") {
         output.textContent = "등록되지 않은 소스입니다.";
       } else if (error.message === "history-interrupted") {

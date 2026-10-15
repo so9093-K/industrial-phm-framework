@@ -1,4 +1,5 @@
 // Optional AI text and human disposition never modify persisted model numbers.
+import { canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { navigate } from "./navigation.js";
 
 const states = new Map();
@@ -378,7 +379,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
       const item = thread.find((item) => asked === null || item.context?.question === asked);state.explanation = item || null;
       if (item && asked === null) {question.value = item.context.question;state.askedQuestion = item.context.question;}
       renderAnswer(item);
-      status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호 비교 · AI 질문은 감독형 Web에서 사용할 수 있습니다."
+      status.textContent = !item ? writable ? "측정 신호를 비교하거나 궁금한 점을 질문하세요." : "측정 신호를 비교할 수 있습니다. AI 질문은 make up으로 운영을 시작한 화면에서 할 수 있습니다."
         : item.status === "pending" ? "선택한 두 시점의 신호와 모델 결과를 비교하고 있습니다."
         : item.status === "failed" ? "AI 설명을 사용할 수 없습니다. 분석 조회와 직접 검토는 계속할 수 있습니다."
         : item.answer?.checks?.model_unavailable ? "AI 응답 없음 · 저장된 비교로 답했습니다 · 선택 시점 " + stepName
@@ -419,10 +420,10 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   save.addEventListener("click", () => action("note"));
   session().then((auth) => {
     if (!current()) return;
-    writable = auth.write_scope === "supervisor-owned-source-control";state.writable = writable;
+    writable = canChange(auth);state.writable = writable;
     updateAssistantAction(view, state);questionLabel.hidden = !writable;question.disabled = !writable;
     assistantHeading.textContent = writable ? "이 변화에 대해 질문하기" : "측정값 비교";
-    if (!writable) reviewStatus.after(Object.assign(element("p", "검토 기록은 감독형 Web에서만 바꿀 수 있습니다."), {className: "muted"}));
+    if (!writable) reviewStatus.after(Object.assign(element("p", "검토 기록은 make up으로 운영을 시작한 화면에서 바꿀 수 있습니다."), {className: "muted"}));
     refreshExplanation();refreshReview().catch(() => {reviewStatus.textContent = "검토 상태를 조회하지 못했습니다.";});
   }).catch(() => {
     if (!current()) return;

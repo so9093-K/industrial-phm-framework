@@ -31,7 +31,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     server = create_operations_web_read_server(
         args.workspace, port=args.port, command_client=client
     )
-    print(f"Operations Web preview: http://127.0.0.1:{server.server_port}/web/", flush=True)
+    mode = "operations" if client else "view-only (operations not running)"
+    print(f"Operations Web ({mode}): http://127.0.0.1:{server.server_port}/web/", flush=True)
     try:
         server.serve_forever(poll_interval=0.3)
     except KeyboardInterrupt:

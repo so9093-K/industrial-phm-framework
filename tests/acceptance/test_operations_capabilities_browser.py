@@ -78,6 +78,8 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 page.goto(base + "?monitor_asset=motor-01#monitor")
                 listing = page.locator("#asset-capabilities")
                 pw.expect(listing.locator("h3")).to_have_text("분석 바로가기")
+                # Operations runs behind this page: no view-only notice.
+                pw.expect(page.locator(".view-only-context")).to_have_count(0)
                 pw.expect(listing.locator(".capability")).to_have_count(4)
                 pw.expect(listing.locator('[data-capability="anomaly"]')).to_contain_text(
                     "모델 없이 기준 구간에서 벗어난 값 찾기"

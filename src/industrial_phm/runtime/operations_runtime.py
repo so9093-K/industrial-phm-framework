@@ -24,9 +24,8 @@ class OperationsComponentKind(StrEnum):
 
 
 class OperationsUiMode(StrEnum):
-    """Explicit local UI mode; controlled Web commands are supervisor-owned."""
+    """The one product Web; its commands are owned by the supervisor's broker."""
 
-    WEB_PREVIEW = "web-preview"
     WEB_CONTROLLED = "web-controlled"
 
 
@@ -143,8 +142,7 @@ def build_operations_runtime_plan(
             )
         )
 
-    # The product UI is Web-only. The preview stays read-only under a writer lease.
-    # Supervised actions are exclusively delegated to the supervisor command broker.
+    # One product Web. Its changes are exclusively delegated to the supervisor command broker.
     ui_argv = (
         sys.executable,
         "-m",
@@ -152,7 +150,8 @@ def build_operations_runtime_plan(
         str(workspace.root),
         "--port",
         str(config.ui.port),
-    ) + (("--supervised-actions",) if ui_mode == OperationsUiMode.WEB_CONTROLLED else ())
+        "--supervised-actions",
+    )
 
     return OperationsRuntimePlan(
         workspace=workspace,

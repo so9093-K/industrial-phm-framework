@@ -1,4 +1,4 @@
-import { byId, create, clear, fmt, num, rows, empty, getJSON, presentError, checkWorkspaceWriterConflict, record } from "./web-utils.js";
+import { byId, create, clear, fmt, num, rows, empty, getJSON, presentError, checkWorkspaceWriterConflict, record, canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { currentAsset, setAsset } from "./asset-context.js";
 import { navigate } from "./navigation.js";
 import { formatTime } from "./time.js";
@@ -10,7 +10,7 @@ export function createAnalysisRecords({getMonitor, refresh, setNotice}) {
     button.disabled = true;
     try {
       const session = await getJSON("/api/v1/session");
-      if (session.write_scope !== "supervisor-owned-source-control") throw new Error("read-only");
+      if (!canChange(session)) throw new Error("read-only");
       const response = await fetch(route, {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
@@ -56,7 +56,7 @@ export function createAnalysisRecords({getMonitor, refresh, setNotice}) {
         : error.message === "review-not-found"
         ? "선택한 분석이나 확인 기록을 찾지 못했습니다. 화면을 새로 불러오세요."
         : error.message === "read-only"
-        ? "이 화면에서는 확인 기록을 바꿀 수 없습니다. 감독형 Web에서 다시 시도하세요."
+        ? "확인 기록을 바꿀 수 없습니다. " + OPERATIONS_REQUIRED
         : presentError(error);
       setNotice(explanation, true);
     } finally {
@@ -219,7 +219,7 @@ export function createAnalysisRecords({getMonitor, refresh, setNotice}) {
   async function initializeReviewAccess() {
     try {
       const session = await getJSON("/api/v1/session");
-      reviewWritesAllowed = session.write_scope === "supervisor-owned-source-control";
+      reviewWritesAllowed = canChange(session);
     } catch (_) {
       reviewWritesAllowed = false;
     }

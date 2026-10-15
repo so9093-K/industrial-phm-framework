@@ -1,4 +1,4 @@
-import { byId, create, clear, fmt, getJSON, presentError, checkWorkspaceWriterConflict } from "./web-utils.js";
+import { byId, create, clear, fmt, getJSON, presentError, checkWorkspaceWriterConflict, canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { setAsset } from "./asset-context.js";
 import { formatTime } from "./time.js";
 
@@ -187,7 +187,7 @@ export function initializeFileRegistration({loadSources, refresh}) {
     output.textContent = "현재 CSV와 매핑을 점검합니다. 기록은 저장하지 않습니다.";
     try {
       const session = await getJSON("/api/v1/session");
-      if (session.write_scope !== "supervisor-owned-source-control") throw new Error("preflight-supervisor-required");
+      if (!canChange(session)) throw new Error("preflight-supervisor-required");
       const request = csvRequest(input.payload, input.chosen, input.phaseBindings, true);
       const response = await fetch(request.url, {
         method: "POST", credentials: "same-origin", cache: "no-store",
@@ -207,7 +207,7 @@ export function initializeFileRegistration({loadSources, refresh}) {
       if (revision !== csvPreflightRevision) return;
       output.className = "state error";
       output.textContent = error.message === "preflight-supervisor-required"
-        ? "사전 점검은 감독형 Web에서 실행하세요. 독립 Preview에서는 불가능합니다."
+        ? "사전 점검을 할 수 없습니다. " + OPERATIONS_REQUIRED
         : error.message === "invalid-csv"
         ? "CSV 사전 점검 요청이 잘못됐습니다. 파일 크기·인코딩·선택한 컬럼을 확인하세요."
         : presentError(error);
@@ -235,7 +235,7 @@ export function initializeFileRegistration({loadSources, refresh}) {
     try {
       const session = await getJSON("/api/v1/session");
       const upload = Boolean(chosen);
-      if (upload && session.write_scope !== "supervisor-owned-source-control") {
+      if (upload && !canChange(session)) {
         throw new Error("upload-supervisor-required");
       }
       const request = csvRequest(payload, chosen, phaseBindings, false);
@@ -274,7 +274,7 @@ export function initializeFileRegistration({loadSources, refresh}) {
       } else if (error.message === "invalid-csv") {
         feedback.textContent = "등록 실패: CSV 경로·헤더·신호 컬럼과 작업공간 내부 경로 여부를 확인하세요.";
       } else if (error.message === "upload-supervisor-required") {
-        feedback.textContent = "PC 파일 업로드는 감독형 기본 Web에서만 가능합니다. 독립 Preview에서는 변경할 수 없습니다.";
+        feedback.textContent = "PC 파일을 올릴 수 없습니다. " + OPERATIONS_REQUIRED;
       } else {
         feedback.textContent = presentError(error);
       }

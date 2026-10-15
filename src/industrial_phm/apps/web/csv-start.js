@@ -1,3 +1,4 @@
+import { canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import {navigate} from "./navigation.js";
 import {drawStoredTrend} from "./monitor-signal.js";
 import {openMonitorAsset} from "./monitor.js";
@@ -318,7 +319,7 @@ async function base64(blob) {
 
 async function post(path, payload) {
   const session = await (await fetch("/api/v1/session", {cache: "no-store", credentials: "same-origin"})).json();
-  if (session.write_scope !== "supervisor-owned-source-control") throw Object.assign(new Error("read-only"), {code: "read-only"});
+  if (!canChange(session)) throw Object.assign(new Error("read-only"), {code: "read-only"});
   let response;
   try {
     response = await fetch(path, {method: "POST", credentials: "same-origin", cache: "no-store",
@@ -332,7 +333,7 @@ async function post(path, payload) {
 
 function explain(error) {
   return ({
-    "read-only": "감독형 Web에서만 파일을 저장할 수 있습니다. 이 화면은 읽기 전용입니다.",
+    "read-only": "파일을 저장할 수 없습니다. " + OPERATIONS_REQUIRED,
     workspace_writer_busy: "다른 작업이 작업공간을 쓰는 중입니다. 잠시 후 다시 시도하세요.",
     source_id_exists: "이미 등록된 소스 ID입니다. '소스 ID·이름'에서 다른 ID를 사용하세요.",
     invalid_source_action: "서버가 입력을 거부했습니다. 설비 ID·컬럼·파일 형식을 확인하세요.",
