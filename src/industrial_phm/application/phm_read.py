@@ -101,6 +101,22 @@ def project_phm_monitor(
                 "previous_analyzed": None if previous is None else _model_brief(previous),
             }
         )
+    # Delivered waveforms that no running model reads still belong to an asset worth listing.
+    read = {
+        (b.source_id, b.asset_id) for b in bindings if b.step_kind is StepKind.ACQUISITION_SNAPSHOT
+    }
+    unbound = [
+        {
+            "asset_id": latest.asset_id,
+            "source_id": latest.source_id,
+            "last_ordinal": latest.ordinal,
+            "delivered_at": latest.delivered_at.isoformat(),
+            "recorded_replay": latest.replay,
+            "channels": list(latest.channels),
+        }
+        for latest in snapshots.list_streams()
+        if (latest.source_id, latest.asset_id) not in read
+    ][:_MONITOR_BINDING_LIMIT]
     return {
         "schema_version": PHM_READ_SCHEMA_VERSION,
         "assessed_at": datetime.now(UTC).isoformat(),
@@ -108,6 +124,7 @@ def project_phm_monitor(
         "total": len(bindings),
         "limit": _MONITOR_BINDING_LIMIT,
         "truncated": len(bindings) > _MONITOR_BINDING_LIMIT,
+        "unbound_streams": unbound,
     }
 
 

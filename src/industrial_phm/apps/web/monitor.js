@@ -91,6 +91,9 @@ function render(data, base) {
   const grouped = new Map();
   for (const i of data.items) {if (!grouped.has(i.asset_id)) grouped.set(i.asset_id, []);grouped.get(i.asset_id).push(i);}
   for (const a of base.monitor?.assets?.items || []) if (!grouped.has(a.asset_id)) grouped.set(a.asset_id, []);
+  // Delivered waveforms that no model reads yet: the asset is listed and offered a model connection.
+  const unread = new Map((data.unbound_streams || []).map((stream) => [stream.asset_id, stream]));
+  for (const id of unread.keys()) if (!grouped.has(id)) grouped.set(id, []);
   const facts = [...grouped].map(([id, items]) => assetFacts(id, items, base)).sort((a, b) => a.priority - b.priority || a.assetId.localeCompare(b.assetId));
   registerAssets("fleet", facts.map((f) => f.assetId));
   if (selectedAsset !== currentAsset() && grouped.has(currentAsset())) selectAsset(currentAsset());
@@ -167,7 +170,8 @@ function render(data, base) {
   root.replaceChildren();
   for (const f of facts) {
     const button = node("button", "", "monitor-asset");button.type = "button";button.dataset.assetId = f.assetId;button.setAttribute("aria-pressed", f.assetId === selectedAsset);
-    const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) ? "기록 재생" : "저장·수신"));
+    const waveforms = unread.get(f.assetId);
+    const heading = node("span", "", "monitor-asset-heading");heading.append(node("strong", assetName(f.assetId)), node("small", f.items.some(replay) || waveforms?.recorded_replay ? "기록 재생" : "저장·수신"));
     const row = assetRow(base, f.assetId);
     const analysisNotes = f.notes.filter((n) => !["receipt", "read"].includes(n.kind));
     const message = analysisNotes[0]?.label || (f.warmup ? "입력 준비 중" : f.waiting ? "확정 입력 대기" : f.compared.length
@@ -176,12 +180,13 @@ function render(data, base) {
     const assetSources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === f.assetId);
     const fileOnly = assetSources.length && assetSources.every((s) => s.source_type === "file");
     // Live freshness applies only to continuous collection; files and replays are stored records.
-    const collection = fileOnly ? "파일 데이터" : !row ? (f.items.some(replay) ? "기록 재생" : "분석 입력")
+    const collection = fileOnly ? "파일 데이터" : !row ? (f.items.some(replay) || waveforms?.recorded_replay ? "기록 재생" : waveforms ? "진동 파형" : "분석 입력")
       : flowLabels[row.data_flow_status] || "수신 상태 미확인";
     button.append(heading, node("span", "수집 · " + collection, "monitor-asset-status"));
-    button.append(node("span", "분석 · " + (f.items.length ? message : data.unavailable ? "조회 실패" : "연결된 모델 없음"), analysisNotes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
+    button.append(node("span", "분석 · " + (f.items.length ? message : data.unavailable ? "조회 실패" : waveforms ? "모델 연결 전" : "연결된 모델 없음"), analysisNotes.length ? "monitor-asset-status attention" : "monitor-asset-status"));
     const representative = f.items.find((i) => i.latest_delivered) || f.items[0];
-    button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered) : dataTime(row)));
+    button.append(node("small", representative ? (representative.step_kind === "observation-window" ? "마지막 측정 " : "입력 ") + inputName(representative, representative.latest_delivered)
+      : waveforms && !row ? "진동 파형 #" + waveforms.last_ordinal + "까지 저장" : dataTime(row)));
     button.append(node("small", "", "monitor-asset-observation"));
     button.addEventListener("click", () => {selectAsset(f.assetId);navigate("#monitor", byId("monitor-signal-title"));});root.append(button);
   }
@@ -215,6 +220,18 @@ function render(data, base) {
   byId("monitor-analysis-context").textContent = assetName(selectedAsset) + " · 연결된 분석 " + selected.items.length + "개";
   if (byId("monitor-analysis-details").open) renderDetails(selected);
   else {byId("monitor-analysis-models").replaceChildren();detailsKey = "";}
+  const waveforms = unread.get(selectedAsset);
+  if (!item && waveforms && !row) {
+    // No model reads these waveforms yet and no measurement history exists: say what is stored.
+    leaveStored();clearSignal();
+    byId("monitor-signal-mode").textContent = waveforms.recorded_replay ? "기록 재생" : "저장 입력";
+    byId("monitor-signal-context").textContent = "진동 파형 #" + waveforms.last_ordinal + "까지 저장 · 채널 " + waveforms.channels.length + "개";
+    byId("monitor-signal-state").textContent = "저장된 진동 파형을 읽는 이상 탐지 모델이 아직 없습니다. 모델을 연결하면 획득별 원본 파형·특징·이상 점수를 볼 수 있습니다.";
+    const connect = node("button", "이상 탐지 모델 연결", "secondary");connect.type = "button";
+    connect.addEventListener("click", () => navigate("#anomaly", byId("anomaly-title")));
+    byId("monitor-detection-results").replaceChildren(connect);
+    return;
+  }
   if (!item) {
     leavePhmSignal();
     if (selected.items.length) renderDetection(selected.items);
@@ -436,7 +453,8 @@ export async function refreshMonitor({force = false} = {}) {
     if (!phm && !base.monitor) throw new Error("read_failed");
     const data = phm || {schema_version: 1, assessed_at: base.monitor.assessed_at, items: [], total: 0, unavailable: true};
     if (active()) render(data, base);
-    if (phm) document.dispatchEvent(new CustomEvent("phm-monitor-count", {detail: phm.total}));
+    // Unread waveforms count as stored data: the workspace is not empty.
+    if (phm) document.dispatchEvent(new CustomEvent("phm-monitor-count", {detail: phm.total + (phm.unbound_streams?.length || 0)}));
     if (!phm && active()) {
       byId("phm-monitor-state").className = "state error";
       byId("phm-monitor-state").textContent = "PHM 조회 실패 · 분석 결과를 표시하지 않습니다. 저장된 측정 신호는 계속 확인할 수 있으며 자동 재조회합니다.";
