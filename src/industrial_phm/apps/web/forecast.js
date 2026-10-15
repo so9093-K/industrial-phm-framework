@@ -39,7 +39,7 @@ const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : 
   : seconds >= 60 ? num(Math.round(seconds / 60)) + "분" : num(Math.round(seconds)) + "초";
 
 export function initializeForecast() {
-  onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
+  onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_direction: "", forecast_context_from: "", forecast_context_to: "", forecast_context_kind: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
   window.addEventListener("hashchange", () => {
     if (document.body.dataset.view !== "forecast") return;
     const wanted = params().get("forecast_series");
@@ -103,12 +103,14 @@ function renderControls() {
     const kind = series.value.split("|")[0];
     const reasons = options[kind].horizons;
     let current = params().get("forecast_horizon");
-    if (!current || reasons[current]) current = HORIZONS.map(([key]) => key).find((key) => !reasons[key]) || "1h";
+    const scenario = !!byId("forecast-assumed-period")?.value || !!byId("forecast-training")?.value;
+    if (!current || (!scenario && reasons[current]))
+      current = HORIZONS.map(([key]) => key).find((key) => !reasons[key]) || "1h";
     remember({forecast_horizon: current});
     for (const [key, label] of HORIZONS) {
       const button = create("button", "forecast-horizon", label);button.type = "button";
       button.setAttribute("aria-pressed", String(key === current));
-      if (reasons[key]) {button.disabled = true;button.title = REASON[reasons[key]] || "";}
+      if (!scenario && reasons[key]) {button.disabled = true;button.title = REASON[reasons[key]] || "";}
       button.addEventListener("click", () => {remember({forecast_horizon: key});drawHorizons();void run();});
       horizons.append(button);
     }
@@ -116,10 +118,21 @@ function renderControls() {
   series.addEventListener("change", () => {
     remember({forecast_series: series.value, forecast_backtest: ""});
     const kind = series.value.split("|")[0];
-    unitSelect.value = kind === "acquisition" && !options.acquisition?.period_seconds ? "count" : (params().get("forecast_unit") || "time");
+    unitSelect.value = kind === "acquisition" && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason)
+      ? "count" : (params().get("forecast_unit") || "time");
     drawHorizons();refreshUnit();void run();
   });
-  const applyThreshold = () => {remember({forecast_threshold: thresholdInput.value.trim()});void run();};
+  const directionField = create("label", null, "관리 기준 방향");
+  const directionSelect = create("select");directionSelect.id = "forecast-direction";
+  for (const [key, label] of [["upper", "상한 (이상)"], ["lower", "하한 (이하)"]])
+    directionSelect.append(Object.assign(create("option", null, label), {value: key}));
+  directionSelect.value = params().get("forecast_direction") === "lower" ? "lower" : "upper";
+  directionField.append(directionSelect);
+  const applyThreshold = () => {
+    remember({forecast_threshold: thresholdInput.value.trim(), forecast_direction: directionSelect.value});
+    void run();
+  };
+  directionSelect.addEventListener("change", applyThreshold);
   apply.addEventListener("click", applyThreshold);
   thresholdInput.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
 
@@ -130,7 +143,9 @@ function renderControls() {
   const unitField = create("label", null, "예측 단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
   for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
-  unitSelect.value = params().get("forecast_unit") === "count" || (series.value.startsWith("acquisition|") && !options.acquisition?.period_seconds) ? "count" : "time";
+  unitSelect.value = params().get("forecast_unit") === "count"
+    || (series.value.startsWith("acquisition|") && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason))
+    ? "count" : "time";
   unitField.append(unitSelect);
   const countApply = create("button", "secondary", "획득 수 적용");countApply.type = "button";
   const countChanged = () => {remember({forecast_count: countInput.value, forecast_backtest: ""});void run();};
@@ -141,7 +156,10 @@ function renderControls() {
   assumedInput.placeholder = "원본 간격";assumedInput.id = "forecast-assumed-period";
   assumedInput.value = params().get("forecast_assumed_period") || "";assumption.append(assumedInput);
   const assumptionApply = create("button", "secondary", "간격 적용");assumptionApply.type = "button";
-  assumptionApply.addEventListener("click", () => {remember({forecast_assumed_period: assumedInput.value});void run();});
+  assumptionApply.addEventListener("click", () => {
+    remember({forecast_assumed_period: assumedInput.value, forecast_backtest: ""});
+    drawHorizons();void run();
+  });
   const details = create("details", "forecast-details");details.id = "forecast-details";
   details.append(create("summary", null, "예측 설정 및 상세 분석"));
   const advanced = create("div", "forecast-advanced");
@@ -160,7 +178,7 @@ function renderControls() {
   const settingsApply = create("button", "secondary", "설정 적용");settingsApply.type = "button";
   settingsApply.addEventListener("click", () => {
     remember({forecast_prior: prior.value, forecast_range: changeRange.value, forecast_training: training.value, forecast_seasonality: seasonality.value, forecast_backtest: ""});
-    void run();
+    drawHorizons();void run();
   });
   advanced.append(settingsApply);details.append(advanced);
   const validation = create("button", "secondary", "여러 과거 시점 비교");validation.type = "button";
@@ -174,7 +192,8 @@ function renderControls() {
     assumption.hidden = !acquisition;assumptionApply.hidden = !acquisition;
   };
   unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value, forecast_backtest: ""});refreshUnit();void run();});
-  root.append(seriesField, unitField, horizonField, countField, countApply, thresholdField, apply, details);
+  root.append(seriesField, unitField, horizonField, countField, countApply,
+    thresholdField, directionField, apply, details);
   advanced.prepend(assumption, assumptionApply);
   drawHorizons();refreshUnit();
 
@@ -198,6 +217,7 @@ async function run() {
   const query = new URLSearchParams({asset_id: asset, kind, series, horizon});
   const threshold = params().get("forecast_threshold");
   if (threshold && Number.isFinite(Number(threshold))) query.set("threshold", threshold);
+  query.set("threshold_direction", byId("forecast-direction")?.value || "upper");
   const setNumber = (id, field, min, max, integer = false) => {
     const text = byId(id)?.value?.trim();
     if (!text) return true;
@@ -246,16 +266,20 @@ function summary(data) {
     + " (" + Math.round(data.model.interval_width * 100) + "% 범위 " + value(trend.end_lower) + "–" + value(trend.end_upper) + ")");
   if (data.threshold) {
     const t = data.threshold, when = (x) => axisText(data, x);
-    row("관리 기준 " + value(t.value) + unit,
+    row("관리 " + (t.limit_kind === "lower" ? "하한 " : "상한 ") + value(t.value) + unit,
       t.state === "already" ? "마지막 측정값이 이미 기준을 " + (t.direction === "up" ? "넘었습니다." : "밑돌았습니다.")
-      : t.state === "expected" ? "예상 도달 " + when(t.expected_at) + (t.earliest_at && t.earliest_at !== t.expected_at ? " · 빠르면 " + when(t.earliest_at) : "")
+      : t.state === "expected" ? (t.expected_at === data.forecast[0][0]
+        ? "예측 시작부터 기준 도달 예상" : "예상 도달 " + when(t.expected_at))
+        + (t.earliest_at && t.earliest_at !== t.expected_at ? " · 빠르면 " + when(t.earliest_at) : "")
       : t.state === "possible" ? (t.earliest_at === data.forecast[0][0]
         ? "예측선은 도달하지 않지만 예측 범위가 처음부터 기준에 닿습니다."
         : "예측선은 도달하지 않지만 예측 범위가 " + when(t.earliest_at) + "부터 기준에 닿습니다.")
       : "예측 기간 안에 도달하지 않습니다.");
   }
-  row("예측선의 방향", words[trend.slope_direction || trend.direction]
-    + " · 예측 시작~종료 변화 " + value(trend.change) + unit);
+  row("예측선 변화", words[trend.change > 0 ? "up" : trend.change < 0 ? "down" : "flat"]
+    + " · 예측 시작~종료 " + value(trend.change) + unit);
+  row("추세 성분", words[trend.slope_direction || trend.direction]
+    + " · 변화 " + value(trend.trend_component_change ?? trend.change) + unit);
   if (data.backtest) row("과거 자료 확인", "최근 " + num(data.backtest.points) + "개 관측값으로 예측 흐름을 확인했습니다. 세부 비교는 상세 보기에서 확인할 수 있습니다.");
   else row("과거 자료 확인", "가려서 확인할 만큼 기록이 길지 않습니다.");
   return list;
@@ -268,7 +292,9 @@ function chart(data) {
   const xs = [...data.history.map((p) => p[0]), ...data.forecast.map((p) => p[0])];
   const toNumber = (x) => data.axis === "acquisition" ? x : Date.parse(x);
   const x0 = toNumber(xs[0]), x1 = toNumber(xs.at(-1));
-  const ys = [...data.history.map((p) => p[1]), ...data.forecast.flatMap((p) => [p[2], p[3]]), ...(showWholeScale && data.threshold ? [data.threshold.value] : [])];
+  const ys = [...data.history.map(p => p[1]), ...data.forecast.flatMap(p => [p[2], p[3]]),
+    ...(previous ? previous.forecast.map(p => p[1]) : []),
+    ...(showWholeScale && data.threshold ? [data.threshold.value] : [])];
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (y1 <= y0) {y0 -= 1;y1 += 1;}
   const pad = (y1 - y0) * 0.05;y0 -= pad;y1 += pad;
@@ -358,11 +384,13 @@ function conditionOutlook(data) {
   add("미래 상태", "선택 기간의 예측값 " + value(data.trend.end)
     + " · 예측선 변화 " + value(data.trend.change));
   if (data.threshold) {
-    const difference = Math.abs(data.threshold.value - current);
-    add("관리 기준까지 현재 거리", value(difference) + (data.unit ? " " + data.unit : ""));
+    const isUpper = data.threshold.limit_kind !== "lower";
+    const difference = (isUpper ? data.threshold.value - current : current - data.threshold.value);
+    add("관리 " + (isUpper ? "상한" : "하한") + "과 현재 거리",
+      (difference < 0 ? "이미 기준을 " + value(-difference) + " 초과" : "기준까지 " + value(difference) + " 남음")
+      + (data.unit ? " " + data.unit : ""));
     const threshold = data.threshold;
-    const horizonUnit = data.axis === "acquisition" ? "획득 #" : "";
-    const result = threshold.state === "expected"
+      const result = threshold.state === "expected"
       ? (data.axis === "acquisition" ? "예상 도달까지 약 " + num(Math.max(0, Math.round(threshold.expected_at - history.at(-1)[0]))) + "개 획득"
         : "예상 도달까지 " + duration(Math.max(0, (Date.parse(threshold.expected_at) - Date.parse(history.at(-1)[0])) / 1000)))
       : threshold.state === "already" ? "현재 측정값이 기준에 도달한 상태"
@@ -377,6 +405,15 @@ function conditionOutlook(data) {
       : data.departureSummary || "기준 구간에서 벗어난 변화도 확인합니다.")
     : "진동 특징의 모델 기반 이상 탐지 결과는 이상 탐지 화면에서 확인할 수 있습니다.";
   root.append(departures);
+  const from = params().get("forecast_context_from"), to = params().get("forecast_context_to");
+  const contextKind = params().get("forecast_context_kind");
+  if (from && to && contextKind && (data.axis === "acquisition"
+    ? /^\d+$/.test(from) && /^\d+$/.test(to) : Number.isFinite(Date.parse(from)) && Number.isFinite(Date.parse(to)))) {
+    const shownRange = data.axis === "acquisition" ? "#" + from + " ~ #" + to
+      : formatTime(from, {seconds: false}) + " ~ " + formatTime(to, {seconds: false});
+    root.append(create("p", "muted", (contextKind === "anomaly" ? "이상 탐지 선택 구간" : "EDA 비교 구간 B")
+      + " · " + shownRange + " · 참고 구간이며 예측 학습 범위는 아닙니다."));
+  }
   const links = create("p", "forecast-explore-links");
   const addLink = (label, hash) => {
     const url = new URL(location.href);
@@ -389,7 +426,7 @@ function conditionOutlook(data) {
     const link = create("a", null, label);link.href = url.pathname + url.search + url.hash;links.append(link);
   };
   addLink("같은 신호 탐색", "signals");
-  if (data.kind === "history") addLink("이상 변화 구간 보기", "anomaly");
+  addLink(data.kind === "history" ? "이상 변화 구간 보기" : "모델 이상 탐지 보기", "anomaly");
   root.append(links);
   return root;
 }
