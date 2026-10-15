@@ -175,7 +175,7 @@ function renderControls() {
   };
   unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value});refreshUnit();void run();});
   root.append(seriesField, unitField, horizonField, countField, countApply, thresholdField, apply, details);
-  details.prepend(assumption, assumptionApply);
+  advanced.prepend(assumption, assumptionApply);
   drawHorizons();refreshUnit();
 
 }
@@ -300,7 +300,7 @@ function chart(data) {
   text("마지막 측정", {x: now, y: bottom + 34, "text-anchor": "middle"});
   text(axisText(data, xs.at(-1)), {x: right, y: bottom + 18, "text-anchor": "end"});
   const legend = create("p", "forecast-legend");
-  for (const [cls, label] of [["history", "측정값"], ["fitted", "모델이 읽은 흐름"], ["line", "예측"], ["band", Math.round(data.model.interval_width * 100) + "% 범위"], ...(data.threshold ? [["threshold", "관리 기준"]] : [])]) {
+  for (const [cls, label] of [["history", "측정값"], ["fitted", "모델이 읽은 흐름"], ...(previous ? [["compare", "이전 예측"]] : []), ["line", "예측"], ["band", Math.round(data.model.interval_width * 100) + "% 범위"], ...(data.threshold ? [["threshold", "관리 기준"]] : [])]) {
     const item = create("span", "forecast-key forecast-key-" + cls, label);legend.append(item);
   }
   return [svg, legend];
