@@ -378,6 +378,12 @@ document.addEventListener("phm-monitor-count", (event) => {phmModelCount = event
 document.addEventListener("workspace-changed", () => {void loadSources();void refresh();});
 document.addEventListener("file-analysis-request", (event) => void analyzeFile(event.detail.sourceId, event.detail.button, event.detail.output));
 loadSources();initializeSyntheticDemo();
+// One Web: when operations is not running behind this page, say so once for every screen.
+getJSON("/api/v1/session").then((session) => {
+  if (session.mode !== "view-only") return;
+  const notice = create("p", "notice view-only-context", "운영이 실행 중이 아닌 화면입니다 · 저장된 데이터는 모두 볼 수 있고, 측정 저장·모델 연결·AI 질문은 make up으로 운영을 시작한 화면에서 할 수 있습니다.");
+  document.querySelector(".topbar").after(notice);
+}).catch(() => {});
 initializeMonitor(readMonitorFacts);
 
 byId("condition-disclosure").addEventListener("toggle", () => {if (byId("condition-disclosure").open) void loadCondition(selectedAsset);});

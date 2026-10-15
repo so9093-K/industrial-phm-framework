@@ -1,5 +1,6 @@
 // Connect a model package to the selected asset from its anomaly tab. The server matches
 // packages to the asset's own input streams; the runner then analyzes that stream's stored and new inputs.
+import { canChange, OPERATIONS_REQUIRED } from "./web-utils.js";
 import { currentAsset } from "./asset-context.js";
 const TASK = {anomaly: "anomaly-score"};
 const NOUN = {anomaly: "이상 탐지"};
@@ -35,7 +36,7 @@ async function readModels(asset) {
 
 async function connect(payload) {
   const session = await (await fetch("/api/v1/session", {cache: "no-store", credentials: "same-origin"})).json();
-  if (session.write_scope !== "supervisor-owned-source-control") throw new Error("supervisor_required");
+  if (!canChange(session)) throw new Error("supervisor_required");
   const response = await fetch("/api/v1/phm/bindings/create", {method: "POST", credentials: "same-origin",
     headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token}, body: JSON.stringify(payload)});
   const data = await response.json().catch(() => ({}));
@@ -120,7 +121,7 @@ export async function renderModelConnect(view, asset, hasModel, onConnected) {
         if (currentAsset() === asset && document.body.dataset.view === view) onConnected(result.binding_id);
       } catch (error) {
         status.textContent = error.message === "supervisor_required"
-          ? "읽기 전용 화면입니다. make up으로 실행 중인 작업공간에서 연결할 수 있습니다."
+          ? "모델을 연결할 수 없습니다. " + OPERATIONS_REQUIRED
           : "연결하지 못했습니다: " + error.message;
         button.textContent = "연결";
         for (const other of root.querySelectorAll("button")) other.disabled = false;

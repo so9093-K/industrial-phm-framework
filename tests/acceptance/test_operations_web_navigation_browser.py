@@ -28,6 +28,9 @@ def test_empty_workspace_start_routes_and_read_failures(tmp_path: Path, width: i
                 page.goto(base, wait_until="networkidle")
                 pw.expect(page.locator("#workspace-state")).to_have_text("빈 작업공간")
                 pw.expect(page.locator("#workspace-start")).to_be_visible()
+                # Without operations behind it, the page says so once instead of per feature.
+                pw.expect(page.locator(".view-only-context")).to_have_count(1)
+                pw.expect(page.locator(".view-only-context")).to_contain_text("make up")
                 pw.expect(page.locator("#first-run")).to_be_hidden()
                 pw.expect(page.locator("#connect")).to_be_hidden()
                 for link in page.locator("#workspace-start a").all():

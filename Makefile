@@ -4,7 +4,6 @@ SHELL := /bin/sh
 UV ?= uv
 PYTHON_VERSION ?= 3.14
 WORKSPACE ?= artifacts/operations
-UI ?= web-controlled
 
 .PHONY: help up down status logs demo _require-uv _prepare
 
@@ -20,7 +19,6 @@ help:
 		'' \
 		'Variables:' \
 		'  WORKSPACE=<path>   Local Operations workspace (default: artifacts/operations)' \
-		'  UI=web-controlled   Supervised Web (web-preview for read-only diagnostics)' \
 		'  UV=<command>       uv executable (default: uv)'
 
 _require-uv:
@@ -34,7 +32,7 @@ _prepare: _require-uv
 	$(UV) sync --locked --extra operations
 
 up: _prepare
-	$(UV) run --no-sync industrial-phm operations up "$(WORKSPACE)" --ui "$(UI)"
+	$(UV) run --no-sync industrial-phm operations up "$(WORKSPACE)"
 
 down: _require-uv
 	$(UV) run --locked --extra operations industrial-phm operations stop "$(WORKSPACE)"

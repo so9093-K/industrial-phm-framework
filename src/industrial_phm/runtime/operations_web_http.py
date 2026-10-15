@@ -405,6 +405,14 @@ def create_operations_web_read_server(
                             else "local-source-control-and-opcua-preview"
                         ),
                         "workspace_kind": "synthetic-demo" if synthetic_demo else "operations",
+                        # One Web: what changes are available follows whether operations
+                        # (the supervisor and its command broker) runs behind this server.
+                        "mode": "example"
+                        if synthetic_demo
+                        else "operations"
+                        if command_client is not None
+                        else "view-only",
+                        "can_change": command_client is not None and not synthetic_demo,
                     },
                 )
                 return

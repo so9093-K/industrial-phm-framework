@@ -54,3 +54,7 @@ export function record(target, heading, details) {
   target.append(section);
   return section;
 }
+
+// One Web: changes need operations (the supervisor) running behind this page.
+export const canChange = (session) => session?.can_change ?? session?.write_scope === "supervisor-owned-source-control";
+export const OPERATIONS_REQUIRED = "운영이 실행 중이 아닌 화면입니다. make up으로 운영을 시작한 화면에서 할 수 있습니다.";

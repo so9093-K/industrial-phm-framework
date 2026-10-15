@@ -1172,11 +1172,17 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
                     pytest.fail("independent Web preview did not start")
                 time.sleep(0.1)
             assert preview_session["write_scope"] == "local-source-control-and-opcua-preview"
+            # One Web: the state, not the process, says whether changes are available.
+            assert (preview_session["mode"], preview_session["can_change"]) == ("view-only", False)
             preview_csrf = preview_session["csrf_token"]
             assert isinstance(preview_csrf, str)
             status, supervisor_session = request(supervisor_port, "/api/v1/session")
             assert status == 200
             assert supervisor_session["write_scope"] == "supervisor-owned-source-control"
+            assert (supervisor_session["mode"], supervisor_session["can_change"]) == (
+                "operations",
+                True,
+            )
             supervisor_csrf = supervisor_session["csrf_token"]
             assert isinstance(supervisor_csrf, str) and supervisor_csrf != preview_csrf
 

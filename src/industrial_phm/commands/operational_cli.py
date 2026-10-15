@@ -54,9 +54,9 @@ def _add_operations_commands(
     up.add_argument("workspace", type=Path, help="local Operations workspace root")
     up.add_argument(
         "--ui",
-        choices=("web-controlled", "web-preview"),
+        choices=("web-controlled",),
         default="web-controlled",
-        help="UI: supervised local Web default; preview read-only",
+        help="kept for older scripts; the supervised Web is the only UI",
     )
     up.set_defaults(handler=_run_operations_up)
 
@@ -78,9 +78,9 @@ def _add_operations_commands(
     )
     start.add_argument(
         "--ui",
-        choices=("web-controlled", "web-preview"),
+        choices=("web-controlled",),
         default="web-controlled",
-        help="UI: supervised local Web default; preview read-only",
+        help="kept for older scripts; the supervised Web is the only UI",
     )
     start.set_defaults(handler=_run_operations_start)
 

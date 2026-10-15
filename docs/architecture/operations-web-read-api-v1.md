@@ -98,17 +98,14 @@ This historical initial-slice section is not a current feature-completeness clai
 
 ## Supervised Web preview pilot (read-only, opt-in)
 
-The **default** `make up`, `operations up`, and `operations start` now
-launch the packaged supervised Web Operations UI. For local engineering acceptance only,
-an initialized workspace can opt into the existing Web static client under the
-same collection/analysis/UI supervisor:
+The **default** `make up`, `operations up`, and `operations start` launch the packaged
+supervised Web Operations UI. It is the only UI: the read-only `--ui web-preview` mode was
+removed, and `/api/v1/session` reports one product state instead — `mode` is `operations`
+(changes go through the supervisor's broker), `view-only` (a Web started directly with
+`python -m industrial_phm.runtime.operations_web_preview <workspace>` while operations is not
+running) or `example` (the isolated synthetic workspace), with `can_change` alongside.
 
-```bash
-industrial-phm operations init /var/lib/industrial-phm/plant-a
-industrial-phm operations start /var/lib/industrial-phm/plant-a --ui web-preview
-```
-
-The printed `operations_url` ends with `/web/`. The Web preview becomes the
+The printed `operations_url` ends with `/web/`. The Web becomes the
 supervised UI **process** (loopback, readiness, stop order, log target), but the
 normal supervisor owns the lifetime `supervisor.lock` and all Web POST
 mutations **continue to return 409 `workspace_writer_busy`**. This is a
@@ -144,9 +141,8 @@ child does not independently acquire or bypass the workspace lifetime lease.
 
 A standalone Web preview still runs with its original lease-based POST
 authorization: while another supervisor owns the workspace, GET remains
-available and POST returns `409 workspace_writer_busy`. Explicit supervised
-`--ui web-preview` remains read-only. Default `make up`, `operations
-up`, and unflagged `operations start` launch supervised Web.
+available and POST returns `409 workspace_writer_busy`. `make up`, `operations up` and
+`operations start` launch the supervised Web.
 
 The IPC reply body has a strict size/time bound and never returns raw
 paths, stack traces or credentials. Within one supervisor generation, a
