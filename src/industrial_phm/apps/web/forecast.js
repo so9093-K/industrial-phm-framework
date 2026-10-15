@@ -44,6 +44,7 @@ export function initializeForecast() {
     if (document.body.dataset.view !== "forecast") return;
     const wanted = params().get("forecast_series");
     if (loadedFor !== currentAsset() || (wanted && wanted !== (shown ? shown.kind + "|" + shown.series : byId("forecast-series")?.value))) void load();
+    else if (shown) render(shown);
   });
   window.addEventListener("resize", () => {if (shown && document.body.dataset.view === "forecast") render(shown);});
   if (document.body.dataset.view === "forecast") void load();
