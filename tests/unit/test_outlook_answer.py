@@ -125,7 +125,11 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
     ],
 )
 def test_a_text_that_states_more_than_the_facts_is_named(text: str, reason: str) -> None:
-    issues = outlook_answer.text_issues(text, _outlook()["facts"])
+    from industrial_phm.application.outlook_text import condition_reach
+
+    outlook = _outlook()
+    structured = condition_reach(outlook) if reason in {"기준값", "도달 시간"} else None
+    issues = outlook_answer.text_issues(text, outlook["facts"], structured)
     assert any(reason in issue for issue in issues), issues
 
 
