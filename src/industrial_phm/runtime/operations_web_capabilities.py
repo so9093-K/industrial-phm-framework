@@ -17,10 +17,12 @@ from typing import Any
 from urllib.parse import parse_qs
 
 from industrial_phm.application import JsonSourceRepository, OpcUaSourceConfig
+from industrial_phm.application.forecast import HORIZONS
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.models.package import ModelTask
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import explore_sources, package_task
+from industrial_phm.runtime.operations_web_forecast import forecast_options
 from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -79,12 +81,13 @@ def project_asset_capabilities(
         "waiting_sources": sum(s["input_state"] == "waiting-input" for s in models["streams"]),
     }
     signals = _signal_capabilities(data, acquisition)
+    forecast = _forecast_capability(workspace, asset_id, data, acquisition)
     anomaly = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
     return {
         "schema_version": 1,
         "asset_id": asset_id,
         "data": data,
-        "capabilities": [*signals, anomaly, _question_capability(anomaly, can_ask)],
+        "capabilities": [*signals, forecast, anomaly, _question_capability(anomaly, can_ask)],
         "meaning": "what-the-stored-data-supports-not-asset-health",
     }
 
@@ -174,6 +177,32 @@ def _signal_capabilities(
     else:
         items.append(_item("spectrum", UNAVAILABLE, "no-waveform", None))
     return items
+
+
+def _forecast_capability(
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    data: dict[str, Any],
+    acquisition: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Future values need enough stored length: twice the shortest horizon, 20 points."""
+    if data["history"] is None and data["acquisition"] is None and acquisition is None:
+        reason = "not-received" if data["waiting_sources"] else "no-data"
+        return _item("forecast", UNAVAILABLE, reason, "connect")
+    if data["acquisition"] is not None and acquisition is None and data["history"] is None:
+        return _item("forecast", NEEDS_CONNECTION, "waveforms-need-model", "anomaly")
+    options = forecast_options(workspace, asset_id)
+    allowed = [
+        name
+        for kind in ("history", "acquisition")
+        if options[kind] is not None
+        for name, reason in options[kind]["horizons"].items()
+        if reason is None
+    ]
+    if not allowed:
+        return _item("forecast", UNAVAILABLE, "short-history", None)
+    longest = max(allowed, key=lambda name: HORIZONS[name])
+    return _item("forecast", READY, "stored-flow", "forecast", horizon=longest)
 
 
 def _model_capability(

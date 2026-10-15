@@ -9,7 +9,8 @@ import { formatTime } from "./time.js";
 import { byId, create, getJSON, num } from "./web-utils.js";
 
 const NAME = {measurements: "측정 신호", "period-compare": "구간 비교", relation: "신호 관계", spectrum: "주파수 성분",
-  anomaly: "이상 탐지", "ai-question": "AI 질문"};
+  forecast: "미래 예측", anomaly: "이상 탐지", "ai-question": "AI 질문"};
+const HORIZON = {"1h": "1시간", "24h": "24시간", "7d": "7일", "30d": "30일"};
 
 // The fact each row rests on, in a few words.
 function fact(item, data) {
@@ -25,6 +26,8 @@ function fact(item, data) {
       if (item.id === "relation") return "같은 획득의 두 특징";
       if (item.id === "spectrum") return "원본 파형 · " + num(acquisition.sampling_rate_hz / 1000) + " kHz";
       return "획득 #" + acquisition.first + "–#" + acquisition.last;
+    case "stored-flow": return "저장된 흐름으로 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지";
+    case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
     case "model-results": return "결과 시점을 골라 질문";
     case "compatible-model": return "입력이 맞는 모델 " + num(facts.packages) + "개";
@@ -60,6 +63,7 @@ async function open(asset, item) {
     return;
   }
   if (view === "monitor") {navigate("#monitor", byId("monitor-signal-title"));return;}
+  if (view === "forecast") {navigate("#forecast", byId("forecast-title"));return;}
   navigate("#" + view, byId(view + "-title"));
   if (item.id === "ai-question" && await whenEnabled(byId(view + "-ask"))) openPhmAssistant(view);
 }

@@ -9,6 +9,14 @@
 
 ## [Unreleased]
 
+- 설비 탭에 **미래 예측**을 더합니다. 저장된 측정 이력(CSV·OPC UA)과 진동 획득 특징(획득 간격 기준)의 흐름을
+  Prophet으로 이어 그려 1시간·24시간·7일·30일 뒤까지의 예측과 80% 범위, 모델이 읽은 흐름을 측정값과 함께 보여줍니다.
+  - 예측 기간은 그 2배 이상의 기록이 있을 때만 고를 수 있습니다.
+  - 관리 기준을 넣으면 예상 도달 시점과 빠른 경우를 알려줍니다.
+  - 최근 구간을 가리고 예측한 오차를 마지막 값 유지와 비교해 함께 보여줍니다.
+  - 고장 시각·남은 수명·정비 시점으로 표현하지 않습니다.
+  - 예측은 요청할 때 계산하며 저장하지 않습니다(`GET /api/v1/forecast/options`, `GET /api/v1/forecast`).
+  - 예전 `#rul` 주소는 미래 예측으로 엽니다. `operations` 설치에 `prophet`이 포함됩니다(`forecast` extra).
 - **잔여수명(RUL) 추정을 폐기**합니다([ADR-0026](docs/adr/0026-retire-remaining-life-estimation.md)).
   - 설비 탭의 `RUL`, Ridge·LSTM RUL 모델과 학습·평가·패키징 코드를 삭제했습니다.
   - XJTU RUL 실험 명령(`experiment rul-*`), 분석 보고서의 `--prognostics`, AI 답변과 화면의 RUL 분기도 삭제했습니다.
