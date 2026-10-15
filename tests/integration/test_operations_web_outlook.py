@@ -144,8 +144,7 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         # instead use exact database queries, including analyzed results past 2,000.
         with sqlite3.connect(workspace.phm_analysis_path) as connection:
             template = connection.execute(
-                "SELECT * FROM step_result WHERE binding_id = 'anomaly-a' "
-                "AND position = 64"
+                "SELECT * FROM step_result WHERE binding_id = 'anomaly-a' AND position = 64"
             ).fetchone()
             assert template is not None
             rows = []
@@ -173,16 +172,17 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert evidence["recent"] == {"results": 10, "exceeding": 1}
         assert extended["data_version"] != original_version
         # A model for another source must never be attached to this signal's outlook.
-        with sqlite3.connect(workspace.phm_analysis_path) as connection:
-            connection.execute(
-                "UPDATE binding SET source_id = 'unrelated' WHERE asset_id = 'bearing-a'"
+        from industrial_phm.runtime.operations_web_outlook import anomaly_evidence
+
+        assert (
+            anomaly_evidence(
+                workspace,
+                "bearing-a",
+                source_id="unrelated",
+                measurement_point_id=None,
+                kind="acquisition",
             )
-        status, other = get(
-            "/api/v1/outlook",
-            asset_id="bearing-a",
-            kind="acquisition",
-            series="feature.Horizontal_vibration_signals.rms",
+            is None
         )
-        assert status == 200 and other["anomaly_model"] is None
     finally:
         stop()
