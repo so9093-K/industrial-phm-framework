@@ -112,6 +112,8 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
         # in the list of facts (e.g. end-limit 15 is not management-limit 15).
         named = list(_CONDITION_VALUE.finditer(sentence))
         for index, match in enumerate(named):
+            if not conditions:
+                break
             name = "management" if match.group(1).startswith("관리") else "end"
             if name not in conditions:
                 issues.append(f"이 전망에 없는 {name} 기준을 언급했습니다: {sentence}")
