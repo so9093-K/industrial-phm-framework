@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -138,5 +139,50 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert model["first_exceeding"]["position"] == 62
         assert model["recent"] == {"results": 10, "exceeding": 3}
         assert model["interval_count"] == 1 and model["intervals"][0]["open"] is True
+        original_version = body["data_version"]
+        # A long history is sampled by analyzed_between: tail and first crossing must
+        # instead use exact database queries, including analyzed results past 2,000.
+        with sqlite3.connect(workspace.phm_analysis_path) as connection:
+            template = connection.execute(
+                "SELECT * FROM step_result WHERE binding_id = 'anomaly-a' AND position = 64"
+            ).fetchone()
+            assert template is not None
+            rows = []
+            for position in range(65, 2106):
+                row = list(template)
+                row[1] = f"synthetic-{position}"
+                row[2] = position
+                output = json.loads(row[8])
+                output["exceeds_threshold"] = position == 2104
+                row[8] = json.dumps(output)
+                rows.append(row)
+            connection.executemany(
+                "INSERT INTO step_result VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows
+            )
+        status, extended = get(
+            "/api/v1/outlook",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series="feature.Horizontal_vibration_signals.rms",
+        )
+        assert status == 200
+        evidence = extended["anomaly_model"]
+        assert evidence["results"] == 2105 and evidence["read"] == 2105
+        assert evidence["first_exceeding"]["position"] == 62
+        assert evidence["recent"] == {"results": 10, "exceeding": 1}
+        assert extended["data_version"] != original_version
+        # A model for another source must never be attached to this signal's outlook.
+        from industrial_phm.runtime.operations_web_outlook import anomaly_evidence
+
+        assert (
+            anomaly_evidence(
+                workspace,
+                "bearing-a",
+                source_id="unrelated",
+                measurement_point_id=None,
+                kind="acquisition",
+            )
+            is None
+        )
     finally:
         stop()

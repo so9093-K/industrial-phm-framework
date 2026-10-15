@@ -114,6 +114,8 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
     ("text", "reason"),
     [
         ("관리 상한 8까지 50개 획득 남았습니다.", "'50'"),
+        ("관리 상한 15까지 현재 설정으로 56개 획득 뒤 도달합니다.", "기준값"),
+        ("관리 상한 8까지 현재 설정으로 42개 획득 뒤 도달합니다.", "도달 시간"),
         ("베어링 마모가 진행되고 있습니다.", "원인"),
         ("곧 베어링을 교체해야 합니다.", "지시"),
         ("이 설비는 정상 상태입니다.", "판정"),
@@ -123,7 +125,11 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
     ],
 )
 def test_a_text_that_states_more_than_the_facts_is_named(text: str, reason: str) -> None:
-    issues = outlook_answer.text_issues(text, _outlook()["facts"])
+    from industrial_phm.application.outlook_text import condition_reach
+
+    outlook = _outlook()
+    structured = condition_reach(outlook) if reason in {"기준값", "도달 시간"} else None
+    issues = outlook_answer.text_issues(text, outlook["facts"], structured)
     assert any(reason in issue for issue in issues), issues
 
 

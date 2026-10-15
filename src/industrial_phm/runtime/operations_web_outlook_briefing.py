@@ -41,6 +41,7 @@ SELECTION_FIELDS = (
     "training_points",
     "seasonality",
     "assumed_period_seconds",
+    "data_version",
 )
 _MAX_PENDING = 4
 
@@ -161,6 +162,8 @@ class BriefingManager:
         def generate() -> None:
             try:
                 outlook = condition_outlook(self.workspace, **arguments)
+                if outlook["data_version"] != params["data_version"]:
+                    raise ValueError("outlook evidence changed before briefing was generated")
                 answer = generate_outlook_briefing(outlook, question, provider)
             except (
                 ForecastUnavailable,
@@ -195,6 +198,9 @@ def request_outlook_briefing(root: Path, payload: dict[str, object]) -> dict[str
     if not 1 <= len(question) <= 600:
         raise ValueError("invalid briefing question")
     params = {name: str(value) for name, value in payload.items() if name != "question"}
+    version = params.get("data_version", "")
+    if len(version) != 64 or any(ch not in "0123456789abcdef" for ch in version):
+        raise ValueError("outlook data version is required")
     with _LOCK:
         manager = _MANAGERS.get(root)
         if manager is None:
@@ -212,6 +218,9 @@ def handle_briefings_read(
         params = {name: values[0] for name, values in query.items()}
         if not 0 < len(params.get("asset_id", "")) <= 512:
             raise ValueError("asset_id is required")
+        version = params.get("data_version", "")
+        if len(version) != 64 or any(ch not in "0123456789abcdef" for ch in version):
+            raise ValueError("outlook data version is required")
         briefings = OutlookBriefingStore(workspace.outlook_briefing_path).list_for(
             params["asset_id"], selection_key(params)
         )

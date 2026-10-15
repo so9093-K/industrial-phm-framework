@@ -7,6 +7,8 @@ forecast towards the management level and end condition the user sets. Nothing i
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -44,7 +46,6 @@ OUTLOOK_ROUTE = "/api/v1/outlook"
 RESPONSIVE_PRIOR = 0.3
 RECENT_SHARE = 0.3
 _TIME_STEPS = 400
-_MODEL_READ = 2000
 RECENT_RESULTS = 10
 
 
@@ -230,7 +231,29 @@ def condition_outlook(
                         # The first whole acquisition at or after the reaching point.
                         reached[key] = math.ceil(reached[key] / period - 1e-6)
 
+    anomaly = anomaly_evidence(
+        workspace,
+        asset_id,
+        source_id=meta["source_id"],
+        measurement_point_id=meta.get("measurement_point_id"),
+        kind=kind,
+    )
+    # The AI briefing must be tied to the exact observations and anomaly evidence
+    # that produced this outlook, not merely the same selected form fields.
+    revision = hashlib.sha256(
+        json.dumps(
+            {
+                "measurements": [(t.isoformat(), v) for t, v in zip(times, values, strict=True)],
+                "source_id": meta["source_id"],
+                "measurement_point_id": meta.get("measurement_point_id"),
+                "anomaly": anomaly,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
     body = {
+        "data_version": revision,
         "schema_version": 1,
         "asset_id": asset_id,
         "kind": kind,
@@ -260,7 +283,7 @@ def condition_outlook(
         },
         "offset_unit": "acquisition" if acquisitions else "second",
         "scenarios": scenarios,
-        "anomaly_model": anomaly_evidence(workspace, asset_id),
+        "anomaly_model": anomaly,
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
     # The screen's sentences and the facts an AI briefing may use, worded once.
@@ -269,8 +292,15 @@ def condition_outlook(
     return body
 
 
-def anomaly_evidence(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any] | None:
-    """What the asset's connected anomaly model says now and where it marked changes."""
+def anomaly_evidence(
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    *,
+    source_id: str,
+    measurement_point_id: str | None,
+    kind: str,
+) -> dict[str, Any] | None:
+    """Only connect analysis evidence from the selected signal's source and input axis."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     if not store.path.exists():
         return None
@@ -278,6 +308,10 @@ def anomaly_evidence(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
         binding
         for binding in store.list_bindings()
         if binding.asset_id == asset_id
+        and binding.source_id == source_id
+        and (measurement_point_id is None or binding.measurement_point_id == measurement_point_id)
+        and binding.step_kind.value
+        == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
     ]
     if not bindings:
@@ -289,11 +323,8 @@ def anomaly_evidence(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     best = max(bindings, key=lambda binding: counts[binding.binding_id])
     latest = store.latest_result(best.binding_id, state=StepState.ANALYZED)
     intervals = store.list_intervals(best.binding_id)
-    # A long record is read evenly over its whole length, so the first exceeding result may
-    # be the first one read rather than the first stored.
-    results, _ = store.analyzed_between(best.binding_id, 0, 2**62, max_points=_MODEL_READ)
-    exceeding = [result for result in results if result.output.get("exceeds_threshold") is True]
-    recent = results[-RECENT_RESULTS:]
+    exceeding_count, first_exceeding = store.analyzed_threshold_exceedance(best.binding_id)
+    recent = store.recent_analyzed(best.binding_id, limit=RECENT_RESULTS)
 
     def at(value: datetime | None) -> str | None:
         return None if value is None else value.astimezone(UTC).isoformat()
@@ -304,11 +335,14 @@ def anomaly_evidence(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
         "package_id": best.package_id,
         "step_kind": best.step_kind,
         "results": counts[best.binding_id],
-        "read": len(results),
-        "exceeding": len(exceeding),
+        "read": counts[best.binding_id],
+        "exceeding": exceeding_count,
         "first_exceeding": None
-        if not exceeding
-        else {"position": exceeding[0].position, "at": at(exceeding[0].event_start)},
+        if first_exceeding is None
+        else {
+            "position": first_exceeding.position,
+            "at": at(first_exceeding.event_start),
+        },
         "recent": {
             "results": len(recent),
             "exceeding": sum(r.output.get("exceeds_threshold") is True for r in recent),

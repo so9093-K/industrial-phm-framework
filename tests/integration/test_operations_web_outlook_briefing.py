@@ -16,6 +16,7 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
 from tests.integration.test_operations_web_forecast import _serve
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 
@@ -46,6 +47,9 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         "end_limit": "3.0",
         "direction": "upper",
     }
+    selection["data_version"] = condition_outlook(workspace, **outlook_arguments(selection))[
+        "data_version"
+    ]
     assert ROUTE in WEB_SUPERVISOR_ONLY_ACTION_ROUTES
     job = execute_web_source_action(
         workspace.root.resolve(), ROUTE, {**selection, "question": "기준까지 얼마나 남았어?"}
@@ -71,6 +75,26 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         # Another selection has its own briefings.
         status, other = get("/api/v1/outlook/briefings", **{**selection, "end_limit": "4"})
         assert status == 200 and other["briefings"] == []
+        assert (
+            get(
+                "/api/v1/outlook/briefings",
+                **{**selection, "data_version": "0" * 64},
+            )[1]["briefings"]
+            == []
+        )
+        # A later acquisition changes the outlook's revision, without altering
+        # its selected signal, threshold or Prophet settings.
+        deliver(workspace, tmp_path / "waves", 65, 2.2)
+        analyze(workspace)
+        new_version = condition_outlook(workspace, **outlook_arguments(selection))["data_version"]
+        assert new_version != selection["data_version"]
+        assert (
+            get(
+                "/api/v1/outlook/briefings",
+                **{**selection, "data_version": new_version},
+            )[1]["briefings"]
+            == []
+        )
         assert get("/api/v1/outlook/briefings", **selection, unknown="1")[0] == 400
     finally:
         stop()
