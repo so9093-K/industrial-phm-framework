@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         bindings[name] = binding_id
     evidence["bindings"] = bindings
-    anomaly_binding, rul_binding = bindings["anomaly-score"], bindings["rul-estimate"]
+    anomaly_binding = bindings["anomaly-score"]
 
     # Incompatible input: the IForest package on a stream with other channels and sampling.
     foreign = output / "foreign"
@@ -346,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
             evidence["supply_to_commit_seconds"] = {
                 k: percentiles(v) for k, v in supply_latency.items()
             }
-            for name in ("anomaly-score", "rul-estimate"):
+            for name in ("anomaly-score",):
                 p95 = evidence["supply_to_commit_seconds"][name]["p95"]
                 checks.add(
                     f"supply-to-commit-p95-le-2s-{name}", p95 is not None and p95 <= 2.0, p95
@@ -393,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
 
             # 7. Real local-main explanation and human review ----------------------------
             explanations: dict[str, Any] = {}
-            for view, binding in (("anomaly", anomaly_binding), ("rul", rul_binding)):
+            for view, binding in (("anomaly", anomaly_binding),):
                 page.goto(url + "#" + view)
                 page.select_option(f"#{view}-binding", binding)
                 panel = page.locator(f"#{view}-explanation")
@@ -420,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(3)
             after = {b: len(store.list_results(b)) for b in bindings.values()}
             checks.add("restart-keeps-results-unchanged", before == after, after)
-            for view, binding in (("anomaly", anomaly_binding), ("rul", rul_binding)):
+            for view, binding in (("anomaly", anomaly_binding),):
                 page.goto(url + "#" + view)
                 page.select_option(f"#{view}-binding", binding)
                 panel = page.locator(f"#{view}-explanation")

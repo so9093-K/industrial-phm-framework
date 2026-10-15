@@ -31,7 +31,6 @@ class CanonicalTimeSeries:
     values: Sequence[Sequence[float]]
     sampling_rate_hz: float | None = None
     labels: Sequence[str | int | bool | None] | None = None
-    rul: Sequence[float | None] | None = None
     metadata: Mapping[str, str | int | float | bool | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -39,7 +38,6 @@ class CanonicalTimeSeries:
         channels = tuple(self.channels)
         values = tuple(tuple(row) for row in self.values)
         labels = tuple(self.labels) if self.labels is not None else None
-        rul = tuple(self.rul) if self.rul is not None else None
         metadata = MappingProxyType(dict(self.metadata))
 
         if not self.asset_id.strip():
@@ -71,19 +69,9 @@ class CanonicalTimeSeries:
         sample_count = len(values)
         if labels is not None and len(labels) != sample_count:
             raise ValueError("labels must align with samples when provided")
-        if rul is not None:
-            if len(rul) != sample_count:
-                raise ValueError("rul must align with samples when provided")
-            if any(
-                value is not None
-                and (isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value))
-                for value in rul
-            ):
-                raise ValueError("rul must contain only finite numbers or None")
 
         object.__setattr__(self, "timestamps", timestamps)
         object.__setattr__(self, "channels", channels)
         object.__setattr__(self, "values", values)
         object.__setattr__(self, "labels", labels)
-        object.__setattr__(self, "rul", rul)
         object.__setattr__(self, "metadata", metadata)

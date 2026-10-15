@@ -39,7 +39,7 @@ def contexts(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, An
         binding: explanation_context(
             store, workspace.models_path, snapshots, binding, 4, compare_position=1
         )
-        for binding in ("anomaly-a", "rul-a")
+        for binding in ("anomaly-a", "anomaly-b")
     }
 
 
@@ -56,10 +56,9 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
     assert rows[RMS] == {"id": RMS, "label": "수평 진동 RMS", "change": "증가", "size": "뚜렷함"}
     assert rows[VERTICAL]["change"] == "거의 같음"
     assert rows["feature.Horizontal_vibration_signals.skewness"]["size"] is None
-    rul = answer_input(contexts["rul-a"])
-    assert rul["primary"]["name"] == "잔여 구간 추정" and rul["primary"]["change"] == "감소"
-    assert rul["related_models"] == [
-        {"name": "진동 변화 탐지", "change": "증가", "input_acquisitions": 1}
+    # The other model on the same input is named by direction only, never by its values.
+    assert payload["related_models"] == [
+        {"name": "진동 변화 탐지", "change": "거의 같음", "input_acquisitions": 1}
     ]
 
 
@@ -130,15 +129,6 @@ def test_contribution_claims_name_only_the_model_top_features(contexts: dict[str
     assert text_issues(text, payload, field="summary") == []
     wrong = "이상 점수가 증가했고 수평 진동 절대 피크가 점수에 크게 반영됐습니다."
     assert "수평 진동 RMS" in text_issues(wrong, payload, field="summary")[0]
-
-
-def test_rul_answer_is_checked_against_rul_not_against_other_models(
-    contexts: dict[str, Any],
-) -> None:
-    payload = answer_input(contexts["rul-a"])
-    text = "잔여 구간 추정이 줄었고, 같은 입력의 이상 점수는 높아졌습니다."
-    assert text_issues(text, payload, field="summary") == []
-    assert "저장된 방향" in text_issues("잔여 구간 추정이 늘었습니다.", payload, field="summary")[0]
 
 
 def test_common_two_point_phrasing_is_rewritten_not_rejected() -> None:

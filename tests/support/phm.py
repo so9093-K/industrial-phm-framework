@@ -87,47 +87,55 @@ def _linear(
 
 
 def phm_workspace(root: Path, *, bind: bool = True) -> OperationsWorkspace:
-    """Workspace with an anomaly and a RUL package, bound to one synthetic bearing stream."""
+    """Workspace with two anomaly packages (horizontal and vertical RMS) on one bearing stream."""
     workspace = OperationsWorkspace(root)
     initialize_operations_workspace(workspace)
-    rms = "feature.Horizontal_vibration_signals.rms"
-    anomaly = _linear(
-        workspace,
-        "synthetic-rms-score-v1",
-        PackageOutputSpec(
-            task=ModelTask.ANOMALY_SCORE,
-            value_name="h_rms",
-            threshold=2.0,
-            threshold_rule="fixed-for-test",
-            review_interval=ReviewIntervalRule(2, 1),
-            step_period_seconds=60.0,
-        ),
-        {rms: 1.0},
-        0.0,
-    )
-    rul = _linear(
-        workspace,
-        "synthetic-rul-v1",
-        PackageOutputSpec(
-            task=ModelTask.RUL_ESTIMATE,
-            value_name="remaining_acquisition_intervals",
-            unit="acquisition-interval",
-            endpoint_semantics="last-recorded-acquisition",
-            step_period_seconds=60.0,
-        ),
-        {rms: -10.0},
-        40.0,
-    )
+    packages = []
+    for package_id, channel in (
+        ("synthetic-rms-score-v1", "Horizontal"),
+        ("synthetic-vertical-score-v1", "Vertical"),
+    ):
+        packages.append(
+            _linear(
+                workspace,
+                package_id,
+                PackageOutputSpec(
+                    task=ModelTask.ANOMALY_SCORE,
+                    value_name=channel[0].lower() + "_rms",
+                    threshold=2.0,
+                    threshold_rule="fixed-for-test",
+                    review_interval=ReviewIntervalRule(2, 1),
+                    step_period_seconds=60.0,
+                ),
+                {f"feature.{channel}_vibration_signals.rms": 1.0},
+                0.0,
+            )
+        )
     if not bind:
         return workspace
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    for binding_id, package_id in (("anomaly-a", anomaly), ("rul-a", rul)):
+    for binding_id, package_id in zip(("anomaly-a", "anomaly-b"), packages, strict=True):
         store.create_binding(
             PhmBinding(
                 binding_id, package_id, "bench", "bearing-a", StepKind.ACQUISITION_SNAPSHOT, T0
             )
         )
     return workspace
+
+
+def retire_into(workspace: OperationsWorkspace, binding_id: str = "rul-old") -> str:
+    """A leftover remaining-life package and binding, as an older workspace still holds them."""
+    package_id = "old-rul-package"
+    folder = workspace.models_path / package_id
+    folder.mkdir(parents=True)
+    (folder / "package.json").write_text(
+        '{"package_id": "old-rul-package", "input": {"step_kind": "acquisition-snapshot"},'
+        ' "output": {"task": "rul-estimate", "unit": "acquisition-interval"}}'
+    )
+    SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(
+        PhmBinding(binding_id, package_id, "bench", "bearing-a", StepKind.ACQUISITION_SNAPSHOT, T0)
+    )
+    return package_id
 
 
 def deliver(workspace: OperationsWorkspace, waveforms: Path, ordinal: int, scale: float) -> None:

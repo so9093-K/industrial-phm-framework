@@ -1,12 +1,10 @@
-"""Judge XJTU-SY LSTM packages against the acceptance protocol §2.3 and its v3 revision (§5).
+"""Judge the XJTU-SY LSTM autoencoder package against the acceptance protocol §5 (v3).
 
-LSTM training is not bit-reproducible across CPU math kernels. §2.3 judged retrained packages by
-performance equivalence with the stored research evidence (per-bearing MAE within 2% relative
-for RUL); that FAIL is preserved and reported as `pass_section_2_3`. The verdict of a run
-(`pass` and the exit code) is §5 (v3): agreement with a same-environment research rerun,
-determinism (sequential outputs equal a batch evaluation of the same package, <= 1e-4; the
-causal input buffer survives restarts, every cycle here builds a fresh runner) and the
-autoencoder Spearman rho within 0.05.
+LSTM training is not bit-reproducible across CPU math kernels. The verdict of a run (`pass` and
+the exit code) is §5 (v3): agreement with a same-environment research rerun, determinism
+(sequential outputs equal a batch evaluation of the same package, <= 1e-4; the causal input
+buffer survives restarts, every cycle here builds a fresh runner) and the autoencoder Spearman
+rho within 0.05. Remaining-life packages were retired and are no longer judged.
 Without --research-rerun §5 cannot be judged and the run fails.
 
     uv run --no-sync python -m tools.phm.verify_xjtu_lstm <workspace-with-lstm-packages> \\
@@ -23,7 +21,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from industrial_phm.adapters import get_xjtu_expected_acquisition_count
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore, StepState
 from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bindings
@@ -34,7 +31,6 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 VALIDATION = ("Bearing1_2", "Bearing2_2", "Bearing3_2")
 HOLDOUT = ("Bearing1_1", "Bearing2_1", "Bearing3_1")
-MAE_RELATIVE = 0.02
 RHO_ABSOLUTE = 0.05
 SEQUENTIAL_BATCH = 1e-4
 _RESULTS = Path("docs/research/results")
@@ -50,8 +46,8 @@ def main(argv: list[str] | None = None) -> int:
         "--research-rerun",
         type=Path,
         help=(
-            "directory with rul-validation.json, rul-benchmark.json and lstm-development.json "
-            "from the research commands run in this same environment"
+            "directory with lstm-development.json from the research command run in this "
+            "same environment"
         ),
     )
     args = parser.parse_args(argv)
@@ -60,10 +56,10 @@ def main(argv: list[str] | None = None) -> int:
     for path in sorted(workspace.models_path.iterdir()):
         if (path / "package.json").is_file():
             kind = load_model_package(path).manifest.estimator_kind
-            if kind in (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL):
+            if kind is EstimatorKind.LSTM_AUTOENCODER:
                 kinds[kind] = path.name
-    if set(kinds) != {EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL}:
-        raise SystemExit("workspace needs one LSTM autoencoder and one LSTM RUL package")
+    if set(kinds) != {EstimatorKind.LSTM_AUTOENCODER}:
+        raise SystemExit("workspace needs one LSTM autoencoder package")
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
     for bearing in VALIDATION + HOLDOUT:
@@ -93,34 +89,26 @@ def main(argv: list[str] | None = None) -> int:
             break
 
     checks: list[dict[str, Any]] = [{"name": "runner-restarts", "pass": True, "detail": cycles}]
-    checks += _rul_checks(store, args.evidence_root, kinds[EstimatorKind.LSTM_RUL])
     checks += _autoencoder_checks(store, args.evidence_root)
     checks += _determinism_checks(store, workspace, kinds)
     same_environment = (
         _same_environment_checks(store, args.research_rerun) if args.research_rerun else []
     )
     verdict = {
-        "protocol": "operational-inference-acceptance-protocol §2.3 (v1/v2) and §5 (v3)",
+        "protocol": "operational-inference-acceptance-protocol §5 (v3)",
         "packages": {kind.value: package_id for kind, package_id in kinds.items()},
         "checks": checks,
         "same_environment_checks": same_environment,
-        "pass_section_2_3": all(check["pass"] for check in checks),
         "pass_v3": bool(same_environment)
         and all(c["pass"] for c in same_environment)
-        and all(c["pass"] for c in checks if not c["name"].startswith("lstm-rul-mae-")),
+        and all(c["pass"] for c in checks),
     }
-    # One run, one meaning: the criterion in force for LSTM packages (§5, v3) decides `pass` and
-    # the exit code. §2.3 stays a separate, preserved record and is never folded into it.
     verdict["pass"] = verdict["pass_v3"]
-    verdict["pass_criterion"] = (
-        "§5 (v3) operational reproducibility; requires --research-rerun. "
-        "pass_section_2_3 is the preserved v1/v2 performance-equivalence record, not part of pass"
-    )
+    verdict["pass_criterion"] = "§5 (v3) operational reproducibility; requires --research-rerun."
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(verdict, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     for check in checks + same_environment:
         print(f"{'PASS' if check['pass'] else 'FAIL'} {check['name']} {check.get('detail', '')}")
-    print("RECORD §2.3 (v1/v2, preserved)", "PASS" if verdict["pass_section_2_3"] else "FAIL")
     if same_environment:
         print("VERDICT §5 (v3)", "PASS" if verdict["pass_v3"] else "FAIL")
     else:
@@ -133,41 +121,6 @@ def _steps(store: SqlitePhmAnalysisStore, binding_id: str) -> tuple[list[Any], l
     analyzed = [r for r in results if r.state is StepState.ANALYZED]
     skipped = [r for r in results if r.state is not StepState.ANALYZED]
     return analyzed, skipped
-
-
-def _rul_checks(store: SqlitePhmAnalysisStore, root: Path, package_id: str) -> list[dict[str, Any]]:
-    validation = json.loads(
-        (root / "xjtu-sy-rul-three-model-fold-1-validation-v1.json").read_text()
-    )
-    method = next(
-        m for m in validation["methods"] if m["method_id"] == "xjtu-sy-rul-lstm-fold-1-v1"
-    )
-    benchmark = json.loads((root / "xjtu-sy-rul-lstm-fold-1-benchmark-v1.json").read_text())
-    stored = {b["asset_id"]: b["mean_absolute_error"] for b in method["evaluation"]["bearings"]}
-    stored.update(
-        {
-            b["asset_id"]: b["mean_absolute_error"]
-            for b in benchmark["evaluation"]["point"]["bearings"]
-        }
-    )
-    checks = []
-    for bearing in VALIDATION + HOLDOUT:
-        analyzed, _ = _steps(store, f"lstm-lstm-rul-v1-{bearing}")
-        total = get_xjtu_expected_acquisition_count(bearing)
-        mae = sum(abs(float(r.output["estimate"]) - (total - r.position)) for r in analyzed) / len(
-            analyzed
-        )
-        relative = abs(mae - stored[bearing]) / stored[bearing]
-        checks.append(
-            {
-                "name": f"lstm-rul-mae-{bearing}",
-                "pass": relative <= MAE_RELATIVE and len(analyzed) == total - 7,
-                "detail": (
-                    f"operational={mae:.3f} stored={stored[bearing]:.3f} relative={relative:.4f}"
-                ),
-            }
-        )
-    return checks
 
 
 def _autoencoder_checks(store: SqlitePhmAnalysisStore, root: Path) -> list[dict[str, Any]]:
@@ -203,7 +156,7 @@ def _determinism_checks(
     for kind, package_id in kinds.items():
         package = load_model_package(workspace.models_path / package_id)
         names = package.manifest.input.feature_names
-        key = "score" if kind is EstimatorKind.LSTM_AUTOENCODER else "estimate"
+        key = "score"
         worst, warmups, gaps = 0.0, set(), 0
         for bearing in VALIDATION + HOLDOUT:
             analyzed, skipped = _steps(store, f"lstm-{kind.value}-{bearing}")
@@ -237,29 +190,14 @@ def _determinism_checks(
 
 def _same_environment_checks(store: SqlitePhmAnalysisStore, rerun: Path) -> list[dict[str, Any]]:
     """Operational outputs versus the research pipeline rerun in this same environment."""
-    validation = json.loads((rerun / "rul-validation.json").read_text())
-    benchmark = json.loads((rerun / "rul-benchmark.json").read_text())
     development = json.loads((rerun / "lstm-development.json").read_text())
-    method = next(
-        m for m in validation["methods"] if m["method_id"] == "xjtu-sy-rul-lstm-fold-1-v1"
-    )
-    research_rul = {
-        (series["asset_id"], item["acquisition_index"]): item["predicted_remaining_useful_life"]
-        for series in method["predictions"]
-        + benchmark["method"].get("predictions", [])
-        + benchmark.get("predictions", [])
-        for item in series["observations"]
-    }
     research_ae = {
         (trajectory["asset_id"], item["acquisition_index"]): item["score"]
         for trajectory in development["scoring"]["trajectories"]
         for item in trajectory["observations"]
     }
     checks = []
-    for kind, research, key in (
-        ("lstm-rul-v1", research_rul, "estimate"),
-        ("lstm-autoencoder-v1", research_ae, "score"),
-    ):
+    for kind, research, key in (("lstm-autoencoder-v1", research_ae, "score"),):
         worst, compared = 0.0, 0
         for bearing in VALIDATION + HOLDOUT:
             analyzed, _ = _steps(store, f"lstm-{kind}-{bearing}")

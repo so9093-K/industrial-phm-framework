@@ -170,28 +170,16 @@ def test_explanation_manager_never_changes_score_and_review_cannot_link_other_re
 def test_facts_state_meanings_the_model_must_not_reinterpret() -> None:
     from industrial_phm.application.phm_explanation import explanation_facts
 
-    rul = explanation_facts(
-        {
-            "task": "rul-estimate",
-            "estimate": -55.221,
-            "unit": "acquisition-interval",
-            "endpoint_semantics": "last-recorded-acquisition",
-            "change_from_previous": 16.07,
-            "applicability": "inside",
-        },
-        {
-            "per_asset": [
-                {"asset_id": "b1", "mean_absolute_error": 73.94, "mean_signed_error": 17.3}
-            ]
-        },
-        asset_id="b1",
-        recorded_replay=True,
+    replayed = "\n".join(
+        explanation_facts(
+            {"task": "anomaly-score", "score": 0.5, "threshold": 1.0, "applicability": "inside"},
+            {},
+            asset_id="b1",
+            recorded_replay=True,
+        )
     )
-    text = "\n".join(rul)
-    assert "마지막으로 기록된 획득까지 남은" in text and "물리적 고장 시각이 아닙니다" in text
-    assert "기록 종료점을 이미 지났다" in text
-    assert "운영 합격 판정이 기록되어 있지 않습니다" in text
-    assert "MAE 73.94" in text and "기록 데이터 재생" in text
+    assert "운영 합격 판정이 기록되어 있지 않습니다" in replayed
+    assert "기록 데이터 재생" in replayed
 
     anomaly = "\n".join(
         explanation_facts(

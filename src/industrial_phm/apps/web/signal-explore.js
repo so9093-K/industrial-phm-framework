@@ -590,19 +590,16 @@ function chart(item) {
 // From two acquisition ranges to the model results that read them.
 function modelLinks(data) {
   if (data.kind !== "acquisition") return null;
-  const models = (sources.acquisition.models || []).filter((model) => model.task === "anomaly-score" || model.task === "rul-estimate");
-  if (!models.length) return null;
+  const model = (sources.acquisition.models || []).find((item) => item.task === "anomaly-score");
+  if (!model) return null;
   const box = create("p", "explore-links");
-  const seen = new Set();
-  for (const model of models) {
-    const view = model.task === "anomaly-score" ? "anomaly" : "rul";
-    if (seen.has(view)) continue;
-    seen.add(view);
+  {
+    const view = "anomaly";
     const url = new URL(location.href);
     url.searchParams.set("phm_binding", model.binding_id);url.searchParams.set("phm_position", data.periods.b.to);
     url.searchParams.set("phm_view", view);url.searchParams.set("phm_compare", data.periods.a.to);
     url.hash = view;
-    const link = create("a", null, (view === "anomaly" ? "이상 탐지" : "잔여 수명") + "에서 #" + data.periods.a.to + " → #" + data.periods.b.to + " 비교 보기");
+    const link = create("a", null, "이상 탐지에서 #" + data.periods.a.to + " → #" + data.periods.b.to + " 비교 보기");
     link.href = url.pathname + url.search + url.hash;
     box.append(link);
   }

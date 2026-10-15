@@ -26,6 +26,7 @@ from industrial_phm.application.signal_exploration import (
 )
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
+from industrial_phm.models.package import RETIRED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -210,11 +211,13 @@ def explore_sources(
     acquisition = None
     if binding is not None:
         acquisition = acquisition_source(store, binding)
-        # Which model results an acquisition range can open: anomaly or RUL, per binding.
+        # Which model results an acquisition range can open, per binding.
         acquisition["models"] = [
-            {"binding_id": item.binding_id, "task": package_task(workspace, item.package_id)}
+            {"binding_id": item.binding_id, "task": task}
             for item in store.list_bindings()
-            if item.asset_id == asset_id and item.source_id == binding.source_id
+            if item.asset_id == asset_id
+            and item.source_id == binding.source_id
+            and (task := package_task(workspace, item.package_id)) not in RETIRED_TASKS
         ]
     return {
         "schema_version": 1,

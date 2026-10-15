@@ -124,13 +124,14 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 assert "phm_position=1" in page.url
                 page.select_option("#anomaly-position", "2")
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
+                # A bookmark of the other model's result opens that model at that record.
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web/?phm_binding=rul-a&phm_position=2&phm_view=rul#rul"
+                    f"http://127.0.0.1:{server.server_port}/web/?phm_binding=anomaly-b&phm_position=2&phm_view=anomaly#anomaly"
                 )
-                pw.expect(page.locator("#rul-binding")).to_have_value("rul-a")
-                pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
+                pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-b")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 page.reload()
-                pw.expect(page.locator("#rul-selected")).to_contain_text("#2")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 # A real refused bookmark cannot substitute the last successful score.
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?phm_binding=anomaly-a&phm_position=3#anomaly"
@@ -246,18 +247,18 @@ def test_attention_actions_open_the_matching_problem_with_visible_context(
                 deliver(workspace, tmp_path / "waves", 4, 0.6)
                 alert.get_by_role("button", name="분석 진행 확인").click()
                 pw.expect(model).to_contain_text("새 입력 분석 대기")
-                page.goto(base + "?phm_binding=rul-a&phm_position=1&phm_view=rul#rul")
-                pw.expect(page.locator("#rul-title")).to_have_text("기록 기반 잔여 구간 추정(RUL)")
-                pw.expect(page.locator("#rul-meaning")).to_contain_text("남은 운전시간")
-                page.locator("#rul-position").focus()
+                page.goto(base + "?phm_binding=anomaly-b&phm_position=1&phm_view=anomaly#anomaly")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("1")
+                pw.expect(page.locator("#anomaly-position")).to_be_enabled()
+                page.locator("#anomaly-position").focus()
                 with page.expect_response("**/api/v1/phm/series?*"):
-                    pw.expect(page.locator("#rul-position")).to_be_focused()
-                pw.expect(page.locator("#rul-position")).to_be_focused()
-                page.locator("#rul-position").press("ArrowDown")
-                pw.expect(page.locator("#rul-observation")).to_contain_text("선택 기록 #2")
+                    pw.expect(page.locator("#anomaly-position")).to_be_focused()
+                pw.expect(page.locator("#anomaly-position")).to_be_focused()
+                page.locator("#anomaly-position").press("ArrowDown")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 assert "phm_position=2" in page.url
                 page.reload()
-                pw.expect(page.locator("#rul-position")).to_have_value("2")
+                pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                 assert not errors, errors
             finally:

@@ -57,7 +57,7 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         acquisition = sources["acquisition"]
         assert (acquisition["first"], acquisition["last"], acquisition["count"]) == (1, 8, 8)
         assert {"key": RMS, "label": "수평 진동 RMS"} in acquisition["features"]
-        assert {m["task"] for m in acquisition["models"]} == {"anomaly-score", "rul-estimate"}
+        assert [m["task"] for m in acquisition["models"]] == ["anomaly-score", "anomaly-score"]
 
         status, body = get(
             "/api/v1/explore/profile",

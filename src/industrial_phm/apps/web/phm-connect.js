@@ -1,13 +1,13 @@
-// Connect a model package to the selected asset from its anomaly or RUL tab. The server matches
+// Connect a model package to the selected asset from its anomaly tab. The server matches
 // packages to the asset's own input streams; the runner then analyzes that stream's stored and new inputs.
 import { currentAsset } from "./asset-context.js";
-const TASK = {anomaly: "anomaly-score", rul: "rul-estimate"};
-const NOUN = {anomaly: "이상 탐지", rul: "RUL"};
+const TASK = {anomaly: "anomaly-score"};
+const NOUN = {anomaly: "이상 탐지"};
 const STREAM_LABEL = {"acquisition-snapshot": "진동 파형", "observation-window": "OPC UA 관측"};
 const MAX_AGE_MS = 30000;
 const cache = new Map();
 const pending = new Set();
-const renderVersions = {anomaly: 0, rul: 0};
+const renderVersions = {anomaly: 0};
 const node = (tag, text = "", className = "") => {
   const element = document.createElement(tag);
   if (text) element.textContent = text;
@@ -17,9 +17,9 @@ const node = (tag, text = "", className = "") => {
 
 export function modelFamily(recipe = "", task = "", kind = "") {
   const algorithm = /lstm|autoencoder/.test(recipe) ? "LSTM" : /pca/.test(recipe) ? "PCA"
-    : /iforest/.test(recipe) ? "Isolation Forest" : /ridge/.test(recipe) ? "Ridge" : "";
+    : /iforest/.test(recipe) ? "Isolation Forest" : "";
   const signal = kind === "observation-window" ? "관측 신호" : kind === "acquisition-snapshot" ? "진동" : "신호";
-  const purpose = task === "rul-estimate" ? "잔여수명 추정" : signal + " 변화 탐지";
+  const purpose = signal + " 변화 탐지";
   return purpose + (algorithm ? " · " + algorithm + " 기반" : "");
 }
 
@@ -100,7 +100,7 @@ export async function renderModelConnect(view, asset, hasModel, onConnected) {
     text.append(node("small", stream?.input_state === "stored-input" ? "저장된 입력부터 분석합니다."
       : "연결 가능 · 관측 입력이 만들어지면 분석합니다."));
     const info = node("details", "", "phm-options");
-    info.append(node("summary", "모델·입력 정보"), node("p", "계산: " + (/autoencoder|pca/.test(pkg.recipe_id || "") ? "재구성 오차" : pkg.task === "rul-estimate" ? "잔여 구간 추정" : "이상 점수")),
+    info.append(node("summary", "모델·입력 정보"), node("p", "계산: " + (/autoencoder|pca/.test(pkg.recipe_id || "") ? "재구성 오차" : "이상 점수")),
       node("p", "모델: " + (pkg.recipe_id || pkg.package_id)), node("p", "입력 ID: " + candidate.source_id));
     text.append(info);
     const button = node("button", "연결");

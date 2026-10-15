@@ -58,7 +58,7 @@ export function drawSignal(root, preview, choiceId, height = 180) {
 
 export function drawTrace(root, steps, task, threshold, height = 85) {
   root.replaceChildren();
-  const field = task === "rul-estimate" ? "estimate" : "score";
+  const field = "score";
   const rows = steps.filter((s) => s.state === "analyzed" && typeof s.output[field] === "number");
   if (!rows.length) return;
   const width = Math.max(260, root.clientWidth), left = 56, right = width - 14;

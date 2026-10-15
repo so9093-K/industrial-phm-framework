@@ -20,12 +20,6 @@ from industrial_phm.experiments.xjtu_holdout import XJTU_HOLDOUT_RESULT_SCHEMA_I
 from industrial_phm.experiments.xjtu_lstm_result import (
     XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
 )
-from industrial_phm.experiments.xjtu_rul_benchmark_result import (
-    XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID,
-)
-from industrial_phm.experiments.xjtu_rul_validation_result import (
-    XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID,
-)
 
 __all__ = [
     "ExperimentInspection",
@@ -63,18 +57,6 @@ def inspect_experiment_result(path: Path) -> ExperimentInspection:
         )
 
         return inspect_xjtu_lstm_development(root, path)
-    elif schema_id == XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID:
-        from industrial_phm.experiments.xjtu_rul_validation_inspection import (
-            inspect_xjtu_rul_three_model_validation,
-        )
-
-        return inspect_xjtu_rul_three_model_validation(root, path)
-    elif schema_id == XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID:
-        from industrial_phm.experiments.xjtu_rul_benchmark_inspection import (
-            inspect_xjtu_rul_lstm_benchmark,
-        )
-
-        return inspect_xjtu_rul_lstm_benchmark(root, path)
     elif schema_id == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID:
         from industrial_phm.experiments.mimii_development_inspection import (
             inspect_mimii_development,
@@ -85,9 +67,7 @@ def inspect_experiment_result(path: Path) -> ExperimentInspection:
         f"unsupported experiment result schema_id {schema_id!r}; expected one of "
         f"{XJTU_HOLDOUT_RESULT_SCHEMA_ID!r}, {IMS_CROSS_TEST_RESULT_SCHEMA_ID!r}, "
         f"{XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID!r}, "
-        f"{MIMII_DEVELOPMENT_RESULT_SCHEMA_ID!r}, "
-        f"{XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID!r}, "
-        f"{XJTU_RUL_LSTM_BENCHMARK_RESULT_SCHEMA_ID!r}"
+        f"{MIMII_DEVELOPMENT_RESULT_SCHEMA_ID!r}"
     )
 
 

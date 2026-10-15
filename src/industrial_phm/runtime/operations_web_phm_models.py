@@ -27,7 +27,7 @@ from industrial_phm.application.electrical_window_features import (
 )
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
-from industrial_phm.models.package import load_model_package
+from industrial_phm.models.package import RETIRED_TASKS, load_model_package
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -88,6 +88,8 @@ def _packages(models_root: Path) -> list[dict[str, Any]]:
         if not isinstance(body, dict) or not isinstance(body.get("input"), dict):
             continue
         output: dict[str, Any] = body["output"] if isinstance(body.get("output"), dict) else {}
+        if output.get("task") in RETIRED_TASKS:
+            continue
         validation: dict[str, Any] = (
             body["validation"] if isinstance(body.get("validation"), dict) else {}
         )

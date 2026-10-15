@@ -12,7 +12,6 @@ def test_analysis_report_cli_writes_deterministic_markdown(
     repository_root = Path(__file__).parents[2]
     results = repository_root / "docs" / "research" / "results"
     anomaly = results / "xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"
-    prognostics = results / "xjtu-sy-rul-three-model-fold-1-validation-v1.json"
     output = tmp_path / "analysis-report.md"
 
     exit_code = cli.main(
@@ -23,8 +22,6 @@ def test_analysis_report_cli_writes_deterministic_markdown(
             str(anomaly),
             "--asset",
             "Bearing1_2",
-            "--prognostics",
-            str(prognostics),
             "--output",
             str(output),
         ]
@@ -34,8 +31,6 @@ def test_analysis_report_cli_writes_deterministic_markdown(
     assert output.is_file()
     rendered = output.read_text(encoding="utf-8")
     assert "# PHM 분석 보고서" in rendered
-    assert "## RUL 분석 결과" in rendered
-    assert "대표 RUL 모델을 별도로 지정하지 않습니다" in rendered
     captured = capsys.readouterr().out
     assert f"report: {output}" in captured
 

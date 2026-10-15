@@ -63,7 +63,7 @@ def test_vibration_waveforms_without_a_model_say_a_model_connection_opens_everyt
     for name in ("measurements", "period-compare", "relation", "spectrum"):
         assert status[name] == ("needs-connection", "waveforms-need-model")
     assert status["anomaly"] == ("needs-connection", "compatible-model")
-    assert status["rul"] == ("needs-connection", "compatible-model")
+    assert "rul" not in status
     assert status["ai-question"] == ("unavailable", "needs-results")
     assert body["data"]["acquisition"]["analyzed_count"] == 0
     assert body["data"]["history"] is None

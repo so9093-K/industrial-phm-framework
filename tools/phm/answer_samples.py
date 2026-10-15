@@ -28,7 +28,7 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 DEFAULT_QUESTIONS = (
     "이전 시점과 비교해 어떤 측정 신호가 함께 변했는지 설명해 주세요.",
     "왜 점수가 올랐어?",
-    "RUL이 변한 구간과 함께 움직인 측정값은 뭐야?",
+    "점수가 변한 구간과 함께 움직인 측정값은 뭐야?",
 )
 
 

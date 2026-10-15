@@ -7,7 +7,6 @@ import pytest
 from industrial_phm.analysis import (
     AnalysisViewError,
     load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
 )
 
 _REPOSITORY_ROOT = Path(__file__).parents[2]
@@ -103,62 +102,7 @@ def test_analysis_view_rejects_unsupported_experiment_schema() -> None:
         load_xjtu_lstm_analysis_view(_XJTU_HOLDOUT_RESULT)
 
 
-_RUL_RESULT = _RESULTS / "xjtu-sy-rul-three-model-fold-1-validation-v1.json"
-
-
-def test_capabilities_compose_instead_of_collapsing_into_one_record() -> None:
-    """An artifact without a capability must leave it absent, not empty-filled."""
-    anomaly_view = load_xjtu_lstm_analysis_view(_XJTU_LSTM_RESULT)
-    prognostics_view = load_xjtu_rul_analysis_view(_RUL_RESULT)
-
-    assert anomaly_view.anomaly_evidence is not None
-    assert anomaly_view.prognostics_evidence is None
-    assert prognostics_view.prognostics_evidence is not None
-    assert prognostics_view.anomaly_evidence is None
-
-
 def test_missing_capability_fails_explicitly() -> None:
-    prognostics_view = load_xjtu_rul_analysis_view(_RUL_RESULT)
-    anomaly_view = load_xjtu_lstm_analysis_view(_XJTU_LSTM_RESULT)
+    view = load_xjtu_lstm_analysis_view(_XJTU_LSTM_RESULT)
 
-    with pytest.raises(AnalysisViewError, match="carries no anomaly evidence"):
-        prognostics_view.require_anomaly_evidence()
-    with pytest.raises(AnalysisViewError, match="carries no prognostics evidence"):
-        anomaly_view.require_prognostics_evidence()
-
-
-def test_prognostics_view_preserves_recorded_target_semantics() -> None:
-    evidence = load_xjtu_rul_analysis_view(_RUL_RESULT).require_prognostics_evidence()
-
-    assert evidence.target_unit == "acquisition-interval"
-    assert evidence.endpoint_semantics == "last-recorded-acquisition"
-    assert evidence.target_formula == "N-k"
-    assert evidence.target_is_clipped is False
-    assert evidence.target_is_normalized is False
-    assert evidence.support_first_acquisition == 8
-    assert evidence.support_prediction_count == 2_797
-
-
-def test_prognostics_view_declares_no_selected_primary_method() -> None:
-    """No method selection is validated, so a surface must not present one as the answer."""
-    evidence = load_xjtu_rul_analysis_view(_RUL_RESULT).require_prognostics_evidence()
-
-    assert evidence.primary_method_id is None
-    assert len(evidence.methods) == 3
-
-
-def test_prognostics_view_keeps_per_asset_evidence_for_every_method() -> None:
-    evidence = load_xjtu_rul_analysis_view(_RUL_RESULT).require_prognostics_evidence()
-
-    for method in evidence.methods:
-        assert {asset.asset_id for asset in method.assets} == {
-            "Bearing1_2",
-            "Bearing2_2",
-            "Bearing3_2",
-        }
-        assert all(asset.prediction_count > 0 for asset in method.assets)
-
-
-def test_prognostics_view_rejects_an_anomaly_artifact() -> None:
-    with pytest.raises(AnalysisViewError, match="expected"):
-        load_xjtu_rul_analysis_view(_XJTU_LSTM_RESULT)
+    assert view.require_anomaly_evidence() is view.anomaly_evidence

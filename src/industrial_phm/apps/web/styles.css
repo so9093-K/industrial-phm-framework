@@ -144,7 +144,7 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 
 .condition-svg .axis{fill:none}
 
-/* PHM monitoring: anomaly and RUL screens share axes, never alarm colors or health verdicts. */
+/* PHM monitoring: anomaly screens use plain axes, never alarm colors or health verdicts. */
 .phm-panel{margin-bottom:16px}
 .phm-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
 .phm-controls select{min-width:260px;max-width:100%}
@@ -202,9 +202,9 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition{display:none}
 .phm-review-details{border-top:1px solid #dbe5e9;margin-top:15px;padding:10px 0}
 .phm-review-details summary{font-size:.87rem;font-weight:650;cursor:pointer;color:#254e60;min-height:28px}
 .phm-review-details .phm-review-history{padding-top:8px}
-#anomaly-explanation>button:not([hidden]),#rul-explanation>button:not([hidden]){margin:8px 8px 6px 0}
-#anomaly-explanation>label:not([hidden]),#rul-explanation>label:not([hidden]){margin:12px 0 7px}
-#anomaly-explanation textarea,#rul-explanation textarea{display:block;width:100%;min-height:70px;margin-top:7px;border:1px solid #b9cad5;border-radius:8px;padding:9px;resize:vertical}
+#anomaly-explanation>button:not([hidden]){margin:8px 8px 6px 0}
+#anomaly-explanation>label:not([hidden]){margin:12px 0 7px}
+#anomaly-explanation textarea{display:block;width:100%;min-height:70px;margin-top:7px;border:1px solid #b9cad5;border-radius:8px;padding:9px;resize:vertical}
 
 /* Each phase has a visible label and line sample, not just a color. */
 .phm-phase-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
@@ -338,7 +338,7 @@ body[data-view="monitor"][data-workspace-state="empty"] #condition-disclosure{di
 .csv-start-examples{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0;font-size:.8rem;color:#45616f}
 .csv-start-examples button{font-size:.78rem;padding:5px 9px}
 
-/* One asset context across overview, signals, anomaly, RUL and analysis records. */
+/* One asset context across overview, signals, anomaly and analysis records. */
 .sidebar-secondary{display:grid;gap:4px;margin-top:-28px}.sidebar-secondary a{padding:8px 12px;color:#b1c6cf;font-size:.84rem;text-decoration:none;border-radius:9px}
 .sidebar-secondary a:hover,.sidebar-secondary a:focus-visible{background:#264859;color:#e8f2f6}.sidebar-secondary a[aria-current]{background:#2c5868;color:#e8f2f6}
 .asset-bar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;background:#fff;border:1px solid #d6e1e7;border-radius:12px}

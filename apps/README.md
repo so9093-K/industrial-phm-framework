@@ -59,8 +59,8 @@ KST(UTC+9)로 표시하고, 원본 측정·수신·이력 저장·분석 완료�
 
 ### 화면 구조
 
-주요 메뉴는 `설비 모니터링`과 `데이터 연결`입니다. 설비 모니터링에서 설비를 고르면 같은 설비로 `개요`·`신호 비교`·
-`이상 탐지`·`RUL`·`분석 기록` 탭을 오갑니다(주소의 `monitor_asset`). 분석 결과의 확인·메모는 분석 기록 탭에서 남기고,
+주요 메뉴는 `설비 모니터링`과 `데이터 연결`입니다. 설비 모니터링에서 설비를 고르면 같은 설비로 `개요`·`신호 탐색`·
+`이상 탐지`·`분석 기록` 탭을 오갑니다(주소의 `monitor_asset`). 분석 결과의 확인·메모는 분석 기록 탭에서 남기고,
 로컬 서비스 진단은 보조 링크 `시스템 상태`에 있습니다. 연구 평가 결과는 운영 Web이 아니라 Analysis Explorer에서 봅니다.
 
 ### 기본 설비 모니터링
@@ -70,7 +70,7 @@ KST(UTC+9)로 표시하고, 원본 측정·수신·이력 저장·분석 완료�
 선택한 XJTU 획득은 저장된 원본 RMS 크기와 직전 조회 기록 대비 증가·감소율, 최근 연속 기록을 보여줍니다.
 앞선 비교 기록은 정상 기준이 아니며 기록 번호 공백은 현장 통신 중단의 근거가 아닙니다. 원본 파형과 전체 조회 범위도
 선택할 수 있습니다. 공기압축기는 실제 전류·전압·주파수를 원래 단위로 보여줍니다.
-상세 영역의 `이 시점의 추세·원본 입력 보기` 또는 `RUL·검토 상세`는 같은 바인딩과 저장된 시점을 열며,
+상세 영역의 `이 시점의 추세·원본 입력 보기`는 같은 바인딩과 저장된 시점을 열며,
 주소의 `phm_binding`·`phm_position`은 재로딩 후에도 유지됩니다. 기준 초과는 고장 판정이 아닙니다.
 
 PHM 모델이 연결되지 않은 설비도 목록에 나타나며, 저장된 측정 이력(Asset History)의 실제 값·원본 측정 시각·
@@ -85,14 +85,14 @@ PHM 모델이 연결되지 않은 설비도 목록에 나타나며, 저장된 �
 추가로 읽습니다. 모델 100개까지의 요약 범위와 읽기 실패를 표시합니다. 원본 검증이 실패하면 파형과 크기 요약을
 지우며, 이전 입력은 버튼을 명시적으로 누른 경우에만 구별해 표시합니다. 부하·불평형 변화 분석은 수동 실행입니다.
 
-### 이상 탐지 · RUL 모니터링 (XJTU-SY 기록 재생)
+### 이상 탐지 모니터링 (XJTU-SY 기록 재생)
 
-**이상 탐지**와 **RUL 모니터링** 화면은 작업공간에 연결된 모델 패키지의 저장된 step 결과를 3초마다
+**이상 탐지** 화면은 작업공간에 연결된 모델 패키지의 저장된 step 결과를 3초마다
 변경분으로 읽습니다. 이상 탐지 상세는 선택 기록의 점수·앞선 분석 대비 변화량과 같은 범위의 신호 크기를
 나란히 표시하고, 해당 기록의 원본 신호를 바로 아래에 둡니다. 기본 범위는 선택 시점의 연속 기록이며 전체 기록도
 선택할 수 있습니다. 그래프 또는 키보드로 기록을 선택하면 요약·원본·주소가 함께 바뀌고, 새 입력이 도착해도
 선택 기록을 유지합니다. `최신 기록으로`는 최근 결과를 따라가는 모드로 돌아갑니다. 모델·입력 특징과 검토 구간은
-보조 영역에서 확인합니다. RUL의 요약과 검토도 선택 시점을 따릅니다.
+보조 영역에서 확인합니다.
 
 모델을 연결하는 순서는 다음과 같습니다(준비된 XJTU-SY 원본은
 [데이터 안내](../data/README.md#xjtu-sy)를 따릅니다).
@@ -104,8 +104,6 @@ SRC=data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 uv run --no-sync industrial-phm operations phm package-xjtu artifacts/operations --source "$SRC"
 uv run --no-sync industrial-phm operations phm bind artifacts/operations \
   --package <이상 점수 package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1
-uv run --no-sync industrial-phm operations phm bind artifacts/operations \
-  --package <RUL package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1
 uv run --no-sync industrial-phm operations phm replay-xjtu artifacts/operations \
   --source "$SRC" --bearing Bearing1_1 --interval-seconds 1
 ```
@@ -115,7 +113,7 @@ uv run --no-sync industrial-phm operations phm replay-xjtu artifacts/operations 
 - 재생은 기록 데이터를 시간 압축해 공급하는 것이며 화면에 "기록 데이터 재생"으로 표시됩니다. 재생 대상은
   모델 학습에 쓰지 않은 베어링(`Bearing1_1/2_1/3_1`, `Bearing1_2/2_2/3_2`)을 사용합니다.
 - 분석 runner는 0.5초마다 새 step을 처리하고, 화면은 최신 수신·최신 분석 시각과 분석 대기 수를 함께 보여줍니다.
-- 이상 점수는 고장 확률·진단이 아니며, RUL은 데이터셋의 마지막 기록 획득까지의 획득 간격입니다. 판정 기준과
+- 이상 점수는 고장 확률·진단이 아닙니다. 판정 기준과
   검증 결과는 [운영 추론 수용 프로토콜](../docs/research/operational-inference-acceptance-protocol.md)을 따릅니다.
 
 ## 연구 도구

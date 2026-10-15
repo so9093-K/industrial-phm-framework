@@ -19,6 +19,7 @@ from industrial_phm.application.phm_signal_comparison import (
     feature_label,
     raw_signal_summary,
 )
+from industrial_phm.models.package import is_retired_package
 
 
 class PhmExplanationStore:
@@ -196,7 +197,7 @@ def explanation_context(
         "features": features,
         "output_changes": {
             key: result.output[key] - previous.output[key]
-            for key in ("score", "estimate")
+            for key in ("score",)
             if previous is not None
             and isinstance(result.output.get(key), (int, float))
             and isinstance(previous.output.get(key), (int, float))
@@ -219,6 +220,8 @@ def explanation_context(
         )
     related = []
     for other in store.list_bindings()[:100]:
+        if is_retired_package(models_root, other.package_id):
+            continue
         if other.binding_id == binding_id or (
             other.asset_id,
             other.source_id,
@@ -286,8 +289,8 @@ def explanation_context(
 def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
     """Bounded operator input; the complete immutable context stays in the explanation store.
 
-    Research acceptance, MAE, training conditions and expected RUL decrement are available
-    in model details, not requested as operator advice. No model output is changed here.
+    Research acceptance and training conditions are available in model details, not requested
+    as operator advice. No model output is changed here.
     """
     original = context.get("output") or {}
     output = {
@@ -297,9 +300,6 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             "score",
             "threshold",
             "exceeds_threshold",
-            "estimate",
-            "unit",
-            "endpoint_semantics",
             "change_from_previous",
             "feature_contributions",
             "sequence_positions",
@@ -308,7 +308,7 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
     }
     signals = context.get("signal_comparison")
     if signals is not None:
-        # A custom comparison is not the runner's immediately preceding estimate.
+        # A custom comparison is not the runner's immediately preceding result.
         # Keep that output unchanged in storage; omit its delta from this comparison.
         output.pop("change_from_previous", None)
     task = output.get("task")
@@ -316,33 +316,7 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
     recipe = str(model.get("recipe_id") or "")
     label = "재구성 오차" if "pca" in recipe or "autoencoder" in recipe else "이상 점수"
     facts = []
-    if task == "rul-estimate":
-        unit = (
-            "기록 구간(개)"
-            if output.get("unit") == "acquisition-interval"
-            else str(output.get("unit") or "단위 미기록")
-        )
-        facts.append(f"선택 시점의 잔여 구간 추정은 {_n(output.get('estimate'))} {unit}입니다.")
-        if output.get("endpoint_semantics") == "last-recorded-acquisition":
-            facts.append(
-                "종료점은 이 기록의 마지막 획득 지점입니다. 실제 고장 시각을 예측한 값이 아닙니다."
-            )
-        else:
-            facts.append(
-                "종료점은 output에 기록된 의미만 사용하세요. 물리적 고장 시각으로 해석하지 마세요."
-            )
-        change = output.get("change_from_previous")
-        if isinstance(change, (int, float)):
-            facts.append(
-                f"직전 분석 대비 변화는 {_n(change)} {unit}입니다. "
-                "선택한 비교 시점과의 차이는 previous_output을 비교하세요."
-            )
-        if isinstance(output.get("estimate"), (int, float)) and output["estimate"] < 0:
-            facts.append(
-                "음수 추정은 모델이 기록 종료점을 지났다고 출력한 것이며 "
-                "음수 수명을 의미하지 않습니다."
-            )
-    elif task == "anomaly-score":
+    if task == "anomaly-score":
         facts.append(
             f"{label} {_n(output.get('score'))}는 학습 기준과의 차이를 나타내며 "
             "높을수록 더 다릅니다."
@@ -371,13 +345,6 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
                     f"두 시점 비교에서 {row['label']}: {direction}. "
                     "관측 차이이며 원인 판정은 아닙니다."
                 )
-        if "estimate" in signals.get("output_changes", {}):
-            change = signals["output_changes"]["estimate"]
-            facts.append(
-                "선택 비교 시점 대비 잔여 구간 추정은 "
-                + ("증가" if change > 0 else "감소" if change < 0 else "동일")
-                + "입니다."
-            )
         if "score" in signals.get("output_changes", {}):
             change = signals["output_changes"]["score"]
             facts.append(
@@ -412,7 +379,7 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             }
             for item in context.get("related_models", [])
         ],
-        "value_label": label if task == "anomaly-score" else "잔여 구간 추정",
+        "value_label": label,
         "facts": facts,
     }
 
@@ -488,47 +455,6 @@ def explanation_facts(
                 "패키지의 검증 근거는 연구 평가 기록이며, 설명에서 '성능이 확인되었다'고 "
                 "일반화하지 마세요."
             )
-    elif task == "rul-estimate":
-        estimate, unit = output.get("estimate"), output.get("unit")
-        unit_text = "획득 간격" if unit == "acquisition-interval" else str(unit)
-        facts.append(
-            f"RUL 추정값 {_n(estimate)} {unit_text}는 데이터셋에서 마지막으로 기록된 획득까지 남은 "
-            "간격의 추정입니다. 물리적 고장 시각이 아닙니다."
-            if output.get("endpoint_semantics") == "last-recorded-acquisition"
-            else (
-                f"RUL 추정값 {_n(estimate)} {unit_text}의 종료점 의미: "
-                f"{output.get('endpoint_semantics')}"
-            )
-        )
-        if isinstance(estimate, (int, float)) and estimate < 0:
-            facts.append(
-                "추정값이 0보다 작습니다. 모델이 기록 종료점을 이미 지났다고 출력한 것이며, "
-                "남은 수명이 음수라는 뜻이 아닙니다."
-            )
-        change = output.get("change_from_previous")
-        if isinstance(change, (int, float)):
-            facts.append(
-                f"직전 추정 대비 변화는 {_n(change)} {unit_text}입니다. 획득 하나가 지날 때 "
-                f"추정이 시간 경과와 일치하면 변화는 -1이므로, 이번 변화는 그보다 "
-                f"{_n(abs(change + 1))} {unit_text} "
-                + ("더 크게 감소했습니다." if change < -1 else "덜 감소했거나 증가했습니다.")
-            )
-        same = next(
-            (
-                item
-                for item in validation.get("per_asset") or ()
-                if isinstance(item, dict) and item.get("asset_id") == asset_id
-            ),
-            None,
-        )
-        if same is not None:
-            facts.append(
-                f"이 설비의 연구 검증 기록: MAE {_n(same.get('mean_absolute_error'))}, "
-                f"편향 {_n(same.get('mean_signed_error'))} {unit_text}."
-            )
-        uncertainty = validation.get("uncertainty")
-        if isinstance(uncertainty, str):
-            facts.append(f"불확실성(패키지 기록): {uncertainty}. 신뢰구간을 만들지 마세요.")
     applicability = output.get("applicability")
     facts.append(
         {

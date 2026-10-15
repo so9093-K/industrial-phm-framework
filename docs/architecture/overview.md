@@ -89,7 +89,7 @@ flowchart LR
     RUNNER --> EVIDENCE
     SNAPSHOT[Acquisition snapshot<br/>파형 파일·SHA-256] --> PHM[PHM binding runner<br/>model package·설비별 상태]
     PACKAGE[Model package<br/>해시·probe 검증] --> PHM
-    PHM --> PHMSTORE[PHM 결과<br/>점수·검토 구간·RUL 궤적]
+    PHM --> PHMSTORE[PHM 결과<br/>점수·검토 구간]
     PHMSTORE --> UI
     UNBALANCE --> EVIDENCE
     EVIDENCE --> INVESTIGATION[Investigation]
@@ -100,8 +100,8 @@ flowchart LR
 
 학습된 PHM 모델은 불변 model package로 저장하고, 명시적 binding이 정한 (source, asset) 스트림의 순서 있는
 step마다 analysis runner가 실행합니다. step 결과·설비별 상태·검토 구간·cursor는 한 트랜잭션으로 저장되어
-재시작 후 이어지며, 이상 탐지와 RUL은 서로 다른 결과 형태와 화면을 가집니다
-([ADR-0025](../adr/0025-run-versioned-model-packages-over-ordered-asset-steps.md)).
+재시작 후 이어집니다([ADR-0025](../adr/0025-run-versioned-model-packages-over-ordered-asset-steps.md)).
+잔여수명(RUL) 작업은 [ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 폐기했습니다.
 
 Operations UI의 desired collection state와 실제 collection process ownership은 분리합니다. 3상 불평형 같은
 capability는 history snapshot 또는 finalized window처럼 명시적으로 고정된 입력을 소비하고, temporal
@@ -111,7 +111,7 @@ alignment와 eligibility policy를 evidence에 남깁니다. Live window 분석�
 
 ### 연구 reference 구현
 
-Isolation Forest, LSTM Autoencoder, RUL Ridge와 temporal LSTM은 research path의 reference implementation이며
+Isolation Forest와 LSTM Autoencoder는 research path의 reference implementation이며
 공통 PHM 코어나 production capability를 정의하지 않습니다. 새로운 모델도 동일한 contract/evaluation 경계를
 지키고 기존 evidence gap을 실제로 해결하는 경우에 추가합니다.
 

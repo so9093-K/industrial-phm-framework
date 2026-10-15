@@ -12,12 +12,10 @@ from threading import Thread
 import pytest
 
 from industrial_phm.application.backfill import FileBackfillEvent
-from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from industrial_phm.models.package import StepKind
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.phm import T0, analyze, deliver, phm_workspace
+from tests.support.phm import analyze, deliver, phm_workspace
 
 BASE = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -107,7 +105,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 page.locator("#asset-switch").select_option("bearing-a")
                 page.locator('.asset-tabs a[data-tab="monitor"]').click()
                 # Every analysis opens; the waveform itself is already on the overview above.
-                pw.expect(listing.locator(".capability")).to_have_count(6)
+                pw.expect(listing.locator(".capability")).to_have_count(5)
                 pw.expect(listing.locator(".capability-unavailable")).to_have_count(0)
                 pw.expect(listing.locator('[data-capability="period-compare"]')).to_contain_text(
                     "획득 #1–#8"
@@ -132,21 +130,31 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
 
 def test_a_fitting_model_that_is_not_connected_yet_is_one_click_away(tmp_path: Path) -> None:
     pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
     workspace = phm_workspace(tmp_path / "ws", bind=False)
-    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    store.create_binding(
-        PhmBinding(
-            "anomaly-a",
-            "synthetic-rms-score-v1",
-            "bench",
-            "bearing-a",
-            StepKind.ACQUISITION_SNAPSHOT,
-            T0,
-        )
-    )
     for ordinal in range(1, 4):
         deliver(workspace, tmp_path / "waves", ordinal, 0.5)
-    analyze(workspace)
+    # The bearing also has a stored temperature record, so it is listed before any model.
+    DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    ).append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:bearing:{'a' * 64}:{index}",
+                source_id="bearing-file",
+                asset_id="bearing-a",
+                channel_id="temperature",
+                source_file="bearing.csv",
+                source_sha256="a" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=BASE + timedelta(minutes=index),
+                value=40.0 + index,
+            )
+            for index in range(10)
+        ),
+        batch_id="bearing",
+    )
     root = workspace.root.resolve()
     server = create_operations_web_read_server(root, command_client=_InProcessSupervisor(root))  # type: ignore[arg-type]
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -161,11 +169,12 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_click_away(tmp_path: P
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a#monitor"
                 )
-                rul = page.locator('#asset-capabilities [data-capability="rul"]')
-                pw.expect(rul).to_contain_text("입력이 맞는 모델 1개")
-                rul.get_by_role("button", name="RUL 모델 연결").click()
-                pw.expect(page.locator("#rul-connect")).to_contain_text("연결할 수 있는 RUL 모델")
-                pw.expect(page.locator("#rul-connect")).to_contain_text("synthetic-rul-v1")
+                anomaly = page.locator('#asset-capabilities [data-capability="anomaly"]')
+                pw.expect(anomaly).to_contain_text("입력이 맞는 모델 2개")
+                anomaly.get_by_role("button", name="이상 탐지 모델 연결").click()
+                connect = page.locator("#anomaly-connect")
+                pw.expect(connect).to_contain_text("연결할 수 있는 이상 탐지 모델")
+                pw.expect(connect).to_contain_text("synthetic-vertical-score-v1")
                 assert not errors, errors
             finally:
                 browser.close()

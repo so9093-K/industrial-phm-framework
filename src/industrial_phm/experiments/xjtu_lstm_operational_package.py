@@ -1,4 +1,4 @@
-"""Export the frozen train-only XJTU LSTM recipes as reusable numeric packages."""
+"""Export the frozen train-only XJTU LSTM autoencoder recipe as a reusable numeric package."""
 
 from __future__ import annotations
 
@@ -17,8 +17,6 @@ from industrial_phm.experiments.xjtu_operational_package import (
     XJTU_OPERATING_CONDITIONS,
     XJTU_REVIEW_INTERVAL_RULE,
 )
-from industrial_phm.experiments.xjtu_rul import build_xjtu_recorded_end_rul_targets
-from industrial_phm.experiments.xjtu_rul_lstm import fit_xjtu_rul_lstm_model
 from industrial_phm.experiments.xjtu_sequence import _acquisition_index, prepare_xjtu_lstm_reference
 from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models import fit_lstm_autoencoder
@@ -44,7 +42,7 @@ def build_xjtu_lstm_packages(
     created_at: datetime,
     code_revision: str,
     evidence_root: Path,
-) -> tuple[ModelPackageManifest, ModelPackageManifest]:
+) -> ModelPackageManifest:
     """Train only on fold-1 train acquisitions and save weights without opaque objects."""
     config = get_xjtu_lstm_development_configuration()
     state = fit_preprocessing_state(
@@ -108,51 +106,7 @@ def build_xjtu_lstm_packages(
         auto_build,
         output=replace(auto_build.output, threshold=float(np.quantile(reference_scores, 0.995))),
     )
-    anomaly = write_model_package(models_root, auto_build)
-
-    fitted = fit_xjtu_rul_lstm_model(
-        train, build_xjtu_recorded_end_rul_targets(train, partition="train")
-    )
-    rul_raw = [
-        tuple(x for name in window.source_observation_ids for x in raw_by_id[name])
-        for window in fitted.train_sequence.windows[:16]
-    ]
-    rul = write_model_package(
-        models_root,
-        PackageBuild(
-            recipe_id=fitted.config.experiment_id,
-            estimator_kind=EstimatorKind.LSTM_RUL,
-            input=_input(fitted.config, fitted.model.spec.length),
-            output=PackageOutputSpec(
-                task=ModelTask.RUL_ESTIMATE,
-                value_name="lstm-rul",
-                unit="acquisition-interval",
-                endpoint_semantics="last-recorded-acquisition",
-                step_period_seconds=60,
-            ),
-            preprocessing=AffinePreprocessing(
-                fitted.preprocessing_state.fitted_center, fitted.preprocessing_state.fitted_scale
-            ),
-            estimator_state={
-                "input_size": len(fitted.config.selected_features),
-                "model_parameters": dict(fitted.config.model_parameters),
-                "weights": fitted.model.export_weights(),
-            },
-            fit_rows=None,
-            probe_rows=rul_raw,
-            training_scope=_scope(fitted.config, fitted.model.training),
-            validation=_validation(evidence_root, "xjtu-sy-rul-lstm-fold-1-benchmark-v1.json"),
-            applicability={
-                "dataset_id": ["xjtu-sy"],
-                "operating_condition": list(XJTU_OPERATING_CONDITIONS),
-                # Remaining life is defined to the dataset's last recorded acquisition.
-                "recorded_replay": ["true"],
-            },
-            created_at=created_at.isoformat(),
-            code_revision=code_revision,
-        ),
-    )
-    return anomaly, rul
+    return write_model_package(models_root, auto_build)
 
 
 def _input(config: Any, length: int) -> PackageInputSpec:

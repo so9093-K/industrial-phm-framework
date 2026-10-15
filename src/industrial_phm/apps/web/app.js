@@ -266,7 +266,7 @@ async function refresh() {
   clear(byId("trend-results"));
   clear(byId("last-values"));
   trendState("현재 설비의 측정 이력을 다시 확인합니다.");
-  byId("refresh").disabled = !["anomaly", "rul"].includes(document.body.dataset.view);
+  byId("refresh").disabled = document.body.dataset.view !== "anomaly";
   setNotice("저장된 관측 현황을 불러오는 중입니다.");
   try {
     const data = await getJSON("/api/v1/monitor");
@@ -313,7 +313,7 @@ async function refresh() {
   }
 }
 byId("refresh").addEventListener("click",() => {
-  if (["anomaly", "rul"].includes(document.body.dataset.view)) {void refreshPhm();return;}
+  if (document.body.dataset.view === "anomaly") {void refreshPhm();return;}
   if (document.body.dataset.view === "monitor") {void refreshMonitor({force: true});return;}
   refresh();loadSources();loadRuntimeStatus();
 });

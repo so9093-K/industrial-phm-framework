@@ -9,7 +9,7 @@ import { formatTime } from "./time.js";
 import { byId, create, getJSON, num } from "./web-utils.js";
 
 const NAME = {measurements: "측정 신호", "period-compare": "구간 비교", relation: "신호 관계", spectrum: "주파수 성분",
-  anomaly: "이상 탐지", rul: "RUL", "ai-question": "AI 질문"};
+  anomaly: "이상 탐지", "ai-question": "AI 질문"};
 
 // The fact each row rests on, in a few words.
 function fact(item, data) {
