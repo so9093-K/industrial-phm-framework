@@ -190,7 +190,15 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             continue
         reached = [item["expected"] for item in every if item["state"] == "expected"]
         if not reached:
-            sentences.append(label + "에는 " + search_text(outlook) + " 안에 닿지 않습니다.")
+            possible = [item for item in every if item["state"] == "possible"]
+            if possible:
+                edge = "하단" if outlook["conditions"]["direction"] == "lower" else "상단"
+                sentences.append(
+                    label + ": 중심 예측은 " + search_text(outlook)
+                    + " 내 미도달 · 일부 예측 범위 " + edge + "에서만 도달 가능."
+                )
+            else:
+                sentences.append(label + "에는 " + search_text(outlook) + " 안에 닿지 않습니다.")
             continue
         low, high = min(reached), max(reached)
         if low == high:
@@ -330,12 +338,14 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
             for scenario in scenarios
         ]
         reached = sum(scenario["limits"][name]["state"] == "expected" for scenario in scenarios)
+        possible = sum(scenario["limits"][name]["state"] == "possible" for scenario in scenarios)
         facts[name] = (
             ("잔여수명 · " if name == "end" else "")
             + condition_name(outlook, name)
             + "까지: "
             + "; ".join(cells)
             + f" ({len(scenarios)}가지 중 {reached}가지에서 도달 예상)"
+            + (f" · {possible}가지에서 예측 범위만 도달 가능" if possible else "")
             + (
                 " · 마지막 측정은 아직 도달하지 않음"
                 if scenarios[0]["limits"][name]["state"] != "already"
