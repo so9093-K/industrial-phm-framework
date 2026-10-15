@@ -78,16 +78,16 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 page.goto(base + "?monitor_asset=motor-01#monitor")
                 listing = page.locator("#asset-capabilities")
                 pw.expect(listing.locator("h3")).to_have_text("분석 바로가기")
-                pw.expect(listing.locator(".capability")).to_have_count(3)
+                pw.expect(listing.locator(".capability")).to_have_count(4)
+                pw.expect(listing.locator('[data-capability="anomaly"]')).to_contain_text(
+                    "모델 없이 기준 구간에서 벗어난 값 찾기"
+                )
                 pw.expect(listing.locator('[data-capability="measurements"]')).to_contain_text(
                     "신호 2개 ·"
                 )
                 # What this data cannot support stays one quiet line, each with its reason.
                 unavailable = listing.locator(".capability-unavailable")
                 pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
-                pw.expect(unavailable).to_contain_text(
-                    "이상 탐지 — CSV 측정 이력은 모델 입력이 아님"
-                )
                 pw.expect(unavailable).to_contain_text("AI 질문 — 모델 결과 없음")
                 pw.expect(unavailable).to_contain_text("미래 예측 — 기록이 짧음")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
@@ -173,8 +173,11 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_click_away(tmp_path: P
                     f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a#monitor"
                 )
                 anomaly = page.locator('#asset-capabilities [data-capability="anomaly"]')
-                pw.expect(anomaly).to_contain_text("입력이 맞는 모델 2개")
-                anomaly.get_by_role("button", name="이상 탐지 모델 연결").click()
+                pw.expect(anomaly).to_contain_text("맞는 모델 2개 연결 가능")
+                anomaly.get_by_role("button", name="이상 탐지 열기").click()
+                pw.expect(page.locator("#anomaly-explore")).to_contain_text(
+                    "평소 범위를 벗어난 구간"
+                )
                 connect = page.locator("#anomaly-connect")
                 pw.expect(connect).to_contain_text("연결할 수 있는 이상 탐지 모델")
                 pw.expect(connect).to_contain_text("synthetic-vertical-score-v1")

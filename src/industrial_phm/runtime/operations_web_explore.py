@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs
@@ -13,6 +13,7 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
+from industrial_phm.application.exploratory_anomaly import find_departures
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.signal_exploration import (
     MAX_SERIES,
@@ -23,6 +24,8 @@ from industrial_phm.application.signal_exploration import (
     acquisition_spectrum,
     history_relation,
     history_series,
+    interpretation_unit,
+    strongest_identity,
 )
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
@@ -36,6 +39,7 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/profile",
         "/api/v1/explore/relation",
         "/api/v1/explore/spectrum",
+        "/api/v1/explore/anomaly",
     }
 )
 _MAX_ID_LENGTH = 512
@@ -81,6 +85,8 @@ def handle_explore_read(
             return HTTPStatus.OK, explore_sources(workspace, store, asset_id)
         if path in {"/api/v1/explore/relation", "/api/v1/explore/spectrum"}:
             return HTTPStatus.OK, _relation_or_spectrum(workspace, store, asset_id, path, query)
+        if path == "/api/v1/explore/anomaly":
+            return HTTPStatus.OK, _departures(workspace, asset_id, query)
         series = [value for value in query.get("series", []) if value]
         if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
             raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")
@@ -235,3 +241,64 @@ def package_task(workspace: OperationsWorkspace, package_id: str) -> str | None:
     output = manifest.get("output") if isinstance(manifest, dict) else None
     task = output.get("task") if isinstance(output, dict) else None
     return task if isinstance(task, str) else None
+
+
+def _departures(
+    workspace: OperationsWorkspace, asset_id: str, query: dict[str, list[str]]
+) -> dict[str, Any]:
+    """Where up to six stored signals leave their baseline range, from at most 1,000 buckets."""
+    history = _history(workspace)
+    if history is None:
+        raise LookupError("no stored measurement history")
+    summary = next((a for a in history.list_history_assets() if a.asset_id == asset_id), None)
+    if summary is None:
+        raise LookupError("no stored measurement history")
+    channels = list(history.list_history_channels(asset_id))
+    series = [value for value in query.get("series", []) if value] or channels[:3]
+    if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
+        raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")
+    baseline = (query.get("baseline") or ["first-30"])[0]
+    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
+    units: dict[str, str | None] = {}
+    width = 0.0
+    for channel in series:
+        aggregation = history.query_measurement_aggregation(
+            asset_id,
+            channel_id=channel,
+            start_at=summary.start_at,
+            end_at=summary.end_at + timedelta(seconds=1),
+            bucket_count=1000,
+        )
+        width = aggregation.bucket_seconds
+        key, buckets = strongest_identity(aggregation.buckets)
+        units[channel] = interpretation_unit(key[2])
+        points[channel] = [
+            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
+        ]
+    found = find_departures(points, baseline=baseline)
+    return {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "available": channels[:200],
+        "series": series,
+        "units": units,
+        "bucket_seconds": width,
+        "threshold": found["threshold"],
+        "baseline": {
+            "name": found["baseline"]["name"],
+            "from": iso(found["baseline"]["from"]),
+            "to": iso(found["baseline"]["to"]),
+        },
+        "channels": found["channels"],
+        "score": [[iso(start), value, name] for start, value, name in found["score"]],
+        "intervals": [
+            {**item, "start": iso(item["start"]), "end": iso(item["end"])}
+            for item in found["intervals"][:50]
+        ],
+        "interval_count": len(found["intervals"]),
+        "meaning": "departures-from-a-chosen-baseline-not-fault-diagnosis",
+    }
+
+
+def iso(value: datetime) -> str:
+    return value.isoformat()

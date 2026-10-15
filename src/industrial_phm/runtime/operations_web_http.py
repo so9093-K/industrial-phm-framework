@@ -104,6 +104,7 @@ _WEB_ASSET_MIME = {
             "signal-explore.js",
             "capabilities.js",
             "forecast.js",
+            "anomaly-explore.js",
         ),
         "text/javascript; charset=utf-8",
     ),
