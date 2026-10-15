@@ -225,9 +225,7 @@ def _start_operations_workspace(
             f"workspace={workspace.root} operations_url={plan.ui_url} mode=foreground",
             flush=True,
         )
-        print(
-            "ui=web writes=supervisor-command-broker (local single-user operations)", flush=True
-        )
+        print("ui=web writes=supervisor-command-broker (local single-user operations)", flush=True)
         result = run_operations_supervisor(plan)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"Operations runtime start failed: {error}", file=sys.stderr)
