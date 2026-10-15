@@ -22,7 +22,11 @@ from industrial_phm.application.forecast import (
     forecast_values,
     horizon_reasons,
 )
-from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore, StepResult
+from industrial_phm.application.phm_analysis import (
+    PhmAnalysisError,
+    SqlitePhmAnalysisStore,
+    StepResult,
+)
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
