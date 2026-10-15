@@ -80,7 +80,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 pw.expect(listing.locator("h3")).to_have_text("분석 바로가기")
                 # Operations runs behind this page: no view-only notice.
                 pw.expect(page.locator(".view-only-context")).to_have_count(0)
-                pw.expect(listing.locator(".capability")).to_have_count(4)
+                pw.expect(listing.locator(".capability")).to_have_count(6)
                 pw.expect(listing.locator('[data-capability="anomaly"]')).to_contain_text(
                     "모델 없이 기준 구간에서 벗어난 값 찾기"
                 )
@@ -90,8 +90,12 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 # What this data cannot support stays one quiet line, each with its reason.
                 unavailable = listing.locator(".capability-unavailable")
                 pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
-                pw.expect(unavailable).to_contain_text("AI 질문 — 모델 결과 없음")
-                pw.expect(unavailable).to_contain_text("상태 전망 — 기록이 짧음")
+                pw.expect(listing.locator('[data-capability="forecast"]')).to_contain_text(
+                    "예측 그래프는 기록이 짧음"
+                )
+                pw.expect(listing.locator('[data-capability="ai-question"]')).to_contain_text(
+                    "상태 전망을 근거로 질문"
+                )
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
                 # Ready analyses open their first result for the same asset.
@@ -103,6 +107,14 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 page.locator('.asset-tabs a[data-tab="monitor"]').click()
                 listing.get_by_role("button", name="신호 관계 열기").click()
                 pw.expect(page.locator(".explore-relation table")).to_contain_text("구간 A")
+
+                # Without a model, a question is about the condition outlook of the history.
+                page.locator('.asset-tabs a[data-tab="monitor"]').click()
+                listing.get_by_role("button", name="AI 질문 열기").click()
+                pw.expect(page.locator(".asset-tabs a[data-tab='forecast']")).to_have_attribute(
+                    "aria-current", "page"
+                )
+                pw.expect(page.locator("#outlook-question")).to_be_focused(timeout=30000)
 
                 # Vibration with connected models: every analysis, and the question form.
                 page.locator("#asset-switch").select_option("bearing-a")

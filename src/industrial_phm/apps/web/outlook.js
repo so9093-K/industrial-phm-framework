@@ -5,9 +5,14 @@
 // computes every number; this module words and lays them out.
 import { modelFamily } from "./phm-connect.js";
 import { formatTime } from "./time.js";
-import { byId, clear, create, num } from "./web-utils.js";
+import { byId, canChange, clear, create, num, OPERATIONS_REQUIRED } from "./web-utils.js";
 
-let shownKey = "", request = 0, current = null;
+let shownKey = "", request = 0, current = null, briefingTicket = 0, refreshedAt = 0;
+function briefingSelection() {
+  const query = new URLSearchParams(shownKey);
+  if (current?.data_version) query.set("data_version", current.data_version);
+  return query.toString();
+}
 const READING = {current: "현재 설정", recent: "최근 구간만 학습", responsive: "추세 변화에 민감", linear: "최근 변화 속도 유지"};
 const REASON = {
   "few-points": "유효한 값이 20개 이상 있어야 상태 전망을 계산합니다.",
@@ -179,30 +184,119 @@ function links(data) {
   return root;
 }
 
-// Two sentences joining the move of the record with the margin it leaves: where the signal stands
-// against its baseline and how fast it moves, then how far each condition is under the readings.
-export function outlookSentences(data) {
-  const d = data.degradation, p = d.departure;
-  const motion = "최근 " + rateText(data, d.rate) + "씩 변하고 있습니다.";
-  const sentences = [p?.since !== null && p?.since !== undefined
-    ? place(data, p.since) + "부터 기준 구간의 범위를 계속 벗어나 있고, " + motion
-    : p?.outside ? "기준 구간의 범위를 벗어난 값이 " + num(p.outside) + "개 있지만 계속되지는 않았고, " + motion
-    : "기준 구간의 범위 안에 있고, " + motion];
-  for (const name of ["management", "end"]) {
-    if (data.conditions[name] === null || !data.scenarios.length) continue;
-    const label = conditionName(data, name), all = data.scenarios.map((scenario) => scenario.limits[name]);
-    if (all[0].state === "already") {sentences.push("마지막 측정이 이미 " + label + "에 도달했습니다.");continue;}
-    const reached = all.filter((item) => item.state === "expected").map((item) => item.expected);
-    const subject = name === "end" ? label + "까지의 잔여수명은 " : label + "까지 ";
-    const verb = name === "end" ? "입니다." : " 남았습니다.";
-    if (!reached.length) {sentences.push(label + "에는 " + searchText(data) + " 안에 닿지 않습니다.");continue;}
-    const low = Math.min(...reached), high = Math.max(...reached), now = all[0].state === "expected" ? all[0].expected : null;
-    const spread = low === high ? after(data, low) : data.offset_unit === "acquisition"
-      ? num(low) + "–" + num(high) + "개 획득" : span(low) + "–" + span(high);
-    sentences.push(subject + (now !== null ? "현재 설정으로 " + after(data, now) + ", " : "")
-      + "읽는 방법에 따라 " + spread + (reached.length < all.length ? " (" + all.length + "가지 중 " + reached.length + "가지에서 도달)" : "") + verb);
+// An AI briefing of this selection: the supervisor recomputes the outlook, asks the configured
+// model and keeps the answer whose numbers match the computed facts.
+const QUESTIONS = ["최근 어떤 변화가 있었어?", "기준까지 얼마나 남았어?", "예측 조건에 따라 왜 달라져?"];
+const SOURCE = {
+  model: "AI 답변 · 수치는 계산 결과와 대조함",
+  "model-trimmed": "AI 답변 일부 · 계산 결과와 맞지 않는 문장은 뺌",
+  computed: "계산된 요약",
+};
+
+function briefing() {
+  const root = create("section", "outlook-briefing");root.id = "outlook-briefing";
+  root.append(create("h4", null, "AI 브리핑"));
+  const suggestions = create("div", "phm-suggestions");
+  const label = create("label", null, "궁금한 점");
+  const question = create("textarea");question.rows = 2;question.maxLength = 600;question.id = "outlook-question";
+  question.value = "이 설비의 상태와 기준까지 남은 여유를 설명해 주세요.";label.append(question);
+  const ask = create("button", null, "AI에 질문");ask.type = "button";ask.id = "outlook-ask";
+  const status = create("p", "muted");status.setAttribute("role", "status");
+  const answer = create("div", "outlook-answer");
+  for (const text of QUESTIONS) {
+    const button = create("button", "secondary", text);button.type = "button";
+    button.addEventListener("click", () => {question.value = text;ask.click();});
+    suggestions.append(button);
   }
-  return sentences;
+  root.append(suggestions, label, ask, status, answer);
+  const buttons = [ask, ...suggestions.querySelectorAll("button")];
+  for (const button of buttons) button.disabled = true;
+  const selection = briefingSelection();
+  void (async () => {
+    let writable = false;
+    try {writable = canChange(await (await fetch("/api/v1/session", {cache: "no-store"})).json());} catch {}
+    if (selection !== briefingSelection()) return;
+    for (const button of buttons) button.disabled = !writable;
+    if (!writable) status.textContent = OPERATIONS_REQUIRED;
+    const stored = await briefings(selection);
+    const done = stored.find((item) => item.status === "complete");
+    if (done && selection === briefingSelection()) showAnswer(answer, done);
+    const pending = stored.find((item) => item.status === "pending");
+    if (pending && selection === shownKey) void follow(selection, pending.id, status, answer, buttons);
+  })();
+  ask.addEventListener("click", async () => {
+    const text = question.value.trim();
+    if (!text) {status.textContent = "질문을 입력하세요.";return;}
+    for (const button of buttons) button.disabled = true;
+    status.textContent = "AI 브리핑을 요청합니다.";
+    try {
+      const session = await (await fetch("/api/v1/session", {cache: "no-store"})).json();
+      const response = await fetch("/api/v1/outlook/briefings/request", {method: "POST",
+        headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+        body: JSON.stringify({...Object.fromEntries(new URLSearchParams(selection)), question: text})});
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "request_failed");
+      await follow(selection, body.briefing_id, status, answer, buttons);
+    } catch {
+      if (selection === briefingSelection()) {status.textContent = "AI 브리핑을 요청하지 못했습니다.";for (const button of buttons) button.disabled = false;}
+    }
+  });
+  return root;
+}
+
+async function briefings(selection) {
+  try {
+    const response = await fetch("/api/v1/outlook/briefings?" + selection, {cache: "no-store"});
+    return response.ok ? (await response.json()).briefings : [];
+  } catch {return [];}
+}
+
+// Wait for one requested briefing of this selection; a newer selection ends the wait.
+async function follow(selection, id, status, answer, buttons) {
+  const ticket = ++briefingTicket;
+  status.textContent = "AI가 계산 결과를 읽고 있습니다.";
+  for (let attempt = 0; attempt < 120; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, attempt < 10 ? 500 : 1500));
+    if (ticket !== briefingTicket || selection !== briefingSelection()) return;
+    const record = (await briefings(selection)).find((item) => item.id === id);
+    if (!record || record.status === "pending") continue;
+    for (const button of buttons) button.disabled = false;
+    if (record.status === "complete") {status.textContent = "";showAnswer(answer, record);}
+    else status.textContent = "AI 브리핑을 만들지 못했습니다. 위 요약과 계산 근거는 그대로입니다.";
+    return;
+  }
+  for (const button of buttons) button.disabled = false;
+  status.textContent = "AI 브리핑이 늦어지고 있습니다. 잠시 뒤 다시 열면 이어서 보입니다.";
+}
+
+function showAnswer(root, record) {
+  const result = record.answer;
+  const parts = [create("p", "outlook-answer-question", "질문 · " + record.question), create("p", "outlook-answer-summary", result.summary)];
+  if (result.points.length) {
+    const list = create("ul", "outlook-answer-points");
+    for (const point of result.points) {
+      const item = create("li", null, point.text);
+      const chips = create("span", "outlook-chips");
+      for (const key of point.evidence) {
+        const fact = result.evidence[key];
+        const chip = create("span", "outlook-chip", fact?.label || key);chip.title = fact?.text || "";chips.append(chip);
+      }
+      item.append(chips);list.append(item);
+    }
+    parts.push(list);
+  }
+  const facts = create("details", "outlook-answer-facts");
+  facts.append(create("summary", null, "사용한 사실"));
+  const factList = create("dl", "forecast-summary");
+  for (const fact of Object.values(result.evidence)) {
+    const row = create("div");row.append(create("dt", null, fact.label), create("dd", null, fact.text));factList.append(row);
+  }
+  facts.append(factList);
+  const source = result.checks?.source === "computed" && result.checks?.model_unavailable
+    ? "AI 응답이 없어 계산된 요약" : SOURCE[result.checks?.source] || "";
+  parts.push(facts, create("p", "muted outlook-answer-source", source + (record.model ? " · " + record.model : "")
+    + (record.finished_at ? " · " + formatTime(record.finished_at, {seconds: false}) : "")));
+  root.replaceChildren(...parts);
 }
 
 export function renderOutlook(data, context = "") {
@@ -210,9 +304,10 @@ export function renderOutlook(data, context = "") {
   current = data;
   root.hidden = false;
   const body = byId("outlook-body");
-  const parts = [create("p", "outlook-lead", outlookSentences(data).join(" ")), figures(data), details(data)];
+  // The server words the summary once, so the AI briefing's fallback reads the same.
+  const parts = [create("p", "outlook-lead", data.sentences.join(" ")), figures(data), details(data)];
   if (data.scenarios.length) parts.push(scenarioTable(data));
-  parts.push(evidence(data, context));
+  parts.push(briefing(), evidence(data, context));
   body.replaceChildren(...parts);
   document.dispatchEvent(new CustomEvent("outlook-shown", {detail: data}));
 }
@@ -221,7 +316,9 @@ export function renderOutlook(data, context = "") {
 export async function refreshOutlook(query, context = "") {
   const key = query.toString();
   const root = byId("outlook"), body = byId("outlook-body");
-  if (key === shownKey && current) {renderOutlook(current, context);return;}
+  if (key === shownKey && current && Date.now() - refreshedAt < 10000) {
+    renderOutlook(current, context);return;
+  }
   const ticket = ++request;
   shownKey = key;current = null;
   root.hidden = false;
@@ -235,6 +332,7 @@ export async function refreshOutlook(query, context = "") {
       body.replaceChildren(create("p", "muted", response.status === 422 ? REASON[data.reason] || "상태 전망을 계산할 수 없습니다." : "상태 전망을 계산하지 못했습니다."));
       return;
     }
+    refreshedAt = Date.now();
     renderOutlook(data, context);
   } catch {
     if (ticket === request) {shownKey = "";body.replaceChildren(create("p", "muted", "상태 전망을 계산하지 못했습니다."));}

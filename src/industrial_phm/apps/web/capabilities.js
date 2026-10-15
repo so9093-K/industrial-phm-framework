@@ -29,9 +29,11 @@ function fact(item, data) {
     case "explore": return "모델 없이 기준 구간에서 벗어난 값 찾기" + (facts.packages ? " · 맞는 모델 " + num(facts.packages) + "개 연결 가능" : "");
     case "stored-flow": return "변화·기준까지 여유 · 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지 예측";
     case "stored-flow-count": return "변화·기준까지 여유 · 획득 순서 기준";
+    case "outlook-only": return "변화·기준까지 여유 · 예측 그래프는 기록이 짧음";
     case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
     case "model-results": return "결과 시점을 골라 질문";
+    case "outlook": return "상태 전망을 근거로 질문";
     case "compatible-model": return "입력이 맞는 모델 " + num(facts.packages) + "개";
     case "waveforms-need-model": return "모델 연결 후 획득별 특징 계산";
     case "waiting-results": return "첫 결과 대기";
@@ -43,7 +45,7 @@ function fact(item, data) {
     case "single-signal": return "신호 1개";
     case "single-moment": return "측정 시각 1개";
     case "read-only": return "운영을 시작한 화면에서 사용 (make up)";
-    case "needs-results": return "모델 결과 없음";
+    case "needs-results": return "모델 결과·상태 전망 없음";
     default: return "";
   }
 }
@@ -65,7 +67,15 @@ async function open(asset, item) {
     return;
   }
   if (view === "monitor") {navigate("#monitor", byId("monitor-signal-title"));return;}
-  if (view === "forecast") {navigate("#forecast", byId("forecast-title"));return;}
+  if (view === "forecast") {
+    navigate("#forecast", byId("forecast-title"));
+    if (item.id !== "ai-question") return;
+    // The question box appears once the outlook of the asset is read.
+    const end = Date.now() + 15000;
+    while (!byId("outlook-ask") && Date.now() < end) await new Promise((resolve) => setTimeout(resolve, 150));
+    if (byId("outlook-ask") && await whenEnabled(byId("outlook-ask"))) byId("outlook-question")?.focus();
+    return;
+  }
   navigate("#" + view, byId(item.reason === "explore" ? "anomaly-explore" : view + "-title"));
   if (item.id === "ai-question" && await whenEnabled(byId(view + "-ask"))) openPhmAssistant(view);
 }

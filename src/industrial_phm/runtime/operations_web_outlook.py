@@ -25,6 +25,7 @@ from industrial_phm.application.forecast import (
     ForecastUnavailable,
     limit_reach,
 )
+from industrial_phm.application.outlook_text import outlook_facts, outlook_sentences
 from industrial_phm.application.phm_analysis import (
     PhmAnalysisError,
     SqlitePhmAnalysisStore,
@@ -56,50 +57,7 @@ def handle_outlook_read(
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("repeated query parameter")
         params = {name: values[0] for name, values in query.items()}
-        asset_id = params.get("asset_id", "")
-        if not 0 < len(asset_id) <= 512:
-            raise ValueError("asset_id is required")
-        kind = params.get("kind", "")
-        if kind not in {"history", "acquisition"} or not params.get("series"):
-            raise ValueError("kind and series are required")
-        direction = params.get("direction", "upper")
-        if direction not in {"upper", "lower"}:
-            raise ValueError("invalid direction")
-        limits = {
-            name: _finite(params[key])
-            for name, key in (("management", "management_limit"), ("end", "end_limit"))
-            if params.get(key)
-        }
-        prior = _finite(params.get("changepoint_prior_scale", str(DEFAULT_CHANGEPOINT_PRIOR_SCALE)))
-        change_range = _finite(params.get("changepoint_range", str(DEFAULT_CHANGEPOINT_RANGE)))
-        training = int(params["training_points"]) if params.get("training_points") else None
-        assumed = (
-            _finite(params["assumed_period_seconds"])
-            if params.get("assumed_period_seconds")
-            else None
-        )
-        seasonality = params.get("seasonality", "auto")
-        if (
-            not 0.001 <= prior <= 0.5
-            or not 0.5 <= change_range <= 0.95
-            or (training is not None and not 20 <= training <= 1000)
-            or (assumed is not None and (kind != "acquisition" or not 1 <= assumed <= 86400))
-            or seasonality not in {"auto", "off"}
-        ):
-            raise ValueError("forecast setting out of range")
-        return HTTPStatus.OK, condition_outlook(
-            workspace,
-            asset_id,
-            kind=kind,
-            series=params["series"],
-            limits=limits,
-            upper=direction == "upper",
-            changepoint_prior_scale=prior,
-            changepoint_range=change_range,
-            training_points=training,
-            seasonal=seasonality != "off",
-            assumed_period_seconds=assumed,
-        )
+        return HTTPStatus.OK, condition_outlook(workspace, **outlook_arguments(params))
     except ForecastUnavailable as error:
         return HTTPStatus.UNPROCESSABLE_ENTITY, {
             "error": "outlook_unavailable",
@@ -111,6 +69,51 @@ def handle_outlook_read(
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_query"}
     except OperationsReadError, PhmAnalysisError, OSError, sqlite3.Error:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_store_unavailable"}
+
+
+def outlook_arguments(params: dict[str, str]) -> dict[str, Any]:
+    """The outlook a query names, checked against the same ranges as the forecast."""
+    asset_id = params.get("asset_id", "")
+    if not 0 < len(asset_id) <= 512:
+        raise ValueError("asset_id is required")
+    kind = params.get("kind", "")
+    if kind not in {"history", "acquisition"} or not 0 < len(params.get("series", "")) <= 512:
+        raise ValueError("kind and series are required")
+    direction = params.get("direction", "upper")
+    if direction not in {"upper", "lower"}:
+        raise ValueError("invalid direction")
+    limits = {
+        name: _finite(params[key])
+        for name, key in (("management", "management_limit"), ("end", "end_limit"))
+        if params.get(key)
+    }
+    prior = _finite(params.get("changepoint_prior_scale", str(DEFAULT_CHANGEPOINT_PRIOR_SCALE)))
+    change_range = _finite(params.get("changepoint_range", str(DEFAULT_CHANGEPOINT_RANGE)))
+    training = int(params["training_points"]) if params.get("training_points") else None
+    assumed = (
+        _finite(params["assumed_period_seconds"]) if params.get("assumed_period_seconds") else None
+    )
+    seasonality = params.get("seasonality", "auto")
+    if (
+        not 0.001 <= prior <= 0.5
+        or not 0.5 <= change_range <= 0.95
+        or (training is not None and not 20 <= training <= 1000)
+        or (assumed is not None and (kind != "acquisition" or not 1 <= assumed <= 86400))
+        or seasonality not in {"auto", "off"}
+    ):
+        raise ValueError("forecast setting out of range")
+    return {
+        "asset_id": asset_id,
+        "kind": kind,
+        "series": params["series"],
+        "limits": limits,
+        "upper": direction == "upper",
+        "changepoint_prior_scale": prior,
+        "changepoint_range": change_range,
+        "training_points": training,
+        "seasonal": seasonality != "off",
+        "assumed_period_seconds": assumed,
+    }
 
 
 def _finite(text: str) -> float:
@@ -234,6 +237,7 @@ def condition_outlook(
         source_id=meta["source_id"],
         measurement_point_id=meta.get("measurement_point_id"),
         kind=kind,
+        feature=series,
     )
     # The AI briefing must be tied to the exact observations and anomaly evidence
     # that produced this outlook, not merely the same selected form fields.
@@ -249,7 +253,7 @@ def condition_outlook(
             ensure_ascii=False,
         ).encode("utf-8")
     ).hexdigest()
-    return {
+    body = {
         "data_version": revision,
         "schema_version": 1,
         "asset_id": asset_id,
@@ -283,6 +287,10 @@ def condition_outlook(
         "anomaly_model": anomaly,
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
+    # The screen's sentences and the facts an AI briefing may use, worded once.
+    body["sentences"] = outlook_sentences(body)
+    body["facts"] = outlook_facts(body)
+    return body
 
 
 def anomaly_evidence(
@@ -292,6 +300,7 @@ def anomaly_evidence(
     source_id: str,
     measurement_point_id: str | None,
     kind: str,
+    feature: str,
 ) -> dict[str, Any] | None:
     """Only connect analysis evidence from the selected signal's source and input axis."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -306,6 +315,7 @@ def anomaly_evidence(
         and binding.step_kind.value
         == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
+        and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
     ]
     if not bindings:
         return None
@@ -362,3 +372,13 @@ def anomaly_evidence(
         ],
         "interval_count": len(intervals),
     }
+
+
+def _package_uses_feature(workspace: OperationsWorkspace, package_id: str, feature: str) -> bool:
+    """Only show model scores tied to the selected feature in the declared package input."""
+    try:
+        manifest = json.loads((workspace.models_path / package_id / "package.json").read_text())
+        names = manifest["input"]["feature_names"]
+    except OSError, ValueError, TypeError, KeyError:
+        return False
+    return isinstance(names, list) and feature in names

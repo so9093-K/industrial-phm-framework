@@ -25,6 +25,16 @@ _MANAGERS: dict[Path, ExplanationManager] = {}
 _LOCK = Lock()
 
 
+def configured_provider() -> ExplanationProvider:
+    """The explanation model this workspace's supervisor is configured to ask."""
+    return ExplanationProvider(
+        base_url=os.environ.get("INDUSTRIAL_PHM_GENAI_BASE_URL", "http://127.0.0.1:9400/v1"),
+        model=os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "local-main"),
+        api_key=os.environ.get("INDUSTRIAL_PHM_GENAI_API_KEY"),
+        allow_remote=os.environ.get("INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE", "") == "1",
+    )
+
+
 class ExplanationManager:
     def __init__(self, root: Path) -> None:
         self.workspace = OperationsWorkspace(root)
@@ -72,12 +82,7 @@ class ExplanationManager:
                 list(span["features"]),
                 series=focus_series,
             )
-        provider = ExplanationProvider(
-            base_url=os.environ.get("INDUSTRIAL_PHM_GENAI_BASE_URL", "http://127.0.0.1:9400/v1"),
-            model=os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "local-main"),
-            api_key=os.environ.get("INDUSTRIAL_PHM_GENAI_API_KEY"),
-            allow_remote=os.environ.get("INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE", "") == "1",
-        )
+        provider = configured_provider()
         identifier = self.store.request(context, model=provider.model, owner=self.owner)
 
         def generate() -> None:

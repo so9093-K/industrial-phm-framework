@@ -57,6 +57,10 @@ from industrial_phm.runtime.operations_web_forecast import (
     handle_forecast_read,
 )
 from industrial_phm.runtime.operations_web_outlook import OUTLOOK_ROUTE, handle_outlook_read
+from industrial_phm.runtime.operations_web_outlook_briefing import (
+    BRIEFINGS_ROUTE,
+    handle_briefings_read,
+)
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -341,6 +345,10 @@ def create_operations_web_read_server(
                     OperationsWorkspace(root), parts.path, parts.query
                 )
                 self._send_json(status, forecast)
+                return
+            if parts.path == BRIEFINGS_ROUTE:
+                status, briefings = handle_briefings_read(OperationsWorkspace(root), parts.query)
+                self._send_json(status, briefings)
                 return
             if parts.path == OUTLOOK_ROUTE:
                 status, outlook = handle_outlook_read(OperationsWorkspace(root), parts.query)
