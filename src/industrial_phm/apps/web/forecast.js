@@ -114,7 +114,7 @@ function renderControls() {
     }
   };
   series.addEventListener("change", () => {
-    remember({forecast_series: series.value});
+    remember({forecast_series: series.value, forecast_backtest: ""});
     const kind = series.value.split("|")[0];
     unitSelect.value = kind === "acquisition" && !options.acquisition?.period_seconds ? "count" : (params().get("forecast_unit") || "time");
     drawHorizons();refreshUnit();void run();
@@ -133,7 +133,7 @@ function renderControls() {
   unitSelect.value = params().get("forecast_unit") === "count" || (series.value.startsWith("acquisition|") && !options.acquisition?.period_seconds) ? "count" : "time";
   unitField.append(unitSelect);
   const countApply = create("button", "secondary", "획득 수 적용");countApply.type = "button";
-  const countChanged = () => {remember({forecast_count: countInput.value});void run();};
+  const countChanged = () => {remember({forecast_count: countInput.value, forecast_backtest: ""});void run();};
   countApply.addEventListener("click", countChanged);
   countInput.addEventListener("keydown", event => {if (event.key === "Enter") {event.preventDefault();countChanged();}});
   const assumption = create("label", null, "가정 획득 간격 · 초 (선택)");
@@ -159,7 +159,7 @@ function renderControls() {
   const seasonField = create("label", null, "반복 패턴");seasonField.append(seasonality);advanced.append(seasonField);
   const settingsApply = create("button", "secondary", "설정 적용");settingsApply.type = "button";
   settingsApply.addEventListener("click", () => {
-    remember({forecast_prior: prior.value, forecast_range: changeRange.value, forecast_training: training.value, forecast_seasonality: seasonality.value});
+    remember({forecast_prior: prior.value, forecast_range: changeRange.value, forecast_training: training.value, forecast_seasonality: seasonality.value, forecast_backtest: ""});
     void run();
   });
   advanced.append(settingsApply);details.append(advanced);
@@ -173,7 +173,7 @@ function renderControls() {
     countField.hidden = !count;countApply.hidden = !count;
     assumption.hidden = !acquisition;assumptionApply.hidden = !acquisition;
   };
-  unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value});refreshUnit();void run();});
+  unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value, forecast_backtest: ""});refreshUnit();void run();});
   root.append(seriesField, unitField, horizonField, countField, countApply, thresholdField, apply, details);
   advanced.prepend(assumption, assumptionApply);
   drawHorizons();refreshUnit();
