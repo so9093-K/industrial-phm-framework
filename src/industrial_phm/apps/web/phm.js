@@ -718,7 +718,7 @@ function renderRul() {
   byId("rul-observation").textContent = latestRulSkipped
     ? "최근 입력은 분석되지 않았습니다. 선택 기록 " + stepLabel(entry, last.position) + "의 이전 분석 결과입니다."
     : "선택 기록 " + stepLabel(entry, last.position) + (recorded ? " · 데이터셋 마지막 기록까지 약 " + number(last.output.estimate, 1) + "개 기록 구간으로 추정했습니다." : " · 이 시점까지의 입력으로 계산한 추정입니다.");
-  byId("rul-meaning").textContent = recorded ? "실제 설비의 남은 운전시간이나 고장 시점을 뜻하지 않습니다." : "추정 단위와 종료점은 아래 모델 정보를 확인하세요.";
+  byId("rul-meaning").textContent = recorded ? "이 숫자는 데이터셋의 마지막 측정 기록까지 남은 획득 구간 수의 모델 추정입니다. 실제 설비의 남은 운전시간이나 고장 시점이 아닙니다." : "이 추정의 단위와 종료점은 아래 모델 정보를 확인하세요. 실제 정비 시점과 같은 뜻으로 해석하지 마세요.";
   selectAnalysisRecord("rul", entry, analyzed, last.position);
   const unit = unitText(last.output.unit);
   state.className = "state";

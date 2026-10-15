@@ -39,6 +39,7 @@
       <section id="phm-monitor" class="panel phm-monitor" data-views="monitor" aria-labelledby="phm-monitor-title">
         <div class="monitor-observation"><h2 id="phm-monitor-title">관측 상태</h2><span id="monitor-data-mode" class="tag">입력 종류 확인 중</span><p id="phm-monitor-summary"></p></div>
         <p id="phm-monitor-state" class="muted" role="status" aria-live="polite">설비 상태를 조회합니다.</p>
+        <p id="monitor-time-explanation" class="monitor-time-explanation" hidden></p>
         <section class="monitor-attention" aria-labelledby="monitor-attention-title"><div class="monitor-section-title"><h3 id="monitor-attention-title">확인이 필요한 설비</h3><span id="monitor-attention-count"></span></div><div id="monitor-attention-list" aria-live="polite"></div></section>
         <div class="monitor-board" id="monitor-board">
           <section class="monitor-fleet" aria-labelledby="monitor-fleet-title"><h3 id="monitor-fleet-title">설비 목록</h3><div id="phm-monitor-assets"></div></section>
@@ -94,7 +95,24 @@
       </section>
       <section data-views="signals" class="panel explore-panel" id="explore" aria-labelledby="explore-title">
         <div class="panel-header"><div><h2 id="explore-title">구간 비교</h2><p class="muted">두 구간의 측정값 분포와 데이터 상태를 저장된 원본 값으로 비교합니다. 구간 A는 비교 기준으로 고른 구간이며 정상 기준이라는 뜻은 아닙니다.</p></div></div>
+        <div id="explore-guide" class="explore-guide" hidden>
+          <h3>무엇을 확인하고 싶나요?</h3>
+          <p>먼저 질문을 고르세요. 현재 설비의 저장된 측정으로 비교 범위와 분석 화면을 준비합니다.</p>
+          <div id="explore-goals" class="explore-goals" role="group" aria-label="신호 탐색 시작 질문">
+            <button type="button" class="explore-goal" data-explore-goal="compare" aria-pressed="false"><strong>과거와 최근이 어떻게 다른가요?</strong><span>처음과 마지막 1/4 구간의 분포를 비교합니다.</span></button>
+            <button type="button" class="explore-goal" data-explore-goal="trend" aria-pressed="false"><strong>언제부터 측정값이 달라졌나요?</strong><span>위의 신호 흐름과 실제 측정 시각을 확인합니다.</span></button>
+            <button type="button" class="explore-goal" data-explore-goal="relation" aria-pressed="false"><strong>두 신호가 함께 움직이나요?</strong><span>같은 시점의 측정값 관계를 살펴봅니다.</span></button>
+            <button type="button" class="explore-goal" data-explore-goal="spectrum" aria-pressed="false"><strong>진동 주파수는 어떻게 달라졌나요?</strong><span>원본 진동 파형이 있을 때 주파수 성분을 계산합니다.</span></button>
+          </div>
+          <p id="explore-goal-hint" class="explore-goal-hint" aria-live="polite">구간 A는 비교할 과거 구간, 구간 B는 살펴볼 구간입니다. 구간 A가 정상 상태라는 뜻은 아닙니다.</p>
+        </div>
         <div id="explore-controls" class="explore-controls"></div>
+        <p id="explore-result-intro" class="explore-result-intro" hidden></p>
+        <details class="explore-glossary"><summary>중앙값·분포·상관관계가 무엇인가요?</summary>
+          <p><strong>중앙값</strong>은 값을 크기순으로 정렬했을 때 가운데에 있는 값입니다. <strong>분포</strong>는 값이 어느 범위에 얼마나 모이는지를 보여줍니다.</p>
+          <p><strong>상관관계</strong>는 같은 시점의 두 값이 함께 움직이는 경향입니다. 고장의 원인을 증명하지 않습니다. 과거 구간의 5–95% 범위는 안전·정상 기준이 아닙니다.</p>
+          <p><strong>주파수 성분(PSD)</strong>은 원본 진동이 주파수별로 어떻게 나타나는지 살펴보는 분석입니다. 특정 부품 고장을 확정하지 않습니다.</p>
+        </details>
         <p id="explore-state" class="state" role="status" aria-live="polite">설비를 선택하면 비교할 측정을 확인합니다.</p>
         <div id="explore-quality" class="explore-quality"></div>
         <div id="explore-results" class="explore-results"></div>
@@ -164,6 +182,7 @@
       <details data-views="connect" class="csv-entry" id="csv-entry" open><summary>CSV 파일 추가</summary>
       <section data-views="connect" class="panel csv-start" id="csv-start" aria-labelledby="csv-start-title">
         <div class="panel-header"><div><h2 id="csv-start-title">CSV 파일로 시작</h2><p class="muted">파일의 실제 신호를 먼저 보고, 서버에서 점검한 뒤 저장하면 모니터링에서 같은 신호를 봅니다.</p></div></div>
+          <p class="csv-first-guide">처음이라면 <strong>파일 선택 → 측정한 시각과 센서값 컬럼 확인 → 파일 점검 → 측정 기록 저장</strong> 순서로 진행하세요. 파일 점검은 저장 전에 오류를 확인하는 단계입니다.</p>
         <ol id="csv-start-steps" class="csv-start-steps" aria-label="진행 단계"><li data-step="file" aria-current="step">파일 확인</li><li data-step="asset">설비 정보</li><li data-step="check">서버 점검</li><li data-step="save">등록·이력 저장</li><li data-step="monitor">모니터링</li></ol>
         <label class="csv-start-file">CSV 파일 선택 (UTF-8 · 20MiB 이하)<input id="csv-start-file" type="file" accept=".csv,text/csv"></label>
         <div class="csv-start-examples" aria-label="예시 파일"><span>CSV 형식과 측정값 미리보기</span>

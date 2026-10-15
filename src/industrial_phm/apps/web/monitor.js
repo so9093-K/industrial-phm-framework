@@ -98,6 +98,13 @@ function render(data, base) {
   const replayAssets = facts.filter((f) => f.items.some(replay)).length;
   const mode = byId("monitor-data-mode");mode.className = "tag" + (replayAssets ? " replay" : "");
   mode.textContent = replayAssets === facts.length && replayAssets ? "기록 재생 데이터" : replayAssets ? "기록 재생·기타 입력 혼합" : "저장·수신 데이터";
+  const timeExplanation = byId("monitor-time-explanation");
+  timeExplanation.hidden = replayAssets === 0;
+  timeExplanation.textContent = replayAssets === facts.length && replayAssets
+    ? "과거에 측정한 기록을 재생·조회하는 화면입니다. 원래 측정한 시각과 시스템이 기록을 받은 시각은 다르며, 지금 설비가 가동 중인지 또는 고장인지 보여주는 실시간 판정이 아닙니다."
+    : replayAssets
+      ? "과거 기록 재생과 다른 입력이 함께 있습니다. 설비별 원래 측정 시각과 시스템 수신 시각을 구분해 확인하세요. 과거 기록은 현재 설비 상태를 뜻하지 않습니다."
+      : "";
   const received = (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length;
   const intake = base.errors.length ? "수신 상태 미확인" : (base.sources?.sources?.items || []).some((s) => s.continuous_collection_supported)
     ? "최근 " + (replayAssets ? "재생 " : "") + "수신 " + received + "개 소스 (30초)" : "저장된 기록 조회";

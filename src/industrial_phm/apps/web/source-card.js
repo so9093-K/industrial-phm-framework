@@ -26,6 +26,10 @@ export function renderSourceCard(item, actions) {
   card.append(node("strong", item.name), node("span", (live ? "OPC UA" : "CSV") + " · " + assetName(item.asset_id)),
     node("span", status, item.live_telemetry_read_error ? "error" : item.receipt_confirmed || item.last_live_receive_fresh ? "receipt-confirmed" : "receipt-missing"),
     node("span", "마지막 수신: " + formatTime(live ? item.last_live_received_at : item.last_accepted_received_at)));
+  if (item.last_accepted_observed_at) {
+    card.append(node("span", "원래 측정한 시각: " + formatTime(item.last_accepted_observed_at)));
+    if (!live) card.append(node("span", "파일을 읽은 시각과 원래 측정한 시각은 다를 수 있습니다. 과거 측정 기록이 현재 설비 상태를 뜻하지는 않습니다.", "source-time-explanation"));
+  }
   if (job?.state === "running") card.append(node("span", "측정 이력 저장 중"));
   if (["failed", "interrupted"].includes(job?.state)) card.append(node("span", "측정 이력 저장 " + (job.state === "failed" ? "실패" : "중단"), "error"));
   const primary = node("div", "", "source-actions source-primary");
