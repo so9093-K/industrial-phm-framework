@@ -1,0 +1,59 @@
+name: Forecast acceptance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/forecast-acceptance.yml"
+      - "src/industrial_phm/application/forecast.py"
+      - "src/industrial_phm/runtime/operations_web_forecast.py"
+      - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "src/industrial_phm/apps/web/**"
+      - "tests/integration/test_operations_web_forecast.py"
+      - "tests/acceptance/test_operations_forecast_browser.py"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/forecast-acceptance.yml"
+      - "src/industrial_phm/application/forecast.py"
+      - "src/industrial_phm/runtime/operations_web_forecast.py"
+      - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "src/industrial_phm/apps/web/**"
+      - "tests/integration/test_operations_web_forecast.py"
+      - "tests/acceptance/test_operations_forecast_browser.py"
+
+permissions:
+  contents: read
+
+jobs:
+  forecast-acceptance:
+    name: Forecast integration and browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+          enable-cache: true
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Sync locked operations dependencies
+        run: uv sync --locked --extra operations
+
+      - name: Forecast API integration
+        run: uv run --locked --extra operations pytest tests/integration/test_operations_web_forecast.py
+
+      - name: Install browser test runtime
+        run: |
+          uv pip install --python .venv/bin/python "playwright>=1.56,<2"
+          uv run --no-sync python -m playwright install --with-deps chromium
+
+      - name: Forecast Web browser acceptance
+        run: uv run --no-sync pytest tests/acceptance/test_operations_forecast_browser.py
