@@ -488,3 +488,30 @@ button.capability-open:hover:not(:disabled){background:none;color:#0c3a48;text-d
   .capability-fact{grid-column:1/-1;grid-row:2}
   .start-scope th{white-space:normal;width:38%}
 }
+
+/* Future values: measurements, the model's reading of them, the forecast and its interval. */
+.forecast-controls{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:end;margin-bottom:12px}
+.forecast-controls label{display:grid;gap:6px}
+.forecast-chart .axis{fill:none}
+.forecast-controls select{max-width:min(100%,320px)}
+.forecast-controls input{width:130px}
+.forecast-horizon-field{display:grid;gap:6px}.forecast-label{font-size:.86rem;font-weight:690}
+.forecast-horizons{display:flex;gap:4px;flex-wrap:wrap}
+button.forecast-horizon{background:#fff;color:#18596d;border-color:#b9cad5;font-size:.84rem;padding:6px 12px}
+button.forecast-horizon[aria-pressed="true"]{background:#18596d;color:#fff;border-color:#18596d}
+button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){background:#eaf5f5;color:#104455}
+.forecast-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 24px;margin:0 0 10px}
+.forecast-summary div{border-bottom:1px solid #edf2f4;padding-bottom:8px}
+.forecast-summary dt{font-size:.8rem;color:#5a6c78;font-weight:600}.forecast-summary dd{margin:3px 0 0;font-size:.9rem;color:#1d3d4c;overflow-wrap:anywhere}
+.forecast-chart{display:block;width:100%;height:auto;margin-top:6px}
+.forecast-history{fill:none;stroke:#5a7380;stroke-width:1.4}
+.forecast-fitted{fill:none;stroke:#8fb3b8;stroke-width:1.2;stroke-dasharray:4 3}
+.forecast-line{fill:none;stroke:#18796f;stroke-width:2}
+.forecast-band{fill:#18796f;fill-opacity:.14;stroke:none}
+.forecast-now{stroke:#9aaeb7;stroke-width:1;stroke-dasharray:2 3}
+.forecast-threshold{stroke:#b26a12;stroke-width:1.4;stroke-dasharray:6 4}
+.forecast-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:4px 0 8px;font-size:.78rem;color:#4c6573}
+.forecast-key::before{content:"";display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+.forecast-key-history::before{border-color:#5a7380}.forecast-key-fitted::before{border-color:#8fb3b8;border-top-style:dashed}
+.forecast-key-line::before{border-color:#18796f}.forecast-key-threshold::before{border-color:#b26a12;border-top-style:dashed}
+.forecast-key-band::before{height:8px;border:0;background:#18796f;opacity:.18}

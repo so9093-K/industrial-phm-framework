@@ -12,6 +12,7 @@ import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 import { initializeSignalExplore } from "./signal-explore.js";
 import { initializeCapabilities } from "./capabilities.js";
+import { initializeForecast } from "./forecast.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
 let phmModelCount = 0;
@@ -336,6 +337,7 @@ byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").
 initializeCsvStart();
 initializeSignalExplore();
 initializeCapabilities();
+initializeForecast();
 records.initialize();loadRuntimeStatus();
 // Automatic Monitor updates retain selection/forms and never call condition fitting or history trends.
 async function readMonitorFacts() {

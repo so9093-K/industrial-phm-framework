@@ -43,8 +43,11 @@ history = [
 opcua = [
   "asyncua>=2.0.1,<2.1",
 ]
+forecast = [
+  "prophet>=1.5,<2",
+]
 operations = [
-  "industrial-phm-framework[history,opcua]",
+  "industrial-phm-framework[history,opcua,forecast]",
 ]
 aihub = [
     "ijson>=3.4,<4",

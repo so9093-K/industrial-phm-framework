@@ -82,7 +82,9 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     analyze(workspace)
     asked = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
     status = _status(asked)
-    assert {status[name][0] for name in status} == {"ready"}
+    assert {status[name][0] for name in status if name != "forecast"} == {"ready"}
+    # Four acquisitions a minute apart are far shorter than twice the shortest horizon.
+    assert status["forecast"] == ("unavailable", "short-history")
     question = next(item for item in asked["capabilities"] if item["id"] == "ai-question")
     assert question["target"] == {"view": "anomaly", "goal": "ask"}
     spectrum = next(item for item in asked["capabilities"] if item["id"] == "spectrum")

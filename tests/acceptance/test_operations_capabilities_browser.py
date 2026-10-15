@@ -89,6 +89,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                     "이상 탐지 — CSV 측정 이력은 모델 입력이 아님"
                 )
                 pw.expect(unavailable).to_contain_text("AI 질문 — 모델 결과 없음")
+                pw.expect(unavailable).to_contain_text("미래 예측 — 기록이 짧음")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
                 # Ready analyses open their first result for the same asset.
@@ -106,7 +107,9 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 page.locator('.asset-tabs a[data-tab="monitor"]').click()
                 # Every analysis opens; the waveform itself is already on the overview above.
                 pw.expect(listing.locator(".capability")).to_have_count(5)
-                pw.expect(listing.locator(".capability-unavailable")).to_have_count(0)
+                pw.expect(listing.locator(".capability-unavailable")).to_have_text(
+                    "사용 불가미래 예측 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
+                )
                 pw.expect(listing.locator('[data-capability="period-compare"]')).to_contain_text(
                     "획득 #1–#8"
                 )
