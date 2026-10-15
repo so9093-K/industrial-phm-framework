@@ -75,3 +75,37 @@ def test_a_daily_pattern_is_used_once_two_days_are_stored() -> None:
     peak = max(point[1] for point in result["forecast"])
     trough = min(point[1] for point in result["forecast"])
     assert peak - trough > 4
+
+
+def test_forecast_scenario_settings_are_applied_to_fit_and_history_check() -> None:
+    times = _minutes(240)
+    values = [1.0 + index * 0.02 for index in range(240)]
+    result = forecast_values(
+        times, values, 3600,
+        changepoint_prior_scale=0.1,
+        changepoint_range=0.8,
+        training_points=160,
+        rolling_backtests=True,
+    )
+    assert result["model"]["points"] == 160
+    assert result["model"]["changepoint_prior_scale"] == 0.1
+    assert result["model"]["changepoint_range"] == 0.8
+    assert len(result["rolling_backtests"]) == 3
+    assert all(fold["points"] >= 5 for fold in result["rolling_backtests"])
+    assert result["history"][0][0] == times[80].isoformat()
+    assert result["trend"]["slope_direction"] == "up"
+    assert math.isfinite(result["trend"]["level_gap"])
+
+
+@pytest.mark.parametrize("params", [
+    {"changepoint_prior_scale": 0.0},
+    {"changepoint_prior_scale": float("nan")},
+    {"changepoint_prior_scale": 1.0},
+    {"changepoint_range": 0.1},
+    {"changepoint_range": float("inf")},
+    {"training_points": 1},
+    {"training_points": 1001},
+])
+def test_invalid_forecast_scenario_settings_are_rejected(params: dict[str, float | int]) -> None:
+    with pytest.raises(ValueError):
+        forecast_values(_minutes(180), [float(i) for i in range(180)], 3600, **params)
