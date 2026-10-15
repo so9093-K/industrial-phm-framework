@@ -103,12 +103,18 @@ def test_stored_history_is_forecast_on_its_clock_with_a_level_and_a_check(tmp_pa
         assert body["meaning"] == "stored-flow-continued-not-failure-time-or-remaining-life"
         assert str(tmp_path) not in json.dumps(body)
         status, custom = get(
-            "/api/v1/forecast", **{
-                "asset_id": "motor-01", "kind": "history", "series": "current",
-                "horizon": "1h", "changepoint_prior_scale": "0.1",
-                "changepoint_range": "0.8", "training_points": "150",
-                "seasonality": "off", "backtest": "multi",
-            }
+            "/api/v1/forecast",
+            **{
+                "asset_id": "motor-01",
+                "kind": "history",
+                "series": "current",
+                "horizon": "1h",
+                "changepoint_prior_scale": "0.1",
+                "changepoint_range": "0.8",
+                "training_points": "150",
+                "seasonality": "off",
+                "backtest": "multi",
+            },
         )
         assert status == 200
         assert custom["model"]["points"] == 150
@@ -177,10 +183,16 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
         assert count["recorded_period_seconds"] == 60
         assert count["period_seconds"] == 120
         assert count["forecast"][-1][0] == pytest.approx(155)
-        assert get(
-            "/api/v1/forecast", asset_id="bearing-a", kind="acquisition",
-            series="feature.Horizontal_vibration_signals.rms",
-            horizon="count", horizon_count="0",
-        )[0] == 400
+        assert (
+            get(
+                "/api/v1/forecast",
+                asset_id="bearing-a",
+                kind="acquisition",
+                series="feature.Horizontal_vibration_signals.rms",
+                horizon="count",
+                horizon_count="0",
+            )[0]
+            == 400
+        )
     finally:
         stop()
