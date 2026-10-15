@@ -298,9 +298,9 @@ def test_short_acquisition_record_offers_count_forecast_in_asset_shortcuts(tmp_p
         stop()
 
 
-@pytest.mark.parametrize("all_features_sparse", [False, True])
+@pytest.mark.parametrize("mode", ["rms-short", "rms-tight", "all-short"])
 def test_acquisition_readiness_uses_finite_points_in_selected_feature(
-    tmp_path: Path, all_features_sparse: bool
+    tmp_path: Path, mode: str
 ) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal in range(1, 36):
@@ -310,10 +310,10 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
         for position, serialized in connection.execute(
             "SELECT position, features FROM step_result WHERE state = 'analyzed' ORDER BY position"
         ).fetchall():
-            if position > 20:
+            if position > (15 if mode == "rms-tight" else 20):
                 continue
             features = json.loads(serialized)
-            if all_features_sparse:
+            if mode == "all-short":
                 features = {}
             else:
                 rms_key = "feature.Horizontal_vibration_signals.rms"
@@ -338,10 +338,12 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
             if item["key"] == "feature.Horizontal_vibration_signals.rms"
         )
         assert acquisition["count"] == 35  # All analyzed steps, not usable RMS values.
-        assert rms["valid_points"] == 15
-        assert rms["count_forecast"] is False
-        assert rms["horizons"]["1h"] == "few-points"
-        assert acquisition["count_forecast"] is (not all_features_sparse)
+        expected = 20 if mode == "rms-tight" else 15
+        assert rms["valid_points"] == expected
+        assert rms["valid_span_steps"] == expected - 1
+        assert rms["count_forecast"] is (mode == "rms-tight")
+        assert rms["horizons"]["1h"] == ("short-history" if mode == "rms-tight" else "few-points")
+        assert acquisition["count_forecast"] is (mode != "all-short")
         assert (
             get(
                 "/api/v1/forecast/options",
@@ -349,19 +351,41 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
                 kind="acquisition",
                 series=rms["key"],
             )[1]["selection"]["points"]
-            == 15
+            == expected
         )
-        assert (
-            get(
-                "/api/v1/forecast",
-                asset_id="bearing-a",
-                kind="acquisition",
-                series=rms["key"],
-                horizon="count",
-                horizon_count="5",
-            )[0]
-            == 422
+        status, _ = get(
+            "/api/v1/forecast",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series=rms["key"],
+            horizon="count",
+            horizon_count="5",
         )
+        assert status == (200 if mode == "rms-tight" else 422)
+        if mode == "rms-tight":
+            # 20 points over 19 acquisition steps support nine steps ahead, not 17.
+            assert (
+                get(
+                    "/api/v1/forecast",
+                    asset_id="bearing-a",
+                    kind="acquisition",
+                    series=rms["key"],
+                    horizon="count",
+                    horizon_count="9",
+                )[0]
+                == 200
+            )
+            assert (
+                get(
+                    "/api/v1/forecast",
+                    asset_id="bearing-a",
+                    kind="acquisition",
+                    series=rms["key"],
+                    horizon="count",
+                    horizon_count="17",
+                )[0]
+                == 422
+            )
         forecast = next(
             item
             for item in project_asset_capabilities(workspace, "bearing-a", can_ask=True)[
@@ -369,8 +393,8 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
             ]
             if item["id"] == "forecast"
         )
-        assert forecast["status"] == ("unavailable" if all_features_sparse else "ready")
-        if not all_features_sparse:
+        assert forecast["status"] == ("unavailable" if mode == "all-short" else "ready")
+        if mode != "all-short":
             other = next(item for item in acquisition["series"] if item["valid_points"] >= 20)
             status, result = get(
                 "/api/v1/forecast",
