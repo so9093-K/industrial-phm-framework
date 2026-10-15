@@ -24,7 +24,7 @@ async function getJson(url) {
 const time = (iso) => formatTime(iso, {seconds: false});
 
 export function initializeAnomalyExplore() {
-  onAssetChange(() => {loadedFor = "";if (document.body.dataset.view === "anomaly") void load();});
+  onAssetChange(() => {loadedFor = "";const url = new URL(location.href);url.searchParams.delete("forecast_anomaly_series");history.replaceState(history.state, "", url);if (document.body.dataset.view === "anomaly") void load();});
   window.addEventListener("hashchange", () => {
     if (document.body.dataset.view !== "anomaly") return;
     const wanted = new URL(location.href).searchParams.get("forecast_anomaly_series");
