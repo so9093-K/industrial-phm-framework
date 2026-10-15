@@ -12,11 +12,11 @@ pytest.importorskip("prophet", reason="install the forecast extra")
 
 from industrial_phm.genai import outlook_answer
 from industrial_phm.runtime import operations_web_outlook_briefing as briefing_runtime
-from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
 from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
 from tests.integration.test_operations_web_forecast import _serve
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 
