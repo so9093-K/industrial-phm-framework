@@ -39,6 +39,11 @@ function remember(values) {
 const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : seconds >= 3600 ? num(seconds / 3600) + "시간"
   : seconds >= 60 ? num(Math.round(seconds / 60)) + "분" : num(Math.round(seconds)) + "초";
 
+// Reload options as well as forecast/outlook: new stored measurements can change eligibility.
+export function refreshForecast() {
+  if (document.body.dataset.view === "forecast") void load();
+}
+
 export function initializeForecast() {
   onAssetChange(() => {loadedFor = "";clearOutlook();remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_end: "", forecast_direction: "", forecast_context_from: "", forecast_context_to: "", forecast_context_kind: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
   window.addEventListener("hashchange", () => {
