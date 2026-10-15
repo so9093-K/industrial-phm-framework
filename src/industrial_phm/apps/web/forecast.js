@@ -70,7 +70,10 @@ async function load() {
 function choices() {
   const list = [];
   if (options.history) for (const item of options.history.series) list.push({value: "history|" + item.key, label: item.label, kind: "history"});
-  if (options.acquisition) for (const item of options.acquisition.series) list.push({value: "acquisition|" + item.key, label: item.label, kind: "acquisition"});
+  if (options.acquisition) for (const item of options.acquisition.series) {
+    if (item.valid_points < 20) continue;
+    list.push({value: "acquisition|" + item.key, label: item.label, kind: "acquisition"});
+  }
   return list;
 }
 
@@ -79,6 +82,10 @@ async function renderControls() {
   const series = create("select");series.id = "forecast-series";
   const groups = {history: "측정 이력", acquisition: "진동 획득 특징"};
   const items = choices();
+  if (!items.length) {
+    state("분석 이력은 있지만 유효한 측정값이 20개 이상인 신호가 없습니다.");
+    return false;
+  }
   for (const kind of ["history", "acquisition"]) {
     const subset = items.filter((item) => item.kind === kind);
     if (!subset.length) continue;
