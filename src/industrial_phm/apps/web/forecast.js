@@ -140,6 +140,8 @@ async function renderControls() {
     remember({forecast_series: series.value, forecast_backtest: "",
       forecast_context_kind: "", forecast_context_from: "", forecast_context_to: ""});
     const kind = series.value.split("|")[0];
+    if (kind === "acquisition" && !params().get("forecast_count"))
+      countInput.value = recommendedCount(series.value);
     unitSelect.value = kind === "acquisition" && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason)
       ? "count" : (params().get("forecast_unit") || "time");
     refreshUnit();void update();
@@ -163,8 +165,13 @@ async function renderControls() {
   countInput.type = "number";countInput.min = "1";countInput.max = "2000";countInput.step = "1";
   countInput.id = "forecast-count";
   const acquisition = options.acquisition;
-  const defaultCount = acquisition ? Math.max(1, Math.min(30, Math.floor((acquisition.last - acquisition.first) / 2))) : 30;
-  countInput.value = params().get("forecast_count") || String(defaultCount);countField.append(countInput);
+  const recommendedCount = (selection) => {
+    const selected = acquisition?.series.find(item => "acquisition|" + item.key === selection);
+    const span = selected?.valid_span_steps ?? (acquisition ? acquisition.last - acquisition.first : 60);
+    return String(Math.max(1, Math.min(30, Math.floor(span / 2))));
+  };
+  countInput.value = params().get("forecast_count") || recommendedCount(series.value);
+  countField.append(countInput);
   const unitField = create("label", null, "예측 단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
   for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
