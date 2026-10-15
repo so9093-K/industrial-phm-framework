@@ -127,11 +127,12 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
             expected = known.get("expected_offsets", {})
             if "도달하지" in part or "닿지" in part:
                 continue
+            claim = _REACH_OFFSET.search(part)
+            if claim and claim.group(1) not in {value for value in expected.values() if value}:
+                issues.append(f"{name} 조건에 없는 도달 시간입니다: {sentence}")
             for reading, duration in expected.items():
-                if reading in part and duration is not None:
-                    claim = _REACH_OFFSET.search(part)
-                    if claim and claim.group(1) != duration:
-                        issues.append(f"{reading}의 {name} 도달 시간과 다른 숫자입니다: {sentence}")
+                if reading in part and claim and claim.group(1) != duration:
+                    issues.append(f"{reading}의 {name} 도달 시간과 다른 숫자입니다: {sentence}")
         clauses = _CLAUSE.split(sentence)
         for index, clause in enumerate(clauses):
             window = clause
