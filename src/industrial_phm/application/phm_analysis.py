@@ -479,20 +479,16 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in reversed(rows))
 
-    def analyzed_threshold_exceedance(
-        self, binding_id: str
-    ) -> tuple[int, StepResult | None]:
+    def analyzed_threshold_exceedance(self, binding_id: str) -> tuple[int, StepResult | None]:
         """Exact exceeding count and first exceeding analyzed result, computed in SQL."""
-        where = (
-            "binding_id = ? AND state = ? "
-            "AND json_extract(output, '$.exceeds_threshold') = 1"
-        )
+        where = "binding_id = ? AND state = ? AND json_extract(output, '$.exceeds_threshold') = 1"
         args = (binding_id, StepState.ANALYZED.value)
         connection = self._connect()
         try:
             count = int(
-                connection.execute(f"SELECT COUNT(*) FROM step_result WHERE {where}", args)
-                .fetchone()[0]
+                connection.execute(
+                    f"SELECT COUNT(*) FROM step_result WHERE {where}", args
+                ).fetchone()[0]
             )
             row = connection.execute(
                 f"SELECT * FROM step_result WHERE {where} ORDER BY position LIMIT 1", args
