@@ -129,6 +129,8 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         description = " ".join(body["sentences"])
         assert "%가 초기 비교 범위 밖" in description
         assert "계속 벗어나" not in description
+        assert "%가 초기 비교 범위 밖" in body["facts"]["departure"]
+        assert "계속 벗어나" not in body["facts"]["departure"]
         linear = body["scenarios"][-1]["limits"]
         # From 2.17 at #64, 0.067 an acquisition: 2.4 is 4 acquisitions on, 3.0 is 13.
         assert linear["management"] == {
