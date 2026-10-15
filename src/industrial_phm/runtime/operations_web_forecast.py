@@ -87,6 +87,9 @@ def handle_forecast_read(
             raise ValueError("invalid changepoint_range")
         if training_points is not None and not 20 <= training_points <= 1000:
             raise ValueError("invalid training_points")
+        threshold_direction = params.get("threshold_direction", "upper")
+        if threshold_direction not in {"upper", "lower"}:
+            raise ValueError("invalid threshold_direction")
         threshold = float(params["threshold"]) if params.get("threshold") else None
         if threshold is not None and not math.isfinite(threshold):
             raise ValueError("threshold must be finite")
@@ -97,6 +100,7 @@ def handle_forecast_read(
             series=params.get("series", ""),
             horizon=horizon,
             threshold=threshold,
+            threshold_direction=threshold_direction,
             changepoint_prior_scale=prior_scale,
             changepoint_range=change_range,
             training_points=training_points,
@@ -177,6 +181,7 @@ def forecast_series(
     series: str,
     horizon: str,
     threshold: float | None,
+    threshold_direction: str = "upper",
     changepoint_prior_scale: float = 0.05,
     changepoint_range: float = 0.9,
     training_points: int | None = None,
@@ -222,13 +227,17 @@ def forecast_series(
         changepoint_range=changepoint_range,
         training_points=training_points,
         rolling_backtests=rolling_backtests,
+        future_acquisitions=horizon_count if horizon == "count" else None,
+        threshold_direction=threshold_direction,
     )
     if kind == "acquisition":
         # Report the acquisition axis back: an acquisition's position, not an invented clock.
         period = meta["period_seconds"]
 
         def position(iso: str) -> float:
-            return float(1 + (datetime.fromisoformat(iso) - _ORIGIN).total_seconds() / period)
+            value = 1 + (datetime.fromisoformat(iso) - _ORIGIN).total_seconds() / period
+            nearest = round(value)
+            return float(nearest) if abs(value - nearest) < 1e-6 else float(value)
 
         result["history"] = [[position(t), v] for t, v in result["history"]]
         result["fitted"] = [[position(t), v] for t, v in result["fitted"]]
