@@ -13,8 +13,8 @@ pytest.importorskip("prophet", reason="install the forecast extra")
 pytest.importorskip("duckdb")
 
 from industrial_phm.application.backfill import FileBackfillEvent
-from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.integration.test_operations_web_forecast import _serve
 from tests.support.phm import analyze, deliver, phm_workspace
 
