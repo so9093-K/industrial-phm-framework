@@ -237,6 +237,7 @@ def condition_outlook(
         source_id=meta["source_id"],
         measurement_point_id=meta.get("measurement_point_id"),
         kind=kind,
+        feature=series,
     )
     # The AI briefing must be tied to the exact observations and anomaly evidence
     # that produced this outlook, not merely the same selected form fields.
@@ -299,6 +300,7 @@ def anomaly_evidence(
     source_id: str,
     measurement_point_id: str | None,
     kind: str,
+    feature: str,
 ) -> dict[str, Any] | None:
     """Only connect analysis evidence from the selected signal's source and input axis."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -313,6 +315,7 @@ def anomaly_evidence(
         and binding.step_kind.value
         == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
+        and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
     ]
     if not bindings:
         return None
@@ -369,3 +372,13 @@ def anomaly_evidence(
         ],
         "interval_count": len(intervals),
     }
+
+
+def _package_uses_feature(workspace: OperationsWorkspace, package_id: str, feature: str) -> bool:
+    """Only show model scores tied to the selected feature in the declared package input."""
+    try:
+        manifest = json.loads((workspace.models_path / package_id / "package.json").read_text())
+        names = manifest["input"]["feature_names"]
+    except OSError, ValueError, TypeError, KeyError:
+        return False
+    return isinstance(names, list) and feature in names
