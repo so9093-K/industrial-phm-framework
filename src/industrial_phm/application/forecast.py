@@ -110,7 +110,7 @@ def _predict(model: Any, times: Sequence[datetime]) -> Any:
 def forecast_values(
     times: Sequence[datetime],
     values: Sequence[float],
-    horizon_seconds: int,
+    horizon_seconds: float,
     *,
     seasonal: bool = True,
     threshold: float | None = None,
@@ -257,7 +257,7 @@ def _threshold(
 def _backtest(
     times: Sequence[datetime],
     observed: np.ndarray,
-    horizon_seconds: int,
+    horizon_seconds: float,
     seasonal: bool,
     *,
     changepoint_prior_scale: float = DEFAULT_CHANGEPOINT_PRIOR_SCALE,
@@ -296,7 +296,7 @@ def _backtest(
 def _rolling_backtests(
     times: Sequence[datetime],
     observed: np.ndarray,
-    horizon_seconds: int,
+    horizon_seconds: float,
     seasonal: bool,
     *,
     changepoint_prior_scale: float,
