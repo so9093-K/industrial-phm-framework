@@ -116,7 +116,8 @@ function renderControls() {
     }
   };
   series.addEventListener("change", () => {
-    remember({forecast_series: series.value, forecast_backtest: ""});
+    remember({forecast_series: series.value, forecast_backtest: "",
+      forecast_context_kind: "", forecast_context_from: "", forecast_context_to: ""});
     const kind = series.value.split("|")[0];
     unitSelect.value = kind === "acquisition" && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason)
       ? "count" : (params().get("forecast_unit") || "time");
@@ -139,7 +140,10 @@ function renderControls() {
   const horizonField = create("div", "forecast-horizon-field");horizonField.append(create("span", "forecast-label", "예측 기간"), horizons);
   const countField = create("label", null, "미래 획득 수");const countInput = create("input");
   countInput.type = "number";countInput.min = "1";countInput.max = "2000";countInput.step = "1";
-  countInput.id = "forecast-count";countInput.value = params().get("forecast_count") || "30";countField.append(countInput);
+  countInput.id = "forecast-count";
+  const acquisition = options.acquisition;
+  const defaultCount = acquisition ? Math.max(1, Math.min(30, Math.floor((acquisition.last - acquisition.first) / 2))) : 30;
+  countInput.value = params().get("forecast_count") || String(defaultCount);countField.append(countInput);
   const unitField = create("label", null, "예측 단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
   for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
