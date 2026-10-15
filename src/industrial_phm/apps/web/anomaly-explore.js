@@ -25,7 +25,11 @@ const time = (iso) => formatTime(iso, {seconds: false});
 
 export function initializeAnomalyExplore() {
   onAssetChange(() => {loadedFor = "";if (document.body.dataset.view === "anomaly") void load();});
-  window.addEventListener("hashchange", () => {if (document.body.dataset.view === "anomaly" && loadedFor !== currentAsset()) void load();});
+  window.addEventListener("hashchange", () => {
+    if (document.body.dataset.view !== "anomaly") return;
+    const wanted = new URL(location.href).searchParams.get("forecast_anomaly_series");
+    if (loadedFor !== currentAsset() || (wanted && !shown?.data?.series?.includes(wanted))) void load();
+  });
   window.addEventListener("resize", () => {if (shown && document.body.dataset.view === "anomaly") draw(shown);});
   if (document.body.dataset.view === "anomaly") void load();
 }
