@@ -33,6 +33,10 @@ RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-lif
 
 기준을 넣지 않으면 열화 지표와 예측만 보이고, 기준까지 여유는 `기준 없음`입니다.
 
+화면 예시(2026-10-15, XJTU-SY Bearing1_1 수평 진동 RMS 123개 획득, 관리 상한 8 · 종료 기준 15, 실제 `local-main` 답):
+[1280px 상태·잔여 여유와 AI 브리핑](images/outlook/outlook-briefing-1280.png) ·
+[390px 탭 전체(운영 미실행 화면)](images/outlook/outlook-390.png).
+
 ## 계산 계약 (`GET /api/v1/outlook`)
 
 - 입력: `asset_id`, `kind`(`history`·`acquisition`), `series`, 선택 `management_limit`, `end_limit`,
