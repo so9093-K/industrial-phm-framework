@@ -68,6 +68,9 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(summary).to_contain_text("1시간 뒤")
                 pw.expect(summary).to_contain_text("과거 자료 확인")
                 pw.expect(panel.get_by_text("설비 상태 전망", exact=True)).to_be_visible()
+                pw.expect(panel.locator("#forecast-anomaly-summary")).to_contain_text(
+                    "기준 이탈", timeout=30000
+                )
                 pw.expect(panel.get_by_role("button", name="24시간")).to_be_disabled()
                 pw.expect(panel.get_by_role("button", name="1시간")).to_have_attribute(
                     "aria-pressed", "true"
