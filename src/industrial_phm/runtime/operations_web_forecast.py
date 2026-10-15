@@ -217,6 +217,7 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 {
                     **candidate,
                     "valid_points": valid,
+                    "valid_span_steps": points[-1][0] - points[0][0] if valid >= 2 else 0,
                     "count_forecast": valid >= 20,
                     "horizons": reasons,
                 }
