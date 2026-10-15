@@ -123,6 +123,9 @@ function draw({output, data}) {
       const url = new URL(location.href);
       url.searchParams.set("forecast_series", "history|" + item.channel);
       url.searchParams.set("forecast_anomaly_series", item.channel);
+      url.searchParams.set("forecast_context_kind", "anomaly");
+      url.searchParams.set("forecast_context_from", item.start);
+      url.searchParams.set("forecast_context_to", item.end);
       url.hash = "forecast";forecast.href = url.pathname + url.search + url.hash;
       row.append(compare, forecast);list.append(row);
     }
