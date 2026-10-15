@@ -146,8 +146,7 @@ def test_stored_history_is_forecast_on_its_clock_with_a_level_and_a_check(tmp_pa
         assert get("/api/v1/forecast", **query, horizon="1h", training_points="10")[0] == 400
         assert get("/api/v1/forecast", **query, horizon="1h", backtest="unknown")[0] == 400
         assert (
-            get("/api/v1/forecast", **query, horizon="1h", threshold_direction="sideways")[0]
-            == 400
+            get("/api/v1/forecast", **query, horizon="1h", threshold_direction="sideways")[0] == 400
         )
         assert get("/api/v1/forecast", **query, horizon="count", horizon_count="30")[0] == 400
         assert get("/api/v1/forecast", **{**query, "asset_id": "nobody"}, horizon="1h")[0] == 404
