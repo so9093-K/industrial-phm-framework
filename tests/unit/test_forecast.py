@@ -12,6 +12,7 @@ pytest.importorskip("prophet", reason="install the forecast extra")
 
 from industrial_phm.application.forecast import (
     ForecastUnavailable,
+    _threshold,
     forecast_values,
     horizon_reasons,
 )
@@ -114,3 +115,73 @@ def test_forecast_scenario_settings_are_applied_to_fit_and_history_check() -> No
 def test_invalid_forecast_scenario_settings_are_rejected(params: dict[str, float | int]) -> None:
     with pytest.raises(ValueError):
         forecast_values(_minutes(180), [float(i) for i in range(180)], 3600, **params)
+
+
+def test_upper_limit_uses_last_observation_not_model_start_to_report_already() -> None:
+    future = _minutes(2)
+    crossing = _threshold(
+        4.0,
+        3.9,
+        future,
+        np.array([4.1, 4.2]),
+        np.array([3.8, 4.0]),
+        np.array([4.3, 4.4]),
+        direction="upper",
+    )
+    assert crossing["state"] == "expected"
+    assert crossing["expected_at"] == future[0].isoformat()
+    assert crossing["limit_kind"] == "upper"
+    assert _threshold(
+        4.0,
+        4.1,
+        future,
+        np.array([3.9, 3.8]),
+        np.array([3.7, 3.6]),
+        np.array([4.1, 4.0]),
+        direction="upper",
+    )["state"] == "already"
+
+
+def test_lower_limit_is_explicit_and_does_not_infer_direction_from_prediction() -> None:
+    future = _minutes(2)
+    crossing = _threshold(
+        4.0,
+        4.1,
+        future,
+        np.array([3.9, 3.8]),
+        np.array([3.7, 3.6]),
+        np.array([4.1, 4.0]),
+        direction="lower",
+    )
+    assert crossing["state"] == "expected"
+    assert crossing["expected_at"] == future[0].isoformat()
+    assert crossing["direction"] == "down"
+    assert _threshold(
+        4.0,
+        3.9,
+        future,
+        np.array([4.1, 4.2]),
+        np.array([3.8, 4.0]),
+        np.array([4.3, 4.4]),
+        direction="lower",
+    )["state"] == "already"
+
+
+def test_count_horizon_forecasts_only_whole_acquisition_steps() -> None:
+    times = _minutes(140)
+    values = [1.0 + 0.01 * index for index in range(140)]
+    result = forecast_values(
+        times,
+        values,
+        30 * 60,
+        seasonal=False,
+        future_acquisitions=30,
+        threshold=3.0,
+        threshold_direction="upper",
+    )
+    future = [datetime.fromisoformat(point[0]) for point in result["forecast"]]
+    assert len(future) == 31
+    assert future[0] == times[-1]
+    assert future[-1] == times[-1] + timedelta(minutes=30)
+    assert all(right - left == timedelta(minutes=1) for left, right in zip(future, future[1:]))
+    assert result["model"]["future_acquisitions"] == 30
