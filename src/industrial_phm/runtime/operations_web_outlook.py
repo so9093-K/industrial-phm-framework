@@ -315,7 +315,10 @@ def anomaly_evidence(
         and binding.step_kind.value
         == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
-        and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
+        and (
+            kind != "acquisition"
+            or _package_uses_feature(workspace, binding.package_id, feature)
+        )
     ]
     if not bindings:
         return None
