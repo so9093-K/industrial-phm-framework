@@ -548,3 +548,5 @@ button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){backgrou
 .forecast-explore-links a{color:#165c72;text-underline-offset:3px}
 .forecast-controls [hidden],.forecast-details [hidden]{display:none}
 @media(max-width:700px){.forecast-controls{align-items:stretch}.forecast-details{width:100%}.forecast-advanced{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}}
+.forecast-compare{fill:none;stroke:#6a7886;stroke-width:1.6;stroke-dasharray:5 4}
+.forecast-key-compare:before{background:#6a7886}
