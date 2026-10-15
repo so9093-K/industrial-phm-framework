@@ -109,7 +109,9 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     assert status["spectrum"] == ("unavailable", "no-waveform")
     # A CSV history is not a model input, but it can be searched for departures without one.
     assert status["anomaly"] == ("ready", "explore")
-    assert status["ai-question"] == ("unavailable", "needs-results")
+    # Twenty minutes carry an outlook (no chart horizon fits), and questions about it.
+    assert status["forecast"] == ("ready", "outlook-only")
+    assert status["ai-question"] == ("ready", "outlook")
     assert body["data"]["history"]["channel_count"] == 2
     assert body["data"]["history"]["measurement_count"] == 40
 

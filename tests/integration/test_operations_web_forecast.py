@@ -179,6 +179,14 @@ def test_stored_history_is_forecast_on_its_clock_with_a_level_and_a_check(tmp_pa
         if item["id"] == "forecast"
     )
     assert (forecast["status"], forecast["facts"]) == ("ready", {"horizon": "1h"})
+    # Without a model, a question is about the condition outlook of the stored history.
+    question = next(
+        item
+        for item in project_asset_capabilities(workspace, "motor-01", can_ask=True)["capabilities"]
+        if item["id"] == "ai-question"
+    )
+    assert (question["status"], question["reason"]) == ("ready", "outlook")
+    assert question["target"] == {"view": "forecast", "goal": "ask"}
 
 
 def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path) -> None:

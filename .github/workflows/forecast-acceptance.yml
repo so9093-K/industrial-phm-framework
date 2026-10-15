@@ -8,6 +8,9 @@ on:
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
       - "src/industrial_phm/runtime/operations_web_outlook.py"
+      - "src/industrial_phm/runtime/operations_web_outlook_briefing.py"
+      - "src/industrial_phm/application/outlook_text.py"
+      - "src/industrial_phm/genai/outlook_answer.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
       - "src/industrial_phm/runtime/operations_web_explore.py"
@@ -18,6 +21,9 @@ on:
       - "tests/integration/test_operations_web_forecast.py"
       - "tests/integration/test_operations_web_outlook.py"
       - "tests/unit/test_condition_outlook.py"
+      - "tests/unit/test_outlook_answer.py"
+      - "tests/integration/test_operations_web_outlook_briefing.py"
+      - "tests/acceptance/test_operations_outlook_browser.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
@@ -30,6 +36,9 @@ on:
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
       - "src/industrial_phm/runtime/operations_web_outlook.py"
+      - "src/industrial_phm/runtime/operations_web_outlook_briefing.py"
+      - "src/industrial_phm/application/outlook_text.py"
+      - "src/industrial_phm/genai/outlook_answer.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
       - "src/industrial_phm/runtime/operations_web_explore.py"
@@ -40,6 +49,9 @@ on:
       - "tests/integration/test_operations_web_forecast.py"
       - "tests/integration/test_operations_web_outlook.py"
       - "tests/unit/test_condition_outlook.py"
+      - "tests/unit/test_outlook_answer.py"
+      - "tests/integration/test_operations_web_outlook_briefing.py"
+      - "tests/acceptance/test_operations_outlook_browser.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
@@ -75,6 +87,7 @@ jobs:
         run: >-
           uv run --locked --extra operations pytest tests/integration/test_operations_web_forecast.py
           tests/integration/test_operations_web_outlook.py tests/unit/test_condition_outlook.py
+          tests/integration/test_operations_web_outlook_briefing.py tests/unit/test_outlook_answer.py
 
       - name: Install browser test runtime
         run: |
@@ -82,4 +95,6 @@ jobs:
           uv run --no-sync python -m playwright install --with-deps chromium
 
       - name: Forecast Web browser acceptance
-        run: uv run --no-sync pytest tests/acceptance/test_operations_forecast_browser.py
+        run: >-
+          uv run --no-sync pytest tests/acceptance/test_operations_forecast_browser.py
+          tests/acceptance/test_operations_outlook_browser.py

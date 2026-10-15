@@ -23,6 +23,7 @@ from industrial_phm.application.forecast import (
     ForecastUnavailable,
     limit_reach,
 )
+from industrial_phm.application.outlook_text import outlook_facts, outlook_sentences
 from industrial_phm.application.phm_analysis import (
     PhmAnalysisError,
     SqlitePhmAnalysisStore,
@@ -55,50 +56,7 @@ def handle_outlook_read(
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("repeated query parameter")
         params = {name: values[0] for name, values in query.items()}
-        asset_id = params.get("asset_id", "")
-        if not 0 < len(asset_id) <= 512:
-            raise ValueError("asset_id is required")
-        kind = params.get("kind", "")
-        if kind not in {"history", "acquisition"} or not params.get("series"):
-            raise ValueError("kind and series are required")
-        direction = params.get("direction", "upper")
-        if direction not in {"upper", "lower"}:
-            raise ValueError("invalid direction")
-        limits = {
-            name: _finite(params[key])
-            for name, key in (("management", "management_limit"), ("end", "end_limit"))
-            if params.get(key)
-        }
-        prior = _finite(params.get("changepoint_prior_scale", str(DEFAULT_CHANGEPOINT_PRIOR_SCALE)))
-        change_range = _finite(params.get("changepoint_range", str(DEFAULT_CHANGEPOINT_RANGE)))
-        training = int(params["training_points"]) if params.get("training_points") else None
-        assumed = (
-            _finite(params["assumed_period_seconds"])
-            if params.get("assumed_period_seconds")
-            else None
-        )
-        seasonality = params.get("seasonality", "auto")
-        if (
-            not 0.001 <= prior <= 0.5
-            or not 0.5 <= change_range <= 0.95
-            or (training is not None and not 20 <= training <= 1000)
-            or (assumed is not None and (kind != "acquisition" or not 1 <= assumed <= 86400))
-            or seasonality not in {"auto", "off"}
-        ):
-            raise ValueError("forecast setting out of range")
-        return HTTPStatus.OK, condition_outlook(
-            workspace,
-            asset_id,
-            kind=kind,
-            series=params["series"],
-            limits=limits,
-            upper=direction == "upper",
-            changepoint_prior_scale=prior,
-            changepoint_range=change_range,
-            training_points=training,
-            seasonal=seasonality != "off",
-            assumed_period_seconds=assumed,
-        )
+        return HTTPStatus.OK, condition_outlook(workspace, **outlook_arguments(params))
     except ForecastUnavailable as error:
         return HTTPStatus.UNPROCESSABLE_ENTITY, {
             "error": "outlook_unavailable",
@@ -110,6 +68,51 @@ def handle_outlook_read(
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_query"}
     except OperationsReadError, PhmAnalysisError, OSError, sqlite3.Error:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_store_unavailable"}
+
+
+def outlook_arguments(params: dict[str, str]) -> dict[str, Any]:
+    """The outlook a query names, checked against the same ranges as the forecast."""
+    asset_id = params.get("asset_id", "")
+    if not 0 < len(asset_id) <= 512:
+        raise ValueError("asset_id is required")
+    kind = params.get("kind", "")
+    if kind not in {"history", "acquisition"} or not 0 < len(params.get("series", "")) <= 512:
+        raise ValueError("kind and series are required")
+    direction = params.get("direction", "upper")
+    if direction not in {"upper", "lower"}:
+        raise ValueError("invalid direction")
+    limits = {
+        name: _finite(params[key])
+        for name, key in (("management", "management_limit"), ("end", "end_limit"))
+        if params.get(key)
+    }
+    prior = _finite(params.get("changepoint_prior_scale", str(DEFAULT_CHANGEPOINT_PRIOR_SCALE)))
+    change_range = _finite(params.get("changepoint_range", str(DEFAULT_CHANGEPOINT_RANGE)))
+    training = int(params["training_points"]) if params.get("training_points") else None
+    assumed = (
+        _finite(params["assumed_period_seconds"]) if params.get("assumed_period_seconds") else None
+    )
+    seasonality = params.get("seasonality", "auto")
+    if (
+        not 0.001 <= prior <= 0.5
+        or not 0.5 <= change_range <= 0.95
+        or (training is not None and not 20 <= training <= 1000)
+        or (assumed is not None and (kind != "acquisition" or not 1 <= assumed <= 86400))
+        or seasonality not in {"auto", "off"}
+    ):
+        raise ValueError("forecast setting out of range")
+    return {
+        "asset_id": asset_id,
+        "kind": kind,
+        "series": params["series"],
+        "limits": limits,
+        "upper": direction == "upper",
+        "changepoint_prior_scale": prior,
+        "changepoint_range": change_range,
+        "training_points": training,
+        "seasonal": seasonality != "off",
+        "assumed_period_seconds": assumed,
+    }
 
 
 def _finite(text: str) -> float:
@@ -227,7 +230,7 @@ def condition_outlook(
                         # The first whole acquisition at or after the reaching point.
                         reached[key] = math.ceil(reached[key] / period - 1e-6)
 
-    return {
+    body = {
         "schema_version": 1,
         "asset_id": asset_id,
         "kind": kind,
@@ -260,6 +263,10 @@ def condition_outlook(
         "anomaly_model": anomaly_evidence(workspace, asset_id),
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
+    # The screen's sentences and the facts an AI briefing may use, worded once.
+    body["sentences"] = outlook_sentences(body)
+    body["facts"] = outlook_facts(body)
+    return body
 
 
 def anomaly_evidence(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any] | None:

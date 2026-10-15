@@ -97,8 +97,14 @@ def project_asset_capabilities(
         "schema_version": 1,
         "asset_id": asset_id,
         "data": data,
-        # Questions are about stored model results, which exploration does not create.
-        "capabilities": [*signals, forecast, anomaly, _question_capability(modelled, can_ask)],
+        # Questions are about stored model results or the condition outlook; exploration
+        # alone creates neither.
+        "capabilities": [
+            *signals,
+            forecast,
+            anomaly,
+            _question_capability(modelled, forecast, can_ask),
+        ],
         "meaning": "what-the-stored-data-supports-not-asset-health",
     }
 
@@ -196,7 +202,7 @@ def _forecast_capability(
     data: dict[str, Any],
     acquisition: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Future values need enough stored length: twice the shortest horizon, 20 points."""
+    """The outlook needs 20 stored values; its chart needs twice the shortest horizon too."""
     if data["history"] is None and data["acquisition"] is None and acquisition is None:
         reason = "not-received" if data["waiting_sources"] else "no-data"
         return _item("forecast", UNAVAILABLE, reason, "connect")
@@ -213,6 +219,10 @@ def _forecast_capability(
     if not allowed:
         if options["acquisition"] and options["acquisition"].get("count_forecast"):
             return _item("forecast", READY, "stored-flow-count", "forecast")
+        history = options["history"]
+        if history and "few-points" not in history["horizons"].values():
+            # Twenty values carry a condition outlook even where no chart horizon fits.
+            return _item("forecast", READY, "outlook-only", "forecast")
         return _item("forecast", UNAVAILABLE, "short-history", None)
     longest = max(allowed, key=lambda name: HORIZONS[name])
     return _item("forecast", READY, "stored-flow", "forecast", horizon=longest)
@@ -276,12 +286,19 @@ def _model_capability(
     return _item(name, UNAVAILABLE, "input-mismatch", None, details=reasons[:3])
 
 
-def _question_capability(anomaly: dict[str, Any], can_ask: bool) -> dict[str, Any]:
-    if anomaly["status"] != READY:
-        waiting = anomaly["status"] == WAITING
-        return _item(
-            "ai-question", UNAVAILABLE, "waiting-results" if waiting else "needs-results", None
-        )
-    if not can_ask:
-        return _item("ai-question", UNAVAILABLE, "read-only", "anomaly")
-    return _item("ai-question", READY, "model-results", "anomaly", "ask")
+def _question_capability(
+    anomaly: dict[str, Any], forecast: dict[str, Any], can_ask: bool
+) -> dict[str, Any]:
+    """Model results are asked about where they are; otherwise the condition outlook is."""
+    if anomaly["status"] == READY:
+        if not can_ask:
+            return _item("ai-question", UNAVAILABLE, "read-only", "anomaly")
+        return _item("ai-question", READY, "model-results", "anomaly", "ask")
+    if forecast["status"] == READY:
+        if not can_ask:
+            return _item("ai-question", UNAVAILABLE, "read-only", "forecast")
+        return _item("ai-question", READY, "outlook", "forecast", "ask")
+    waiting = anomaly["status"] == WAITING
+    return _item(
+        "ai-question", UNAVAILABLE, "waiting-results" if waiting else "needs-results", None
+    )
