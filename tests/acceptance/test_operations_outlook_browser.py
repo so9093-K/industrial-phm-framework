@@ -135,6 +135,21 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                     timeout=30000
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
+                # Readable lower-limit and bounded-horizon wording on the same screen.
+                page.evaluate(
+                    """async () => {
+                        const outlook = await import('/web/outlook.js');
+                        const data = structuredClone(outlook.currentOutlook());
+                        data.conditions.direction = 'lower';
+                        const reading = data.scenarios.find(item => item.id === 'current');
+                        reading.limits.management = {state: 'possible', expected: null, earliest: 4, latest: null};
+                        reading.limits.end = {state: 'beyond', expected: null, earliest: null, latest: null};
+                        outlook.renderOutlook(data);
+                    }"""
+                )
+                pw.expect(figures).to_contain_text("범위 하단만 도달")
+                pw.expect(figures).to_contain_text("기간 내 미도달")
+                pw.expect(page.locator(".outlook-scenarios")).to_contain_text("범위 하단만")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
                 # A forecast leads to the asset's existing saved-analysis view.
