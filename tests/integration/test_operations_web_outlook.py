@@ -125,6 +125,10 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         indicator = body["degradation"]
         assert indicator["rate"] == pytest.approx(0.06 * 1.118, rel=0.02)
         assert 41 <= indicator["departure"]["since"] <= 43
+        assert 0.8 <= indicator["departure"]["since_share"] <= 1
+        description = " ".join(body["sentences"])
+        assert "%가 초기 비교 범위 밖" in description
+        assert "계속 벗어나" not in description
         linear = body["scenarios"][-1]["limits"]
         # From 2.17 at #64, 0.067 an acquisition: 2.4 is 4 acquisitions on, 3.0 is 13.
         assert linear["management"] == {
