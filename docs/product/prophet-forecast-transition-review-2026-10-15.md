@@ -1,5 +1,10 @@
 # Prophet 기반 미래 예측 전환 — 사례 리서치·현행 구조 리뷰·작업 계획
 
+> **구현 상태 (2026-10-15)**: #578(RUL 폐기, [ADR-0026](../adr/0026-retire-remaining-life-estimation.md))과
+> #579(미래 예측)로 구현했습니다. 구현은 이 계획보다 단순합니다. 예측은 요청할 때 계산하고(0.1–0.5초) 저장하지
+> 않으며(`GET /api/v1/forecast/options`, `GET /api/v1/forecast`), 저장된 ForecastRun·POST 실행 작업·실행 보호
+> 단계는 두지 않았습니다. 현재 동작은 [현재 지원 상태](../status.md)의 `미래 예측` 항목을 따릅니다.
+
 > 2026-10-15 · 현행 검토 기준: `main` 975d2ea · **문서 리뷰/실행 계획, 구현 완료 아님**
 > 관련 UX PR: [#575](https://github.com/so9093-K/industrial-phm-framework/pull/575) (조사 당시 미병합)
 
