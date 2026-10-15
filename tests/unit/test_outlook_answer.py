@@ -93,6 +93,39 @@ def _outlook() -> dict[str, Any]:
 PROVIDER = ExplanationProvider()
 
 
+@pytest.mark.parametrize("direction,edge", [("upper", "상단"), ("lower", "하단")])
+def test_possible_and_beyond_do_not_become_definite_no_reach(
+    direction: str, edge: str
+) -> None:
+    outlook = _outlook()
+    outlook["conditions"]["direction"] = direction
+    for scenario in outlook["scenarios"]:
+        scenario["limits"]["management"] = {
+            "state": "possible" if scenario["id"] in {"current", "responsive"} else "beyond",
+            "expected": None,
+            "earliest": 4 if scenario["id"] in {"current", "responsive"} else None,
+            "latest": None,
+        }
+    sentences = outlook_sentences(outlook)
+    assert f"일부 예측 범위 {edge}에서만 도달 가능" in sentences[1]
+    assert "닿지 않습니다" not in sentences[1]
+    facts = outlook_facts(outlook)
+    assert "0가지에서 도달 예상" in facts["management"]
+    assert "2가지에서 예측 범위만 도달 가능" in facts["management"]
+    assert "예측 범위에서만 4개 획득 뒤 도달" in facts["management"]
+
+
+def test_expected_and_possible_are_counted_separately() -> None:
+    outlook = _outlook()
+    outlook["scenarios"][1]["limits"]["management"] = {
+        "state": "possible", "expected": None, "earliest": 39, "latest": None
+    }
+    facts = outlook_facts(outlook)
+    assert "3가지에서 도달 예상" in facts["management"]
+    assert "1가지에서 예측 범위만 도달 가능" in facts["management"]
+    assert "4가지 중 3가지에서 도달" in outlook_sentences(outlook)[1]
+
+
 def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> None:
     outlook = _outlook()
     assert outlook["sentences"] == [
