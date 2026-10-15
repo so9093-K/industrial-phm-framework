@@ -237,6 +237,14 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 assert len(sources) == 1
                 source_id = sources[0].source_id
                 assert workspace.history_catalog_path.exists()
+                # Where the data arrived: what it supports now, and what it cannot support.
+                done = page.locator("#csv-start-capabilities")
+                pw.expect(done).to_contain_text("분석 바로가기", timeout=30000)
+                compare = done.locator('[data-capability="period-compare"]')
+                pw.expect(compare.get_by_role("button", name="구간 비교 열기")).to_be_visible()
+                unavailable = done.locator(".capability-unavailable")
+                pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
+                pw.expect(unavailable.locator('[data-capability="anomaly"]')).to_be_visible()
 
                 page.get_by_role("button", name="모니터링에서 실제 그래프 보기").click()
                 pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(

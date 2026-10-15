@@ -13,6 +13,20 @@ const svgNode = (name, attributes = {}) => {
   return node;
 };
 let sources = null, kind = null, loadedKey = "", request = 0, loadTicket = 0;
+// A question chosen elsewhere (the overview's list of what the data supports) runs once the
+// comparison for its asset is ready.
+let readyFor = "", pendingGoal = null;
+export function requestExploreGoal(goal) {
+  pendingGoal = goal ? {goal, asset: currentAsset()} : null;
+  if (pendingGoal && readyFor === pendingGoal.asset) runPendingGoal();
+}
+function runPendingGoal() {
+  const {goal, asset} = pendingGoal;
+  pendingGoal = null;
+  if (asset !== currentAsset()) return;
+  const button = byId("explore-goals").querySelector(`[data-explore-goal="${goal}"]`);
+  if (button && !button.hidden && !button.disabled) button.click();
+}
 // An answer belongs to the comparison it was asked for: a newer comparison, asset or
 // axis choice makes it stale.
 const stale = (owner, box) => owner !== request || !box.isConnected;
@@ -29,7 +43,13 @@ const params = () => new URL(location.href).searchParams;
 const viewKey = () => [currentAsset(), ...["explore_kind", "explore_series", "explore_a", "explore_b"].map((k) => params().get(k) || "")].join("|");
 
 export function initializeSignalExplore() {
-  onAssetChange(() => {loadedKey = "";if (document.body.dataset.view === "signals") void load();});
+  onAssetChange(() => {
+    // A comparison's signals and ranges belong to the asset they were chosen for.
+    const url = new URL(location.href);
+    for (const key of ["explore_kind", "explore_series", "explore_a", "explore_b"]) url.searchParams.delete(key);
+    history.replaceState(history.state, "", url);
+    loadedKey = "";if (document.body.dataset.view === "signals") void load();
+  });
   // The signal flow hands over its window and signals as two halves to compare.
   document.addEventListener("explore-request", (event) => {
     const url = new URL(location.href);
@@ -43,7 +63,7 @@ export function initializeSignalExplore() {
 
 async function load() {
   const asset = currentAsset(), ticket = ++loadTicket;
-  loadedKey = viewKey();
+  loadedKey = viewKey();readyFor = "";
   request++;
   for (const id of ["explore-controls", "explore-quality", "explore-results"]) clear(byId(id));
   byId("explore-guide").hidden = true;
@@ -62,6 +82,9 @@ async function load() {
   renderControls(kinds);
   byId("explore-guide").hidden = false;
   await compare();
+  if (ticket !== loadTicket || asset !== currentAsset()) return;
+  readyFor = asset;
+  if (pendingGoal) runPendingGoal();
 }
 
 function seriesChoices() {
@@ -81,7 +104,9 @@ function defaultSeries(choices) {
 
 // Default periods: the first and second half of what is stored; a link can name others.
 function defaultPeriods() {
-  const parse = (value) => (value || "").split("~");
+  // A range written for the other kind of data (numbers vs times) is not this one's.
+  const fits = (value) => kind === "acquisition" ? /^\d+$/.test(value) : /^\d{4}-\d{2}-\d{2}T/.test(value);
+  const parse = (value) => {const parts = (value || "").split("~");return parts.length === 2 && parts.every(fits) ? parts : [];};
   const [aFrom, aTo] = parse(params().get("explore_a")), [bFrom, bTo] = parse(params().get("explore_b"));
   if (kind === "acquisition") {
     const {first, last} = sources.acquisition;

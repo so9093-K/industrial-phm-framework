@@ -335,8 +335,6 @@ button.secondary{background:#fff;color:#18596d}button.secondary:hover:not(:disab
 body[data-view="monitor"][data-workspace-state="empty"] #phm-monitor,
 body[data-view="monitor"][data-workspace-state="empty"] #workspace-overview,
 body[data-view="monitor"][data-workspace-state="empty"] #condition-disclosure{display:none}
-.start-example{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:14px 0 4px;padding:14px 16px;border:1px solid #9fcfc6;border-radius:12px;background:#f1faf8}
-.start-example button{font-size:.95rem}.start-example p{margin:0;font-size:.82rem;color:#395866;flex:1;min-width:220px}
 .csv-start-examples{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 0;font-size:.8rem;color:#45616f}
 .csv-start-examples button{font-size:.78rem;padding:5px 9px}
 
@@ -458,3 +456,35 @@ button.monitor-next{background:white;border:1px solid #b9cad5;padding:6px 10px}
   .explore-guide{padding:12px}.explore-periods{min-width:0}
 }
 @media(max-width:450px){.brand small{display:none}.sidebar-secondary{margin-top:0}.monitor-time-explanation{font-size:.92rem}}
+
+/* Start choices, and a quiet reference of what each kind of data supports. */
+.start-options{grid-template-columns:repeat(3,minmax(0,1fr))}
+.start-options button.start-option{display:flex;flex-direction:column;gap:8px;text-align:left;border:1px solid #b9cad5;border-radius:12px;padding:18px;background:#f7fbfc;color:#162b38;font-weight:400}
+.start-options button.start-option:hover:not(:disabled){background:#eaf5f5;border-color:#18596d;color:#162b38}
+.start-options button.start-option strong{font-weight:700;color:#18596d}
+.start-scope{margin:18px 0 0;border-collapse:collapse;font-size:.82rem;color:#45616f;width:100%}
+.start-scope caption{text-align:left;font-weight:700;color:#3d5866;padding:0 0 6px;font-size:.84rem}
+.start-scope th,.start-scope td{text-align:left;padding:7px 10px 7px 0;border-top:1px solid #e3ebef;vertical-align:top}
+.start-scope th{font-weight:600;color:#2f4f5d;white-space:nowrap;width:1%}
+/* Analysis shortcuts: name, the fact it rests on, a way in. Unavailable ones stay one muted line. */
+.asset-capabilities{margin:18px 0 4px;padding-top:14px;border-top:1px solid #e3ebef}
+.csv-start-done .asset-capabilities{flex-basis:100%}
+.asset-capabilities h3{margin:0 0 6px;font-size:.92rem}
+.capability-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,430px),1fr));column-gap:32px}
+.capability{display:grid;grid-template-columns:6.5rem minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid #edf2f4;min-width:0}
+.capability-name{font-weight:650;font-size:.88rem;color:#1d3d4c}
+.capability-fact{font-size:.82rem;color:#5a6c78;overflow-wrap:anywhere}
+.capability-state{font-size:.8rem;color:#7a8a93}
+button.capability-open{background:none;border:0;padding:2px 0;color:#18596d;font-size:.84rem;font-weight:650;white-space:nowrap}
+button.capability-open::after{content:" ›"}
+button.capability-open:hover:not(:disabled){background:none;color:#0c3a48;text-decoration:underline}
+.capability[data-status="needs-connection"] button.capability-open{color:#8a5a12}
+.capability-unavailable{margin:10px 0 0;font-size:.8rem;color:#6b7f87;display:flex;flex-wrap:wrap;gap:4px 14px;line-height:1.5}
+.capability-unavailable-label{font-weight:650;color:#5a6c78}
+.capability-empty{margin:0;font-size:.85rem;color:#5a6c78}
+@media(max-width:900px){.start-options{grid-template-columns:1fr}}
+@media(max-width:520px){
+  .capability{grid-template-columns:minmax(0,1fr) auto;row-gap:2px}
+  .capability-fact{grid-column:1/-1;grid-row:2}
+  .start-scope th{white-space:normal;width:38%}
+}

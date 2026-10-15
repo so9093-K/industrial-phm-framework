@@ -34,6 +34,10 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_capabilities import (
+    CAPABILITIES_ROUTE,
+    handle_capabilities_read,
+)
 from industrial_phm.runtime.operations_web_command import (
     WebCommandClient,
     WebCommandOutcomeUnknown,
@@ -94,6 +98,7 @@ _WEB_ASSET_MIME = {
             "file-registration.js",
             "opcua-registration.js",
             "signal-explore.js",
+            "capabilities.js",
         ),
         "text/javascript; charset=utf-8",
     ),
@@ -323,6 +328,14 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[asset_path])
                 return
             parts = urlsplit(self.path)
+            if parts.path == CAPABILITIES_ROUTE:
+                status, capabilities = handle_capabilities_read(
+                    OperationsWorkspace(root),
+                    parts.query,
+                    can_ask=command_client is not None and not synthetic_demo,
+                )
+                self._send_json(status, capabilities)
+                return
             if parts.path in EXPLORE_READ_ROUTES:
                 status, explore_payload = handle_explore_read(
                     OperationsWorkspace(root), parts.path, parts.query

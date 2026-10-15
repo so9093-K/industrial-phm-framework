@@ -77,7 +77,7 @@ def handle_explore_read(
         asset_id = _one(query, "asset_id")
         store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
         if path == "/api/v1/explore/sources":
-            return HTTPStatus.OK, _sources(workspace, store, asset_id)
+            return HTTPStatus.OK, explore_sources(workspace, store, asset_id)
         if path in {"/api/v1/explore/relation", "/api/v1/explore/spectrum"}:
             return HTTPStatus.OK, _relation_or_spectrum(workspace, store, asset_id, path, query)
         series = [value for value in query.get("series", []) if value]
@@ -191,7 +191,7 @@ def _relation_or_spectrum(
     }
 
 
-def _sources(
+def explore_sources(
     workspace: OperationsWorkspace, store: SqlitePhmAnalysisStore, asset_id: str
 ) -> dict[str, Any]:
     """What this asset offers for exploration: stored history, acquisition features, or both."""
@@ -212,7 +212,7 @@ def _sources(
         acquisition = acquisition_source(store, binding)
         # Which model results an acquisition range can open: anomaly or RUL, per binding.
         acquisition["models"] = [
-            {"binding_id": item.binding_id, "task": _task(workspace, item.package_id)}
+            {"binding_id": item.binding_id, "task": package_task(workspace, item.package_id)}
             for item in store.list_bindings()
             if item.asset_id == asset_id and item.source_id == binding.source_id
         ]
@@ -224,7 +224,7 @@ def _sources(
     }
 
 
-def _task(workspace: OperationsWorkspace, package_id: str) -> str | None:
+def package_task(workspace: OperationsWorkspace, package_id: str) -> str | None:
     try:
         manifest = json.loads((workspace.models_path / package_id / "package.json").read_text())
     except OSError, ValueError:
