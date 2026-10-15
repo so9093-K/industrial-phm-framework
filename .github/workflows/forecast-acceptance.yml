@@ -7,8 +7,15 @@ on:
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "src/industrial_phm/runtime/operations_web_explore.py"
+      - "src/industrial_phm/runtime/operations_web_http.py"
+      - "src/industrial_phm/application/signal_exploration.py"
+      - "src/industrial_phm/application/phm_analysis.py"
       - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
+      - "tests/integration/test_operations_web_explore.py"
+      - "tests/integration/test_operations_web_capabilities.py"
+      - "tests/support/phm.py"
       - "tests/acceptance/test_operations_forecast_browser.py"
   push:
     branches: [main]
@@ -17,8 +24,15 @@ on:
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "src/industrial_phm/runtime/operations_web_explore.py"
+      - "src/industrial_phm/runtime/operations_web_http.py"
+      - "src/industrial_phm/application/signal_exploration.py"
+      - "src/industrial_phm/application/phm_analysis.py"
       - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
+      - "tests/integration/test_operations_web_explore.py"
+      - "tests/integration/test_operations_web_capabilities.py"
+      - "tests/support/phm.py"
       - "tests/acceptance/test_operations_forecast_browser.py"
 
 permissions:

@@ -70,7 +70,10 @@ async function load() {
 function choices() {
   const list = [];
   if (options.history) for (const item of options.history.series) list.push({value: "history|" + item.key, label: item.label, kind: "history"});
-  if (options.acquisition) for (const item of options.acquisition.series) list.push({value: "acquisition|" + item.key, label: item.label, kind: "acquisition"});
+  if (options.acquisition) for (const item of options.acquisition.series) {
+    if (item.valid_points < 20) continue;
+    list.push({value: "acquisition|" + item.key, label: item.label, kind: "acquisition"});
+  }
   return list;
 }
 
@@ -79,6 +82,10 @@ async function renderControls() {
   const series = create("select");series.id = "forecast-series";
   const groups = {history: "측정 이력", acquisition: "진동 획득 특징"};
   const items = choices();
+  if (!items.length) {
+    state("분석 이력은 있지만 유효한 측정값이 20개 이상인 신호가 없습니다.");
+    return false;
+  }
   for (const kind of ["history", "acquisition"]) {
     const subset = items.filter((item) => item.kind === kind);
     if (!subset.length) continue;
@@ -133,6 +140,8 @@ async function renderControls() {
     remember({forecast_series: series.value, forecast_backtest: "",
       forecast_context_kind: "", forecast_context_from: "", forecast_context_to: ""});
     const kind = series.value.split("|")[0];
+    if (kind === "acquisition" && !params().get("forecast_count"))
+      countInput.value = recommendedCount(series.value);
     unitSelect.value = kind === "acquisition" && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason)
       ? "count" : (params().get("forecast_unit") || "time");
     refreshUnit();void update();
@@ -156,8 +165,13 @@ async function renderControls() {
   countInput.type = "number";countInput.min = "1";countInput.max = "2000";countInput.step = "1";
   countInput.id = "forecast-count";
   const acquisition = options.acquisition;
-  const defaultCount = acquisition ? Math.max(1, Math.min(30, Math.floor((acquisition.last - acquisition.first) / 2))) : 30;
-  countInput.value = params().get("forecast_count") || String(defaultCount);countField.append(countInput);
+  const recommendedCount = (selection) => {
+    const selected = acquisition?.series.find(item => "acquisition|" + item.key === selection);
+    const span = selected?.valid_span_steps ?? (acquisition ? acquisition.last - acquisition.first : 60);
+    return String(Math.max(1, Math.min(30, Math.floor(span / 2))));
+  };
+  countInput.value = params().get("forecast_count") || recommendedCount(series.value);
+  countField.append(countInput);
   const unitField = create("label", null, "예측 단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
   for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import Any
@@ -21,7 +22,11 @@ from industrial_phm.application.forecast import (
     forecast_values,
     horizon_reasons,
 )
-from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
+from industrial_phm.application.phm_analysis import (
+    PhmAnalysisError,
+    SqlitePhmAnalysisStore,
+    StepResult,
+)
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
@@ -193,19 +198,47 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
         _period(workspace, asset_id, acquisition["source_id"]) if acquisition is not None else None
     )
     if acquisition is not None:
-        span = (acquisition["last"] - acquisition["first"]) * (period or 1)
+        # Use the same bounded analyzed rows and finite feature filtering as the forecast
+        # itself. The analyzed-step total may include missing/invalid feature values.
+        results, _ = store.analyzed_between(
+            acquisition["binding_id"], 0, 2**62, max_points=_BUCKETS
+        )
+        series = []
+        for candidate in acquisition["features"]:
+            points = _finite_acquisition_points(results, candidate["key"])
+            valid = len(points)
+            span = (points[-1][0] - points[0][0]) * period if valid >= 2 and period else 0
+            reasons = (
+                horizon_reasons(span, valid)
+                if period
+                else {key: "unknown-interval" for key in HORIZONS}
+            )
+            series.append(
+                {
+                    **candidate,
+                    "valid_points": valid,
+                    "valid_span_steps": points[-1][0] - points[0][0] if valid >= 2 else 0,
+                    "count_forecast": valid >= 20,
+                    "horizons": reasons,
+                }
+            )
         body["acquisition"] = {
-            "series": acquisition["features"],
+            "series": series,
             "first": acquisition["first"],
             "last": acquisition["last"],
             "count": acquisition["count"],
             "period_seconds": period,
-            "horizons": (
-                horizon_reasons(span, acquisition["count"])
-                if period
-                else {key: "unknown-interval" for key in HORIZONS}
-            ),
-            "count_forecast": acquisition["count"] >= 20,
+            "horizons": {
+                key: None
+                if any(item["horizons"][key] is None for item in series)
+                else "unknown-interval"
+                if not period
+                else "few-points"
+                if all(item["valid_points"] < 20 for item in series)
+                else "short-history"
+                for key in HORIZONS
+            },
+            "count_forecast": any(item["count_forecast"] for item in series),
         }
     else:
         body["acquisition"] = None
@@ -361,14 +394,7 @@ def _acquisition_points(
     # In count mode an ordinal always has a well-defined next step, even without a clock.
     period = assumed_period_seconds or recorded_period or 1.0
     results, total = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_BUCKETS)
-    points = [
-        (r.position, float(value))
-        for r in results
-        if isinstance(value := (r.features or {}).get(feature), (int, float))
-        and math.isfinite(float(value))
-    ]
-    if not points:
-        raise LookupError("no stored values for this feature")
+    points = _finite_acquisition_points(results, feature)
     return (
         [_ORIGIN + timedelta(seconds=(position - 1) * period) for position, _ in points],
         [value for _, value in points],
@@ -390,3 +416,15 @@ def _acquisition_points(
             ),
         },
     )
+
+
+def _finite_acquisition_points(
+    results: Sequence[StepResult], feature: str
+) -> list[tuple[int, float]]:
+    """Exact values used by the bounded forecast fit, excluding missing/non-finite features."""
+    return [
+        (result.position, float(value))
+        for result in results
+        if isinstance(value := (result.features or {}).get(feature), (int, float))
+        and math.isfinite(float(value))
+    ]

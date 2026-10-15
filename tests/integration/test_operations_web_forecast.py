@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection
 from pathlib import Path
@@ -293,5 +294,117 @@ def test_short_acquisition_record_offers_count_forecast_in_asset_shortcuts(tmp_p
         )
         assert status == 200
         assert [point[0] for point in body["forecast"]] == [30, 31, 32, 33, 34, 35]
+    finally:
+        stop()
+
+
+@pytest.mark.parametrize("mode", ["rms-short", "rms-tight", "all-short"])
+def test_acquisition_readiness_uses_finite_points_in_selected_feature(
+    tmp_path: Path, mode: str
+) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 36):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + 0.01 * ordinal)
+    analyze(workspace)
+    with sqlite3.connect(workspace.phm_analysis_path) as connection:
+        for position, serialized in connection.execute(
+            "SELECT position, features FROM step_result WHERE state = 'analyzed' ORDER BY position"
+        ).fetchall():
+            if position > (15 if mode == "rms-tight" else 20):
+                continue
+            features = json.loads(serialized)
+            if mode == "all-short":
+                features = {}
+            else:
+                rms_key = "feature.Horizontal_vibration_signals.rms"
+                if position == 1:
+                    features[rms_key] = None
+                elif position == 2:
+                    features[rms_key] = float("nan")
+                else:
+                    features.pop(rms_key, None)
+            connection.execute(
+                "UPDATE step_result SET features = ? WHERE state = 'analyzed' AND position = ?",
+                (json.dumps(features), position),
+            )
+    get, stop = _serve(workspace.root)
+    try:
+        status, options = get("/api/v1/forecast/options", asset_id="bearing-a")
+        assert status == 200
+        acquisition = options["acquisition"]
+        rms = next(
+            item
+            for item in acquisition["series"]
+            if item["key"] == "feature.Horizontal_vibration_signals.rms"
+        )
+        assert acquisition["count"] == 35  # All analyzed steps, not usable RMS values.
+        expected = 20 if mode == "rms-tight" else 15
+        assert rms["valid_points"] == expected
+        assert rms["valid_span_steps"] == expected - 1
+        assert rms["count_forecast"] is (mode == "rms-tight")
+        assert rms["horizons"]["1h"] == ("short-history" if mode == "rms-tight" else "few-points")
+        assert acquisition["count_forecast"] is (mode != "all-short")
+        assert (
+            get(
+                "/api/v1/forecast/options",
+                asset_id="bearing-a",
+                kind="acquisition",
+                series=rms["key"],
+            )[1]["selection"]["points"]
+            == expected
+        )
+        status, _ = get(
+            "/api/v1/forecast",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series=rms["key"],
+            horizon="count",
+            horizon_count="5",
+        )
+        assert status == (200 if mode == "rms-tight" else 422)
+        if mode == "rms-tight":
+            # 20 points over 19 acquisition steps support nine steps ahead, not 17.
+            assert (
+                get(
+                    "/api/v1/forecast",
+                    asset_id="bearing-a",
+                    kind="acquisition",
+                    series=rms["key"],
+                    horizon="count",
+                    horizon_count="9",
+                )[0]
+                == 200
+            )
+            assert (
+                get(
+                    "/api/v1/forecast",
+                    asset_id="bearing-a",
+                    kind="acquisition",
+                    series=rms["key"],
+                    horizon="count",
+                    horizon_count="17",
+                )[0]
+                == 422
+            )
+        forecast = next(
+            item
+            for item in project_asset_capabilities(workspace, "bearing-a", can_ask=True)[
+                "capabilities"
+            ]
+            if item["id"] == "forecast"
+        )
+        assert forecast["status"] == ("unavailable" if mode == "all-short" else "ready")
+        if mode != "all-short":
+            other = next(item for item in acquisition["series"] if item["valid_points"] >= 20)
+            status, result = get(
+                "/api/v1/forecast",
+                asset_id="bearing-a",
+                kind="acquisition",
+                series=other["key"],
+                horizon="count",
+                horizon_count="5",
+            )
+            assert status == 200
+            assert result["model"]["points"] == 35
     finally:
         stop()
