@@ -225,6 +225,7 @@ async function run() {
       && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
       && shown.period_seconds === data.period_seconds ? shown : null;
     render(data);
+    if (data.kind === "history") void loadDepartureSummary(data);
   } catch (error) {
     if (ticket !== request) return;
     clear(byId("forecast-result"));
@@ -370,6 +371,12 @@ function conditionOutlook(data) {
     add("기준 도달·잔여 여유", result);
   } else add("기준 도달·잔여 여유", "관리 기준을 입력하면 기준과의 거리와 예상 도달 시점을 확인할 수 있습니다.");
   root.append(list);
+  const departures = create("p", "muted");departures.id = "forecast-anomaly-summary";
+  departures.textContent = data.kind === "history"
+    ? (data.other_identities ? "동일 이름의 다른 측정 출처가 있어 이상 변화 요약은 별도 화면에서 확인합니다."
+      : data.departureSummary || "기준 구간에서 벗어난 변화도 확인합니다.")
+    : "진동 특징의 모델 기반 이상 탐지 결과는 이상 탐지 화면에서 확인할 수 있습니다.";
+  root.append(departures);
   const links = create("p", "forecast-explore-links");
   const addLink = (label, hash) => {
     const url = new URL(location.href);
@@ -385,4 +392,26 @@ function conditionOutlook(data) {
   if (data.kind === "history") addLink("이상 변화 구간 보기", "anomaly");
   root.append(links);
   return root;
+}
+
+
+async function loadDepartureSummary(data) {
+  // The exploratory comparison is a separate read: failure must not hide the forecast.
+  // Do not silently combine identities with the same signal name.
+  if (data.other_identities) return;
+  const query = new URLSearchParams({asset_id: data.asset_id, baseline: "first-30"});
+  query.append("series", data.series);
+  try {
+    const result = await getJson("/api/v1/explore/anomaly?" + query.toString());
+    const count = result.interval_count;
+    data.departureSummary = "모델 없는 변화 구간 탐색 · 기록 처음 30%와 비교 · 기준 이탈 "
+      + num(count) + "개 구간"
+      + (count && result.intervals.length ? " · 가장 큰 변화: " + formatTime(result.intervals[0].start, {seconds: false}) : "")
+      + " · 고장 판정이 아닙니다.";
+  } catch {
+    data.departureSummary = "모델 없는 변화 구간은 이상 탐지 화면에서 확인할 수 있습니다.";
+  }
+  if (shown !== data) return;
+  const node = byId("forecast-anomaly-summary");
+  if (node) node.textContent = data.departureSummary;
 }
