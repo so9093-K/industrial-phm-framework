@@ -303,9 +303,8 @@ def anomaly_evidence(
         if binding.asset_id == asset_id
         and binding.source_id == source_id
         and (measurement_point_id is None or binding.measurement_point_id == measurement_point_id)
-        and binding.step_kind.value == (
-            "acquisition-snapshot" if kind == "acquisition" else "observation-window"
-        )
+        and binding.step_kind.value
+        == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
     ]
     if not bindings:
