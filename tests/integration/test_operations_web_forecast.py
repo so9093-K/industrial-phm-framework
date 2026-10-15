@@ -317,7 +317,13 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
             if all_features_sparse:
                 features = {}
             else:
-                features.pop("feature.Horizontal_vibration_signals.rms", None)
+                rms_key = "feature.Horizontal_vibration_signals.rms"
+                if position == 1:
+                    features[rms_key] = None
+                elif position == 2:
+                    features[rms_key] = float("nan")
+                else:
+                    features.pop(rms_key, None)
             connection.execute(
                 "UPDATE step_result SET features = ? WHERE state = 'analyzed' AND position = ?",
                 (json.dumps(features), position),
