@@ -43,6 +43,7 @@ def _outlook() -> dict[str, Any]:
                 "threshold": 3.5,
                 "outside": 48,
                 "since": 76,
+                "since_share": 0.86,
                 "latest_distance": 81.2,
             },
         },
@@ -95,7 +96,7 @@ PROVIDER = ExplanationProvider()
 def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> None:
     outlook = _outlook()
     assert outlook["sentences"] == [
-        "#76부터 기준 구간의 범위를 계속 벗어나 있고, 최근 획득당 +0.021씩 변하고 있습니다.",
+        "#76 이후 값의 86%가 초기 비교 범위 밖이며, 최근 획득당 +0.021씩 변하고 있습니다.",
         "관리 상한 8까지 현재 설정으로 56개 획득, 읽는 방법에 따라 36–56개 획득 "
         "(4가지 중 3가지에서 도달) 남았습니다.",
         "종료 기준 15에는 61개 획득 안에 닿지 않습니다.",
