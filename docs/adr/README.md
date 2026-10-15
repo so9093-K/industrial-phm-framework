@@ -41,3 +41,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0024: Separate the Operations web product from marimo](0024-separate-operations-web-ui-from-marimo.md)
 - [ADR-0025: Run versioned PHM model packages over ordered per-asset analysis steps](0025-run-versioned-model-packages-over-ordered-asset-steps.md)
 - [ADR-0026: Retire remaining-life estimation](0026-retire-remaining-life-estimation.md)
+- [ADR-0027: Condition and remaining-life outlook from stored analyses](0027-condition-and-remaining-life-outlook-from-stored-analyses.md)

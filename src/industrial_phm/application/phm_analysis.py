@@ -464,6 +464,39 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return tuple(_result(row) for row in reversed(rows))
 
+    def recent_analyzed(self, binding_id: str, *, limit: int = 10) -> tuple[StepResult, ...]:
+        """Exact most-recent analyzed results, not an evenly sampled history."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 128:
+            raise PhmAnalysisError("recent analyzed limit must be between 1 and 128")
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT * FROM step_result WHERE binding_id = ? AND state = ? "
+                "ORDER BY position DESC LIMIT ?",
+                (binding_id, StepState.ANALYZED.value, limit),
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple(_result(row) for row in reversed(rows))
+
+    def analyzed_threshold_exceedance(self, binding_id: str) -> tuple[int, StepResult | None]:
+        """Exact exceeding count and first exceeding analyzed result, computed in SQL."""
+        where = "binding_id = ? AND state = ? AND json_extract(output, '$.exceeds_threshold') = 1"
+        args = (binding_id, StepState.ANALYZED.value)
+        connection = self._connect()
+        try:
+            count = int(
+                connection.execute(
+                    f"SELECT COUNT(*) FROM step_result WHERE {where}", args
+                ).fetchone()[0]
+            )
+            row = connection.execute(
+                f"SELECT * FROM step_result WHERE {where} ORDER BY position LIMIT 1", args
+            ).fetchone()
+        finally:
+            connection.close()
+        return count, None if row is None else _result(row)
+
     def analyzed_change_stats(
         self, binding_id: str, first: int, last: int, *, output_key: str, features: Sequence[str]
     ) -> dict[str, dict[str, Any]]:

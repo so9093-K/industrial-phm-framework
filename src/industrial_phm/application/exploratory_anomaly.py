@@ -22,15 +22,17 @@ BASELINES = {"first-30": 0.3, "first-50": 0.5, "all": 1.0}
 _MAD_TO_SIGMA = 1.4826
 
 
-def _spread(values: np.ndarray) -> float:
+def robust_spread(values: np.ndarray) -> float:
     """Baseline spread: MAD, then mean absolute deviation, then standard deviation."""
     median = float(np.median(values))
+    # Rounding noise of a constant record is no spread.
+    floor = 1e-9 * max(1.0, abs(median))
     for spread in (
         _MAD_TO_SIGMA * float(np.median(np.abs(values - median))),
         1.2533 * float(np.mean(np.abs(values - median))),
         float(np.std(values)),
     ):
-        if spread > 0:
+        if spread > floor:
             return spread
     return 0.0
 
@@ -70,7 +72,7 @@ def find_departures(
         if reference.size < 5:
             channels.append({"key": name, "state": "short-baseline", "marked": 0})
             continue
-        median, spread = float(np.median(reference)), _spread(reference)
+        median, spread = float(np.median(reference)), robust_spread(reference)
         if spread == 0:
             channels.append({"key": name, "state": "constant", "median": median, "marked": 0})
             continue

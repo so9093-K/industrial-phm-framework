@@ -56,6 +56,7 @@ from industrial_phm.runtime.operations_web_forecast import (
     FORECAST_ROUTES,
     handle_forecast_read,
 )
+from industrial_phm.runtime.operations_web_outlook import OUTLOOK_ROUTE, handle_outlook_read
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -104,6 +105,7 @@ _WEB_ASSET_MIME = {
             "signal-explore.js",
             "capabilities.js",
             "forecast.js",
+            "outlook.js",
             "anomaly-explore.js",
         ),
         "text/javascript; charset=utf-8",
@@ -339,6 +341,10 @@ def create_operations_web_read_server(
                     OperationsWorkspace(root), parts.path, parts.query
                 )
                 self._send_json(status, forecast)
+                return
+            if parts.path == OUTLOOK_ROUTE:
+                status, outlook = handle_outlook_read(OperationsWorkspace(root), parts.query)
+                self._send_json(status, outlook)
                 return
             if parts.path == CAPABILITIES_ROUTE:
                 status, capabilities = handle_capabilities_read(

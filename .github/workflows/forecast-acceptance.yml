@@ -5,6 +5,9 @@ on:
     paths:
       - ".github/workflows/forecast-acceptance.yml"
       - "src/industrial_phm/application/forecast.py"
+      - "src/industrial_phm/application/condition_outlook.py"
+      - "src/industrial_phm/application/exploratory_anomaly.py"
+      - "src/industrial_phm/runtime/operations_web_outlook.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
       - "src/industrial_phm/runtime/operations_web_explore.py"
@@ -13,6 +16,8 @@ on:
       - "src/industrial_phm/application/phm_analysis.py"
       - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
+      - "tests/integration/test_operations_web_outlook.py"
+      - "tests/unit/test_condition_outlook.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
@@ -22,6 +27,9 @@ on:
     paths:
       - ".github/workflows/forecast-acceptance.yml"
       - "src/industrial_phm/application/forecast.py"
+      - "src/industrial_phm/application/condition_outlook.py"
+      - "src/industrial_phm/application/exploratory_anomaly.py"
+      - "src/industrial_phm/runtime/operations_web_outlook.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_capabilities.py"
       - "src/industrial_phm/runtime/operations_web_explore.py"
@@ -30,6 +38,8 @@ on:
       - "src/industrial_phm/application/phm_analysis.py"
       - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
+      - "tests/integration/test_operations_web_outlook.py"
+      - "tests/unit/test_condition_outlook.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
@@ -61,8 +71,10 @@ jobs:
       - name: Sync locked operations dependencies
         run: uv sync --locked --extra operations
 
-      - name: Forecast API integration
-        run: uv run --locked --extra operations pytest tests/integration/test_operations_web_forecast.py
+      - name: Forecast and outlook API integration
+        run: >-
+          uv run --locked --extra operations pytest tests/integration/test_operations_web_forecast.py
+          tests/integration/test_operations_web_outlook.py tests/unit/test_condition_outlook.py
 
       - name: Install browser test runtime
         run: |

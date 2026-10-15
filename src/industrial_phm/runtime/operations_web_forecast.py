@@ -72,9 +72,9 @@ def handle_forecast_read(
                     raise ValueError("invalid assumed_period_seconds")
                 kind = params.get("kind")
                 if kind == "history" and assumed is None:
-                    times, values, _ = _history_points(workspace, asset_id, params["series"])
+                    times, values, _ = history_points(workspace, asset_id, params["series"])
                 elif kind == "acquisition":
-                    times, values, meta = _acquisition_points(
+                    times, values, meta = acquisition_points(
                         workspace,
                         asset_id,
                         params["series"],
@@ -268,10 +268,10 @@ def forecast_series(
     if kind == "history":
         if horizon == "count" or assumed_period_seconds is not None:
             raise ValueError("count mode only applies to acquisitions")
-        times, values, meta = _history_points(workspace, asset_id, series)
+        times, values, meta = history_points(workspace, asset_id, series)
         seasonal = seasonality != "off"
     elif kind == "acquisition":
-        times, values, meta = _acquisition_points(
+        times, values, meta = acquisition_points(
             workspace,
             asset_id,
             series,
@@ -333,7 +333,7 @@ def forecast_series(
     }
 
 
-def _history_points(
+def history_points(
     workspace: OperationsWorkspace, asset_id: str, channel: str
 ) -> tuple[list[datetime], list[float], dict[str, Any]]:
     reader = _history(workspace)
@@ -376,7 +376,7 @@ def _history_points(
     )
 
 
-def _acquisition_points(
+def acquisition_points(
     workspace: OperationsWorkspace,
     asset_id: str,
     feature: str,

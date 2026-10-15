@@ -465,8 +465,9 @@ Generative AI explanation context
 ```
 
 IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는 같은 Explorer에서
-inspection-only surface로 pipeline/capability/provenance까지만 표시합니다. 잔여수명(RUL) 추정은
-[ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 제품과 코드에서 제외했습니다.
+inspection-only surface로 pipeline/capability/provenance까지만 표시합니다. RUL 모델(Ridge·LSTM)은
+[ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 제외했고, 잔여수명은 저장된 측정의 상태 전망에서
+사용자가 정한 종료 기준까지의 거리로 제공합니다([ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md)).
 
 Prepared FILE source validation에서 이미 반복해서 필요한 첫 application-level 관측 read model은
 AssetObservationSummary로 분리합니다. 이 read model은 asset_id, explicit source_id, optional
@@ -1123,8 +1124,11 @@ operator response, acknowledgement와 suppression/shelving requirement를 별도
 
 ### 잔여수명(RUL)
 
-잔여수명 추정은 제품에서 제외했습니다([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)).
-앞으로의 변화는 측정값 예측으로 다루며, 예측 결과를 고장 시각·남은 수명·정비 시점으로 표현하지 않습니다.
+RUL 모델(Ridge·LSTM)과 별도 RUL 화면은 제외했습니다([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)).
+잔여수명은 `상태 전망` 탭에서 저장된 측정과 예측으로 계산합니다([ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md)).
+기록의 처음 30% 대비 변화·변화 속도·기준 범위 이탈(열화 지표)과 연결된 이상 탐지 결과를 근거로 보여주고,
+사용자가 정한 관리 기준과 종료 기준까지 남은 시간·획득 수를 네 가지 예측 조건으로 비교합니다. 종료 기준까지의
+거리를 잔여수명이라고 부르며, 그 의미는 사용자가 정한 종료 기준에 달려 있습니다.
 
 ### Persistent source와 event-time contract
 

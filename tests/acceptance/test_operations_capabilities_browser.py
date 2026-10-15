@@ -91,7 +91,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 unavailable = listing.locator(".capability-unavailable")
                 pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
                 pw.expect(unavailable).to_contain_text("AI 질문 — 모델 결과 없음")
-                pw.expect(unavailable).to_contain_text("미래 예측 — 기록이 짧음")
+                pw.expect(unavailable).to_contain_text("상태 전망 — 기록이 짧음")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
                 # Ready analyses open their first result for the same asset.
@@ -110,7 +110,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                 # Every analysis opens; the waveform itself is already on the overview above.
                 pw.expect(listing.locator(".capability")).to_have_count(5)
                 pw.expect(listing.locator(".capability-unavailable")).to_have_text(
-                    "사용 불가미래 예측 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
+                    "사용 불가상태 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
                 pw.expect(listing.locator('[data-capability="period-compare"]')).to_contain_text(
                     "획득 #1–#8"

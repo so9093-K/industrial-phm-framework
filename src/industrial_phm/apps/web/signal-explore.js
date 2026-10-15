@@ -307,7 +307,7 @@ function render(data) {
     url.searchParams.set("forecast_context_from", String(data.periods.b.from));
     url.searchParams.set("forecast_context_to", String(data.periods.b.to));
     url.hash = "forecast";
-    const link = create("a", null, "선택 신호의 미래 예측 보기");
+    const link = create("a", null, "선택 신호의 상태 전망 보기");
     link.href = url.pathname + url.search + url.hash;
     const shortcut = create("p", "forecast-explore-links");shortcut.append(link);results.append(shortcut);
   }
