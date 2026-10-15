@@ -303,6 +303,9 @@ function render(data) {
   if (target) {
     const url = new URL(location.href);
     url.searchParams.set("forecast_series", data.kind + "|" + target);
+    url.searchParams.set("forecast_context_kind", "eda");
+    url.searchParams.set("forecast_context_from", String(data.periods.b.from));
+    url.searchParams.set("forecast_context_to", String(data.periods.b.to));
     url.hash = "forecast";
     const link = create("a", null, "선택 신호의 미래 예측 보기");
     link.href = url.pathname + url.search + url.hash;
