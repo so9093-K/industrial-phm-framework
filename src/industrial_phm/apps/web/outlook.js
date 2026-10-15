@@ -7,7 +7,12 @@ import { modelFamily } from "./phm-connect.js";
 import { formatTime } from "./time.js";
 import { byId, canChange, clear, create, num, OPERATIONS_REQUIRED } from "./web-utils.js";
 
-let shownKey = "", request = 0, current = null, briefingTicket = 0;
+let shownKey = "", request = 0, current = null, briefingTicket = 0, refreshedAt = 0;
+function briefingSelection() {
+  const query = new URLSearchParams(shownKey);
+  if (current?.data_version) query.set("data_version", current.data_version);
+  return query.toString();
+}
 const READING = {current: "현재 설정", recent: "최근 구간만 학습", responsive: "추세 변화에 민감", linear: "최근 변화 속도 유지"};
 const REASON = {
   "few-points": "유효한 값이 20개 이상 있어야 상태 전망을 계산합니다.",
@@ -206,16 +211,16 @@ function briefing() {
   root.append(suggestions, label, ask, status, answer);
   const buttons = [ask, ...suggestions.querySelectorAll("button")];
   for (const button of buttons) button.disabled = true;
-  const selection = shownKey;
+  const selection = briefingSelection();
   void (async () => {
     let writable = false;
     try {writable = canChange(await (await fetch("/api/v1/session", {cache: "no-store"})).json());} catch {}
-    if (selection !== shownKey) return;
+    if (selection !== briefingSelection()) return;
     for (const button of buttons) button.disabled = !writable;
     if (!writable) status.textContent = OPERATIONS_REQUIRED;
     const stored = await briefings(selection);
     const done = stored.find((item) => item.status === "complete");
-    if (done && selection === shownKey) showAnswer(answer, done);
+    if (done && selection === briefingSelection()) showAnswer(answer, done);
     const pending = stored.find((item) => item.status === "pending");
     if (pending && selection === shownKey) void follow(selection, pending.id, status, answer, buttons);
   })();
@@ -233,7 +238,7 @@ function briefing() {
       if (!response.ok) throw new Error(body.error || "request_failed");
       await follow(selection, body.briefing_id, status, answer, buttons);
     } catch {
-      if (selection === shownKey) {status.textContent = "AI 브리핑을 요청하지 못했습니다.";for (const button of buttons) button.disabled = false;}
+      if (selection === briefingSelection()) {status.textContent = "AI 브리핑을 요청하지 못했습니다.";for (const button of buttons) button.disabled = false;}
     }
   });
   return root;
@@ -252,7 +257,7 @@ async function follow(selection, id, status, answer, buttons) {
   status.textContent = "AI가 계산 결과를 읽고 있습니다.";
   for (let attempt = 0; attempt < 120; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, attempt < 10 ? 500 : 1500));
-    if (ticket !== briefingTicket || selection !== shownKey) return;
+    if (ticket !== briefingTicket || selection !== briefingSelection()) return;
     const record = (await briefings(selection)).find((item) => item.id === id);
     if (!record || record.status === "pending") continue;
     for (const button of buttons) button.disabled = false;
@@ -311,7 +316,9 @@ export function renderOutlook(data, context = "") {
 export async function refreshOutlook(query, context = "") {
   const key = query.toString();
   const root = byId("outlook"), body = byId("outlook-body");
-  if (key === shownKey && current) {renderOutlook(current, context);return;}
+  if (key === shownKey && current && Date.now() - refreshedAt < 10000) {
+    renderOutlook(current, context);return;
+  }
   const ticket = ++request;
   shownKey = key;current = null;
   root.hidden = false;
@@ -325,6 +332,7 @@ export async function refreshOutlook(query, context = "") {
       body.replaceChildren(create("p", "muted", response.status === 422 ? REASON[data.reason] || "상태 전망을 계산할 수 없습니다." : "상태 전망을 계산하지 못했습니다."));
       return;
     }
+    refreshedAt = Date.now();
     renderOutlook(data, context);
   } catch {
     if (ticket === request) {shownKey = "";body.replaceChildren(create("p", "muted", "상태 전망을 계산하지 못했습니다."));}
