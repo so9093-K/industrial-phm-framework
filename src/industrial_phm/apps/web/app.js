@@ -71,7 +71,7 @@ function renderWorkspace() {
   if (!hasEvidence && !monitor?.assets?.truncated && !sourceSnapshot?.sources?.truncated) {
     document.body.dataset.workspaceState = "empty";
     title.textContent = "빈 작업공간";
-    detail.textContent = "등록 소스와 관측·분석·검토 기록이 없습니다. 저장소의 기존 연구 결과는 보존되어 있습니다.";
+    detail.textContent = "등록 소스와 관측·분석·검토 기록이 없습니다.";
     start.classList.remove("hidden");
   } else if (received) {
     title.textContent = "최근 수신 근거 있음";
@@ -167,7 +167,7 @@ function drawSeries(entries, group) {
     }
   });
   root.append(svg);
-  root.append(create("p", "legend", "버킷 " + entries.length + "개 · 원본 결측/품질/충돌 건수 확인 · 평균은 실시간 값이 아닙니다"));
+  root.append(create("p", "legend", "버킷 " + entries.length + "개 · 원본 결측/품질/충돌 건수 확인"));
   const quality = entries.reduce((acc, item) => {
     ["usable_count","null_count","non_good_count","conflict_count"].forEach((key) => acc[key] = (acc[key] || 0) + (Number(item[key]) || 0));
     return acc;

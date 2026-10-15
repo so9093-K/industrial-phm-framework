@@ -445,6 +445,8 @@ operations = [
     { name = "filelock" },
     { name = "prophet" },
     { name = "pytz" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
 
 [package.dev-dependencies]
@@ -464,7 +466,7 @@ requires-dist = [
     { name = "duckdb", marker = "extra == 'history'", specifier = ">=1.5.5,<1.6" },
     { name = "filelock", marker = "extra == 'history'", specifier = ">=3.20,<4" },
     { name = "ijson", marker = "extra == 'aihub'", specifier = ">=3.4,<4" },
-    { name = "industrial-phm-framework", extras = ["history", "opcua", "forecast"], marker = "extra == 'operations'" },
+    { name = "industrial-phm-framework", extras = ["history", "opcua", "forecast", "deep-learning"], marker = "extra == 'operations'" },
     { name = "numpy", specifier = ">=2.5.3,<3" },
     { name = "prophet", marker = "extra == 'forecast'", specifier = ">=1.5,<2" },
     { name = "pytz", marker = "extra == 'history'", specifier = ">=2025.2" },

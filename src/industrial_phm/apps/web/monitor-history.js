@@ -172,7 +172,7 @@ function paint(data) {
   for (const buckets of shown) {
     const first = buckets[0], unit = first.semantics?.unit || "";
     if (groups.size > 1) chart.append(node("p", "출처 " + first.source_id + (first.measurement_point_id ? " / " + first.measurement_point_id : "")
-      + " · " + (unit || "단위 미확인"), "monitor-stored-source"));
+      + (unit ? " · " + unit : ""), "monitor-stored-source"));
     const plot = node("div");chart.append(plot);
     drawStoredTrend(plot, buckets, data.start_at, data.end_at, data.bucket_seconds, unit);
   }

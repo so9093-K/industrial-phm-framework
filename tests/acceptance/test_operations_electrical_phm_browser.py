@@ -99,7 +99,7 @@ def test_electrical_phm_has_linked_raw_signals_residual_contributions_and_live_r
                 run_window_bindings(store, windows, PackageCache(workspace.models_path))
                 page.locator("#refresh").click()
                 pw.expect(page.locator("#anomaly-state")).to_contain_text(
-                    "4개 step 분석", timeout=10_000
+                    "분석 4개", timeout=10_000
                 )
                 windows.record_window(
                     electrical_window(

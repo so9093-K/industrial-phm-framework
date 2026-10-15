@@ -51,33 +51,38 @@ function margin(data, reached) {
       reached.latest !== null && reached.latest !== reached.expected ? "늦으면 " + after(data, reached.latest) : ""].filter(Boolean);
     return [after(data, reached.expected) + " 뒤", [reachedAt(data, reached.expected), ...bounds].join(" · ")];
   }
-  if (reached.state === "possible") return ["예측 범위에서만 도달", "범위 상단 기준 " + after(data, reached.earliest) + " 뒤"];
-  return [searchText(data) + " 안 도달 없음", "기록 길이의 절반까지 계산"];
+  if (reached.state === "possible") return ["범위 상단만 도달", after(data, reached.earliest) + " 뒤"];
+  return ["도달 없음", place(data, data.search.until) + "까지 계산"];
 }
 
+// The four numbers a reader takes away: how far it moved, what the model says, and the margins.
 function figures(data) {
   const list = create("dl", "outlook-figures");
-  const add = (term, value, detail) => {
-    const item = create("div");
+  const add = (term, value, detail, state = "") => {
+    const item = create("div");if (state) item.dataset.state = state;
     item.append(create("dt", null, term), create("dd", null, value));
     if (detail) item.append(create("dd", "outlook-figure-detail", detail));
     list.append(item);
   };
   const d = data.degradation;
-  add("기준 구간 대비 최근", change(data), num(d.baseline.median) + " → " + num(d.recent.median) + " · " + range(data, d.baseline) + " → " + range(data, d.recent));
+  add("기준 대비 변화", change(data), "기준 " + num(d.baseline.median) + " → 최근 " + num(d.recent.median));
+  const model = data.anomaly_model;
+  if (model?.latest && typeof model.latest.threshold === "number")
+    add("이상 탐지", model.latest.exceeds ? "모델 기준 초과" : "모델 기준 이하",
+      "최근 " + model.recent.results + "개 중 " + model.recent.exceeding + "개 초과", model.latest.exceeds ? "over" : "");
   const now = data.scenarios.find((item) => item.id === "current");
   for (const name of ["management", "end"]) {
     if (data.conditions[name] === null) continue;
     const [value, detail] = margin(data, now?.limits[name]);
-    add((name === "end" ? "잔여수명 · " : "") + conditionName(data, name) + "까지", value, detail);
+    add(name === "end" ? "잔여수명 · " + conditionName(data, name) : conditionName(data, name) + "까지", value, detail);
   }
   if (data.conditions.management === null && data.conditions.end === null)
-    add("기준까지 여유", "기준 없음", "관리 기준이나 종료 기준을 입력하면 계산");
+    add("기준까지 여유", "—", "관리·종료 기준을 입력하면 계산");
   return list;
 }
 
 function details(data) {
-  const list = create("dl", "forecast-summary outlook-details");
+  const list = create("dl", "outlook-details");
   const add = (term, text) => {const item = create("div");item.append(create("dt", null, term), create("dd", null, text));list.append(item);};
   const d = data.degradation;
   add("변화 속도", "최근 " + rateText(data, d.rate) + (d.earlier_rate === null ? "" : " · 그 전 " + rateText(data, d.earlier_rate)));
@@ -92,9 +97,8 @@ function details(data) {
     const l = model.latest;
     add("이상 탐지 모델", modelFamily(model.package_id, "anomaly-score", model.step_kind).replace(/^.*· /, "") + " · "
       + (data.axis === "acquisition" ? "#" + l.position : formatTime(l.at, {seconds: false}))
-      + " 점수 " + num(l.score) + (typeof l.threshold === "number" ? (l.exceeds ? " · 모델 기준 " + num(l.threshold) + " 초과" : " · 모델 기준 " + num(l.threshold) + " 이하") : "")
-      + (model.first_exceeding ? " · 처음 초과 " + (model.step_kind === "acquisition-snapshot" ? "#" + model.first_exceeding.position : formatTime(model.first_exceeding.at, {seconds: false})) : "")
-      + " · 최근 " + model.recent.results + "개 중 " + model.recent.exceeding + "개 초과");
+      + " 점수 " + num(l.score) + (typeof l.threshold === "number" ? " · 모델 기준 " + num(l.threshold) : "")
+      + (model.first_exceeding ? " · 처음 초과 " + (model.step_kind === "acquisition-snapshot" ? "#" + model.first_exceeding.position : formatTime(model.first_exceeding.at, {seconds: false})) : ""));
   }
   return list;
 }
@@ -102,7 +106,7 @@ function details(data) {
 function scenarioTable(data) {
   const names = ["management", "end"].filter((name) => data.conditions[name] !== null);
   const table = create("table", "outlook-scenarios");
-  const caption = create("caption", null, "예측 조건별 잔여 여유 · " + place(data, data.search.until) + "까지 계산");table.append(caption);
+  const caption = create("caption", null, "예측 조건별 잔여 여유");table.append(caption);
   const head = create("tr");head.append(create("th", null, "읽는 방법"));
   for (const name of names) head.append(Object.assign(create("th", null, conditionName(data, name)), {scope: "col"}));
   table.append(create("thead"), create("tbody"));
@@ -121,7 +125,7 @@ function scenarioTable(data) {
       const cell = create("td");
       cell.textContent = reached.state === "already" ? "이미 도달" : reached.state === "expected"
         ? after(data, reached.expected) + (reached.earliest !== null && reached.earliest !== reached.expected ? " (빠르면 " + after(data, reached.earliest) + ")" : "")
-        : reached.state === "possible" ? "범위에서만 " + after(data, reached.earliest) : "도달 없음";
+        : reached.state === "possible" ? "범위 상단만 " + after(data, reached.earliest) : "도달 없음";
       cell.dataset.state = reached.state;
       row.append(cell);
     }
@@ -131,31 +135,26 @@ function scenarioTable(data) {
 }
 
 function evidence(data, context) {
-  const box = create("details", "outlook-evidence");box.id = "outlook-evidence";
-  box.append(create("summary", null, "계산 근거"));
+  const box = create("section", "outlook-evidence");box.id = "outlook-evidence";
+  box.append(create("h4", null, "계산 근거"), details(data));
   const list = create("ul");
   const add = (text) => list.append(create("li", null, text));
   const d = data.degradation;
-  add("측정값: " + data.label + (data.unit ? " (" + data.unit + ")" : "") + " · 출처 " + data.source_id
-    + (data.measurement_point_id ? " · 측정점 " + data.measurement_point_id : "")
+  add("측정값 " + data.label + (data.unit ? " (" + data.unit + ")" : "") + " · " + data.source_id
+    + (data.measurement_point_id ? " · " + data.measurement_point_id : "")
     + " · " + (data.axis === "acquisition" ? "#" + data.record.first + "–#" + data.record.last : range(data, {from: data.record.first, to: data.record.last}))
-    + " · 값 " + num(data.record.points) + "개"
-    + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? " · 획득 간격 기록 없음" : " · " + (data.time_basis === "assumed" ? "가정" : "기록") + " 획득 간격 " + span(data.period_seconds))
+    + " · " + num(data.record.points) + "개"
+    + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? "" : " · " + (data.time_basis === "assumed" ? "가정" : "기록") + " 간격 " + span(data.period_seconds))
       : data.raw_count > data.record.points ? " (원본 " + num(data.raw_count) + "개의 구간 평균)" : ""));
-  add("기준 구간: " + range(data, d.baseline) + " (기록의 처음 30%) · 중앙값 " + num(d.baseline.median) + " · 변동폭 " + num(d.baseline.spread)
-    + (d.departure ? " · 기준 범위는 중앙값에서 변동폭의 " + num(d.departure.threshold) + "배 안" : ""));
-  add("최근 구간: " + range(data, d.recent) + " · 중앙값 " + num(d.recent.median) + " · 변화 속도는 이 구간 기울기의 중앙값");
+  add("기준 구간 " + range(data, d.baseline) + " (기록의 처음 30%) · 중앙값 " + num(d.baseline.median) + " · 변동폭 " + num(d.baseline.spread)
+    + (d.departure ? " · 기준 범위는 중앙값 ± 변동폭의 " + num(d.departure.threshold) + "배" : ""));
+  add("최근 구간 " + range(data, d.recent) + " · 중앙값 " + num(d.recent.median) + " · 변화 속도는 이 구간 기울기의 중앙값");
   const now = data.scenarios.find((item) => item.id === "current");
-  if (now) add("예측: Prophet · 추세 민감도 " + num(now.changepoint_prior_scale) + " · 변화점 범위 " + num(data.settings.changepoint_range)
-    + " · " + num(now.training_points) + "개 학습 · 예측 시작값 " + num(now.start) + " (마지막 측정 " + num(d.latest) + ")"
-    + " · " + place(data, data.search.until) + "까지 계산 (학습 기록 길이의 절반)");
-  if (data.conditions.end !== null) add("잔여수명은 입력한 종료 기준 " + num(data.conditions.end) + "까지 남은 거리입니다.");
-  if (data.anomaly_model) add("이상 탐지 모델: " + modelFamily(data.anomaly_model.package_id, "anomaly-score", data.anomaly_model.step_kind)
-    + " · 결과 " + num(data.anomaly_model.results) + "개 · 기준 초과 " + num(data.anomaly_model.exceeding) + "개"
-    + (data.anomaly_model.read < data.anomaly_model.results ? " (" + num(data.anomaly_model.read) + "개를 고르게 읽음)" : ""));
+  if (now) add("예측 Prophet · 예측 시작값 " + num(now.start) + " (마지막 측정 " + num(d.latest) + ") · "
+    + place(data, data.search.until) + "까지 계산 (학습 기록 길이의 절반)");
+  if (data.conditions.end !== null) add("잔여수명은 종료 기준 " + num(data.conditions.end) + "까지 남은 거리");
   if (context) add(context);
-  box.append(list);
-  box.append(links(data));
+  box.append(list, links(data));
   return box;
 }
 
@@ -190,28 +189,32 @@ const SOURCE = {
 
 function briefing() {
   const root = create("section", "outlook-briefing");root.id = "outlook-briefing";
-  root.append(create("h4", null, "AI 브리핑"));
-  const suggestions = create("div", "phm-suggestions");
-  const label = create("label", null, "궁금한 점");
-  const question = create("textarea");question.rows = 2;question.maxLength = 600;question.id = "outlook-question";
-  question.value = "이 설비의 상태와 기준까지 남은 여유를 설명해 주세요.";label.append(question);
+  const head = create("div", "outlook-briefing-head");head.append(create("h4", null, "AI 브리핑"));
+  const suggestions = create("div", "outlook-suggestions");
+  const row = create("div", "outlook-ask-row");
+  const question = create("input");question.type = "text";question.maxLength = 600;question.id = "outlook-question";
+  question.setAttribute("aria-label", "AI에게 물을 질문");question.placeholder = "이 설비의 상태와 기준까지 남은 여유를 설명해 주세요.";
   const ask = create("button", null, "AI에 질문");ask.type = "button";ask.id = "outlook-ask";
-  const status = create("p", "muted");status.setAttribute("role", "status");
+  row.append(question, ask);
+  const status = create("p", "muted outlook-briefing-status");status.setAttribute("role", "status");
   const answer = create("div", "outlook-answer");
   for (const text of QUESTIONS) {
-    const button = create("button", "secondary", text);button.type = "button";
+    const button = create("button", "chip", text);button.type = "button";
     button.addEventListener("click", () => {question.value = text;ask.click();});
     suggestions.append(button);
   }
-  root.append(suggestions, label, ask, status, answer);
+  head.append(suggestions);
+  root.append(head, row, status, answer);
   const buttons = [ask, ...suggestions.querySelectorAll("button")];
   for (const button of buttons) button.disabled = true;
+  question.addEventListener("keydown", (event) => {if (event.key === "Enter" && !ask.disabled) {event.preventDefault();ask.click();}});
   const selection = shownKey;
   void (async () => {
     let writable = false;
     try {writable = canChange(await (await fetch("/api/v1/session", {cache: "no-store"})).json());} catch {}
     if (selection !== shownKey) return;
     for (const button of buttons) button.disabled = !writable;
+    question.disabled = !writable;
     if (!writable) status.textContent = OPERATIONS_REQUIRED;
     const stored = await briefings(selection);
     const done = stored.find((item) => item.status === "complete");
@@ -220,8 +223,7 @@ function briefing() {
     if (pending && selection === shownKey) void follow(selection, pending.id, status, answer, buttons);
   })();
   ask.addEventListener("click", async () => {
-    const text = question.value.trim();
-    if (!text) {status.textContent = "질문을 입력하세요.";return;}
+    const text = question.value.trim() || question.placeholder;
     for (const button of buttons) button.disabled = true;
     status.textContent = "AI 브리핑을 요청합니다.";
     try {
@@ -298,12 +300,10 @@ export function renderOutlook(data, context = "") {
   const root = byId("outlook");
   current = data;
   root.hidden = false;
-  const body = byId("outlook-body");
   // The server words the summary once, so the AI briefing's fallback reads the same.
-  const parts = [create("p", "outlook-lead", data.sentences.join(" ")), figures(data), details(data)];
-  if (data.scenarios.length) parts.push(scenarioTable(data));
-  parts.push(briefing(), evidence(data, context));
-  body.replaceChildren(...parts);
+  byId("outlook-body").replaceChildren(figures(data), create("p", "outlook-lead", data.sentences.join(" ")));
+  byId("outlook-more").replaceChildren(...(data.scenarios.length ? [scenarioTable(data)] : []), briefing());
+  byId("outlook-evidence-root").replaceChildren(evidence(data, context));
   document.dispatchEvent(new CustomEvent("outlook-shown", {detail: data}));
 }
 
@@ -315,6 +315,7 @@ export async function refreshOutlook(query, context = "") {
   const ticket = ++request;
   shownKey = key;current = null;
   root.hidden = false;
+  clear(byId("outlook-more"));clear(byId("outlook-evidence-root"));
   body.replaceChildren(create("p", "muted", "상태와 기준까지의 여유를 계산합니다."));
   try {
     const response = await fetch("/api/v1/outlook?" + key, {cache: "no-store", credentials: "same-origin"});
@@ -334,5 +335,7 @@ export async function refreshOutlook(query, context = "") {
 export function clearOutlook() {
   request++;shownKey = "";current = null;
   const root = byId("outlook");
-  if (root) {root.hidden = true;clear(byId("outlook-body"));}
+  if (!root) return;
+  root.hidden = true;
+  for (const id of ["outlook-body", "outlook-more", "outlook-evidence-root"]) clear(byId(id));
 }

@@ -4,6 +4,7 @@ import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
 import { assetName, currentAsset, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
 import { modelFamily, renderModelConnect } from "./phm-connect.js";
+import { healthText } from "./web-utils.js";
 // PHM monitoring: the anomaly detection screen over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
 // nothing here recomputes a score or an interval.
@@ -174,7 +175,7 @@ function freshness(entry) {
 
 // A binding records a connection. Only delivered inputs and runner results establish progress.
 function waitingMessage(entry) {
-  if (entry.binding.health === "unavailable") return "모델 실행 불가 · " + (entry.binding.health_reason || "모델 정보를 확인하세요.");
+  if (entry.binding.health === "unavailable") return healthText(entry.binding.health_reason);
   const last = orderedSteps(entry).at(-1);
   if (entry.latestDelivered && (!last || entry.latestDelivered.position > last.position)) {
     return "모델 연결 완료 · 저장된 입력 분석 대기. 처리 결과를 자동으로 표시합니다.";
@@ -395,17 +396,15 @@ function renderAnomaly() {
     renderPhmExplanation("anomaly", "", null);renderModelCard(byId("anomaly-model"), entry.package);return;
   }
   if (binding && binding.health === "unavailable") {
-    state.className = "state error";state.textContent = "모델을 실행할 수 없습니다: " + (binding.health_reason || "이유 미기록");
+    state.className = "state error";state.textContent = healthText(binding.health_reason)
+      + (analyzed.length ? " 저장된 결과 " + analyzed.length + "개를 표시합니다." : "");
   } else if (!analyzed.length) {
     state.className = "state";state.textContent = waitingMessage(entry);
   } else {
     state.className = "state";
-    state.textContent = analyzed.length + "개 step 분석" + (skipped ? " · " + skipped + "개 분석 불가(이유 기록)" : "") ;
+    state.textContent = "분석 " + analyzed.length + "개" + (skipped ? " · 분석하지 않은 입력 " + skipped + "개" : "");
   }
   if (analyzed.length && steps.at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + steps.at(-1).reason;
-  if (entry.package && entry.package.validation && entry.package.validation.acceptance === "not-yet-evaluated") {
-    state.textContent += " · 개발 모델: 합격 기준 검증 미완료";
-  }
   if (!analyzed.length) {
     byId("anomaly-detail").replaceChildren();
     byId("anomaly-observation").textContent = skipped ? "이 모델로 분석되지 않은 입력이 있습니다. 입력 상태와 모델 규격을 확인하세요." : "분석 가능한 입력을 기다리고 있습니다.";
@@ -424,16 +423,15 @@ function renderAnomaly() {
   byId("anomaly-observation").textContent = latestSkipped
     ? "최근 입력은 분석되지 않았습니다. 선택한 이전 기록 " + stepLabel(entry, last.position) + "의 결과입니다."
     : "선택 기록 " + stepLabel(entry, last.position) + " · " + scoreName + (prior ? "가 " + scoreDirection : " 첫 분석 결과입니다");
-  byId("anomaly-meaning").textContent = (last.output.exceeds_threshold ? "모델의 참고 기준을 넘었습니다." : "모델의 참고 기준을 넘지 않았습니다.")
-    + (change === null ? "" : " 수평 진동 크기는 " + (change === 0 ? "같습니다." : number(Math.abs(change), 1) + "% " + (change > 0 ? "증가했습니다." : "감소했습니다.")))
-    + " 정상·고장 여부는 이 결과만으로 확정할 수 없습니다.";
+  byId("anomaly-meaning").textContent = (last.output.exceeds_threshold ? "모델 기준을 넘었습니다." : "모델 기준 이하입니다.")
+    + (change === null ? "" : " 수평 진동 크기는 " + (change === 0 ? "같습니다." : number(Math.abs(change), 1) + "% " + (change > 0 ? "증가했습니다." : "감소했습니다.")));
   selectAnalysisRecord("anomaly", entry, analyzed, last.position);
   state.hidden = !latestSkipped && binding?.health !== "unavailable";
   const threshold = last.output.threshold;
   const cards = byId("anomaly-cards");
   cards.append(
     card(latestSkipped ? last.position === latest.position ? "마지막 분석 점수" : "선택한 이전 점수" : "선택한 " + scoreName, number(last.output.score),
-      "참고 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
+      "모델 기준 " + number(threshold) + (last.output.exceeds_threshold ? " · 초과" : " · 이하")),
     card("앞선 분석 대비", prior ? (last.output.score > prior.output.score ? "+" : "") + number(last.output.score - prior.output.score) : "첫 분석",
       prior ? number(prior.output.score) + " → " + number(last.output.score) + " · " + stepLabel(entry, prior.position) + " → " + stepLabel(entry, last.position) : "비교 기록 없음"),
   );
@@ -483,12 +481,12 @@ function renderAnomaly() {
       highlight, width: featureRoot.clientWidth, zeroBase: /\.rms$/.test(name), label: featureLabel(name) + " 추세", onPick: (step) => focusStep(step.position)}));
     featureRoot.append(group);
   }
-  featureRoot.append(node("p", axis.label + (entry.binding.step_kind === "observation-window" ? "" : " · 단위 미확인"), "muted"));
+  featureRoot.append(node("p", axis.label, "muted"));
   const scoreRoot = byId("anomaly-score-chart");
   byId("anomaly-score-title").textContent = scoreName + " 추세";
   scoreRoot.append(linePlot({steps: analyzed, value: (step) => step.output.score, axis, height: 110, domain, threshold,
-    intervals, highlight, width: scoreRoot.clientWidth, zeroBase: true, label: scoreName + "와 참고 기준", onPick: (step) => focusStep(step.position)}));
-  scoreRoot.append(node("p", "점선: 참고 기준 " + number(threshold) + " · 점을 선택하면 해당 기록을 표시", "muted"));
+    intervals, highlight, width: scoreRoot.clientWidth, zeroBase: true, label: scoreName + "와 모델 기준", onPick: (step) => focusStep(step.position)}));
+  scoreRoot.append(node("p", "점선: 모델 기준 " + number(threshold) + " · 점을 선택하면 해당 기록을 표시", "muted"));
   const zoomControls = node("div", "", "phm-zoom");
   if (zoom.anomaly) {
     const reset = node("button", "전체 기간 보기");reset.type = "button";
@@ -573,7 +571,7 @@ async function focusStep(position, pin = true) {
   root.append(heading);
   if (step.state !== "analyzed") {root.append(node("p", "분석 불가: " + step.reason));return;}
   const metadata = node("details", "", "phm-input-details");metadata.append(node("summary", "입력 특징·오차 분해"));
-  metadata.append(node("p", "이상 점수 " + number(step.output.score) + " · 참고 기준 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
+  metadata.append(node("p", "이상 점수 " + number(step.output.score) + " · 모델 기준 " + number(step.output.threshold) + (step.output.exceeds_threshold ? " (초과)" : " (이하)")));
   if (step.output.sequence_positions) {
     const positions = step.output.sequence_positions;
     root.append(node("p", "모델 입력 #" + positions[0] + "–#" + positions.at(-1) + " · 아래 파형은 선택 기록 #" + position, "muted"));
@@ -656,7 +654,7 @@ function waveform(preview, related = []) {
   if (!preview.available) {box.append(node("p", "원본 파형 확인 불가: " + preview.reason, "muted"));return box;}
   const plots = node("div", "", "phm-original-waveforms");box.append(plots);
   for (const [index, channel] of preview.channels.entries()) {
-    const group = node("div", "", related.includes(channel) ? "phm-original-selected" : "");group.dataset.channel = channel.channel;group.append(node("p", channelLabel(channel.channel) + " · 단위 미확인", "phm-feature-title"));
+    const group = node("div", "", related.includes(channel) ? "phm-original-selected" : "");group.dataset.channel = channel.channel;group.append(node("p", channelLabel(channel.channel), "phm-feature-title"));
     const plot = node("div", "", "phm-original-plot");group.append(plot);plots.append(group);
     const render = () => {drawSignal(plot, preview, String(index), 130);plot.querySelector("svg")?.classList.add("phm-wave");};
     plot.redraw = render;requestAnimationFrame(render);
@@ -693,8 +691,6 @@ async function showComparisonOriginal(view, entry, position, feature = "") {
 }
 
 const signed = (value) => typeof value === "number" ? (value > 0 ? "+" : "") + number(value, 3) : "값 없음";
-const unitText = (unit) => unit === "acquisition-interval" ? "기록 구간" : (unit || "단위 없음");
-const endpointText = (value) => value === "last-recorded-acquisition" ? "데이터셋의 마지막 기록 획득(물리 고장 시각 아님)" : (value || "미기록");
 const applicabilityText = (value, pkg = null) => {
   if (pkg && pkg.applicability && pkg.applicability.asset_id) {
     return ({inside: "연결 설비와 일치", outside: "다른 설비", unknown: "설비 범위 미확인"})[value] || "설비 범위 미확인";
@@ -706,40 +702,26 @@ const applicabilityText = (value, pkg = null) => {
 function inputSpec(input) {
   return [
     STEP_KIND_LABEL[input.step_kind] || input.step_kind,
-    "채널 " + (input.channels || []).join(", "),
+    (input.channels || []).map(channelLabel).join(", "),
     input.sampling_rate_hz ? number(input.sampling_rate_hz) + " Hz" : "",
-    input.samples_per_step ? number(input.samples_per_step) + " 샘플/step" : "",
-    input.feature_set_id ? "특징 " + input.feature_set_id : "",
+    input.samples_per_step ? "획득당 " + number(input.samples_per_step) + "개 표본" : "",
   ].filter(Boolean).join(" · ");
 }
 
 function renderModelCard(root, pkg) {
   root.replaceChildren();
-  if (!pkg) {root.append(node("p", "모델 패키지 정보를 읽지 못했습니다.", "muted"));return;}
-  const summary = node("summary", "모델 정보 · 입력 조건과 검증 기록");
-  root.append(summary);
+  if (!pkg) {root.append(node("p", "모델 정보를 읽지 못했습니다.", "muted"));return;}
+  root.append(node("summary", "모델 정보"));
   const facts = node("div", "", "facts");
   const add = (label, value) => {const item = node("div", "", "fact");item.append(node("span", label), node("strong", value));facts.append(item);};
-  const scope = pkg.training_scope || {}, validation = pkg.validation || {};
-  add("모델", (pkg.recipe_id || "") + " · " + (TASK_LABEL[pkg.output.task] || pkg.output.task));
+  const scope = pkg.training_scope || {};
+  add("모델", modelFamily(pkg.recipe_id || pkg.package_id, pkg.output.task, pkg.input?.step_kind));
+  if (pkg.input) add("입력", inputSpec(pkg.input));
+  if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스", "과거 " + pkg.input.sequence_length + "개 획득");
+  if (typeof pkg.output.threshold === "number") add("모델 기준", number(pkg.output.threshold));
+  const trained = [scope.dataset_id, scope.asset_ids ? scope.asset_ids.length + "개 설비" : ""].filter(Boolean).join(" · ");
+  if (trained) add("학습 데이터", trained);
   add("패키지", pkg.package_id);
-  if (pkg.input) add("입력 규격", inputSpec(pkg.input));
-  add("학습 데이터", [scope.dataset_id, scope.fold_id, scope.partition].filter(Boolean).join(" · ") + (scope.asset_ids ? " · " + scope.asset_ids.length + "개 설비" : ""));
-  if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스 입력", "과거 " + pkg.input.sequence_length + "개 획득 · 현재 시점이 오른쪽 끝");
-  add("등록된 평가 대상", (validation.per_asset || []).map((item) => item.asset_id).join(" · ") || "평가 대상 설비 기록 없음");
-  if (validation.performance_note) add("성능 수치 범위", validation.performance_note);
-  if (scope.member) add("참조 기록", scope.member);
-  if (scope.period) add("학습 기간", scope.period);
-  if (scope.timezone_assumption) add("시각 가정", scope.timezone_assumption + " · 원본 시간대 미확인");
-  if (pkg.output.threshold_rule) add("임계값 규칙", pkg.output.threshold_rule + " = " + number(pkg.output.threshold));
-  add("검증 근거", (validation.evidence_class || "기록 없음") + (validation.artifact ? " · " + validation.artifact : ""));
-  for (const item of validation.per_asset || []) {
-    const metrics = Object.entries(item).filter(([key]) => key !== "asset_id").map(([key, value]) => key + " " + number(value)).join(" · ");
-    add("검증 · " + item.asset_id, metrics);
-  }
-  if (validation.uncertainty) add("불확실성", validation.uncertainty);
-  if (validation.score_semantics) add("점수 의미", validation.score_semantics);
-  add("적용 운전 조건", Object.entries(pkg.applicability || {}).map(([key, values]) => key + ": " + values.join(", ")).join(" · ") || "기록 없음");
   root.append(facts);
 }
 

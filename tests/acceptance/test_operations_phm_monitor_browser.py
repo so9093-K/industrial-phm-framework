@@ -83,7 +83,7 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 pw.expect(alert).to_contain_text("전달 후 원본 변경 감지")
                 pw.expect(alert).to_contain_text("2개 분석")
                 pw.expect(other).not_to_contain_text("최근 진동 파형을 읽을 수 없음")
-                pw.expect(detection).to_contain_text("이전 분석 결과 · 최신 입력 미평가")
+                pw.expect(detection).to_contain_text("이전 결과 · 최신 입력 분석 전")
                 pw.expect(page.locator("#monitor-signal-state")).to_contain_text(
                     "원본을 표시할 수 없습니다"
                 )
@@ -210,7 +210,7 @@ def test_attention_actions_open_the_matching_problem_with_visible_context(
                 pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("높아졌습니다")
                 pw.expect(page.locator("#anomaly-meaning")).to_contain_text("기준을 넘었습니다")
-                pw.expect(page.locator("#anomaly-meaning")).to_contain_text("확정할 수 없습니다")
+                pw.expect(page.locator("#anomaly-meaning")).to_contain_text("모델 기준")
                 page.goto(base + "#monitor")
                 alert.get_by_role("link", name="검토 기록 확인").click()
                 panel = page.locator("#anomaly-explanation")

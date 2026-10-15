@@ -295,8 +295,7 @@ function render(data) {
   const intro = byId("explore-result-intro");
   const comparable = data.series.filter((item) => item.periods.a?.quantiles && item.periods.b?.quantiles).length;
   intro.hidden = false;
-  intro.textContent = "선택한 " + data.series.length + "개 항목 중 " + comparable + "개에서 두 구간의 대표값을 비교할 수 있습니다. "
-    + "구간 A는 사용자가 고른 비교 구간이며 정상·안전 기준이 아닙니다. 값의 차이가 곧 설비 고장 원인은 아닙니다.";
+  intro.textContent = "선택한 " + data.series.length + "개 항목 중 " + comparable + "개에서 두 구간의 대표값을 비교할 수 있습니다. ";
   for (const name of ["a", "b"]) quality.append(qualityCard(data, name));
   for (const item of data.series) results.append(seriesCard(item));
   const target = data.series[0]?.key || data.series[0]?.label;
@@ -402,7 +401,7 @@ function relationView(relation, choices) {
   }
   const how = relation.pairing === "same-acquisition" ? "같은 획득의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
   const notes = [create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다."),
-    create("p", "explore-interpretation", "Pearson은 직선 관계, Spearman은 값의 순서가 함께 변하는 경향을 요약합니다. 같은 방향으로 움직여도 한 신호가 다른 신호의 원인이라는 뜻은 아닙니다.")];
+    create("p", "explore-interpretation", "Pearson은 직선 관계, Spearman은 값의 순서가 함께 변하는 경향을 요약합니다.")];
   if (split) notes.push(create("p", "muted", "측정 해석(단위·의미)이 바뀐 기록은 따로 계산했고, 산점도에는 짝이 가장 많은 해석만 그렸습니다."));
   for (const group of relation.groups.filter((item) => item.sampled)) {
     notes.push(create("p", "muted", "구간 " + group.period.toUpperCase() + "은 분석된 획득 " + num(group.analyzed_count)
@@ -419,7 +418,7 @@ function spectrumSection(data) {
   const output = create("div");
   const start = create("button", "secondary", "주파수 성분 계산");start.type = "button";
   output.append(create("p", "explore-interpretation",
-    "실제 진동 파형을 주파수별로 나누어 두 구간의 차이를 살펴봅니다. 특정 부품 고장이나 고장 원인을 확정하는 분석은 아닙니다."),
+    "실제 진동 파형을 주파수별로 나누어 두 구간의 차이를 살펴봅니다."),
     create("p", "muted", "구간마다 처음부터 끝까지 고르게 고른 원본 파형 최대 8개로 계산합니다."), start);
   box.append(output);
   const owner = request;
@@ -520,7 +519,7 @@ function seriesCard(item) {
     const direction = b.quantiles[2] > a.quantiles[2] ? "높습니다" : b.quantiles[2] < a.quantiles[2] ? "낮습니다" : "같습니다";
     card.append(create("p", "explore-interpretation",
       "살펴볼 구간 B의 중앙값은 비교 구간 A보다 " + direction
-      + ". 중앙값은 값을 크기순으로 놓았을 때 가운데 값이며, 증가·감소만으로 설비의 이상이나 원인을 확정할 수 없습니다."));
+      + "."));
     card.append(chart(item));
   } else {
     card.append(create("p", "empty", !a.quantiles && !b.quantiles ? "두 구간 모두 사용할 수 있는 값이 없습니다." : (a.quantiles ? "구간 B" : "구간 A") + "에 사용할 수 있는 값이 없습니다."));

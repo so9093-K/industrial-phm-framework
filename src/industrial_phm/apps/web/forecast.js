@@ -55,6 +55,7 @@ async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
   clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));clear(byId("forecast-result"));shown = null;previous = null;
+  clear(byId("forecast-settings-root"));byId("forecast-settings").hidden = true;
   clearOutlook();byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
   state("전망할 수 있는 측정값을 확인합니다.");
@@ -166,8 +167,8 @@ async function renderControls() {
   apply.addEventListener("click", applyThreshold);
   for (const input of [thresholdInput, endInput]) input.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
 
-  const horizonField = create("div", "forecast-horizon-field");horizonField.append(create("span", "forecast-label", "예측 기간"), horizons);
-  const countField = create("label", null, "미래 획득 수");const countInput = create("input");
+  const horizonField = create("div", "forecast-horizon-field");horizonField.append(horizons);
+  const countField = create("label", "forecast-inline", "획득 수");const countInput = create("input");
   countInput.type = "number";countInput.min = "1";countInput.max = "2000";countInput.step = "1";
   countInput.id = "forecast-count";
   const acquisition = options.acquisition;
@@ -178,14 +179,15 @@ async function renderControls() {
   };
   countInput.value = params().get("forecast_count") || recommendedCount(series.value);
   countField.append(countInput);
-  const unitField = create("label", null, "예측 단위");const unitSelect = create("select");
+  const unitField = create("label", "forecast-inline", "단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
   for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
   unitSelect.value = params().get("forecast_unit") === "count"
     || (series.value.startsWith("acquisition|") && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason))
     ? "count" : "time";
   unitField.append(unitSelect);
-  const countApply = create("button", "secondary", "획득 수 적용");countApply.type = "button";
+  const countApply = create("button", "secondary compact", "적용");countApply.type = "button";
+  countApply.setAttribute("aria-label", "획득 수 적용");
   const countChanged = () => {remember({forecast_count: countInput.value, forecast_backtest: ""});void run();};
   countApply.addEventListener("click", countChanged);
   countInput.addEventListener("keydown", event => {if (event.key === "Enter") {event.preventDefault();countChanged();}});
@@ -198,8 +200,9 @@ async function renderControls() {
     remember({forecast_assumed_period: assumedInput.value, forecast_backtest: ""});
     void update();
   });
-  const details = create("details", "forecast-details");details.id = "forecast-details";
-  details.append(create("summary", null, "예측 설정 및 상세 분석"));
+  // Settings and checks of the forecast live with the evidence, folded under the outlook.
+  const details = create("div", "forecast-details");details.id = "forecast-details";
+  details.append(create("h4", null, "예측 설정"));
   const advanced = create("div", "forecast-advanced");
   const numeric = (id, label, initial, min, max, step) => {
     const field = create("label", null, label), input = create("input");input.id = id;
@@ -220,7 +223,7 @@ async function renderControls() {
   });
   advanced.append(settingsApply);details.append(advanced);
   const validation = create("button", "secondary", "여러 과거 시점 비교");validation.type = "button";
-  validation.addEventListener("click", () => {remember({forecast_backtest: "multi"});details.open = true;void run();});
+  validation.addEventListener("click", () => {remember({forecast_backtest: "multi"});byId("forecast-settings").open = true;void run();});
   details.append(validation);
   const detailMetrics = create("div", "forecast-detail-metrics");detailMetrics.id = "forecast-detail-metrics";details.append(detailMetrics);
   const refreshUnit = () => {
@@ -230,7 +233,8 @@ async function renderControls() {
     assumption.hidden = !acquisition;assumptionApply.hidden = !acquisition;
   };
   unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value, forecast_backtest: ""});refreshUnit();void run();});
-  root.append(seriesField, thresholdField, endField, directionField, apply, details);
+  root.append(seriesField, thresholdField, endField, directionField, apply);
+  byId("forecast-settings-root").append(details);byId("forecast-settings").hidden = false;
   // The horizon only shapes the chart; the margin is searched over half the record's length.
   byId("forecast-chart-controls").append(unitField, horizonField, countField, countApply);
   advanced.prepend(assumption, assumptionApply);
@@ -307,8 +311,6 @@ function summary(data) {
     + " · 예측 시작~종료 " + value(trend.change) + unit);
   row("추세 성분", words[trend.slope_direction || trend.direction]
     + " · 변화 " + value(trend.trend_component_change ?? trend.change) + unit);
-  if (data.backtest) row("과거 자료 확인", "최근 " + num(data.backtest.points) + "개 관측값으로 예측 흐름을 확인했습니다. 세부 비교는 상세 보기에서 확인할 수 있습니다.");
-  else row("과거 자료 확인", "가려서 확인할 만큼 기록이 길지 않습니다.");
   return list;
 }
 
@@ -369,24 +371,26 @@ function render(data) {
       : " (원본 " + num(data.raw_count) + "개" + (data.bucket_seconds && data.raw_count > data.model.points * 1.5 ? ", " + duration(data.bucket_seconds) + " 구간 평균" : "") + ")")
     + (data.model.seasonality.length ? " · 반복 패턴 " + data.model.seasonality.map((name) => name === "daily" ? "하루" : "일주일").join("·") : "")
     + (data.other_identities ? " · 같은 이름의 다른 출처·해석 " + data.other_identities + "개는 제외" : ""));
-  const scale = create("button", "secondary", showWholeScale ? "측정 변화 중심 보기" : "기준 포함 보기");
+  const scale = create("button", "link-button", showWholeScale ? "측정 변화 중심" : "기준까지 보기");
   scale.type = "button";scale.addEventListener("click", () => {showWholeScale = !showWholeScale;render(data);});
   byId("forecast-chart-section").hidden = false;
-  root.replaceChildren(summary(data), ...chart(data), ...(limits(data).length ? [scale] : []), note);
+  const [svg, legend] = chart(data);
+  if (limits(data).length) legend.append(scale);
+  root.replaceChildren(svg, legend);
   const metricRoot = byId("forecast-detail-metrics");
   if (metricRoot) {
     const check = data.backtest;
-    const lines = create("dl", "forecast-summary");
+    const lines = summary(data);
     const row = (term, value) => {const entry = create("div");entry.append(create("dt", null, term), create("dd", null, value));lines.append(entry);};
     row("설정", "추세 민감도 " + data.model.changepoint_prior_scale + " · 변화점 탐색 범위 " + data.model.changepoint_range + " · 학습 " + data.model.points + "개");
     row("예측 시작값과 마지막 실측 차이", value(data.trend.level_gap));
     if (previous) row("이전 설정과 비교", "이전 종료 예상 " + value(previous.trend.end)
       + " → 현재 종료 예상 " + value(data.trend.end));
     if (check) {
-      row("과거 검증", "가린 관측 " + check.points + "개 · 평균 절대 오차 " + value(check.mean_absolute_error));
-      row("비교 기준", "마지막 관측값 유지 시 평균 절대 오차 " + value(check.naive_mean_absolute_error));
+      row("과거 자료로 확인", "최근 " + check.points + "개를 가리고 예측 · 평균 절대 오차 " + value(check.mean_absolute_error));
+      row("마지막 값 유지", "같은 구간 평균 절대 오차 " + value(check.naive_mean_absolute_error));
       row(Math.round(data.model.interval_width * 100) + "% 예측 범위 내 실제값 포함", Math.round(check.inside_interval * 100) + "%");
-    } else row("과거 검증", "현재 구간에서는 과거 값을 충분히 가려 비교할 수 없습니다.");
+    } else row("과거 자료로 확인", "가려서 확인할 만큼 기록이 길지 않습니다.");
     if (Array.isArray(data.rolling_backtests)) {
       row("여러 과거 시점", data.rolling_backtests.length + "개 기준 시점 확인");
       for (const [index, result] of data.rolling_backtests.entries()) {
@@ -395,7 +399,7 @@ function render(data) {
           + " · 범위 안 " + Math.round(result.inside_interval * 100) + "%");
       }
     }
-    metricRoot.replaceChildren(lines);
+    metricRoot.replaceChildren(lines, note);
   }
 }
 

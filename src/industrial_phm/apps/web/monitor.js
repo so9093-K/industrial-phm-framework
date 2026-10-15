@@ -2,13 +2,14 @@ import {drawSignal, signalChoices, drawTrace, drawMeasuredTrend, measuredRows, r
 import {navigate} from "./navigation.js";
 import {formatTime} from "./time.js";
 import {assetName, currentAsset, onAssetChange, registerAssets, setAsset} from "./asset-context.js";
+import {healthText} from "./web-utils.js";
 import {showStored, storedChannelState, invalidateStored, selectStoredChannel, selectStoredRange, repaintStored, leaveStored, focusStored, clearStoredSource} from "./monitor-history.js";
 // Observation first: concise asset facts, then the verified signal, then optional model details.
 const POLL_MS = 3000;
 const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {const e = document.createElement(tag);e.textContent = text;e.className = className;return e;};
 const time = (at) => formatTime(at, {missing: "미확인"});
-const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "미평가";
+const number = (n) => typeof n === "number" ? n.toLocaleString("ko-KR", {maximumFractionDigits: 3}) : "—";
 const active = () => document.body.dataset.view === "monitor" && !document.hidden;
 const states = {processed: "입력 처리됨", pending: "새 입력 분석 대기", warmup: "LSTM 입력 준비", rejected: "입력 분석 거부", waiting: "확정 입력 대기", unavailable: "모델 실행 불가"};
 const reviewLabels = {open: "검토 요청됨", acknowledged: "검토 확인됨", closed: "검토 완료"};
@@ -56,14 +57,17 @@ function assetFacts(assetId, items, base) {
     const causes = [...new Set(items.filter((i) => i.processing_state === "rejected").map((i) => friendlyReason(i.processing_reason)))];
     notes.push({kind: "refusal", label: causes.includes("필요한 입력 규격과 다름") ? "입력 조건이 맞지 않아 분석하지 못함" : items.some((i) => i.step_kind === "acquisition-snapshot") ? "최근 진동 파형을 읽을 수 없음" : "최근 측정 입력을 분석하지 못함", detail: causes.join(" · ") + " · 원본 입력 확인 (" + count("rejected") + "개 분석 거부)", priority: 1});
   }
-  if (count("unavailable")) notes.push({kind: "unavailable", label: "분석 실행 불가", detail: count("unavailable") + "개 분석의 입력·모델 확인", priority: 1});
+  if (count("unavailable")) {
+    const reason = healthText(items.find((i) => i.processing_state === "unavailable")?.processing_reason);
+    notes.push({kind: "unavailable", label: "모델 실행 불가", detail: reason, priority: 1});
+  }
   const sources = (base.sources?.sources?.items || []).filter((s) => s.asset_id === assetId && s.continuous_collection_supported);
   if (base.errors.length) notes.push({kind: "read", label: "수신 상태를 읽지 못함", detail: "데이터 연결 확인", priority: 2});
   else if (sources.some((s) => !s.last_live_receive_fresh)) notes.push({kind: "receipt", label: "최근 30초 수신 없음", detail: "연결·재생 상태 확인", priority: 2});
   if (count("pending")) notes.push({kind: "pending", label: "새 입력 분석 대기", detail: count("pending") + "개 분석", priority: 3});
   const compared = items.filter((i) => i.processing_state === "processed" && typeof i.latest_analyzed?.output.exceeds_threshold === "boolean");
   const exceeded = compared.filter((i) => i.latest_analyzed.output.exceeds_threshold);
-  if (exceeded.length) notes.push({kind: "threshold", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "진동 변화 확인 필요" : "전기 신호 변화 확인 필요", detail: "참고 기준 초과 " + exceeded.length + "개 분석 · 신호 추세 확인", priority: 0});
+  if (exceeded.length) notes.push({kind: "threshold", label: items.some((i) => i.step_kind === "acquisition-snapshot") ? "진동 변화 확인 필요" : "전기 신호 변화 확인 필요", detail: "모델 기준 초과 " + exceeded.length + "개 · 신호 추세 확인", priority: 0});
   if (items.some((i) => ["open", "acknowledged"].includes(i.latest_review_status))) notes.push({kind: "review", label: "검토 진행 중", detail: "분석 결과의 검토 상태 확인", priority: 4});
   notes.sort((a, b) => a.priority - b.priority);
   return {assetId, items, notes, compared, exceeded, warmup: count("warmup"), waiting: count("waiting"), priority: notes[0]?.priority ?? 5};
@@ -102,12 +106,8 @@ function render(data, base) {
   const mode = byId("monitor-data-mode");mode.className = "tag" + (replayAssets ? " replay" : "");
   mode.textContent = replayAssets === facts.length && replayAssets ? "기록 재생 데이터" : replayAssets ? "기록 재생·기타 입력 혼합" : "저장·수신 데이터";
   const timeExplanation = byId("monitor-time-explanation");
-  timeExplanation.hidden = replayAssets === 0;
-  timeExplanation.textContent = replayAssets === facts.length && replayAssets
-    ? "과거에 측정한 기록을 재생·조회하는 화면입니다. 원래 측정한 시각과 시스템이 기록을 받은 시각은 다르며, 지금 설비가 가동 중인지 또는 고장인지 보여주는 실시간 판정이 아닙니다."
-    : replayAssets
-      ? "과거 기록 재생과 다른 입력이 함께 있습니다. 설비별 원래 측정 시각과 시스템 수신 시각을 구분해 확인하세요. 과거 기록은 현재 설비 상태를 뜻하지 않습니다."
-      : "";
+  // The data-mode tag says the data is a replayed record; no paragraph repeats it.
+  timeExplanation.hidden = true;timeExplanation.textContent = "";
   const received = (base.sources?.sources?.items || []).filter((s) => s.last_live_receive_fresh).length;
   const intake = base.errors.length ? "수신 상태 미확인" : (base.sources?.sources?.items || []).some((s) => s.continuous_collection_supported)
     ? "최근 " + (replayAssets ? "재생 " : "") + "수신 " + received + "개 소스 (30초)" : "저장된 기록 조회";
@@ -263,9 +263,9 @@ function renderDetection(items) {
     }
     const current = item.processing_state === "processed" && !previousInput;
     const value = node("div", "", "monitor-detection-value");
-    value.append(node("strong", number(last.output.score)), node("span", "참고 기준 " + number(last.output.threshold) + (last.output.exceeds_threshold ? " 초과" : " 이내")));
+    value.append(node("strong", number(last.output.score)), node("span", "모델 기준 " + number(last.output.threshold) + (last.output.exceeds_threshold ? " 초과" : " 이하")));
     row.append(value);
-    if (!current) row.append(node("p", "이전 분석 결과 · 최신 입력 미평가", "monitor-detection-old"));
+    if (!current) row.append(node("p", item.processing_state === "unavailable" ? healthText(item.processing_reason) : "이전 결과 · 최신 입력 분석 전", "monitor-detection-old"));
     if (prior && typeof prior.output.score === "number") {
       const delta = last.output.score - prior.output.score;
       const deltaText = delta === 0 ? "변화 없음" : (delta > 0 ? "+" : "−") + (Math.abs(delta) < .001 ? Math.abs(delta).toExponential(2) : number(Math.abs(delta)));
@@ -326,7 +326,7 @@ async function loadSignal(item) {
     for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
     if (!choices.some((c) => c.id === choiceId)) choiceId = choices[0]?.id;
     select.value = choiceId;select.disabled = false;
-    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
+    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     updateLegend();
     paintSignal();
   } catch (error) {
@@ -342,7 +342,7 @@ async function loadTrace(item) {
   const version = ++traceVersion;traceData = null;
   byId("monitor-score-chart").replaceChildren();
   const last = item.latest_analyzed, current = item.processing_state === "processed";
-  byId("monitor-score-state").textContent = role(item) + (current ? " · 저장된 최근 결과" : " · 이전 분석 결과, 최신 입력 미평가")
+  byId("monitor-score-state").textContent = role(item) + (current ? " · 저장된 최근 결과" : " · 이전 결과")
     + (last ? " · 점수 " + number(last.output.score) + " / 기준 " + number(last.output.threshold) : " · 결과 대기");
   try {
     const response = await fetch("/api/v1/phm/trace?binding_id=" + encodeURIComponent(item.binding_id), {signal: AbortSignal.timeout(5000)});
@@ -376,7 +376,7 @@ function paintSignal() {
     if (rows.length < 2 || last.position !== preview.position) {
       drawSignal(byId("monitor-signal-chart"), preview, String(channelIndex));
       byId("monitor-signal-state").textContent = "크기 추세 축적 대기 · 선택 입력의 원본 파형";
-      byId("monitor-signal-legend").textContent = "원본 표본 구간별 최솟값·최댓값 · 단위 미확인";return;
+      byId("monitor-signal-legend").textContent = "원본 표본 구간별 최솟값·최댓값";return;
     }
     const before = rows.at(-2), contiguous = before.position + 1 === last.position;
     const change = measuredChange(before, last), relation = contiguous ? "직전 기록" : "앞선 조회 기록";
@@ -390,7 +390,7 @@ function paintSignal() {
     const shown = all ? rows : recent;
     byId("monitor-range-field").hidden = recent.length === rows.length;
     drawMeasuredTrend(byId("monitor-signal-chart"), shown, channel);
-    byId("monitor-signal-state").textContent = "진동 크기(RMS) · 0부터 표시 · 단위 미확인";
+    byId("monitor-signal-state").textContent = "진동 크기(RMS)";
     const absent = steps.at(-1).position - steps[0].position + 1 - steps.length;
     const rejected = steps.filter((s) => s.state === "skipped").length;
     byId("monitor-signal-legend").textContent = (all ? "조회 기록" : "최근 연속 기록") + " #" + shown[0].position + "–#" + shown.at(-1).position
@@ -398,7 +398,7 @@ function paintSignal() {
     return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);
-    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본 · 단위 미확인" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
+    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     if (!preview.sample_count) {
       const choice = signalChoices(preview).find((c) => c.id === choiceId);
       for (const [index, channel] of (choice?.channels || []).entries()) {
@@ -413,7 +413,7 @@ function paintSignal() {
 function updateLegend() {
   if (!preview?.available) return;
   const choice = signalChoices(preview).find((c) => c.id === choiceId);
-  byId("monitor-signal-legend").textContent = choiceId.startsWith("rms-") ? "원본에서 계산해 저장한 크기입니다. 미전달·미평가 구간은 연결하지 않습니다." : preview.sample_count ? "표본 구간별 최솟값·최댓값을 표시합니다."
+  byId("monitor-signal-legend").textContent = choiceId.startsWith("rms-") ? "원본에서 계산해 저장한 크기" : preview.sample_count ? "표본 구간별 최솟값·최댓값을 표시합니다."
     : choice?.channels.length === 3 ? "R상 ━ · S상 ┄ · T상 ⋯ · 원본 단위로 비교" : (choice?.name || "") + " · 원본 관측";
 }
 function renderDetails(facts) {
@@ -426,11 +426,13 @@ function renderDetails(facts) {
     const last = item.latest_analyzed;
     if (last) {
       const o = last.output, older = item.processing_state !== "processed" ? "이전 결과 · " : "";
-      row.append(node("p", older + "점수 " + number(o.score) + " · 참고 기준 " + number(o.threshold) + (o.exceeds_threshold ? " 초과" : " 이하")));
+      row.append(node("p", older + "점수 " + number(o.score) + " · 모델 기준 " + number(o.threshold) + (o.exceeds_threshold ? " 초과" : " 이하")));
       row.append(node("p", "분석 " + inputName(item, last) + " · " + (reviewLabels[item.latest_review_status] || "검토 요청 없음"), "muted"));
       const link = node("a", "이 시점의 추세·원본 입력 보기");link.href = detailLink(item);row.append(link);
     }
-    const technical = node("details", "", "monitor-technical");technical.append(node("summary", "모델·처리 근거"), node("p", "패키지 " + item.package_id), node("p", item.processing_reason || "입력 처리 근거 있음"), node("p", "성능 검증 " + (item.validation?.acceptance || "별도 검증 기록 확인")));
+    const technical = node("details", "", "monitor-technical");technical.append(node("summary", "모델 정보"), node("p", "패키지 " + item.package_id));
+    if (item.processing_state === "unavailable") technical.append(node("p", healthText(item.processing_reason)));
+    else if (item.processing_state === "rejected") technical.append(node("p", friendlyReason(item.processing_reason)));
     row.append(technical);root.append(row);
   }
 }

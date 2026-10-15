@@ -47,7 +47,7 @@ async function load() {
   const box = create(modelled ? "details" : "div", "anomaly-explore-box");
   const title = "평소 범위를 벗어난 구간 (모델 없이)";
   if (modelled) box.append(create("summary", null, title));else box.append(create("h3", null, title));
-  box.append(create("p", "muted", "고른 신호를 기록의 기준 구간과 비교해 크게 벗어난 시점을 찾습니다. 기준 구간은 비교의 출발점일 뿐 정상 상태라는 뜻은 아니며, 고장 판정이 아닙니다."));
+  box.append(create("p", "muted", "고른 신호를 기록의 기준 구간과 비교해 크게 벗어난 시점을 찾습니다."));
   const controls = create("div", "anomaly-explore-controls"), output = create("div", "anomaly-explore-output");
   box.append(controls, output);root.append(box);root.hidden = false;
   const requested = new URL(location.href).searchParams.get("forecast_anomaly_series");

@@ -66,7 +66,7 @@ def test_connecting_a_model_from_the_anomaly_tab_shows_its_scores(
                 pw.expect(page.locator("#anomaly-state")).to_contain_text("저장된 입력 분석 대기")
 
                 analyze(workspace)
-                pw.expect(page.locator("#anomaly-state")).to_contain_text("4개 step 분석")
+                pw.expect(page.locator("#anomaly-state")).to_contain_text("분석 4개")
                 pw.expect(page.locator("#anomaly-cards > *").first).to_be_visible()
                 assert errors == []
             finally:
