@@ -20,7 +20,7 @@ def _points(values: list[float]) -> list[tuple[datetime, datetime, float]]:
 
 def test_neighbouring_marks_join_one_interval_named_by_the_furthest_signal() -> None:
     base = [10 + (i % 5) * 0.1 for i in range(100)]
-    current = base[:60] + [18.0, 19.0, 18.5] + base[63:]
+    current = [*base[:60], 18.0, 19.0, 18.5, *base[63:]]
     voltage = [380 + (i % 5) * 0.1 for i in range(100)]
     voltage[61] = 381.5  # moves with the surge, less far
     found = find_departures({"current": _points(current), "voltage": _points(voltage)})
