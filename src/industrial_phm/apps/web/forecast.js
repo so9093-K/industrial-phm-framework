@@ -18,7 +18,7 @@ const svgNode = (name, attributes = {}) => {
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
   return node;
 };
-let options = null, request = 0, loadedFor = "", shown = null, showWholeScale = false;
+let options = null, request = 0, loadedFor = "", shown = null, previous = null, showWholeScale = false;
 
 async function getJson(url) {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin"});
@@ -40,7 +40,11 @@ const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : 
 
 export function initializeForecast() {
   onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_training_points: ""});if (document.body.dataset.view === "forecast") void load();});
-  window.addEventListener("hashchange", () => {if (document.body.dataset.view === "forecast" && loadedFor !== currentAsset()) void load();});
+  window.addEventListener("hashchange", () => {
+    if (document.body.dataset.view !== "forecast") return;
+    const wanted = params().get("forecast_series");
+    if (loadedFor !== currentAsset() || (wanted && wanted !== (shown ? shown.kind + "|" + shown.series : byId("forecast-series")?.value))) void load();
+  });
   window.addEventListener("resize", () => {if (shown && document.body.dataset.view === "forecast") render(shown);});
   if (document.body.dataset.view === "forecast") void load();
 }
@@ -48,7 +52,7 @@ export function initializeForecast() {
 async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
-  clear(byId("forecast-controls"));clear(byId("forecast-result"));shown = null;
+  clear(byId("forecast-controls"));clear(byId("forecast-result"));shown = null;previous = null;
   if (!asset) {state("설비를 선택하세요.");return;}
   state("예측할 수 있는 측정값을 확인합니다.");
   let found;
@@ -109,7 +113,12 @@ function renderControls() {
       horizons.append(button);
     }
   };
-  series.addEventListener("change", () => {remember({forecast_series: series.value});drawHorizons();void run();});
+  series.addEventListener("change", () => {
+    remember({forecast_series: series.value});
+    const kind = series.value.split("|")[0];
+    unitSelect.value = kind === "acquisition" && !options.acquisition?.period_seconds ? "count" : (params().get("forecast_unit") || "time");
+    drawHorizons();refreshUnit();void run();
+  });
   const applyThreshold = () => {remember({forecast_threshold: thresholdInput.value.trim()});void run();};
   apply.addEventListener("click", applyThreshold);
   thresholdInput.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
@@ -154,6 +163,9 @@ function renderControls() {
     void run();
   });
   advanced.append(settingsApply);details.append(advanced);
+  const validation = create("button", "secondary", "여러 과거 시점 비교");validation.type = "button";
+  validation.addEventListener("click", () => {remember({forecast_backtest: "multi"});details.open = true;void run();});
+  details.append(validation);
   const detailMetrics = create("div", "forecast-detail-metrics");detailMetrics.id = "forecast-detail-metrics";details.append(detailMetrics);
   const refreshUnit = () => {
     const acquisition = series.value.startsWith("acquisition|"), count = acquisition && unitSelect.value === "count";
@@ -162,11 +174,6 @@ function renderControls() {
     assumption.hidden = !acquisition;assumptionApply.hidden = !acquisition;
   };
   unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value});refreshUnit();void run();});
-  series.addEventListener("change", () => {
-    const isAcquisition = series.value.startsWith("acquisition|");
-    unitSelect.value = isAcquisition && !options.acquisition?.period_seconds ? "count" : (params().get("forecast_unit") || "time");
-    refreshUnit();
-  });
   root.append(seriesField, unitField, horizonField, countField, countApply, thresholdField, apply, details);
   details.prepend(assumption, assumptionApply);
   drawHorizons();refreshUnit();
@@ -208,11 +215,15 @@ async function run() {
   if (horizon === "count" && !query.has("horizon_count")) {state("예측할 획득 수를 입력하세요.", true);return;}
   if (kind === "acquisition" && byId("forecast-unit")) remember({forecast_unit: unit});
   query.set("seasonality", byId("forecast-seasonality")?.value || "auto");
+  if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
   state("예측을 계산합니다.");
   try {
     const data = await getJson("/api/v1/forecast?" + query.toString());
     if (ticket !== request || asset !== currentAsset()) return;
     state("");
+    previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
+      && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
+      && shown.period_seconds === data.period_seconds ? shown : null;
     render(data);
   } catch (error) {
     if (ticket !== request) return;
@@ -229,7 +240,7 @@ function summary(data) {
   const row = (label, text) => {const item = create("div");item.append(create("dt", null, label), create("dd", null, text));list.append(item);};
   const words = {up: "증가", down: "감소", flat: "유지"};
   const trend = data.trend, unit = data.unit ? " " + data.unit : "";
-  const span = HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
+  const span = data.horizon === "count" ? data.horizon_count + "개 획득" : HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
   row("예상 추세", words[trend.direction] + " · 마지막 측정 " + value(data.history.at(-1)[1]) + " → " + span + " 뒤 " + value(trend.end) + unit
     + " (" + Math.round(data.model.interval_width * 100) + "% 범위 " + value(trend.end_lower) + "–" + value(trend.end_upper) + ")");
   if (data.threshold) {
@@ -270,6 +281,7 @@ function chart(data) {
   svg.append(svgNode("path", {d: band.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ") + "Z", class: "forecast-band"}));
   path(data.history, "forecast-history");
   path(data.fitted, "forecast-fitted");
+  if (previous) path(previous.forecast.map(p => [p[0], p[1]]), "forecast-compare");
   path(data.forecast.map((p) => [p[0], p[1]]), "forecast-line");
   const now = X(data.history.at(-1)[0]);
   svg.append(svgNode("line", {x1: now, x2: now, y1: top, y2: bottom, class: "forecast-now"}));
@@ -298,7 +310,8 @@ function render(data) {
   shown = data;
   const root = byId("forecast-result");
   const note = create("p", "muted", "Prophet · 학습 " + num(data.model.points) + "점"
-    + (data.axis === "acquisition" ? " · 획득 간격 " + duration(data.period_seconds) + " 기준"
+    + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? " · 획득 순서 기준 (기록된 시간 간격 없음)"
+      : " · " + (data.time_basis === "assumed" ? "가정 획득 간격 " : "기록 획득 간격 ") + duration(data.period_seconds) + " 기준")
       : " (원본 " + num(data.raw_count) + "개" + (data.bucket_seconds && data.raw_count > data.model.points * 1.5 ? ", " + duration(data.bucket_seconds) + " 구간 평균" : "") + ")")
     + (data.model.seasonality.length ? " · 반복 패턴 " + data.model.seasonality.map((name) => name === "daily" ? "하루" : "일주일").join("·") : "")
     + (data.other_identities ? " · 같은 이름의 다른 출처·해석 " + data.other_identities + "개는 제외" : ""));
@@ -313,11 +326,21 @@ function render(data) {
     const row = (term, value) => {const entry = create("div");entry.append(create("dt", null, term), create("dd", null, value));lines.append(entry);};
     row("설정", "추세 민감도 " + data.model.changepoint_prior_scale + " · 변화점 탐색 범위 " + data.model.changepoint_range + " · 학습 " + data.model.points + "개");
     row("예측 시작값과 마지막 실측 차이", value(data.trend.level_gap));
+    if (previous) row("이전 설정과 비교", "이전 종료 예상 " + value(previous.trend.end)
+      + " → 현재 종료 예상 " + value(data.trend.end));
     if (check) {
       row("과거 검증", "가린 관측 " + check.points + "개 · 평균 절대 오차 " + value(check.mean_absolute_error));
       row("비교 기준", "마지막 관측값 유지 시 평균 절대 오차 " + value(check.naive_mean_absolute_error));
       row(Math.round(data.model.interval_width * 100) + "% 예측 범위 내 실제값 포함", Math.round(check.inside_interval * 100) + "%");
     } else row("과거 검증", "현재 구간에서는 과거 값을 충분히 가려 비교할 수 없습니다.");
+    if (Array.isArray(data.rolling_backtests)) {
+      row("여러 과거 시점", data.rolling_backtests.length + "개 기준 시점 확인");
+      for (const [index, result] of data.rolling_backtests.entries()) {
+        row("과거 시점 " + (index + 1), "관측 " + result.points + "개 · 평균 절대 오차 " + value(result.mean_absolute_error)
+          + " · 마지막 값 유지 " + value(result.naive_mean_absolute_error)
+          + " · 범위 안 " + Math.round(result.inside_interval * 100) + "%");
+      }
+    }
     metricRoot.replaceChildren(lines);
   }
 }
