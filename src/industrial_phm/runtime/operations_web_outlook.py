@@ -7,6 +7,8 @@ forecast towards the management level and end condition the user sets. Nothing i
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -226,7 +228,29 @@ def condition_outlook(
                         # The first whole acquisition at or after the reaching point.
                         reached[key] = math.ceil(reached[key] / period - 1e-6)
 
+    anomaly = anomaly_evidence(
+        workspace,
+        asset_id,
+        source_id=meta["source_id"],
+        measurement_point_id=meta.get("measurement_point_id"),
+        kind=kind,
+    )
+    # The AI briefing must be tied to the exact observations and anomaly evidence
+    # that produced this outlook, not merely the same selected form fields.
+    revision = hashlib.sha256(
+        json.dumps(
+            {
+                "measurements": [(t.isoformat(), v) for t, v in zip(times, values, strict=True)],
+                "source_id": meta["source_id"],
+                "measurement_point_id": meta.get("measurement_point_id"),
+                "anomaly": anomaly,
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
     return {
+        "data_version": revision,
         "schema_version": 1,
         "asset_id": asset_id,
         "kind": kind,
@@ -256,13 +280,7 @@ def condition_outlook(
         },
         "offset_unit": "acquisition" if acquisitions else "second",
         "scenarios": scenarios,
-        "anomaly_model": anomaly_evidence(
-            workspace,
-            asset_id,
-            source_id=meta["source_id"],
-            measurement_point_id=meta.get("measurement_point_id"),
-            kind=kind,
-        ),
+        "anomaly_model": anomaly,
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
 
