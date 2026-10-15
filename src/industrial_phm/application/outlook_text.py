@@ -284,11 +284,14 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
     if departure is not None:
         facts["departure"] = (
             (
-                place(outlook, departure["since"]) + "부터 기준 범위를 계속 벗어남"
+                place(outlook, departure["since"])
+                + " 이후 값의 "
+                + one(departure["since_share"] * 100)
+                + "%가 초기 비교 범위 밖"
                 if departure["since"] is not None
-                else f"기준 범위를 벗어난 값 {num(departure['outside'])}개 · 계속되지 않음"
+                else f"초기 비교 범위 밖인 값 {num(departure['outside'])}개"
                 if departure["outside"]
-                else "기준 범위를 벗어난 값 없음"
+                else "초기 비교 범위 밖인 값 없음"
             )
             + f" · 기준 범위는 기준 중앙값에서 변동폭의 {num(departure['threshold'])}배 안"
             + f" · 마지막 측정은 기준 변동폭의 {one(abs(departure['latest_distance']))}배 거리"
