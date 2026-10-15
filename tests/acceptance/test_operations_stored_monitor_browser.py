@@ -247,7 +247,7 @@ def test_connected_and_failed_model_never_replaces_stored_measurements(tmp_path:
                 pw.expect(reading).to_contain_text("12.5")
                 (workspace.models_path / template.package_id / "package.json").unlink()
                 pw.expect(page.locator("#phm-monitor-assets")).to_contain_text(
-                    "분석 실행 불가", timeout=10000
+                    "모델 실행 불가", timeout=10000
                 )
                 pw.expect(reading).to_contain_text("12.5")
                 pw.expect(selector).to_have_value("stored-history")

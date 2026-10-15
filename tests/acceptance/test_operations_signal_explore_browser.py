@@ -44,7 +44,7 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 compare_goal = guide.get_by_role("button", name="과거와 최근이 어떻게 다른가요?")
                 pw.expect(compare_goal).to_be_visible()
                 pw.expect(panel.locator("#explore-result-intro")).to_contain_text(
-                    "구간 A는 사용자가 고른 비교 구간"
+                    "두 구간의 대표값을 비교할 수 있습니다"
                 )
                 pw.expect(panel.locator(".explore-interpretation").first).to_contain_text("중앙값")
                 cards = panel.locator(".explore-series")
