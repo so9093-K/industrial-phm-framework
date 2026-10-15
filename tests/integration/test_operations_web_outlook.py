@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -138,5 +139,17 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert model["first_exceeding"]["position"] == 62
         assert model["recent"] == {"results": 10, "exceeding": 3}
         assert model["interval_count"] == 1 and model["intervals"][0]["open"] is True
+        # A model for another source must never be attached to this signal's outlook.
+        with sqlite3.connect(workspace.phm_analysis_path) as connection:
+            connection.execute(
+                "UPDATE binding SET source_id = 'unrelated' WHERE asset_id = 'bearing-a'"
+            )
+        status, other = get(
+            "/api/v1/outlook",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series="feature.Horizontal_vibration_signals.rms",
+        )
+        assert status == 200 and other["anomaly_model"] is None
     finally:
         stop()
