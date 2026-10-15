@@ -392,7 +392,8 @@ function conditionOutlook(data) {
     const isUpper = data.threshold.limit_kind !== "lower";
     const difference = (isUpper ? data.threshold.value - current : current - data.threshold.value);
     add("관리 " + (isUpper ? "상한" : "하한") + "과 현재 거리",
-      (difference < 0 ? "이미 기준을 " + value(-difference) + " 초과" : "기준까지 " + value(difference) + " 남음")
+      (difference < 0 ? "이미 " + (isUpper ? "상한을 " : "하한을 ") + value(-difference)
+        + (isUpper ? " 초과" : " 하회") : "기준까지 " + value(difference) + " 남음")
       + (data.unit ? " " + data.unit : ""));
     const threshold = data.threshold;
       const result = threshold.state === "expected"
