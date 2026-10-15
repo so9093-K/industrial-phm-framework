@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from itertools import pairwise
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
@@ -183,5 +184,5 @@ def test_count_horizon_forecasts_only_whole_acquisition_steps() -> None:
     assert len(future) == 31
     assert future[0] == times[-1]
     assert future[-1] == times[-1] + timedelta(minutes=30)
-    assert all(right - left == timedelta(minutes=1) for left, right in zip(future, future[1:]))
+    assert all(right - left == timedelta(minutes=1) for left, right in pairwise(future))
     assert result["model"]["future_acquisitions"] == 30
