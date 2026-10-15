@@ -206,7 +206,7 @@ def forecast_series(
         raise ValueError("unknown forecast kind")
     period = meta.get("period_seconds")
     seconds = (
-        round(horizon_count * period)
+        horizon_count * period
         if horizon == "count" and period is not None and horizon_count is not None
         else HORIZONS.get(horizon)
     )
