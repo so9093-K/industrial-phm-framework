@@ -82,7 +82,7 @@ function figures(data) {
   for (const name of ["management", "end"]) {
     if (data.conditions[name] === null) continue;
     const [value, detail] = margin(data, now?.limits[name]);
-    add(name === "end" ? "잔여수명 · " + conditionName(data, name) : conditionName(data, name) + "까지", value, detail);
+    add(name === "end" ? "조건부 잔여수명 · " + conditionName(data, name) : conditionName(data, name) + "까지", value, detail);
   }
   if (data.conditions.management === null && data.conditions.end === null)
     add("기준까지 여유", "—", "관리·종료 기준을 입력하면 계산");
