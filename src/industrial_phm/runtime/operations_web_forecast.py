@@ -63,10 +63,12 @@ def handle_forecast_read(
             raise ValueError("horizon_count must be 1..2000")
         assumed_period = (
             float(params["assumed_period_seconds"])
-            if params.get("assumed_period_seconds") else None
+            if params.get("assumed_period_seconds")
+            else None
         )
         if assumed_period is not None and (
-            kind != "acquisition" or not math.isfinite(assumed_period)
+            kind != "acquisition"
+            or not math.isfinite(assumed_period)
             or not 1 <= assumed_period <= 86400
         ):
             raise ValueError("invalid assumed_period_seconds")
@@ -156,7 +158,8 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
             "count": acquisition["count"],
             "period_seconds": period,
             "horizons": (
-                horizon_reasons(span, acquisition["count"]) if period
+                horizon_reasons(span, acquisition["count"])
+                if period
                 else {key: "unknown-interval" for key in HORIZONS}
             ),
             "count_forecast": acquisition["count"] >= 20,
@@ -192,7 +195,10 @@ def forecast_series(
         seasonal = seasonality != "off"
     elif kind == "acquisition":
         times, values, meta = _acquisition_points(
-            workspace, asset_id, series, assumed_period_seconds=assumed_period_seconds,
+            workspace,
+            asset_id,
+            series,
+            assumed_period_seconds=assumed_period_seconds,
             count_mode=horizon == "count",
         )
         seasonal = False
@@ -207,7 +213,11 @@ def forecast_series(
     if seconds is None or seconds <= 0:
         raise ValueError("invalid prediction horizon")
     result = forecast_values(
-        times, values, seconds, seasonal=seasonal, threshold=threshold,
+        times,
+        values,
+        seconds,
+        seasonal=seasonal,
+        threshold=threshold,
         changepoint_prior_scale=changepoint_prior_scale,
         changepoint_range=changepoint_range,
         training_points=training_points,
@@ -324,8 +334,11 @@ def _acquisition_points(
             "recorded_period_seconds": recorded_period,
             "assumed_period_seconds": assumed_period_seconds,
             "time_basis": (
-                "assumed" if assumed_period_seconds is not None
-                else "recorded" if recorded_period is not None else "ordinal"
+                "assumed"
+                if assumed_period_seconds is not None
+                else "recorded"
+                if recorded_period is not None
+                else "ordinal"
             ),
         },
     )
