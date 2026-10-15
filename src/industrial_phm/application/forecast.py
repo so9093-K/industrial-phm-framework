@@ -116,6 +116,7 @@ def forecast_values(
     changepoint_prior_scale: float = DEFAULT_CHANGEPOINT_PRIOR_SCALE,
     changepoint_range: float = DEFAULT_CHANGEPOINT_RANGE,
     training_points: int | None = None,
+    rolling_backtests: bool = False,
 ) -> dict[str, Any]:
     """Fit on the whole history, continue it ``horizon_seconds`` ahead and check it on the past.
 
@@ -188,6 +189,13 @@ def forecast_values(
         "threshold": None
         if threshold is None
         else _threshold(threshold, float(observed[-1]), future, yhat, lower, upper),
+        "rolling_backtests": (
+            _rolling_backtests(
+                times, observed, horizon_seconds, seasonal,
+                changepoint_prior_scale=changepoint_prior_scale,
+                changepoint_range=changepoint_range,
+            ) if rolling_backtests else None
+        ),
         "backtest": _backtest(
             times, observed, horizon_seconds, seasonal,
             changepoint_prior_scale=changepoint_prior_scale,
@@ -270,3 +278,46 @@ def _backtest(
         "naive_mean_absolute_error": float(np.mean(np.abs(actual - observed[train[-1]]))),
         "inside_interval": float(inside.mean()),
     }
+
+
+def _rolling_backtests(
+    times: Sequence[datetime],
+    observed: np.ndarray,
+    horizon_seconds: int,
+    seasonal: bool,
+    *,
+    changepoint_prior_scale: float,
+    changepoint_range: float,
+) -> list[dict[str, Any]]:
+    """Three bounded historical cutoffs; each refit reads only observations before its cutoff.
+
+    This is an on-demand product comparison, not a statistical validation claim.
+    """
+    results: list[dict[str, Any]] = []
+    for share in (0.4, 0.6, 0.8):
+        cut_index = int((len(times) - 1) * share)
+        cutoff = times[cut_index]
+        train = [i for i, time in enumerate(times) if time <= cutoff]
+        stop = cutoff + timedelta(seconds=horizon_seconds)
+        test = [i for i, time in enumerate(times) if cutoff < time <= stop]
+        if len(train) < MIN_POINTS or len(test) < 5:
+            continue
+        model = _fit(
+            [times[i] for i in train], observed[train], seasonal,
+            changepoint_prior_scale=changepoint_prior_scale,
+            changepoint_range=changepoint_range,
+        )
+        predicted = _predict(model, [times[i] for i in test])
+        actual = observed[test]
+        estimated = predicted["yhat"].to_numpy(dtype=float)
+        inside = (actual >= predicted["yhat_lower"].to_numpy(dtype=float)) & (
+            actual <= predicted["yhat_upper"].to_numpy(dtype=float)
+        )
+        results.append({
+            "cutoff": cutoff.astimezone(UTC).isoformat(),
+            "points": len(test),
+            "mean_absolute_error": float(np.mean(np.abs(actual - estimated))),
+            "naive_mean_absolute_error": float(np.mean(np.abs(actual - observed[train[-1]]))),
+            "inside_interval": float(inside.mean()),
+        })
+    return results
