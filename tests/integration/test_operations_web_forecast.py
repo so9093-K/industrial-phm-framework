@@ -214,3 +214,37 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
         )
     finally:
         stop()
+
+
+def test_short_acquisition_record_offers_count_forecast_in_asset_shortcuts(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 31):
+        deliver(workspace, tmp_path / "short-waves", ordinal, 0.5 + 0.01 * ordinal)
+    analyze(workspace)
+    get, stop = _serve(workspace.root)
+    try:
+        status, options = get("/api/v1/forecast/options", asset_id="bearing-a")
+        assert status == 200
+        assert options["acquisition"]["horizons"]["1h"] == "short-history"
+        assert options["acquisition"]["count_forecast"] is True
+        capability = next(
+            item
+            for item in project_asset_capabilities(workspace, "bearing-a", can_ask=True)[
+                "capabilities"
+            ]
+            if item["id"] == "forecast"
+        )
+        assert capability["status"] == "ready"
+        assert capability["reason"] == "stored-flow-count"
+        status, body = get(
+            "/api/v1/forecast",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series="feature.Horizontal_vibration_signals.rms",
+            horizon="count",
+            horizon_count="5",
+        )
+        assert status == 200
+        assert [point[0] for point in body["forecast"]] == [30, 31, 32, 33, 34, 35]
+    finally:
+        stop()
