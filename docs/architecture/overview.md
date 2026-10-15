@@ -101,7 +101,8 @@ flowchart LR
 학습된 PHM 모델은 불변 model package로 저장하고, 명시적 binding이 정한 (source, asset) 스트림의 순서 있는
 step마다 analysis runner가 실행합니다. step 결과·설비별 상태·검토 구간·cursor는 한 트랜잭션으로 저장되어
 재시작 후 이어집니다([ADR-0025](../adr/0025-run-versioned-model-packages-over-ordered-asset-steps.md)).
-잔여수명(RUL) 작업은 [ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 폐기했습니다.
+RUL 모델 작업은 [ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 폐기했고, 잔여수명은 저장된 측정의
+상태 전망이 요청 시 계산합니다(`GET /api/v1/outlook`, [ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md)).
 
 Operations UI의 desired collection state와 실제 collection process ownership은 분리합니다. 3상 불평형 같은
 capability는 history snapshot 또는 finalized window처럼 명시적으로 고정된 입력을 소비하고, temporal

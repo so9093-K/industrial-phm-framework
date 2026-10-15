@@ -2,19 +2,22 @@
 
 A forecast continues the stored flow of one signal: its trend, any daily/weekly pattern the
 history is long enough to show, and an interval around it. It is not a failure time, a
-remaining life or a maintenance date. Every result carries a check against the signal's own
-past: the most recent stretch is hidden, predicted from what came before, and compared.
+remaining life or a maintenance date by itself: the condition outlook turns it into a margin to
+the conditions a user sets. Every result carries a check against the signal's own past: the most
+recent stretch is hidden, predicted from what came before, and compared.
 """
 
 from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
+
+from industrial_phm.application.condition_outlook import reach
 
 HORIZONS = {"1h": 3_600, "24h": 86_400, "7d": 7 * 86_400, "30d": 30 * 86_400}
 MIN_POINTS = 20
@@ -237,6 +240,58 @@ def forecast_values(
             "training_points": training_points,
             "future_acquisitions": future_acquisitions,
             "seasonality": [name for name in ("daily", "weekly") if name in model.seasonalities],
+        },
+    }
+
+
+def limit_reach(
+    times: Sequence[datetime],
+    values: Sequence[float],
+    limits: Mapping[str, float],
+    *,
+    upper: bool,
+    search_seconds: float,
+    steps: int,
+    seasonal: bool = True,
+    changepoint_prior_scale: float = DEFAULT_CHANGEPOINT_PRIOR_SCALE,
+    changepoint_range: float = DEFAULT_CHANGEPOINT_RANGE,
+    training_points: int | None = None,
+) -> dict[str, Any]:
+    """When the forecast and its interval first reach each limit, within ``search_seconds``.
+
+    Offsets are seconds after the last measurement; the forecast is searched at ``steps``
+    evenly spaced points (one per acquisition when the caller places acquisitions so).
+    """
+    if not 1 <= steps <= 2000 or not math.isfinite(search_seconds) or search_seconds <= 0:
+        raise ValueError("invalid search")
+    pairs = [(t, float(v)) for t, v in zip(times, values, strict=True) if math.isfinite(v)]
+    if training_points is not None:
+        pairs = pairs[-training_points:]
+    if len(pairs) < MIN_POINTS:
+        raise ForecastUnavailable("few-points")
+    times = [t for t, _ in pairs]
+    observed = np.asarray([v for _, v in pairs], dtype=float)
+    model = _fit(
+        times,
+        observed,
+        seasonal,
+        changepoint_prior_scale=changepoint_prior_scale,
+        changepoint_range=changepoint_range,
+    )
+    step = search_seconds / steps
+    offsets = np.arange(steps + 1, dtype=float) * step
+    predicted = _predict(model, [times[-1] + timedelta(seconds=float(s)) for s in offsets])
+    yhat = predicted["yhat"].to_numpy(dtype=float)
+    lower = predicted["yhat_lower"].to_numpy(dtype=float)
+    higher = predicted["yhat_upper"].to_numpy(dtype=float)
+    fast, slow = (higher, lower) if upper else (lower, higher)
+    return {
+        "start": float(yhat[0]),
+        "end": float(yhat[-1]),
+        "points": len(pairs),
+        "limits": {
+            name: reach(limit, float(observed[-1]), offsets, yhat, fast, slow, upper=upper)
+            for name, limit in limits.items()
         },
     }
 

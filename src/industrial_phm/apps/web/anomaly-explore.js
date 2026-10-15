@@ -119,7 +119,7 @@ function draw({output, data}) {
       const compare = create("button", "capability-open", "구간 비교");compare.type = "button";
       compare.setAttribute("aria-label", where + " 구간 비교");
       compare.addEventListener("click", () => openComparison(data, item));
-      const forecast = create("a", null, "이 신호 미래 예측");
+      const forecast = create("a", null, "이 신호 상태 전망");
       const url = new URL(location.href);
       url.searchParams.set("forecast_series", "history|" + item.channel);
       url.searchParams.set("forecast_anomaly_series", item.channel);

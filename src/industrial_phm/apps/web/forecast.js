@@ -1,7 +1,9 @@
-// Future values of one stored measurement for the selected asset: the stored flow continued
-// ahead with an interval, the model's own reading of the history, an optional management level
-// and a check against the signal's own recent past. The server computes; this screen draws.
+// The condition outlook of one stored measurement for the selected asset: its change and the
+// remaining margin to the conditions the user sets (outlook.js), then the stored flow continued
+// ahead with an interval, the model's own reading of the history, the conditions and a check
+// against the signal's own recent past. The server computes; this screen draws.
 import { currentAsset, onAssetChange } from "./asset-context.js";
+import { clearOutlook, refreshOutlook } from "./outlook.js";
 import { formatTime } from "./time.js";
 import { byId, clear, create, num } from "./web-utils.js";
 
@@ -38,7 +40,7 @@ const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : 
   : seconds >= 60 ? num(Math.round(seconds / 60)) + "분" : num(Math.round(seconds)) + "초";
 
 export function initializeForecast() {
-  onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_direction: "", forecast_context_from: "", forecast_context_to: "", forecast_context_kind: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
+  onAssetChange(() => {loadedFor = "";clearOutlook();remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_end: "", forecast_direction: "", forecast_context_from: "", forecast_context_to: "", forecast_context_kind: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
   window.addEventListener("hashchange", () => {
     if (document.body.dataset.view !== "forecast") return;
     const wanted = params().get("forecast_series");
@@ -52,16 +54,17 @@ export function initializeForecast() {
 async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
-  clear(byId("forecast-controls"));clear(byId("forecast-result"));shown = null;previous = null;
+  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));clear(byId("forecast-result"));shown = null;previous = null;
+  clearOutlook();byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
-  state("예측할 수 있는 측정값을 확인합니다.");
+  state("전망할 수 있는 측정값을 확인합니다.");
   let found;
   try {found = await getJson("/api/v1/forecast/options?asset_id=" + encodeURIComponent(asset));}
-  catch {if (ticket === request) state("예측할 수 있는 측정값을 확인하지 못했습니다.", true);return;}
+  catch {if (ticket === request) state("전망할 수 있는 측정값을 확인하지 못했습니다.", true);return;}
   if (ticket !== request || asset !== currentAsset()) return;
   options = found;
   if (!options.history && !options.acquisition) {
-    state("이 설비에는 예측할 저장 측정이 없습니다. 측정 이력을 저장하거나, 진동 파형이면 이상 탐지 모델을 연결하면 예측할 수 있습니다.");
+    state("이 설비에는 전망할 저장 측정이 없습니다. 측정 이력을 저장하거나, 진동 파형이면 이상 탐지 모델을 연결하면 계산합니다.");
     return;
   }
   if (await renderControls()) await run();
@@ -102,6 +105,9 @@ async function renderControls() {
   const thresholdInput = create("input");thresholdInput.id = "forecast-threshold";thresholdInput.type = "number";thresholdInput.step = "any";
   thresholdInput.placeholder = "없음";thresholdInput.value = params().get("forecast_threshold") || "";
   const thresholdField = create("label", null, "관리 기준 (선택)");thresholdField.append(thresholdInput);
+  const endInput = create("input");endInput.id = "forecast-end";endInput.type = "number";endInput.step = "any";
+  endInput.placeholder = "없음";endInput.value = params().get("forecast_end") || "";
+  const endField = create("label", null, "종료 기준 (선택)");endField.append(endInput);
   const apply = create("button", "secondary", "기준 적용");apply.type = "button";
 
   const drawHorizons = async () => {
@@ -146,19 +152,19 @@ async function renderControls() {
       ? "count" : (params().get("forecast_unit") || "time");
     refreshUnit();void update();
   });
-  const directionField = create("label", null, "관리 기준 방향");
+  const directionField = create("label", null, "기준 방향");
   const directionSelect = create("select");directionSelect.id = "forecast-direction";
   for (const [key, label] of [["upper", "상한 (이상)"], ["lower", "하한 (이하)"]])
     directionSelect.append(Object.assign(create("option", null, label), {value: key}));
   directionSelect.value = params().get("forecast_direction") === "lower" ? "lower" : "upper";
   directionField.append(directionSelect);
   const applyThreshold = () => {
-    remember({forecast_threshold: thresholdInput.value.trim(), forecast_direction: directionSelect.value});
+    remember({forecast_threshold: thresholdInput.value.trim(), forecast_end: endInput.value.trim(), forecast_direction: directionSelect.value});
     void run();
   };
   directionSelect.addEventListener("change", applyThreshold);
   apply.addEventListener("click", applyThreshold);
-  thresholdInput.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
+  for (const input of [thresholdInput, endInput]) input.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
 
   const horizonField = create("div", "forecast-horizon-field");horizonField.append(create("span", "forecast-label", "예측 기간"), horizons);
   const countField = create("label", null, "미래 획득 수");const countInput = create("input");
@@ -224,8 +230,9 @@ async function renderControls() {
     assumption.hidden = !acquisition;assumptionApply.hidden = !acquisition;
   };
   unitSelect.addEventListener("change", () => {remember({forecast_unit: unitSelect.value, forecast_backtest: ""});refreshUnit();void run();});
-  root.append(seriesField, unitField, horizonField, countField, countApply,
-    thresholdField, directionField, apply, details);
+  root.append(seriesField, thresholdField, endField, directionField, apply, details);
+  // The horizon only shapes the chart; the margin is searched over half the record's length.
+  byId("forecast-chart-controls").append(unitField, horizonField, countField, countApply);
   advanced.prepend(assumption, assumptionApply);
   refreshUnit();
   return drawHorizons();
@@ -261,6 +268,13 @@ async function run() {
   if (horizon === "count" && !query.has("horizon_count")) {state("예측할 획득 수를 입력하세요.", true);return;}
   if (kind === "acquisition" && byId("forecast-unit")) remember({forecast_unit: unit});
   query.set("seasonality", byId("forecast-seasonality")?.value || "auto");
+  const outlookQuery = new URLSearchParams({asset_id: asset, kind, series, direction: query.get("threshold_direction")});
+  if (query.has("threshold")) outlookQuery.set("management_limit", query.get("threshold"));
+  const end = params().get("forecast_end");
+  if (end && Number.isFinite(Number(end))) outlookQuery.set("end_limit", end);
+  for (const field of ["changepoint_prior_scale", "changepoint_range", "training_points", "seasonality", "assumed_period_seconds"])
+    if (query.has(field)) outlookQuery.set(field, query.get(field));
+  void refreshOutlook(outlookQuery, contextText(kind));
   if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
   state("예측을 계산합니다.");
   try {
@@ -271,10 +285,9 @@ async function run() {
       && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
       && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
     render(data);
-    if (data.kind === "history") void loadDepartureSummary(data);
   } catch (error) {
     if (ticket !== request) return;
-    clear(byId("forecast-result"));
+    clear(byId("forecast-result"));byId("forecast-chart-section").hidden = false;
     state(error.status === 422 ? REASON[error.reason] || "이 측정값은 예측할 수 없습니다." : "예측을 계산하지 못했습니다.", true);
   }
 }
@@ -290,18 +303,6 @@ function summary(data) {
   const span = data.horizon === "count" ? data.horizon_count + "개 획득" : HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
   row("예측 종료값", "마지막 측정 " + value(data.history.at(-1)[1]) + " · " + span + " 뒤 " + value(trend.end) + unit
     + " (" + Math.round(data.model.interval_width * 100) + "% 범위 " + value(trend.end_lower) + "–" + value(trend.end_upper) + ")");
-  if (data.threshold) {
-    const t = data.threshold, when = (x) => axisText(data, x);
-    row("관리 " + (t.limit_kind === "lower" ? "하한 " : "상한 ") + value(t.value) + unit,
-      t.state === "already" ? "마지막 측정값이 이미 기준을 " + (t.direction === "up" ? "넘었습니다." : "밑돌았습니다.")
-      : t.state === "expected" ? (t.expected_at === data.forecast[0][0]
-        ? "예측 시작부터 기준 도달 예상" : "예상 도달 " + when(t.expected_at))
-        + (t.earliest_at && t.earliest_at !== t.expected_at ? " · 빠르면 " + when(t.earliest_at) : "")
-      : t.state === "possible" ? (t.earliest_at === data.forecast[0][0]
-        ? "예측선은 도달하지 않지만 예측 범위가 처음부터 기준에 닿습니다."
-        : "예측선은 도달하지 않지만 예측 범위가 " + when(t.earliest_at) + "부터 기준에 닿습니다.")
-      : "예측 기간 안에 도달하지 않습니다.");
-  }
   row("예측선 변화", words[trend.change > 0 ? "up" : trend.change < 0 ? "down" : "flat"]
     + " · 예측 시작~종료 " + value(trend.change) + unit);
   row("추세 성분", words[trend.slope_direction || trend.direction]
@@ -320,7 +321,7 @@ function chart(data) {
   const x0 = toNumber(xs[0]), x1 = toNumber(xs.at(-1));
   const ys = [...data.history.map(p => p[1]), ...data.forecast.flatMap(p => [p[2], p[3]]),
     ...(previous ? previous.forecast.map(p => p[1]) : []),
-    ...(showWholeScale && data.threshold ? [data.threshold.value] : [])];
+    ...(showWholeScale ? limits(data).map(([, limit]) => limit) : [])];
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (y1 <= y0) {y0 -= 1;y1 += 1;}
   const pad = (y1 - y0) * 0.05;y0 -= pad;y1 += pad;
@@ -338,13 +339,13 @@ function chart(data) {
   path(data.forecast.map((p) => [p[0], p[1]]), "forecast-line");
   const now = X(data.history.at(-1)[0]);
   svg.append(svgNode("line", {x1: now, x2: now, y1: top, y2: bottom, class: "forecast-now"}));
-  if (data.threshold) {
-    const y = Y(data.threshold.value);
-    if (y >= top && y <= bottom) svg.append(svgNode("line", {x1: left, x2: right, y1: y, y2: y, class: "forecast-threshold"}));
+  for (const [name, limit] of limits(data)) {
+    const y = Y(limit);
+    if (y >= top && y <= bottom) svg.append(svgNode("line", {x1: left, x2: right, y1: y, y2: y, class: name === "end" ? "forecast-end" : "forecast-threshold"}));
     else {
-      const hint = svgNode("text", {x: right - 5, y: data.threshold.value > y1 ? top + 13 : bottom - 6,
+      const hint = svgNode("text", {x: right - 5, y: limit > y1 ? top + 13 : bottom - 6 - (name === "end" ? 14 : 0),
         "text-anchor": "end", class: "explore-axis-label"});
-      hint.textContent = "관리 기준 " + value(data.threshold.value) + (data.threshold.value > y1 ? " ↑" : " ↓");svg.append(hint);
+      hint.textContent = (name === "end" ? "종료 기준 " : "관리 기준 ") + value(limit) + (limit > y1 ? " ↑" : " ↓");svg.append(hint);
     }
   }
   const text = (content, attributes) => {const node = svgNode("text", {class: "explore-axis-label", ...attributes});node.textContent = content;svg.append(node);};
@@ -353,7 +354,7 @@ function chart(data) {
   text("마지막 측정", {x: now, y: bottom + 34, "text-anchor": "middle"});
   text(axisText(data, xs.at(-1)), {x: right, y: bottom + 18, "text-anchor": "end"});
   const legend = create("p", "forecast-legend");
-  for (const [cls, label] of [["history", "측정값"], ["fitted", "모델이 읽은 흐름"], ...(previous ? [["compare", "이전 예측"]] : []), ["line", "예측"], ["band", Math.round(data.model.interval_width * 100) + "% 범위"], ...(data.threshold ? [["threshold", "관리 기준"]] : [])]) {
+  for (const [cls, label] of [["history", "측정값"], ["fitted", "모델이 읽은 흐름"], ...(previous ? [["compare", "이전 예측"]] : []), ["line", "예측"], ["band", Math.round(data.model.interval_width * 100) + "% 범위"], ...limits(data).map(([name]) => name === "end" ? ["end", "종료 기준"] : ["threshold", "관리 기준"])]) {
     const item = create("span", "forecast-key forecast-key-" + cls, label);legend.append(item);
   }
   return [svg, legend];
@@ -368,10 +369,10 @@ function render(data) {
       : " (원본 " + num(data.raw_count) + "개" + (data.bucket_seconds && data.raw_count > data.model.points * 1.5 ? ", " + duration(data.bucket_seconds) + " 구간 평균" : "") + ")")
     + (data.model.seasonality.length ? " · 반복 패턴 " + data.model.seasonality.map((name) => name === "daily" ? "하루" : "일주일").join("·") : "")
     + (data.other_identities ? " · 같은 이름의 다른 출처·해석 " + data.other_identities + "개는 제외" : ""));
-  const scale = create("button", "secondary", showWholeScale ? "측정 변화 중심 보기" : "관리 기준 포함 보기");
+  const scale = create("button", "secondary", showWholeScale ? "측정 변화 중심 보기" : "기준 포함 보기");
   scale.type = "button";scale.addEventListener("click", () => {showWholeScale = !showWholeScale;render(data);});
-  const outlook = conditionOutlook(data);
-  root.replaceChildren(summary(data), ...chart(data), scale, outlook, note);
+  byId("forecast-chart-section").hidden = false;
+  root.replaceChildren(summary(data), ...chart(data), ...(limits(data).length ? [scale] : []), note);
   const metricRoot = byId("forecast-detail-metrics");
   if (metricRoot) {
     const check = data.backtest;
@@ -398,84 +399,23 @@ function render(data) {
   }
 }
 
-function conditionOutlook(data) {
-  const root = create("section", "forecast-outlook");
-  root.append(create("h3", null, "설비 상태 전망"));
-  root.append(create("p", "muted", "선택한 측정 신호의 변화와 예측을 함께 살펴봅니다. 고장 여부나 실제 잔여수명을 자동으로 판정하지 않습니다."));
-  const list = create("dl", "forecast-summary");
-  const add = (term, content) => {const row = create("div");row.append(create("dt", null, term), create("dd", null, content));list.append(row);};
-  const history = data.history, current = history.at(-1)[1];
-  const previous = history[Math.max(0, history.length - Math.max(2, Math.floor(history.length * 0.2)))][1];
-  add("최근 관측 변화", value(previous) + " → " + value(current) + (data.unit ? " " + data.unit : ""));
-  add("미래 상태", "선택 기간의 예측값 " + value(data.trend.end)
-    + " · 예측선 변화 " + value(data.trend.change));
-  if (data.threshold) {
-    const isUpper = data.threshold.limit_kind !== "lower";
-    const difference = (isUpper ? data.threshold.value - current : current - data.threshold.value);
-    add("관리 " + (isUpper ? "상한" : "하한") + "과 현재 거리",
-      (difference < 0 ? "이미 " + (isUpper ? "상한을 " : "하한을 ") + value(-difference)
-        + (isUpper ? " 초과" : " 하회") : "기준까지 " + value(difference) + " 남음")
-      + (data.unit ? " " + data.unit : ""));
-    const threshold = data.threshold;
-      const result = threshold.state === "expected"
-      ? (data.axis === "acquisition" ? "예상 도달까지 약 " + num(Math.max(0, Math.round(threshold.expected_at - history.at(-1)[0]))) + "개 획득"
-        : "예상 도달까지 " + duration(Math.max(0, (Date.parse(threshold.expected_at) - Date.parse(history.at(-1)[0])) / 1000)))
-      : threshold.state === "already" ? "현재 측정값이 기준에 도달한 상태"
-      : threshold.state === "possible" ? "예측 범위 안에서 기준에 닿을 가능성"
-      : "선택한 예측 기간 안에서 예상 도달 없음";
-    add("기준 도달·잔여 여유", result);
-  } else add("기준 도달·잔여 여유", "관리 기준을 입력하면 기준과의 거리와 예상 도달 시점을 확인할 수 있습니다.");
-  root.append(list);
-  const departures = create("p", "muted");departures.id = "forecast-anomaly-summary";
-  departures.textContent = data.kind === "history"
-    ? (data.other_identities ? "동일 이름의 다른 측정 출처가 있어 이상 변화 요약은 별도 화면에서 확인합니다."
-      : data.departureSummary || "기준 구간에서 벗어난 변화도 확인합니다.")
-    : "진동 특징의 모델 기반 이상 탐지 결과는 이상 탐지 화면에서 확인할 수 있습니다.";
-  root.append(departures);
-  const from = params().get("forecast_context_from"), to = params().get("forecast_context_to");
-  const contextKind = params().get("forecast_context_kind");
-  if (from && to && contextKind && (data.axis === "acquisition"
-    ? /^\d+$/.test(from) && /^\d+$/.test(to) : Number.isFinite(Date.parse(from)) && Number.isFinite(Date.parse(to)))) {
-    const shownRange = data.axis === "acquisition" ? "#" + from + " ~ #" + to
-      : formatTime(from, {seconds: false}) + " ~ " + formatTime(to, {seconds: false});
-    root.append(create("p", "muted", (contextKind === "anomaly" ? "이상 탐지 선택 구간" : "EDA 비교 구간 B")
-      + " · " + shownRange + " · 참고 구간이며 예측 학습 범위는 아닙니다."));
-  }
-  const links = create("p", "forecast-explore-links");
-  const addLink = (label, hash) => {
-    const url = new URL(location.href);
-    url.hash = hash;
-    if (hash === "signals") {
-      url.searchParams.set("explore_kind", data.kind);
-      url.searchParams.set("explore_series", data.series);
-    }
-    if (hash === "anomaly" && data.kind === "history") url.searchParams.set("forecast_anomaly_series", data.series);
-    const link = create("a", null, label);link.href = url.pathname + url.search + url.hash;links.append(link);
-  };
-  addLink("같은 신호 탐색", "signals");
-  addLink(data.kind === "history" ? "이상 변화 구간 보기" : "모델 이상 탐지 보기", "anomaly");
-  root.append(links);
-  return root;
+// The conditions drawn on the chart: the management level the forecast was asked about, and the
+// end condition entered with it.
+function limits(data) {
+  const list = data.threshold ? [["management", data.threshold.value]] : [];
+  const end = Number(params().get("forecast_end"));
+  if (params().get("forecast_end") && Number.isFinite(end)) list.push(["end", end]);
+  return list;
 }
 
-
-async function loadDepartureSummary(data) {
-  // The exploratory comparison is a separate read: failure must not hide the forecast.
-  // Do not silently combine identities with the same signal name.
-  if (data.other_identities) return;
-  const query = new URLSearchParams({asset_id: data.asset_id, baseline: "first-30"});
-  query.append("series", data.series);
-  try {
-    const result = await getJson("/api/v1/explore/anomaly?" + query.toString());
-    const count = result.interval_count;
-    data.departureSummary = "모델 없는 변화 구간 탐색 · 기록 처음 30%와 비교 · 기준 이탈 "
-      + num(count) + "개 구간"
-      + (count && result.intervals.length ? " · 가장 큰 변화: " + formatTime(result.intervals[0].start, {seconds: false}) : "")
-      + " · 고장 판정이 아닙니다.";
-  } catch {
-    data.departureSummary = "모델 없는 변화 구간은 이상 탐지 화면에서 확인할 수 있습니다.";
-  }
-  if (shown !== data) return;
-  const node = byId("forecast-anomaly-summary");
-  if (node) node.textContent = data.departureSummary;
+// A range chosen on another screen before coming here, named once in the outlook's evidence.
+function contextText(kind) {
+  const from = params().get("forecast_context_from"), to = params().get("forecast_context_to");
+  const contextKind = params().get("forecast_context_kind");
+  const fits = kind === "acquisition" ? /^\d+$/.test(from) && /^\d+$/.test(to)
+    : Number.isFinite(Date.parse(from)) && Number.isFinite(Date.parse(to));
+  if (!from || !to || !contextKind || !fits) return "";
+  const shownRange = kind === "acquisition" ? "#" + from + "–#" + to
+    : formatTime(from, {seconds: false}) + " ~ " + formatTime(to, {seconds: false, zone: false});
+  return (contextKind === "anomaly" ? "이상 탐지에서 고른 구간 " : "구간 비교의 구간 B ") + shownRange + " (예측 학습 범위와 별개)";
 }

@@ -1,4 +1,4 @@
-"""The forecast tab continues a stored signal, reaches a management level, and checks itself."""
+"""The outlook tab measures a stored signal's change, its margin to set limits, and its forecast."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 # From the overview's shortcuts straight to the forecast of the same asset.
                 page.goto(base + "#monitor")
                 page.locator("#asset-capabilities").get_by_role(
-                    "button", name="미래 예측 열기"
+                    "button", name="상태 전망 열기"
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
@@ -68,21 +68,31 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(summary).to_contain_text("마지막 측정")
                 pw.expect(summary).to_contain_text("1시간 뒤")
                 pw.expect(summary).to_contain_text("과거 자료 확인")
-                pw.expect(panel.get_by_text("설비 상태 전망", exact=True)).to_be_visible()
-                pw.expect(panel.locator("#forecast-anomaly-summary")).to_contain_text(
-                    "기준 이탈", timeout=30000
-                )
+                outlook = panel.locator("#outlook")
+                figures = outlook.locator(".outlook-figures")
+                pw.expect(figures).to_contain_text("기준 구간 대비 최근", timeout=30000)
+                pw.expect(figures).to_contain_text("기준 없음")
+                pw.expect(outlook.locator(".outlook-details")).to_contain_text("변화 속도")
+                pw.expect(outlook.locator(".outlook-details")).to_contain_text("기준 범위 이탈")
                 pw.expect(panel.get_by_role("button", name="24시간")).to_be_disabled()
                 pw.expect(panel.get_by_role("button", name="1시간")).to_have_attribute(
                     "aria-pressed", "true"
                 )
 
                 panel.get_by_label("관리 기준 (선택)").fill("14.3")
+                panel.get_by_label("종료 기준 (선택)").fill("15")
                 panel.get_by_role("button", name="기준 적용").click()
-                pw.expect(summary).to_contain_text("관리 상한 14.3 A")
-                pw.expect(summary).to_contain_text("예상 도달")
+                # The margin is searched past the chart's horizon: 0.02 A a minute from 13.58 A.
+                pw.expect(figures).to_contain_text("관리 상한 14.3까지", timeout=30000)
+                pw.expect(figures).to_contain_text("잔여수명 · 종료 기준 15까지")
+                pw.expect(figures).to_contain_text("분 뒤")
+                pw.expect(outlook.locator(".outlook-lead")).to_contain_text("읽는 방법에 따라")
+                pw.expect(outlook.locator(".outlook-scenarios tbody tr")).to_have_count(4)
+                scenarios = outlook.locator(".outlook-scenarios")
+                pw.expect(scenarios).to_contain_text("최근 변화 속도 유지")
                 pw.expect(panel.locator("line.forecast-threshold")).to_have_count(1)
                 assert "forecast_threshold=14.3" in page.url
+                assert "forecast_end=15" in page.url
                 panel.locator("#forecast-details > summary").click()
                 panel.get_by_label("추세 민감도 (0.001-0.5)").fill("0.1")
                 panel.get_by_role("button", name="설정 적용").click()
@@ -113,13 +123,11 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 assert "forecast_prior=0.1" in page.url
 
                 page.reload()
-                pw.expect(summary).to_contain_text("관리 상한 14.3 A", timeout=30000)
+                pw.expect(figures).to_contain_text("관리 상한 14.3까지", timeout=30000)
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-                panel.get_by_label("관리 기준 방향").select_option("lower")
-                pw.expect(summary).to_contain_text("관리 하한 14.3 A", timeout=30000)
-                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
-                    "이미 하한을", timeout=30000
-                )
+                panel.get_by_label("기준 방향").select_option("lower")
+                pw.expect(figures).to_contain_text("관리 하한 14.3까지", timeout=30000)
+                pw.expect(figures).to_contain_text("이미 도달")
                 # EDA-selected range is a reference in the forecast, not implicit training.
                 page.goto(
                     base
@@ -129,26 +137,25 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                     + "&forecast_context_to=2026-10-14T02%3A00%3A00%2B00%3A00"
                     + "#forecast"
                 )
-                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
-                    "EDA 비교 구간 B", timeout=30000
-                )
+                evidence = panel.locator("#outlook-evidence")
+                pw.expect(evidence).to_contain_text("구간 비교의 구간 B", timeout=30000)
 
                 # Cross-tab EDA navigation retains the comparison window as context.
                 page.goto(base + "#signals")
-                link = page.get_by_role("link", name="선택 신호의 미래 예측 보기")
+                link = page.get_by_role("link", name="선택 신호의 상태 전망 보기")
                 pw.expect(link).to_be_visible(timeout=30000)
                 link.click()
-                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
-                    "EDA 비교 구간 B", timeout=30000
-                )
+                pw.expect(evidence).to_contain_text("구간 비교의 구간 B", timeout=30000)
 
                 page.goto(base + "#anomaly")
-                anomaly_link = page.get_by_role("link", name="이 신호 미래 예측").first
+                anomaly_link = page.get_by_role("link", name="이 신호 상태 전망").first
                 pw.expect(anomaly_link).to_be_visible(timeout=30000)
                 anomaly_link.click()
-                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
-                    "이상 탐지 선택 구간", timeout=30000
-                )
+                pw.expect(evidence).to_contain_text("이상 탐지에서 고른 구간", timeout=30000)
+                # The evidence opens the baseline-versus-recent comparison of the same signal.
+                evidence.locator("summary").click()
+                evidence.get_by_role("link", name="기준 구간과 최근 구간 비교").click()
+                pw.expect(page.locator("#explore-state")).to_contain_text("구간 A", timeout=30000)
 
                 # An old remaining-life link opens its replacement.
                 page.goto(base + "#rul")
@@ -186,10 +193,14 @@ def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Pa
                 base = f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a"
                 page.goto(base + "#monitor")
                 page.locator("#asset-capabilities").get_by_role(
-                    "button", name="미래 예측 열기"
+                    "button", name="상태 전망 열기"
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
+                # The outlook reads the acquisition axis too: changes per acquisition.
+                pw.expect(panel.locator("#outlook .outlook-details")).to_contain_text(
+                    "획득당", timeout=30000
+                )
                 pw.expect(panel.locator("#forecast-unit")).to_have_value("count")
                 pw.expect(panel.locator("#forecast-count")).to_have_value("14")
                 pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(

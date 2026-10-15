@@ -1,6 +1,9 @@
 # 0026. Retire remaining-life estimation
 
-Status: Accepted (2026-10-15)
+Status: Accepted (2026-10-15) · Amended by [ADR-0027](0027-condition-and-remaining-life-outlook-from-stored-analyses.md)
+
+> ADR-0027: 폐기한 것은 RUL 모델과 별도 화면입니다. RUL은 저장된 측정의 상태 전망에서, 사용자가 정한 종료 기준까지의
+> 거리로 제공합니다. 아래의 "예측 결과를 고장 시각·남은 수명·정비 시점으로 표현하지 않는다"는 ADR-0027로 대체됐습니다.
 
 Amends: ADR-0025의 출력 작업(task) 중 `rul-estimate`만 폐기한다. 모델 패키지, 설비별 순서
 step 분석, 바인딩·커서·재시작 계약은 그대로 유효하다.

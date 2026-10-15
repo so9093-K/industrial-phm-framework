@@ -9,7 +9,7 @@ import { formatTime } from "./time.js";
 import { byId, create, getJSON, num } from "./web-utils.js";
 
 const NAME = {measurements: "측정 신호", "period-compare": "구간 비교", relation: "신호 관계", spectrum: "주파수 성분",
-  forecast: "미래 예측", anomaly: "이상 탐지", "ai-question": "AI 질문"};
+  forecast: "상태 전망", anomaly: "이상 탐지", "ai-question": "AI 질문"};
 const HORIZON = {"1h": "1시간", "24h": "24시간", "7d": "7일", "30d": "30일"};
 
 // The fact each row rests on, in a few words.
@@ -27,8 +27,8 @@ function fact(item, data) {
       if (item.id === "spectrum") return "원본 파형 · " + num(acquisition.sampling_rate_hz / 1000) + " kHz";
       return "획득 #" + acquisition.first + "–#" + acquisition.last;
     case "explore": return "모델 없이 기준 구간에서 벗어난 값 찾기" + (facts.packages ? " · 맞는 모델 " + num(facts.packages) + "개 연결 가능" : "");
-    case "stored-flow": return "저장된 흐름으로 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지";
-    case "stored-flow-count": return "획득 순서 기준으로 미래 특징 전망";
+    case "stored-flow": return "변화·기준까지 여유 · 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지 예측";
+    case "stored-flow-count": return "변화·기준까지 여유 · 획득 순서 기준";
     case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
     case "model-results": return "결과 시점을 골라 질문";
