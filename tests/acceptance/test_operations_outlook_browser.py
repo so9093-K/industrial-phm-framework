@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 
 import pytest
 
@@ -62,11 +62,13 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/{query}")
                 outlook = page.locator("#outlook")
                 lead = outlook.locator(".outlook-lead")
-                pw.expect(lead).to_contain_text("기준 구간의 범위를 계속 벗어나", timeout=30000)
+                pw.expect(lead).to_contain_text("이후 값의", timeout=30000)
+                pw.expect(lead).to_contain_text("%가 초기 비교 범위 밖")
                 pw.expect(lead).to_contain_text("최근 획득당 +0.067씩")
                 figures = outlook.locator(".outlook-figures")
                 pw.expect(figures).to_contain_text("관리 상한 2.4까지")
-                pw.expect(figures).to_contain_text("잔여수명 · 종료 기준 3")
+                pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 3")
+                pw.expect(outlook.locator(".outlook-observed")).to_have_text("마지막 획득 #64")
                 pw.expect(figures).to_contain_text("모델 기준 초과")
                 details = page.locator("#outlook-evidence .outlook-details")
                 pw.expect(details).to_contain_text("이상 탐지 모델")
@@ -96,6 +98,53 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 page.reload()
                 pw.expect(answer).to_have_text(good["summary"], timeout=30000)
 
+                # A pending question survives a reload for the same evidence version.
+                started, release = Event(), Event()
+
+                def delayed(
+                    provider: object,
+                    messages: list[dict[str, str]],
+                    schema: dict[str, object],
+                    *,
+                    max_tokens: int = 1200,
+                ) -> dict[str, object]:
+                    started.set()
+                    if not release.wait(20):
+                        raise TimeoutError("delayed model did not resume")
+                    return good
+
+                monkeypatch.setattr(outlook_answer, "complete_json", delayed)
+                briefing.get_by_role("button", name="최근 어떤 변화가 있었어?").click()
+                assert started.wait(timeout=10)
+                page.reload()
+                pw.expect(briefing.locator(".outlook-briefing-status")).to_contain_text(
+                    "AI가 계산 결과를 읽고 있습니다.", timeout=30000
+                )
+                release.set()
+                pw.expect(answer).to_have_text(good["summary"], timeout=30000)
+
+                # A new acquisition must be reflected by the global refresh action,
+                # rather than leaving an old forecast and an old AI briefing visible.
+                deliver(workspace, tmp_path / "waves", 65, 2.2)
+                analyze(workspace)
+                page.locator("#refresh").click()
+                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
+                    "마지막 획득 #65", timeout=30000
+                )
+                pw.expect(page.locator("#forecast-chart-section .forecast-chart")).to_be_visible(
+                    timeout=30000
+                )
+                pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+                # A forecast leads to the asset's existing saved-analysis view.
+                page.locator("#outlook-more").get_by_role(
+                    "link", name="이 설비의 분석 기록"
+                ).click()
+                pw.expect(page.locator("#evidence")).to_be_visible(timeout=30000)
+                assert page.evaluate("location.hash") == "#evidence"
+
+                # The existing read-only web keeps AI writes disabled.
                 # A Web without running operations shows the outlook but cannot ask.
                 page.goto(f"http://127.0.0.1:{viewer.server_port}/web/{query}")
                 pw.expect(lead).to_be_visible(timeout=30000)
