@@ -213,12 +213,14 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 if period
                 else {key: "unknown-interval" for key in HORIZONS}
             )
-            series.append({
-                **candidate,
-                "valid_points": valid,
-                "count_forecast": valid >= 20,
-                "horizons": reasons,
-            })
+            series.append(
+                {
+                    **candidate,
+                    "valid_points": valid,
+                    "count_forecast": valid >= 20,
+                    "horizons": reasons,
+                }
+            )
         body["acquisition"] = {
             "series": series,
             "first": acquisition["first"],
