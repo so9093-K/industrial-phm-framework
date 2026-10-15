@@ -78,7 +78,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
 
                 panel.get_by_label("관리 기준 (선택)").fill("14.3")
                 panel.get_by_role("button", name="기준 적용").click()
-                pw.expect(summary).to_contain_text("관리 기준 14.3 A")
+                pw.expect(summary).to_contain_text("관리 상한 14.3 A")
                 pw.expect(summary).to_contain_text("예상 도달")
                 pw.expect(panel.locator("line.forecast-threshold")).to_have_count(1)
                 assert "forecast_threshold=14.3" in page.url
@@ -95,8 +95,24 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 assert "forecast_prior=0.1" in page.url
 
                 page.reload()
-                pw.expect(summary).to_contain_text("관리 기준 14.3 A", timeout=30000)
+                pw.expect(summary).to_contain_text("관리 상한 14.3 A", timeout=30000)
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                panel.get_by_label("관리 기준 방향").select_option("lower")
+                pw.expect(summary).to_contain_text("관리 하한 14.3 A", timeout=30000)
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "이미 기준을", timeout=30000
+                )
+                # EDA-selected range is a reference in the forecast, not implicit training.
+                page.goto(
+                    base + "&forecast_series=history%7Ccurrent"
+                    + "&forecast_context_kind=eda"
+                    + "&forecast_context_from=2026-10-14T00%3A00%3A00%2B00%3A00"
+                    + "&forecast_context_to=2026-10-14T02%3A00%3A00%2B00%3A00"
+                    + "#forecast"
+                )
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "EDA 비교 구간 B", timeout=30000
+                )
 
                 # An old remaining-life link opens its replacement.
                 page.goto(base + "#rul")
