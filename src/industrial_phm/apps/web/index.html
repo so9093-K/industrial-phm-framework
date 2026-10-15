@@ -26,13 +26,12 @@
         <div class="top-actions"><button id="refresh" type="button">데이터 다시 불러오기</button></div>
       </header>
       <section class="notice hidden" id="notice" data-views="monitor connect signals evidence system" role="status" aria-live="polite"></section>
-      <div id="asset-bar" class="asset-bar" role="navigation" data-views="monitor signals anomaly rul evidence" aria-label="선택 설비 화면">
+      <div id="asset-bar" class="asset-bar" role="navigation" data-views="monitor signals anomaly evidence" aria-label="선택 설비 화면">
         <label class="asset-switch">설비<select id="asset-switch" disabled><option value="">설비 확인 중</option></select></label>
         <div class="asset-tabs">
           <a href="#monitor" data-tab="monitor">개요</a>
           <a href="#signals" data-tab="signals">신호 탐색</a>
           <a href="#anomaly" data-tab="anomaly">이상 탐지</a>
-          <a href="#rul" data-tab="rul">RUL</a>
           <a href="#evidence" data-tab="evidence">분석 기록</a>
         </div>
       </div>
@@ -72,7 +71,7 @@
           <caption>데이터별 분석 범위</caption>
           <tr><th scope="row">시간별 측정값 (CSV·OPC UA)</th><td>측정 신호, 구간 비교, 신호 관계</td></tr>
           <tr><th scope="row">진동 획득 파형</th><td>모델 연결 후 획득별 특징 비교, 주파수 성분</td></tr>
-          <tr><th scope="row">연결된 모델의 결과</th><td>이상 탐지, RUL, AI 질문(감독형 Web)</td></tr>
+          <tr><th scope="row">연결된 모델의 결과</th><td>이상 탐지, AI 질문(감독형 Web)</td></tr>
         </table>
       </section>
       <section data-views="system" class="panel" id="monitor-attention" aria-label="운영 상태 확인 항목" role="status" aria-live="polite">운영 상태를 조회하고 있습니다.</section>
@@ -161,23 +160,6 @@
         <details id="anomaly-review-options" class="phm-options"><summary>사람 검토</summary><section id="anomaly-explanation" class="condition-detail"></section></details>
         <div id="anomaly-connect-more"></div>
         <details id="anomaly-model" class="condition-method-details"></details>
-      </section>
-      <section id="rul" class="panel phm-panel" data-views="rul" aria-labelledby="rul-title">
-        <div class="panel-header"><div><h2 id="rul-title">잔여 구간 추정(RUL)</h2></div><span id="rul-replay" class="tag replay hidden">기록 재생</span></div>
-        <div class="phm-controls"><label for="rul-binding">분석 모델</label><select id="rul-binding" disabled><option>조회 중</option></select></div>
-        <header class="phm-summary"><h3 id="rul-asset-title">설비 선택 대기</h3><p id="rul-observation" class="phm-observation">RUL 추정을 불러오고 있습니다.</p><p id="rul-freshness" class="muted" role="status" aria-live="polite"></p><p id="rul-meaning" class="phm-result-meaning"></p><div class="phm-summary-actions"><label>선택한 기록<select id="rul-position" aria-label="선택한 기록" disabled><option>분석 기록 없음</option></select></label><button id="rul-ask" type="button" disabled>측정값 비교 보기</button></div></header>
-        <p id="rul-state" class="state" role="status" aria-live="polite">RUL 추정을 조회하고 있습니다.</p>
-        <div id="rul-connect"></div>
-        <div id="rul-cards" class="condition-cards"></div>
-        <div class="condition-plot-header"><h3>시간에 따른 RUL 추정 궤적</h3></div>
-        <div id="rul-chart"></div>
-        <p id="rul-validation-note" class="phm-validation-note"></p>
-        <details class="phm-options"><summary>최근 추정값 상세 이력</summary><div id="rul-recent" class="phm-recent"></div></details>
-        <p id="rul-selected" class="phm-validation-note" role="status"></p>
-        <section id="rul-assistant" class="phm-assistant" aria-label="선택 시점의 변화 분석"></section>
-        <details id="rul-review-options" class="phm-options"><summary>사람 검토</summary><section id="rul-explanation" class="condition-detail"></section></details>
-        <div id="rul-connect-more"></div>
-        <details id="rul-model" class="condition-method-details"></details>
       </section>
       <section data-views="evidence" class="below">
         <div data-views="evidence" class="panel" id="evidence"><div class="panel-header"><div><h2>분석 기록</h2><p class="muted">선택 설비에 저장된 신호 통계·3상 불평형 분석 결과</p></div></div><div id="evidence-results"><p class="muted">분석 기록을 조회 중입니다.</p></div></div>

@@ -1,6 +1,6 @@
 # Industrial PHM Framework
 
-산업 설비의 **다변량 시계열 이상 탐지와 잔여수명(RUL) 추정**을 바탕으로,
+산업 설비의 **측정 데이터 탐색과 다변량 시계열 이상 탐지**를 바탕으로,
 운영자가 관측 데이터와 분석 근거를 확인하고 정비 판단을 검토할 수 있도록 돕는
 Python 기반 PHM(Prognostics and Health Management) 프로젝트입니다.
 
@@ -12,8 +12,8 @@ Python 기반 PHM(Prognostics and Health Management) 프로젝트입니다.
 
 | 데이터 | 현재 제공하는 흐름 | 제한 |
 | --- | --- | --- |
-| **XJTU-SY 베어링** | 획득 기록 순차 재생 → Isolation Forest/Ridge 및 선택적 LSTM 모델 패키지 이상 점수·RUL 추정 → Web 근거 확인 | 기록 재생 기반. RUL 종료점은 마지막 기록 획득이며 실제 고장 시각이나 검증된 불확실성 구간이 아님 |
-| **AI-Hub 239 공기압축기** | 기록된 3상 전기 신호 수집·이력 → 5분 window PCA/IForest 이상 점수 → 공통 시간축 다변량 Web 근거 | 추론 기능은 있으나 운영 성능 평가 **FAIL**. 고장·수명 사건 정보가 없어 RUL 미제공 |
+| **XJTU-SY 베어링** | 획득 기록 순차 재생 → Isolation Forest 및 선택적 LSTM Autoencoder 이상 점수 → 구간 비교·주파수 성분·Web 근거 확인 | 기록 재생 기반 |
+| **AI-Hub 239 공기압축기** | 기록된 3상 전기 신호 수집·이력 → 5분 window PCA/IForest 이상 점수 → 공통 시간축 다변량 Web 근거 | 추론 기능은 있으나 운영 성능 평가 **FAIL** |
 
 기능별 실제 지원 조건과 검증 수준은 [현재 지원 상태](docs/status.md)에서 확인할 수 있습니다.
 연구 데이터와 재현 가능한 평가 결과는 실제 현장 설비 검증과 구별합니다.
@@ -47,7 +47,7 @@ make down
 `make up WORKSPACE=/absolute/path`처럼 지정합니다.
 원본 데이터 없이 흐름을 확인하려면 별도 합성 작업공간을 사용하는 `make demo`를 실행할 수 있습니다.
 
-XJTU-SY 모델 준비·바인딩·재생 명령은 [Operations 사용법](apps/README.md#이상-탐지--rul-모니터링-xjtu-sy-기록-재생),
+XJTU-SY 모델 준비·바인딩·재생 명령은 [Operations 사용법](apps/README.md#이상-탐지-모니터링-xjtu-sy-기록-재생),
 데이터셋 준비와 출처는 [데이터 안내](data/README.md)를 참고하세요.
 AI-Hub 데이터를 연결하는 방법도 [애플리케이션 안내](apps/README.md)에서 확인할 수 있습니다.
 
@@ -55,7 +55,7 @@ AI-Hub 데이터를 연결하는 방법도 [애플리케이션 안내](apps/READ
 
 ![설비 관측에서 사람의 운영·정비 판단까지 이어지는 구조](assets/system-architecture.svg)
 
-**설비 데이터 → 수집·이력 저장 → 이상 탐지/RUL 분석 → 근거 조회 → 운영자 검토**
+**설비 데이터 → 수집·이력 저장 → 신호 탐색·이상 탐지 → 근거 조회 → 운영자 검토**
 
 분석 결과는 원본 관측과 모델·데이터 출처에 연결됩니다.
 지원되지 않는 데이터나 검증되지 않은 수명 정보는 임의로 만들어내지 않습니다.

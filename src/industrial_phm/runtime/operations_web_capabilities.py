@@ -80,12 +80,11 @@ def project_asset_capabilities(
     }
     signals = _signal_capabilities(data, acquisition)
     anomaly = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
-    rul = _model_capability("rul", ModelTask.RUL_ESTIMATE, workspace, store, models)
     return {
         "schema_version": 1,
         "asset_id": asset_id,
         "data": data,
-        "capabilities": [*signals, anomaly, rul, _question_capability(anomaly, rul, can_ask)],
+        "capabilities": [*signals, anomaly, _question_capability(anomaly, can_ask)],
         "meaning": "what-the-stored-data-supports-not-asset-health",
     }
 
@@ -235,16 +234,12 @@ def _model_capability(
     return _item(name, UNAVAILABLE, "input-mismatch", None, details=reasons[:3])
 
 
-def _question_capability(
-    anomaly: dict[str, Any], rul: dict[str, Any], can_ask: bool
-) -> dict[str, Any]:
-    ready = [item for item in (anomaly, rul) if item["status"] == READY]
-    if not ready:
-        waiting = any(item["status"] == WAITING for item in (anomaly, rul))
+def _question_capability(anomaly: dict[str, Any], can_ask: bool) -> dict[str, Any]:
+    if anomaly["status"] != READY:
+        waiting = anomaly["status"] == WAITING
         return _item(
             "ai-question", UNAVAILABLE, "waiting-results" if waiting else "needs-results", None
         )
-    view = ready[0]["id"]
     if not can_ask:
-        return _item("ai-question", UNAVAILABLE, "read-only", view)
-    return _item("ai-question", READY, "model-results", view, "ask")
+        return _item("ai-question", UNAVAILABLE, "read-only", "anomaly")
+    return _item("ai-question", READY, "model-results", "anomaly", "ask")

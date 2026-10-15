@@ -1,8 +1,7 @@
-"""Operational XJTU packages reproduce the frozen research code paths exactly."""
+"""The operational XJTU anomaly package reproduces the frozen research code path exactly."""
 
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
@@ -10,12 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from industrial_phm.adapters import XJTU_SY_CHANNELS, get_xjtu_expected_acquisition_count
-from industrial_phm.experiments import (
-    build_xjtu_recorded_end_rul_targets,
-    fit_xjtu_feature_rul_baseline,
-    get_xjtu_reference_split,
-    predict_xjtu_feature_rul,
-)
+from industrial_phm.experiments import get_xjtu_reference_split
 from industrial_phm.experiments.xjtu_finalized import get_xjtu_finalized_configuration
 from industrial_phm.experiments.xjtu_model_input import (
     fit_xjtu_preprocessing_and_prepare_model_input,
@@ -65,21 +59,18 @@ def _vectors(partition: str) -> tuple[VibrationFeatureVector, ...]:
 
 
 def _build(tmp_path: Path):  # type: ignore[no-untyped-def]
-    anomaly, rul = build_xjtu_fold_1_packages(
+    anomaly = build_xjtu_fold_1_packages(
         _vectors("train"),
         tmp_path / "models",
         created_at=datetime(2026, 10, 12, tzinfo=UTC),
         code_revision="0" * 40,
         evidence_root=_EVIDENCE,
     )
-    return (
-        load_model_package(tmp_path / "models" / anomaly.package_id),
-        load_model_package(tmp_path / "models" / rul.package_id),
-    )
+    return load_model_package(tmp_path / "models" / anomaly.package_id)
 
 
 def test_anomaly_package_scores_like_the_research_isolation_forest(tmp_path: Path) -> None:
-    anomaly, _ = _build(tmp_path)
+    anomaly = _build(tmp_path)
     config = get_xjtu_finalized_configuration()
     state, fit_input = fit_xjtu_preprocessing_and_prepare_model_input(config, _vectors("train"))
     model = fit_isolation_forest(config, fit_input)
@@ -108,44 +99,9 @@ def test_anomaly_package_scores_like_the_research_isolation_forest(tmp_path: Pat
     )
 
 
-def test_rul_package_predicts_like_the_research_ridge_and_carries_its_limits(
-    tmp_path: Path,
-) -> None:
-    _, rul = _build(tmp_path)
-    train = _vectors("train")
-    fitted = fit_xjtu_feature_rul_baseline(
-        train, build_xjtu_recorded_end_rul_targets(train, partition="train")
-    )
-    validation = _vectors("validation")
-    research = [
-        observation.predicted_remaining_useful_life
-        for series in predict_xjtu_feature_rul(fitted, validation, partition="validation")
-        for observation in series.observations
-    ]
-    observed = rul.evaluate([list(v.values) for v in validation])
-    assert max(abs(a - b) for a, b in zip(observed, research, strict=True)) <= 1e-9
-
-    output, validation_evidence = rul.manifest.output, rul.manifest.validation
-    assert (output.unit, output.endpoint_semantics) == (
-        "acquisition-interval",
-        "last-recorded-acquisition",
-    )
-    assert output.step_period_seconds == 60.0
-    artifact = _EVIDENCE / "xjtu-sy-rul-three-model-fold-1-validation-v1.json"
-    assert (
-        validation_evidence["artifact_sha256"] == hashlib.sha256(artifact.read_bytes()).hexdigest()
-    )
-    assert "not validated" in str(validation_evidence["uncertainty"])
-    assert dict(rul.manifest.applicability)["operating_condition"] == (
-        "35Hz12kN",
-        "37.5Hz11kN",
-        "40Hz10kN",
-    )
-
-
 def test_rebuilding_from_identical_inputs_yields_identical_package_ids(tmp_path: Path) -> None:
-    first, _ = _build(tmp_path / "a")
-    again, _ = _build(tmp_path / "b")
+    first = _build(tmp_path / "a")
+    again = _build(tmp_path / "b")
     assert first.package_id != ""
     # created_at and code revision are part of the manifest, so identical inputs give identical IDs.
     assert first.package_id == again.package_id

@@ -71,7 +71,6 @@ time-series semantics를 참고하지만 core object를 특정 AAS/OPC UA/Sensor
 | variables | channel은 고유한 문자열 이름 | unit, observed property, sensor, orientation/location이 first-class여야 하는가 |
 | payload | rectangular in-memory finite numeric matrix | large payload/external storage reference가 필요한가 |
 | labels | 존재하면 raw sample과 1:1 정렬 | event/run/interval 수준 annotation을 분리해야 하는가 |
-| RUL | 존재하면 raw sample과 1:1 정렬 | acquisition/lifecycle target 및 censoring을 별도로 표현해야 하는가 |
 | context | primitive `metadata`로 확장 | speed/load/environment 같은 operating context에 typed semantics가 필요한가 |
 | quality | structural validity 중심 | bad/uncertain/missing/interpolated/calculated quality를 표현해야 하는가 |
 | provenance | adapter metadata에 필요한 값을 둘 수 있음 | sensor/config/calibration/source/processing lineage를 더 명시해야 하는가 |

@@ -1,4 +1,4 @@
-"""Judge XJTU-SY operational inference against the acceptance protocol v1 (§1, §2.2).
+"""Judge XJTU-SY operational anomaly inference against the acceptance protocol v1 (§1, §2.2).
 
 Replays every fold-1 bearing not used for fitting through the real snapshot store, PHM runner
 and store, then compares the operational step outputs with the stored research evidence and
@@ -23,13 +23,12 @@ from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bin
 from industrial_phm.demo.xjtu_snapshot_replay import replay_xjtu_bearing
 from industrial_phm.experiments.xjtu_evaluation import late_vs_middle_rank_probability, spearman_rho
 from industrial_phm.experiments.xjtu_lifecycle import LATE_THIRD, MIDDLE_THIRD, lifecycle_segment
-from industrial_phm.models.package import ModelTask, load_model_package
+from industrial_phm.models.package import ModelTask, is_retired_package, load_model_package
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 VALIDATION = ("Bearing1_2", "Bearing2_2", "Bearing3_2")
 HOLDOUT = ("Bearing1_1", "Bearing2_1", "Bearing3_1")
 RHO_TOLERANCE = 1e-9
-RIDGE_TOLERANCE = 1e-6
 SEQUENTIAL_BATCH_TOLERANCE = 0.0
 _RESULTS = Path("docs/research/results")
 
@@ -46,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     packages = {
         load_model_package(path).manifest.output.task: path.name
         for path in sorted(workspace.models_path.iterdir())
-        if (path / "package.json").is_file()
+        if (path / "package.json").is_file() and not is_retired_package(path.parent, path.name)
     }
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
@@ -79,11 +78,8 @@ def main(argv: list[str] | None = None) -> int:
         "checks": [],
     }
     anomaly_id = packages.get(ModelTask.ANOMALY_SCORE)
-    rul_id = packages.get(ModelTask.RUL_ESTIMATE)
     if anomaly_id:
         verdict["checks"] += _anomaly_checks(store, cache, anomaly_id, args.evidence_root)
-    if rul_id:
-        verdict["checks"] += _rul_checks(store, cache, rul_id, args.evidence_root)
     verdict["checks"] += _sequential_batch_checks(store, cache, packages)
     verdict["pass"] = all(check["pass"] for check in verdict["checks"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -139,33 +135,6 @@ def _anomaly_checks(
     return checks
 
 
-def _rul_checks(
-    store: SqlitePhmAnalysisStore, cache: PackageCache, package_id: str, root: Path
-) -> list[dict[str, Any]]:
-    stored = json.loads((root / "xjtu-sy-rul-three-model-fold-1-validation-v1.json").read_text())
-    method = next(
-        m for m in stored["methods"] if m["method_id"] == cache.get(package_id).manifest.recipe_id
-    )
-    checks = []
-    for series in method["predictions"]:
-        bearing = series["asset_id"]
-        expected = {
-            o["acquisition_index"]: o["predicted_remaining_useful_life"]
-            for o in series["observations"]
-        }
-        results = _analyzed(store, f"verify-rul-estimate-{bearing}")
-        observed = {r.position: float(r.output["estimate"]) for r in results}
-        diff = max(abs(observed[k] - v) for k, v in expected.items())
-        checks.append(
-            {
-                "name": f"ridge-validation-predictions-{bearing}",
-                "pass": set(observed) == set(expected) and diff <= RIDGE_TOLERANCE,
-                "detail": f"acquisitions={len(observed)} max_abs_diff={diff:.3e}",
-            }
-        )
-    return checks
-
-
 def _sequential_batch_checks(
     store: SqlitePhmAnalysisStore, cache: PackageCache, packages: dict[ModelTask, str]
 ) -> list[dict[str, Any]]:
@@ -173,7 +142,7 @@ def _sequential_batch_checks(
     for task, package_id in packages.items():
         package = cache.get(package_id)
         names = package.manifest.input.feature_names
-        key = "score" if task is ModelTask.ANOMALY_SCORE else "estimate"
+        key = "score"
         worst = 0.0
         for bearing in VALIDATION + HOLDOUT:
             results = _analyzed(store, f"verify-{task.value}-{bearing}")

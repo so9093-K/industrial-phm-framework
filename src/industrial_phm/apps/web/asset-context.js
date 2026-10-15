@@ -1,5 +1,5 @@
-// One selected asset shared by every asset view: overview, signal comparison, anomaly detection,
-// RUL and analysis records. The `monitor_asset` URL parameter keeps links and reloads on it.
+// One selected asset shared by every asset view: overview, signal exploration, anomaly detection
+// and analysis records. The `monitor_asset` URL parameter keeps links and reloads on it.
 const byId = (id) => document.getElementById(id);
 const known = new Map();
 const listeners = new Set();

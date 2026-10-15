@@ -58,9 +58,7 @@ def main(argv: list[str] | None = None) -> int:
                     if args.scenario == "aihub"
                     else [
                         ("anomaly", "anomaly-score-Bearing1_1"),
-                        ("rul", "rul-estimate-Bearing1_1"),
                         ("anomaly", "lstm-lstm-autoencoder-v1-Bearing1_1"),
-                        ("rul", "lstm-lstm-rul-v1-Bearing1_1"),
                     ]
                 )
                 for width, height in ((1440, 900), (1024, 900), (390, 844)):
@@ -94,17 +92,10 @@ def main(argv: list[str] | None = None) -> int:
                             label + "-ai-secondary", not panel.locator(".phm-ai-text").is_visible()
                         )
                         text = page.locator(f"#{view}-state").inner_text()
-                        if view == "rul":
-                            expect(page.locator("#rul-state")).to_contain_text(
-                                "물리 고장 시각 아님"
-                            )
-                            expect(page.locator("#rul-validation-note")).to_contain_text("MAE")
-                            checks.add(label + "-rul-meaning-and-reference-mae", True, text)
-                        else:
-                            expect(page.locator("#anomaly-state")).to_contain_text(
-                                "고장 확률이나 진단이 아닙니다"
-                            )
-                            checks.add(label + "-threshold-is-not-health-verdict", True, text)
+                        expect(page.locator("#anomaly-state")).to_contain_text(
+                            "고장 확률이나 진단이 아닙니다"
+                        )
+                        checks.add(label + "-threshold-is-not-health-verdict", True, text)
                         page.screenshot(path=str(output / (label + ".png")), full_page=True)
                         page.locator(f"#{view}-review-options > summary").click()
                         # Real Tab/Enter navigation, not an element.focus() substitute.

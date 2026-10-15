@@ -39,7 +39,26 @@ class ModelPackageError(ValueError):
 
 class ModelTask(StrEnum):
     ANOMALY_SCORE = "anomaly-score"
-    RUL_ESTIMATE = "rul-estimate"
+
+
+# Tasks this product no longer runs. Packages and bindings that declare one stay on disk
+# untouched but are neither loaded nor listed.
+RETIRED_TASKS = frozenset({"rul-estimate"})
+
+
+def declared_task(package_dir: Path) -> str | None:
+    """The output task a package's manifest declares, read without verifying the package."""
+    try:
+        body = json.loads((package_dir / _MANIFEST_NAME).read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return None
+    output = body.get("output") if isinstance(body, dict) else None
+    task = output.get("task") if isinstance(output, dict) else None
+    return task if isinstance(task, str) else None
+
+
+def is_retired_package(models_root: Path, package_id: str) -> bool:
+    return declared_task(models_root / package_id) in RETIRED_TASKS
 
 
 class StepKind(StrEnum):
@@ -54,7 +73,6 @@ class EstimatorKind(StrEnum):
     LINEAR = "linear-v1"
     PCA_RESIDUAL = "pca-residual-v1"
     LSTM_AUTOENCODER = "lstm-autoencoder-v1"
-    LSTM_RUL = "lstm-rul-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,8 +132,6 @@ class PackageOutputSpec:
     threshold: float | None = None
     threshold_rule: str | None = None
     review_interval: ReviewIntervalRule | None = None
-    unit: str | None = None
-    endpoint_semantics: str | None = None
     step_period_seconds: float | None = None
     provides_feature_contributions: bool = False
 
@@ -123,19 +139,11 @@ class PackageOutputSpec:
         if not isinstance(self.task, ModelTask):
             raise ModelPackageError("task must be a ModelTask")
         _text(self.value_name, "value_name")
-        if self.task is ModelTask.ANOMALY_SCORE:
-            if self.threshold is None or not math.isfinite(self.threshold):
-                raise ModelPackageError("anomaly-score packages need a finite threshold")
-            _text(self.threshold_rule, "threshold_rule")
-            if self.review_interval is None:
-                raise ModelPackageError("anomaly-score packages need a review interval rule")
-            if self.unit is not None or self.endpoint_semantics is not None:
-                raise ModelPackageError("anomaly scores have no RUL unit or endpoint")
-        else:
-            _text(self.unit, "unit")
-            _text(self.endpoint_semantics, "endpoint_semantics")
-            if self.threshold is not None or self.review_interval is not None:
-                raise ModelPackageError("RUL packages have no anomaly threshold")
+        if self.threshold is None or not math.isfinite(self.threshold):
+            raise ModelPackageError("anomaly-score packages need a finite threshold")
+        _text(self.threshold_rule, "threshold_rule")
+        if self.review_interval is None:
+            raise ModelPackageError("anomaly-score packages need a review interval rule")
         if self.step_period_seconds is not None and not (
             math.isfinite(self.step_period_seconds) and self.step_period_seconds > 0
         ):
@@ -168,17 +176,11 @@ class ModelPackageManifest:
         _text(self.recipe_id, "recipe_id")
         if not isinstance(self.estimator_kind, EstimatorKind):
             raise ModelPackageError("estimator_kind must be an EstimatorKind")
-        sequence_kinds = (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL)
-        if self.estimator_kind not in sequence_kinds and self.input.sequence_length != 1:
+        if (
+            self.estimator_kind is not EstimatorKind.LSTM_AUTOENCODER
+            and self.input.sequence_length != 1
+        ):
             raise ModelPackageError("only LSTM estimators currently consume sequence inputs")
-        if self.estimator_kind in sequence_kinds:
-            expected = (
-                ModelTask.ANOMALY_SCORE
-                if self.estimator_kind is EstimatorKind.LSTM_AUTOENCODER
-                else ModelTask.RUL_ESTIMATE
-            )
-            if self.output.task is not expected:
-                raise ModelPackageError("LSTM estimator kind does not match its output task")
         if not math.isfinite(self.probe_tolerance) or self.probe_tolerance < 0:
             raise ModelPackageError("probe_tolerance must be finite and non-negative")
         _text(self.created_at, "created_at")
@@ -339,7 +341,7 @@ def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageM
     payload[_STATE_NAME] = _canonical(state).encode("utf-8")
 
     runtime = _runtime_versions()
-    if build.estimator_kind in (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL):
+    if build.estimator_kind is EstimatorKind.LSTM_AUTOENCODER:
         from importlib import import_module
 
         runtime["torch"] = str(import_module("torch").__version__)
@@ -438,7 +440,7 @@ _Evaluate = Callable[[np.ndarray], np.ndarray]
 def _restore(
     kind: EstimatorKind, state: Mapping[str, Any], payload: Mapping[str, bytes]
 ) -> tuple[_Evaluate, _Evaluate | None]:
-    if kind in (EstimatorKind.LSTM_AUTOENCODER, EstimatorKind.LSTM_RUL):
+    if kind is EstimatorKind.LSTM_AUTOENCODER:
         from industrial_phm.models.package_lstm import restore_lstm_estimator
 
         return restore_lstm_estimator(kind, state)
@@ -551,14 +553,18 @@ def _output_to_json(spec: PackageOutputSpec) -> dict[str, Any]:
             "min_consecutive_steps": rule.min_consecutive_steps,
             "max_gap_steps": rule.max_gap_steps,
         },
-        "unit": spec.unit,
-        "endpoint_semantics": spec.endpoint_semantics,
+        # Always null since remaining-life packages were retired; kept so manifests, and the
+        # package IDs derived from them, stay byte-identical.
+        "unit": None,
+        "endpoint_semantics": None,
         "step_period_seconds": spec.step_period_seconds,
         "provides_feature_contributions": spec.provides_feature_contributions,
     }
 
 
 def _output_from_json(raw: Mapping[str, Any]) -> PackageOutputSpec:
+    if raw["task"] in RETIRED_TASKS or raw.get("unit") is not None:
+        raise ModelPackageError(f"retired model task: {raw['task']}")
     rule = raw["review_interval"]
     return PackageOutputSpec(
         task=ModelTask(raw["task"]),
@@ -566,8 +572,6 @@ def _output_from_json(raw: Mapping[str, Any]) -> PackageOutputSpec:
         threshold=raw["threshold"],
         threshold_rule=raw["threshold_rule"],
         review_interval=None if rule is None else ReviewIntervalRule(**rule),
-        unit=raw["unit"],
-        endpoint_semantics=raw["endpoint_semantics"],
         step_period_seconds=raw["step_period_seconds"],
         provides_feature_contributions=bool(raw["provides_feature_contributions"]),
     )

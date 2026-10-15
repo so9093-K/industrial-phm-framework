@@ -464,10 +464,9 @@ Provenance
 Generative AI explanation context
 ```
 
-RUL/prognostics는 `AnalysisView`의 optional capability로 구현되어 있습니다. Compatible한 prognostics artifact가
-있을 때만 attached evidence로 구성하고, 해당 source나 artifact가 RUL을 지원하지 않으면 임의 값을 만들지 않고
-unavailable로 유지합니다. 반면 IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는
-같은 Explorer에서 inspection-only surface로 pipeline/capability/provenance까지만 표시합니다.
+IMS/MIMII처럼 inspection은 가능하지만 detailed projector가 없는 artifact는 같은 Explorer에서
+inspection-only surface로 pipeline/capability/provenance까지만 표시합니다. 잔여수명(RUL) 추정은
+[ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 제품과 코드에서 제외했습니다.
 
 Prepared FILE source validation에서 이미 반복해서 필요한 첫 application-level 관측 read model은
 AssetObservationSummary로 분리합니다. 이 read model은 asset_id, explicit source_id, optional
@@ -618,8 +617,7 @@ AnalysisSurface
 └ AnalysisView?
      ├ identity / provenance / inspection
      ├ available / unsupported capabilities
-     ├ anomaly_evidence?
-     └ prognostics_evidence?
+     └ anomaly_evidence?
 ```
 
 Detailed projector가 없으면 `AnalysisSurface.analysis`는 `None`이며 Explorer는 inspection-only 화면을
@@ -627,51 +625,16 @@ Detailed projector가 없으면 `AnalysisSurface.analysis`는 `None`이며 Explo
 
 `AnalysisView` 안에서도 artifact가 어떤 capability를 담지 않으면 해당 evidence는 **없는 상태로 둡니다.**
 빈 값이나 0으로 채우지 않습니다. Surface가 없는 capability를 요구하면
-`require_anomaly_evidence()` / `require_prognostics_evidence()`가 명시적으로 실패하므로, 값이 비어 있는
-이유가 capability 부재인지 데이터 부재인지 혼동되지 않습니다.
+`require_anomaly_evidence()`가 명시적으로 실패하므로, 값이 비어 있는 이유가 capability 부재인지 데이터
+부재인지 혼동되지 않습니다.
 
-Prognostics evidence는 `primary_method_id`를 갖지만 method 선택이 검증되기 전까지 `None`으로 유지합니다.
-여러 method를 동시에 보여주는 화면은 **development comparison evidence**이며, 같은 asset에 대한 여러 개의
-답으로 표시하지 않습니다.
+### Generative AI 설명의 경계
 
-### Prognostics 화면이 함께 보여야 하는 것
-
-RUL 숫자 하나만 보여주면 사용자가 물리적 failure time으로 읽습니다. 따라서 추정치와 다음 항목을 **같은
-화면에서** 함께 제시합니다.
-
-| 항목 | 현재 evidence가 말할 수 있는 것 |
-| --- | --- |
-| Target 의미 | 기록된 run의 마지막 acquisition까지 남은 acquisition interval (`N-k`) |
-| As-of | 추정이 기록된 마지막 acquisition index |
-| Method | 비교된 method와 각각의 validation 오차 |
-| Uncertainty interval | not available |
-| Physical failure threshold | not validated |
-
-Target에 clipping이 없으므로 음수 추정이 기록될 수 있습니다. 화면은 이를 0으로 바닥 처리하지 않고 기록된 값
-그대로 보여주며, 음수가 있으면 그 사실을 함께 표시합니다.
-
-### Generative AI가 RUL evidence를 설명하는 경계
-
-Generative AI 설명은 선택한 설비·입력·분석 결과에 고정합니다. Anomaly와 prognostics의 수치·단위·종료점 의미는
-각 작업의 구조화된 출력으로 보존합니다. 운영 Web의 두 시점 비교에서는 같은 설비·소스·측정점·step 종류에
+Generative AI 설명은 선택한 설비·입력·분석 결과에 고정합니다. 이상 점수의 수치·참고 기준·적용 범위는
+구조화된 출력으로 보존합니다. 운영 Web의 두 시점 비교에서는 같은 설비·소스·측정점·step 종류에
 원본 입력 참조까지 일치하는 다른 모델의 저장 결과만 함께 전달합니다. 시점 번호나 비슷한 시각만으로
 서로 다른 입력의 결과를 연결하지 않습니다. 신호의 동반 변화와 잔차 기여도, 고장 원인을 구분하며 두 시점의
 차이를 전체 기간의 추세로 일반화하지 않습니다.
-
-Prognostics context에 담기는 것은 validated read model에서 읽어온 값뿐입니다.
-
-| 전달 항목 | 목적 |
-| --- | --- |
-| method별 recorded estimate와 as-of acquisition | 재계산 없이 기록된 값만 설명하게 함 |
-| target 의미·unit·formula·clipping 여부 | 숫자가 무엇을 세는지 숫자와 분리되지 않게 함 |
-| support 정의와 prediction 수 | 오차가 어떤 구간에서 계산됐는지 고정 |
-| retrospective validation 오차 | 해석의 근거를 development evidence로 한정 |
-| unavailable capability 목록 | 없는 capability를 만들어내지 않게 함 |
-| `primary_method_id` (현재 `None`) | 여러 method를 하나의 운영 답으로 고르지 않게 함 |
-
-모델에게 주는 지시는 다음을 금지합니다: RUL 재계산·외삽·단위 변환, calendar date나 물리적 failure time으로의
-번역, failure threshold·alarm/state·maintenance deadline·confidence interval 생성, 그리고 검증되지 않은 primary
-method 선택. Target에 clipping이 없으므로 음수 추정도 0으로 올리지 않고 기록된 대로 보고하게 합니다.
 
 Deterministic report/export는 validated read model을 그대로 렌더링하며 수치를 다시 계산하거나
 artifact에 없는 capability를 보충하지 않습니다. Generative AI도 같은 evidence boundary를 따릅니다.
@@ -1158,21 +1121,10 @@ sensor / model evidence
 Anomaly score나 threshold를 alert로 직접 승격하지 않습니다. Alert를 추가할 때는 activation/return-to-normal semantics, persistence/hysteresis,
 operator response, acknowledgement와 suppression/shelving requirement를 별도 계약으로 검토합니다.
 
-### Operational RUL 표시 원칙
+### 잔여수명(RUL)
 
-Operational prognostics가 operational source evidence로 도입될 때 RUL point estimate만 단독 표시하지 않습니다.
-
-최소한 다음 information group을 함께 제공해야 합니다.
-
-- estimate와 unit
-- endpoint semantics
-- as-of observation
-- uncertainty / prediction interval evidence 또는 명시적 unsupported 상태
-- calibration/evaluation population
-- applicability / out-of-scope 상태
-- model/config/deployment provenance
-
-Research `recorded-end` target을 physical failure deadline이나 maintenance deadline으로 번역하지 않습니다.
+잔여수명 추정은 제품에서 제외했습니다([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)).
+앞으로의 변화는 측정값 예측으로 다루며, 예측 결과를 고장 시각·남은 수명·정비 시점으로 표현하지 않습니다.
 
 ### Persistent source와 event-time contract
 

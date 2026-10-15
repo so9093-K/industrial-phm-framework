@@ -1,4 +1,4 @@
-"""Restore the research LSTM graphs from numeric state and evaluate causal sequences."""
+"""Restore the research LSTM autoencoder from numeric state and score causal sequences."""
 
 from __future__ import annotations
 
@@ -19,11 +19,9 @@ def restore_lstm_estimator(
     except ModuleNotFoundError as error:
         raise ModelPackageError("LSTM execution requires the deep-learning extra") from error
     try:
-        implementation = import_module(
-            "industrial_phm.models.lstm_autoencoder"
-            if kind is EstimatorKind.LSTM_AUTOENCODER
-            else "industrial_phm.models.lstm_rul_regression"
-        )
+        if kind is not EstimatorKind.LSTM_AUTOENCODER:
+            raise ValueError(f"unsupported LSTM estimator {kind.value}")
+        implementation = import_module("industrial_phm.models.lstm_autoencoder")
         parameters = implementation._parse_parameters(state["model_parameters"])
         width = int(state["input_size"])
         if not 1 <= width <= 4096:
@@ -42,7 +40,7 @@ def restore_lstm_estimator(
         raise ModelPackageError(f"invalid numeric LSTM state: {error}") from error
     length = parameters.sequence_length
 
-    def residuals_or_prediction(rows: np.ndarray) -> np.ndarray:
+    def residuals(rows: np.ndarray) -> np.ndarray:
         if rows.ndim != 2 or rows.shape[1] != length * width:
             raise ModelPackageError("LSTM input must match sequence length and feature width")
         original_threads = torch.get_num_threads()
@@ -60,18 +58,11 @@ def restore_lstm_estimator(
                     outputs = module(inputs)
                     if not bool(torch.isfinite(outputs).all()):
                         raise ModelPackageError("LSTM produced non-finite outputs")
-                    if kind is EstimatorKind.LSTM_AUTOENCODER:
-                        error = inputs.numpy().astype(np.float64) - outputs.numpy().astype(
-                            np.float64
-                        )
-                        results.append((error * error).mean(axis=1)[0] / width)
-                    else:
-                        results.append(float(outputs.item()))
+                    error = inputs.numpy().astype(np.float64) - outputs.numpy().astype(np.float64)
+                    results.append((error * error).mean(axis=1)[0] / width)
         finally:
             torch.use_deterministic_algorithms(original_determinism)
             torch.set_num_threads(original_threads)
         return cast(np.ndarray, np.asarray(results, dtype=np.float64))
 
-    if kind is EstimatorKind.LSTM_AUTOENCODER:
-        return lambda rows: residuals_or_prediction(rows).sum(axis=1), residuals_or_prediction
-    return residuals_or_prediction, None
+    return lambda rows: residuals(rows).sum(axis=1), residuals

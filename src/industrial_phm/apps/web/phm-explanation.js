@@ -85,7 +85,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     suggestions.replaceChildren();
     const from = comparisonPosition();
     const texts = from === null ? ["이 기록에서 어떤 측정값을 확인할 수 있어?"]
-      : ["이전보다 어떤 측정값이 달라졌어?", view === "rul" ? "RUL이 변할 때 어떤 측정값도 함께 변했어?" : "점수가 변할 때 어떤 측정값도 함께 변했어?"];
+      : ["이전보다 어떤 측정값이 달라졌어?", "점수가 변할 때 어떤 측정값도 함께 변했어?"];
     if (state.focus) texts.unshift("이 지점 전후로 무엇이 달라졌어?");
     if (state.range?.steps >= 5) {
       texts.push("구간 전체에서 어떤 흐름을 보였어?");
@@ -157,10 +157,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     const prior = steps.find((step) => step.position === comparisonPosition());
     const output = selectedStep?.output || {};
     const before = prior?.output || {};
-    const valueKey = view === "rul" ? "estimate" : "score";
-    const unit = view === "rul" ? output.unit === "acquisition-interval" ? "개 기록 구간" : output.unit || "단위 미기록" : "";
-    summary.append(element("p", (view === "rul" ? "기록 종료까지 남은 구간 추정" : "모델 점수") + " · "
-      + (prior ? format(before[valueKey]) + " → " : "") + format(output[valueKey]) + " " + unit
+    summary.append(element("p", "모델 점수 · "
+      + (prior ? format(before.score) + " → " : "") + format(output.score)
       + (prior ? " · " + shortText(prior.position) + " → " + shortText(position) : "")
       + (output.sequence_positions ? " · 입력 " + inputText(output, position) : "")));
     const names = Object.keys(selectedStep?.features || {});
@@ -206,7 +204,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
 
     const table = element("table");table.className = "phm-table phm-range-table";table.setAttribute("aria-label", "구간 흐름");
     const head = element("tr");for (const title of ["항목", "흐름", "주요 지점"]) head.append(element("th", title));table.append(head);
-    const rows = [[view === "rul" ? "잔여 구간 추정" : "모델 점수", data.primary, "primary"],
+    const rows = [["모델 점수", data.primary, "primary"],
       ...Object.entries(data.features).slice(0, 3).map(([name, shape]) => [label(name), shape, name])];
     for (const [title, shape, series] of rows) {
       const row = element("tr");
@@ -267,7 +265,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     const asked = element("p", item.context?.question || "");asked.className = "phm-answer-question";
     const text = element("p", answer.summary);text.className = "phm-ai-text";
     answerBox.append(asked);
-    if (item.context?.focus) answerBox.append(Object.assign(element("p", "기준 지점 · " + shortText(item.context.focus.position) + (item.context.focus.series ? " · " + (item.context.focus.series === "primary" ? view === "rul" ? "잔여 구간 추정" : "모델 점수" : label(item.context.focus.series)) : "")), {className: "phm-answer-question"}));
+    if (item.context?.focus) answerBox.append(Object.assign(element("p", "기준 지점 · " + shortText(item.context.focus.position) + (item.context.focus.series ? " · " + (item.context.focus.series === "primary" ? "모델 점수" : label(item.context.focus.series)) : "")), {className: "phm-answer-question"}));
     answerBox.append(text);
     if (answer.observations.length) {
       const list = element("ul");list.className = "phm-answer-signals";
@@ -292,9 +290,8 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
     if (related.length) {
       const list = element("ul");list.className = "phm-answer-related";
       for (const other of related) {
-        const key = other.output.task === "rul-estimate" ? "estimate" : "score";
         list.append(element("li", modelFamily(other.package_id, other.output.task, item.context.input_reference?.kind) + " · "
-          + (other.previous_output ? format(other.previous_output[key]) + " → " : "") + format(other.output[key])
+          + (other.previous_output ? format(other.previous_output.score) + " → " : "") + format(other.output.score)
           + " · 입력 " + inputText(other.output, position)));
       }
       const more = element("details");more.className = "phm-options";

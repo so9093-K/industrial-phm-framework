@@ -59,7 +59,7 @@ def model_name(package_id: str, task: object, step_kind: object = None) -> str:
     signal = {"observation-window": "관측 신호", "acquisition-snapshot": "진동"}.get(
         str(step_kind), "신호"
     )
-    purpose = "잔여수명 추정" if task == "rul-estimate" else signal + " 변화 탐지"
+    purpose = signal + " 변화 탐지"
     return purpose + (f" · {algorithm} 기반" if algorithm else "")
 
 
@@ -69,10 +69,6 @@ def input_range(output: dict[str, Any], position: int) -> dict[str, int]:
     if isinstance(sequence, list) and sequence and all(isinstance(p, int) for p in sequence):
         return {"first": sequence[0], "last": sequence[-1], "count": len(sequence)}
     return {"first": position, "last": position, "count": 1}
-
-
-def _key(task: object) -> str:
-    return "estimate" if task == "rul-estimate" else "score"
 
 
 def _size(row: dict[str, Any]) -> str | None:
@@ -139,7 +135,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
     primary: dict[str, Any] = {
         "name": operator["value_label"],
         "model": model_name(str(context.get("package_id") or ""), task, kind),
-        "change": _word(relation(previous.get(_key(task)), output.get(_key(task)))),
+        "change": _word(relation(previous.get("score"), output.get("score"))),
         "input_acquisitions": input_range(output, position)["count"],
     }
     if task == "anomaly-score":
@@ -160,7 +156,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
     related = []
     for item in context.get("related_models", []):
         other = item["output"]
-        key = _key(other.get("task"))
+        key = "score"
         related.append(
             {
                 "name": model_name(str(item.get("package_id") or ""), other.get("task"), kind),
@@ -352,10 +348,6 @@ _TASK = {
         "'재구성 오차가 높아져 점수가 올랐다'처럼 같은 값을 원인처럼 반복하지 마세요. "
         "기준 비교는 '참고 기준 초과' 또는 '참고 기준 이하'로만 쓰세요."
     ),
-    "rul-estimate": (
-        "primary는 잔여 구간 추정입니다. 기록 종료점까지 남은 기록 구간 수의 추정이며 "
-        "고장까지 남은 시간이 아닙니다."
-    ),
 }
 
 
@@ -402,7 +394,6 @@ _MARKUP = re.compile(r"[$*`]|\\[a-zA-Z]+|(?:^|\n)\s*#+\s")
 _UP = r"증가|상승|높아|커졌|커지|늘"
 _DOWN = r"감소|하락|낮아|작아|줄"
 _PRIMARY = {
-    "잔여 구간 추정": re.compile(r"(잔여|추정|RUL)[^.,\n]*?(" + _UP + "|" + _DOWN + ")"),
     "": re.compile(r"(점수|오차)[^.,\n]*?(" + _UP + "|" + _DOWN + ")"),
 }
 _SAME = re.compile(
@@ -793,15 +784,7 @@ def primary_sentence(payload: dict[str, Any]) -> str:
     primary = payload["primary"]
     if primary["change"] is None:
         return ""
-    words = (
-        {"increased": "늘었습니다", "decreased": "줄었습니다", "unchanged": "거의 같습니다"}
-        if primary["name"] == "잔여 구간 추정"
-        else {
-            "increased": "높아졌습니다",
-            "decreased": "낮아졌습니다",
-            "unchanged": "거의 같습니다",
-        }
-    )
+    words = {"increased": "높아졌습니다", "decreased": "낮아졌습니다", "unchanged": "거의 같습니다"}
     return f"두 시점 사이에 {_subject(primary['name'])} {words[_CODE[primary['change']]]}."
 
 

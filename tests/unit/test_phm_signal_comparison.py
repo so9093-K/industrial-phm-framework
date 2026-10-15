@@ -46,25 +46,12 @@ def test_selected_comparison_uses_real_input_and_matching_models_without_modifyi
     assert comparison["original_current"]["sample_count"] == 64
     assert comparison["original_current"]["channels"][0]["rms"] == pytest.approx(rms["current"])
     assert comparison["original_current"]["channels"][0]["unit"] is None
-    assert sent["related_models"][0]["binding_id"] == "rul-a"
-    assert (
-        sent["related_models"][0]["previous_output"]["estimate"]
-        > sent["related_models"][0]["output"]["estimate"]
-    )
+    assert sent["related_models"][0]["binding_id"] == "anomaly-b"
+    assert sent["related_models"][0]["previous_output"]["score"] is not None
     assert sent["question"] == "어느 진동이 달라졌나요?"
     assert store.list_results("anomaly-a") == before
-    rul = explanation_context(
-        store,
-        workspace.models_path,
-        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
-        "rul-a",
-        3,
-        compare_position=1,
-    )
-    assert "change_from_previous" in rul["output"]
-    assert "change_from_previous" not in operator_explanation_context(rul)["output"]
-    assert rul["signal_comparison"]["output_changes"]["estimate"] == pytest.approx(
-        rul["output"]["estimate"] - rul["signal_comparison"]["previous_output"]["estimate"]
+    assert context["signal_comparison"]["output_changes"]["score"] == pytest.approx(
+        context["output"]["score"] - context["signal_comparison"]["previous_output"]["score"]
     )
 
     # Changed bytes cannot masquerade as the original input even though model features remain.
@@ -110,7 +97,7 @@ def test_related_model_requires_same_input_digest_not_only_same_position(
 
     def different_digest(binding: str, position: int):
         result = get(binding, position)
-        if binding == "rul-a" and result is not None:
+        if binding == "anomaly-b" and result is not None:
             return replace(
                 result, input_reference={**result.input_reference, "sha256": "different"}
             )

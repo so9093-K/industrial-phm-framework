@@ -40,11 +40,11 @@ function friendlyReason(reason) {
   return "입력 조건 미충족";
 }
 function role(item) {
-  const family = /lstm/i.test(item.recipe_id) ? "LSTM" : /ridge/i.test(item.recipe_id) ? "Ridge" : /pca/i.test(item.recipe_id) ? "PCA" : /iforest/i.test(item.recipe_id) ? "Isolation Forest" : "연결 모델";
-  return (item.task === "rul-estimate" ? "기록 RUL" : item.step_kind === "observation-window" ? "전기 이상" : "진동 이상") + " · " + family;
+  const family = /lstm/i.test(item.recipe_id) ? "LSTM" : /pca/i.test(item.recipe_id) ? "PCA" : /iforest/i.test(item.recipe_id) ? "Isolation Forest" : "연결 모델";
+  return (item.step_kind === "observation-window" ? "전기 이상" : "진동 이상") + " · " + family;
 }
 function detailLink(item, position = item.latest_analyzed?.position) {
-  const url = new URL(location.href), view = item.task === "rul-estimate" ? "rul" : "anomaly";
+  const url = new URL(location.href), view = "anomaly";
   for (const key of ["phm_compare", "phm_review"]) url.searchParams.delete(key);
   url.searchParams.set("phm_binding", item.binding_id);url.searchParams.set("phm_position", position);
   url.searchParams.set("phm_view", view);url.searchParams.set("monitor_asset", item.asset_id);url.hash = view;return url.pathname + url.search + url.hash;
@@ -326,7 +326,7 @@ async function loadTrace(item) {
   byId("monitor-score-chart").replaceChildren();
   const last = item.latest_analyzed, current = item.processing_state === "processed";
   byId("monitor-score-state").textContent = role(item) + (current ? " · 저장된 최근 결과" : " · 이전 분석 결과, 최신 입력 미평가")
-    + (last ? item.task === "rul-estimate" ? " · RUL " + number(last.output.estimate) : " · 점수 " + number(last.output.score) + " / 기준 " + number(last.output.threshold) : " · 결과 대기");
+    + (last ? " · 점수 " + number(last.output.score) + " / 기준 " + number(last.output.threshold) : " · 결과 대기");
   try {
     const response = await fetch("/api/v1/phm/trace?binding_id=" + encodeURIComponent(item.binding_id), {signal: AbortSignal.timeout(5000)});
     const data = await response.json();
@@ -409,9 +409,9 @@ function renderDetails(facts) {
     const last = item.latest_analyzed;
     if (last) {
       const o = last.output, older = item.processing_state !== "processed" ? "이전 결과 · " : "";
-      row.append(node("p", older + (item.task === "rul-estimate" ? "RUL " + number(o.estimate) + " 획득 간격" : "점수 " + number(o.score) + " · 참고 기준 " + number(o.threshold) + (o.exceeds_threshold ? " 초과" : " 이하"))));
+      row.append(node("p", older + "점수 " + number(o.score) + " · 참고 기준 " + number(o.threshold) + (o.exceeds_threshold ? " 초과" : " 이하")));
       row.append(node("p", "분석 " + inputName(item, last) + " · " + (reviewLabels[item.latest_review_status] || "검토 요청 없음"), "muted"));
-      const link = node("a", item.task === "rul-estimate" ? "RUL·검토 상세" : "이 시점의 추세·원본 입력 보기");link.href = detailLink(item);row.append(link);
+      const link = node("a", "이 시점의 추세·원본 입력 보기");link.href = detailLink(item);row.append(link);
     }
     const technical = node("details", "", "monitor-technical");technical.append(node("summary", "모델·처리 근거"), node("p", "패키지 " + item.package_id), node("p", item.processing_reason || "입력 처리 근거 있음"), node("p", "성능 검증 " + (item.validation?.acceptance || "별도 검증 기록 확인")));
     row.append(technical);root.append(row);

@@ -8,7 +8,6 @@ from pathlib import Path
 
 from industrial_phm.analysis.projectors.xjtu import (
     load_xjtu_lstm_analysis_view,
-    load_xjtu_rul_analysis_view,
 )
 from industrial_phm.analysis.view import AnalysisView, AnalysisViewError
 from industrial_phm.experiments.result_inspection import (
@@ -19,15 +18,11 @@ from industrial_phm.experiments.result_inspection import (
 from industrial_phm.experiments.xjtu_lstm_result import (
     XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
 )
-from industrial_phm.experiments.xjtu_rul_validation_result import (
-    XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID,
-)
 
 _AnalysisViewProjector = Callable[[Path], AnalysisView]
 
 _PROJECTORS: dict[str, _AnalysisViewProjector] = {
     XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID: load_xjtu_lstm_analysis_view,
-    XJTU_RUL_THREE_MODEL_VALIDATION_RESULT_SCHEMA_ID: load_xjtu_rul_analysis_view,
 }
 
 

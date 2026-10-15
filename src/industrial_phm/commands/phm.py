@@ -54,7 +54,7 @@ def add_phm_commands(
 
     package = phm_commands.add_parser(
         "package-xjtu",
-        help="fit the frozen XJTU-SY fold-1 anomaly and RUL configurations as model packages",
+        help="fit the frozen XJTU-SY fold-1 Isolation Forest anomaly configuration as a package",
     )
     package.add_argument("workspace", type=Path, help="local Operations workspace root")
     package.add_argument("--source", type=Path, required=True, help="prepared XJTU-SY root")
@@ -68,7 +68,7 @@ def add_phm_commands(
     package.set_defaults(handler=_run_phm_package_xjtu)
 
     sequence = phm_commands.add_parser(
-        "package-xjtu-lstm", help="fit and persist the frozen XJTU LSTM AE and RUL recipes"
+        "package-xjtu-lstm", help="fit and persist the frozen XJTU LSTM autoencoder recipe"
     )
     sequence.add_argument("workspace", type=Path)
     sequence.add_argument("--source", type=Path, required=True)
@@ -198,7 +198,7 @@ def _run_phm_package_aihub(args: argparse.Namespace) -> int:
         return 1
     print(f"package={package.package_id} task=anomaly-score device={device.device_id}")
     print(f"reference_end={boundary.isoformat()} window_seconds=300")
-    print("development candidate: acceptance not yet passed; no RUL lifetime evidence")
+    print("development candidate: acceptance not yet passed")
     return 0
 
 
@@ -225,7 +225,7 @@ def _run_phm_package_xjtu(args: argparse.Namespace) -> int:
         train = tuple(
             iter_vibration_features(XjtuSyAdapter().iter_asset_series(args.source, fold.train))
         )
-        manifests = build_xjtu_fold_1_packages(
+        manifest = build_xjtu_fold_1_packages(
             train,
             workspace.models_path,
             created_at=datetime.now(UTC),
@@ -235,8 +235,7 @@ def _run_phm_package_xjtu(args: argparse.Namespace) -> int:
     except (ValueError, OSError, ModelPackageError) as error:
         print(f"package failed: {error}", file=sys.stderr)
         return 1
-    for manifest in manifests:
-        print(f"package={manifest.package_id} task={manifest.output.task.value}")
+    print(f"package={manifest.package_id} task={manifest.output.task.value}")
     return 0
 
 
@@ -259,11 +258,11 @@ def _run_phm_package_xjtu_lstm(args: argparse.Namespace) -> int:
         if not report.profile_matches:
             raise ValueError("XJTU-SY source does not match the complete profile")
         fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == "fold-1")
-        print("extracting train-only features and fitting frozen LSTM recipes ...", flush=True)
+        print("extracting train-only features and fitting the frozen LSTM recipe ...", flush=True)
         train = tuple(
             iter_vibration_features(XjtuSyAdapter().iter_asset_series(args.source, fold.train))
         )
-        manifests = build_xjtu_lstm_packages(
+        manifest = build_xjtu_lstm_packages(
             train,
             workspace.models_path,
             created_at=datetime.now(UTC),
@@ -273,11 +272,10 @@ def _run_phm_package_xjtu_lstm(args: argparse.Namespace) -> int:
     except (ValueError, OSError) as error:
         print(f"package failed: {error}", file=sys.stderr)
         return 1
-    for manifest in manifests:
-        print(
-            f"package={manifest.package_id} task={manifest.output.task.value} "
-            f"sequence={manifest.input.sequence_length}"
-        )
+    print(
+        f"package={manifest.package_id} task={manifest.output.task.value} "
+        f"sequence={manifest.input.sequence_length}"
+    )
     return 0
 
 

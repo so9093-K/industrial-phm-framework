@@ -17,6 +17,7 @@ from industrial_phm.models.package import (
     PackageOutputSpec,
     ReviewIntervalRule,
     StepKind,
+    is_retired_package,
     load_model_package,
     write_model_package,
 )
@@ -35,16 +36,17 @@ def _input() -> PackageInputSpec:
     )
 
 
-def _rul_build(**overrides: object) -> PackageBuild:
+def _linear_build(**overrides: object) -> PackageBuild:
     values: dict[str, object] = {
-        "recipe_id": "test-ridge-v1",
+        "recipe_id": "test-linear-v1",
         "estimator_kind": EstimatorKind.LINEAR,
         "input": _input(),
         "output": PackageOutputSpec(
-            task=ModelTask.RUL_ESTIMATE,
-            value_name="remaining_acquisition_intervals",
-            unit="acquisition-interval",
-            endpoint_semantics="last-recorded-acquisition",
+            task=ModelTask.ANOMALY_SCORE,
+            value_name="linear_score",
+            threshold=1.0,
+            threshold_rule="fixed-for-test",
+            review_interval=ReviewIntervalRule(2, 1),
         ),
         "preprocessing": AffinePreprocessing(center=(1.0, 2.0, 3.0), scale=(2.0, 4.0, 8.0)),
         "estimator_state": {"coefficients": [0.5, -1.25, 3.0], "intercept": 10.0},
@@ -92,21 +94,20 @@ def _iforest_build(rows: np.ndarray) -> PackageBuild:
 
 
 def test_linear_package_round_trip_matches_affine_then_linear(tmp_path: Path) -> None:
-    manifest = write_model_package(tmp_path, _rul_build())
-    assert manifest.package_id.startswith("test-ridge-v1-")
+    manifest = write_model_package(tmp_path, _linear_build())
+    assert manifest.package_id.startswith("test-linear-v1-")
     package = load_model_package(tmp_path / manifest.package_id)
     (value,) = package.evaluate([[3.0, 6.0, 11.0]])
     assert value == pytest.approx(10.0 + 0.5 * 1.0 - 1.25 * 1.0 + 3.0 * 1.0)
-    assert package.manifest.output.unit == "acquisition-interval"
+    assert package.manifest.output.threshold == 1.0
     assert dict(package.manifest.applicability) == {"operating_condition": ("c1",)}
 
 
 def test_package_id_is_content_derived_and_rewrite_is_idempotent(tmp_path: Path) -> None:
-    first = write_model_package(tmp_path, _rul_build())
-    again = write_model_package(tmp_path, _rul_build())
-    other = write_model_package(
-        tmp_path, _rul_build(estimator_state={"coefficients": [0.5, -1.25, 3.0], "intercept": 11.0})
-    )
+    first = write_model_package(tmp_path, _linear_build())
+    again = write_model_package(tmp_path, _linear_build())
+    changed = {"coefficients": [0.5, -1.25, 3.0], "intercept": 11.0}
+    other = write_model_package(tmp_path, _linear_build(estimator_state=changed))
     assert first.package_id == again.package_id
     assert other.package_id != first.package_id
 
@@ -121,7 +122,7 @@ def test_isolation_forest_refit_matches_direct_fit(tmp_path: Path) -> None:
 
 
 def test_tampered_payload_is_refused(tmp_path: Path) -> None:
-    manifest = write_model_package(tmp_path, _rul_build())
+    manifest = write_model_package(tmp_path, _linear_build())
     state_path = tmp_path / manifest.package_id / "state.json"
     state = json.loads(state_path.read_text())
     state["estimator"]["intercept"] = 99.0
@@ -131,17 +132,17 @@ def test_tampered_payload_is_refused(tmp_path: Path) -> None:
 
 
 def test_tampered_manifest_is_refused(tmp_path: Path) -> None:
-    manifest = write_model_package(tmp_path, _rul_build())
+    manifest = write_model_package(tmp_path, _linear_build())
     path = tmp_path / manifest.package_id / "package.json"
     body = json.loads(path.read_text())
-    body["output"]["unit"] = "minute"
+    body["output"]["value_name"] = "renamed"
     path.write_text(json.dumps(body))
     with pytest.raises(ModelPackageError, match="does not match"):
         load_model_package(tmp_path / manifest.package_id)
 
 
 def test_probe_mismatch_is_refused_even_with_consistent_digests(tmp_path: Path) -> None:
-    manifest = write_model_package(tmp_path, _rul_build())
+    manifest = write_model_package(tmp_path, _linear_build())
     root = tmp_path / manifest.package_id
     state_path = root / "state.json"
     state = json.loads(state_path.read_text())
@@ -165,18 +166,26 @@ def test_probe_mismatch_is_refused_even_with_consistent_digests(tmp_path: Path) 
 def test_anomaly_output_requires_threshold_and_interval_rule() -> None:
     with pytest.raises(ModelPackageError, match="threshold"):
         PackageOutputSpec(task=ModelTask.ANOMALY_SCORE, value_name="s")
-    with pytest.raises(ModelPackageError, match="no anomaly threshold"):
+    with pytest.raises(ModelPackageError, match="review interval"):
         PackageOutputSpec(
-            task=ModelTask.RUL_ESTIMATE,
-            value_name="r",
-            unit="u",
-            endpoint_semantics="e",
-            threshold=1.0,
+            task=ModelTask.ANOMALY_SCORE, value_name="s", threshold=1.0, threshold_rule="r"
         )
 
 
+def test_retired_remaining_life_packages_are_refused_and_recognised(tmp_path: Path) -> None:
+    manifest = write_model_package(tmp_path, _linear_build())
+    path = tmp_path / manifest.package_id / "package.json"
+    body = json.loads(path.read_text())
+    body["output"] = {**body["output"], "task": "rul-estimate", "unit": "acquisition-interval"}
+    path.write_text(json.dumps(body))
+    with pytest.raises(ModelPackageError, match="retired model task"):
+        load_model_package(tmp_path / manifest.package_id)
+    assert is_retired_package(tmp_path, manifest.package_id)
+    assert not is_retired_package(tmp_path, "missing")
+
+
 def test_feature_width_mismatch_is_rejected(tmp_path: Path) -> None:
-    manifest = write_model_package(tmp_path, _rul_build())
+    manifest = write_model_package(tmp_path, _linear_build())
     package = load_model_package(tmp_path / manifest.package_id)
     with pytest.raises(ModelPackageError, match="feature schema"):
         package.evaluate([[1.0, 2.0]])
@@ -185,7 +194,7 @@ def test_feature_width_mismatch_is_rejected(tmp_path: Path) -> None:
 def test_linear_output_does_not_depend_on_batch_composition(tmp_path: Path) -> None:
     rng = np.random.default_rng(3)
     coefficients = rng.normal(size=16).tolist()
-    build = _rul_build(
+    build = _linear_build(
         input=PackageInputSpec(
             step_kind=StepKind.ACQUISITION_SNAPSHOT,
             channels=("ch1",),

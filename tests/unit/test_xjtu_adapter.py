@@ -45,7 +45,6 @@ def test_xjtu_adapter_reads_acquisitions_lazily_in_numeric_order(tmp_path: Path)
     assert len(first.values) == 32_768
     assert first.sampling_rate_hz == 25_600.0
     assert first.labels is None
-    assert first.rul is None
     assert first.metadata["operating_condition"] == "40Hz10kN"
     assert first.metadata["rotational_speed_hz"] == 40.0
     assert first.metadata["radial_load_kn"] == 10.0
