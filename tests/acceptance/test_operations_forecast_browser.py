@@ -11,7 +11,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.phm import phm_workspace
+from tests.support.phm import analyze, deliver, phm_workspace
 
 BASE = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -63,10 +63,15 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
-                summary = panel.locator(".forecast-summary")
-                pw.expect(summary).to_contain_text("증가 · 마지막 측정")
+                summary = panel.locator("#forecast-result > .forecast-summary")
+                pw.expect(summary).to_contain_text("예측 종료값")
+                pw.expect(summary).to_contain_text("마지막 측정")
                 pw.expect(summary).to_contain_text("1시간 뒤")
-                pw.expect(summary).to_contain_text("과거 자료로 확인")
+                pw.expect(summary).to_contain_text("과거 자료 확인")
+                pw.expect(panel.get_by_text("설비 상태 전망", exact=True)).to_be_visible()
+                pw.expect(panel.locator("#forecast-anomaly-summary")).to_contain_text(
+                    "기준 이탈", timeout=30000
+                )
                 pw.expect(panel.get_by_role("button", name="24시간")).to_be_disabled()
                 pw.expect(panel.get_by_role("button", name="1시간")).to_have_attribute(
                     "aria-pressed", "true"
@@ -74,19 +79,160 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
 
                 panel.get_by_label("관리 기준 (선택)").fill("14.3")
                 panel.get_by_role("button", name="기준 적용").click()
-                pw.expect(summary).to_contain_text("관리 기준 14.3 A")
+                pw.expect(summary).to_contain_text("관리 상한 14.3 A")
                 pw.expect(summary).to_contain_text("예상 도달")
                 pw.expect(panel.locator("line.forecast-threshold")).to_have_count(1)
                 assert "forecast_threshold=14.3" in page.url
+                panel.locator("#forecast-details > summary").click()
+                panel.get_by_label("추세 민감도 (0.001-0.5)").fill("0.1")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "추세 민감도 0.1", timeout=30000
+                )
+                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("100")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                pw.expect(
+                    panel.get_by_role("button", name="24시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                pw.expect(panel.locator("#forecast-state")).to_contain_text("2배 이상")
+                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("150")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_enabled()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "학습 150개", timeout=30000
+                )
+                panel.get_by_role("button", name="여러 과거 시점 비교").click()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "여러 과거 시점", timeout=30000
+                )
+                assert "forecast_prior=0.1" in page.url
+
                 page.reload()
-                pw.expect(summary).to_contain_text("관리 기준 14.3 A", timeout=30000)
+                pw.expect(summary).to_contain_text("관리 상한 14.3 A", timeout=30000)
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                panel.get_by_label("관리 기준 방향").select_option("lower")
+                pw.expect(summary).to_contain_text("관리 하한 14.3 A", timeout=30000)
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "이미 하한을", timeout=30000
+                )
+                # EDA-selected range is a reference in the forecast, not implicit training.
+                page.goto(
+                    base
+                    + "&forecast_series=history%7Ccurrent"
+                    + "&forecast_context_kind=eda"
+                    + "&forecast_context_from=2026-10-14T00%3A00%3A00%2B00%3A00"
+                    + "&forecast_context_to=2026-10-14T02%3A00%3A00%2B00%3A00"
+                    + "#forecast"
+                )
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "EDA 비교 구간 B", timeout=30000
+                )
+
+                # Cross-tab EDA navigation retains the comparison window as context.
+                page.goto(base + "#signals")
+                link = page.get_by_role("link", name="선택 신호의 미래 예측 보기")
+                pw.expect(link).to_be_visible(timeout=30000)
+                link.click()
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "EDA 비교 구간 B", timeout=30000
+                )
+
+                page.goto(base + "#anomaly")
+                anomaly_link = page.get_by_role("link", name="이 신호 미래 예측").first
+                pw.expect(anomaly_link).to_be_visible(timeout=30000)
+                anomaly_link.click()
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "이상 탐지 선택 구간", timeout=30000
+                )
 
                 # An old remaining-life link opens its replacement.
                 page.goto(base + "#rul")
                 pw.expect(page.locator(".asset-tabs a[data-tab='forecast']")).to_have_attribute(
                     "aria-current", "page"
                 )
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Path) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("prophet")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 31):
+        deliver(
+            workspace, tmp_path / "waves", ordinal, 4.0 if ordinal == 30 else 0.5 + 0.01 * ordinal
+        )
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                base = f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a"
+                page.goto(base + "#monitor")
+                page.locator("#asset-capabilities").get_by_role(
+                    "button", name="미래 예측 열기"
+                ).click()
+                panel = page.locator("#forecast")
+                pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
+                pw.expect(panel.locator("#forecast-unit")).to_have_value("count")
+                pw.expect(panel.locator("#forecast-count")).to_have_value("14")
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "14개 획득 뒤"
+                )
+                panel.locator("#forecast-count").fill("10")
+                with page.expect_response(
+                    lambda response: "/api/v1/forecast?" in response.url
+                ) as response:
+                    panel.get_by_role("button", name="획득 수 적용").click()
+                forecast = response.value.json()
+                # A rising model forecast can still end below the latest observed spike.
+                assert forecast["trend"]["change"] > 0
+                assert forecast["trend"]["end"] < forecast["history"][-1][1]
+                pw.expect(
+                    panel.locator("#forecast-result > .forecast-summary > div").first
+                ).not_to_contain_text("증가")
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "10개 획득 뒤", timeout=30000
+                )
+                pw.expect(panel.locator(".forecast-compare")).to_have_count(0)
+                panel.locator("#forecast-details > summary").click()
+                panel.locator("#forecast-assumed-period").fill("120")
+                panel.get_by_role("button", name="간격 적용").click()
+                pw.expect(panel.locator("#forecast-result")).to_contain_text(
+                    "가정 획득 간격 2분", timeout=30000
+                )
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                panel.locator("#forecast-assumed-period").fill("600")
+                panel.get_by_role("button", name="간격 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_enabled()
+                pw.expect(
+                    panel.get_by_role("button", name="24시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                panel.locator("#forecast-unit").select_option("time")
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "1시간 뒤", timeout=30000
+                )
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 assert not errors, errors
             finally:
                 browser.close()

@@ -24,8 +24,12 @@ async function getJson(url) {
 const time = (iso) => formatTime(iso, {seconds: false});
 
 export function initializeAnomalyExplore() {
-  onAssetChange(() => {loadedFor = "";if (document.body.dataset.view === "anomaly") void load();});
-  window.addEventListener("hashchange", () => {if (document.body.dataset.view === "anomaly" && loadedFor !== currentAsset()) void load();});
+  onAssetChange(() => {loadedFor = "";const url = new URL(location.href);url.searchParams.delete("forecast_anomaly_series");history.replaceState(history.state, "", url);if (document.body.dataset.view === "anomaly") void load();});
+  window.addEventListener("hashchange", () => {
+    if (document.body.dataset.view !== "anomaly") return;
+    const wanted = new URL(location.href).searchParams.get("forecast_anomaly_series");
+    if (loadedFor !== currentAsset() || (wanted && !shown?.data?.series?.includes(wanted))) void load();
+  });
   window.addEventListener("resize", () => {if (shown && document.body.dataset.view === "anomaly") draw(shown);});
   if (document.body.dataset.view === "anomaly") void load();
 }
@@ -46,7 +50,8 @@ async function load() {
   box.append(create("p", "muted", "고른 신호를 기록의 기준 구간과 비교해 크게 벗어난 시점을 찾습니다. 기준 구간은 비교의 출발점일 뿐 정상 상태라는 뜻은 아니며, 고장 판정이 아닙니다."));
   const controls = create("div", "anomaly-explore-controls"), output = create("div", "anomaly-explore-output");
   box.append(controls, output);root.append(box);root.hidden = false;
-  await run(controls, output, null);
+  const requested = new URL(location.href).searchParams.get("forecast_anomaly_series");
+  await run(controls, output, requested ? {series: [requested]} : null);
 }
 
 async function run(controls, output, choice) {
@@ -114,7 +119,15 @@ function draw({output, data}) {
       const compare = create("button", "capability-open", "구간 비교");compare.type = "button";
       compare.setAttribute("aria-label", where + " 구간 비교");
       compare.addEventListener("click", () => openComparison(data, item));
-      row.append(compare);list.append(row);
+      const forecast = create("a", null, "이 신호 미래 예측");
+      const url = new URL(location.href);
+      url.searchParams.set("forecast_series", "history|" + item.channel);
+      url.searchParams.set("forecast_anomaly_series", item.channel);
+      url.searchParams.set("forecast_context_kind", "anomaly");
+      url.searchParams.set("forecast_context_from", item.start);
+      url.searchParams.set("forecast_context_to", item.end);
+      url.hash = "forecast";forecast.href = url.pathname + url.search + url.hash;
+      row.append(compare, forecast);list.append(row);
     }
     parts.push(list);
     if (data.interval_count > 10) parts.push(create("p", "muted", "가장 크게 벗어난 10개만 보여줍니다 · 나머지 " + num(data.interval_count - 10) + "개는 그래프에 표시"));

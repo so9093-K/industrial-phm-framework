@@ -534,3 +534,19 @@ button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){backgrou
 .anomaly-explore-list li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
 .anomaly-explore-when{font-weight:650;color:#1d3d4c}
 .anomaly-explore-fold>summary{cursor:pointer;font-size:.84rem;color:#2f4f5d;margin:2px 0 8px;overflow-wrap:anywhere}
+
+/* Forecast scenario controls and condition outlook share the existing Operations view. */
+.forecast-details{flex-basis:100%;min-width:0;border-top:1px solid #dce6eb;padding:10px 0}
+.forecast-details>summary{cursor:pointer;font-size:.88rem;font-weight:650;color:#254e60;min-height:30px}
+.forecast-advanced{display:flex;flex-wrap:wrap;align-items:end;gap:10px 16px;margin:12px 0}
+.forecast-advanced label{display:grid;gap:5px;font-size:.84rem}
+.forecast-advanced input{width:155px}
+.forecast-detail-metrics{margin-top:12px}
+.forecast-outlook{margin-top:16px;border-top:1px solid #dce6eb;padding-top:12px}
+.forecast-outlook h3{margin:0 0 8px;font-size:1.05rem}
+.forecast-explore-links{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0}
+.forecast-explore-links a{color:#165c72;text-underline-offset:3px}
+.forecast-controls [hidden],.forecast-details [hidden]{display:none}
+@media(max-width:700px){.forecast-controls{align-items:stretch}.forecast-details{width:100%}.forecast-advanced{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr))}}
+.forecast-compare{fill:none;stroke:#6a7886;stroke-width:1.6;stroke-dasharray:5 4}
+.forecast-key-compare:before{background:#6a7886}

@@ -28,6 +28,7 @@ function fact(item, data) {
       return "획득 #" + acquisition.first + "–#" + acquisition.last;
     case "explore": return "모델 없이 기준 구간에서 벗어난 값 찾기" + (facts.packages ? " · 맞는 모델 " + num(facts.packages) + "개 연결 가능" : "");
     case "stored-flow": return "저장된 흐름으로 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지";
+    case "stored-flow-count": return "획득 순서 기준으로 미래 특징 전망";
     case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
     case "model-results": return "결과 시점을 골라 질문";

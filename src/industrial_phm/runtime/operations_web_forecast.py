@@ -51,20 +51,102 @@ def handle_forecast_read(
         if not 0 < len(asset_id) <= 512:
             raise ValueError("asset_id is required")
         if path == "/api/v1/forecast/options":
-            return HTTPStatus.OK, forecast_options(workspace, asset_id)
+            body = forecast_options(workspace, asset_id)
+            if params.get("series"):
+                training = int(params["training_points"]) if params.get("training_points") else None
+                if training is not None and not 20 <= training <= 1000:
+                    raise ValueError("invalid training_points")
+                assumed = (
+                    float(params["assumed_period_seconds"])
+                    if params.get("assumed_period_seconds")
+                    else None
+                )
+                if assumed is not None and (
+                    not math.isfinite(assumed) or not 1 <= assumed <= 86400
+                ):
+                    raise ValueError("invalid assumed_period_seconds")
+                kind = params.get("kind")
+                if kind == "history" and assumed is None:
+                    times, values, _ = _history_points(workspace, asset_id, params["series"])
+                elif kind == "acquisition":
+                    times, values, meta = _acquisition_points(
+                        workspace,
+                        asset_id,
+                        params["series"],
+                        assumed_period_seconds=assumed,
+                        count_mode=True,
+                    )
+                else:
+                    raise ValueError("invalid forecast kind")
+                times = [t for t, value in zip(times, values, strict=True) if math.isfinite(value)]
+                if training is not None:
+                    times = times[-training:]
+                span = (times[-1] - times[0]).total_seconds() if times else 0
+                body["selection"] = {
+                    "horizons": (
+                        {key: "unknown-interval" for key in HORIZONS}
+                        if kind == "acquisition" and meta["time_basis"] == "ordinal"
+                        else horizon_reasons(span, len(times))
+                    ),
+                    "points": len(times),
+                }
+            return HTTPStatus.OK, body
         horizon = params.get("horizon", "")
-        if horizon not in HORIZONS:
+        if horizon not in {*HORIZONS, "count"}:
             raise ValueError("unknown horizon")
+        kind = params.get("kind", "")
+        if horizon == "count" and kind != "acquisition":
+            raise ValueError("acquisition count forecast requires acquisition data")
+        count = int(params.get("horizon_count", "")) if horizon == "count" else None
+        if count is not None and not 1 <= count <= 2000:
+            raise ValueError("horizon_count must be 1..2000")
+        assumed_period = (
+            float(params["assumed_period_seconds"])
+            if params.get("assumed_period_seconds")
+            else None
+        )
+        if assumed_period is not None and (
+            kind != "acquisition"
+            or not math.isfinite(assumed_period)
+            or not 1 <= assumed_period <= 86400
+        ):
+            raise ValueError("invalid assumed_period_seconds")
+        prior_scale = float(params.get("changepoint_prior_scale", "0.05"))
+        change_range = float(params.get("changepoint_range", "0.9"))
+        training_points = int(params["training_points"]) if params.get("training_points") else None
+        seasonality = params.get("seasonality", "auto")
+        backtest = params.get("backtest", "one")
+        if backtest not in {"one", "multi"}:
+            raise ValueError("invalid backtest")
+        if seasonality not in {"auto", "off"}:
+            raise ValueError("invalid seasonality")
+        if not math.isfinite(prior_scale) or not 0.001 <= prior_scale <= 0.5:
+            raise ValueError("invalid changepoint_prior_scale")
+        if not math.isfinite(change_range) or not 0.5 <= change_range <= 0.95:
+            raise ValueError("invalid changepoint_range")
+        if training_points is not None and not 20 <= training_points <= 1000:
+            raise ValueError("invalid training_points")
+        threshold_direction = params.get("threshold_direction", "upper")
+        if threshold_direction not in {"upper", "lower"}:
+            raise ValueError("invalid threshold_direction")
         threshold = float(params["threshold"]) if params.get("threshold") else None
         if threshold is not None and not math.isfinite(threshold):
             raise ValueError("threshold must be finite")
         return HTTPStatus.OK, forecast_series(
             workspace,
             asset_id,
-            kind=params.get("kind", ""),
+            kind=kind,
             series=params.get("series", ""),
             horizon=horizon,
             threshold=threshold,
+            threshold_direction=threshold_direction,
+            changepoint_prior_scale=prior_scale,
+            changepoint_range=change_range,
+            training_points=training_points,
+            seasonality=seasonality,
+            horizon_count=count,
+            assumed_period_seconds=assumed_period,
+            rolling_backtests=backtest == "multi",
         )
     except ForecastUnavailable as error:
         return HTTPStatus.UNPROCESSABLE_ENTITY, {
@@ -110,15 +192,20 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     period = (
         _period(workspace, asset_id, acquisition["source_id"]) if acquisition is not None else None
     )
-    if acquisition is not None and period:
-        span = (acquisition["last"] - acquisition["first"]) * period
+    if acquisition is not None:
+        span = (acquisition["last"] - acquisition["first"]) * (period or 1)
         body["acquisition"] = {
             "series": acquisition["features"],
             "first": acquisition["first"],
             "last": acquisition["last"],
             "count": acquisition["count"],
             "period_seconds": period,
-            "horizons": horizon_reasons(span, acquisition["count"]),
+            "horizons": (
+                horizon_reasons(span, acquisition["count"])
+                if period
+                else {key: "unknown-interval" for key in HORIZONS}
+            ),
+            "count_forecast": acquisition["count"] >= 20,
         }
     else:
         body["acquisition"] = None
@@ -133,27 +220,63 @@ def forecast_series(
     series: str,
     horizon: str,
     threshold: float | None,
+    threshold_direction: str = "upper",
+    changepoint_prior_scale: float = 0.05,
+    changepoint_range: float = 0.9,
+    training_points: int | None = None,
+    seasonality: str = "auto",
+    horizon_count: int | None = None,
+    assumed_period_seconds: float | None = None,
+    rolling_backtests: bool = False,
 ) -> dict[str, Any]:
     """One series continued ``horizon`` ahead, with its interval and a check on the past."""
     if not series:
         raise ValueError("series is required")
     if kind == "history":
+        if horizon == "count" or assumed_period_seconds is not None:
+            raise ValueError("count mode only applies to acquisitions")
         times, values, meta = _history_points(workspace, asset_id, series)
-        seasonal = True
+        seasonal = seasonality != "off"
     elif kind == "acquisition":
-        times, values, meta = _acquisition_points(workspace, asset_id, series)
+        times, values, meta = _acquisition_points(
+            workspace,
+            asset_id,
+            series,
+            assumed_period_seconds=assumed_period_seconds,
+            count_mode=horizon == "count",
+        )
         seasonal = False
     else:
         raise ValueError("unknown forecast kind")
+    period = meta.get("period_seconds")
+    seconds = (
+        horizon_count * period
+        if horizon == "count" and period is not None and horizon_count is not None
+        else HORIZONS.get(horizon)
+    )
+    if seconds is None or seconds <= 0:
+        raise ValueError("invalid prediction horizon")
     result = forecast_values(
-        times, values, HORIZONS[horizon], seasonal=seasonal, threshold=threshold
+        times,
+        values,
+        seconds,
+        seasonal=seasonal,
+        threshold=threshold,
+        changepoint_prior_scale=changepoint_prior_scale,
+        changepoint_range=changepoint_range,
+        training_points=training_points,
+        rolling_backtests=rolling_backtests,
+        future_acquisitions=horizon_count if horizon == "count" else None,
+        threshold_direction=threshold_direction,
     )
     if kind == "acquisition":
         # Report the acquisition axis back: an acquisition's position, not an invented clock.
         period = meta["period_seconds"]
 
         def position(iso: str) -> float:
-            return float(1 + (datetime.fromisoformat(iso) - _ORIGIN).total_seconds() / period)
+            value = 1 + (datetime.fromisoformat(iso) - _ORIGIN).total_seconds() / period
+            nearest = round(value)
+            return float(nearest) if abs(value - nearest) < 1e-6 else float(value)
 
         result["history"] = [[position(t), v] for t, v in result["history"]]
         result["fitted"] = [[position(t), v] for t, v in result["fitted"]]
@@ -168,6 +291,8 @@ def forecast_series(
         "kind": kind,
         "series": series,
         "horizon": horizon,
+        "horizon_count": horizon_count,
+        "forecast_seconds": seconds,
         "axis": "acquisition" if kind == "acquisition" else "time",
         **meta,
         **result,
@@ -219,15 +344,22 @@ def _history_points(
 
 
 def _acquisition_points(
-    workspace: OperationsWorkspace, asset_id: str, feature: str
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    feature: str,
+    *,
+    assumed_period_seconds: float | None = None,
+    count_mode: bool = False,
 ) -> tuple[list[datetime], list[float], dict[str, Any]]:
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     binding = acquisition_binding(store, asset_id) if store.path.exists() else None
     if binding is None:
         raise LookupError("no analyzed acquisitions")
-    period = _period(workspace, asset_id, binding.source_id)
-    if not period:
+    recorded_period = _period(workspace, asset_id, binding.source_id)
+    if not recorded_period and not count_mode and assumed_period_seconds is None:
         raise ForecastUnavailable("unknown-interval")
+    # In count mode an ordinal always has a well-defined next step, even without a clock.
+    period = assumed_period_seconds or recorded_period or 1.0
     results, total = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_BUCKETS)
     points = [
         (r.position, float(value))
@@ -247,5 +379,14 @@ def _acquisition_points(
             "measurement_point_id": None,
             "raw_count": total,
             "period_seconds": period,
+            "recorded_period_seconds": recorded_period,
+            "assumed_period_seconds": assumed_period_seconds,
+            "time_basis": (
+                "assumed"
+                if assumed_period_seconds is not None
+                else "recorded"
+                if recorded_period is not None
+                else "ordinal"
+            ),
         },
     )

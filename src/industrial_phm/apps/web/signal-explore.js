@@ -299,6 +299,18 @@ function render(data) {
     + "구간 A는 사용자가 고른 비교 구간이며 정상·안전 기준이 아닙니다. 값의 차이가 곧 설비 고장 원인은 아닙니다.";
   for (const name of ["a", "b"]) quality.append(qualityCard(data, name));
   for (const item of data.series) results.append(seriesCard(item));
+  const target = data.series[0]?.key || data.series[0]?.label;
+  if (target) {
+    const url = new URL(location.href);
+    url.searchParams.set("forecast_series", data.kind + "|" + target);
+    url.searchParams.set("forecast_context_kind", "eda");
+    url.searchParams.set("forecast_context_from", String(data.periods.b.from));
+    url.searchParams.set("forecast_context_to", String(data.periods.b.to));
+    url.hash = "forecast";
+    const link = create("a", null, "선택 신호의 미래 예측 보기");
+    link.href = url.pathname + url.search + url.hash;
+    const shortcut = create("p", "forecast-explore-links");shortcut.append(link);results.append(shortcut);
+  }
   const links = modelLinks(data);
   if (links) results.append(links);
   results.append(relationSection(data));

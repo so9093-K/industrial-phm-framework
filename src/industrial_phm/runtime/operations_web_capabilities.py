@@ -211,6 +211,8 @@ def _forecast_capability(
         if reason is None
     ]
     if not allowed:
+        if options["acquisition"] and options["acquisition"].get("count_forecast"):
+            return _item("forecast", READY, "stored-flow-count", "forecast")
         return _item("forecast", UNAVAILABLE, "short-history", None)
     longest = max(allowed, key=lambda name: HORIZONS[name])
     return _item("forecast", READY, "stored-flow", "forecast", horizon=longest)
