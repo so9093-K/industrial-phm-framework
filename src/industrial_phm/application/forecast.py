@@ -94,7 +94,8 @@ def _fit(
 ) -> Any:
     span = (times[-1] - times[0]).total_seconds()
     model = _prophet(
-        seasonal, span,
+        seasonal,
+        span,
         changepoint_prior_scale=changepoint_prior_scale,
         changepoint_range=changepoint_range,
     )
@@ -142,7 +143,9 @@ def forecast_values(
         raise ForecastUnavailable("short-history")
 
     model = _fit(
-        times, observed, seasonal,
+        times,
+        observed,
+        seasonal,
         changepoint_prior_scale=changepoint_prior_scale,
         changepoint_range=changepoint_range,
     )
@@ -191,13 +194,21 @@ def forecast_values(
         else _threshold(threshold, float(observed[-1]), future, yhat, lower, upper),
         "rolling_backtests": (
             _rolling_backtests(
-                times, observed, horizon_seconds, seasonal,
+                times,
+                observed,
+                horizon_seconds,
+                seasonal,
                 changepoint_prior_scale=changepoint_prior_scale,
                 changepoint_range=changepoint_range,
-            ) if rolling_backtests else None
+            )
+            if rolling_backtests
+            else None
         ),
         "backtest": _backtest(
-            times, observed, horizon_seconds, seasonal,
+            times,
+            observed,
+            horizon_seconds,
+            seasonal,
             changepoint_prior_scale=changepoint_prior_scale,
             changepoint_range=changepoint_range,
         ),
@@ -261,7 +272,9 @@ def _backtest(
     if len(train) < MIN_POINTS or len(test) < 5:
         return None
     model = _fit(
-        [times[i] for i in train], observed[train], seasonal,
+        [times[i] for i in train],
+        observed[train],
+        seasonal,
         changepoint_prior_scale=changepoint_prior_scale,
         changepoint_range=changepoint_range,
     )
@@ -303,7 +316,9 @@ def _rolling_backtests(
         if len(train) < MIN_POINTS or len(test) < 5:
             continue
         model = _fit(
-            [times[i] for i in train], observed[train], seasonal,
+            [times[i] for i in train],
+            observed[train],
+            seasonal,
             changepoint_prior_scale=changepoint_prior_scale,
             changepoint_range=changepoint_range,
         )
@@ -313,11 +328,13 @@ def _rolling_backtests(
         inside = (actual >= predicted["yhat_lower"].to_numpy(dtype=float)) & (
             actual <= predicted["yhat_upper"].to_numpy(dtype=float)
         )
-        results.append({
-            "cutoff": cutoff.astimezone(UTC).isoformat(),
-            "points": len(test),
-            "mean_absolute_error": float(np.mean(np.abs(actual - estimated))),
-            "naive_mean_absolute_error": float(np.mean(np.abs(actual - observed[train[-1]]))),
-            "inside_interval": float(inside.mean()),
-        })
+        results.append(
+            {
+                "cutoff": cutoff.astimezone(UTC).isoformat(),
+                "points": len(test),
+                "mean_absolute_error": float(np.mean(np.abs(actual - estimated))),
+                "naive_mean_absolute_error": float(np.mean(np.abs(actual - observed[train[-1]]))),
+                "inside_interval": float(inside.mean()),
+            }
+        )
     return results
