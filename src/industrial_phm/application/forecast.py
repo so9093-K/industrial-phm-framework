@@ -194,6 +194,7 @@ def forecast_values(
             "end_upper": float(upper[-1]),
             "change": float(yhat[-1] - yhat[0]),
             "slope_direction": "up" if change > 0 else "down" if change < 0 else "flat",
+            "trend_component_change": change,
             "level_gap": float(yhat[0] - observed[-1]),
         },
         "threshold": None
