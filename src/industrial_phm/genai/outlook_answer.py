@@ -72,8 +72,8 @@ _NOT = re.compile(r"않|없|못")
 _NOMINAL = re.compile(r"(?:도달|닿)[^.,]{0,14}?(?:시점|때|경우)(?:은|는|이|에|도)?")
 _ALREADY = re.compile(r"이미[^.]{0,12}(?:도달|넘|초과|밑돌|하회)")
 _KEYWORD = {"management": "관리", "end": "종료"}
-_CONDITION_VALUE = re.compile(r"(관리\\s*(?:상한|하한|기준)|종료\\s*기준)\\s*([+-]?\\d[\\d,]*(?:\\.\\d+)?)")
-_REACH_OFFSET = re.compile(r"(?<![\\d.])([\\d,]+(?:\\.\\d+)?(?:개 획득|일|시간|분|초))\\s*뒤")
+_CONDITION_VALUE = re.compile(r"(관리\s*(?:상한|하한|기준)|종료\s*기준)\s*([+-]?\d[\d,]*(?:\.\d+)?)")
+_REACH_OFFSET = re.compile(r"(?<![\d.])([\d,]+(?:\.\d+)?(?:개 획득|일|시간|분|초))\s*뒤")
 
 
 def _normalized(token: str) -> str:
