@@ -1,4 +1,4 @@
-"""Read projections for the anomaly and RUL monitoring screens (ADR-0025).
+"""Read projections for the anomaly monitoring screens (ADR-0025).
 
 Projections read the PHM store, package manifests and the snapshot repository directly; they
 never load or run a model. Every response carries the latest delivered step and the latest
@@ -26,7 +26,7 @@ from industrial_phm.application.phm_analysis import (
     StepResult,
     StepState,
 )
-from industrial_phm.models.package import StepKind
+from industrial_phm.models.package import StepKind, is_retired_package
 
 PHM_READ_SCHEMA_VERSION = 1
 _MAX_PREVIEW_BINS = 2000
@@ -50,7 +50,7 @@ def project_phm_monitor(
     A skipped/latest input never replaces the last successful model output. Absence of a
     newer input is not evidence of a stopped sensor; transport freshness is a separate fact.
     """
-    bindings = store.list_bindings() if store.path.exists() else ()
+    bindings = _active(store, models_root)
     manifests: dict[str, dict[str, Any] | None] = {}
     items = []
     for binding in sorted(bindings, key=lambda b: (b.asset_id, b.source_id, b.binding_id))[
@@ -121,7 +121,7 @@ def project_phm_bindings(
     if not store.path.exists():
         return {"schema_version": PHM_READ_SCHEMA_VERSION, "change_seq": 0, "bindings": []}
     items = []
-    for binding in store.list_bindings():
+    for binding in _active(store, models_root):
         progress = store.progress(binding.binding_id)
         latest = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
         processed = store.latest_result(binding.binding_id)
@@ -262,6 +262,13 @@ def project_snapshot_preview(
         "delivered_at": snapshot.delivered_at.isoformat(),
         "channels": channels,
     }
+
+
+def _active(store: SqlitePhmAnalysisStore, models_root: Path) -> list[PhmBinding]:
+    """Bindings of packages this product still runs; retired ones stay stored but unlisted."""
+    if not store.path.exists():
+        return []
+    return [b for b in store.list_bindings() if not is_retired_package(models_root, b.package_id)]
 
 
 def _binding(store: SqlitePhmAnalysisStore, binding_id: str) -> PhmBinding:

@@ -156,14 +156,14 @@ def range_analysis(
         kept = [(p, float(v)) for p, v in pairs if isinstance(v, (int, float)) and math.isfinite(v)]
         return [p for p, _ in kept], [v for _, v in kept]
 
-    task = results[-1].output.get("task") if results else None
-    key = "estimate" if task == "rul-estimate" else "score"
-    primary = series_shape(*values(lambda r: r.output.get(key)))
+    primary = series_shape(*values(lambda r: r.output.get("score")))
     shapes = {
         name: series_shape(*values(lambda r, name=name: (r.features or {}).get(name)))
         for name in features
     }
-    exact = store.analyzed_change_stats(binding_id, first, last, output_key=key, features=features)
+    exact = store.analyzed_change_stats(
+        binding_id, first, last, output_key="score", features=features
+    )
     for name, shape in [("primary", primary), *shapes.items()]:
         stats = exact[name]
         span = (stats["high"] - stats["low"]) if stats["count"] else 0.0
@@ -234,8 +234,7 @@ def focus_point(
     if result is None or result.state.value != "analyzed":
         raise ValueError("focus must be an analyzed result")
     results, _ = store.analyzed_between(binding_id, span["first"], span["last"])
-    task = result.output.get("task")
-    key = "estimate" if task == "rul-estimate" else "score"
+    key = "score"
 
     def means(read: Any) -> tuple[float | None, float | None]:
         before: list[float] = []

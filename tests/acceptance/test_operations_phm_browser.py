@@ -1,4 +1,4 @@
-"""Anomaly and RUL screens show stored model results, follow new steps, and keep their limits."""
+"""The anomaly screen shows stored model results, follows new steps, and keeps its limits."""
 
 from __future__ import annotations
 
@@ -103,19 +103,8 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #4")
                 page.locator("#anomaly-latest").click()
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #7")
-                page.locator('a[href="#rul"]').click()
-                pw.expect(page.locator('.asset-tabs a[data-tab="rul"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 RUL 추정")
-                pw.expect(page.locator("#rul-cards")).to_contain_text("기록 구간")
-                pw.expect(page.locator("#rul-validation-note")).to_contain_text("이 설비 MAE 10")
-                pw.expect(page.locator("#rul-cards")).not_to_contain_text("학습 범위")
-                pw.expect(page.locator("#rul-state")).to_contain_text("물리 고장 시각 아님")
-                pw.expect(page.locator("#rul-chart .condition-curve")).to_be_visible()
-                pw.expect(page.locator("#rul-recent tr")).to_have_count(8)
-                page.locator("#rul-model summary").click()
-                pw.expect(page.locator("#rul-model")).to_contain_text("synthetic-test-evidence")
+                page.locator("#anomaly-model summary").click()
+                pw.expect(page.locator("#anomaly-model")).to_contain_text("synthetic-test-evidence")
                 page.locator('a[href="#anomaly"]').click()
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("선택한 이상 점수")
                 deliver(workspace, waveforms, 8, 0.9)
@@ -129,13 +118,6 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
                 pw.expect(page.locator("#anomaly-cards")).to_contain_text("마지막 분석 점수")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("최신 분석 #7")
                 pw.expect(page.locator("#anomaly-freshness")).to_contain_text("입력 조건 불충족")
-                page.locator('a[href="#rul"]').click()
-                pw.expect(page.locator("#rul-observation")).to_contain_text(
-                    "선택 기록 #7의 이전 분석 결과"
-                )
-                pw.expect(page.locator("#rul-cards")).to_contain_text("마지막 분석 RUL 추정")
-                pw.expect(page.locator("#rul-freshness")).to_contain_text("최신 분석 #7")
-                page.locator('a[href="#anomaly"]').click()
                 page.route(
                     "**/api/v1/phm/series?*",
                     lambda route: route.fulfill(status=503, json={"error": "test-read-failed"}),
@@ -180,11 +162,6 @@ def test_phm_screens_explain_missing_models_instead_of_inventing_results(
                     "모델을 연결하면 이상 점수"
                 )
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
-                page.goto(f"http://127.0.0.1:{server.server_port}/web/#rul")
-                pw.expect(page.locator("#rul-state")).to_contain_text(
-                    "모델을 연결하면 잔여 수명 추정"
-                )
-                pw.expect(page.locator("#rul-chart>*")).to_have_count(0)
             finally:
                 browser.close()
     finally:

@@ -103,6 +103,9 @@ export function initializeSyntheticDemo() {
     const target = new URLSearchParams(location.search).get("return_to");
     if (target && /^http:\/\/127\.0\.0\.1:\d{2,5}\/web\/#monitor$/.test(target)) {
       const link = create("a", null, "내 작업공간으로 돌아가기");link.href = target;notice.append(link);
+      // From the example straight to the same steps with one's own file, in one's own workspace.
+      const own = create("a", null, "내 데이터로 해보기 (CSV)");own.href = target.replace(/#monitor$/, "#connect");
+      notice.append(" · ", own);
     }
     byId("phm-monitor").before(notice);
   }).catch(() => {});

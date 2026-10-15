@@ -3,7 +3,7 @@
 One SQLite store owns bindings, per-binding state, step results, review intervals and a change
 sequence. Each step commits its result (or skip reason), the updated state, interval changes and
 the cursor in one transaction, so a restart neither duplicates nor loses a step and stateful
-outputs (review intervals, RUL trajectories) continue exactly where they stopped.
+outputs (review intervals) continue exactly where they stopped.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from typing import Any
 from industrial_phm.models.package import (
     LoadedModelPackage,
     ModelPackageError,
-    ModelTask,
     StepKind,
 )
 
@@ -696,20 +695,6 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
             return StepEvaluation(StepState.SKIPPED, {}, next_state, step.skip_reason)
         assert step.features is not None
         next_state = dict(state)
-        # A remaining-life estimate is only as meaningful as its lifecycle endpoint, so RUL
-        # packages run only on inputs inside every condition they declare (dataset, operating
-        # condition, recorded replay, ...). Anomaly scores keep running and carry the flag.
-        if spec.task is ModelTask.RUL_ESTIMATE:
-            mismatch = _applicability_mismatch(manifest.applicability, step.context)
-            if mismatch is not None:
-                next_state.pop("feature_sequence", None)
-                next_state.pop("sequence_context", None)
-                return StepEvaluation(
-                    StepState.SKIPPED,
-                    {},
-                    next_state,
-                    f"RUL applicability unavailable: {mismatch}",
-                )
         sequence_positions = None
         inputs = step.features
         if length > 1:
@@ -746,44 +731,31 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
                 StepState.SKIPPED, {}, next_state, f"package evaluation failed: {error}"
             )
         applicability = _applicability(manifest.applicability, step.context).value
-        if spec.task is ModelTask.ANOMALY_SCORE:
-            assert spec.threshold is not None and rule is not None
-            exceeds = value > spec.threshold
-            tracker, writes = advance_review_interval(
-                state.get("interval") or {},
-                step,
-                score=value,
-                exceeds=exceeds,
-                min_consecutive_steps=rule.min_consecutive_steps,
-                max_gap_steps=rule.max_gap_steps,
-            )
-            output: dict[str, Any] = {
-                "task": spec.task.value,
-                "score": value,
-                "threshold": spec.threshold,
-                "exceeds_threshold": exceeds,
-                "applicability": applicability,
-            }
-            if sequence_positions is not None:
-                output["sequence_positions"] = sequence_positions
-            contributions = package.feature_contributions([inputs])
-            if contributions is not None:
-                output["feature_contributions"] = dict(contributions[0])
-            return StepEvaluation(
-                StepState.ANALYZED, output, {**next_state, "interval": tracker}, None, writes
-            )
-        previous = state.get("last_estimate")
-        output = {
+        assert spec.threshold is not None and rule is not None
+        exceeds = value > spec.threshold
+        tracker, writes = advance_review_interval(
+            state.get("interval") or {},
+            step,
+            score=value,
+            exceeds=exceeds,
+            min_consecutive_steps=rule.min_consecutive_steps,
+            max_gap_steps=rule.max_gap_steps,
+        )
+        output: dict[str, Any] = {
             "task": spec.task.value,
-            "estimate": value,
-            "unit": spec.unit,
-            "endpoint_semantics": spec.endpoint_semantics,
-            "change_from_previous": None if previous is None else value - float(previous),
+            "score": value,
+            "threshold": spec.threshold,
+            "exceeds_threshold": exceeds,
             "applicability": applicability,
         }
         if sequence_positions is not None:
             output["sequence_positions"] = sequence_positions
-        return StepEvaluation(StepState.ANALYZED, output, {**next_state, "last_estimate": value})
+        contributions = package.feature_contributions([inputs])
+        if contributions is not None:
+            output["feature_contributions"] = dict(contributions[0])
+        return StepEvaluation(
+            StepState.ANALYZED, output, {**next_state, "interval": tracker}, None, writes
+        )
 
     return evaluate
 
@@ -866,21 +838,6 @@ def _interval_write(tracker: Mapping[str, Any], *, open_: bool) -> IntervalWrite
         peak_step_key=tracker["peak_key"],
         open=open_,
     )
-
-
-def _applicability_mismatch(
-    rules: Mapping[str, Sequence[str]], context: Mapping[str, str]
-) -> str | None:
-    """Describe the first declared condition the step does not meet, if any."""
-    if not rules:
-        return "the package declares no applicability conditions"
-    for key, allowed in rules.items():
-        observed = context.get(key)
-        if observed is None:
-            return f"{key} is not stated by the input"
-        if observed not in allowed:
-            return f"{key}={observed} is outside {list(allowed)}"
-    return None
 
 
 def _applicability(rules: Mapping[str, Sequence[str]], context: Mapping[str, str]) -> Applicability:

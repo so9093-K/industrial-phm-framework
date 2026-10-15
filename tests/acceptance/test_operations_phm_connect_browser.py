@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 from threading import Thread
 
 import pytest
 
-from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
-from industrial_phm.models.package import StepKind
+from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_config import (
     OperationsUiConfig,
     write_operations_runtime_config,
@@ -54,16 +56,11 @@ def test_connecting_a_model_from_the_anomaly_tab_shows_its_scores(
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 base = f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a"
-                page.goto(base + "#rul")
-                rul = page.locator("#rul-connect")
-                pw.expect(rul).to_contain_text("연결할 수 있는 RUL 모델")
-                pw.expect(rul).to_contain_text("synthetic-rul-v1")
-
                 page.goto(base + "#anomaly")
                 panel = page.locator("#anomaly-connect")
                 pw.expect(panel).to_contain_text("연결할 수 있는 이상 탐지 모델")
-                pw.expect(panel).not_to_contain_text("synthetic-rul-v1")
-                panel.get_by_role("button", name="진동 변화 탐지 모델 연결").click()
+                pw.expect(panel).to_contain_text("synthetic-vertical-score-v1")
+                panel.get_by_role("button", name="진동 변화 탐지 모델 연결").first.click()
                 pw.expect(page.locator("#anomaly-binding")).to_be_enabled()
                 pw.expect(panel).to_be_empty()
                 pw.expect(page.locator("#anomaly-state")).to_contain_text("저장된 입력 분석 대기")
@@ -147,7 +144,7 @@ def test_supervised_runner_analyzes_a_web_connection_without_a_manual_analysis_c
             try:
                 page = browser.new_page(locale="ko-KR")
                 page.goto(f"http://127.0.0.1:{port}/web/?monitor_asset=bearing-a#anomaly")
-                page.get_by_role("button", name="진동 변화 탐지 모델 연결").click()
+                page.get_by_role("button", name="진동 변화 탐지 모델 연결").first.click()
                 pw.expect(page.locator("#anomaly-cards > *").first).to_be_visible(timeout=15000)
                 pw.expect(page.locator("#asset-switch")).to_have_value("bearing-a")
                 store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -161,14 +158,30 @@ def test_supervised_runner_analyzes_a_web_connection_without_a_manual_analysis_c
 
 def test_delayed_model_candidates_do_not_replace_the_newly_selected_asset(tmp_path: Path) -> None:
     pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
     workspace = phm_workspace(tmp_path / "ws", bind=False)
     deliver(workspace, tmp_path / "waves", 1, 0.5)
     models = project_phm_models(workspace, "bearing-a")
-    rul = next(p for p in models["packages"] if p["task"] == "rul-estimate")
-    SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(
-        PhmBinding(
-            "pump-rul", rul["package_id"], "pump-input", "pump-b", StepKind.ACQUISITION_SNAPSHOT, T0
-        )
+    # pump-b has stored measurements but no model input stream.
+    DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    ).append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:pump:{'f' * 64}:{index}",
+                source_id="pump-file",
+                asset_id="pump-b",
+                channel_id="current",
+                source_file="pump.csv",
+                source_sha256="f" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=T0 + timedelta(minutes=index),
+                value=1.0 + index,
+            )
+            for index in range(5)
+        ),
+        batch_id="pump",
     )
     server = create_operations_web_read_server(workspace.root)
     thread = Thread(target=server.serve_forever, daemon=True)

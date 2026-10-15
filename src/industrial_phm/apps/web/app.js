@@ -11,6 +11,8 @@ import { currentAsset, initializeAssetContext, onAssetChange, registerAssets } f
 import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 import { initializeSignalExplore } from "./signal-explore.js";
+import { initializeCapabilities } from "./capabilities.js";
+import { initializeForecast } from "./forecast.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
 let phmModelCount = 0;
@@ -265,7 +267,7 @@ async function refresh() {
   clear(byId("trend-results"));
   clear(byId("last-values"));
   trendState("현재 설비의 측정 이력을 다시 확인합니다.");
-  byId("refresh").disabled = !["anomaly", "rul"].includes(document.body.dataset.view);
+  byId("refresh").disabled = document.body.dataset.view !== "anomaly";
   setNotice("저장된 관측 현황을 불러오는 중입니다.");
   try {
     const data = await getJSON("/api/v1/monitor");
@@ -312,7 +314,7 @@ async function refresh() {
   }
 }
 byId("refresh").addEventListener("click",() => {
-  if (["anomaly", "rul"].includes(document.body.dataset.view)) {void refreshPhm();return;}
+  if (document.body.dataset.view === "anomaly") {void refreshPhm();return;}
   if (document.body.dataset.view === "monitor") {void refreshMonitor({force: true});return;}
   refresh();loadSources();loadRuntimeStatus();
 });
@@ -334,6 +336,8 @@ byId("start-file").addEventListener("click", () => navigate("#connect", byId("cs
 byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").open = true;navigate("#connect", byId("opcua-form").querySelector('input[name="source_id"]'));});
 initializeCsvStart();
 initializeSignalExplore();
+initializeCapabilities();
+initializeForecast();
 records.initialize();loadRuntimeStatus();
 // Automatic Monitor updates retain selection/forms and never call condition fitting or history trends.
 async function readMonitorFacts() {

@@ -3,14 +3,14 @@ const views = {
   monitor: ["설비 모니터링", "설비를 고르고 실제 측정 신호와 변화를 확인합니다."],
   signals: ["설비 모니터링", "선택 설비의 여러 신호를 같은 기간으로 비교합니다."],
   anomaly: ["설비 모니터링", "선택 설비의 이상 점수와 기준 초과 구간, 관련 신호를 확인합니다."],
-  rul: ["설비 모니터링", "선택 설비의 잔여 수명 추정과 시점별 변화를 확인합니다."],
+  forecast: ["설비 모니터링", "선택 설비의 측정값이 앞으로 어떻게 변할지 저장된 흐름으로 예측합니다."],
   evidence: ["설비 모니터링", "선택 설비의 저장된 분석 결과를 확인하고 메모를 남깁니다."],
   connect: ["데이터 연결", "CSV 파일이나 OPC UA 설비를 연결하고 저장 상태를 확인합니다."],
   system: ["시스템 상태", "로컬 서비스와 저장소 상태를 확인합니다."],
 };
 // Asset views are tabs of one Monitor; retired routes open their replacement.
-const ASSET_VIEWS = new Set(["monitor", "signals", "anomaly", "rul", "evidence"]);
-const RETIRED = {review: "evidence", research: "monitor"};
+const ASSET_VIEWS = new Set(["monitor", "signals", "anomaly", "forecast", "evidence"]);
+const RETIRED = {review: "evidence", research: "monitor", rul: "forecast"};
 
 export function renderView() {
   let route = location.hash.slice(1) || "monitor";

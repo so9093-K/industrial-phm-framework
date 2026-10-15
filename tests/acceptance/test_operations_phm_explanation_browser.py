@@ -120,7 +120,7 @@ def test_question_gets_a_checked_answer_linked_to_signals_and_review_moves_throu
                 pw.expect(flow.locator("tr").nth(1)).to_contain_text("기록 부족")
                 related = card.locator(".phm-answer-related li")
                 pw.expect(related).to_have_count(1)
-                pw.expect(related).to_have_text("잔여수명 추정 · 34.41 → 4.223 · 입력 #4 한 입력")
+                pw.expect(related).to_contain_text("진동 변화 탐지 · ")
                 pw.expect(related).to_contain_text("입력 #4 한 입력")
                 assert received[-1]["signal_comparison"]["previous_position"] == 1
                 assert received[-1]["question"] == "수평 진동은 어떻게 달라졌나요?"
@@ -304,7 +304,7 @@ def test_read_only_header_opens_comparison_and_rul_explains_evaluation_scope(
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 if session_failed:
                     page.route("**/api/v1/session", lambda route: route.abort())
-                for view in ("anomaly", "rul"):
+                for view in ("anomaly",):
                     page.goto(f"http://127.0.0.1:{server.server_port}/web/#{view}")
                     assistant = page.locator(f"#{view}-assistant")
                     action = page.locator(f"#{view}-ask")
@@ -323,92 +323,7 @@ def test_read_only_header_opens_comparison_and_rul_explains_evaluation_scope(
                         pw.expect(assistant).to_contain_text("질문 권한을 확인하지 못했습니다")
                     assistant.get_by_label("비교 시점").select_option("1")
                     pw.expect(action).to_have_text("측정값 비교 보기")
-                    if view == "rul":
-                        note = page.locator("#rul-validation-note")
-                        pw.expect(note).to_contain_text("평균 절대 오차")
-                        pw.expect(note).to_contain_text("오차 범위나 신뢰구간은 아닙니다")
-                        pw.expect(page.locator("#rul-cards")).to_contain_text(
-                            "모델 추정값의 변화이며 실제 경과 시간이 아닙니다"
-                        )
-                        cards = page.locator("#rul-cards").inner_text()
-                        note.get_by_role("button", name="평가 대상·적용 범위 보기").click()
-                        model = page.locator("#rul-model")
-                        pw.expect(model).to_be_focused()
-                        pw.expect(model).to_have_attribute("open", "")
-                        pw.expect(model).to_contain_text("등록된 평가 대상")
-                        pw.expect(model).to_contain_text("bearing-a")
-                        pw.expect(model).to_contain_text("적용 운전 조건")
-                        pw.expect(page.locator("#rul-cards")).to_have_text(
-                            cards, use_inner_text=True
-                        )
-                        pw.expect(page.locator("#rul-position")).to_have_value("2")
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-                assert not errors, errors
-            finally:
-                browser.close()
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=10)
-
-
-@pytest.mark.parametrize("width", [390, 1024, 1440])
-def test_rul_answer_keeps_the_selected_feature_and_original_channel_together(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
-) -> None:
-    pw = pytest.importorskip("playwright.sync_api")
-    workspace = phm_workspace(tmp_path / "ws")
-    for position, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
-        deliver(workspace, tmp_path / "waves", position, scale)
-    analyze(workspace)
-    rms = "feature.Horizontal_vibration_signals.rms"
-    monkeypatch.setattr(
-        phm_answer,
-        "complete_json",
-        ScriptedModel(
-            {
-                "summary": "잔여 구간 추정이 감소했고 수평 진동 RMS가 증가했습니다.",
-                "observations": [{"feature": rms, "change": "증가"}],
-                "next_signals": [],
-                "next_step": "수평 진동 파형을 확인해 보세요.",
-            }
-        ),
-    )
-    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
-    root = workspace.root.resolve()
-    server = create_operations_web_read_server(root, command_client=_InProcessSupervisor(root))  # type: ignore[arg-type]
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch()
-            try:
-                page = browser.new_page(viewport={"width": width, "height": 900})
-                errors: list[str] = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(f"http://127.0.0.1:{server.server_port}/web/#rul")
-                action = page.locator("#rul-ask")
-                pw.expect(action).to_have_text("이 변화 질문하기")
-                action.click()
-                assistant = page.locator("#rul-assistant")
-                pw.expect(assistant.get_by_label("분석 질문")).to_be_focused()
-                assistant.get_by_label("비교 시점").select_option("1")
-                assistant.get_by_role("button", name="AI에 질문").click()
-                assistant.locator(".phm-answer-signals").get_by_role(
-                    "button", name="수평 진동 RMS"
-                ).click()
-                original = assistant.locator(".phm-comparison-original")
-                pw.expect(original.locator(".phm-original-context")).to_have_text(
-                    "선택한 특징: 수평 진동 RMS · 관련 원본: 수평 진동 파형 #4"
-                )
-                pw.expect(original).to_contain_text("파형에서 계산한 값")
-                pw.expect(original.locator(".phm-original-selected")).to_have_count(1)
-                pw.expect(original.locator(".phm-original-selected")).to_have_attribute(
-                    "data-channel", "Horizontal_vibration_signals"
-                )
-                pw.expect(original.locator(".phm-wave")).to_have_count(2)
-                pw.expect(page.locator("#rul-position")).to_have_value("4")
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                 assert not errors, errors
             finally:
                 browser.close()

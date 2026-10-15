@@ -23,8 +23,6 @@ from industrial_phm.experiments.xjtu_finalized import get_xjtu_finalized_configu
 from industrial_phm.experiments.xjtu_model_input import (
     fit_xjtu_preprocessing_and_prepare_model_input,
 )
-from industrial_phm.experiments.xjtu_rul import build_xjtu_recorded_end_rul_targets
-from industrial_phm.experiments.xjtu_rul_feature_baseline import fit_xjtu_feature_rul_baseline
 from industrial_phm.features import VibrationFeatureVector
 from industrial_phm.models import ModelScoringInput, fit_isolation_forest
 from industrial_phm.models.isolation_forest import isolation_forest_parameters
@@ -40,7 +38,6 @@ from industrial_phm.models.package import (
     StepKind,
     write_model_package,
 )
-from industrial_phm.models.rul_ridge_regression import ridge_linear_state
 
 XJTU_ANOMALY_THRESHOLD_QUANTILE = 0.995
 XJTU_REVIEW_INTERVAL_RULE = ReviewIntervalRule(min_consecutive_steps=2, max_gap_steps=1)
@@ -59,17 +56,13 @@ def build_xjtu_fold_1_packages(
     created_at: datetime,
     code_revision: str,
     evidence_root: Path,
-) -> tuple[ModelPackageManifest, ModelPackageManifest]:
-    """Fit and write the fold-1 Isolation Forest anomaly and Ridge RUL packages."""
+) -> ModelPackageManifest:
+    """Fit and write the fold-1 Isolation Forest anomaly package."""
     fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == "fold-1")
-    input_spec = _input_spec()
     anomaly = _anomaly_build(
-        train_vectors, input_spec, fold.train, created_at, code_revision, evidence_root
+        train_vectors, _input_spec(), fold.train, created_at, code_revision, evidence_root
     )
-    rul = _rul_build(
-        train_vectors, input_spec, fold.train, created_at, code_revision, evidence_root
-    )
-    return write_model_package(models_root, anomaly), write_model_package(models_root, rul)
+    return write_model_package(models_root, anomaly)
 
 
 def _input_spec() -> PackageInputSpec:
@@ -148,83 +141,6 @@ def _anomaly_build(
             "score_semantics": "higher is more anomalous; not a failure probability",
         },
         applicability={"operating_condition": list(XJTU_OPERATING_CONDITIONS)},
-        created_at=created_at.isoformat(),
-        code_revision=code_revision,
-    )
-
-
-def _rul_build(
-    train_vectors: Sequence[VibrationFeatureVector],
-    input_spec: PackageInputSpec,
-    train_assets: Sequence[str],
-    created_at: datetime,
-    code_revision: str,
-    evidence_root: Path,
-) -> PackageBuild:
-    targets = build_xjtu_recorded_end_rul_targets(train_vectors, partition="train")
-    fitted = fit_xjtu_feature_rul_baseline(train_vectors, targets)
-    coefficients, intercept = ridge_linear_state(fitted.model)
-    validation = _evidence(evidence_root, "xjtu-sy-rul-three-model-fold-1-validation-v1.json")
-    method = next(
-        m
-        for m in validation["document"]["methods"]
-        if m["method_id"] == fitted.config.experiment_id
-    )
-    names = tuple(fitted.config.selected_features)
-    probe = [
-        [dict(zip(v.feature_names, v.values, strict=True))[name] for name in names]
-        for v in train_vectors[:_PROBE_ROWS]
-    ]
-    return PackageBuild(
-        recipe_id=fitted.config.experiment_id,
-        estimator_kind=EstimatorKind.LINEAR,
-        input=input_spec,
-        output=PackageOutputSpec(
-            task=ModelTask.RUL_ESTIMATE,
-            value_name="remaining_acquisition_intervals",
-            unit="acquisition-interval",
-            endpoint_semantics="last-recorded-acquisition",
-            step_period_seconds=_ACQUISITION_PERIOD_SECONDS,
-        ),
-        preprocessing=AffinePreprocessing(
-            fitted.preprocessing_state.fitted_center, fitted.preprocessing_state.fitted_scale
-        ),
-        estimator_state={"coefficients": list(coefficients), "intercept": intercept},
-        fit_rows=None,
-        probe_rows=probe,
-        training_scope={
-            "dataset_id": fitted.config.dataset_id,
-            "split_id": fitted.config.split_id,
-            "fold_id": fitted.config.fold_id,
-            "partition": "train",
-            "asset_ids": list(train_assets),
-            "sampling_policy_id": fitted.config.sampling_policy_id,
-            "complete_train_observation_count": fitted.preprocessing_state.observation_count,
-            "target_definition": "N-k acquisition intervals to the last recorded acquisition",
-        },
-        validation={
-            "evidence_class": validation["document"]["provenance"]["evidence_class"],
-            "artifact": validation["artifact"],
-            "artifact_sha256": validation["sha256"],
-            "mean_asset_mean_absolute_error": method["evaluation"][
-                "mean_asset_mean_absolute_error"
-            ],
-            "per_asset": [
-                {
-                    "asset_id": item["asset_id"],
-                    "mean_absolute_error": item["mean_absolute_error"],
-                    "mean_signed_error": item["mean_signed_error"],
-                }
-                for item in method["evaluation"]["bearings"]
-            ],
-            "uncertainty": "not validated in RUL v1; no interval is reported",
-        },
-        applicability={
-            "dataset_id": ["xjtu-sy"],
-            "operating_condition": list(XJTU_OPERATING_CONDITIONS),
-            # Remaining life is defined to the dataset's last recorded acquisition.
-            "recorded_replay": ["true"],
-        },
         created_at=created_at.isoformat(),
         code_revision=code_revision,
     )

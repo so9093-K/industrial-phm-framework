@@ -1,6 +1,7 @@
 import {navigate} from "./navigation.js";
 import {drawStoredTrend} from "./monitor-signal.js";
 import {openMonitorAsset} from "./monitor.js";
+import {loadCapabilities} from "./capabilities.js";
 import {formatTime} from "./time.js";
 // First data from one CSV file: see the file's own signals, check it on the server, then run the
 // existing register → activate → receipt → history writes as one visible sequence. Each write
@@ -509,6 +510,9 @@ function finish() {
     : "신호 통계 분석은 저장된 CSV의 1 MiB 이하 원본을 사용합니다.";
   analyze.onclick = () => document.dispatchEvent(new CustomEvent("file-analysis-request",
     {detail: {sourceId: values.source_id, button: analyze, output: byId("csv-start-analyze-result")}}));
+  // Right where the data arrived: what this stored data supports, and what it would still need.
+  const capabilities = byId("csv-start-capabilities");capabilities.hidden = false;
+  void loadCapabilities(capabilities, values.asset_id);
   open.focus();
 }
 

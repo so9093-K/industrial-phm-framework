@@ -31,9 +31,6 @@ from industrial_phm.commands.experiment import (
     _run_experiment_mimii_external_evaluate,
     _run_experiment_mimii_external_score,
     _run_experiment_reference_compare,
-    _run_experiment_rul_baseline_validation,
-    _run_experiment_rul_benchmark,
-    _run_experiment_rul_validation,
     _run_experiment_validate,
 )
 from industrial_phm.commands.feature import _run_feature_characterize
@@ -80,12 +77,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--asset",
         required=True,
         help="asset identity to render",
-    )
-    analysis_report.add_argument(
-        "--prognostics",
-        type=Path,
-        default=None,
-        help="optional compatible prognostics evidence artifact",
     )
     analysis_report.add_argument(
         "--output",
@@ -502,78 +493,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="full Git commit SHA for the exact execution code",
     )
     experiment_lstm_development.set_defaults(handler=_run_experiment_lstm_development)
-
-    experiment_rul_baseline_validation = experiment_commands.add_parser(
-        "rul-baseline-validation",
-        help="run frozen XJTU age-only and feature-Ridge RUL validation baselines",
-    )
-    experiment_rul_baseline_validation.add_argument("dataset_id")
-    experiment_rul_baseline_validation.add_argument(
-        "--source",
-        type=Path,
-        required=True,
-        help="prepared local XJTU-SY source consumed by the Domain Adapter",
-    )
-    experiment_rul_baseline_validation.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="destination for the generated RUL baseline validation result JSON",
-    )
-    experiment_rul_baseline_validation.add_argument(
-        "--code-revision",
-        required=True,
-        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
-    )
-    experiment_rul_baseline_validation.set_defaults(handler=_run_experiment_rul_baseline_validation)
-
-    experiment_rul_validation = experiment_commands.add_parser(
-        "rul-validation",
-        help="run frozen XJTU age, Ridge, and temporal-LSTM RUL validation comparison",
-    )
-    experiment_rul_validation.add_argument("dataset_id")
-    experiment_rul_validation.add_argument(
-        "--source",
-        type=Path,
-        required=True,
-        help="prepared local XJTU-SY source consumed by the Domain Adapter",
-    )
-    experiment_rul_validation.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="destination for the generated three-model RUL validation result JSON",
-    )
-    experiment_rul_validation.add_argument(
-        "--code-revision",
-        required=True,
-        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
-    )
-    experiment_rul_validation.set_defaults(handler=_run_experiment_rul_validation)
-
-    experiment_rul_benchmark = experiment_commands.add_parser(
-        "rul-benchmark",
-        help="run frozen validation-selected XJTU LSTM on the fold-1 held-out benchmark",
-    )
-    experiment_rul_benchmark.add_argument("dataset_id")
-    experiment_rul_benchmark.add_argument(
-        "--source",
-        type=Path,
-        required=True,
-        help="prepared local XJTU-SY source consumed by the Domain Adapter",
-    )
-    experiment_rul_benchmark.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="destination for the generated frozen RUL benchmark result JSON",
-    )
-    experiment_rul_benchmark.add_argument(
-        "--code-revision",
-        required=True,
-        help="full Git commit SHA; must match current clean tracked Git checkout HEAD",
-    )
-    experiment_rul_benchmark.set_defaults(handler=_run_experiment_rul_benchmark)
 
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",

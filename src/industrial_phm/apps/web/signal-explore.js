@@ -13,6 +13,20 @@ const svgNode = (name, attributes = {}) => {
   return node;
 };
 let sources = null, kind = null, loadedKey = "", request = 0, loadTicket = 0;
+// A question chosen elsewhere (the overview's list of what the data supports) runs once the
+// comparison for its asset is ready.
+let readyFor = "", pendingGoal = null;
+export function requestExploreGoal(goal) {
+  pendingGoal = goal ? {goal, asset: currentAsset()} : null;
+  if (pendingGoal && readyFor === pendingGoal.asset) runPendingGoal();
+}
+function runPendingGoal() {
+  const {goal, asset} = pendingGoal;
+  pendingGoal = null;
+  if (asset !== currentAsset()) return;
+  const button = byId("explore-goals").querySelector(`[data-explore-goal="${goal}"]`);
+  if (button && !button.hidden && !button.disabled) button.click();
+}
 // An answer belongs to the comparison it was asked for: a newer comparison, asset or
 // axis choice makes it stale.
 const stale = (owner, box) => owner !== request || !box.isConnected;
@@ -29,7 +43,13 @@ const params = () => new URL(location.href).searchParams;
 const viewKey = () => [currentAsset(), ...["explore_kind", "explore_series", "explore_a", "explore_b"].map((k) => params().get(k) || "")].join("|");
 
 export function initializeSignalExplore() {
-  onAssetChange(() => {loadedKey = "";if (document.body.dataset.view === "signals") void load();});
+  onAssetChange(() => {
+    // A comparison's signals and ranges belong to the asset they were chosen for.
+    const url = new URL(location.href);
+    for (const key of ["explore_kind", "explore_series", "explore_a", "explore_b"]) url.searchParams.delete(key);
+    history.replaceState(history.state, "", url);
+    loadedKey = "";if (document.body.dataset.view === "signals") void load();
+  });
   // The signal flow hands over its window and signals as two halves to compare.
   document.addEventListener("explore-request", (event) => {
     const url = new URL(location.href);
@@ -43,9 +63,11 @@ export function initializeSignalExplore() {
 
 async function load() {
   const asset = currentAsset(), ticket = ++loadTicket;
-  loadedKey = viewKey();
+  loadedKey = viewKey();readyFor = "";
   request++;
   for (const id of ["explore-controls", "explore-quality", "explore-results"]) clear(byId(id));
+  byId("explore-guide").hidden = true;
+  byId("explore-result-intro").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
   state("비교할 수 있는 측정을 확인합니다.");
   let found;
@@ -58,7 +80,11 @@ async function load() {
   if (!kinds.length) {state("이 설비에는 비교할 저장 측정이 없습니다. 측정 이력을 저장하거나 모델을 연결하면 여기서 비교할 수 있습니다.");return;}
   kind = kinds.includes(params().get("explore_kind")) ? params().get("explore_kind") : kinds[0];
   renderControls(kinds);
+  byId("explore-guide").hidden = false;
   await compare();
+  if (ticket !== loadTicket || asset !== currentAsset()) return;
+  readyFor = asset;
+  if (pendingGoal) runPendingGoal();
 }
 
 function seriesChoices() {
@@ -78,7 +104,9 @@ function defaultSeries(choices) {
 
 // Default periods: the first and second half of what is stored; a link can name others.
 function defaultPeriods() {
-  const parse = (value) => (value || "").split("~");
+  // A range written for the other kind of data (numbers vs times) is not this one's.
+  const fits = (value) => kind === "acquisition" ? /^\d+$/.test(value) : /^\d{4}-\d{2}-\d{2}T/.test(value);
+  const parse = (value) => {const parts = (value || "").split("~");return parts.length === 2 && parts.every(fits) ? parts : [];};
   const [aFrom, aTo] = parse(params().get("explore_a")), [bFrom, bTo] = parse(params().get("explore_b"));
   if (kind === "acquisition") {
     const {first, last} = sources.acquisition;
@@ -154,6 +182,7 @@ function renderControls(kinds) {
   run.addEventListener("click", () => void compare());
   presets.append(run);
   root.append(presets);
+  initializeGuidedGoals(choices);
 }
 
 function setPeriods([a0, a1, b0, b1]) {
@@ -169,10 +198,58 @@ function setPeriods([a0, a1, b0, b1]) {
   ["a-0", "a-1", "b-0", "b-1"].forEach((id, index) => {byId("explore-" + id).value = at([a0, a1, b0, b1][index]);});
 }
 
+function initializeGuidedGoals(choices) {
+  const root = byId("explore-goals"), hint = byId("explore-goal-hint");
+  for (const button of root.querySelectorAll("[data-explore-goal]")) {
+    const goal = button.dataset.exploreGoal;
+    button.hidden = goal === "spectrum" && kind !== "acquisition";
+    button.disabled = goal === "relation" && choices.length < 2;
+    button.onclick = async () => {
+      for (const other of root.querySelectorAll("[data-explore-goal]")) {
+        other.setAttribute("aria-pressed", String(other === button));
+      }
+      if (goal === "trend") {
+        hint.textContent = "위 신호 흐름에서 측정 신호와 기간을 고르면 실제 측정 시각을 따라 확인할 수 있습니다.";
+        const target = byId("signals");
+        target.scrollIntoView({block: "start"});
+        target.tabIndex = -1;
+        target.focus({preventScroll: true});
+        return;
+      }
+      if (goal === "compare") {
+        setPeriods([0, 0.25, 0.75, 1]);
+        hint.textContent = "처음 1/4과 마지막 1/4 구간을 비교합니다. 필요하면 아래에서 기간을 직접 수정하세요.";
+      }
+      if (goal === "relation") {
+        const boxes = [...byId("explore-series").querySelectorAll("input[type=checkbox]")];
+        const selected = boxes.filter((box) => box.checked);
+        for (const box of boxes) {
+          if (selected.length >= 2) break;
+          if (!box.checked) {box.checked = true;selected.push(box);}
+        }
+        boxes[0]?.dispatchEvent(new Event("change"));
+        hint.textContent = "동일한 시각·획득의 관측을 짝지어 비교합니다. 상관관계는 고장 원인을 증명하지 않습니다.";
+      }
+      if (goal === "spectrum") {
+        hint.textContent = "원본 진동 파형을 사용하는 주파수 분석입니다. 특정 고장 주파수나 고장 원인을 확정하지 않습니다.";
+      }
+      const success = await compare();
+      if (!success) return;
+      const target = byId("explore-results")?.querySelector(goal === "relation" ? ".explore-relation" : goal === "spectrum" ? ".explore-spectrum" : ".explore-series");
+      if (goal === "spectrum") target?.querySelector("button")?.click();
+      if (target) {
+        target.scrollIntoView({block: "start"});
+        target.tabIndex = -1;
+        target.focus({preventScroll: true});
+      }
+    };
+  }
+}
+
 async function compare() {
   const asset = currentAsset();
   const series = [...byId("explore-series").querySelectorAll("input:checked")].map((input) => input.value);
-  if (!series.length) {state("비교할 항목을 하나 이상 고르세요.", true);return;}
+  if (!series.length) {state("비교할 항목을 하나 이상 고르세요.", true);return false;}
   const values = {};
   try {
     for (const id of ["a-0", "a-1", "b-0", "b-1"]) {
@@ -180,7 +257,7 @@ async function compare() {
       values[id] = kind === "history" ? kstInputToInstant(raw) : String(Math.trunc(Number(raw)));
       if (kind === "acquisition" && !/^\d+$/.test(values[id])) throw new Error("bad");
     }
-  } catch {state("구간의 시작과 끝을 확인하세요.", true);return;}
+  } catch {state("구간의 시작과 끝을 확인하세요.", true);return false;}
   const query = new URLSearchParams({asset_id: asset, kind, a_from: values["a-0"], a_to: values["a-1"], b_from: values["b-0"], b_to: values["b-1"]});
   for (const key of series) query.append("series", key);
   const url = new URL(location.href);
@@ -191,12 +268,15 @@ async function compare() {
   state("두 구간의 저장 측정을 계산합니다.");
   try {
     const data = await getJson("/api/v1/explore/profile?" + query.toString());
-    if (ticket !== request || asset !== currentAsset()) return;
+    if (ticket !== request || asset !== currentAsset()) return false;
     render(data);
+    return true;
   } catch (error) {
     if (ticket !== request) return;
     clear(byId("explore-quality"));clear(byId("explore-results"));
     state(error.status === 400 ? "구간을 확인하세요. 각 구간은 시작이 끝보다 앞서야 하고 31일을 넘을 수 없습니다." : "구간 비교를 계산하지 못했습니다.", true);
+    byId("explore-result-intro").hidden = true;
+    return false;
   }
 }
 
@@ -212,6 +292,11 @@ function render(data) {
   clear(quality);clear(results);
   if (!data.series.length) {state("선택한 구간에 저장된 측정이 없습니다.");return;}
   state(KIND_LABEL[data.kind] + " · 구간 A " + rangeText(data, "a") + " · 구간 B " + rangeText(data, "b"));
+  const intro = byId("explore-result-intro");
+  const comparable = data.series.filter((item) => item.periods.a?.quantiles && item.periods.b?.quantiles).length;
+  intro.hidden = false;
+  intro.textContent = "선택한 " + data.series.length + "개 항목 중 " + comparable + "개에서 두 구간의 대표값을 비교할 수 있습니다. "
+    + "구간 A는 사용자가 고른 비교 구간이며 정상·안전 기준이 아닙니다. 값의 차이가 곧 설비 고장 원인은 아닙니다.";
   for (const name of ["a", "b"]) quality.append(qualityCard(data, name));
   for (const item of data.series) results.append(seriesCard(item));
   const links = modelLinks(data);
@@ -304,7 +389,8 @@ function relationView(relation, choices) {
     table.append(row);
   }
   const how = relation.pairing === "same-acquisition" ? "같은 획득의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
-  const notes = [create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다.")];
+  const notes = [create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다."),
+    create("p", "explore-interpretation", "Pearson은 직선 관계, Spearman은 값의 순서가 함께 변하는 경향을 요약합니다. 같은 방향으로 움직여도 한 신호가 다른 신호의 원인이라는 뜻은 아닙니다.")];
   if (split) notes.push(create("p", "muted", "측정 해석(단위·의미)이 바뀐 기록은 따로 계산했고, 산점도에는 짝이 가장 많은 해석만 그렸습니다."));
   for (const group of relation.groups.filter((item) => item.sampled)) {
     notes.push(create("p", "muted", "구간 " + group.period.toUpperCase() + "은 분석된 획득 " + num(group.analyzed_count)
@@ -320,7 +406,9 @@ function spectrumSection(data) {
   // Reading raw waveforms takes a moment, so it runs when asked, not with every comparison.
   const output = create("div");
   const start = create("button", "secondary", "주파수 성분 계산");start.type = "button";
-  output.append(create("p", "muted", "구간마다 처음부터 끝까지 고르게 고른 원본 파형 최대 8개로 계산합니다."), start);
+  output.append(create("p", "explore-interpretation",
+    "실제 진동 파형을 주파수별로 나누어 두 구간의 차이를 살펴봅니다. 특정 부품 고장이나 고장 원인을 확정하는 분석은 아닙니다."),
+    create("p", "muted", "구간마다 처음부터 끝까지 고르게 고른 원본 파형 최대 8개로 계산합니다."), start);
   box.append(output);
   const owner = request;
   const run = async () => {
@@ -395,6 +483,8 @@ function qualityCard(data, name) {
   const list = create("dl");
   for (const [term, value] of lines) list.append(create("dt", null, term), create("dd", null, typeof value === "number" ? num(value) : value));
   card.append(list);
+  if (data.kind === "history" && data.series.length > 1) card.append(create("p", "muted",
+    "여러 신호를 선택한 경우 이 카드의 측정 개수는 신호별 집계의 합입니다. 같은 시각의 기록이 여러 번 포함될 수 있습니다."));
   return card;
 }
 
@@ -415,6 +505,10 @@ function seriesCard(item) {
       lead.append(create("span", null, " · B 값의 " + change.b_outside_a_band_percent.toLocaleString("ko-KR", {maximumFractionDigits: 0}) + "%가 A의 5–95% 범위 밖"));
     }
     card.append(lead);
+    const direction = b.quantiles[2] > a.quantiles[2] ? "높습니다" : b.quantiles[2] < a.quantiles[2] ? "낮습니다" : "같습니다";
+    card.append(create("p", "explore-interpretation",
+      "살펴볼 구간 B의 중앙값은 비교 구간 A보다 " + direction
+      + ". 중앙값은 값을 크기순으로 놓았을 때 가운데 값이며, 증가·감소만으로 설비의 이상이나 원인을 확정할 수 없습니다."));
     card.append(chart(item));
   } else {
     card.append(create("p", "empty", !a.quantiles && !b.quantiles ? "두 구간 모두 사용할 수 있는 값이 없습니다." : (a.quantiles ? "구간 B" : "구간 A") + "에 사용할 수 있는 값이 없습니다."));
@@ -496,19 +590,16 @@ function chart(item) {
 // From two acquisition ranges to the model results that read them.
 function modelLinks(data) {
   if (data.kind !== "acquisition") return null;
-  const models = (sources.acquisition.models || []).filter((model) => model.task === "anomaly-score" || model.task === "rul-estimate");
-  if (!models.length) return null;
+  const model = (sources.acquisition.models || []).find((item) => item.task === "anomaly-score");
+  if (!model) return null;
   const box = create("p", "explore-links");
-  const seen = new Set();
-  for (const model of models) {
-    const view = model.task === "anomaly-score" ? "anomaly" : "rul";
-    if (seen.has(view)) continue;
-    seen.add(view);
+  {
+    const view = "anomaly";
     const url = new URL(location.href);
     url.searchParams.set("phm_binding", model.binding_id);url.searchParams.set("phm_position", data.periods.b.to);
     url.searchParams.set("phm_view", view);url.searchParams.set("phm_compare", data.periods.a.to);
     url.hash = view;
-    const link = create("a", null, (view === "anomaly" ? "이상 탐지" : "잔여 수명") + "에서 #" + data.periods.a.to + " → #" + data.periods.b.to + " 비교 보기");
+    const link = create("a", null, "이상 탐지에서 #" + data.periods.a.to + " → #" + data.periods.b.to + " 비교 보기");
     link.href = url.pathname + url.search + url.hash;
     box.append(link);
   }

@@ -46,7 +46,7 @@ def _number(value: float | None) -> float | None:
     return None if value is None or not math.isfinite(value) else float(value)
 
 
-def _unit(interpretation_json: str) -> str | None:
+def interpretation_unit(interpretation_json: str) -> str | None:
     data = json.loads(interpretation_json)
     for part in ("binding", "semantics"):
         item = data.get(part) if isinstance(data, dict) else None
@@ -134,7 +134,7 @@ def history_series(
                 "kind": "history",
                 "key": channel,
                 "label": channel,
-                "unit": _unit(interpretation),
+                "unit": interpretation_unit(interpretation),
                 "source_id": source,
                 "source_type": source_type,
                 "measurement_point_id": point or None,
@@ -337,8 +337,8 @@ def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, A
             "period": group.period,
             "source_id": group.source_id,
             "measurement_point_id": group.measurement_point_id,
-            "x_unit": _unit(group.x_interpretation_json),
-            "y_unit": _unit(group.y_interpretation_json),
+            "x_unit": interpretation_unit(group.x_interpretation_json),
+            "y_unit": interpretation_unit(group.y_interpretation_json),
             "meaning_id": hashlib.sha256(
                 (group.x_interpretation_json + "\0" + group.y_interpretation_json).encode()
             ).hexdigest()[:16],

@@ -4,9 +4,9 @@ import { drawSignal, signalChoices } from "./monitor-signal.js";
 import { formatTime } from "./time.js";
 import { assetName, currentAsset, onAssetChange, registerAssets, setAsset } from "./asset-context.js";
 import { modelFamily, renderModelConnect } from "./phm-connect.js";
-// PHM monitoring: anomaly detection and RUL are separate screens over stored model results.
+// PHM monitoring: the anomaly detection screen over stored model results.
 // All server strings enter the DOM as text. Values come only from persisted step results;
-// nothing here recomputes a score, an interval or an estimate.
+// nothing here recomputes a score or an interval.
 const byId = (id) => document.getElementById(id);
 const node = (tag, text = "", className = "") => {
   const element = document.createElement(tag);
@@ -23,14 +23,14 @@ const number = (value, digits = 3) => typeof value === "number" && Number.isFini
   ? value.toLocaleString("ko-KR", {maximumFractionDigits: digits}) : "값 없음";
 const time = (value) => formatTime(value);
 const POLL_MS = 3000;
-const TASK_LABEL = {"anomaly-score": "이상 점수", "rul-estimate": "RUL 추정"};
+const TASK_LABEL = {"anomaly-score": "이상 점수"};
 const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-window": "관측 윈도우"};
 // A rejected input is not a fault; it means this package was not trained or validated for it.
 const INPUT_GUIDE = "이 입력은 선택한 모델로 분석할 수 없습니다. "
   + "아래 모델 정보에서 필요한 입력 조건을 확인하고, 맞는 모델을 연결해야 합니다.";
 // Only skips where the package does not fit the input get that guidance. A sequence warm-up,
 // an unreadable file or a too-short window is not a reason to train another model.
-const INPUT_MISMATCH = /^(package expects |channels differ |sampling rate .+ differs |sample count .+ differs |unsupported feature set |fixed sampling rate or sample count |RUL applicability unavailable)/;
+const INPUT_MISMATCH = /^(package expects |channels differ |sampling rate .+ differs |sample count .+ differs |unsupported feature set |fixed sampling rate or sample count )/;
 const inputGuide = (reason) => INPUT_MISMATCH.test(reason || "") ? " · " + INPUT_GUIDE : "";
 const FEATURE_LABEL = {
   rms: "RMS", mean: "평균", standard_deviation: "표준편차", absolute_peak: "절대 피크",
@@ -39,11 +39,10 @@ const FEATURE_LABEL = {
 
 let bindings = [];
 const series = new Map();
-const selected = {anomaly: "", rul: ""};
+const selected = {anomaly: ""};
 const zoom = {anomaly: null};
 let chosenFeatures = [];
 let focusPosition = null;
-let rulFocusPosition = null;
 let pollTimer = null;
 let readError = "";
 let refreshedAt = null;
@@ -52,7 +51,7 @@ let requestedResult = null;
 const requestedParams = new URLSearchParams(location.search);
 if (requestedParams.has("phm_binding") || requestedParams.has("phm_position")) {
   const view = location.hash.slice(1), position = Number(requestedParams.get("phm_position"));
-  if (["anomaly", "rul"].includes(view)) requestedResult = {
+  if (view === "anomaly") requestedResult = {
     view, bindingId: requestedParams.get("phm_binding"), position,
     valid: Boolean(requestedParams.get("phm_binding")) && Number.isSafeInteger(position) && position > 0,
   };
@@ -60,7 +59,7 @@ if (requestedParams.has("phm_binding") || requestedParams.has("phm_position")) {
 
 function activeView() {
   const view = document.body.dataset.view;
-  return view === "anomaly" || view === "rul" ? view : null;
+  return view === "anomaly" ? view : null;
 }
 
 async function getJson(url) {
@@ -96,7 +95,7 @@ async function refreshSeries(bindingId) {
   return entry;
 }
 
-// Anomaly and RUL are tabs of the selected asset: only that asset's models are offered.
+// Anomaly detection is a tab of the selected asset: only that asset's models are offered.
 function bindingsFor(task) {
   const asset = currentAsset();
   return bindings.filter((item) => item.package && item.package.output && item.package.output.task === task
@@ -339,7 +338,7 @@ function featureLabel(name) {
 // Static selects remain focusable across polling; they share the chart's selected result.
 function resetAnalysisActions(view) {
   byId(view + "-meaning").textContent = "";
-  const entry = series.get(selected[view]), position = view === "anomaly" ? focusPosition : rulFocusPosition;
+  const entry = series.get(selected[view]), position = focusPosition;
   const available = !readError && entry && (position === null ? orderedSteps(entry).some((step) => step.state === "analyzed") : entry.steps.get(position)?.state === "analyzed");
   if (!available) byId(view + "-ask").disabled = true;byId(view + "-position").disabled = !available;
 }
@@ -665,117 +664,6 @@ function waveform(preview, related = []) {
   return box;
 }
 
-// RUL screen ---------------------------------------------------------------------
-
-function renderRul() {
-  byId("rul-title").textContent = "잔여 수명 추정(RUL)";
-  const choices = bindingsFor("rul-estimate");
-  selected.rul = fillSelect(byId("rul-binding"), choices, selected.rul);
-  resetAnalysisActions("rul");
-  const state = byId("rul-state");
-  for (const id of ["rul-cards", "rul-chart", "rul-recent", "rul-model", "rul-selected"]) byId(id).replaceChildren();
-  if (readError) {
-    byId("rul-asset-title").textContent = "데이터 조회 실패";
-    byId("rul-observation").textContent = "현재 결과를 조회할 수 없습니다. 이전 추정값을 최신 상태로 표시하지 않습니다.";
-    byId("rul-validation-note").textContent = "";
-    renderPhmExplanation("rul", "", null);
-    byId("rul-freshness").textContent = "";
-    byId("rul-replay").classList.add("hidden");
-    state.className = "state error";state.textContent = "PHM 분석 결과를 읽지 못했습니다.";return;
-  }
-  if (!selected.rul) {
-    byId("rul-asset-title").textContent = currentAsset() ? assetName(currentAsset()) : "설비 없음";
-    byId("rul-observation").textContent = "이 설비에 연결된 RUL 모델이 없습니다.";
-    byId("rul-validation-note").textContent = "";
-    renderPhmExplanation("rul", "", null);
-    state.className = "state";
-    state.textContent = "모델을 연결하면 잔여 수명 추정과 시점별 변화가 여기에 표시됩니다. 측정 신호는 개요 탭에서 계속 볼 수 있습니다.";
-    byId("rul-freshness").textContent = "";
-    return;
-  }
-  const entry = series.get(selected.rul);
-  if (!entry) return;
-  byId("rul-asset-title").textContent = entry.binding.asset_id || "설비 정보 없음";
-  byId("rul-validation-note").textContent = "";
-  byId("rul-freshness").textContent = freshness(entry);
-  setReplayTag("rul-replay", entry);
-  const analyzed = orderedSteps(entry).filter((step) => step.state === "analyzed");
-  if (rulFocusPosition !== null && entry.steps.get(rulFocusPosition)?.state !== "analyzed") {
-    state.className = "state error";state.textContent = "선택한 기록 " + stepLabel(entry, rulFocusPosition) + "은 분석되지 않았습니다.";
-    byId("rul-observation").textContent = "선택한 입력의 RUL을 표시할 수 없습니다.";
-    renderPhmExplanation("rul", "", null);renderModelCard(byId("rul-model"), entry.package);return;
-  }
-  if (!analyzed.length) {
-    byId("rul-observation").textContent = "분석 가능한 입력을 기다리고 있습니다.";
-    renderPhmExplanation("rul", "", null);state.className = "state";state.textContent = waitingMessage(entry);renderModelCard(byId("rul-model"), entry.package);return;
-  }
-  const last = analyzed.find((s) => s.position === rulFocusPosition) || analyzed.at(-1);
-  const previousAnalyzed = analyzed.filter((s) => s.position < last.position).at(-1);
-  updateMonitorTarget("rul", last.position);
-  const latestRulSkipped = orderedSteps(entry).at(-1)?.state === "skipped";
-  const recorded = last.output.unit === "acquisition-interval" && last.output.endpoint_semantics === "last-recorded-acquisition";
-  byId("rul-title").textContent = recorded ? "기록 기반 잔여 구간 추정(RUL)" : "잔여 수명 추정(RUL)";
-  byId("rul-observation").textContent = latestRulSkipped
-    ? "최근 입력은 분석되지 않았습니다. 선택 기록 " + stepLabel(entry, last.position) + "의 이전 분석 결과입니다."
-    : "선택 기록 " + stepLabel(entry, last.position) + (recorded ? " · 데이터셋 마지막 기록까지 약 " + number(last.output.estimate, 1) + "개 기록 구간으로 추정했습니다." : " · 이 시점까지의 입력으로 계산한 추정입니다.");
-  byId("rul-meaning").textContent = recorded ? "실제 설비의 남은 운전시간이나 고장 시점을 뜻하지 않습니다." : "추정 단위와 종료점은 아래 모델 정보를 확인하세요.";
-  selectAnalysisRecord("rul", entry, analyzed, last.position);
-  const unit = unitText(last.output.unit);
-  state.className = "state";
-  state.textContent = "종료점: " + endpointText(last.output.endpoint_semantics);
-  const validation = (entry.package && entry.package.validation) || {};
-  const sameAsset = (validation.per_asset || []).find((item) => item.asset_id === entry.binding.asset_id);
-  byId("rul-cards").append(
-    card(latestRulSkipped ? "마지막 분석 RUL 추정" : rulFocusPosition === null ? "마지막 RUL 추정" : "선택한 RUL 추정", number(last.output.estimate, 2) + " " + unit,
-      "선택 기록 " + stepLabel(entry, last.position)),
-    card("직전 분석 대비", last.output.change_from_previous === null ? "첫 추정" : signed(last.output.change_from_previous) + " " + unit,
-      (previousAnalyzed ? stepLabel(entry, previousAnalyzed.position) + " → " + stepLabel(entry, last.position) : "직전 분석과 비교") + " · 모델 추정값의 변화이며 실제 경과 시간이 아닙니다."),
-  );
-  const mae = validation.mean_asset_mean_absolute_error;
-  const note = byId("rul-validation-note");note.replaceChildren();
-  if (typeof mae === "number") {
-    note.append(node("span", (validation.metrics_origin === "recorded-research-model" ? "참고 연구 오차" : "검증 오차") + " (MAE) " + number(mae, 1) + " " + unit
-      + (sameAsset ? " · 이 설비 MAE " + number(sameAsset.mean_absolute_error, 1) : "")),
-      node("span", (validation.metrics_origin === "recorded-research-model" ? "과거 연구 평가에서" : "등록된 검증 평가에서") + " 관측된 평균 절대 오차입니다. 현재 선택한 추정값의 오차 범위나 신뢰구간은 아닙니다.", "phm-mae-meaning"));
-    const details = node("button", "평가 대상·적용 범위 보기");details.type = "button";
-    details.addEventListener("click", () => {byId("rul-model").open = true;byId("rul-model").tabIndex = -1;navigate("#rul", byId("rul-model"));});note.append(details);
-  }
-  if (last.output.sequence_positions) {
-    state.textContent += " · 과거 " + last.output.sequence_positions.length + "개 획득으로 계산";
-  }
-  if (orderedSteps(entry).at(-1).state === "skipped") state.textContent += " · 최근 입력은 분석되지 않았습니다: " + orderedSteps(entry).at(-1).reason;
-  const axis = axisFor(entry);
-  const domain = [axis.x(analyzed[0]), axis.x(analyzed.at(-1))];
-  byId("rul-chart").append(linePlot({steps: analyzed, value: (step) => step.output.estimate, axis, height: 190, domain,
-    threshold: 0, label: "시점별 RUL 추정 궤적", unitText: "", width: byId("rul-chart").clientWidth,
-    onPick: (step) => {rulFocusPosition = step.position;updateMonitorTarget("rul", step.position);renderRul();}}));
-  byId("rul-chart").append(node("p", axis.label + " · 각 점은 그 시점까지의 입력으로 계산한 추정 · 점선은 0(기록 종료점)", "muted"));
-  const recent = byId("rul-recent");
-  recent.append(node("h3", "최근 추정 갱신"));
-  const table = node("table", "", "phm-table");
-  const head = node("tr");for (const label of ["step", "추정", "변화", "적용 범위"]) head.append(node("th", label));
-  table.append(head);
-  for (const step of analyzed.slice(-10).reverse()) {
-    const row = node("tr");
-    row.append(node("td", step.event_start ? time(step.event_start) : "#" + step.position), node("td", number(step.output.estimate, 1) + " " + unit),
-      node("td", step.output.change_from_previous === null ? "—" : signed(step.output.change_from_previous)), node("td", applicabilityText(step.output.applicability)));
-    table.append(row);
-  }
-  recent.append(table);
-  renderModelCard(byId("rul-model"), entry.package);
-  if (rulFocusPosition !== null) {
-    const focused = entry.steps.get(rulFocusPosition);
-    byId("rul-selected").textContent = focused
-      ? "모니터에서 선택한 분석 " + stepLabel(entry, focused.position) + " · RUL " + number(focused.output.estimate, 1) + " " + unit
-        + " · 분석 완료 " + time(focused.processed_at) + " · 이 시점의 검토와 연결됩니다."
-      : "선택한 시점이 이번 조회 범위에 없습니다.";
-  }
-  const explained = rulFocusPosition ?? last.position;
-  renderPhmExplanation("rul", selected.rul, explained,
-                       () => {rulFocusPosition = rulFocusPosition ?? last.position;}, stepLabel(entry, explained), {steps: analyzed, featureLabel, stepLabel: (position) => stepLabel(entry, position), shortLabel: (position) => shortStepLabel(entry, position), stepKind: entry.binding.step_kind,
-                         openSignal: (position, feature) => showComparisonOriginal("rul", entry, position, feature)});
-}
-
 async function showComparisonOriginal(view, entry, position, feature = "") {
   const assistant = byId(view + "-assistant");
   assistant.querySelector(".phm-comparison-original")?.remove();
@@ -783,7 +671,7 @@ async function showComparisonOriginal(view, entry, position, feature = "") {
   const heading = node("h4", stepLabel(entry, position) + " · 비교 원본 신호");
   const plot = node("div", "원본 신호를 조회합니다.");holder.append(heading, plot);assistant.append(holder);
   const sequence = entry.steps.get(position)?.output?.sequence_positions;
-  if (sequence) holder.insertBefore(node("p", "RUL 입력 #" + sequence[0] + "–#" + sequence.at(-1)
+  if (sequence) holder.insertBefore(node("p", "모델 입력 #" + sequence[0] + "–#" + sequence.at(-1)
     + " 중 #" + position + "의 원본 파형입니다.", "muted"), plot);
   const path = entry.binding.step_kind === "observation-window" ? "window" : "snapshot";
   try {
@@ -866,7 +754,7 @@ async function cycle() {
     const target = requestedResult?.view === view ? requestedResult : null;
     const targetAsset = target && bindings.find((item) => item.binding_id === target.bindingId)?.asset_id;
     if (targetAsset && targetAsset !== currentAsset()) {followingTarget = true;setAsset(targetAsset);followingTarget = false;}
-    const choices = bindingsFor(view === "anomaly" ? "anomaly-score" : "rul-estimate");
+    const choices = bindingsFor("anomaly-score");
     if (target && (!target.valid || !choices.some((item) => item.binding_id === target.bindingId))) throw new Error("selected_result_unavailable");
     const current = target ? choices.find((item) => item.binding_id === target.bindingId)
       : choices.find((item) => item.binding_id === selected[view]) || choices[0];
@@ -877,7 +765,7 @@ async function cycle() {
       if (version !== cycleVersion) return;
       selected[view] = target.bindingId;
       series.get(target.bindingId).steps.set(target.position, result.step);
-      if (view === "anomaly") focusPosition = target.position;else rulFocusPosition = target.position;
+      focusPosition = target.position;
       requestedResult = null;
     }
     if (version !== cycleVersion) return;
@@ -896,11 +784,10 @@ async function cycle() {
       await focusStep(shown, false);
     }
   }
-  if (activeView() === "rul") renderRul();
   const shown = activeView();
   if (shown) void renderModelConnect(shown, readError ? "" : currentAsset(), Boolean(selected[shown]), (bindingId) => {
     clearMonitorTarget();selected[shown] = bindingId;
-    if (shown === "anomaly") {zoom.anomaly = null;focusPosition = null;chosenFeatures = [];} else rulFocusPosition = null;
+    zoom.anomaly = null;focusPosition = null;chosenFeatures = [];
     void cycle();
   });
 }
@@ -933,15 +820,12 @@ function clearMonitorTarget() {
 }
 let followingTarget = false;
 export function initializePhm() {
-  for (const view of ["anomaly", "rul"]) {
-    byId(view + "-ask").addEventListener("click", () => openPhmAssistant(view));
-  }
+  byId("anomaly-ask").addEventListener("click", () => openPhmAssistant("anomaly"));
   byId("anomaly-position").addEventListener("change", (event) => focusStep(Number(event.target.value)));
-  byId("rul-position").addEventListener("change", (event) => {rulFocusPosition = Number(event.target.value);updateMonitorTarget("rul", rulFocusPosition);renderRul();});
   onAssetChange(() => {
     // A pending result link decides the asset itself; an earlier default selection must not erase it.
     if (followingTarget || requestedResult) return;
-    clearMonitorTarget();selected.anomaly = "";selected.rul = "";zoom.anomaly = null;focusPosition = null;rulFocusPosition = null;
+    clearMonitorTarget();selected.anomaly = "";zoom.anomaly = null;focusPosition = null;
     chosenFeatures = [];byId("anomaly-detail").replaceChildren();
     if (activeView()) void cycle();
   });
@@ -953,10 +837,10 @@ export function initializePhm() {
   byId("anomaly-signal").addEventListener("change", (event) => {chosenFeatures = JSON.parse(event.target.value);renderAnomaly();});
   window.addEventListener("resize", () => {
     if (activeView() === "anomaly" && !readError) renderAnomaly();
-    if (activeView() === "rul" && !readError) renderRul();
     for (const plot of document.querySelectorAll(".phm-original-plot")) if (plot.isConnected) plot.redraw?.();
   });
-  byId("rul-binding").addEventListener("change", (event) => {clearMonitorTarget();selected.rul = event.target.value;rulFocusPosition = null;cycle();});
+  // Assets known only through a connected model belong in the asset switch on every view.
+  void refreshBindings().catch(() => {});
   const start = () => {if (activeView()) {byId("refresh").disabled = false;cycle().then(schedule);} else clearTimeout(pollTimer);};
   window.addEventListener("hashchange", () => {
     const params = new URLSearchParams(location.search);

@@ -267,30 +267,6 @@ def test_skipped_step_keeps_interval_state_and_records_reason(tmp_path: Path) ->
     assert store.progress("b1").state == state
 
 
-def test_rul_output_reports_change_and_applicability(tmp_path: Path) -> None:
-    package = _rul_package(tmp_path)
-    store = SqlitePhmAnalysisStore(tmp_path / "phm.sqlite")
-    binding = _bind(store, package)
-    results = run_binding(
-        store,
-        binding,
-        package,
-        [
-            _step(1, 100.0, context={"operating_condition": "c1"}),
-            _step(2, 90.0, context={"operating_condition": "c2"}),
-        ],
-        now=_clock,
-    )
-    assert results[0].output["change_from_previous"] is None
-    assert results[0].output["applicability"] == "inside"
-    assert results[0].output["unit"] == "acquisition-interval"
-    # Outside the declared operating conditions a remaining-life estimate is not produced.
-    assert results[1].state is StepState.SKIPPED and results[1].output == {}
-    assert results[1].reason == (
-        "RUL applicability unavailable: operating_condition=c2 is outside ['c1']"
-    )
-
-
 def test_change_feed_returns_only_newer_results(tmp_path: Path) -> None:
     package = _anomaly_package(tmp_path)
     store = SqlitePhmAnalysisStore(tmp_path / "phm.sqlite")

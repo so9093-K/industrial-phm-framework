@@ -50,7 +50,6 @@ def test_mimii_adapter_maps_pcm_clip_without_normalization(tmp_path: Path) -> No
         (32_767.0,),
     )
     assert series.labels is None
-    assert series.rul is None
     assert series.metadata["dataset_id"] == "mimii-due"
     assert series.metadata["source_group"] == "dev"
     assert series.metadata["machine_type"] == "fan"
@@ -75,7 +74,6 @@ def test_mimii_adapter_keeps_clip_label_in_metadata_not_sample_labels(tmp_path: 
 
     assert series.asset_id == "pump/section-02"
     assert series.labels is None
-    assert series.rul is None
     assert series.metadata["domain"] == "target"
     assert series.metadata["split"] == "test"
     assert series.metadata["clip_label"] == "anomaly"

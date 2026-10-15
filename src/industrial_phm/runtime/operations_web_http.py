@@ -34,6 +34,10 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
+from industrial_phm.runtime.operations_web_capabilities import (
+    CAPABILITIES_ROUTE,
+    handle_capabilities_read,
+)
 from industrial_phm.runtime.operations_web_command import (
     WebCommandClient,
     WebCommandOutcomeUnknown,
@@ -48,6 +52,10 @@ from industrial_phm.runtime.operations_web_explore import (
     handle_explore_read,
 )
 from industrial_phm.runtime.operations_web_file_history import read_file_history_jobs
+from industrial_phm.runtime.operations_web_forecast import (
+    FORECAST_ROUTES,
+    handle_forecast_read,
+)
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -94,6 +102,8 @@ _WEB_ASSET_MIME = {
             "file-registration.js",
             "opcua-registration.js",
             "signal-explore.js",
+            "capabilities.js",
+            "forecast.js",
         ),
         "text/javascript; charset=utf-8",
     ),
@@ -323,6 +333,20 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[asset_path])
                 return
             parts = urlsplit(self.path)
+            if parts.path in FORECAST_ROUTES:
+                status, forecast = handle_forecast_read(
+                    OperationsWorkspace(root), parts.path, parts.query
+                )
+                self._send_json(status, forecast)
+                return
+            if parts.path == CAPABILITIES_ROUTE:
+                status, capabilities = handle_capabilities_read(
+                    OperationsWorkspace(root),
+                    parts.query,
+                    can_ask=command_client is not None and not synthetic_demo,
+                )
+                self._send_json(status, capabilities)
+                return
             if parts.path in EXPLORE_READ_ROUTES:
                 status, explore_payload = handle_explore_read(
                     OperationsWorkspace(root), parts.path, parts.query

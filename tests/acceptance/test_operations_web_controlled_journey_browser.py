@@ -237,6 +237,14 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 assert len(sources) == 1
                 source_id = sources[0].source_id
                 assert workspace.history_catalog_path.exists()
+                # Where the data arrived: what it supports now, and what it cannot support.
+                done = page.locator("#csv-start-capabilities")
+                pw.expect(done).to_contain_text("분석 바로가기", timeout=30000)
+                compare = done.locator('[data-capability="period-compare"]')
+                pw.expect(compare.get_by_role("button", name="구간 비교 열기")).to_be_visible()
+                unavailable = done.locator(".capability-unavailable")
+                pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
+                pw.expect(unavailable.locator('[data-capability="anomaly"]')).to_be_visible()
 
                 page.get_by_role("button", name="모니터링에서 실제 그래프 보기").click()
                 pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(
@@ -333,8 +341,10 @@ def test_supervised_web_one_click_example_opens_monitoring_without_duplicates(
                 page.get_by_role("button", name="예시 데이터로 둘러보기").click()
                 pw.expect(page.locator(".synthetic-context")).to_be_visible(timeout=30000)
                 assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                page.get_by_role("link", name="내 작업공간으로 돌아가기").click()
-                page.get_by_role("link", name="파일에서 시작").click()
+                # From the example straight to one's own file, in one's own workspace.
+                page.get_by_role("link", name="내 데이터로 해보기 (CSV)").click()
+                pw.expect(page.locator("#view-title")).to_have_text("데이터 연결", timeout=30000)
+                assert page.url.startswith(f"http://127.0.0.1:{port}/")
                 page.get_by_role("button", name="합성 CSV 미리보기 · 저장하지 않음").click()
                 page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
                 pw.expect(page.locator("#csv-start-check-result")).to_contain_text("미리보기 전용")

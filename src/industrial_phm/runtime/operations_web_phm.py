@@ -1,7 +1,7 @@
 """PHM monitoring read routes for the supervised Web (ADR-0025).
 
 These routes read the PHM store directly instead of composing the full Operations snapshot, so
-polling the anomaly/RUL screens stays cheap. Responses never contain filesystem paths.
+polling the anomaly screen stays cheap. Responses never contain filesystem paths.
 """
 
 from __future__ import annotations

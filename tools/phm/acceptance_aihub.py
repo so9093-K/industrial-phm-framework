@@ -5,7 +5,7 @@ One workspace, one continuous journey on device 1338's held-out period:
     replay source -> per-device PCA package -> explicit binding -> supervisor -> OPC UA replay
     with original timestamps (window latency measured) -> supervisor stop/restart while the
     replay keeps publishing (a real collection gap) -> Web -> real local-main explanation ->
-    human review -> restart -> everything persisted; RUL screen states that no RUL applies
+    human review -> restart -> everything persisted
 
     uv run --no-sync --with playwright python -m tools.phm.acceptance_aihub \\
         --archive data/raw/aihub/239/archives/training/raw/3.공기압축기.zip \\
@@ -365,15 +365,6 @@ def main(argv: list[str] | None = None) -> int:
             panel.get_by_role("button", name="검토 종료").click()
             expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
             page.screenshot(path=str(output / "anomaly-reviewed.png"), full_page=True)
-            page.goto(url + "#rul")
-            expect(page.locator("#rul-state")).to_contain_text(
-                "모델을 연결하면 잔여 수명 추정", timeout=15_000
-            )
-            checks.add(
-                "rul-screen-states-no-lifecycle-evidence",
-                True,
-                page.locator("#rul-state").inner_text(),
-            )
 
             # 5. Restart: results, explanation, review persist --------------------------------
             def committed() -> dict[str, StepResult]:
