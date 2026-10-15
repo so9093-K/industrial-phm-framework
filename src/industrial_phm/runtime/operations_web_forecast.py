@@ -74,6 +74,9 @@ def handle_forecast_read(
         change_range = float(params.get("changepoint_range", "0.9"))
         training_points = int(params["training_points"]) if params.get("training_points") else None
         seasonality = params.get("seasonality", "auto")
+        backtest = params.get("backtest", "one")
+        if backtest not in {"one", "multi"}:
+            raise ValueError("invalid backtest")
         if seasonality not in {"auto", "off"}:
             raise ValueError("invalid seasonality")
         if not math.isfinite(prior_scale) or not 0.001 <= prior_scale <= 0.5:
@@ -98,6 +101,7 @@ def handle_forecast_read(
             seasonality=seasonality,
             horizon_count=count,
             assumed_period_seconds=assumed_period,
+            rolling_backtests=backtest == "multi",
         )
     except ForecastUnavailable as error:
         return HTTPStatus.UNPROCESSABLE_ENTITY, {
@@ -176,6 +180,7 @@ def forecast_series(
     seasonality: str = "auto",
     horizon_count: int | None = None,
     assumed_period_seconds: float | None = None,
+    rolling_backtests: bool = False,
 ) -> dict[str, Any]:
     """One series continued ``horizon`` ahead, with its interval and a check on the past."""
     if not series:
@@ -202,6 +207,7 @@ def forecast_series(
         changepoint_prior_scale=changepoint_prior_scale,
         changepoint_range=changepoint_range,
         training_points=training_points,
+        rolling_backtests=rolling_backtests,
     )
     if kind == "acquisition":
         # Report the acquisition axis back: an acquisition's position, not an invented clock.
