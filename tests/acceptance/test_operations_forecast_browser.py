@@ -11,7 +11,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.phm import phm_workspace
+from tests.support.phm import analyze, deliver, phm_workspace
 
 BASE = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -114,11 +114,70 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                     "EDA 비교 구간 B", timeout=30000
                 )
 
+                # Cross-tab EDA navigation retains the comparison window as context.
+                page.goto(base + "#signals")
+                link = page.get_by_role("link", name="선택 신호의 미래 예측 보기")
+                pw.expect(link).to_be_visible(timeout=30000)
+                link.click()
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "EDA 비교 구간 B", timeout=30000
+                )
+
                 # An old remaining-life link opens its replacement.
                 page.goto(base + "#rul")
                 pw.expect(page.locator(".asset-tabs a[data-tab='forecast']")).to_have_attribute(
                     "aria-current", "page"
                 )
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Path) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("prophet")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 31):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + 0.01 * ordinal)
+    analyze(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                base = f"http://127.0.0.1:{server.server_port}/web/?monitor_asset=bearing-a"
+                page.goto(base + "#monitor")
+                page.locator("#asset-capabilities").get_by_role(
+                    "button", name="미래 예측 열기"
+                ).click()
+                panel = page.locator("#forecast")
+                pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
+                pw.expect(panel.locator("#forecast-unit")).to_have_value("count")
+                pw.expect(panel.locator("#forecast-count")).to_have_value("14")
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "14개 획득 뒤"
+                )
+                panel.locator("#forecast-count").fill("10")
+                panel.get_by_role("button", name="획득 수 적용").click()
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "10개 획득 뒤", timeout=30000
+                )
+                panel.locator("#forecast-details > summary").click()
+                panel.locator("#forecast-assumed-period").fill("120")
+                panel.get_by_role("button", name="간격 적용").click()
+                pw.expect(panel.locator("#forecast-result")).to_contain_text(
+                    "가정 획득 간격 2분", timeout=30000
+                )
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 assert not errors, errors
             finally:
                 browser.close()
