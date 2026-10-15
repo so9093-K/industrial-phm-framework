@@ -142,8 +142,12 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                         const data = structuredClone(outlook.currentOutlook());
                         data.conditions.direction = 'lower';
                         const reading = data.scenarios.find(item => item.id === 'current');
-                        reading.limits.management = {state: 'possible', expected: null, earliest: 4, latest: null};
-                        reading.limits.end = {state: 'beyond', expected: null, earliest: null, latest: null};
+                        reading.limits.management = {
+                            state: 'possible', expected: null, earliest: 4, latest: null
+                        };
+                        reading.limits.end = {
+                            state: 'beyond', expected: null, earliest: null, latest: null
+                        };
                         outlook.renderOutlook(data);
                     }"""
                 )
