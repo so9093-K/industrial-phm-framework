@@ -64,7 +64,8 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
                 summary = panel.locator("#forecast-result > .forecast-summary")
-                pw.expect(summary).to_contain_text("증가 · 마지막 측정")
+                pw.expect(summary).to_contain_text("예측 종료값")
+                pw.expect(summary).to_contain_text("마지막 측정")
                 pw.expect(summary).to_contain_text("1시간 뒤")
                 pw.expect(summary).to_contain_text("과거 자료 확인")
                 pw.expect(panel.get_by_text("설비 상태 전망", exact=True)).to_be_visible()
@@ -168,7 +169,9 @@ def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Pa
     pytest.importorskip("prophet")
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal in range(1, 31):
-        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + 0.01 * ordinal)
+        deliver(
+            workspace, tmp_path / "waves", ordinal, 4.0 if ordinal == 30 else 0.5 + 0.01 * ordinal
+        )
     analyze(workspace)
     server = create_operations_web_read_server(workspace.root)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -193,7 +196,17 @@ def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Pa
                     "14개 획득 뒤"
                 )
                 panel.locator("#forecast-count").fill("10")
-                panel.get_by_role("button", name="획득 수 적용").click()
+                with page.expect_response(
+                    lambda response: "/api/v1/forecast?" in response.url
+                ) as response:
+                    panel.get_by_role("button", name="획득 수 적용").click()
+                forecast = response.value.json()
+                # A rising model forecast can still end below the latest observed spike.
+                assert forecast["trend"]["change"] > 0
+                assert forecast["trend"]["end"] < forecast["history"][-1][1]
+                pw.expect(
+                    panel.locator("#forecast-result > .forecast-summary > div").first
+                ).not_to_contain_text("증가")
                 pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
                     "10개 획득 뒤", timeout=30000
                 )

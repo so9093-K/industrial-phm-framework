@@ -274,7 +274,7 @@ function summary(data) {
   const words = {up: "증가", down: "감소", flat: "유지"};
   const trend = data.trend, unit = data.unit ? " " + data.unit : "";
   const span = data.horizon === "count" ? data.horizon_count + "개 획득" : HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
-  row("예상 추세", words[trend.direction] + " · 마지막 측정 " + value(data.history.at(-1)[1]) + " → " + span + " 뒤 " + value(trend.end) + unit
+  row("예측 종료값", "마지막 측정 " + value(data.history.at(-1)[1]) + " · " + span + " 뒤 " + value(trend.end) + unit
     + " (" + Math.round(data.model.interval_width * 100) + "% 범위 " + value(trend.end_lower) + "–" + value(trend.end_upper) + ")");
   if (data.threshold) {
     const t = data.threshold, when = (x) => axisText(data, x);
