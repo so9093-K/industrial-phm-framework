@@ -308,8 +308,7 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
     analyze(workspace)
     with sqlite3.connect(workspace.phm_analysis_path) as connection:
         for position, serialized in connection.execute(
-            "SELECT position, features FROM step_result WHERE state = 'analyzed' "
-            "ORDER BY position"
+            "SELECT position, features FROM step_result WHERE state = 'analyzed' ORDER BY position"
         ).fetchall():
             if position > 20:
                 continue
@@ -334,7 +333,8 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
         assert status == 200
         acquisition = options["acquisition"]
         rms = next(
-            item for item in acquisition["series"]
+            item
+            for item in acquisition["series"]
             if item["key"] == "feature.Horizontal_vibration_signals.rms"
         )
         assert acquisition["count"] == 35  # All analyzed steps, not usable RMS values.
@@ -363,16 +363,15 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
             == 422
         )
         forecast = next(
-            item for item in project_asset_capabilities(
-                workspace, "bearing-a", can_ask=True
-            )["capabilities"]
+            item
+            for item in project_asset_capabilities(workspace, "bearing-a", can_ask=True)[
+                "capabilities"
+            ]
             if item["id"] == "forecast"
         )
         assert forecast["status"] == ("unavailable" if all_features_sparse else "ready")
         if not all_features_sparse:
-            other = next(
-                item for item in acquisition["series"] if item["valid_points"] >= 20
-            )
+            other = next(item for item in acquisition["series"] if item["valid_points"] >= 20)
             status, result = get(
                 "/api/v1/forecast",
                 asset_id="bearing-a",
