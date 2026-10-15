@@ -100,7 +100,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 panel.get_by_label("관리 기준 방향").select_option("lower")
                 pw.expect(summary).to_contain_text("관리 하한 14.3 A", timeout=30000)
                 pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
-                    "이미 기준을", timeout=30000
+                    "이미 하한을", timeout=30000
                 )
                 # EDA-selected range is a reference in the forecast, not implicit training.
                 page.goto(
