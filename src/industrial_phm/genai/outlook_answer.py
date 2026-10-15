@@ -72,6 +72,8 @@ _NOT = re.compile(r"않|없|못")
 _NOMINAL = re.compile(r"(?:도달|닿)[^.,]{0,14}?(?:시점|때|경우)(?:은|는|이|에|도)?")
 _ALREADY = re.compile(r"이미[^.]{0,12}(?:도달|넘|초과|밑돌|하회)")
 _KEYWORD = {"management": "관리", "end": "종료"}
+_CONDITION_VALUE = re.compile(r"(관리\\s*(?:상한|하한|기준)|종료\\s*기준)\\s*([+-]?\\d[\\d,]*(?:\\.\\d+)?)")
+_REACH_OFFSET = re.compile(r"(?<![\\d.])([\\d,]+(?:\\.\\d+)?(?:개 획득|일|시간|분|초))\\s*뒤")
 
 
 def _normalized(token: str) -> str:
@@ -104,6 +106,27 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
         )
 
     for sentence in sentences(text):
+        # Numbers must belong to the named condition, not just exist anywhere
+        # in the list of facts (e.g. end-limit 15 is not management-limit 15).
+        named = list(_CONDITION_VALUE.finditer(sentence))
+        for index, match in enumerate(named):
+            name = "management" if match.group(1).startswith("관리") else "end"
+            if name not in conditions:
+                issues.append(f"이 전망에 없는 {name} 기준을 언급했습니다: {sentence}")
+                continue
+            known = conditions[name]
+            if _normalized(match.group(2)) != _normalized(known["value"]):
+                issues.append(f"{name} 기준값과 설명의 숫자가 다릅니다: {sentence}")
+                continue
+            part = sentence[match.end() : named[index + 1].start() if index + 1 < len(named) else len(sentence)]
+            expected = known.get("expected_offsets", {})
+            if "도달하지" in part or "닿지" in part:
+                continue
+            for reading, duration in expected.items():
+                if reading in part and duration is not None:
+                    claim = _REACH_OFFSET.search(part)
+                    if claim and claim.group(1) != duration:
+                        issues.append(f"{reading}의 {name} 도달 시간과 다른 숫자입니다: {sentence}")
         clauses = _CLAUSE.split(sentence)
         for index, clause in enumerate(clauses):
             window = clause
