@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
-from itertools import pairwise
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 
 import numpy as np
 import pytest
