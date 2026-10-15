@@ -39,7 +39,7 @@ const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : 
   : seconds >= 60 ? num(Math.round(seconds / 60)) + "분" : num(Math.round(seconds)) + "초";
 
 export function initializeForecast() {
-  onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_training_points: ""});if (document.body.dataset.view === "forecast") void load();});
+  onAssetChange(() => {loadedFor = "";remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
   window.addEventListener("hashchange", () => {
     if (document.body.dataset.view !== "forecast") return;
     const wanted = params().get("forecast_series");
