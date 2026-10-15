@@ -176,9 +176,7 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             + "%가 초기 비교 범위 밖이며, "
         )
     elif departure and departure["outside"]:
-        lead = (
-            f"초기 비교 범위를 벗어난 값이 {num(departure['outside'])}개이고, "
-        )
+        lead = f"초기 비교 범위를 벗어난 값이 {num(departure['outside'])}개이고, "
     else:
         lead = "초기 비교 범위 밖인 값은 없고, "
     sentences = [lead + motion]
