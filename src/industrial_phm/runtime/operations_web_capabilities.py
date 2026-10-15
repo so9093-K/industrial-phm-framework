@@ -82,12 +82,23 @@ def project_asset_capabilities(
     }
     signals = _signal_capabilities(data, acquisition)
     forecast = _forecast_capability(workspace, asset_id, data, acquisition)
-    anomaly = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
+    modelled = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
+    anomaly = modelled
+    if modelled["status"] != READY and modelled["reason"] != "waiting-results" and data["history"]:
+        # Stored history can always be searched for departures from its own baseline.
+        anomaly = _item(
+            "anomaly",
+            READY,
+            "explore",
+            "anomaly",
+            packages=modelled["facts"].get("packages", 0),
+        )
     return {
         "schema_version": 1,
         "asset_id": asset_id,
         "data": data,
-        "capabilities": [*signals, forecast, anomaly, _question_capability(anomaly, can_ask)],
+        # Questions are about stored model results, which exploration does not create.
+        "capabilities": [*signals, forecast, anomaly, _question_capability(modelled, can_ask)],
         "meaning": "what-the-stored-data-supports-not-asset-health",
     }
 

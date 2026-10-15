@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import Any
@@ -24,7 +23,11 @@ from industrial_phm.application.forecast import (
 )
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
-from industrial_phm.application.signal_exploration import acquisition_binding, interpretation_unit
+from industrial_phm.application.signal_exploration import (
+    acquisition_binding,
+    interpretation_unit,
+    strongest_identity,
+)
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import _history, explore_sources
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -188,15 +191,7 @@ def _history_points(
         end_at=summary.end_at + timedelta(seconds=1),
         bucket_count=_BUCKETS,
     )
-    # One signal identity only: the source, point and meaning with the most usable values.
-    groups: dict[tuple[str, str | None, str], list[Any]] = defaultdict(list)
-    for bucket in aggregation.buckets:
-        groups[(bucket.source_id, bucket.measurement_point_id, bucket.interpretation_json)].append(
-            bucket
-        )
-    if not groups:
-        raise LookupError("no stored values for this signal")
-    key, buckets = max(groups.items(), key=lambda item: sum(b.usable_count for b in item[1]))
+    key, buckets = strongest_identity(aggregation.buckets)
     points = sorted(
         (b.first_event_at + (b.last_event_at - b.first_event_at) / 2, float(b.mean))
         for b in buckets
@@ -212,7 +207,13 @@ def _history_points(
             "measurement_point_id": key[1],
             "raw_count": sum(b.usable_count for b in buckets),
             "bucket_seconds": aggregation.bucket_seconds,
-            "other_identities": len(groups) - 1,
+            "other_identities": len(
+                {
+                    (b.source_id, b.measurement_point_id, b.interpretation_json)
+                    for b in aggregation.buckets
+                }
+            )
+            - 1,
         },
     )
 

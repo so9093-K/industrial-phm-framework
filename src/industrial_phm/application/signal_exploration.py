@@ -531,3 +531,15 @@ def acquisition_spectrum(
         "acquisitions": used,
         "channels": result,
     }
+
+
+def strongest_identity(buckets: Sequence[Any]) -> tuple[tuple[str, str | None, str], list[Any]]:
+    """One signal identity of a channel's buckets: the source, point and meaning with the most
+    usable values. Sources, points and meanings are never mixed in one series."""
+    groups: dict[tuple[str, str | None, str], list[Any]] = {}
+    for bucket in buckets:
+        key = (bucket.source_id, bucket.measurement_point_id, bucket.interpretation_json)
+        groups.setdefault(key, []).append(bucket)
+    if not groups:
+        raise LookupError("no stored values for this signal")
+    return max(groups.items(), key=lambda item: sum(b.usable_count for b in item[1]))

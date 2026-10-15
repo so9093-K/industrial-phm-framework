@@ -244,7 +244,11 @@ def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
                 pw.expect(compare.get_by_role("button", name="구간 비교 열기")).to_be_visible()
                 unavailable = done.locator(".capability-unavailable")
                 pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
-                pw.expect(unavailable.locator('[data-capability="anomaly"]')).to_be_visible()
+                pw.expect(
+                    done.locator('[data-capability="anomaly"]').get_by_role(
+                        "button", name="이상 탐지 열기"
+                    )
+                ).to_be_visible()
 
                 page.get_by_role("button", name="모니터링에서 실제 그래프 보기").click()
                 pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(

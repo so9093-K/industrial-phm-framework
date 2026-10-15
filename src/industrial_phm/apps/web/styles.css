@@ -515,3 +515,22 @@ button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){backgrou
 .forecast-key-history::before{border-color:#5a7380}.forecast-key-fitted::before{border-color:#8fb3b8;border-top-style:dashed}
 .forecast-key-line::before{border-color:#18796f}.forecast-key-threshold::before{border-color:#b26a12;border-top-style:dashed}
 .forecast-key-band::before{height:8px;border:0;background:#18796f;opacity:.18}
+
+/* Departures from a chosen baseline, without a model: one score line, marks and a short list. */
+.anomaly-explore{margin:14px 0 6px}
+.anomaly-explore-box{border-top:1px solid #e3ebef;padding-top:12px}
+.anomaly-explore-box>summary{cursor:pointer;font-weight:650;font-size:.92rem}
+.anomaly-explore-box h3{margin:0 0 4px;font-size:1rem}
+.anomaly-explore-controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;margin:10px 0}
+.anomaly-explore-controls label{display:grid;gap:6px}
+.anomaly-explore-summary{margin:6px 0;font-size:.9rem;color:#1d3d4c;overflow-wrap:anywhere}
+.anomaly-explore-chart{display:block;width:100%;height:auto}
+.anomaly-explore-chart .axis{fill:none}
+.anomaly-explore-baseline{fill:#eef3f6}
+.anomaly-explore-line{fill:none;stroke:#7a8f99;stroke-width:1.2}
+.anomaly-explore-threshold{stroke:#b26a12;stroke-width:1.2;stroke-dasharray:5 4}
+.anomaly-explore-mark{fill:#b26a12}
+.anomaly-explore-list{margin:8px 0;padding-left:20px;display:grid;gap:6px;font-size:.84rem;color:#2f4f5d}
+.anomaly-explore-list li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.anomaly-explore-when{font-weight:650;color:#1d3d4c}
+.anomaly-explore-fold>summary{cursor:pointer;font-size:.84rem;color:#2f4f5d;margin:2px 0 8px;overflow-wrap:anywhere}

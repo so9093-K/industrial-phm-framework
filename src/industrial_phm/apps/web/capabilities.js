@@ -26,6 +26,7 @@ function fact(item, data) {
       if (item.id === "relation") return "같은 획득의 두 특징";
       if (item.id === "spectrum") return "원본 파형 · " + num(acquisition.sampling_rate_hz / 1000) + " kHz";
       return "획득 #" + acquisition.first + "–#" + acquisition.last;
+    case "explore": return "모델 없이 기준 구간에서 벗어난 값 찾기" + (facts.packages ? " · 맞는 모델 " + num(facts.packages) + "개 연결 가능" : "");
     case "stored-flow": return "저장된 흐름으로 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지";
     case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
@@ -64,7 +65,7 @@ async function open(asset, item) {
   }
   if (view === "monitor") {navigate("#monitor", byId("monitor-signal-title"));return;}
   if (view === "forecast") {navigate("#forecast", byId("forecast-title"));return;}
-  navigate("#" + view, byId(view + "-title"));
+  navigate("#" + view, byId(item.reason === "explore" ? "anomaly-explore" : view + "-title"));
   if (item.id === "ai-question" && await whenEnabled(byId(view + "-ask"))) openPhmAssistant(view);
 }
 
