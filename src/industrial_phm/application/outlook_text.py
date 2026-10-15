@@ -169,14 +169,18 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
     indicator, departure = outlook["degradation"], outlook["degradation"]["departure"]
     motion = "최근 " + rate_text(outlook, indicator["rate"]) + "씩 변하고 있습니다."
     if departure and departure["since"] is not None:
-        lead = place(outlook, departure["since"]) + "부터 기준 구간의 범위를 계속 벗어나 있고, "
+        lead = (
+            place(outlook, departure["since"])
+            + " 이후 값의 "
+            + one(departure["since_share"] * 100)
+            + "%가 초기 비교 범위 밖이며, "
+        )
     elif departure and departure["outside"]:
         lead = (
-            f"기준 구간의 범위를 벗어난 값이 {num(departure['outside'])}개 있지만 "
-            "계속되지는 않았고, "
+            f"초기 비교 범위를 벗어난 값이 {num(departure['outside'])}개이고, "
         )
     else:
-        lead = "기준 구간의 범위 안에 있고, "
+        lead = "초기 비교 범위 밖인 값은 없고, "
     sentences = [lead + motion]
     for name in ("management", "end"):
         if outlook["conditions"][name] is None or not outlook["scenarios"]:
