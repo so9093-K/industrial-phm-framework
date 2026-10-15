@@ -132,15 +132,18 @@ def test_upper_limit_uses_last_observation_not_model_start_to_report_already() -
     assert crossing["state"] == "expected"
     assert crossing["expected_at"] == future[0].isoformat()
     assert crossing["limit_kind"] == "upper"
-    assert _threshold(
-        4.0,
-        4.1,
-        future,
-        np.array([3.9, 3.8]),
-        np.array([3.7, 3.6]),
-        np.array([4.1, 4.0]),
-        direction="upper",
-    )["state"] == "already"
+    assert (
+        _threshold(
+            4.0,
+            4.1,
+            future,
+            np.array([3.9, 3.8]),
+            np.array([3.7, 3.6]),
+            np.array([4.1, 4.0]),
+            direction="upper",
+        )["state"]
+        == "already"
+    )
 
 
 def test_lower_limit_is_explicit_and_does_not_infer_direction_from_prediction() -> None:
@@ -157,15 +160,18 @@ def test_lower_limit_is_explicit_and_does_not_infer_direction_from_prediction() 
     assert crossing["state"] == "expected"
     assert crossing["expected_at"] == future[0].isoformat()
     assert crossing["direction"] == "down"
-    assert _threshold(
-        4.0,
-        3.9,
-        future,
-        np.array([4.1, 4.2]),
-        np.array([3.8, 4.0]),
-        np.array([4.3, 4.4]),
-        direction="lower",
-    )["state"] == "already"
+    assert (
+        _threshold(
+            4.0,
+            3.9,
+            future,
+            np.array([4.1, 4.2]),
+            np.array([3.8, 4.0]),
+            np.array([4.3, 4.4]),
+            direction="lower",
+        )["state"]
+        == "already"
+    )
 
 
 def test_count_horizon_forecasts_only_whole_acquisition_steps() -> None:
