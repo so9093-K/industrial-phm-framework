@@ -103,6 +103,26 @@ def test_stored_history_is_forecast_on_its_clock_with_a_level_and_a_check(tmp_pa
         )
         assert body["meaning"] == "stored-flow-continued-not-failure-time-or-remaining-life"
         assert str(tmp_path) not in json.dumps(body)
+        status, limited = get(
+            "/api/v1/forecast/options",
+            asset_id="motor-01",
+            kind="history",
+            series="current",
+            training_points="100",
+        )
+        assert status == 200
+        assert limited["selection"]["points"] == 100
+        assert limited["selection"]["horizons"]["1h"] == "short-history"
+        assert (
+            get(
+                "/api/v1/forecast/options",
+                asset_id="motor-01",
+                kind="history",
+                series="current",
+                training_points="10",
+            )[0]
+            == 400
+        )
         status, custom = get(
             "/api/v1/forecast",
             **{
@@ -193,6 +213,34 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
             horizon_count="30",
             assumed_period_seconds="120",
         )
+        assert (
+            get(
+                "/api/v1/forecast",
+                asset_id="bearing-a",
+                kind="acquisition",
+                series="feature.Horizontal_vibration_signals.rms",
+                horizon="count",
+            )[0]
+            == 400
+        )
+        for assumed, training, reason in [
+            (120, 30, "short-history"),
+            (600, 30, None),
+            (600, 10, "invalid"),
+        ]:
+            selection_status, selected = get(
+                "/api/v1/forecast/options",
+                asset_id="bearing-a",
+                kind="acquisition",
+                series="feature.Horizontal_vibration_signals.rms",
+                assumed_period_seconds=str(assumed),
+                training_points=str(training),
+            )
+            if reason == "invalid":
+                assert selection_status == 400
+            else:
+                assert selection_status == 200
+                assert selected["selection"]["horizons"]["1h"] == reason
         assert status == 200 and count["horizon_count"] == 30
         assert count["time_basis"] == "assumed"
         assert count["recorded_period_seconds"] == 60

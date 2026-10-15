@@ -51,14 +51,53 @@ def handle_forecast_read(
         if not 0 < len(asset_id) <= 512:
             raise ValueError("asset_id is required")
         if path == "/api/v1/forecast/options":
-            return HTTPStatus.OK, forecast_options(workspace, asset_id)
+            body = forecast_options(workspace, asset_id)
+            if params.get("series"):
+                training = int(params["training_points"]) if params.get("training_points") else None
+                if training is not None and not 20 <= training <= 1000:
+                    raise ValueError("invalid training_points")
+                assumed = (
+                    float(params["assumed_period_seconds"])
+                    if params.get("assumed_period_seconds")
+                    else None
+                )
+                if assumed is not None and (
+                    not math.isfinite(assumed) or not 1 <= assumed <= 86400
+                ):
+                    raise ValueError("invalid assumed_period_seconds")
+                kind = params.get("kind")
+                if kind == "history" and assumed is None:
+                    times, values, _ = _history_points(workspace, asset_id, params["series"])
+                elif kind == "acquisition":
+                    times, values, meta = _acquisition_points(
+                        workspace,
+                        asset_id,
+                        params["series"],
+                        assumed_period_seconds=assumed,
+                        count_mode=True,
+                    )
+                else:
+                    raise ValueError("invalid forecast kind")
+                times = [t for t, value in zip(times, values, strict=True) if math.isfinite(value)]
+                if training is not None:
+                    times = times[-training:]
+                span = (times[-1] - times[0]).total_seconds() if times else 0
+                body["selection"] = {
+                    "horizons": (
+                        {key: "unknown-interval" for key in HORIZONS}
+                        if kind == "acquisition" and meta["time_basis"] == "ordinal"
+                        else horizon_reasons(span, len(times))
+                    ),
+                    "points": len(times),
+                }
+            return HTTPStatus.OK, body
         horizon = params.get("horizon", "")
         if horizon not in {*HORIZONS, "count"}:
             raise ValueError("unknown horizon")
         kind = params.get("kind", "")
         if horizon == "count" and kind != "acquisition":
             raise ValueError("acquisition count forecast requires acquisition data")
-        count = int(params["horizon_count"]) if horizon == "count" else None
+        count = int(params.get("horizon_count", "")) if horizon == "count" else None
         if count is not None and not 1 <= count <= 2000:
             raise ValueError("horizon_count must be 1..2000")
         assumed_period = (

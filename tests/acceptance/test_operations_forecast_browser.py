@@ -88,6 +88,23 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
                     "추세 민감도 0.1", timeout=30000
                 )
+                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("100")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                pw.expect(
+                    panel.get_by_role("button", name="24시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                pw.expect(panel.locator("#forecast-state")).to_contain_text("2배 이상")
+                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("150")
+                panel.get_by_role("button", name="설정 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_enabled()
+                pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
+                    "학습 150개", timeout=30000
+                )
                 panel.get_by_role("button", name="여러 과거 시점 비교").click()
                 pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
                     "여러 과거 시점", timeout=30000
@@ -122,6 +139,14 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 link.click()
                 pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
                     "EDA 비교 구간 B", timeout=30000
+                )
+
+                page.goto(base + "#anomaly")
+                anomaly_link = page.get_by_role("link", name="이 신호 미래 예측").first
+                pw.expect(anomaly_link).to_be_visible(timeout=30000)
+                anomaly_link.click()
+                pw.expect(panel.locator(".forecast-outlook")).to_contain_text(
+                    "이상 탐지 선택 구간", timeout=30000
                 )
 
                 # An old remaining-life link opens its replacement.
@@ -172,11 +197,27 @@ def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Pa
                 pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
                     "10개 획득 뒤", timeout=30000
                 )
+                pw.expect(panel.locator(".forecast-compare")).to_have_count(0)
                 panel.locator("#forecast-details > summary").click()
                 panel.locator("#forecast-assumed-period").fill("120")
                 panel.get_by_role("button", name="간격 적용").click()
                 pw.expect(panel.locator("#forecast-result")).to_contain_text(
                     "가정 획득 간격 2분", timeout=30000
+                )
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                panel.locator("#forecast-assumed-period").fill("600")
+                panel.get_by_role("button", name="간격 적용").click()
+                pw.expect(
+                    panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
+                ).to_be_enabled()
+                pw.expect(
+                    panel.get_by_role("button", name="24시간", exact=True, include_hidden=True)
+                ).to_be_disabled()
+                panel.locator("#forecast-unit").select_option("time")
+                pw.expect(panel.locator("#forecast-result > .forecast-summary")).to_contain_text(
+                    "1시간 뒤", timeout=30000
                 )
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 assert not errors, errors

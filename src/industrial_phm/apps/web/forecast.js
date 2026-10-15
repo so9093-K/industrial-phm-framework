@@ -6,7 +6,6 @@ import { formatTime } from "./time.js";
 import { byId, clear, create, num } from "./web-utils.js";
 
 const HORIZONS = [["1h", "1시간"], ["24h", "24시간"], ["7d", "7일"], ["30d", "30일"]];
-const HORIZON_SECONDS = {"1h": 3600, "24h": 86400, "7d": 604800, "30d": 2592000};
 const REASON = {
   "few-points": "예측하려면 기록이 20개 이상 필요합니다.",
   "short-history": "선택한 기간의 2배 이상 기록이 있어야 예측합니다.",
@@ -65,8 +64,7 @@ async function load() {
     state("이 설비에는 예측할 저장 측정이 없습니다. 측정 이력을 저장하거나, 진동 파형이면 이상 탐지 모델을 연결하면 예측할 수 있습니다.");
     return;
   }
-  renderControls();
-  await run();
+  if (await renderControls()) await run();
 }
 
 function choices() {
@@ -76,7 +74,7 @@ function choices() {
   return list;
 }
 
-function renderControls() {
+async function renderControls() {
   const root = byId("forecast-controls");clear(root);
   const series = create("select");series.id = "forecast-series";
   const groups = {history: "측정 이력", acquisition: "진동 획득 특징"};
@@ -99,30 +97,45 @@ function renderControls() {
   const thresholdField = create("label", null, "관리 기준 (선택)");thresholdField.append(thresholdInput);
   const apply = create("button", "secondary", "기준 적용");apply.type = "button";
 
-  const drawHorizons = () => {
+  const drawHorizons = async () => {
+    const ticket = ++request;
+    const [kind, ...parts] = series.value.split("|");
+    const query = new URLSearchParams({asset_id: currentAsset(), kind, series: parts.join("|")});
+    const training = byId("forecast-training")?.value;
+    const assumed = kind === "acquisition" && byId("forecast-assumed-period")?.value;
+    if (training) query.set("training_points", training);
+    if (assumed) query.set("assumed_period_seconds", assumed);
+    let reasons;
+    try {
+      const result = await getJson("/api/v1/forecast/options?" + query.toString());
+      if (ticket !== request) return false;
+      reasons = result.selection.horizons;
+    } catch {
+      if (ticket === request) state("선택 신호와 예측 설정을 확인하지 못했습니다. 설정값의 범위를 확인하세요.", true);
+      return false;
+    }
     clear(horizons);
-    const kind = series.value.split("|")[0];
-    const reasons = options[kind].horizons;
     let current = params().get("forecast_horizon");
-    const scenario = !!byId("forecast-assumed-period")?.value || !!byId("forecast-training")?.value;
-    if (!current || (!scenario && reasons[current]))
+    if (!current || reasons[current])
       current = HORIZONS.map(([key]) => key).find((key) => !reasons[key]) || "1h";
     remember({forecast_horizon: current});
     for (const [key, label] of HORIZONS) {
       const button = create("button", "forecast-horizon", label);button.type = "button";
       button.setAttribute("aria-pressed", String(key === current));
-      if (!scenario && reasons[key]) {button.disabled = true;button.title = REASON[reasons[key]] || "";}
-      button.addEventListener("click", () => {remember({forecast_horizon: key});drawHorizons();void run();});
+      if (reasons[key]) {button.disabled = true;button.title = REASON[reasons[key]] || "";}
+      button.addEventListener("click", () => {remember({forecast_horizon: key});void update();});
       horizons.append(button);
     }
+    return true;
   };
+  const update = async () => {if (await drawHorizons()) await run();};
   series.addEventListener("change", () => {
     remember({forecast_series: series.value, forecast_backtest: "",
       forecast_context_kind: "", forecast_context_from: "", forecast_context_to: ""});
     const kind = series.value.split("|")[0];
     unitSelect.value = kind === "acquisition" && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason)
       ? "count" : (params().get("forecast_unit") || "time");
-    drawHorizons();refreshUnit();void run();
+    refreshUnit();void update();
   });
   const directionField = create("label", null, "관리 기준 방향");
   const directionSelect = create("select");directionSelect.id = "forecast-direction";
@@ -163,7 +176,7 @@ function renderControls() {
   const assumptionApply = create("button", "secondary", "간격 적용");assumptionApply.type = "button";
   assumptionApply.addEventListener("click", () => {
     remember({forecast_assumed_period: assumedInput.value, forecast_backtest: ""});
-    drawHorizons();void run();
+    void update();
   });
   const details = create("details", "forecast-details");details.id = "forecast-details";
   details.append(create("summary", null, "예측 설정 및 상세 분석"));
@@ -183,7 +196,7 @@ function renderControls() {
   const settingsApply = create("button", "secondary", "설정 적용");settingsApply.type = "button";
   settingsApply.addEventListener("click", () => {
     remember({forecast_prior: prior.value, forecast_range: changeRange.value, forecast_training: training.value, forecast_seasonality: seasonality.value, forecast_backtest: ""});
-    drawHorizons();void run();
+    void update();
   });
   advanced.append(settingsApply);details.append(advanced);
   const validation = create("button", "secondary", "여러 과거 시점 비교");validation.type = "button";
@@ -200,7 +213,8 @@ function renderControls() {
   root.append(seriesField, unitField, horizonField, countField, countApply,
     thresholdField, directionField, apply, details);
   advanced.prepend(assumption, assumptionApply);
-  drawHorizons();refreshUnit();
+  refreshUnit();
+  return drawHorizons();
 
 }
 
@@ -212,13 +226,6 @@ async function run() {
   const series = rest.join("|");
   const unit = kind === "acquisition" && byId("forecast-unit")?.value === "count" ? "count" : "time";
   const horizon = unit === "count" ? "count" : params().get("forecast_horizon") || "1h";
-  const assumedPeriod = byId("forecast-assumed-period")?.value || "";
-  if (horizon !== "count" && options[kind].horizons[horizon] &&
-      !(kind === "acquisition" && assumedPeriod)) {
-    clear(byId("forecast-result"));
-    state(REASON[options[kind].horizons[horizon]] || "이 기간은 예측할 수 없습니다.");
-    return;
-  }
   const query = new URLSearchParams({asset_id: asset, kind, series, horizon});
   const threshold = params().get("forecast_threshold");
   if (threshold && Number.isFinite(Number(threshold))) query.set("threshold", threshold);
@@ -248,7 +255,7 @@ async function run() {
     state("");
     previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
       && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
-      && shown.period_seconds === data.period_seconds ? shown : null;
+      && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
     render(data);
     if (data.kind === "history") void loadDepartureSummary(data);
   } catch (error) {

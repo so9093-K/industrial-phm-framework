@@ -14,6 +14,7 @@
 ## 계산 계약
 
 - `GET /api/v1/forecast`는 이전과 동일한 기본값으로 작동한다.
+- `GET /api/v1/forecast/options`에 `kind`, `series`와 선택적 `training_points`, `assumed_period_seconds`를 전달하면 해당 신호의 실제 유효 학습 범위에서 가능한 시간 예측 기간을 `selection.horizons`로 제공한다. 화면 버튼도 이 결과를 사용한다.
 - 선택값: `changepoint_prior_scale` (0.001–0.5, 기본 0.05), `changepoint_range` (0.5–0.95, 기본 0.9), `training_points` (20–1000), `seasonality=auto|off`, `backtest=one|multi`.
 - 진동 획득 이력의 `horizon=count&horizon_count=N` (1–2000)은 획득 순서 기준 예측이다. 현재 획득을 포함해 정수 획득 위치 N+1개를 예측하며, 최소 기록 조건은 기존과 동일하게 유지한다. 선택적 `assumed_period_seconds` (1–86400)는 원본을 바꾸지 않는 가정이다.
 - `recorded_period_seconds`와 `time_basis=recorded|assumed|ordinal`을 결과에 남긴다. 설비 개요의 미래 예측 가능 여부에서도 획득 개수 모드의 지원 여부를 반영한다. 시간 간격이 없더라도 획득 순서가 있으면 count 예측을 제공할 수 있다.
