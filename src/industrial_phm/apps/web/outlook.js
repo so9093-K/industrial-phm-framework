@@ -56,8 +56,11 @@ function margin(data, reached) {
       reached.latest !== null && reached.latest !== reached.expected ? "늦으면 " + after(data, reached.latest) : ""].filter(Boolean);
     return [after(data, reached.expected) + " 뒤", [reachedAt(data, reached.expected), ...bounds].join(" · ")];
   }
-  if (reached.state === "possible") return ["범위 상단만 도달", after(data, reached.earliest) + " 뒤"];
-  return ["도달 없음", place(data, data.search.until) + "까지 계산"];
+  if (reached.state === "possible") return [
+    data.conditions.direction === "lower" ? "범위 하단만 도달" : "범위 상단만 도달",
+    after(data, reached.earliest) + " 뒤",
+  ];
+  return ["기간 내 미도달", place(data, data.search.until) + "까지 계산"];
 }
 
 // The four numbers a reader takes away: how far it moved, what the model says, and the margins.
@@ -94,7 +97,9 @@ function details(data) {
   if (d.spread_ratio !== null) add("변동폭", "최근 구간이 기준 구간의 " + one(d.spread_ratio) + "배");
   if (d.departure) {
     const p = d.departure;
-    add("기준 범위 이탈", (p.since !== null ? place(data, p.since) + "부터 계속 벗어남" : p.outside ? "벗어난 값 " + num(p.outside) + "개 · 계속되지 않음" : "벗어난 값 없음")
+    add("초기 비교 범위 이탈", (p.since !== null
+      ? place(data, p.since) + " 이후 " + one(p.since_share * 100) + "% 이탈"
+      : p.outside ? "벗어난 값 " + num(p.outside) + "개" : "벗어난 값 없음")
       + " · 마지막 측정 " + num(d.latest) + " (기준 변동폭의 " + one(Math.abs(p.latest_distance)) + "배)");
   }
   const model = data.anomaly_model;
@@ -130,7 +135,8 @@ function scenarioTable(data) {
       const cell = create("td");
       cell.textContent = reached.state === "already" ? "이미 도달" : reached.state === "expected"
         ? after(data, reached.expected) + (reached.earliest !== null && reached.earliest !== reached.expected ? " (빠르면 " + after(data, reached.earliest) + ")" : "")
-        : reached.state === "possible" ? "범위 상단만 " + after(data, reached.earliest) : "도달 없음";
+        : reached.state === "possible" ? (data.conditions.direction === "lower" ? "범위 하단만 " : "범위 상단만 ")
+          + after(data, reached.earliest) : "기간 내 미도달";
       cell.dataset.state = reached.state;
       row.append(cell);
     }
@@ -159,7 +165,7 @@ function evidence(data, context) {
     + place(data, data.search.until) + "까지 계산 (학습 기록 길이의 절반)");
   if (data.conditions.end !== null) add("잔여수명은 종료 기준 " + num(data.conditions.end) + "까지 남은 거리");
   if (context) add(context);
-  box.append(list, links(data));
+  box.append(list);
   return box;
 }
 
@@ -180,6 +186,7 @@ function links(data) {
   add("기준 구간과 최근 구간 비교", "signals", {explore_kind: data.kind, explore_series: data.series, explore_a: period(d.baseline), explore_b: period(d.recent)});
   if (data.anomaly_model?.latest) add("이상 탐지 결과 보기", "anomaly", {phm_binding: data.anomaly_model.binding_id, phm_position: String(data.anomaly_model.latest.position), phm_view: "anomaly"});
   else if (data.kind === "history") add("기준 범위를 벗어난 구간 보기", "anomaly", {forecast_anomaly_series: data.series});
+  add("이 설비의 분석 기록", "evidence", {});
   return root;
 }
 
@@ -225,7 +232,7 @@ function briefing() {
     const done = stored.find((item) => item.status === "complete");
     if (done && selection === briefingSelection()) showAnswer(answer, done);
     const pending = stored.find((item) => item.status === "pending");
-    if (pending && selection === shownKey) void follow(selection, pending.id, status, answer, buttons);
+    if (pending && selection === briefingSelection()) void follow(selection, pending.id, status, answer, buttons);
   })();
   ask.addEventListener("click", async () => {
     const text = question.value.trim() || question.placeholder;
@@ -306,8 +313,17 @@ export function renderOutlook(data, context = "") {
   current = data;
   root.hidden = false;
   // The server words the summary once, so the AI briefing's fallback reads the same.
-  byId("outlook-body").replaceChildren(figures(data), create("p", "outlook-lead", data.sentences.join(" ")));
-  byId("outlook-more").replaceChildren(...(data.scenarios.length ? [scenarioTable(data)] : []), briefing());
+  byId("outlook-body").replaceChildren(
+    create("p", "outlook-observed", (data.axis === "acquisition" ? "마지막 획득 " : "마지막 측정 ")
+      + place(data, data.record.last)),
+    figures(data),
+    create("p", "outlook-lead", data.sentences.join(" ")),
+  );
+  byId("outlook-more").replaceChildren(
+    ...(data.scenarios.length ? [scenarioTable(data)] : []),
+    briefing(),
+    links(data),
+  );
   byId("outlook-evidence-root").replaceChildren(evidence(data, context));
   document.dispatchEvent(new CustomEvent("outlook-shown", {detail: data}));
 }
@@ -341,7 +357,7 @@ export async function refreshOutlook(query, context = "") {
 }
 
 export function clearOutlook() {
-  request++;shownKey = "";current = null;
+  request++;shownKey = "";current = null;refreshedAt = 0;briefingTicket++;
   const root = byId("outlook");
   if (!root) return;
   root.hidden = true;
