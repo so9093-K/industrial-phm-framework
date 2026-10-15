@@ -104,7 +104,8 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 )
                 # EDA-selected range is a reference in the forecast, not implicit training.
                 page.goto(
-                    base + "&forecast_series=history%7Ccurrent"
+                    base
+                    + "&forecast_series=history%7Ccurrent"
                     + "&forecast_context_kind=eda"
                     + "&forecast_context_from=2026-10-14T00%3A00%3A00%2B00%3A00"
                     + "&forecast_context_to=2026-10-14T02%3A00%3A00%2B00%3A00"
