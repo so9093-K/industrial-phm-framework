@@ -118,6 +118,8 @@ def forecast_values(
     changepoint_range: float = DEFAULT_CHANGEPOINT_RANGE,
     training_points: int | None = None,
     rolling_backtests: bool = False,
+    future_acquisitions: int | None = None,
+    threshold_direction: str = "upper",
 ) -> dict[str, Any]:
     """Fit on the whole history, continue it ``horizon_seconds`` ahead and check it on the past.
 
@@ -129,8 +131,12 @@ def forecast_values(
         raise ValueError("changepoint_range must be between 0.5 and 0.95")
     if training_points is not None and not 20 <= training_points <= 1000:
         raise ValueError("training_points must be between 20 and 1000")
-    if horizon_seconds <= 0:
+    if not math.isfinite(horizon_seconds) or horizon_seconds <= 0:
         raise ValueError("horizon_seconds must be positive")
+    if future_acquisitions is not None and not 1 <= future_acquisitions <= 2000:
+        raise ValueError("future_acquisitions must be between 1 and 2000")
+    if threshold_direction not in {"upper", "lower"}:
+        raise ValueError("threshold_direction must be upper or lower")
     pairs = [(t, float(v)) for t, v in zip(times, values, strict=True) if math.isfinite(v)]
     if training_points is not None:
         pairs = pairs[-training_points:]
@@ -156,8 +162,9 @@ def forecast_values(
         shown.append(times[-1])
     fitted = _predict(model, shown)["yhat"].to_numpy(dtype=float)
     last = times[-1]
-    step = horizon_seconds / FUTURE_POINTS
-    future = [last + timedelta(seconds=step * index) for index in range(FUTURE_POINTS + 1)]
+    steps = future_acquisitions if future_acquisitions is not None else FUTURE_POINTS
+    step = horizon_seconds / steps
+    future = [last + timedelta(seconds=step * index) for index in range(steps + 1)]
     predicted = _predict(model, future)
     yhat = predicted["yhat"].to_numpy(dtype=float)
     lower = predicted["yhat_lower"].to_numpy(dtype=float)
@@ -191,7 +198,15 @@ def forecast_values(
         },
         "threshold": None
         if threshold is None
-        else _threshold(threshold, float(observed[-1]), future, yhat, lower, upper),
+        else _threshold(
+            threshold,
+            float(observed[-1]),
+            future,
+            yhat,
+            lower,
+            upper,
+            direction=threshold_direction,
+        ),
         "rolling_backtests": (
             _rolling_backtests(
                 times,
@@ -219,6 +234,7 @@ def forecast_values(
             "changepoint_prior_scale": changepoint_prior_scale,
             "changepoint_range": changepoint_range,
             "training_points": training_points,
+            "future_acquisitions": future_acquisitions,
             "seasonality": [name for name in ("daily", "weekly") if name in model.seasonalities],
         },
     }
@@ -231,13 +247,22 @@ def _threshold(
     yhat: np.ndarray,
     lower: np.ndarray,
     upper: np.ndarray,
+    *,
+    direction: str = "upper",
 ) -> dict[str, Any]:
-    """When the forecast reaches a user's management level, expected and at the earliest."""
+    """Compare the observed and predicted level against an explicit upper or lower limit."""
     if not math.isfinite(value):
         raise ValueError("threshold must be finite")
-    upward = value >= yhat[0]
+    if direction not in {"upper", "lower"}:
+        raise ValueError("threshold_direction must be upper or lower")
+    upward = direction == "upper"
     if (latest >= value) if upward else (latest <= value):
-        return {"value": value, "direction": "up" if upward else "down", "state": "already"}
+        return {
+            "value": value,
+            "limit_kind": direction,
+            "direction": "up" if upward else "down",
+            "state": "already",
+        }
 
     def first(series: np.ndarray) -> str | None:
         hits = np.flatnonzero(series >= value if upward else series <= value)
@@ -247,6 +272,7 @@ def _threshold(
     earliest = first(upper if upward else lower)
     return {
         "value": value,
+        "limit_kind": direction,
         "direction": "up" if upward else "down",
         "state": "expected" if expected else "possible" if earliest else "not-reached",
         "expected_at": expected,
