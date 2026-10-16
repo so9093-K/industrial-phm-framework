@@ -104,12 +104,19 @@ function entry(capture, now) {
     field.setAttribute("aria-label", "이 전망의 검토 메모");
     const controls = create("div", "outlook-review-actions");
     const notice = create("p", "muted");notice.setAttribute("role", "status");
+    // Reuse the same event ID after an uncertain network response. A new human
+    // action always gets a new ID; a retry must never create a duplicate note.
+    let pendingEvent = null;
     const note = create("button", "secondary", "메모 남기기");
     const action = create("button", "secondary",
       human.status === "open" ? "확인함으로 표시" : "검토 완료로 표시");
     for (const button of [note, action]) button.type = "button";
     const post = async (nextAction, noteText) => {
       for (const button of [note, action]) button.disabled = true;
+      const key = nextAction + "\\n" + noteText;
+      if (!pendingEvent || pendingEvent.key !== key) {
+        pendingEvent = {key, eventId: crypto.randomUUID()};
+      }
       notice.textContent = "검토 기록을 저장합니다.";
       try {
         const session = await json("/api/v1/session");
@@ -120,11 +127,12 @@ function entry(capture, now) {
           body: JSON.stringify({
             asset_id: capture.snapshot.outlook.asset_id,
             capture_id: capture.capture_id,
-            event_id: crypto.randomUUID(),
+            event_id: pendingEvent.eventId,
             action: nextAction,
             note: noteText,
           }),
         });
+        pendingEvent = null;
         if (current === now) void show(now, capture.capture_id);
       } catch (error) {
         if (current !== now) return;
