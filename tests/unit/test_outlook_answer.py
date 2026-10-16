@@ -94,9 +94,7 @@ PROVIDER = ExplanationProvider()
 
 
 @pytest.mark.parametrize("direction,edge", [("upper", "상단"), ("lower", "하단")])
-def test_possible_and_beyond_do_not_become_definite_no_reach(
-    direction: str, edge: str
-) -> None:
+def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edge: str) -> None:
     outlook = _outlook()
     outlook["conditions"]["direction"] = direction
     for scenario in outlook["scenarios"]:
@@ -118,7 +116,10 @@ def test_possible_and_beyond_do_not_become_definite_no_reach(
 def test_expected_and_possible_are_counted_separately() -> None:
     outlook = _outlook()
     outlook["scenarios"][1]["limits"]["management"] = {
-        "state": "possible", "expected": None, "earliest": 39, "latest": None
+        "state": "possible",
+        "expected": None,
+        "earliest": 39,
+        "latest": None,
     }
     facts = outlook_facts(outlook)
     assert "3가지에서 도달 예상" in facts["management"]
