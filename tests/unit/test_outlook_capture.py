@@ -10,12 +10,11 @@ from uuid import uuid4
 import pytest
 
 from industrial_phm.application.maintenance_review import FindingReviewAction
-from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
-
 from industrial_phm.runtime.operations_web_outlook_capture import (
     OutlookCaptureCorrupted,
     OutlookCaptureStore,
 )
+from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 
 
 def _snapshot(*, last: int = 64) -> dict[str, object]:
