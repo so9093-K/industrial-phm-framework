@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
 from industrial_phm.application.maintenance_review import FindingReviewAction
+from industrial_phm.runtime.operations_web_forecast import measurement_version
 from industrial_phm.runtime.operations_web_outlook_capture import (
     OutlookCaptureCorrupted,
     OutlookCaptureStore,
@@ -134,7 +136,7 @@ def test_outlook_capture_api_pages_after_exact_asset_scoped_cursor(
         store.save(_snapshot(last=ordinal))
     monkeypatch.setattr(
         "industrial_phm.runtime.operations_web_outlook_capture.current_measurement_recheck",
-        lambda workspace, snapshot: "unavailable",
+        lambda workspace, snapshot, **kwargs: "unavailable",
     )
     status, first = handle_outlook_captures_read(workspace, "asset_id=bearing-a")
     assert status == 200 and len(first["captures"]) == 20
@@ -162,3 +164,39 @@ def test_outlook_capture_api_pages_after_exact_asset_scoped_cursor(
     )
     assert wrong_asset_status == 404
     assert invalid_cursor_status == 400
+
+
+def test_page_rechecks_each_distinct_measurement_projection_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = OperationsWorkspace(tmp_path)
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    asset, kind, series = "bearing-a", "history", "rms"
+    times = [datetime(2026, 10, 1, tzinfo=UTC) + timedelta(minutes=i) for i in range(25)]
+    values = [float(i) for i in range(25)]
+    meta = {"source_id": "bench", "measurement_point_id": None, "time_basis": "recorded"}
+    version = measurement_version(asset, kind, series, times, values, meta)
+    for last, expected_version in ((64, version), (65, "0" * 64)):
+        snapshot = _snapshot(last=last)
+        snapshot["identity"].update(
+            {"kind": kind, "source_id": "bench", "measurement_point_id": None,
+             "time_basis": "recorded", "measurement_version": expected_version}
+        )
+        snapshot["selection"]["kind"] = kind
+        snapshot["outlook"]["kind"] = kind
+        store.save(snapshot)
+    requests = []
+
+    def history(workspace: OperationsWorkspace, asset_id: str, name: str):
+        requests.append((asset_id, name))
+        return times, values, meta
+
+    monkeypatch.setattr(
+        "industrial_phm.runtime.operations_web_outlook_capture.history_points", history
+    )
+    status, response = handle_outlook_captures_read(workspace, "asset_id=bearing-a")
+    assert status == 200
+    assert {item["source_recheck"] for item in response["captures"]} == {
+        "same_measurement_projection", "changed"
+    }
+    assert requests == [(asset, series)]
