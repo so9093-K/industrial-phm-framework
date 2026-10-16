@@ -219,7 +219,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                             {
                                 "briefing_id": "briefing-a",
                                 "status": "pending",
-                                "selection": urlencode(sorted(payload.items() - {"question"})),
+                                "selection": urlencode(sorted((key, value) for key, value in payload.items() if key != "question")),
                             }
                         ),
                     )
