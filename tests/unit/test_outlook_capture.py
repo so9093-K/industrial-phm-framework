@@ -8,7 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
+from industrial_phm.runtime.operations_web_outlook_capture import (
+    OutlookCaptureCorrupted,
+    OutlookCaptureStore,
+)
 
 
 def _snapshot(*, last: int = 64) -> dict[str, object]:
@@ -54,5 +57,5 @@ def test_captured_content_digest_is_checked_instead_of_trusting_saved_bytes(tmp_
             "UPDATE capture SET snapshot=? WHERE id=?",
             (json.dumps(_snapshot(last=66)), result["capture_id"]),
         )
-    with pytest.raises(ValueError, match="digest mismatch"):
+    with pytest.raises(OutlookCaptureCorrupted, match="digest mismatch"):
         store.list_for("bearing-a")
