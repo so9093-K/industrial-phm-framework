@@ -1,4 +1,4 @@
-import {parseReviewInbox,type ReviewInbox} from "./reviews";
+import {parseReviewInbox,type ReviewInbox} from "./reviews.ts";
 // The server owns observation values and PHM meaning. This preview only renders
 // validated fields from the existing read-only monitor API.
 export type Asset = {
