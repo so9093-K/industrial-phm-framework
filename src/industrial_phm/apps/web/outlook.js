@@ -329,11 +329,12 @@ export function renderOutlook(data, context = "") {
 }
 
 // Read the outlook for one selection; the same selection is not read twice in a row.
-export async function refreshOutlook(query, context = "") {
+export async function refreshOutlook(query, context = "", {deferRender = false, force = false} = {}) {
   const key = query.toString();
   const root = byId("outlook"), body = byId("outlook-body");
-  if (key === shownKey && current && Date.now() - refreshedAt < 10000) {
-    renderOutlook(current, context);return;
+  if (!force && key === shownKey && current && Date.now() - refreshedAt < 10000) {
+    if (!deferRender) renderOutlook(current, context);
+    return current;
   }
   const ticket = ++request;
   shownKey = key;current = null;
@@ -343,16 +344,18 @@ export async function refreshOutlook(query, context = "") {
   try {
     const response = await fetch("/api/v1/outlook?" + key, {cache: "no-store", credentials: "same-origin"});
     const data = await response.json().catch(() => ({}));
-    if (ticket !== request) return;
+    if (ticket !== request) return null;
     if (!response.ok) {
       shownKey = "";
       body.replaceChildren(create("p", "muted", response.status === 422 ? REASON[data.reason] || "상태 전망을 계산할 수 없습니다." : "상태 전망을 계산하지 못했습니다."));
-      return;
+      return null;
     }
     refreshedAt = Date.now();
-    renderOutlook(data, context);
+    if (!deferRender) renderOutlook(data, context);
+    return data;
   } catch {
     if (ticket === request) {shownKey = "";body.replaceChildren(create("p", "muted", "상태 전망을 계산하지 못했습니다."));}
+    return null;
   }
 }
 
