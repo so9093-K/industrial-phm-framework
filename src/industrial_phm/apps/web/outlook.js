@@ -1,5 +1,5 @@
 // Condition and remaining margin of the selected signal: how far it has moved from its own early
-// baseline, how fast it moves, since when it stays outside its usual range, what the asset's
+// baseline, how fast it moves, what share of observations is outside the early range, what the asset's
 // anomaly model says, and how much room is left before the management level and the end
 // condition the user set (the remaining life under that definition), read four ways. The server
 // computes every number; this module words and lays them out.
@@ -133,6 +133,7 @@ function scenarioTable(data) {
     for (const name of names) {
       const reached = scenario.limits[name];
       const cell = create("td");
+      cell.dataset.condition = conditionName(data, name);
       cell.textContent = reached.state === "already" ? "이미 도달" : reached.state === "expected"
         ? after(data, reached.expected) + (reached.earliest !== null && reached.earliest !== reached.expected ? " (빠르면 " + after(data, reached.earliest) + ")" : "")
         : reached.state === "possible" ? (data.conditions.direction === "lower" ? "범위 하단만 " : "범위 상단만 ")
@@ -321,8 +322,8 @@ export function renderOutlook(data, context = "") {
   );
   byId("outlook-more").replaceChildren(
     ...(data.scenarios.length ? [scenarioTable(data)] : []),
-    briefing(),
     links(data),
+    briefing(),
   );
   byId("outlook-evidence-root").replaceChildren(evidence(data, context));
   document.dispatchEvent(new CustomEvent("outlook-shown", {detail: data}));
