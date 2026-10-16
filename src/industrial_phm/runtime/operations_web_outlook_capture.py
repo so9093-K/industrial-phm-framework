@@ -18,12 +18,12 @@ from urllib.parse import parse_qs
 from uuid import UUID
 
 from industrial_phm.application.forecast import ForecastUnavailable
-from industrial_phm.application.phm_analysis import PhmAnalysisError
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewStatus,
     next_human_review_status,
 )
+from industrial_phm.application.phm_analysis import PhmAnalysisError
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_forecast import (
     acquisition_points,
@@ -361,7 +361,9 @@ def current_measurement_recheck(
             asset_id, kind, series,
             [time for time, _ in finite], [value for _, value in finite], meta,
         )
-        return "same_measurement_projection" if actual == identity["measurement_version"] else "changed"
+        if actual == identity["measurement_version"]:
+            return "same_measurement_projection"
+        return "changed"
     except (LookupError, ValueError, OSError, OperationsReadError, PhmAnalysisError, sqlite3.Error):
         return "unavailable"
 
