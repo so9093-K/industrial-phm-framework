@@ -9,7 +9,7 @@
   type Props={projection:Projection;onEvidenceChanged:()=>void};
   let {projection,onEvidenceChanged}:Props=$props();
   type State="loading"|"ready"|"failed"|"changed";
-  let state:State=$state("loading");
+  let briefingState:State=$state("loading");
   let error=$state("");
   let records:Briefing[]=$state([]);
   let writable=$state(false);
@@ -22,7 +22,7 @@
     record.answer?.source==="computed"?"서버 계산 요약":
     record.answer?.source==="model-trimmed"?"AI 문장 일부 근거 검증 수정":
     record.answer?.source==="model"?"근거 검증된 AI 설명":"생성 방식 미확인";
-  const readyVersion=/^[a-f0-9]{64}$/.test(projection.dataVersion);
+  const readyVersion=$derived(/^[a-f0-9]{64}$/.test(projection.dataVersion));
   function cancel(){
     request?.abort();
     if(timer!==null)clearTimeout(timer);
@@ -31,13 +31,13 @@
   async function refresh(){
     cancel();
     const pending=new AbortController();request=pending;
-    state="loading";error="";records=[];
+    briefingState="loading";error="";records=[];
     try{
       await assertCurrentVersion(projection,pending.signal);
       if(pending.signal.aborted)return;
       const results=await readBriefings(projection,pending.signal);
       if(pending.signal.aborted)return;
-      records=results;state="ready";
+      records=results;briefingState="ready";
       if(results.some(x=>x.status==="pending")&&remaining>0){
         remaining--;
         timer=setTimeout(()=>void refresh(),1500);
@@ -45,15 +45,15 @@
     }catch(cause:unknown){
       if(pending.signal.aborted)return;
       error=cause instanceof Error?cause.message:"AI 브리핑 버전을 검증할 수 없습니다.";
-      state=cause instanceof BriefingEvidenceChanged?"changed":"failed";
-      if(state==="changed")onEvidenceChanged();
+      briefingState=cause instanceof BriefingEvidenceChanged?"changed":"failed";
+      if(briefingState==="changed")onEvidenceChanged();
     }
   }
   async function ask(){
     if(!writable||requesting||!readyVersion)return;
     cancel();
     const pending=new AbortController();request=pending;requesting=true;
-    state="loading";error="";records=[];remaining=20;
+    briefingState="loading";error="";records=[];remaining=20;
     try{
       await requestBriefing(projection,question,pending.signal);
       if(pending.signal.aborted)return;
@@ -63,12 +63,12 @@
       if(pending.signal.aborted)return;
       requesting=false;
       error=cause instanceof Error?cause.message:"AI 브리핑 요청 실패";
-      state=cause instanceof BriefingEvidenceChanged?"changed":"failed";
-      if(state==="changed")onEvidenceChanged();
+      briefingState=cause instanceof BriefingEvidenceChanged?"changed":"failed";
+      if(briefingState==="changed")onEvidenceChanged();
     }
   }
   onMount(()=>{
-    if(!readyVersion){state="failed";error="설명 근거 버전이 유효하지 않아 AI 설명을 조회하지 않았습니다.";return;}
+    if(!readyVersion){briefingState="failed";error="설명 근거 버전이 유효하지 않아 AI 설명을 조회하지 않았습니다.";return;}
     const permissionRequest=new AbortController();
     void readPermission(permissionRequest.signal).then(allowed=>{
       if(!permissionRequest.signal.aborted)writable=allowed;
@@ -100,12 +100,12 @@
   {/if}
   {#if requesting}
     <StatusNotice message="서버 권한과 최신 분석 버전을 다시 확인하고 AI 브리핑을 요청합니다."/>
-  {:else if state==="loading"}
+  {:else if briefingState==="loading"}
     <StatusNotice message="저장 전망의 계산 버전을 재검증하고 AI 브리핑 상태를 조회하고 있습니다."/>
-  {:else if state==="failed"}
+  {:else if briefingState==="failed"}
     <StatusNotice kind="failure" title="AI 브리핑 확인 실패" message={error}
       actionLabel="버전 다시 확인" onAction={()=>{remaining=20;void refresh();}}/>
-  {:else if state==="changed"}
+  {:else if briefingState==="changed"}
     <StatusNotice kind="uncertain" title="기존 전망·AI 설명 무효화" message={error}/>
   {:else if records.length===0}
     <StatusNotice message="이 설정과 분석 근거 버전으로 저장된 AI 브리핑은 없습니다."/>
