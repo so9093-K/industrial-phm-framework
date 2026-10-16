@@ -18,11 +18,28 @@ from industrial_phm.application.forecast import (
     horizon_reasons,
 )
 
+from industrial_phm.runtime.operations_web_forecast import measurement_version
+
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
 
 
 def _minutes(count: int, step: int = 1) -> list[datetime]:
     return [T0 + timedelta(minutes=step * index) for index in range(count)]
+
+
+def test_measurement_version_identifies_corrected_input_without_a_new_last_observation() -> None:
+    times = _minutes(30)
+    values = [float(index) for index in range(30)]
+    meta = {"source_id": "sensor-a", "measurement_point_id": "drive-end"}
+    identity = ("pump-1", "history", "current")
+    original = measurement_version(*identity, times, values, meta)
+    corrected = values.copy()
+    corrected[12] += 0.5
+    assert times[-1] == times[-1] and corrected[-1] == values[-1]
+    assert measurement_version(*identity, times, corrected, meta) != original
+    assert measurement_version(*identity, times, values, meta) == original
+    assert measurement_version(*identity, times, values, {**meta, "source_id": "sensor-b"}) != original
+    assert measurement_version("pump-2", "history", "current", times, values, meta) != original
 
 
 def test_horizons_need_twice_their_length_of_history_and_twenty_points() -> None:
