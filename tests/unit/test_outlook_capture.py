@@ -14,7 +14,9 @@ from industrial_phm.runtime.operations_web_outlook_capture import (
     OutlookCaptureCorrupted,
     OutlookCaptureStore,
 )
+from industrial_phm.runtime.operations_web_outlook_capture import handle_outlook_captures_read
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
 def _snapshot(*, last: int = 64) -> dict[str, object]:
@@ -121,3 +123,33 @@ def test_captured_review_history_can_be_paginated_without_losing_old_entries(
     assert store.list_for("bearing-b") == []
     with pytest.raises(LookupError, match="cursor"):
         store.list_for("bearing-b", before_id=first[-1]["capture_id"])
+
+
+def test_outlook_capture_api_pages_after_exact_asset_scoped_cursor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = OperationsWorkspace(tmp_path)
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    for ordinal in range(30, 55):
+        store.save(_snapshot(last=ordinal))
+    monkeypatch.setattr(
+        "industrial_phm.runtime.operations_web_outlook_capture.current_measurement_recheck",
+        lambda workspace, snapshot: "unavailable",
+    )
+    status, first = handle_outlook_captures_read(workspace, "asset_id=bearing-a")
+    assert status == 200 and len(first["captures"]) == 20
+    assert first["next_before"] == first["captures"][-1]["capture_id"]
+    status, second = handle_outlook_captures_read(
+        workspace, "asset_id=bearing-a&before_id=" + first["next_before"]
+    )
+    assert status == 200 and len(second["captures"]) == 5
+    assert "next_before" not in second
+    assert not {
+        item["capture_id"] for item in first["captures"]
+    } & {item["capture_id"] for item in second["captures"]}
+    assert handle_outlook_captures_read(
+        workspace, "asset_id=other&before_id=" + first["next_before"]
+    )[0] == 404
+    assert handle_outlook_captures_read(
+        workspace, "asset_id=bearing-a&before_id=not-a-capture"
+    )[0] == 400
