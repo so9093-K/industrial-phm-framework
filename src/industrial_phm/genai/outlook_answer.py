@@ -107,6 +107,15 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
             re.search(r"(?<![\d.])" + value + r"(?![\d.])", clause)
         )
 
+    def bounded_claim(fragment: str, direction: str) -> bool:
+        """Only an explicitly qualified range edge can support a possible reach."""
+        edge = "하단" if direction == "lower" else "상단"
+        return (
+            "범위" in fragment
+            and edge in fragment
+            and bool(re.search(r"가능|수 있|만\\s*도달", fragment))
+        )
+
     for sentence in sentences(text):
         # Numbers must belong to the named condition, not just exist anywhere
         # in the list of facts (e.g. end-limit 15 is not management-limit 15).
@@ -125,12 +134,15 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
             end = named[index + 1].start() if index + 1 < len(named) else len(sentence)
             part = sentence[match.end() : end]
             expected = known.get("expected_offsets", {})
+            possible = known.get("possible_offsets", {})
             if "도달하지" in part or "닿지" in part:
                 continue
             claim = _REACH_OFFSET.search(part)
-            if claim and claim.group(1) not in {value for value in expected.values() if value}:
+            qualified = bounded_claim(part, known["direction"])
+            valid = expected | (possible if qualified else {})
+            if claim and claim.group(1) not in {value for value in valid.values() if value}:
                 issues.append(f"{name} 조건에 없는 도달 시간입니다: {sentence}")
-            for reading, duration in expected.items():
+            for reading, duration in valid.items():
                 if reading in part and claim and claim.group(1) != duration:
                     issues.append(f"{reading}의 {name} 도달 시간과 다른 숫자입니다: {sentence}")
         clauses = _CLAUSE.split(sentence)
@@ -151,14 +163,24 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
                 label = ("종료 기준 " if name == "end" else "관리 기준 ") + known["value"]
                 if _ALREADY.search(clause) and not known["already"]:
                     issues.append(f"마지막 측정은 아직 {label}에 도달하지 않았습니다: {sentence}")
-                elif claims and not known["reached"]:
+                elif claims and not known["reached"] and not (
+                    known.get("possible") and bounded_claim(window, known["direction"])
+                ):
                     issues.append(
-                        f"{label}에는 어떤 읽기로도 계산 범위 안에 도달하지 않습니다: {sentence}"
+                        f"{label}에는 중심 예측의 도달 근거가 없습니다: {sentence}"
                     )
-            for reading, reached in readings.items():
-                if reading in clause and claims and not reached:
+            for reading, reading_states in readings.items():
+                if reading not in clause or not claims:
+                    continue
+                qualified = any(
+                    bounded_claim(window, known["direction"])
+                    for known in conditions.values()
+                )
+                if not reading_states["reached"] and not (
+                    reading_states["possible"] and qualified
+                ):
                     issues.append(
-                        f"{reading}은 계산 범위 안에서 어느 기준에도 도달하지 않습니다: {sentence}"
+                        f"{reading}은 계산 범위 안에서 중심 예측 도달 근거가 없습니다: {sentence}"
                     )
     return issues
 
