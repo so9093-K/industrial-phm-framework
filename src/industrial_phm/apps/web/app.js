@@ -13,6 +13,7 @@ import { formatTime } from "./time.js";
 import { initializeSignalExplore } from "./signal-explore.js";
 import { initializeCapabilities } from "./capabilities.js";
 import { initializeForecast, refreshForecast } from "./forecast.js";
+import { initializeOutlookCaptures } from "./outlook-captures.js";
 import { initializeAnomalyExplore } from "./anomaly-explore.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
@@ -339,6 +340,7 @@ byId("start-opcua").addEventListener("click", () => {byId("opcua-registration").
 initializeCsvStart();
 initializeSignalExplore();
 initializeCapabilities();
+initializeOutlookCaptures();
 initializeForecast();
 initializeAnomalyExplore();
 records.initialize();loadRuntimeStatus();
