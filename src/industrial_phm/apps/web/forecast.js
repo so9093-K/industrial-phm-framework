@@ -366,6 +366,43 @@ function summary(data) {
   return list;
 }
 
+// Describe the same server-owned values as the chart without interpreting a model
+// interval as field reliability or the user's threshold as a diagnosed failure.
+function readableForecast(data) {
+  const last = data.history.at(-1), first = data.forecast[0], end = data.forecast.at(-1);
+  const unit = data.unit ? " " + data.unit : "";
+  const interval = Math.round(data.model.interval_width * 100);
+  const reading = create("p", "forecast-chart-reading",
+    "마지막 실측 " + axisText(data, last[0]) + " · " + value(last[1]) + unit
+    + " → 중심 예측 종료 " + axisText(data, end[0]) + " · " + value(end[1]) + unit
+    + ". 실측과 모델이 읽은 흐름은 다를 수 있습니다.");
+  const meaning = create("p", "muted forecast-interval-note",
+    interval + "% 범위는 모델이 계산한 명목 예측 구간입니다. 실제 관측 적중률, 기준 도달 확률이나 고장 확률을 뜻하지 않습니다.");
+  const details = create("details", "forecast-reading-table");
+  details.append(create("summary", null, "실측·예측 대표값 표"));
+  const table = create("table", "phm-table");
+  const head = create("tr");
+  for (const title of ["구간", "위치", "중심값", "범위 하단", "범위 상단"]) {
+    const th = create("th", null, title);th.scope = "col";head.append(th);
+  }
+  table.append(create("thead"), create("tbody"));
+  table.tHead.append(head);
+  const row = (label, point, predicted) => {
+    const tr = create("tr");
+    const th = create("th", null, label);th.scope = "row";
+    tr.append(th, create("td", null, axisText(data, point[0])),
+      create("td", null, value(point[1]) + unit),
+      create("td", null, predicted ? value(point[2]) + unit : "—"),
+      create("td", null, predicted ? value(point[3]) + unit : "—"));
+    table.tBodies[0].append(tr);
+  };
+  row("마지막 실측", last, false);
+  row("예측 시작", first, true);
+  row("예측 종료", end, true);
+  details.append(table);
+  return [reading, meaning, details];
+}
+
 function chart(data) {
   // Drawn at the panel's own width so labels stay readable on a phone.
   const width = Math.max(320, Math.round(byId("forecast-result").clientWidth || 900));
@@ -428,7 +465,7 @@ function render(data) {
   byId("forecast-chart-section").hidden = false;
   const [svg, legend] = chart(data);
   if (limits(data).length) legend.append(scale);
-  root.replaceChildren(svg, legend);
+  root.replaceChildren(svg, legend, ...readableForecast(data));
   const metricRoot = byId("forecast-detail-metrics");
   if (metricRoot) {
     const check = data.backtest;
