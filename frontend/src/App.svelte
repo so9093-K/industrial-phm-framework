@@ -176,7 +176,7 @@
             {#key selected.assetId}
               <SignalExplorer assetId={selected.assetId} />
             {/key}
-          {:else}
+          {:else if selected}
             <ObservationDetails asset={selected} {observed} {detailUrl} />
           {/if}
         </div>
