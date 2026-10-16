@@ -137,7 +137,7 @@ function entry(capture, now) {
       } catch (error) {
         if (current !== now) return;
         notice.textContent = error.status === 409 ? "검토 상태가 이미 바뀌었습니다. 새로고침하세요."
-          : "검토 결과를 확인하지 못했습니다. 중복 전송하지 말고 저장 기록을 새로 확인하세요.";
+          : "검토 응답을 확인하지 못했습니다. 같은 작업을 다시 시도하거나 저장 기록을 확인하세요.";
         for (const button of [note, action]) button.disabled = false;
       }
     };
