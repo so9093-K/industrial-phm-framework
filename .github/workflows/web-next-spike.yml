@@ -8,6 +8,7 @@ on:
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/acceptance/test_operations_web_next_browser.py"
       - "tests/acceptance/test_operations_web_next_signal_browser.py"
+      - "tests/acceptance/test_operations_web_next_departures_browser.py"
       - ".github/workflows/web-next-spike.yml"
 
 permissions:
@@ -75,3 +76,4 @@ jobs:
         run: >-
           uv run --no-sync pytest tests/acceptance/test_operations_web_next_browser.py
           tests/acceptance/test_operations_web_next_signal_browser.py
+          tests/acceptance/test_operations_web_next_departures_browser.py
