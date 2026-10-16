@@ -135,7 +135,10 @@ def test_web_next_signal_history_preserves_context_and_quality(
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
+                page.get_by_label("조회 기간").select_option("15m")
+                assert "monitor_range=15m" in page.url
                 page.reload(wait_until="networkidle")
+                pw.expect(page.get_by_label("조회 기간")).to_have_value("15m")
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
 
                 page.get_by_role("button", name="motor-b").click()
