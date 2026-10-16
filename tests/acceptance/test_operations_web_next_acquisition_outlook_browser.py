@@ -193,8 +193,9 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     page.get_by_label("가정한 획득 간격 (선택 · 초/회, 1~86400)").fill("120")
                 page.get_by_label("관리 기준 (선택)").fill("2.4")
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="서버에 검증된 획득 전망 근거")
-                          ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="서버에 검증된 획득 전망 근거")
+                ).to_be_visible()
                 pw.expect(page.get_by_text("추가 4회 획득 시 도달 예상")).to_be_visible()
                 assert page.get_by_role("columnheader", name="획득 #").count() == 1
                 assert page.get_by_role("columnheader", name="예측 시점").count() == 0
@@ -215,15 +216,13 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 # binding cannot inherit the prior result.
                 selected["binding"] = "binding-changed"
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")
-                          ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
                 assert page.get_by_role("heading", name="서버에 검증된 획득 전망 근거").count() == 0
                 selected["binding"] = "binding-a"
                 selected["outlook_version"] = "c" * 64
                 page.get_by_role("button", name="원본 목록 다시 조회").click()
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")
-                          ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
