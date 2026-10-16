@@ -564,6 +564,13 @@ button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){backgrou
 .forecast-chart-section{padding-top:16px;margin-top:16px;border-top:1px solid #e3eaee}
 .forecast-chart-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .forecast-chart-head h3{margin:0;font-size:.95rem}
+.forecast-chart-reading{font-size:.87rem;color:#1d3d4c;line-height:1.6;max-width:78ch;margin:10px 0 4px}
+.forecast-interval-note{max-width:78ch;line-height:1.6}
+.forecast-reading-table{margin:10px 0 2px;max-width:100%;font-size:.83rem}
+.forecast-reading-table>summary{color:#165c72;cursor:pointer;font-weight:650;min-height:30px}
+.forecast-reading-table>table{width:100%;margin-top:8px;font-variant-numeric:tabular-nums}
+.forecast-reading-table th,.forecast-reading-table td{text-align:left;padding:6px 8px 6px 0;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:540px){.forecast-reading-table{overflow-x:auto}.forecast-reading-table>table{min-width:390px}}
 .forecast-chart-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .forecast-chart-controls [hidden]{display:none}
 .forecast-inline{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600}
