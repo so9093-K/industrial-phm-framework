@@ -92,7 +92,9 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                                 "source_id": "source-a",
                                 "measurement_point_id": "point-a",
                                 "unit": "A",
-                                "meaning": "stored-flow-continued-not-failure-time-or-remaining-life",
+                                "meaning": (
+                                    "stored-flow-continued-not-failure-time-or-remaining-life"
+                                ),
                                 "forecast": [["2026-10-16T01:00:00Z", 11.5, 10.5, 12.5]],
                             }
                         ),
@@ -219,7 +221,13 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                             {
                                 "briefing_id": "briefing-a",
                                 "status": "pending",
-                                "selection": urlencode(sorted((key, value) for key, value in payload.items() if key != "question")),
+                                "selection": urlencode(
+                                    sorted(
+                                        (key, value)
+                                        for key, value in payload.items()
+                                        if key != "question"
+                                    )
+                                ),
                             }
                         ),
                     )
