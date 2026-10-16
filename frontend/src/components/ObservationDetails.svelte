@@ -22,7 +22,7 @@
     <p class="explain">수집 상태와 설비의 정상·고장 상태는 다릅니다. 이 화면은 고장 진단이나 실시간 경보가 아닙니다.</p>
     <nav class="detail-actions" aria-label="관측 근거 이동">
       <a class="ui-link-primary detail-link" href={"/web-next/?view=signals&monitor_asset=" + encodeURIComponent(asset.assetId)}>저장 신호 탐색하기 →</a>
-      <a class="legacy-link" href={detailUrl(asset.assetId)}>기존 운영 화면에서 원본 신호 확인 →</a>
+      <a class="legacy-link" href={detailUrl(asset.assetId)}>원본 신호와 저장 이력 확인 →</a>
     </nav>
   {:else}
     <StatusNotice message="설비를 선택하면 마지막 관측 근거를 표시합니다." />
