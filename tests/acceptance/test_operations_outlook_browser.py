@@ -108,7 +108,17 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 ask.click()
                 answer = briefing.locator(".outlook-answer-summary")
                 pw.expect(answer).to_have_text(good["summary"], timeout=30000)
-                pw.expect(briefing.locator(".outlook-chip")).to_have_text(["변화 속도"])
+                chip = briefing.get_by_role("button", name="변화 속도의 사용한 사실 확인")
+                pw.expect(chip).to_have_count(1)
+                chip.click()
+                pw.expect(briefing.locator(".outlook-answer-facts")).to_have_attribute("open", "")
+                fact_row = (
+                    briefing.locator(".outlook-answer-facts .forecast-summary>div")
+                    .filter(has_text="변화 속도")
+                    .first
+                )
+                assert fact_row.evaluate("(element) => document.activeElement === element")
+                pw.expect(briefing.locator(".outlook-answer-facts")).to_contain_text("변화 속도")
                 pw.expect(briefing.locator(".outlook-answer-source")).to_contain_text(
                     "수치는 계산 결과와 대조함"
                 )
@@ -253,9 +263,19 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                            Node.DOCUMENT_POSITION_FOLLOWING);
                 }""")
 
-                # A forecast leads to the asset's existing saved-analysis view.
+                # The current transient calculation has its own exact, inspectable evidence.
                 page.locator("#outlook-more").get_by_role(
-                    "link", name="이 설비의 분석 기록"
+                    "button", name="이 전망의 계산 근거 확인"
+                ).click()
+                pw.expect(page.locator("#forecast-settings")).to_have_attribute("open", "")
+                pw.expect(page.locator("#outlook-evidence")).to_be_focused()
+                pw.expect(page.locator("#outlook-evidence")).to_contain_text("계산 관측 내용 버전")
+                pw.expect(page.locator("#outlook-evidence")).to_contain_text(
+                    "별도 저장 분석 결과가 아닙니다"
+                )
+                # Other saved AnalysisRun/Evidence objects are NOT this computed outlook.
+                page.locator("#outlook-more").get_by_role(
+                    "link", name="이 설비의 별도 저장 분석·검토 기록"
                 ).click()
                 pw.expect(page.locator("#evidence")).to_be_visible(timeout=30000)
                 assert page.evaluate("location.hash") == "#evidence"
