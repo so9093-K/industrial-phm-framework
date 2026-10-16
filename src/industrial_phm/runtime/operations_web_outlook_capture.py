@@ -24,6 +24,7 @@ from industrial_phm.application.maintenance_review import (
 
 from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
+from industrial_phm.runtime.operations_web_review import WebReviewNotFound
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 CAPTURES_ROUTE = "/api/v1/outlook/captures"
@@ -192,7 +193,7 @@ class OutlookCaptureStore:
                 "SELECT id FROM capture WHERE id=? AND asset_id=?", (capture_id, asset_id)
             ).fetchone()
             if row is None:
-                raise LookupError("captured outlook evidence does not belong to asset")
+                raise WebReviewNotFound("captured outlook evidence does not belong to asset")
             previous = connection.execute(
                 "SELECT capture_id, action, note FROM review_event WHERE event_id=?", (event_id,)
             ).fetchone()
