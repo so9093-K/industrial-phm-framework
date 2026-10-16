@@ -29,6 +29,8 @@ const outlook=()=>({
   conditions:{direction:"upper",management:2.4,end:3},
   record:{first:1,last:64,points:64},
   search:{acquisitions:31,until:95},
+  settings:{changepoint_prior_scale:0.05,changepoint_range:0.9,
+    training_points:null,seasonality:"off"},
   scenarios:[{id:"linear",limits:{
     management:{state:"expected",expected:4,earliest:null,latest:null},
     end:{state:"possible",expected:null,earliest:13,latest:null},

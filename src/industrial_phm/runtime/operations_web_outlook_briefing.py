@@ -42,6 +42,12 @@ SELECTION_FIELDS = (
     "seasonality",
     "assumed_period_seconds",
     "data_version",
+    # Exact optional provenance from Web-next. Legacy selection keys stay unchanged.
+    "source_id",
+    "binding_id",
+    "measurement_version",
+    "time_basis",
+    "recorded_period_seconds",
 )
 _MAX_PENDING = 4
 
@@ -49,6 +55,21 @@ _MAX_PENDING = 4
 def selection_key(params: dict[str, str]) -> str:
     """One canonical text per selection, so the same screen finds its own briefings."""
     return urlencode(sorted((k, v) for k, v in params.items() if k in SELECTION_FIELDS and v))
+
+
+def verify_briefing_identity(outlook: dict[str, Any], params: dict[str, str]) -> None:
+    """Reject changed acquisition provenance without breaking older Web selections.
+
+    Selectors are opt-in because the deployed legacy /web/ does not submit them.
+    A submitted selector must match the supervisor's freshly computed facts.
+    """
+    for selector in ("source_id", "binding_id", "measurement_version", "time_basis"):
+        if selector in params and outlook.get(selector) != params[selector]:
+            raise ValueError(f"outlook evidence changed: {selector}")
+    if "recorded_period_seconds" in params:
+        recorded = outlook.get("recorded_period_seconds")
+        if recorded is None or float(params["recorded_period_seconds"]) != recorded:
+            raise ValueError("outlook evidence changed: recorded acquisition interval")
 
 
 class OutlookBriefingStore:
@@ -164,6 +185,7 @@ class BriefingManager:
                 outlook = condition_outlook(self.workspace, **arguments)
                 if outlook["data_version"] != params["data_version"]:
                     raise ValueError("outlook evidence changed before briefing was generated")
+                verify_briefing_identity(outlook, params)
                 answer = generate_outlook_briefing(outlook, question, provider)
             except (
                 ForecastUnavailable,

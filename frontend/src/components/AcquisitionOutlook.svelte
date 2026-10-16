@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import OutlookBriefings from "./OutlookBriefings.svelte";
   import {
     loadAcquisitionOptions,loadAcquisitionPair,
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
@@ -163,7 +164,7 @@
     <button type="button" class="ui-button ui-button-primary"
       onclick={()=>void calculate()} disabled={available.length===0}>같은 획득 근거로 전망 계산</button>
     <p class="context">서버 계산은 요청 시 실행하며 저장하지 않습니다. 선택한 특징·횟수·간격·조건을
-      바꾸면 이전 결과를 즉시 폐기합니다. AI 브리핑·검토 저장은 이 화면에서 생성하지 않습니다.</p>
+      바꾸면 이전 결과를 즉시 폐기합니다. AI 요청은 명시적으로 저장하며 사람 검토 기록은 이 화면에서 작성하지 않습니다.</p>
     {#if resultState==="loading"}
       <StatusNotice message="동일 출처·binding·측정 버전의 획득 전망 두 계산을 검증 중입니다."/>
     {:else if resultState==="failed"}
@@ -233,6 +234,14 @@
           <StatusNotice message="관리·종료 기준을 선택하면 해당 기준까지의 획득 횟수 전망을 함께 계산합니다."/>
         {/if}
       </section>
+      {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
+        <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
+          resultAbort?.abort();
+          outlook=null;
+          resultState="mismatch";
+          message="AI 근거 재검증 중 출처·binding·버전·간격이 변경됐습니다. 획득 원본을 다시 조회하세요.";
+        }}/>
+      {/key}
     {/if}
   {/if}
 </section>

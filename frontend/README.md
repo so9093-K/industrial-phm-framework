@@ -45,7 +45,9 @@ not install Node dependencies.
 - `src/components/AcquisitionOutlook.svelte`: acquisition-ordinal forecast and
   conditional limits with honest recorded/assumed/ordinal spacing semantics.
   Only server-provided values on an identical asset/source/binding/measurement-version
-  are shown. No made-up acquisition timestamps, diagnosis or implicit capture.
+  are shown. Acquisition AI explanations use the existing supervisor CSRF route
+  and must revalidate the exact source/binding/time basis/settings/data version.
+  No made-up acquisition timestamps, diagnosis or implicit capture.
 - `src/acquisition-outlook.ts`: strict paired acquisition DTO and count horizon
   validation. Read-only GET /forecast/options, /forecast and /outlook.
 - `src/components/OutlookBriefings.svelte`: existing supervisor's persisted

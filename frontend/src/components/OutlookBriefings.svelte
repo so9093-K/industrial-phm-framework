@@ -1,12 +1,12 @@
 <script lang="ts">
   import {onMount} from "svelte";
-  import type {Projection} from "../projections";
+  import type {BriefingProjection} from "../outlook-briefings";
   import StatusNotice from "./StatusNotice.svelte";
   import {
     assertCurrentVersion,readBriefings,readPermission,requestBriefing,
     BriefingEvidenceChanged,type Briefing,
   } from "../outlook-briefings";
-  type Props={projection:Projection;onEvidenceChanged:()=>void};
+  type Props={projection:BriefingProjection;onEvidenceChanged:()=>void};
   let {projection,onEvidenceChanged}:Props=$props();
   type State="loading"|"ready"|"failed"|"changed";
   let briefingState:State=$state("loading");
@@ -36,6 +36,7 @@
       await assertCurrentVersion(projection,pending.signal);
       if(pending.signal.aborted)return;
       const results=await readBriefings(projection,pending.signal);
+      await assertCurrentVersion(projection,pending.signal);
       if(pending.signal.aborted)return;
       records=results;briefingState="ready";
       if(results.some(x=>x.status==="pending")&&remaining>0){
@@ -82,7 +83,7 @@
   <h3 id="briefings-heading">버전 일치 AI 브리핑</h3>
   <p class="context">이 설명은 선택한 저장 측정·이상 탐지 근거 버전에서만 유효합니다.
     서버가 다시 계산한 `data_version`이 바뀌면 설명과 이전 전망을 모두 폐기합니다.
-    AI 설명은 고장 판정이나 정비 지시가 아닙니다.</p>
+    획득 번호와 가정 간격은 실제 시각을 의미하지 않습니다. AI 설명은 고장 판정이나 정비 지시가 아닙니다.</p>
   <label>AI에게 물을 질문 (최대 600자)
     <input maxlength="600" value={question} disabled={!writable||requesting||!readyVersion}
       oninput={event=>question=event.currentTarget.value}/>

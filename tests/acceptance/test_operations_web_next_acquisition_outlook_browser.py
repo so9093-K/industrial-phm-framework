@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from threading import Thread
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 
@@ -163,6 +163,12 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                                 },
                                 "record": {"first": 1, "last": 64, "points": 64},
                                 "search": {"acquisitions": 31, "until": 95},
+                                "settings": {
+                                    "changepoint_prior_scale": 0.05,
+                                    "changepoint_range": 0.9,
+                                    "training_points": None,
+                                    "seasonality": "off",
+                                },
                                 "scenarios": [
                                     {
                                         "id": "linear",
@@ -180,6 +186,111 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                         ),
                     )
 
+                writable = {"yes": True}
+                asked = {"yes": False}
+
+                def session(route):
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "schema_version": 1,
+                                "can_change": writable["yes"],
+                                "write_scope": (
+                                    "supervisor-owned-source-control"
+                                    if writable["yes"]
+                                    else "read-only-synthetic-demo"
+                                ),
+                                "csrf_token": "supervisor-csrf-token-validated",
+                            }
+                        ),
+                    )
+
+                def canonical(query: str) -> str:
+                    return urlencode(
+                        sorted((key, values[0]) for key, values in parse_qs(query).items())
+                    )
+
+                def saved_briefings(route):
+                    selection = canonical(urlsplit(route.request.url).query)
+                    pairs = parse_qs(selection)
+                    assert pairs["binding_id"] == ["binding-a"]
+                    assert pairs["measurement_version"] == ["a" * 64]
+                    assert pairs["source_id"] == ["wave-source"]
+                    assert pairs["time_basis"] == [basis]
+                    assert pairs.get("recorded_period_seconds") == (
+                        ["60"] if recorded_period is not None else None
+                    )
+                    assert pairs.get("assumed_period_seconds") == (
+                        ["120"] if spacing == "assumed" else None
+                    )
+                    assert pairs["seasonality"] == ["off"]
+                    rows = []
+                    if asked["yes"]:
+                        rows = [
+                            {
+                                "id": "briefing-acq",
+                                "status": "complete",
+                                "question": "획득 변화 설명",
+                                "model": "local",
+                                "requested_at": "2026-10-16T00:01:00Z",
+                                "finished_at": "2026-10-16T00:02:00Z",
+                                "answer": {
+                                    "summary": "순번별 저장 근거만 설명합니다.",
+                                    "points": [{"text": "회차별 변화", "evidence": ["rate"]}],
+                                    "evidence": {
+                                        "rate": {
+                                            "label": "획득 변화",
+                                            "text": "서버 계산한 회차당 변화",
+                                        }
+                                    },
+                                    "checks": {"source": "computed"},
+                                },
+                            }
+                        ]
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "schema_version": 1,
+                                "selection": selection,
+                                "briefings": rows,
+                            }
+                        ),
+                    )
+
+                def ask_briefing(route):
+                    assert route.request.headers["x-csrf-token"] == (
+                        "supervisor-csrf-token-validated"
+                    )
+                    payload = route.request.post_data_json
+                    assert payload["kind"] == "acquisition"
+                    assert payload["binding_id"] == "binding-a"
+                    assert payload["source_id"] == "wave-source"
+                    assert payload["measurement_version"] == "a" * 64
+                    assert payload["time_basis"] == basis
+                    assert payload["question"] == "획득 변화 설명"
+                    asked["yes"] = True
+                    selection = urlencode(
+                        sorted((key, value) for key, value in payload.items() if key != "question")
+                    )
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "briefing_id": "briefing-acq",
+                                "status": "pending",
+                                "selection": selection,
+                            }
+                        ),
+                    )
+
+                page.route("**/api/v1/session", session)
+                page.route("**/api/v1/outlook/briefings?**", saved_briefings)
+                page.route("**/api/v1/outlook/briefings/request", ask_briefing)
                 page.route("**/api/v1/forecast?**", forecast)
                 page.route("**/api/v1/outlook?**", outlook)
                 base = f"http://127.0.0.1:{server.server_port}"
@@ -214,9 +325,18 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                         page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)
                     ).to_be_visible()
                 assert "acq_forecast_count=5" in page.url
+                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
+                pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_enabled()
+                page.get_by_label("AI에게 물을 질문 (최대 600자)").fill("획득 변화 설명")
+                page.get_by_role("button", name="AI 브리핑 요청").click()
+                pw.expect(page.get_by_text("순번별 저장 근거만 설명합니다.")).to_be_visible()
+                assert asked["yes"]
                 # Even if the observed version is unchanged, a different
                 # binding cannot inherit the prior result.
                 selected["binding"] = "binding-changed"
+                page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
+                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
+                assert page.get_by_text("순번별 저장 근거만 설명합니다.").count() == 0
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
                 pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
                 assert page.get_by_role("heading", name="서버에 검증된 획득 전망 근거").count() == 0
@@ -225,6 +345,20 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 page.get_by_role("button", name="원본 목록 다시 조회").click()
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
                 pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
+                # Read-only mode still observes numerical provenance but never
+                # offers a supervisor AI write.
+                if width == 390 and spacing == "ordinal":
+                    selected["outlook_version"] = "a" * 64
+                    writable["yes"] = False
+                    asked["yes"] = False
+                    page.reload(wait_until="networkidle")
+                    page.get_by_label("관리 기준 (선택)").fill("2.4")
+                    page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
+                    pw.expect(
+                        page.get_by_role("heading", name="버전 일치 AI 브리핑")
+                    ).to_be_visible()
+                    pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_disabled()
+                    assert not asked["yes"]
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )

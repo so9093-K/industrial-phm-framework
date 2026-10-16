@@ -17,6 +17,8 @@ on:
       - "tests/acceptance/test_operations_web_next_acquisition_outlook_browser.py"
       - "src/industrial_phm/runtime/operations_web_forecast.py"
       - "src/industrial_phm/runtime/operations_web_outlook_briefing.py"
+      - "tests/integration/test_operations_web_outlook_briefing.py"
+      - "src/industrial_phm/runtime/operations_web_outlook_briefing.py"
       - "tests/acceptance/test_operations_web_next_relation_browser.py"
       - "tests/acceptance/test_operations_web_next_review_browser.py"
       - "tests/acceptance/test_operations_web_next_spectrum_browser.py"
@@ -81,6 +83,7 @@ jobs:
           uv run --locked --extra operations pytest tests/integration/test_operations_web_next_static.py
           tests/integration/test_operations_web_explore.py
           tests/integration/test_operations_web_phm.py
+          tests/integration/test_operations_web_outlook_briefing.py
       - name: Verify wheel contains compiled assets
         run: |
           uv build --wheel
