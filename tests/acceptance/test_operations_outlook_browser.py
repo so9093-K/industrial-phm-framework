@@ -71,6 +71,52 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 3")
                 pw.expect(outlook.locator(".outlook-observed")).to_have_text("마지막 획득 #64")
                 pw.expect(figures).to_contain_text("모델 기준 초과")
+                # An explicit operator request captures server-recomputed facts, not UI numbers.
+                archive = page.locator("#outlook-saved")
+                save = archive.get_by_role("button", name="현재 전망을 검토 대상으로 저장")
+                pw.expect(save).to_be_enabled(timeout=15000)
+                pw.expect(archive).to_contain_text("아직 저장한 전망이 없습니다.")
+                save.click()
+                pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
+                pw.expect(archive).to_contain_text("확정 저장한 전망")
+                archive.locator(".outlook-saved-evidence summary").first.click()
+                pw.expect(archive).to_contain_text("당시 서버가 계산한 설명")
+                pw.expect(archive).to_contain_text("당시 계산 조건")
+                pw.expect(archive).to_contain_text("분석 근거 버전")
+                pw.expect(archive).to_contain_text("같은 측정 내용")
+                pw.expect(archive).to_contain_text("현재 저장된 측정 투영과 동일합니다")
+                # A captured outlook has its own exact human-review subject, not a
+                # fabricated file/phase analysis ID.
+                archive.get_by_role("textbox", name="이 전망의 검토 메모").fill(
+                    "최초 획득의 기준과 모델 입력 확인"
+                )
+                submitted_events = []
+
+                def uncertain_review_response(route: Any) -> None:
+                    submitted_events.append(route.request.post_data_json["event_id"])
+                    if len(submitted_events) == 1:
+                        route.fulfill(
+                            status=503,
+                            content_type="application/json",
+                            body='{"error":"temporary"}',
+                        )
+                    else:
+                        route.continue_()
+
+                review_route = "**/api/v1/outlook/captures/review/action"
+                page.route(review_route, uncertain_review_response)
+                archive.get_by_role("button", name="메모 남기기").click()
+                pw.expect(archive).to_contain_text("검토 응답을 확인하지 못했습니다")
+                archive.get_by_role("button", name="메모 남기기").click()
+                pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
+                assert len(submitted_events) == 2
+                assert submitted_events[0] == submitted_events[1]
+                page.unroute(review_route, uncertain_review_response)
+                archive.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(archive).to_contain_text("담당자 검토 · 확인함")
+                page.once("dialog", lambda dialog: dialog.accept())
+                archive.get_by_role("button", name="검토 완료로 표시").click()
+                pw.expect(archive).to_contain_text("담당자 검토 · 완료")
                 details = page.locator("#outlook-evidence .outlook-details")
                 pw.expect(details).to_contain_text("이상 탐지 모델")
                 pw.expect(details).to_contain_text("처음 초과 #62")
@@ -86,7 +132,17 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 ask.click()
                 answer = briefing.locator(".outlook-answer-summary")
                 pw.expect(answer).to_have_text(good["summary"], timeout=30000)
-                pw.expect(briefing.locator(".outlook-chip")).to_have_text(["변화 속도"])
+                chip = briefing.get_by_role("button", name="변화 속도의 사용한 사실 확인")
+                pw.expect(chip).to_have_count(1)
+                chip.click()
+                pw.expect(briefing.locator(".outlook-answer-facts")).to_have_attribute("open", "")
+                fact_row = (
+                    briefing.locator(".outlook-answer-facts .forecast-summary>div")
+                    .filter(has_text="변화 속도")
+                    .first
+                )
+                assert fact_row.evaluate("(element) => document.activeElement === element")
+                pw.expect(briefing.locator(".outlook-answer-facts")).to_contain_text("변화 속도")
                 pw.expect(briefing.locator(".outlook-answer-source")).to_contain_text(
                     "수치는 계산 결과와 대조함"
                 )
@@ -136,6 +192,10 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                     timeout=30000
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
+                pw.expect(archive).to_contain_text("새로운 측정 내용", timeout=30000)
+                pw.expect(archive).to_contain_text("현재 계산 입력이 저장 당시와 다릅니다")
+                pw.expect(archive).to_contain_text("#64 → #65")
+                pw.expect(archive).to_contain_text("관리 기준: 이전")
 
                 # A corrected historical observation keeps the same last acquisition.
                 # A differing measurement fingerprint must force a coherent re-read.
@@ -227,9 +287,19 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                            Node.DOCUMENT_POSITION_FOLLOWING);
                 }""")
 
-                # A forecast leads to the asset's existing saved-analysis view.
+                # The current transient calculation has its own exact, inspectable evidence.
                 page.locator("#outlook-more").get_by_role(
-                    "link", name="이 설비의 분석 기록"
+                    "button", name="이 전망의 계산 근거 확인"
+                ).click()
+                pw.expect(page.locator("#forecast-settings")).to_have_attribute("open", "")
+                pw.expect(page.locator("#outlook-evidence")).to_be_focused()
+                pw.expect(page.locator("#outlook-evidence")).to_contain_text("계산 관측 내용 버전")
+                pw.expect(page.locator("#outlook-evidence")).to_contain_text(
+                    "별도 저장 분석 결과가 아닙니다"
+                )
+                # Other saved AnalysisRun/Evidence objects are NOT this computed outlook.
+                page.locator("#outlook-more").get_by_role(
+                    "link", name="이 설비의 별도 저장 분석·검토 기록"
                 ).click()
                 pw.expect(page.locator("#evidence")).to_be_visible(timeout=30000)
                 assert page.evaluate("location.hash") == "#evidence"
@@ -238,6 +308,12 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 # A Web without running operations shows the outlook but cannot ask.
                 page.goto(f"http://127.0.0.1:{viewer.server_port}/web/{query}")
                 pw.expect(lead).to_be_visible(timeout=30000)
+                pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
+                pw.expect(archive).to_contain_text("담당자 검토 · 완료")
+                pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
+                pw.expect(
+                    archive.get_by_role("button", name="현재 전망을 검토 대상으로 저장")
+                ).to_be_disabled()
                 pw.expect(briefing.locator("#outlook-ask")).to_be_disabled()
                 pw.expect(briefing).to_contain_text("운영이 실행 중이 아닌 화면입니다")
                 assert not errors, errors

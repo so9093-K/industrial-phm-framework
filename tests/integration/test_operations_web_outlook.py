@@ -15,6 +15,11 @@ pytest.importorskip("duckdb")
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.runtime.operations_web_outlook_capture import (
+    capture_outlook,
+    current_measurement_recheck,
+    handle_outlook_captures_read,
+)
 from tests.integration.test_operations_web_forecast import _serve
 from tests.support.phm import analyze, deliver, phm_workspace
 
@@ -87,6 +92,68 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         assert body["conditions"] == {"direction": "upper", "management": 16.0, "end": 18.0}
         assert body["meaning"] == "remaining-margin-to-user-conditions-not-a-diagnosis"
         assert str(tmp_path) not in json.dumps(body)
+
+        captured = capture_outlook(
+            workspace.root,
+            {
+                **query,
+                "management_limit": "16",
+                "end_limit": "18",
+                "direction": "upper",
+                "measurement_version": body["measurement_version"],
+                "data_version": body["data_version"],
+            },
+        )
+        assert captured["schema_version"] == 1
+        assert captured["asset_id"] == "motor-01"
+        same = capture_outlook(
+            workspace.root,
+            {
+                **query,
+                "management_limit": "16",
+                "end_limit": "18",
+                "direction": "upper",
+                "measurement_version": body["measurement_version"],
+                "data_version": body["data_version"],
+            },
+        )
+        assert same["capture_id"] == captured["capture_id"]
+        capture_status, archive = handle_outlook_captures_read(workspace, "asset_id=motor-01")
+        assert capture_status == 200
+        assert len(archive["captures"]) == 1
+        assert archive["captures"][0]["source_recheck"] == "same_measurement_projection"
+        captured_snapshot = archive["captures"][0]["snapshot"]
+        corrected_version = json.loads(json.dumps(captured_snapshot))
+        corrected_version["identity"]["measurement_version"] = "0" * 64
+        assert current_measurement_recheck(workspace, corrected_version) == "changed"
+        different_source = json.loads(json.dumps(captured_snapshot))
+        different_source["identity"]["source_id"] = "unrelated-source"
+        assert current_measurement_recheck(workspace, different_source) == "different_source"
+        missing_asset = json.loads(json.dumps(captured_snapshot))
+        missing_asset["identity"]["asset_id"] = "missing-motor"
+        assert current_measurement_recheck(workspace, missing_asset) == "unavailable"
+        saved = archive["captures"][0]["snapshot"]["outlook"]
+        assert saved["measurement_version"] == body["measurement_version"]
+        assert saved["conditions"] == body["conditions"]
+        assert saved["record"] == body["record"]
+        assert saved["settings"] == body["settings"]
+        assert saved["search"] == body["search"]
+        assert saved["sentences"] == body["sentences"]
+        assert handle_outlook_captures_read(workspace, "asset_id=elsewhere")[1] == {
+            "schema_version": 1,
+            "captures": [],
+        }
+        with pytest.raises(ValueError, match="changed before capture"):
+            capture_outlook(
+                workspace.root,
+                {
+                    **query,
+                    "management_limit": "16",
+                    "end_limit": "18",
+                    "measurement_version": "0" * 64,
+                    "data_version": body["data_version"],
+                },
+            )
 
         status, lower = get("/api/v1/outlook", **query, management_limit="12", direction="lower")
         assert status == 200

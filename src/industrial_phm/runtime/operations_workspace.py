@@ -89,6 +89,11 @@ class OperationsWorkspace:
         return self.root / "outlook-briefings.sqlite"
 
     @property
+    def outlook_capture_path(self) -> Path:
+        """Immutable reviewed condition-outlook evidence; AI answers are separate."""
+        return self.root / "outlook-captures.sqlite"
+
+    @property
     def models_path(self) -> Path:
         """Return the directory of immutable model packages."""
         return self.root / "models"
@@ -149,6 +154,7 @@ class OperationsWorkspace:
             self.phm_analysis_path,
             self.phm_explanation_path,
             self.outlook_briefing_path,
+            self.outlook_capture_path,
             self.finding_state_path,
             self.maintenance_review_state_path,
             self.history_catalog_path,

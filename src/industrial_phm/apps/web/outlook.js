@@ -54,11 +54,12 @@ function margin(data, reached) {
   if (reached.state === "expected") {
     const bounds = [reached.earliest !== null && reached.earliest !== reached.expected ? "빠르면 " + after(data, reached.earliest) : "",
       reached.latest !== null && reached.latest !== reached.expected ? "늦으면 " + after(data, reached.latest) : ""].filter(Boolean);
-    return [after(data, reached.expected) + " 뒤", [reachedAt(data, reached.expected), ...bounds].join(" · ")];
+    return [after(data, reached.expected) + " 뒤",
+      ["중심 예측의 기준 도달 예상", reachedAt(data, reached.expected), ...bounds].join(" · ")];
   }
   if (reached.state === "possible") return [
     data.conditions.direction === "lower" ? "범위 하단만 도달" : "범위 상단만 도달",
-    after(data, reached.earliest) + " 뒤",
+    "중심 예측은 미도달 · 빠르면 " + after(data, reached.earliest) + " 뒤",
   ];
   return ["기간 내 미도달", place(data, data.search.until) + "까지 계산"];
 }
@@ -165,6 +166,10 @@ function evidence(data, context) {
   if (now) add("예측 Prophet · 예측 시작값 " + num(now.start) + " (마지막 측정 " + num(d.latest) + ") · "
     + place(data, data.search.until) + "까지 계산 (학습 기록 길이의 절반)");
   if (data.conditions.end !== null) add("잔여수명은 종료 기준 " + num(data.conditions.end) + "까지 남은 거리");
+  // This version identifies the bounded numerical input, not a durable raw-data snapshot.
+  add("계산 관측 내용 버전 " + data.measurement_version
+    + " · 저장 원본의 불변 스냅샷 ID가 아님");
+  add("이 상태 전망은 요청할 때 계산하며 별도 저장 분석 결과가 아닙니다.");
   if (context) add(context);
   box.append(list);
   return box;
@@ -187,7 +192,18 @@ function links(data) {
   add("기준 구간과 최근 구간 비교", "signals", {explore_kind: data.kind, explore_series: data.series, explore_a: period(d.baseline), explore_b: period(d.recent)});
   if (data.anomaly_model?.latest) add("이상 탐지 결과 보기", "anomaly", {phm_binding: data.anomaly_model.binding_id, phm_position: String(data.anomaly_model.latest.position), phm_view: "anomaly"});
   else if (data.kind === "history") add("기준 범위를 벗어난 구간 보기", "anomaly", {forecast_anomaly_series: data.series});
-  add("이 설비의 분석 기록", "evidence", {});
+  const computation = create("button", "link-button", "이 전망의 계산 근거 확인");
+  computation.type = "button";
+  computation.addEventListener("click", () => {
+    const fold = byId("forecast-settings"), target = byId("outlook-evidence");
+    if (!fold || !target) return;
+    fold.open = true;
+    target.tabIndex = -1;
+    target.focus({preventScroll: true});
+    target.scrollIntoView({block: "start"});
+  });
+  root.append(computation);
+  add("이 설비의 별도 저장 분석·검토 기록", "evidence", {});
   return root;
 }
 
@@ -282,6 +298,15 @@ async function follow(selection, id, status, answer, buttons) {
 function showAnswer(root, record) {
   const result = record.answer;
   const parts = [create("p", "outlook-answer-question", "질문 · " + record.question), create("p", "outlook-answer-summary", result.summary)];
+  const facts = create("details", "outlook-answer-facts");
+  facts.append(create("summary", null, "사용한 사실"));
+  const factList = create("dl", "forecast-summary");
+  const factRows = new Map();
+  for (const [key, fact] of Object.entries(result.evidence)) {
+    const row = create("div");
+    row.append(create("dt", null, fact.label), create("dd", null, fact.text));
+    factRows.set(key, row);factList.append(row);
+  }
   if (result.points.length) {
     const list = create("ul", "outlook-answer-points");
     for (const point of result.points) {
@@ -289,17 +314,22 @@ function showAnswer(root, record) {
       const chips = create("span", "outlook-chips");
       for (const key of point.evidence) {
         const fact = result.evidence[key];
-        const chip = create("span", "outlook-chip", fact?.label || key);chip.title = fact?.text || "";chips.append(chip);
+        if (!factRows.has(key)) continue;
+        const chip = create("button", "outlook-chip", fact.label || key);
+        chip.type = "button";
+        chip.setAttribute("aria-label", (fact.label || key) + "의 사용한 사실 확인");
+        chip.addEventListener("click", () => {
+          const target = factRows.get(key);
+          facts.open = true;
+          target.tabIndex = -1;
+          target.focus({preventScroll: true});
+          target.scrollIntoView({block: "nearest"});
+        });
+        chips.append(chip);
       }
       item.append(chips);list.append(item);
     }
     parts.push(list);
-  }
-  const facts = create("details", "outlook-answer-facts");
-  facts.append(create("summary", null, "사용한 사실"));
-  const factList = create("dl", "forecast-summary");
-  for (const fact of Object.values(result.evidence)) {
-    const row = create("div");row.append(create("dt", null, fact.label), create("dd", null, fact.text));factList.append(row);
   }
   facts.append(factList);
   const source = result.checks?.source === "computed" && result.checks?.model_unavailable
@@ -366,4 +396,5 @@ export function clearOutlook() {
   if (!root) return;
   root.hidden = true;
   for (const id of ["outlook-body", "outlook-more", "outlook-evidence-root"]) clear(byId(id));
+  document.dispatchEvent(new Event("outlook-cleared"));
 }

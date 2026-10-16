@@ -564,6 +564,13 @@ button.forecast-horizon:hover:not(:disabled):not([aria-pressed="true"]){backgrou
 .forecast-chart-section{padding-top:16px;margin-top:16px;border-top:1px solid #e3eaee}
 .forecast-chart-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .forecast-chart-head h3{margin:0;font-size:.95rem}
+.forecast-chart-reading{font-size:.87rem;color:#1d3d4c;line-height:1.6;max-width:78ch;margin:10px 0 4px}
+.forecast-interval-note{max-width:78ch;line-height:1.6}
+.forecast-reading-table{margin:10px 0 2px;max-width:100%;font-size:.83rem}
+.forecast-reading-table>summary{color:#165c72;cursor:pointer;font-weight:650;min-height:30px}
+.forecast-reading-table>table{width:100%;margin-top:8px;font-variant-numeric:tabular-nums}
+.forecast-reading-table th,.forecast-reading-table td{text-align:left;padding:6px 8px 6px 0;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:540px){.forecast-reading-table{overflow-x:auto}.forecast-reading-table>table{min-width:390px}}
 .forecast-chart-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .forecast-chart-controls [hidden]{display:none}
 .forecast-inline{display:flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600}
@@ -595,7 +602,10 @@ button.chip:hover:not(:disabled){background:#e6f1f4}
 .outlook-answer-points{margin:0 0 6px;padding-left:18px;font-size:.86rem;color:#2c4a58}
 .outlook-answer-points li{margin:3px 0}
 .outlook-chips{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:6px;vertical-align:middle}
-.outlook-chip{font-size:.7rem;color:#3b6577;background:#eef4f6;border-radius:8px;padding:0 6px;line-height:1.7}
+.outlook-chip{font-size:.76rem;color:#24546a;background:#eef4f6;border:1px solid #d3e0e6;border-radius:8px;padding:2px 8px;line-height:1.7;min-height:28px;cursor:pointer}
+.outlook-chip:hover:not(:disabled){background:#dcecf1}
+#outlook-evidence:focus{outline:3px solid #237c88;outline-offset:4px;scroll-margin-top:16px}
+.outlook-answer-facts .forecast-summary>div:focus{outline:3px solid #237c88;outline-offset:3px;scroll-margin-top:12px}
 .outlook-answer-facts>summary{cursor:pointer;font-size:.8rem;color:#3b6577}
 .outlook-answer-source{font-size:.75rem;margin:6px 0 0}
 .forecast-settings{margin-top:18px;border-top:1px solid #e3eaee;padding-top:10px}
@@ -621,6 +631,25 @@ button.chip:hover:not(:disabled){background:#e6f1f4}
   .outlook-scenarios tbody th,.outlook-scenarios tbody td{display:block;border:0;padding:3px 0}
   .outlook-scenarios tbody td::before{content:attr(data-condition) " · ";font-weight:600;color:#3b5664}
 }
+/* Explicitly captured, immutable outlook evidence: not the AI briefing or existing AnalysisRun. */
+.outlook-saved{border-top:1px solid #e3eaee;margin-top:18px;padding-top:12px}
+.outlook-saved h3{font-size:.95rem;margin:4px 0 8px}
+.outlook-capture-action{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.outlook-capture-action .muted{max-width:60ch}
+.outlook-saved-entry{border-top:1px solid #edf2f4;padding:12px 0;font-size:.86rem;overflow-wrap:anywhere}
+.outlook-saved-entry strong{color:#24414f}
+.outlook-saved-evidence{margin:8px 0;font-size:.82rem}
+.outlook-saved-evidence>summary{cursor:pointer;color:#165c72;min-height:30px}
+.outlook-saved-evidence p{margin:5px 0;overflow-wrap:anywhere}
+.outlook-saved-review{padding:10px 0;border-top:1px solid #edf2f4}
+.outlook-saved-review:focus{outline:3px solid #237c88;outline-offset:3px;border-radius:5px}
+.outlook-saved-review p{margin:4px 0 8px}
+.outlook-saved-review textarea{width:100%;max-width:660px;min-height:72px;border:1px solid #b9cad5;border-radius:9px;padding:9px}
+.outlook-saved-notes{margin:8px 0;padding-left:20px;line-height:1.6;overflow-wrap:anywhere}
+.outlook-saved-sentences{margin:8px 0;padding-left:20px;line-height:1.65;overflow-wrap:anywhere}
+.outlook-review-actions{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.outlook-reobservation{border-left:3px solid #cfdee4;padding-left:10px;line-height:1.6}
+.outlook-reobservation p{margin:4px 0}
 .forecast-panel input[type="number"],.forecast-panel input[type="text"]{border:1px solid #b9cad5;border-radius:9px;padding:.55rem .7rem;background:#fff;color:#162b38}
 .forecast-panel .forecast-inline input,.forecast-panel .forecast-inline select{padding:4px 6px}
 .forecast-panel .forecast-controls label{display:grid;gap:6px}
