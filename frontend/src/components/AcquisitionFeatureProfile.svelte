@@ -186,7 +186,7 @@
         {:else}
           <p class="context">중앙값 변화 (B−A): <strong>{profile.medianChange}</strong>
             {#if profile.outsidePercent!==null}
-              · B에서 A의 10~90% 분위수 밖 특징: {profile.outsidePercent.toFixed(1)}%
+              · B에서 A의 5~95% 분위수 밖 특징: {profile.outsidePercent.toFixed(1)}%
             {/if}
           </p>
         {/if}
