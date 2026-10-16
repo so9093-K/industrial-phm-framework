@@ -152,6 +152,8 @@ export function parseModelRun(raw:unknown,binding:ModelBinding,expected:StepPoin
   }
   if(step.state==="skipped"&&row.features!==null)
     throw new Error("제외된 단계에 계산 특징이 포함됐습니다.");
+  const processedAt=time(row.processed_at);
+  if(processedAt===null)throw new Error("모델 처리 시각 근거가 없습니다.");
   const output=safeRecord(row.output);
   const features=row.features===null?null:safeRecord(row.features);
   return {bindingId:binding.bindingId,assetId:binding.assetId,sourceId:binding.sourceId,
