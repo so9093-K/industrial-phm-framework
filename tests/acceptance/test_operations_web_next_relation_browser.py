@@ -128,8 +128,12 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                 pw.expect(
                     page.get_by_role("heading", name="동일 시각 신호 관계 조사")
                 ).to_be_visible()
-                pw.expect(page.get_by_role("heading", name="구간 A · source-a / motor-1")).to_be_visible()
-                pw.expect(page.get_by_role("heading", name="구간 A · source-b / motor-2")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="구간 A · source-a / motor-1")
+                ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="구간 A · source-b / motor-2")
+                ).to_be_visible()
                 pw.expect(page.get_by_text("미산출", exact=True)).to_have_count(2)
                 assert "relation_x=current" in page.url
                 assert "relation_y=voltage" in page.url
@@ -144,7 +148,10 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                 failure["enabled"] = True
                 page.get_by_role("button", name="같은 시각의 신호 짝 비교").click()
                 pw.expect(page.get_by_role("heading", name="관계 분석 조회 실패")).to_be_visible()
-                assert page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다").count() == 0
+                assert (
+                    page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다").count()
+                    == 0
+                )
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
