@@ -114,6 +114,7 @@ _WEB_ASSET_MIME = {
             "capabilities.js",
             "forecast.js",
             "outlook.js",
+            "outlook-captures.js",
             "anomaly-explore.js",
         ),
         "text/javascript; charset=utf-8",
