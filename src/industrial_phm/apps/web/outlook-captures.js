@@ -217,20 +217,53 @@ async function show(data, focusCapture = null) {
     }
   });
   const list = create("div", "outlook-saved-list");root.append(list);
-  try {
-    const all = await json("/api/v1/outlook/captures?asset_id=" + encodeURIComponent(data.asset_id));
-    if (mine !== ticket || current !== data) return;
-    if (!all.captures.length) list.append(create("p", "muted", "아직 저장한 전망이 없습니다."));
-    else for (const stored of all.captures) list.append(entry(stored, data));
-    if (focusCapture) {
-      const matching = [...list.querySelectorAll(".outlook-saved-entry")]
-        .find((item) => item.dataset.captureId === focusCapture);
-      matching?.querySelector(".outlook-saved-review")?.focus({preventScroll: true});
+  const loadPage = async (before = null) => {
+    const url = "/api/v1/outlook/captures?asset_id=" + encodeURIComponent(data.asset_id)
+      + (before ? "&before_id=" + encodeURIComponent(before) : "");
+    try {
+      const all = await json(url);
+      if (mine !== ticket || current !== data) return;
+      if (!all.captures.length && !before) {
+        list.append(create("p", "muted", "아직 저장한 전망이 없습니다."));
+      }
+      const firstNew = all.captures.length ? entry(all.captures[0], data) : null;
+      if (firstNew) list.append(firstNew);
+      for (const stored of all.captures.slice(1)) list.append(entry(stored, data));
+      if (focusCapture) {
+        const matching = [...list.querySelectorAll(".outlook-saved-entry")]
+          .find((item) => item.dataset.captureId === focusCapture);
+        if (matching) {
+          matching.querySelector(".outlook-saved-review")?.focus({preventScroll: true});
+          focusCapture = null;
+        }
+      } else if (before && firstNew) {
+        firstNew.tabIndex = -1;
+        firstNew.focus({preventScroll: true});
+      }
+      if (all.next_before) {
+        const more = create("button", "secondary", "이전 검토 기록 더 보기");
+        more.type = "button";
+        more.addEventListener("click", () => {
+          more.disabled = true;
+          more.remove();
+          void loadPage(all.next_before);
+        });
+        list.append(more);
+      }
+    } catch {
+      if (mine !== ticket || current !== data) return;
+      const message = create("p", "state error",
+        "저장된 전망 기록을 읽지 못했습니다. 다시 시도할 수 있습니다.");
+      list.append(message);
+      if (before) {
+        const retry = create("button", "secondary", "이전 검토 기록 다시 불러오기");
+        retry.type = "button";
+        retry.addEventListener("click", () => {retry.remove();message.remove();void loadPage(before);});
+        list.append(retry);
+      }
     }
-  } catch {
-    if (mine === ticket && current === data) list.append(
-      create("p", "state error", "저장된 전망 기록을 읽지 못했습니다. 새로고침해 주세요."));
-  }
+  };
+  await loadPage();
 }
 
 export function initializeOutlookCaptures() {
