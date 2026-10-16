@@ -48,6 +48,11 @@ not install Node dependencies.
   Does not submit reviews, store outlook captures, or call AI for explanations.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
+- `src/components/RelationExplorer.svelte`: read-only paired signal correlation
+  grouped by exact source/point/interpretation and observed timestamp. A correlation
+  is not a causal explanation or an equipment-health conclusion.
+- `src/relation.ts`: strict pairing, asset/channel, group, timestamp and nullable
+  correlation validation; no arbitrary timestamp interpolation.
 - `src/components/PeriodComparison.svelte`: editable two-period (KST) read-only
   stored-history profile comparison with source/point/interpretation-separated
   evidence rows, missingness and quality. A is a user-chosen period, not a
