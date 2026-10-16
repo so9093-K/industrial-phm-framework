@@ -632,6 +632,7 @@ button.chip:hover:not(:disabled){background:#e6f1f4}
 .outlook-saved-evidence>summary{cursor:pointer;color:#165c72;min-height:30px}
 .outlook-saved-evidence p{margin:5px 0;overflow-wrap:anywhere}
 .outlook-saved-review{padding:10px 0;border-top:1px solid #edf2f4}
+.outlook-saved-review:focus{outline:3px solid #237c88;outline-offset:3px;border-radius:5px}
 .outlook-saved-review p{margin:4px 0 8px}
 .outlook-saved-review textarea{width:100%;max-width:660px;min-height:72px;border:1px solid #b9cad5;border-radius:9px;padding:9px}
 .outlook-saved-notes{margin:8px 0;padding-left:20px;line-height:1.6;overflow-wrap:anywhere}
