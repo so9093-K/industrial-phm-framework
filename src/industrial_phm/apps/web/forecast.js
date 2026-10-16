@@ -454,6 +454,11 @@ function chart(data) {
 function render(data) {
   shown = data;
   const root = byId("forecast-result");
+  const oldTable = root.querySelector(".forecast-reading-table");
+  const tableWasOpen = oldTable?.open === true;
+  const focusedSummary = document.activeElement === oldTable?.querySelector("summary");
+  const focusedScale = root.contains(document.activeElement)
+    && document.activeElement?.classList.contains("link-button");
   const note = create("p", "muted", "Prophet · 학습 " + num(data.model.points) + "점"
     + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? " · 획득 순서 기준 (기록된 시간 간격 없음)"
       : " · " + (data.time_basis === "assumed" ? "가정 획득 간격 " : "기록 획득 간격 ") + duration(data.period_seconds) + " 기준")
@@ -465,7 +470,11 @@ function render(data) {
   byId("forecast-chart-section").hidden = false;
   const [svg, legend] = chart(data);
   if (limits(data).length) legend.append(scale);
-  root.replaceChildren(svg, legend, ...readableForecast(data));
+  const [reading, meaning, table] = readableForecast(data);
+  table.open = tableWasOpen;
+  root.replaceChildren(svg, legend, reading, meaning, table);
+  if (focusedSummary) table.querySelector("summary").focus({preventScroll: true});
+  else if (focusedScale) legend.querySelector(".link-button")?.focus({preventScroll: true});
   const metricRoot = byId("forecast-detail-metrics");
   if (metricRoot) {
     const check = data.backtest;
