@@ -17,6 +17,7 @@ from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_outlook_capture import (
     capture_outlook,
+    current_measurement_recheck,
     handle_outlook_captures_read,
 )
 from tests.integration.test_operations_web_forecast import _serve
@@ -121,6 +122,16 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         assert capture_status == 200
         assert len(archive["captures"]) == 1
         assert archive["captures"][0]["source_recheck"] == "same_measurement_projection"
+        captured_snapshot = archive["captures"][0]["snapshot"]
+        corrected_version = json.loads(json.dumps(captured_snapshot))
+        corrected_version["identity"]["measurement_version"] = "0" * 64
+        assert current_measurement_recheck(workspace, corrected_version) == "changed"
+        different_source = json.loads(json.dumps(captured_snapshot))
+        different_source["identity"]["source_id"] = "unrelated-source"
+        assert current_measurement_recheck(workspace, different_source) == "different_source"
+        missing_asset = json.loads(json.dumps(captured_snapshot))
+        missing_asset["identity"]["asset_id"] = "missing-motor"
+        assert current_measurement_recheck(workspace, missing_asset) == "unavailable"
         saved = archive["captures"][0]["snapshot"]["outlook"]
         assert saved["measurement_version"] == body["measurement_version"]
         assert saved["conditions"] == body["conditions"]
