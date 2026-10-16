@@ -13,6 +13,7 @@ on:
       - "tests/acceptance/test_operations_web_next_compare_browser.py"
       - "tests/acceptance/test_operations_web_next_projection_browser.py"
       - "tests/acceptance/test_operations_web_next_relation_browser.py"
+      - "tests/acceptance/test_operations_web_next_review_browser.py"
       - ".github/workflows/web-next-spike.yml"
 
 permissions:
@@ -86,3 +87,4 @@ jobs:
           tests/acceptance/test_operations_web_next_compare_browser.py
           tests/acceptance/test_operations_web_next_projection_browser.py
           tests/acceptance/test_operations_web_next_relation_browser.py
+          tests/acceptance/test_operations_web_next_review_browser.py

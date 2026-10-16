@@ -48,6 +48,10 @@ not install Node dependencies.
   Does not submit reviews, store outlook captures, or call AI for explanations.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
+- `src/components/ReviewInbox.svelte`: one-snapshot, read-only Finding/AnalysisRun/
+  Evidence identity-linked review queue. No review commands or reobservation writes.
+- `src/reviews.ts`: exact asset/run/evidence joins; partial/truncated/missing
+  read evidence remains explicit and never turns into a missing or closed review.
 - `src/components/RelationExplorer.svelte`: read-only paired signal correlation
   grouped by exact source/point/interpretation and observed timestamp. A correlation
   is not a causal explanation or an equipment-health conclusion.
