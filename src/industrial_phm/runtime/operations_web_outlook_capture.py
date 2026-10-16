@@ -93,7 +93,8 @@ class OutlookCaptureStore:
     def list_for(self, asset_id: str, *, capture_id: str | None = None) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
-        with self._connect() as connection:
+        # Listing is read-only even in standalone Web previews.
+        with sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=10) as connection:
             if capture_id:
                 records = connection.execute(
                     "SELECT id, captured_at, digest, snapshot FROM capture "
@@ -131,9 +132,14 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
     params = {key: value for key, value in payload.items() if key in _SELECTION}
     for name in _VERSIONS:
         version = payload[name]
-        if len(version) != 64 or any(char not in "0123456789abcdef" for char in version):
+        if not isinstance(version, str) or len(version) != 64:
             raise ValueError("invalid capture version")
-    outlook = condition_outlook(OperationsWorkspace(root), **outlook_arguments(params))
+        if any(char not in "0123456789abcdef" for char in version):
+            raise ValueError("invalid capture version")
+    try:
+        outlook = condition_outlook(OperationsWorkspace(root), **outlook_arguments(params))
+    except ForecastUnavailable as error:
+        raise ValueError("selected outlook cannot be computed") from error
     if any(outlook[name] != payload[name] for name in _VERSIONS):
         raise ValueError("outlook changed before capture: refresh required")
     snapshot = {
@@ -173,7 +179,7 @@ def handle_outlook_captures_read(
         if capture_id and not records:
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
         return HTTPStatus.OK, {"schema_version": 1, "captures": records}
-    except (ValueError, TypeError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
     except (OSError, sqlite3.Error):
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
