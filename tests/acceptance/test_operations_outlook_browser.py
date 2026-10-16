@@ -79,6 +79,10 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 save.click()
                 pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
                 pw.expect(archive).to_contain_text("확정 저장한 전망")
+                archive.locator(".outlook-saved-evidence summary").first.click()
+                pw.expect(archive).to_contain_text("당시 서버가 계산한 설명")
+                pw.expect(archive).to_contain_text("당시 계산 조건")
+                pw.expect(archive).to_contain_text("분석 근거 버전")
                 pw.expect(archive).to_contain_text("같은 측정 내용")
                 pw.expect(archive).to_contain_text("현재 저장된 측정 투영과 동일합니다")
                 # A captured outlook has its own exact human-review subject, not a
