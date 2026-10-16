@@ -48,6 +48,11 @@ not install Node dependencies.
   Does not submit reviews, store outlook captures, or call AI for explanations.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
+- `src/components/AcquisitionFeatureProfile.svelte`: read-only saved acquisition
+  feature A/B ordinal comparison, separating delivered/analyzed/unanalyzed/missing
+  counts from potentially sampled feature statistics. No time-axis inference.
+- `src/acquisition-profile.ts`: strictly bound source/binding/feature/ordinal
+  profile DTO; unknown metrics never become zero or a health assertion.
 - `src/components/AcquisitionSpectrum.svelte`: server-owned verified original
   waveform Welch PSD, separate ordinal A/B ranges, equal per-channel linear
   frequency/power axes, missing raw-waveform and storage failures distinguished.

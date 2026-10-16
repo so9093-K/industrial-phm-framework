@@ -4,7 +4,7 @@
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {
     FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,
-    type FeatureSource,type FeatureProfile,type FeaturePeriod,
+    type FeatureSource,type FeatureProfile,
   } from "../acquisition-profile";
 
   let {assetId}:{assetId:string}=$props();
