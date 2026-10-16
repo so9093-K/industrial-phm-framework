@@ -94,7 +94,10 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         )
         for _ in range(300):
             status, exact = get("/api/v1/outlook/briefings", **with_evidence)
-            if status == 200 and exact["briefings"] and exact["briefings"][0]["status"] != "pending":
+            if (
+                status == 200
+                and exact["briefings"] and exact["briefings"][0]["status"] != "pending"
+            ):
                 break
             time.sleep(0.05)
         assert exact["selection"] == exact_job["selection"]
@@ -107,14 +110,20 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         )
         for _ in range(300):
             status, failed = get("/api/v1/outlook/briefings", **wrong)
-            if status == 200 and failed["briefings"] and failed["briefings"][0]["status"] != "pending":
+            if (
+                status == 200
+                and failed["briefings"] and failed["briefings"][0]["status"] != "pending"
+            ):
                 break
             time.sleep(0.05)
         assert failed["selection"] == bad_job["selection"]
         assert failed["briefings"][0]["status"] == "failed"
         assert failed["briefings"][0]["answer"] is None
         # The old /web/ selection without optional provenance must remain readable.
-        assert get("/api/v1/outlook/briefings", **selection)[1]["briefings"][0]["status"] == "complete"
+        assert (
+            get("/api/v1/outlook/briefings", **selection)[1]["briefings"][0]["status"]
+            == "complete"
+        )
         # Another selection has its own briefings.
         status, other = get("/api/v1/outlook/briefings", **{**selection, "end_limit": "4"})
         assert status == 200 and other["briefings"] == []
