@@ -78,6 +78,10 @@ export function defaultPeriods(from: string, to: string): Periods {
 
 export function parseSources(payload: unknown, assetId: string): SourceHistory {
   const response = rec(payload), history = rec(response?.history);
+  if (response?.schema_version === 1 && response.asset_id === assetId
+    && response.history === null) {
+    throw new NoHistoryError("해당 설비에는 저장된 측정 이력이 없습니다.");
+  }
   if (response?.schema_version !== 1 || response.asset_id !== assetId
     || !history || !Array.isArray(history.channels)) {
     throw new Error("선택한 설비의 이력 데이터 계약이 맞지 않습니다.");

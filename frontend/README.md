@@ -42,6 +42,11 @@ not install Node dependencies.
   selection and bounded, unconnected mean-bucket dots with a quality table.
 - `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
   deviation exploration (stored bucket means, not trained model outputs).
+- `src/components/PeriodComparison.svelte`: editable two-period (KST) read-only
+  stored-history profile comparison with source/point/interpretation-separated
+  evidence rows, missingness and quality. A is a user-chosen period, not a
+  validated normal period; model/acquisition/relation/PSD workflows remain in /web/.
+- `src/comparison.ts`: bounded two-period history API DTO contract.
 - `src/departures.ts`: strict asset/channel/baseline and server-meaning DTO
   validation; missing evidence, no threshold departures and failed reads differ.
   The endpoint does not expose the underlying source/point/interpretation identity.
