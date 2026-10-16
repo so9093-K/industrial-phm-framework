@@ -130,7 +130,7 @@ export function renderPhmExplanation(view, bindingId, position, pin = () => {}, 
   };
   const inputText = (output, at) => {
     const sequence = output?.sequence_positions;
-    return sequence?.length ? shortText(sequence[0]) + "–" + shortText(sequence.at(-1)) + " (" + sequence.length + "개 획득)" : shortText(at) + " 한 입력";
+    return sequence?.length ? shortText(sequence[0]) + "–" + shortText(sequence.at(-1)) + " (" + sequence.length + "회 측정)" : shortText(at) + " 한 입력";
   };
   const openButton = (name, text = label(name)) => {
     const open = element("button", text + " · " + shortText(position) + " 원본");open.type = "button";

@@ -226,7 +226,7 @@ function render(data, base) {
     leaveStored();clearSignal();
     byId("monitor-signal-mode").textContent = waveforms.recorded_replay ? "기록 재생" : "저장 입력";
     byId("monitor-signal-context").textContent = "진동 파형 #" + waveforms.last_ordinal + "까지 저장 · 채널 " + waveforms.channels.length + "개";
-    byId("monitor-signal-state").textContent = "저장된 진동 파형을 읽는 이상 탐지 모델이 아직 없습니다. 모델을 연결하면 획득별 원본 파형·특징·이상 점수를 볼 수 있습니다.";
+    byId("monitor-signal-state").textContent = "저장된 진동 파형을 읽는 이상 탐지 모델이 아직 없습니다. 모델을 연결하면 측정별 원본 파형·특징·이상 점수를 볼 수 있습니다.";
     const connect = node("button", "이상 탐지 모델 연결", "secondary");connect.type = "button";
     connect.addEventListener("click", () => navigate("#anomaly", byId("anomaly-title")));
     byId("monitor-detection-results").replaceChildren(connect);
@@ -326,7 +326,7 @@ async function loadSignal(item) {
     for (const choice of choices) {const option = node("option", choice.name);option.value = choice.id;select.append(option);}
     if (!choices.some((c) => c.id === choiceId)) choiceId = choices[0]?.id;
     select.value = choiceId;select.disabled = false;
-    byId("monitor-signal-state").textContent = data.sample_count ? "최근 획득의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
+    byId("monitor-signal-state").textContent = data.sample_count ? "최근 측정의 실제 파형 · " + data.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     updateLegend();
     paintSignal();
   } catch (error) {
@@ -398,7 +398,7 @@ function paintSignal() {
     return;
   } else {
     drawSignal(byId("monitor-signal-chart"), preview, choiceId);
-    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 획득의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
+    byId("monitor-signal-state").textContent = preview.sample_count ? "최근 측정의 실제 파형 · " + preview.sample_count.toLocaleString() + "개 표본" : "확정된 입력 구간의 실제 관측 · 원본 측정 시각 KST";
     if (!preview.sample_count) {
       const choice = signalChoices(preview).find((c) => c.id === choiceId);
       for (const [index, channel] of (choice?.channels || []).entries()) {

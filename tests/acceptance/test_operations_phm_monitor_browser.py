@@ -109,21 +109,21 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 pw.expect(model).to_contain_text("이전 결과")
                 model.get_by_role("link", name="이 시점의 추세·원본 입력 보기").click()
                 pw.expect(page.locator("#anomaly-binding")).to_have_value("anomaly-a")
-                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #2")
                 pw.expect(page.locator("#anomaly-detail .phm-wave")).to_have_count(2)
                 page.reload()
-                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #2")
                 pw.expect(page.locator("#anomaly-explanation h3")).to_contain_text("분석 #2")
                 # A keyboard-selected older record updates summary, raw input and bookmark together.
                 page.locator("#anomaly-position").focus()
                 page.locator("#anomaly-position").press("ArrowUp")
-                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #1")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #1")
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text(
                     "선택한 이전 기록 #1"
                 )
                 assert "phm_position=1" in page.url
                 page.select_option("#anomaly-position", "2")
-                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #2")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #2")
                 # A bookmark of the other model's result opens that model at that record.
                 page.goto(
                     f"http://127.0.0.1:{server.server_port}/web/?phm_binding=anomaly-b&phm_position=2&phm_view=anomaly#anomaly"

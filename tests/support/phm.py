@@ -138,7 +138,14 @@ def retire_into(workspace: OperationsWorkspace, binding_id: str = "rul-old") -> 
     return package_id
 
 
-def deliver(workspace: OperationsWorkspace, waveforms: Path, ordinal: int, scale: float) -> None:
+def deliver(
+    workspace: OperationsWorkspace,
+    waveforms: Path,
+    ordinal: int,
+    scale: float,
+    *,
+    period_seconds: float | None = 60.0,
+) -> None:
     waveforms.mkdir(parents=True, exist_ok=True)
     path = waveforms / f"{ordinal}.csv"
     rows = [f"{scale * ((i % 4) - 1.5):.6f},{(i % 3) - 1.0 + 0.01 * i:.6f}" for i in range(SAMPLES)]
@@ -155,7 +162,7 @@ def deliver(workspace: OperationsWorkspace, waveforms: Path, ordinal: int, scale
             sample_count=SAMPLES,
             delivered_at=T0 + timedelta(minutes=ordinal),
             replay=True,
-            acquisition_period_seconds=60.0,
+            acquisition_period_seconds=period_seconds,
             metadata={"operating_condition": "c1"},
         )
     )

@@ -25,7 +25,7 @@ const number = (value, digits = 3) => typeof value === "number" && Number.isFini
 const time = (value) => formatTime(value);
 const POLL_MS = 3000;
 const TASK_LABEL = {"anomaly-score": "이상 점수"};
-const STEP_KIND_LABEL = {"acquisition-snapshot": "획득 파형", "observation-window": "관측 윈도우"};
+const STEP_KIND_LABEL = {"acquisition-snapshot": "진동 파형", "observation-window": "관측 윈도우"};
 // A rejected input is not a fault; it means this package was not trained or validated for it.
 const INPUT_GUIDE = "이 입력은 선택한 모델로 분석할 수 없습니다. "
   + "아래 모델 정보에서 필요한 입력 조건을 확인하고, 맞는 모델을 연결해야 합니다.";
@@ -132,7 +132,7 @@ function axisFor(entry) {
   const period = entry.package && entry.package.output && entry.package.output.step_period_seconds;
   return timed
     ? {cadence: period ? period * 1000 : null, x: (step) => Date.parse(step.event_start), label: "원본 측정 시각 · KST", format: (v) => formatTime(v, {seconds: false, zone: false})}
-    : {x: (step) => step.position, label: "획득 순번" + (period ? " · 기록 주기 " + period + "초" : ""), format: (v) => "#" + Math.round(v)};
+    : {x: (step) => step.position, label: "측정 순서" + (period ? " · 기록 주기 " + period + "초" : ""), format: (v) => "#" + Math.round(v)};
 }
 
 // A window's position is an internal ordering key; people identify it by its event time.
@@ -567,7 +567,7 @@ async function focusStep(position, pin = true) {
   root.replaceChildren();root.dataset.inputKey = key;
   if (!step) return;
   const heading = node("div", "", "phm-input-heading");
-  heading.append(node("h3", (step.event_start ? time(step.event_start) : "획득 #" + step.position) + " · 원본 신호"));
+  heading.append(node("h3", (step.event_start ? time(step.event_start) : "측정 #" + step.position) + " · 원본 신호"));
   root.append(heading);
   if (step.state !== "analyzed") {root.append(node("p", "분석 불가: " + step.reason));return;}
   const metadata = node("details", "", "phm-input-details");metadata.append(node("summary", "입력 특징·오차 분해"));
@@ -704,7 +704,7 @@ function inputSpec(input) {
     STEP_KIND_LABEL[input.step_kind] || input.step_kind,
     (input.channels || []).map(channelLabel).join(", "),
     input.sampling_rate_hz ? number(input.sampling_rate_hz) + " Hz" : "",
-    input.samples_per_step ? "획득당 " + number(input.samples_per_step) + "개 표본" : "",
+    input.samples_per_step ? "측정 1회당 " + number(input.samples_per_step) + "개 표본" : "",
   ].filter(Boolean).join(" · ");
 }
 
@@ -717,7 +717,7 @@ function renderModelCard(root, pkg) {
   const scope = pkg.training_scope || {};
   add("모델", modelFamily(pkg.recipe_id || pkg.package_id, pkg.output.task, pkg.input?.step_kind));
   if (pkg.input) add("입력", inputSpec(pkg.input));
-  if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스", "과거 " + pkg.input.sequence_length + "개 획득");
+  if (pkg.input && pkg.input.sequence_length > 1) add("시퀀스", "과거 " + pkg.input.sequence_length + "회 측정");
   if (typeof pkg.output.threshold === "number") add("모델 기준", number(pkg.output.threshold));
   const trained = [scope.dataset_id, scope.asset_ids ? scope.asset_ids.length + "개 설비" : ""].filter(Boolean).join(" · ");
   if (trained) add("학습 데이터", trained);

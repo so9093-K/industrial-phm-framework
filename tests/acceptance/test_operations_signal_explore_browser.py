@@ -37,7 +37,7 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 page.goto(base + "#signals")
                 panel = page.locator("#explore")
                 state = panel.locator("#explore-state")
-                pw.expect(state).to_contain_text("획득별 특징 · 구간 A #1–#4 · 구간 B #5–#8")
+                pw.expect(state).to_contain_text("측정별 특징 · 구간 A #1–#4 · 구간 B #5–#8")
                 guide = panel.locator("#explore-guide")
                 heading = guide.get_by_role("heading", name="무엇을 확인하고 싶나요?")
                 pw.expect(heading).to_be_visible()
@@ -56,11 +56,11 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 pw.expect(horizontal.locator("svg.explore-chart")).to_be_visible()
                 quality = panel.locator(".explore-quality-card")
                 pw.expect(quality).to_have_count(2)
-                pw.expect(quality.first).to_contain_text("전달된 획득")
+                pw.expect(quality.first).to_contain_text("수신한 진동 측정")
                 relation = panel.locator(".explore-relation")
                 pw.expect(relation.locator("svg.explore-scatter circle")).to_have_count(8)
                 pw.expect(relation.locator("table")).to_contain_text("4 / 4")
-                pw.expect(relation).to_contain_text("같은 획득의 두 특징을 짝지었습니다")
+                pw.expect(relation).to_contain_text("동일 측정의 두 특징을 짝지었습니다")
                 spectrum = panel.locator(".explore-spectrum")
                 pw.expect(spectrum.locator("svg.explore-spectrum-chart")).to_have_count(0)
                 spectrum.get_by_role("button", name="주파수 성분 계산").click()
@@ -68,7 +68,7 @@ def test_two_acquisition_ranges_compare_and_link_to_the_anomaly_view(
                 pw.expect(spectrum.locator(".explore-band-changes li").first).to_contain_text(
                     "구간 B가 A보다 +"
                 )
-                pw.expect(spectrum).to_contain_text("구간 A 획득 #1 #2 #3 #4")
+                pw.expect(spectrum).to_contain_text("구간 A 측정 #1 #2 #3 #4")
 
                 compare_goal.click()
                 pw.expect(state).to_contain_text("구간 A #1–#3 · 구간 B #6–#8")

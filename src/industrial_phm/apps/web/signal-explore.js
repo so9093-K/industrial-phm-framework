@@ -6,7 +6,7 @@ import { formatTime, kstInputToInstant } from "./time.js";
 import { byId, clear, create, num } from "./web-utils.js";
 
 const MAX_SERIES = 6;
-const KIND_LABEL = {history: "측정 이력", acquisition: "획득별 특징"};
+const KIND_LABEL = {history: "측정 이력", acquisition: "측정별 특징"};
 const svgNode = (name, attributes = {}) => {
   const node = document.createElementNS("http://www.w3.org/2000/svg", name);
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
@@ -161,7 +161,7 @@ function renderControls(kinds) {
     const group = create("fieldset", "explore-period");
     group.append(create("legend", null, name === "a" ? "구간 A · 비교 기준으로 고른 구간" : "구간 B · 살펴볼 구간"));
     for (const [index, edge] of [[0, "부터"], [1, "까지"]]) {
-      const label = create("label", null, (kind === "history" ? "KST " : "획득 #") + edge);
+      const label = create("label", null, (kind === "history" ? "KST " : "측정 #") + edge);
       const input = create("input");input.id = "explore-" + name + "-" + index;
       if (kind === "history") {input.type = "datetime-local";input.step = "1";input.value = toInput(periods[name][index]);}
       else {Object.assign(input, {type: "number", min: sources.acquisition.first, max: sources.acquisition.last, value: periods[name][index]});}
@@ -228,7 +228,7 @@ function initializeGuidedGoals(choices) {
           if (!box.checked) {box.checked = true;selected.push(box);}
         }
         boxes[0]?.dispatchEvent(new Event("change"));
-        hint.textContent = "동일한 시각·획득의 관측을 짝지어 비교합니다. 상관관계는 고장 원인을 증명하지 않습니다.";
+        hint.textContent = "동일한 시각·측정 순서의 관측을 짝지어 비교합니다. 상관관계는 고장 원인을 증명하지 않습니다.";
       }
       if (goal === "spectrum") {
         hint.textContent = "원본 진동 파형을 사용하는 주파수 분석입니다. 특정 고장 주파수나 고장 원인을 확정하지 않습니다.";
@@ -399,12 +399,12 @@ function relationView(relation, choices) {
       create("td", null, r(group.pearson)), create("td", null, r(group.spearman)));
     table.append(row);
   }
-  const how = relation.pairing === "same-acquisition" ? "같은 획득의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
+  const how = relation.pairing === "same-acquisition" ? "동일 측정의 두 특징을 짝지었습니다." : "같은 출처·측정 지점·시각의 관측만 짝지었습니다.";
   const notes = [create("p", "muted", how + " 상관은 함께 움직인 정도이며 원인을 뜻하지 않습니다."),
     create("p", "explore-interpretation", "Pearson은 직선 관계, Spearman은 값의 순서가 함께 변하는 경향을 요약합니다.")];
   if (split) notes.push(create("p", "muted", "측정 해석(단위·의미)이 바뀐 기록은 따로 계산했고, 산점도에는 짝이 가장 많은 해석만 그렸습니다."));
   for (const group of relation.groups.filter((item) => item.sampled)) {
-    notes.push(create("p", "muted", "구간 " + group.period.toUpperCase() + "은 분석된 획득 " + num(group.analyzed_count)
+    notes.push(create("p", "muted", "구간 " + group.period.toUpperCase() + "은 분석한 진동 측정 " + num(group.analyzed_count)
       + "개가 많아 구간 전체에서 고르게 고른 " + num(group.pair_count) + "개로 계산했습니다."));
   }
   return [svg, create("p", "muted", "세로축 " + name(relation.y) + " · 회색 구간 A, 청록 구간 B"), table, ...notes];
@@ -441,8 +441,8 @@ function spectrumSection(data) {
     channel.addEventListener("change", show);
     const field = create("label", null, "채널");field.append(channel);
     output.replaceChildren(field, view);show();
-    output.append(create("p", "muted", "Welch PSD · " + num(spectrum.segment) + "점 구간 · 샘플링 " + num(spectrum.sampling_rate_hz / 1000) + " kHz · 구간 A 획득 "
-      + spectrum.acquisitions.a.map((n) => "#" + n).join(" ") + " / 구간 B 획득 " + spectrum.acquisitions.b.map((n) => "#" + n).join(" ") + " 평균"));
+    output.append(create("p", "muted", "Welch PSD · " + num(spectrum.segment) + "점 구간 · 샘플링 " + num(spectrum.sampling_rate_hz / 1000) + " kHz · 구간 A 측정 "
+      + spectrum.acquisitions.a.map((n) => "#" + n).join(" ") + " / 구간 B 측정 " + spectrum.acquisitions.b.map((n) => "#" + n).join(" ") + " 평균"));
   };
   start.addEventListener("click", () => void run());
   return box;
@@ -487,10 +487,10 @@ function qualityCard(data, name) {
       ["원본 품질 문제", sum("non_good_count")], ["같은 시각 충돌", sum("conflict_count")],
       ["가장 긴 공백", duration(Math.max(...periods.map((item) => item.largest_gap?.seconds || 0)) || null)],
       ["평소 간격의 3배를 넘는 공백", sum("long_gap_count")]]
-    : [["전달된 획득", Math.max(...periods.map((item) => item.observation_count || 0))],
-      ["분석된 획득", Math.max(...periods.map((item) => item.analyzed_count || 0))],
-      ["빠진 획득 번호", Math.max(...periods.map((item) => item.missing_count || 0))],
-      ["분석되지 않은 획득", Math.max(...periods.map((item) => item.unanalyzed_count || 0))]];
+    : [["수신한 진동 측정", Math.max(...periods.map((item) => item.observation_count || 0))],
+      ["분석한 진동 측정", Math.max(...periods.map((item) => item.analyzed_count || 0))],
+      ["누락된 측정 번호", Math.max(...periods.map((item) => item.missing_count || 0))],
+      ["미분석 진동 측정", Math.max(...periods.map((item) => item.unanalyzed_count || 0))]];
   const list = create("dl");
   for (const [term, value] of lines) list.append(create("dt", null, term), create("dd", null, typeof value === "number" ? num(value) : value));
   card.append(list);
@@ -526,7 +526,7 @@ function seriesCard(item) {
   }
   const sampled = ["a", "b"].filter((name) => item.periods[name]?.sampled);
   if (sampled.length) {
-    card.append(create("p", "muted", sampled.map((name) => "구간 " + name.toUpperCase() + "은 분석된 획득 "
+    card.append(create("p", "muted", sampled.map((name) => "구간 " + name.toUpperCase() + "은 분석한 진동 측정 "
       + num(item.periods[name].analyzed_count) + "개 중 구간 전체에서 고르게 고른 " + num(item.periods[name].usable_count) + "개로").join(", ")
       + " 계산했습니다. 개수·빠진 번호는 전체 기준입니다."));
   }
@@ -538,7 +538,7 @@ function seriesCard(item) {
   row("25–75%", (p) => p.quantiles ? num(p.quantiles[1]) + " ~ " + num(p.quantiles[3]) : "—");
   row("최소 ~ 최대", (p) => p.minimum === null || p.minimum === undefined ? "—" : num(p.minimum) + " ~ " + num(p.maximum));
   row("평균 · 표준편차", (p) => p.mean === null || p.mean === undefined ? "—" : num(p.mean) + " · " + num(p.standard_deviation));
-  row(item.kind === "history" ? "사용 가능 / 기록" : "분석된 / 전달된 획득", (p) => num(item.kind === "history" ? p.usable_count : p.analyzed_count) + " / " + num(p.observation_count));
+  row(item.kind === "history" ? "사용 가능 / 기록" : "분석된 / 수신한 진동 측정", (p) => num(item.kind === "history" ? p.usable_count : p.analyzed_count) + " / " + num(p.observation_count));
   if (item.kind === "history") {
     row("값 없음 · 품질 문제 · 충돌", (p) => num(p.missing_count) + " · " + num(p.non_good_count) + " · " + num(p.conflict_count));
     row("평소 간격 · 가장 긴 공백", (p) => duration(p.median_interval_seconds) + " · " + duration(p.largest_gap?.seconds));

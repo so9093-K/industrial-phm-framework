@@ -246,6 +246,7 @@ def condition_outlook(
     revision = hashlib.sha256(
         json.dumps(
             {
+                "presentation_version": 2,
                 "measurements": [(t.isoformat(), v) for t, v in zip(times, values, strict=True)],
                 "source_id": meta["source_id"],
                 "measurement_point_id": meta.get("measurement_point_id"),

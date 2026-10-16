@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="676" viewBox="0 0 1200 676" role="img" aria-labelledby="title desc">
   <title id="title">Industrial PHM의 측정·분석·사용자 흐름</title>
-  <desc id="desc">CSV와 OPC UA 측정은 설비 이력에, 베어링 기록 재생의 파형은 진동 획득 저장소에 보존합니다. 저장된 측정과 획득 특징으로 신호 탐색, 입력 조건에 맞는 모델의 이상 탐지, 기준 도달 전망을 계산합니다. Operations Web에서 결과를 확인하며, 선택적으로 생성형 AI에 계산된 사실을 질문합니다. 사용자는 전망을 저장하고 검토한 뒤 새 관측과 비교합니다. 로컬 실행은 make up이 수집·분석·Web 프로세스를 관리합니다.</desc>
+  <desc id="desc">CSV와 OPC UA 측정은 설비 이력에, 베어링 기록 재생의 파형은 진동 측정 저장소에 보존합니다. 저장된 측정과 진동 측정별 특징으로 신호 탐색, 입력 조건에 맞는 모델의 이상 탐지, 기준 도달 전망을 계산합니다. Operations Web에서 결과를 확인하며, 선택적으로 생성형 AI에 계산된 사실을 질문합니다. 사용자는 전망을 저장하고 검토한 뒤 새 관측과 비교합니다. 로컬 실행은 make up이 수집·분석·Web 프로세스를 관리합니다.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="#527b8b"/></marker>
     <style>
@@ -26,7 +26,7 @@
     <text class="body" x="44" y="261">시간별 측정값·품질·출처</text>
     <path d="M44 285H268" stroke="#e0eaee"/>
     <text class="label" x="44" y="323">XJTU-SY 기록 재생</text>
-    <text class="body" x="44" y="351">진동 파형·획득 번호</text>
+    <text class="body" x="44" y="351">진동 파형·측정 순서</text>
     <text class="body" x="44" y="390">명시한 설비·신호에 연결</text>
   </g>
   <g>
@@ -34,9 +34,9 @@
     <text class="label" x="340" y="233">측정 이력 · DuckLake</text>
     <text class="body" x="340" y="261">원본 시각·단위·출처 보존</text>
     <path d="M340 285H564" stroke="#e0eaee"/>
-    <text class="label" x="340" y="323">진동 획득·분석 결과</text>
+    <text class="label" x="340" y="323">진동 측정·분석 결과</text>
     <text class="body" x="340" y="351">파형 파일 참조·특징·점수</text>
-    <text class="body" x="340" y="390">시간 축과 획득 순서 구별</text>
+    <text class="body" x="340" y="390">시간 축과 측정 순서 구별</text>
   </g>
   <g>
     <text class="number" x="636" y="146">03 / ANALYZE</text><text class="heading" x="636" y="179">분석과 전망</text>

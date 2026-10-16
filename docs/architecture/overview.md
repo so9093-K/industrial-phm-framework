@@ -33,7 +33,7 @@ OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 own
 
 ![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.svg)
 
-README와 이 문서는 같은 대표 SVG를 사용합니다. CSV·OPC UA 측정 이력과 진동 획득 기록을
+README와 이 문서는 같은 대표 SVG를 사용합니다. CSV·OPC UA 측정 이력과 진동 측정 기록을
 구별하고, 저장된 데이터의 분석·전망을 Operations Web과 사람의 검토로 연결합니다.
 생성형 AI는 계산된 사실을 설명하는 선택적 연결이며 데이터 조회·분석의 필수 경로가 아닙니다.
 SQLite·DuckLake·spool·window coordinator의 세부 책임은 아래 상세 runtime에서 설명합니다.
