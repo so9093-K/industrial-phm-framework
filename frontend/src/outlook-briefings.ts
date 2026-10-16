@@ -1,5 +1,5 @@
 /** Version-bound outlook explanations; the server alone computes facts and authorizes writes. */
-import type {Projection} from "./projections.ts";
+import {parseOutlookSettings,type Projection} from "./projections.ts";
 
 export type BriefingFact={label:string;text:string};
 export type BriefingAnswer={
@@ -31,13 +31,18 @@ function time(raw:unknown):string{
 /** Python urlencode(sorted(selection.items())) is the authoritative identity. */
 export function briefingSelection(projection:Projection):string{
   if(!/^[a-f0-9]{64}$/.test(projection.dataVersion)
-    ||!projection.assetId||!projection.channel
+    ||!projection.outlookSettings||!projection.assetId||!projection.channel
     ||!["upper","lower"].includes(projection.conditions.direction))
     throw new Error("AI 설명용 근거 버전 또는 전망 선택이 유효하지 않습니다.");
   const entries:Record<string,string>={
     asset_id:projection.assetId,kind:"history",series:projection.channel,
     direction:projection.conditions.direction,data_version:projection.dataVersion,
+    changepoint_prior_scale:String(projection.outlookSettings.changepointPriorScale),
+    changepoint_range:String(projection.outlookSettings.changepointRange),
+    seasonality:projection.outlookSettings.seasonality,
   };
+  if(projection.outlookSettings.trainingPoints!==null)
+    entries.training_points=String(projection.outlookSettings.trainingPoints);
   if(projection.conditions.management!==null)
     entries.management_limit=String(projection.conditions.management);
   if(projection.conditions.end!==null)
@@ -54,12 +59,19 @@ function requestArgs(projection:Projection):Record<string,string>{
  * cached measurement projection even when the original last timestamp did not move. */
 export function verifyOutlookVersion(raw:unknown,projection:Projection):void{
   const root=object(raw),conditions=object(root?.conditions);
+  const actualSettings=parseOutlookSettings(root?.settings);
+  const expectedSettings=projection.outlookSettings;
   if(!root||root.schema_version!==1||root.asset_id!==projection.assetId
     ||root.kind!=="history"||root.series!==projection.channel||root.axis!=="time"
     ||root.source_id!==projection.sourceId
     ||(root.measurement_point_id??null)!==projection.pointId
     ||root.measurement_version!==projection.measurementVersion
     ||root.data_version!==projection.dataVersion
+    ||!actualSettings||!expectedSettings
+    ||actualSettings.changepointPriorScale!==expectedSettings.changepointPriorScale
+    ||actualSettings.changepointRange!==expectedSettings.changepointRange
+    ||actualSettings.trainingPoints!==expectedSettings.trainingPoints
+    ||actualSettings.seasonality!==expectedSettings.seasonality
     ||!conditions||conditions.direction!==projection.conditions.direction
     ||conditions.management!==projection.conditions.management
     ||conditions.end!==projection.conditions.end)
