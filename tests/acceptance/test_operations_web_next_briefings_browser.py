@@ -134,6 +134,12 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                                     "points": 180,
                                 },
                                 "scenarios": [],
+                                "settings": {
+                                    "changepoint_prior_scale": 0.05,
+                                    "changepoint_range": 0.9,
+                                    "training_points": None,
+                                    "seasonality": "auto",
+                                },
                             }
                         ),
                     )
@@ -212,6 +218,9 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                         "kind": "history",
                         "series": "R",
                         "direction": "upper",
+                        "changepoint_prior_scale": "0.05",
+                        "changepoint_range": "0.9",
+                        "seasonality": "auto",
                         "management_limit": "12",
                         "data_version": "a" * 64,
                         "question": "이 측정이 어떻게 변했나요?",
