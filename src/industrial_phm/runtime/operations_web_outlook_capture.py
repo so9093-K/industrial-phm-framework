@@ -16,8 +16,6 @@ from typing import Any, cast
 from urllib.parse import parse_qs
 
 from industrial_phm.application.forecast import ForecastUnavailable
-from industrial_phm.application.phm_analysis import PhmAnalysisError
-from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -79,7 +77,8 @@ class OutlookCaptureStore:
         if len(rendered.encode("utf-8")) > _MAX_SNAPSHOT_BYTES:
             raise ValueError("outlook capture exceeds bounded evidence size")
         digest = _digest(rendered)
-        identifier = "outlook-capture-" + digest
+        identity = json.dumps(snapshot["identity"], sort_keys=True, separators=(",", ":"))
+        identifier = "outlook-capture-" + _digest(identity)
         asset_id = snapshot["outlook"]["asset_id"]
         with self._connect() as connection:
             connection.execute(
@@ -90,8 +89,16 @@ class OutlookCaptureStore:
             stored = connection.execute(
                 "SELECT digest, snapshot, captured_at FROM capture WHERE id=?", (identifier,)
             ).fetchone()
-            if stored is None or stored[0] != digest or stored[1] != rendered:
-                raise ValueError("outlook capture identity conflicts with stored evidence")
+            if stored is None or _digest(stored[1]) != stored[0]:
+                raise OutlookCaptureCorrupted("stored outlook evidence digest mismatch")
+            previous = json.loads(stored[1])
+            previous_id = "outlook-capture-" + _digest(
+                json.dumps(previous["identity"], sort_keys=True, separators=(",", ":"))
+            )
+            if previous_id != identifier:
+                raise OutlookCaptureCorrupted("stored outlook identity mismatch")
+            # Numerical model retraining can differ at floating-point precision even
+            # with identical observations and options. Preserve the first saved bytes.
         return {"capture_id": identifier, "captured_at": stored[2]}
 
     def list_for(self, asset_id: str, *, capture_id: str | None = None) -> list[dict[str, Any]]:
@@ -113,14 +120,19 @@ class OutlookCaptureStore:
                 ).fetchall()
         result = []
         for identifier, captured_at, digest, rendered in records:
-            if _digest(rendered) != digest or "outlook-capture-" + digest != identifier:
+            if _digest(rendered) != digest:
                 raise OutlookCaptureCorrupted("stored outlook evidence digest mismatch")
+            try:
+                snapshot = json.loads(rendered)
+                expected_id = "outlook-capture-" + _digest(
+                    json.dumps(snapshot["identity"], sort_keys=True, separators=(",", ":"))
+                )
+            except (ValueError, TypeError, KeyError) as error:
+                raise OutlookCaptureCorrupted("invalid captured evidence shape") from error
+            if identifier != expected_id or snapshot["outlook"]["asset_id"] != asset_id:
+                raise OutlookCaptureCorrupted("stored outlook identity mismatch")
             result.append(
-                {
-                    "capture_id": identifier,
-                    "captured_at": captured_at,
-                    "snapshot": json.loads(rendered),
-                }
+                {"capture_id": identifier, "captured_at": captured_at, "snapshot": snapshot}
             )
         return result
 
@@ -146,8 +158,29 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
         raise ValueError("selected outlook cannot be computed") from error
     if any(outlook[name] != payload[name] for name in _VERSIONS):
         raise ValueError("outlook changed before capture: refresh required")
+    # Canonical model inputs identify a capture. Hashing the whole forecast would
+    # create duplicate records when a numerical solver returns slightly different
+    # floats for identical measurements, versions and forecasting settings.
+    identity = {
+        "asset_id": outlook["asset_id"],
+        "kind": outlook["kind"],
+        "series": outlook["series"],
+        "source_id": outlook["source_id"],
+        "measurement_point_id": outlook.get("measurement_point_id"),
+        "axis": outlook["axis"],
+        "time_basis": outlook.get("time_basis"),
+        "assumed_period_seconds": (
+            outlook.get("period_seconds") if outlook.get("time_basis") == "assumed" else None
+        ),
+        "record": outlook["record"],
+        "conditions": outlook["conditions"],
+        "settings": outlook["settings"],
+        "measurement_version": outlook["measurement_version"],
+        "data_version": outlook["data_version"],
+    }
     snapshot = {
         "schema_version": 1,
+        "identity": identity,
         "selection": dict(sorted(params.items())),
         "outlook": outlook,
         "meaning": "captured-condition-outlook-not-actual-failure-or-maintenance",
