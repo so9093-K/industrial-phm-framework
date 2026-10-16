@@ -78,6 +78,10 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(table.locator("tbody tr")).to_have_count(3)
                 pw.expect(table).to_contain_text("마지막 실측")
                 pw.expect(table).to_contain_text("예측 종료")
+                table.locator("summary").focus()
+                page.set_viewport_size({"width": width + 12, "height": 900})
+                pw.expect(table).to_have_attribute("open", "")
+                pw.expect(table.locator("summary")).to_be_focused()
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 # The forecast's own numbers sit with the settings, folded under the outlook.
                 summary = panel.locator("#forecast-detail-metrics > .forecast-summary")
