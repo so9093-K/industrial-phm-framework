@@ -215,7 +215,7 @@ def create_operations_web_read_server(
         def _send_web_next_asset(self, name: str) -> None:
             """Serve only build-manifest-listed, package-owned preview assets."""
             if name != "index.html" and not re.fullmatch(
-                r"assets/[A-Za-z0-9_-]+\\.(?:js|css)", name
+                r"assets/[A-Za-z0-9_-]+\.(?:js|css)", name
             ):
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
                 return
