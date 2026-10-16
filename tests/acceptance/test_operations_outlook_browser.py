@@ -239,9 +239,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 ).click()
                 pw.expect(page.locator("#forecast-settings")).to_have_attribute("open", "")
                 pw.expect(page.locator("#outlook-evidence")).to_be_focused()
-                pw.expect(page.locator("#outlook-evidence")).to_contain_text(
-                    "계산 관측 내용 버전"
-                )
+                pw.expect(page.locator("#outlook-evidence")).to_contain_text("계산 관측 내용 버전")
                 pw.expect(page.locator("#outlook-evidence")).to_contain_text(
                     "별도 저장 분석 결과가 아닙니다"
                 )
