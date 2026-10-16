@@ -139,5 +139,11 @@ export function initializeOutlookCaptures() {
     if (current) void show(current);
   }).catch(() => {allowed = false;});
   document.addEventListener("outlook-shown", (event) => {void show(event.detail);});
-  onAssetChange(() => {ticket++;current = null;clear(byId("outlook-saved"));});
+  const discard = () => {
+    ticket++;current = null;
+    const root = byId("outlook-saved");
+    if (root) {clear(root);root.hidden = true;}
+  };
+  document.addEventListener("outlook-cleared", discard);
+  onAssetChange(discard);
 }
