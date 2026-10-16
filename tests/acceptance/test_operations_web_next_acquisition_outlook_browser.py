@@ -228,31 +228,37 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     assert pairs["seasonality"] == ["off"]
                     rows = []
                     if asked["yes"]:
-                        rows = [{
-                            "id": "briefing-acq",
-                            "status": "complete",
-                            "question": "획득 변화 설명",
-                            "model": "local",
-                            "requested_at": "2026-10-16T00:01:00Z",
-                            "finished_at": "2026-10-16T00:02:00Z",
-                            "answer": {
-                                "summary": "순번별 저장 근거만 설명합니다.",
-                                "points": [{"text": "회차별 변화", "evidence": ["rate"]}],
-                                "evidence": {"rate": {
-                                    "label": "획득 변화",
-                                    "text": "서버 계산한 회차당 변화",
-                                }},
-                                "checks": {"source": "computed"},
-                            },
-                        }]
+                        rows = [
+                            {
+                                "id": "briefing-acq",
+                                "status": "complete",
+                                "question": "획득 변화 설명",
+                                "model": "local",
+                                "requested_at": "2026-10-16T00:01:00Z",
+                                "finished_at": "2026-10-16T00:02:00Z",
+                                "answer": {
+                                    "summary": "순번별 저장 근거만 설명합니다.",
+                                    "points": [{"text": "회차별 변화", "evidence": ["rate"]}],
+                                    "evidence": {
+                                        "rate": {
+                                            "label": "획득 변화",
+                                            "text": "서버 계산한 회차당 변화",
+                                        }
+                                    },
+                                    "checks": {"source": "computed"},
+                                },
+                            }
+                        ]
                     route.fulfill(
                         status=200,
                         content_type="application/json",
-                        body=json.dumps({
-                            "schema_version": 1,
-                            "selection": selection,
-                            "briefings": rows,
-                        }),
+                        body=json.dumps(
+                            {
+                                "schema_version": 1,
+                                "selection": selection,
+                                "briefings": rows,
+                            }
+                        ),
                     )
 
                 def ask_briefing(route):
@@ -267,17 +273,19 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     assert payload["time_basis"] == basis
                     assert payload["question"] == "획득 변화 설명"
                     asked["yes"] = True
-                    selection = urlencode(sorted(
-                        (key, value) for key, value in payload.items() if key != "question"
-                    ))
+                    selection = urlencode(
+                        sorted((key, value) for key, value in payload.items() if key != "question")
+                    )
                     route.fulfill(
                         status=200,
                         content_type="application/json",
-                        body=json.dumps({
-                            "briefing_id": "briefing-acq",
-                            "status": "pending",
-                            "selection": selection,
-                        }),
+                        body=json.dumps(
+                            {
+                                "briefing_id": "briefing-acq",
+                                "status": "pending",
+                                "selection": selection,
+                            }
+                        ),
                     )
 
                 page.route("**/api/v1/session", session)
@@ -317,8 +325,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                         page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)
                     ).to_be_visible()
                 assert "acq_forecast_count=5" in page.url
-                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")
-                          ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
                 pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_enabled()
                 page.get_by_label("AI에게 물을 질문 (최대 600자)").fill("획득 변화 설명")
                 page.get_by_role("button", name="AI 브리핑 요청").click()
@@ -328,8 +335,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 # binding cannot inherit the prior result.
                 selected["binding"] = "binding-changed"
                 page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")
-                          ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
                 assert page.get_by_text("순번별 저장 근거만 설명합니다.").count() == 0
                 page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
                 pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
@@ -348,10 +354,10 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     page.reload(wait_until="networkidle")
                     page.get_by_label("관리 기준 (선택)").fill("2.4")
                     page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                    pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")
-                              ).to_be_visible()
-                    pw.expect(page.get_by_role("button", name="AI 브리핑 요청")
-                              ).to_be_disabled()
+                    pw.expect(
+                        page.get_by_role("heading", name="버전 일치 AI 브리핑")
+                    ).to_be_visible()
+                    pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_disabled()
                     assert not asked["yes"]
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
