@@ -166,7 +166,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 # presented as a newly synchronized forecast.
                 def unavailable(route: Any) -> None:
                     route.fulfill(
-                        status=503, content_type="application/json",
+                        status=503,
+                        content_type="application/json",
                         body='{"error":"outlook_store_unavailable"}',
                     )
 
