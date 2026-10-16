@@ -73,14 +73,18 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                     assert q["asset_id"] == ["motor-a"]
                     assert q["kind"] == ["history"]
                     channel = q["series"][0]
-                    period = lambda name: {
-                        "from": q[name + "_from"][0], "to": q[name + "_to"][0]
-                    }
-                    stats = lambda n: {
-                        "observation_count": n, "usable_count": n,
-                        "missing_count": 0, "non_good_count": 0, "conflict_count": 0,
-                        "mean": float(n), "quantiles": [1, 2, float(n), 4, 5],
-                    }
+                    def period(name):
+                        return {"from": q[name + "_from"][0], "to": q[name + "_to"][0]}
+                    def stats(n):
+                        return {
+                            "observation_count": n,
+                            "usable_count": n,
+                            "missing_count": 0,
+                            "non_good_count": 0,
+                            "conflict_count": 0,
+                            "mean": float(n),
+                            "quantiles": [1, 2, float(n), 4, 5],
+                        }
                     data = {
                         "schema_version": 1,
                         "asset_id": "motor-a",

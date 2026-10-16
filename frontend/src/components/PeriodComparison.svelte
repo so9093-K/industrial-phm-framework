@@ -10,7 +10,7 @@
   let {assetId}: Props = $props();
   type State = "loading" | "ready" | "empty" | "failed" | "unavailable";
   let sourceState: State = $state("loading");
-  let state: State = $state("loading");
+  let compareState: State = $state("loading");
   let sources: SourceHistory | null = $state(null);
   let selected = $state(new URLSearchParams(location.search).get("monitor_channel") ?? "");
   let periods: Periods | null = $state(null);
@@ -87,7 +87,7 @@
   async function compare() {
     profileAbort?.abort();
     const request = new AbortController(); profileAbort = request;
-    state = "loading"; result = null; error = ""; formError = "";
+    compareState = "loading"; result = null; error = ""; formError = "";
     if (!periods) return;
     try {
       validatePeriods(periods);
@@ -97,7 +97,7 @@
       result = data; state = data.series.length ? "ready" : "empty"; remember();
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
-      state = cause instanceof NoHistoryError ? "unavailable" : "failed";
+      compareState = cause instanceof NoHistoryError ? "unavailable" : "failed";
       error = cause instanceof Error ? cause.message : "두 기간의 분석 결과를 읽지 못했습니다.";
     }
   }
@@ -148,15 +148,15 @@
     <button class="ui-button ui-button-primary" type="button"
       onclick={() => void compare()}>이 조건으로 비교</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
-    {#if state === "loading"}
+    {#if compareState === "loading"}
       <StatusNotice message="두 기간의 저장 측정과 품질을 조회합니다." />
-    {:else if state === "failed"}
+    {:else if compareState === "failed"}
       <StatusNotice kind="failure" title="구간 비교 조회 실패" message={error}
         actionLabel="같은 조건 재조회" onAction={() => void compare()} />
-    {:else if state === "unavailable"}
+    {:else if compareState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교 자료가 없습니다"
         message="선택한 설비에 비교 가능한 이력이 없습니다. 조회 실패와 정상 판정이 아닙니다." />
-    {:else if state === "empty"}
+    {:else if compareState === "empty"}
       <StatusNotice title="선택한 구간에 측정이 없습니다"
         message="두 구간에 해당 신호의 저장 측정이 없습니다. 구간과 신호를 바꿔 확인하세요." />
     {:else if result}
