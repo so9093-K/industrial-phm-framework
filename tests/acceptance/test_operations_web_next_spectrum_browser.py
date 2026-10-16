@@ -53,8 +53,12 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                     record = None
                     if asset == "motor-a":
                         record = {
-                            "source_id": "bearing-src", "binding_id": "bearing-binding",
-                            "first": 1, "last": 20, "count": 20, "features": [],
+                            "source_id": "bearing-src",
+                            "binding_id": "bearing-binding",
+                            "first": 1,
+                            "last": 20,
+                            "count": 20,
+                            "features": [],
                         }
                     body = {
                         "schema_version": 1,
@@ -90,17 +94,21 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                             "a": [int(query["a_from"][0])],
                             "b": [int(query["b_from"][0])],
                         },
-                        "channels": [{
-                            "channel": "R",
-                            "label": "bearing R",
-                            "a": [0.1, 0.2, 0.3],
-                            "b": [0.3, 0.2, 0.1],
-                            "band_changes": [{
-                                "from_hz": 0,
-                                "to_hz": 100,
-                                "change_db": 3.2,
-                            }],
-                        }],
+                        "channels": [
+                            {
+                                "channel": "R",
+                                "label": "bearing R",
+                                "a": [0.1, 0.2, 0.3],
+                                "b": [0.3, 0.2, 0.1],
+                                "band_changes": [
+                                    {
+                                        "from_hz": 0,
+                                        "to_hz": 100,
+                                        "change_db": 3.2,
+                                    }
+                                ],
+                            }
+                        ],
                     }
                     route.fulfill(
                         status=200, content_type="application/json", body=json.dumps(body)
