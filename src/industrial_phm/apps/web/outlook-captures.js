@@ -134,8 +134,10 @@ async function show(data) {
 }
 
 export function initializeOutlookCaptures() {
-  void json("/api/v1/session").then((session) => {allowed = canChange(session);})
-    .catch(() => {allowed = false;});
+  void json("/api/v1/session").then((session) => {
+    allowed = canChange(session);
+    if (current) void show(current);
+  }).catch(() => {allowed = false;});
   document.addEventListener("outlook-shown", (event) => {void show(event.detail);});
   onAssetChange(() => {ticket++;current = null;clear(byId("outlook-saved"));});
 }
