@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {briefingSelection,verifyOutlookVersion,parseBriefings,BriefingEvidenceChanged} from "./outlook-briefings.ts";
 import type {Projection} from "./projections.ts";
+import type {AcquisitionProjection} from "./acquisition-outlook.ts";
 const version="a".repeat(64);
 const projection:Projection={
   assetId:"pump-1",channel:"R",horizon:"1h",
@@ -71,4 +72,61 @@ test("stored pending/failed states never masquerade as completed explanations",(
     /내용이 없습니다/);
   assert.throws(()=>parseBriefings({...raw,briefings:[{...pending,answer:raw.briefings[0].answer}]},
     selection),/완료되지 않은/);
+});
+
+const acquired:AcquisitionProjection={
+  assetId:"bearing-a",sourceId:"wave-a",bindingId:"binding-a",featureId:"feature.rms",
+  measurementVersion:"c".repeat(64),dataVersion:"d".repeat(64),timeBasis:"recorded",
+  recordedPeriod:60,assumedPeriod:null,effectivePeriod:60,
+  horizonCount:5,searchCount:31,searchUntil:95,
+  record:{first:1,last:64,points:64},
+  conditions:{direction:"upper",management:2.4,end:null},
+  forecast:[{ordinal:65,estimate:2.1,lower:1.9,upper:2.3}],scenarios:[],
+  outlookSettings:{changepointPriorScale:0.05,changepointRange:0.9,
+    trainingPoints:null,seasonality:"off"},
+};
+const acquiredOutlook=()=>({
+  schema_version:1,asset_id:"bearing-a",kind:"acquisition",axis:"acquisition",
+  source_id:"wave-a",binding_id:"binding-a",measurement_point_id:null,
+  measurement_version:acquired.measurementVersion,data_version:acquired.dataVersion,
+  series:"feature.rms",time_basis:"recorded",period_seconds:60,
+  recorded_period_seconds:60,assumed_period_seconds:null,
+  conditions:{direction:"upper",management:2.4,end:null},
+  record:{first:1,last:64,points:64},search:{acquisitions:31,until:95},
+  settings:{changepoint_prior_scale:0.05,changepoint_range:0.9,
+    training_points:null,seasonality:"off"},
+});
+test("acquisition briefing identity includes source, binding, measurement, axis and exact spacing",()=>{
+  const identity=briefingSelection(acquired);
+  assert.ok(identity.includes("kind=acquisition"));
+  assert.ok(identity.includes("binding_id=binding-a"));
+  assert.ok(identity.includes("measurement_version="+acquired.measurementVersion));
+  assert.ok(identity.includes("time_basis=recorded"));
+  assert.ok(identity.includes("recorded_period_seconds=60"));
+  assert.notEqual(briefingSelection({...acquired,bindingId:"binding-b"}),identity);
+  assert.notEqual(briefingSelection({...acquired,timeBasis:"ordinal",
+    recordedPeriod:null,effectivePeriod:1}),identity);
+  assert.notEqual(briefingSelection({...acquired,timeBasis:"assumed",
+    assumedPeriod:120,effectivePeriod:120}),identity);
+  assert.notEqual(briefingSelection({...acquired,outlookSettings:{...acquired.outlookSettings,
+    changepointPriorScale:0.2}}),identity);
+});
+test("acquisition briefing rejects changed binding, series, time basis and stale anomaly facts",()=>{
+  assert.doesNotThrow(()=>verifyOutlookVersion(acquiredOutlook(),acquired));
+  const bad=[
+    {binding_id:"binding-b"},{source_id:"new-wave"},{data_version:"e".repeat(64)},
+    {measurement_version:"f".repeat(64)},{time_basis:"ordinal",period_seconds:1,
+      recorded_period_seconds:null},{period_seconds:1},{series:"feature.other"},
+    {search:{acquisitions:32,until:96}},
+    {settings:{...acquiredOutlook().settings,seasonality:"auto"}},
+  ];
+  for(const patch of bad)
+    assert.throws(()=>verifyOutlookVersion({...acquiredOutlook(),...patch},acquired),
+      BriefingEvidenceChanged);
+});
+test("an acquisition briefing query must contain the exact echoed selection",()=>{
+  const expected=briefingSelection(acquired);
+  assert.deepEqual(parseBriefings({schema_version:1,selection:expected,briefings:[]},expected),[]);
+  assert.throws(()=>parseBriefings({schema_version:1,selection:expected+"&binding_id=other",
+    briefings:[]},expected),BriefingEvidenceChanged);
 });
