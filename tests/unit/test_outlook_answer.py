@@ -124,7 +124,7 @@ def test_expected_and_possible_are_counted_separately() -> None:
     assert "3가지에서 도달 예상" in facts["management"]
     assert "1가지에서 예측 범위만 도달 가능" in facts["management"]
     assert "4가지 중 3가지에서 도달" in outlook_sentences(outlook)[1]
-    assert "나머지 1가지에서는 예측 범위만 도달 가능" in outlook_sentences(outlook)[1]
+    assert "그 밖의 1가지는 예측 범위에서만 도달 가능합니다" in outlook_sentences(outlook)[1]
 
 
 def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> None:
