@@ -34,7 +34,7 @@ const outlook=()=>({
   }}],
 });
 const conditions={direction:"upper" as const,management:2.4,end:3};
-function paired(f=forecast(),o=outlook(),opts=options()){
+function paired(f:unknown=forecast(),o:unknown=outlook(),opts:unknown=options()){
   const parsed=parseAcquisitionOptions(opts,"bearing-a");
   assert.ok(parsed);
   return parseAcquisitionPair(f,o,parsed,"feature.rms",20,null,conditions);
@@ -70,8 +70,7 @@ test("same observations with another binding, measurement version or source must
   assert.throws(()=>paired({...forecast(),binding_id:"other"}),AcquisitionVersionMismatch);
 });
 test("ordinal without recorded spacing cannot create recorded or assumed time",()=>{
-  const noClock=options();
-  noClock.acquisition.period_seconds=null as never;
+  const noClock={...options(),acquisition:{...options().acquisition,period_seconds:null}};
   const forecastCount={...forecast(),time_basis:"ordinal",period_seconds:1,
     recorded_period_seconds:null,assumed_period_seconds:null};
   const outlookCount={...outlook(),time_basis:"ordinal",period_seconds:1,
