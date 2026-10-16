@@ -67,8 +67,6 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         f_status, forecast = get("/api/v1/forecast", **query, horizon="1h")
         assert f_status == 200
         assert forecast["measurement_version"] == body["measurement_version"]
-        assert forecast["binding_id"] == body["binding_id"]
-        assert forecast["source_id"] == body["source_id"]
         assert len(body["measurement_version"]) == 64
         indicator = body["degradation"]
         assert indicator["baseline"]["median"] == pytest.approx(10.001, abs=0.002)
@@ -204,6 +202,8 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         )
         assert f_status == 200
         assert forecast["measurement_version"] == body["measurement_version"]
+        assert forecast["binding_id"] == body["binding_id"]
+        assert forecast["source_id"] == body["source_id"]
         # Half of the 63 acquisition intervals recorded, rounded down.
         assert body["search"] == {"seconds": 1860.0, "acquisitions": 31, "until": 95}
         indicator = body["degradation"]
