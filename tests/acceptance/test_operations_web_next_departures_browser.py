@@ -80,7 +80,8 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                     baseline = params["baseline"][0]
                     if baseline == "first-50":
                         route.fulfill(
-                            status=404, content_type="application/json",
+                            status=404,
+                            content_type="application/json",
                             body=json.dumps({"error": "nothing_to_explore"}),
                         )
                         return
@@ -109,10 +110,15 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                             "from": "2026-10-14T00:00:00Z",
                             "to": "2026-10-14T01:00:00Z",
                         },
-                        "channels": [{
-                            "key": "R", "state": "scored", "marked": 1 if marked else 0,
-                            "median": 2, "spread": 0.3,
-                        }],
+                        "channels": [
+                            {
+                                "key": "R",
+                                "state": "scored",
+                                "marked": 1 if marked else 0,
+                                "median": 2,
+                                "spread": 0.3,
+                            }
+                        ],
                         "score": [["2026-10-15T01:00:00Z", 4.2, "R"]] if marked else [],
                         "intervals": [interval] if marked else [],
                         "interval_count": 1 if marked else 0,
@@ -129,15 +135,11 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                     wait_until="networkidle",
                 )
                 pw.expect(page.get_by_role("heading", name="기준 구간 이탈 조사")).to_be_visible()
-                pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text(
-                    "1개"
-                )
+                pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("1개")
                 pw.expect(page.locator(".departures svg circle")).to_have_count(1)
                 assert "고장 진단이 아닙니다" in page.locator("main").inner_text()
                 page.get_by_label("비교 기준 구간").select_option("all")
-                pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text(
-                    "0개"
-                )
+                pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("0개")
                 assert "departure_baseline=all" in page.url
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_label("비교 기준 구간")).to_have_value("all")
