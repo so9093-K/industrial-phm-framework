@@ -81,7 +81,9 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                             "truncated": False,
                         },
                         "file_feature_analyses": {
-                            "items": [], "total": 0, "truncated": False,
+                            "items": [],
+                            "total": 0,
+                            "truncated": False,
                         },
                     }
                     route.fulfill(
