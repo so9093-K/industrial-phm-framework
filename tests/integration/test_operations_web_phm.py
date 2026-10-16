@@ -198,6 +198,25 @@ def test_bound_package_results_are_served_incrementally_without_paths(
         )
         assert str(tmp_path) not in json.dumps(series)
 
+        # Browser read-model joins must be verified against one real persisted
+        # binding, exact AnalysisRun position and original acquisition digest.
+        status, trace = get("/api/v1/phm/trace?binding_id=b1")
+        assert status == 200 and trace["binding_id"] == "b1"
+        assert trace["limit"] == 64
+        selected = next(row for row in trace["steps"] if row["position"] == 4)
+        assert selected["state"] == "analyzed"
+        status, exact = get("/api/v1/phm/result?binding_id=b1&position=4")
+        assert status == 200 and exact["binding_id"] == item["binding_id"]
+        assert exact["step"]["analysis_run_id"] == selected["analysis_run_id"]
+        assert exact["step"]["change_seq"] == selected["change_seq"]
+        input_ref = exact["step"]["input_reference"]
+        assert input_ref["kind"] == item["step_kind"] == "acquisition-snapshot"
+        assert input_ref["source_id"] == item["source_id"] == "bench"
+        assert input_ref["asset_id"] == item["asset_id"] == "bearing-a"
+        assert input_ref["ordinal"] == exact["step"]["position"] == 4
+        assert len(input_ref["sha256"]) == 64
+        assert str(tmp_path) not in json.dumps(exact)
+
         seq = series["change_seq"]
         _deliver(repo, waveforms, 5, 0.5)
         run_snapshot_bindings(store, repo, cache, now=lambda: T0)

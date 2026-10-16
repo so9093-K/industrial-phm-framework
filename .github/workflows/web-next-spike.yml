@@ -7,6 +7,7 @@ on:
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/integration/test_operations_web_explore.py"
+      - "tests/integration/test_operations_web_phm.py"
       - "tests/acceptance/test_operations_web_next_browser.py"
       - "tests/acceptance/test_operations_web_next_signal_browser.py"
       - "tests/acceptance/test_operations_web_next_departures_browser.py"
@@ -17,6 +18,7 @@ on:
       - "tests/acceptance/test_operations_web_next_spectrum_browser.py"
       - "tests/acceptance/test_operations_web_next_acquisition_profile_browser.py"
       - "tests/acceptance/test_operations_web_next_acquisition_relation_browser.py"
+      - "tests/acceptance/test_operations_web_next_model_evidence_browser.py"
       - ".github/workflows/web-next-spike.yml"
   push:
     branches: [main]
@@ -74,6 +76,7 @@ jobs:
         run: >-
           uv run --locked --extra operations pytest tests/integration/test_operations_web_next_static.py
           tests/integration/test_operations_web_explore.py
+          tests/integration/test_operations_web_phm.py
       - name: Verify wheel contains compiled assets
         run: |
           uv build --wheel
@@ -103,3 +106,4 @@ jobs:
           tests/acceptance/test_operations_web_next_spectrum_browser.py
           tests/acceptance/test_operations_web_next_acquisition_profile_browser.py
           tests/acceptance/test_operations_web_next_acquisition_relation_browser.py
+          tests/acceptance/test_operations_web_next_model_evidence_browser.py

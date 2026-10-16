@@ -1,7 +1,7 @@
 /** Browser location is selection context, never a source of measured or calculated facts. */
 export const VIEWS = [
   "overview", "signals", "departures", "compare", "projection",
-  "relation", "reviews", "spectrum", "features", "acq-relation",
+  "relation", "reviews", "spectrum", "features", "acq-relation", "model-evidence",
 ] as const;
 export type View = (typeof VIEWS)[number];
 
@@ -37,6 +37,11 @@ export const VIEW_INFO: Record<View, ViewInfo> = {
     navigation: "동일 시각 신호 관계", document: "신호 관계",
     eyebrow: "설비 조사 · 신호 관계", title: "동일 시각 신호 관계 조사",
     description: "정확히 같은 출처·시각에 기록된 두 신호의 관측 짝을 비교합니다.",
+  },
+  "model-evidence": {
+    navigation: "모델 실행 근거", document: "모델 실행 근거",
+    eyebrow: "PHM 모델 · 저장 실행", title: "모델 AnalysisRun 근거",
+    description: "명시적으로 연결된 패키지의 저장 실행·원본 해시와 분석/제외 상태를 구분합니다. 모델 점수는 고장 진단이 아닙니다.",
   },
   "acq-relation": {
     navigation: "획득 특징 관계", document: "획득 특징 관계",
