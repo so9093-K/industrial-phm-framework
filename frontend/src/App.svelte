@@ -7,6 +7,7 @@
   import StatusNotice from "./components/StatusNotice.svelte";
   import SignalExplorer from "./components/SignalExplorer.svelte";
   import DepartureExplorer from "./components/DepartureExplorer.svelte";
+  import PeriodComparison from "./components/PeriodComparison.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   let loadState: LoadState = $state("loading");
@@ -15,6 +16,7 @@
   const task = new URLSearchParams(location.search).get("view");
   const signalView = task === "signals";
   const departuresView = task === "departures";
+  const comparisonView = task === "compare";
   let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
   let controller: AbortController | null = null;
   let selected: Asset | undefined = $derived.by(
@@ -28,6 +30,7 @@
     url.searchParams.set("monitor_asset", assetId);
     if (assetId !== previousAssetId) url.searchParams.delete("monitor_channel");
     if (assetId !== previousAssetId) url.searchParams.delete("departure_baseline");
+    if (assetId !== previousAssetId) for (const key of ["compare_a", "compare_b"]) url.searchParams.delete(key);
     history.replaceState(history.state, "", url);
   }
 
@@ -66,7 +69,7 @@
     return "/web/?monitor_asset=" + encodeURIComponent(assetId) + "#signals";
   }
 
-  function nextUrl(view: "overview" | "signals" | "departures"): string {
+  function nextUrl(view: "overview" | "signals" | "departures" | "compare"): string {
     const url = new URL("/web-next/", location.origin);
     if (view !== "overview") url.searchParams.set("view", view);
     if (selectedId) url.searchParams.set("monitor_asset", selectedId);
@@ -82,7 +85,7 @@
 </script>
 
 <svelte:head>
-  <title>Industrial PHM · {departuresView ? "기준 이탈 조사" : signalView ? "저장 신호 탐색" : "관측 현황"} 구조 검증</title>
+  <title>Industrial PHM · {comparisonView ? "두 구간 비교" : departuresView ? "기준 이탈 조사" : signalView ? "저장 신호 탐색" : "관측 현황"} 구조 검증</title>
 </svelte:head>
 
 <a class="skip" href="#main">본문으로 건너뛰기</a>
@@ -91,17 +94,18 @@
     <div class="brand">Industrial PHM <small>Operations / UI 실험</small></div>
     <nav aria-label="화면 바로가기">
       <a href="/web/">현재 운영 화면</a>
-      <a href={nextUrl("overview")} aria-current={!signalView && !departuresView ? "page" : undefined}>새 관측 화면 검증</a>
+      <a href={nextUrl("overview")} aria-current={!signalView && !departuresView && !comparisonView ? "page" : undefined}>새 관측 화면 검증</a>
       <a href={nextUrl("signals")} aria-current={signalView ? "page" : undefined}>저장 신호 탐색</a>
       <a href={nextUrl("departures")} aria-current={departuresView ? "page" : undefined}>기준 구간 이탈 조사</a>
+      <a href={nextUrl("compare")} aria-current={comparisonView ? "page" : undefined}>두 기간의 측정 비교</a>
     </nav>
     <p class="note">독립 읽기 전용 화면입니다. 새 분석·판정 기능이 아닙니다.</p>
   </aside>
   <main id="main" tabindex="-1">
     <PageHeading
-      eyebrow={departuresView ? "설비 조사 · 모델 없는 변화" : signalView ? "설비 조사 · 저장된 측정" : "관측 · 사실 확인"}
-      title={departuresView ? "기준 구간 이탈 조사" : signalView ? "설비 신호 탐색" : "설비 관측 현황"}
-      description={departuresView ? "고른 신호가 선택한 기록 구간에서 얼마나 달라졌는지 탐색합니다. 설비 고장 진단이 아닙니다." : signalView ? "선택한 신호의 원본 의미·시간 구간·품질을 구분해서 확인합니다." : "마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."}
+      eyebrow={comparisonView ? "설비 조사 · 구간 A/B" : departuresView ? "설비 조사 · 모델 없는 변화" : signalView ? "설비 조사 · 저장된 측정" : "관측 · 사실 확인"}
+      title={comparisonView ? "두 기간의 측정 비교" : departuresView ? "기준 구간 이탈 조사" : signalView ? "설비 신호 탐색" : "설비 관측 현황"}
+      description={comparisonView ? "측정 근거가 같은 두 기간의 대표값·결측·품질을 비교합니다. 구간 A는 검증된 정상 범위가 아닙니다." : departuresView ? "고른 신호가 선택한 기록 구간에서 얼마나 달라졌는지 탐색합니다. 설비 고장 진단이 아닙니다." : signalView ? "선택한 신호의 원본 의미·시간 구간·품질을 구분해서 확인합니다." : "마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."}
       loading={loadState === "loading"}
       onRefresh={() => void refresh()}
     />
@@ -134,7 +138,11 @@
       {:else}
         <div class="workspace">
           <AssetSelector assets={snapshot.assets} {selectedId} onSelect={selectAsset} {observed} />
-          {#if departuresView && selected}
+          {#if comparisonView && selected}
+            {#key selected.assetId}
+              <PeriodComparison assetId={selected.assetId} />
+            {/key}
+          {:else if departuresView && selected}
             {#key selected.assetId}
               <DepartureExplorer assetId={selected.assetId} />
             {/key}
