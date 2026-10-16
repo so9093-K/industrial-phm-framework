@@ -58,6 +58,14 @@ function entry(capture, now) {
     create("p", null, "종료 기준 " + limit(old, "end")),
     create("p", "muted", "검토용 계산을 보존한 것이며 고장 판정이나 정비 완료 기록은 아닙니다."));
   wrapper.append(review);
+  const provenance = {
+    same_measurement_projection: "현재 저장된 측정 투영과 동일합니다. 이상 탐지 근거의 동일성까지 보증하지는 않습니다.",
+    changed: "현재 계산 입력이 저장 당시와 다릅니다. 당시의 원본 측정 투영은 이 조회로 재검증할 수 없습니다.",
+    different_source: "현재 조회되는 출처·측정점·시간 근거가 달라 원래 측정 투영을 재검증할 수 없습니다.",
+    unavailable: "현재 원본 측정 투영을 다시 조회할 수 없습니다. 저장된 계산 사실만 열람할 수 있습니다.",
+  };
+  wrapper.append(create("p", "muted outlook-source-recheck",
+    provenance[capture.source_recheck] || "원본 측정 투영의 현재 재검증 상태를 확인하지 못했습니다."));
   const human = capture.review || {status: "open", events: []};
   const reviewBox = create("section", "outlook-saved-review");
   reviewBox.tabIndex = -1;
