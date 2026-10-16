@@ -65,6 +65,22 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
+                # Read the actual values without guessing from paths and the legend.
+                pw.expect(panel.locator(".forecast-chart-reading")).to_contain_text(
+                    "마지막 실측"
+                )
+                pw.expect(panel.locator(".forecast-chart-reading")).to_contain_text(
+                    "중심 예측 종료"
+                )
+                pw.expect(panel.locator(".forecast-interval-note")).to_contain_text(
+                    "고장 확률을 뜻하지 않습니다"
+                )
+                table = panel.locator(".forecast-reading-table")
+                table.locator("summary").click()
+                pw.expect(table.locator("tbody tr")).to_have_count(3)
+                pw.expect(table).to_contain_text("마지막 실측")
+                pw.expect(table).to_contain_text("예측 종료")
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                 # The forecast's own numbers sit with the settings, folded under the outlook.
                 summary = panel.locator("#forecast-detail-metrics > .forecast-summary")
                 pw.expect(summary).to_contain_text("예측 종료값")
