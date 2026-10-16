@@ -7,12 +7,16 @@ export type Conditions = {
 export type Options = { assetId: string; channels: string[]; horizons: Record<Horizon, string | null> };
 export type Reach = {state: string; expected: number | null; earliest: number | null; latest: number | null};
 export type Scenario = {id: string; management: Reach | null; end: Reach | null};
+export type OutlookSettings = {
+  changepointPriorScale:number;changepointRange:number;
+  trainingPoints:number|null;seasonality:"auto"|"off";
+};
 export type Projection = {
   assetId: string; channel: string; horizon: Horizon; measurementVersion: string;
   dataVersion: string; sourceId: string; pointId: string | null; unit: string | null;
   record: {first: string; last: string; points: number};
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
-  scenarios: Scenario[]; conditions: Conditions;
+  scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
 };
 export class ProjectionUnavailable extends Error {}
 export class MeasurementVersionMismatch extends Error {}
@@ -60,6 +64,26 @@ export function parseOptions(payload: unknown, assetId: string): Options {
   }
   const channels = history.series.map((item: unknown) => str(object(item)?.key));
   return {assetId, channels:[...new Set(channels)], horizons};
+}
+
+/** Preserve the server's actual calculation settings, which data_version does not hash. */
+export function parseOutlookSettings(raw:unknown):OutlookSettings|null{
+  if(raw===undefined||raw===null)return null;
+  const v=object(raw);
+  if(!v||typeof v.changepoint_prior_scale!=="number"||
+    !Number.isFinite(v.changepoint_prior_scale)||v.changepoint_prior_scale<=0
+    ||typeof v.changepoint_range!=="number"||!Number.isFinite(v.changepoint_range)
+    ||v.changepoint_range<=0||v.changepoint_range>=1
+    ||!(v.training_points===null||(typeof v.training_points==="number"
+      &&Number.isSafeInteger(v.training_points)&&v.training_points>=20))
+    ||(v.seasonality!=="auto"&&v.seasonality!=="off"))
+    throw new Error("조건부 전망 계산 설정의 서버 근거가 올바르지 않습니다.");
+  return {
+    changepointPriorScale:v.changepoint_prior_scale,
+    changepointRange:v.changepoint_range,
+    trainingPoints:v.training_points as number|null,
+    seasonality:v.seasonality as "auto"|"off",
+  };
 }
 
 function parseReach(raw: unknown): Reach | null {
@@ -119,7 +143,7 @@ export function parsePairedProjection(
     dataVersion:str(outlook.data_version), sourceId:fs,
     pointId:fp === null ? null : str(fp), unit:typeof forecast.unit === "string" ? forecast.unit : null,
     record: {first:date(record.first),last:date(record.last),points:count(record.points)},
-    future, scenarios, conditions};
+    future, scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
 }
 async function json(url: string, signal: AbortSignal): Promise<unknown> {
   const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});
