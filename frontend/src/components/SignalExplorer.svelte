@@ -15,9 +15,15 @@
   let channels: ChannelList | null = $state(null);
   let trend: HistoryTrend | null = $state(null);
   let error = $state("");
-  let selectedChannel = $state(new URLSearchParams(location.search).get("monitor_channel") ?? "");
-  let range: RangePreset = $state("1h");
-  let anchor: TimeAnchor = $state("latest");
+  const params = new URLSearchParams(location.search);
+  const chosenRange = params.get("monitor_range");
+  const chosenAnchor = params.get("monitor_anchor");
+  let selectedChannel = $state(params.get("monitor_channel") ?? "");
+  let range: RangePreset = $state(
+    chosenRange === "15m" || chosenRange === "1h" || chosenRange === "24h" || chosenRange === "7d"
+      ? chosenRange : "1h",
+  );
+  let anchor: TimeAnchor = $state(chosenAnchor === "now" ? "now" : "latest");
   let channelAbort: AbortController | null = null;
   let trendAbort: AbortController | null = null;
   const groups = $derived(trend ? groupHistory(trend) : []);
@@ -62,6 +68,8 @@
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selectedChannel);
+    url.searchParams.set("monitor_range", range);
+    url.searchParams.set("monitor_anchor", anchor);
     history.replaceState(history.state, "", url);
   }
 
@@ -124,14 +132,14 @@
       </label>
       <label for="history-range">조회 기간
         <select id="history-range" value={range}
-          onchange={(event) => { range = event.currentTarget.value as RangePreset; void loadTrend(); }}>
+          onchange={(event) => { range = event.currentTarget.value as RangePreset; rememberChannel(); void loadTrend(); }}>
           <option value="15m">15분</option><option value="1h">1시간</option>
           <option value="24h">24시간</option><option value="7d">7일</option>
         </select>
       </label>
       <label for="history-anchor">기간 기준
         <select id="history-anchor" value={anchor}
-          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; void loadTrend(); }}>
+          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
           <option value="latest">마지막 저장 기록</option>
           <option value="now">현재 조회 시각</option>
         </select>
