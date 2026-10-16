@@ -90,18 +90,16 @@ def test_review_events_are_exact_scoped_idempotent_and_persisted(tmp_path: Path)
     )
     assert acknowledged["status"] == "acknowledged"
     with pytest.raises(WebReviewConflict):
-        store.write_review(
-            "bearing-a", capture, FindingReviewAction.ACKNOWLEDGE, "", str(uuid4())
-        )
-    closed = store.write_review(
-        "bearing-a", capture, FindingReviewAction.CLOSE, "", str(uuid4())
-    )
+        store.write_review("bearing-a", capture, FindingReviewAction.ACKNOWLEDGE, "", str(uuid4()))
+    closed = store.write_review("bearing-a", capture, FindingReviewAction.CLOSE, "", str(uuid4()))
     assert closed["status"] == "closed"
     with pytest.raises(WebReviewConflict):
         store.write_review("bearing-a", capture, FindingReviewAction.NOTE, "늦음", str(uuid4()))
     restored = OutlookCaptureStore(path).list_for("bearing-a", capture_id=capture)[0]
     assert restored["review"]["status"] == "closed"
     assert [row["action"] for row in restored["review"]["events"]] == [
-        "note", "acknowledge", "close"
+        "note",
+        "acknowledge",
+        "close",
     ]
     assert restored["snapshot"] == _snapshot()
