@@ -350,48 +350,71 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
     return {"schema_version": 1, **result, "asset_id": outlook["asset_id"]}
 
 
-def current_measurement_recheck(workspace: OperationsWorkspace, snapshot: dict[str, Any]) -> str:
-    """Check only the current bounded measurement projection, not anomaly provenance.
+def current_measurement_recheck(
+    workspace: OperationsWorkspace,
+    snapshot: dict[str, Any],
+    *,
+    projection_cache: (
+        dict[tuple[str, str, str, str | None], tuple[str, dict[str, Any]] | None] | None
+    ) = None,
+) -> str:
+    """Compare today's measurement projection without re-reading the same stream per record.
 
-    The archived computation remains trustworthy as an archived statement when
-    the original measurements can no longer be independently rechecked.
+    The cache is strictly per HTTP request. Nothing about a past computation's
+    anomaly evidence or raw snapshot can be inferred from a matching projection.
     """
     identity = snapshot["identity"]
     selection = snapshot["selection"]
     asset_id, kind, series = identity["asset_id"], identity["kind"], identity["series"]
+    assumed = selection.get("assumed_period_seconds")
+    key = (asset_id, kind, series, assumed)
     try:
-        if kind == "history":
-            times, values, meta = history_points(workspace, asset_id, series)
-        elif kind == "acquisition":
-            assumed = selection.get("assumed_period_seconds")
-            times, values, meta = acquisition_points(
-                workspace,
-                asset_id,
-                series,
-                assumed_period_seconds=float(assumed) if assumed is not None else None,
-                count_mode=True,
-            )
+        if projection_cache is not None and key in projection_cache:
+            projection = projection_cache[key]
         else:
+            if kind == "history":
+                times, values, meta = history_points(workspace, asset_id, series)
+            elif kind == "acquisition":
+                times, values, meta = acquisition_points(
+                    workspace,
+                    asset_id,
+                    series,
+                    assumed_period_seconds=float(assumed) if assumed is not None else None,
+                    count_mode=True,
+                )
+            else:
+                return "unavailable"
+            finite = [
+                (time, value)
+                for time, value in zip(times, values, strict=True)
+                if math.isfinite(value)
+            ]
+            projection = (
+                (
+                    measurement_version(
+                        asset_id,
+                        kind,
+                        series,
+                        [time for time, _ in finite],
+                        [value for _, value in finite],
+                        meta,
+                    ),
+                    meta,
+                )
+                if len(finite) >= 20
+                else None
+            )
+            if projection_cache is not None:
+                projection_cache[key] = projection
+        if projection is None:
             return "unavailable"
+        actual, meta = projection
         if (
             meta["source_id"] != identity["source_id"]
             or meta.get("measurement_point_id") != identity.get("measurement_point_id")
             or meta.get("time_basis") != identity.get("time_basis")
         ):
             return "different_source"
-        finite = [
-            (time, value) for time, value in zip(times, values, strict=True) if math.isfinite(value)
-        ]
-        if len(finite) < 20:
-            return "unavailable"
-        actual = measurement_version(
-            asset_id,
-            kind,
-            series,
-            [time for time, _ in finite],
-            [value for _, value in finite],
-            meta,
-        )
         if actual == identity["measurement_version"]:
             return "same_measurement_projection"
         return "changed"
@@ -430,8 +453,13 @@ def handle_outlook_captures_read(
         if capture_id and not page:
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
         records = page[:20]
+        projection_cache: dict[
+            tuple[str, str, str, str | None], tuple[str, dict[str, Any]] | None
+        ] = {}
         for item in records:
-            item["source_recheck"] = current_measurement_recheck(workspace, item["snapshot"])
+            item["source_recheck"] = current_measurement_recheck(
+                workspace, item["snapshot"], projection_cache=projection_cache
+            )
         response: dict[str, Any] = {"schema_version": 1, "captures": records}
         if len(page) > 20:
             response["next_before"] = records[-1]["capture_id"]
