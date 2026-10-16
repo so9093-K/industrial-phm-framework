@@ -54,7 +54,7 @@
     sourceAbort?.abort();
     profileAbort?.abort();
     const request = new AbortController(); sourceAbort = request;
-    sourceState = "loading"; state = "loading"; sources = null; result = null; error = "";
+    sourceState = "loading"; compareState = "loading"; sources = null; result = null; error = "";
     try {
       const data = await readSources(assetId, request.signal);
       if (request.signal.aborted) return;
@@ -94,7 +94,7 @@
       const expected = structuredClone(periods);
       const data = await readProfile(assetId, selected, expected, request.signal);
       if (request.signal.aborted) return;
-      result = data; state = data.series.length ? "ready" : "empty"; remember();
+      result = data; compareState = data.series.length ? "ready" : "empty"; remember();
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
       compareState = cause instanceof NoHistoryError ? "unavailable" : "failed";
