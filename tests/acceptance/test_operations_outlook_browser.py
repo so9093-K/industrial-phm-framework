@@ -90,9 +90,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(chip).to_have_count(1)
                 chip.click()
                 pw.expect(briefing.locator(".outlook-answer-facts")).to_have_attribute("open", "")
-                assert briefing.locator(".outlook-answer-facts .forecast-summary>div").first.evaluate(
-                    "(element) => document.activeElement === element"
-                )
+                fact_row = briefing.locator(".outlook-answer-facts .forecast-summary>div").first
+                assert fact_row.evaluate("(element) => document.activeElement === element")
                 pw.expect(briefing.locator(".outlook-answer-facts")).to_contain_text("변화 속도")
                 pw.expect(briefing.locator(".outlook-answer-source")).to_contain_text(
                     "수치는 계산 결과와 대조함"
