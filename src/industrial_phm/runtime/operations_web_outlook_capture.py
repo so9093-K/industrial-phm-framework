@@ -24,7 +24,7 @@ from industrial_phm.application.maintenance_review import (
 
 from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
-from industrial_phm.runtime.operations_web_review import WebReviewNotFound
+from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 CAPTURES_ROUTE = "/api/v1/outlook/captures"
@@ -158,16 +158,15 @@ class OutlookCaptureStore:
             )
         return result
 
-    def read_review(self, capture_id: str) -> dict[str, Any]:
-        """Read persisted human actions without creating a new database or review state."""
-        if not self.path.exists():
-            raise LookupError("captured outlook does not exist")
-        with sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True) as connection:
-            rows = connection.execute(
-                "SELECT event_id, action, note, recorded_at FROM review_event "
-                "WHERE capture_id=? ORDER BY rowid",
-                (capture_id,),
-            ).fetchall()
+    @staticmethod
+    def _review_on_connection(
+        connection: sqlite3.Connection, capture_id: str
+    ) -> dict[str, Any]:
+        rows = connection.execute(
+            "SELECT event_id, action, note, recorded_at FROM review_event "
+            "WHERE capture_id=? ORDER BY rowid",
+            (capture_id,),
+        ).fetchall()
         status = FindingReviewStatus.OPEN
         events = []
         try:
@@ -185,10 +184,20 @@ class OutlookCaptureStore:
             raise OutlookCaptureCorrupted("persisted outlook review has invalid actions") from error
         return {"status": status.value, "events": events}
 
+    def read_review(self, capture_id: str) -> dict[str, Any]:
+        """Read persisted human actions without initializing writable state."""
+        if not self.path.exists():
+            raise LookupError("captured outlook does not exist")
+        with sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True) as connection:
+            return self._review_on_connection(connection, capture_id)
+
     def write_review(
         self, asset_id: str, capture_id: str, action: FindingReviewAction, note: str, event_id: str
     ) -> dict[str, Any]:
         with self._connect() as connection:
+            # Serialize checking the current status with inserting the next action.
+            # The same writer lock is required even for two different Web processes.
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 "SELECT id FROM capture WHERE id=? AND asset_id=?", (capture_id, asset_id)
             ).fetchone()
@@ -199,16 +208,21 @@ class OutlookCaptureStore:
             ).fetchone()
             if previous is not None:
                 if previous != (capture_id, action.value, note):
-                    raise ValueError("review event identity conflicts with saved action")
-                return {"event_id": event_id, **self.read_review(capture_id)}
-            state = FindingReviewStatus(self.read_review(capture_id)["status"])
-            next_human_review_status(state, action)
+                    raise WebReviewConflict("review event identity conflicts with saved action")
+                outcome = self._review_on_connection(connection, capture_id)
+                return {"event_id": event_id, **outcome}
+            state = FindingReviewStatus(self._review_on_connection(connection, capture_id)["status"])
+            try:
+                next_human_review_status(state, action)
+            except ValueError as error:
+                raise WebReviewConflict("review action is invalid for current status") from error
             connection.execute(
                 "INSERT INTO review_event(event_id, capture_id, action, note, recorded_at) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (event_id, capture_id, action.value, note, datetime.now(UTC).isoformat()),
             )
-        return {"event_id": event_id, **self.read_review(capture_id)}
+            outcome = self._review_on_connection(connection, capture_id)
+            return {"event_id": event_id, **outcome}
 
 
 def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str, Any]:
@@ -224,13 +238,15 @@ def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str,
     event_id = cast(str, payload["event_id"])
     if not 1 <= len(asset) <= 512 or not capture.startswith("outlook-capture-"):
         raise ValueError("invalid outlook review identity")
-    if len(capture) != 80 or any(char not in "0123456789abcdef" for char in capture[16:]):
+    if len(capture) != len("outlook-capture-") + 64 or any(
+        char not in "0123456789abcdef" for char in capture[len("outlook-capture-"):]
+    ):
         raise ValueError("invalid captured evidence ID")
     if UUID(event_id).version != 4 or not 0 <= len(note) <= 1000:
         raise ValueError("invalid review event identity or note")
     if len(note.encode("utf-8")) > 2048 or note != note.strip():
         raise ValueError("invalid review note")
-    if any(ord(char) < 32 and char not in "\\n\\t" for char in note):
+    if any(ord(char) < 32 and char not in "\n\t" for char in note):
         raise ValueError("invalid review note characters")
     if action == FindingReviewAction.NOTE and not note:
         raise ValueError("review note is required")
