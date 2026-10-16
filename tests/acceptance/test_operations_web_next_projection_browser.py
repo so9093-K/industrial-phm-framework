@@ -30,10 +30,14 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 monitor = {
                     "assessed_at": "2026-10-16T00:00:00Z",
                     "assets": {
-                        "items": [{
-                            "asset_id": "motor-a", "data_flow_status": "stored-history",
-                            "last_data_at": "2026-10-16T00:00:00Z", "attention_count": 0,
-                        }],
+                        "items": [
+                            {
+                                "asset_id": "motor-a",
+                                "data_flow_status": "stored-history",
+                                "last_data_at": "2026-10-16T00:00:00Z",
+                                "attention_count": 0,
+                            }
+                        ],
                         "total": 1,
                         "truncated": False,
                     },
@@ -46,12 +50,15 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                     ),
                 )
                 options = {
-                    "schema_version": 1, "asset_id": "motor-a",
+                    "schema_version": 1,
+                    "asset_id": "motor-a",
                     "history": {
                         "series": [{"key": "current", "label": "current"}],
                         "horizons": {
-                            "1h": None, "24h": "short-history",
-                            "7d": "short-history", "30d": "short-history",
+                            "1h": None,
+                            "24h": "short-history",
+                            "7d": "short-history",
+                            "30d": "short-history",
                         },
                     },
                 }
@@ -63,10 +70,16 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 )
                 version = {"outlook": "same"}
                 forecast = {
-                    "schema_version": 1, "asset_id": "motor-a", "kind": "history",
-                    "series": "current", "horizon": "1h", "axis": "time",
-                    "measurement_version": "same", "source_id": "motor-file",
-                    "measurement_point_id": "winding", "unit": "A",
+                    "schema_version": 1,
+                    "asset_id": "motor-a",
+                    "kind": "history",
+                    "series": "current",
+                    "horizon": "1h",
+                    "axis": "time",
+                    "measurement_version": "same",
+                    "source_id": "motor-file",
+                    "measurement_point_id": "winding",
+                    "unit": "A",
                     "meaning": "stored-flow-continued-not-failure-time-or-remaining-life",
                     "forecast": [["2026-10-16T00:30:00Z", 14, 12, 16]],
                 }
@@ -79,27 +92,39 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
 
                 def serve_outlook(route):
                     data = {
-                        "schema_version": 1, "asset_id": "motor-a", "kind": "history",
-                        "series": "current", "axis": "time",
-                        "source_id": "motor-file", "measurement_point_id": "winding",
+                        "schema_version": 1,
+                        "asset_id": "motor-a",
+                        "kind": "history",
+                        "series": "current",
+                        "axis": "time",
+                        "source_id": "motor-file",
+                        "measurement_point_id": "winding",
                         "measurement_version": version["outlook"],
                         "data_version": "outlook-and-AI-context",
                         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
                         "conditions": {
-                            "direction": "upper", "management": 12, "end": None,
+                            "direction": "upper",
+                            "management": 12,
+                            "end": None,
                         },
                         "record": {
                             "first": "2026-10-15T00:00:00Z",
-                            "last": "2026-10-16T00:00:00Z", "points": 180,
+                            "last": "2026-10-16T00:00:00Z",
+                            "points": 180,
                         },
-                        "scenarios": [{
-                            "id": "current", "limits": {
-                                "management": {
-                                    "state": "expected", "expected": 3600,
-                                    "earliest": 3000, "latest": 4000,
+                        "scenarios": [
+                            {
+                                "id": "current",
+                                "limits": {
+                                    "management": {
+                                        "state": "expected",
+                                        "expected": 3600,
+                                        "earliest": 3000,
+                                        "latest": 4000,
+                                    },
                                 },
-                            },
-                        }],
+                            }
+                        ],
                     }
                     route.fulfill(
                         status=200, content_type="application/json", body=json.dumps(data)
