@@ -113,6 +113,34 @@ def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edg
     assert "예측 범위에서만 4개 획득 뒤 도달" in facts["management"]
 
 
+@pytest.mark.parametrize(
+    ("utterance", "accepted"),
+    [
+        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달할 수 있습니다.", True),
+        ("관리 상한 8에는 4개 획득 뒤 도달합니다.", False),
+        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 예측 범위 상단에서만 5개 획득 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 기간 내 중심 예측으로 도달할 것으로 예상됩니다.", False),
+    ],
+)
+def test_possible_reach_is_accepted_only_as_qualified_range_claim(
+    utterance: str, accepted: bool
+) -> None:
+    outlook = _outlook()
+    for scenario in outlook["scenarios"]:
+        scenario["limits"]["management"] = {
+            "state": "possible" if scenario["id"] == "current" else "beyond",
+            "expected": None,
+            "earliest": 4 if scenario["id"] == "current" else None,
+            "latest": None,
+        }
+    facts = outlook_facts(outlook)
+    issues = outlook_answer.text_issues(
+        utterance, facts, outlook_answer.condition_reach(outlook)
+    )
+    assert (not issues) is accepted, issues
+
+
 def test_expected_and_possible_are_counted_separately() -> None:
     outlook = _outlook()
     outlook["scenarios"][1]["limits"]["management"] = {
