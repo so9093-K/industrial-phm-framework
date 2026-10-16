@@ -74,9 +74,10 @@ def measurement_version(
         "measurement_point_id": meta.get("measurement_point_id"),
         "observations": observations,
     }
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    encoded = json.dumps(
+        payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def handle_forecast_read(
