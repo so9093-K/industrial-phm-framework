@@ -26,7 +26,8 @@ function invalidateResults() {
   if (shown) compareCandidate = shown;
   shown = null;previous = null;
   clear(byId("forecast-result"));
-  clear(byId("forecast-detail-metrics"));
+  const metrics = byId("forecast-detail-metrics");
+  if (metrics) clear(metrics);
   byId("forecast-chart-section").hidden = true;
 }
 
@@ -68,7 +69,7 @@ export function initializeForecast() {
 async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
-  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));compareCandidate = null;invalidateResults();
+  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));invalidateResults();compareCandidate = null;
   clear(byId("forecast-settings-root"));byId("forecast-settings").hidden = true;
   clearOutlook();byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
@@ -320,6 +321,7 @@ async function run() {
       ]);
       if (ticket !== request || asset !== currentAsset()) return;
       if (!outlook) {
+        compareCandidate = null;
         state("상태 전망을 계산하지 못했습니다. 새로고침해 주세요.", true);
         return;
       }
@@ -337,11 +339,11 @@ async function run() {
       }
       state("새 측정을 확인하며 예측과 전망을 다시 맞춥니다.");
     }
-    clearOutlook();
-    state("예측과 상태 전망의 마지막 측정 시점이 다릅니다. 다시 새로고침해 주세요.", true);
+    clearOutlook();compareCandidate = null;
+    state("예측과 상태 전망의 측정 내용 버전이 다릅니다. 다시 새로고침해 주세요.", true);
   } catch (error) {
     if (ticket !== request) return;
-    clearOutlook();
+    clearOutlook();compareCandidate = null;
     state(error.status === 422 ? REASON[error.reason] || "이 측정값은 예측할 수 없습니다." : "예측을 계산하지 못했습니다.", true);
   }
 }
