@@ -66,9 +66,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
                 # Read the actual values without guessing from paths and the legend.
-                pw.expect(panel.locator(".forecast-chart-reading")).to_contain_text(
-                    "마지막 실측"
-                )
+                pw.expect(panel.locator(".forecast-chart-reading")).to_contain_text("마지막 실측")
                 pw.expect(panel.locator(".forecast-chart-reading")).to_contain_text(
                     "중심 예측 종료"
                 )
