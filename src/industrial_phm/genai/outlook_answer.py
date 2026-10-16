@@ -68,7 +68,10 @@ _NEGATION = re.compile(r"아닙니다|아니며|아니고|않습니다|없습니
 _LIFE = re.compile(r"수명")
 _MARKUP = re.compile(r"[$*`]|(?:^|\n)\s*(?:#+|-|\d+\.)\s")
 _CLAUSE = re.compile(r",|(?<=[며고])\s|(?:으나|지만|는데)\s")
-_REACHES = re.compile(r"도달(?:할|합니다|하는|한다|로|이\s*예상|\s*예상|하게|\s*가능)|닿(?:을|습니다|는)")
+_REACHES = re.compile(
+    r"도달(?:할|합니다|하는|한다|로|이\\s*예상|\\s*예상|하게|\\s*가능)"
+    r"|닿(?:을|습니다|는)"
+)
 _NOT = re.compile(r"않|없|못")
 # "도달 예상 시점은 …" names a reach without saying it; the clause that follows says it.
 _NOMINAL = re.compile(r"(?:도달|닿)[^.,]{0,14}?(?:시점|때|경우)(?:은|는|이|에|도)?")
