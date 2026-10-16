@@ -57,6 +57,67 @@ function entry(capture, now) {
     create("p", null, "종료 기준 " + limit(old, "end")),
     create("p", "muted", "검토용 계산을 보존한 것이며 고장 판정이나 정비 완료 기록은 아닙니다."));
   wrapper.append(review);
+  const human = capture.review || {status: "open", events: []};
+  const reviewBox = create("section", "outlook-saved-review");
+  const statusNames = {open: "확인 필요", acknowledged: "확인함", closed: "완료"};
+  reviewBox.append(create("p", null, "담당자 검토 · " + (statusNames[human.status] || human.status)));
+  if (human.events.length) {
+    const notes = create("ol", "outlook-saved-notes");
+    for (const event of human.events) {
+      const label = {note: "메모", acknowledge: "확인", close: "검토 종료"}[event.action]
+        || event.action;
+      notes.append(create("li", null, label + " · " + formatTime(event.recorded_at)
+        + (event.note ? " · " + event.note : "")));
+    }
+    reviewBox.append(notes);
+  }
+  if (allowed && human.status !== "closed") {
+    const field = create("textarea");field.maxLength = 1000;
+    field.setAttribute("aria-label", "이 전망의 검토 메모");
+    const controls = create("div", "outlook-review-actions");
+    const notice = create("p", "muted");notice.setAttribute("role", "status");
+    const note = create("button", "secondary", "메모 남기기");
+    const action = create("button", "secondary",
+      human.status === "open" ? "확인함으로 표시" : "검토 완료로 표시");
+    for (const button of [note, action]) button.type = "button";
+    const post = async (nextAction, noteText) => {
+      for (const button of [note, action]) button.disabled = true;
+      notice.textContent = "검토 기록을 저장합니다.";
+      try {
+        const session = await json("/api/v1/session");
+        if (!canChange(session)) throw new Error("read_only");
+        await json("/api/v1/outlook/captures/review/action", {
+          method: "POST",
+          headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
+          body: JSON.stringify({
+            asset_id: capture.snapshot.outlook.asset_id,
+            capture_id: capture.capture_id,
+            event_id: crypto.randomUUID(),
+            action: nextAction,
+            note: noteText,
+          }),
+        });
+        if (current === now) void show(now);
+      } catch (error) {
+        if (current !== now) return;
+        notice.textContent = error.status === 409 ? "검토 상태가 이미 바뀌었습니다. 새로고침하세요."
+          : "검토 결과를 확인하지 못했습니다. 중복 전송하지 말고 저장 기록을 새로 확인하세요.";
+        for (const button of [note, action]) button.disabled = false;
+      }
+    };
+    note.addEventListener("click", () => {
+      const text = field.value.trim();
+      if (!text) {notice.textContent = "메모를 입력하세요.";return;}
+      void post("note", text);
+    });
+    action.addEventListener("click", () => {
+      if (human.status === "acknowledged"
+          && !window.confirm("이 전망의 검토를 완료로 표시할까요?")) return;
+      void post(human.status === "open" ? "acknowledge" : "close", "");
+    });
+    controls.append(note, action);reviewBox.append(field, controls, notice);
+  }
+  wrapper.append(reviewBox);
   const compare = create("div", "outlook-reobservation");
   const sameIdentity = old.asset_id === now.asset_id && old.source_id === now.source_id
     && old.measurement_point_id === now.measurement_point_id
