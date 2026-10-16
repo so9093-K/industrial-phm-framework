@@ -146,6 +146,16 @@ def condition_reach(outlook: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "value": num(outlook["conditions"][name]),
             "already": states[0] == "already",
             "reached": any(state in {"expected", "already"} for state in states),
+            "possible": any(state == "possible" for state in states),
+            "direction": outlook["conditions"]["direction"],
+            "possible_offsets": {
+                READING[scenario["id"]]: (
+                    after(outlook, scenario["limits"][name]["earliest"])
+                    if scenario["limits"][name]["state"] == "possible"
+                    else None
+                )
+                for scenario in outlook["scenarios"]
+            },
             "expected_offsets": {
                 READING[scenario["id"]]: (
                     None
@@ -156,9 +166,15 @@ def condition_reach(outlook: dict[str, Any]) -> dict[str, dict[str, Any]]:
             },
         }
     readings = {
-        READING[scenario["id"]]: any(
-            reached["state"] in {"expected", "already"} for reached in scenario["limits"].values()
-        )
+        READING[scenario["id"]]: {
+            "reached": any(
+                reached["state"] in {"expected", "already"}
+                for reached in scenario["limits"].values()
+            ),
+            "possible": any(
+                reached["state"] == "possible" for reached in scenario["limits"].values()
+            ),
+        }
         for scenario in outlook["scenarios"]
     }
     return {"conditions": conditions, "readings": readings}
