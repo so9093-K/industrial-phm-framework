@@ -8,7 +8,7 @@
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"failed"|"unavailable"|"missing-waveform";
   let sourceState:State=$state("loading");
-  let state:State=$state("empty");
+  let resultState:State=$state("empty");
   let acquisition:Acquisition|null=$state(null);
   let spans:Spans|null=$state(null);
   let result:Spectrum|null=$state(null);
@@ -52,7 +52,7 @@
   async function readSource(){
     sourceRequest?.abort();spectrumRequest?.abort();
     const req=new AbortController();sourceRequest=req;
-    sourceState="loading";state="empty";acquisition=null;result=null;error="";
+    sourceState="loading";resultState="empty";acquisition=null;result=null;error="";
     try{
       const data=await readAcquisition(assetId,req.signal);
       if(req.signal.aborted)return;
@@ -71,23 +71,23 @@
   function change(n:"a"|"b",edge:"from"|"to",input:string){
     if(!spans)return;
     spans={...spans,[n]:{...spans[n],[edge]:Number(input)}};
-    spectrumRequest?.abort();result=null;state="empty";
+    spectrumRequest?.abort();result=null;resultState="empty";
   }
   async function analyze(){
     spectrumRequest?.abort();
     const req=new AbortController();spectrumRequest=req;
-    result=null;state="loading";error="";
+    result=null;resultState="loading";error="";
     try{
       if(!spans||!acquisition)throw new Error("파형 원본과 획득 구간을 확인하세요.");
       validateSpans(spans);
       const frozen:Spans={a:{...spans.a},b:{...spans.b}};
       const data=await readSpectrum(assetId,acquisition,frozen,req.signal);
       if(req.signal.aborted)return;
-      result=data;state=data.channels.length?"ready":"empty";remember();
+      result=data;resultState=data.channels.length?"ready":"empty";remember();
     }catch(cause:unknown){
       if(req.signal.aborted)return;
       error=cause instanceof Error?cause.message:"원본 파워 스펙트럼을 확인할 수 없습니다.";
-      state=cause instanceof SpectrumUnavailable?"unavailable"
+      resultState=cause instanceof SpectrumUnavailable?"unavailable"
         :cause instanceof WaveformUnavailable?"missing-waveform":"failed";
     }
   }
@@ -125,16 +125,16 @@
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void analyze()}>
       원본 파형 PSD 비교
     </button>
-    {#if state==="loading"}
+    {#if resultState==="loading"}
       <StatusNotice message="검증된 원본 파형의 Welch PSD를 서버에서 계산하고 있습니다."/>
-    {:else if state==="failed"}
+    {:else if resultState==="failed"}
       <StatusNotice kind="failure" title="PSD 조회 실패" message={error}
         actionLabel="같은 회차 재조회" onAction={()=>void analyze()}/>
-    {:else if state==="missing-waveform"}
+    {:else if resultState==="missing-waveform"}
       <StatusNotice kind="uncertain" title="원본 파형 확인 불가" message={error}/>
-    {:else if state==="unavailable"}
+    {:else if resultState==="unavailable"}
       <StatusNotice kind="uncertain" title="해당 회차의 원본 자료가 없습니다" message={error}/>
-    {:else if state==="empty"}
+    {:else if resultState==="empty"}
       <StatusNotice message="회차와 원본 파형을 선택해 분석 결과를 확인합니다."/>
     {:else if result}
       <p class="context">서버 Welch PSD · 샘플링 {result.samplingRate}Hz
