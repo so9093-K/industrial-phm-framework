@@ -82,9 +82,13 @@ explicit = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/industrial_phm"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/industrial_phm/apps/web_next" = "industrial_phm/apps/web_next"
+# Build output is optional for the existing UI; include generated static artifacts
+# when a frontend build preceded wheel creation (no duplicate force-include paths).
+artifacts = [
+  "/src/industrial_phm/apps/web_next/index.html",
+  "/src/industrial_phm/apps/web_next/asset-manifest.json",
+  "/src/industrial_phm/apps/web_next/assets/*",
+]
 
 [tool.ruff]
 line-length = 100
