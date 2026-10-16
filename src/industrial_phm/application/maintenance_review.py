@@ -87,6 +87,24 @@ def create_finding_review_event(
     )
 
 
+def next_human_review_status(
+    status: FindingReviewStatus, action: FindingReviewAction
+) -> FindingReviewStatus:
+    """One authoritative OPEN → ACKNOWLEDGED → CLOSED transition policy.
+
+    Applicable to both persisted AnalysisRun findings and captured outlook evidence.
+    """
+    if status == FindingReviewStatus.CLOSED:
+        raise ValueError("closed review cannot accept additional events")
+    if action == FindingReviewAction.NOTE:
+        return status
+    if action == FindingReviewAction.ACKNOWLEDGE and status == FindingReviewStatus.OPEN:
+        return FindingReviewStatus.ACKNOWLEDGED
+    if action == FindingReviewAction.CLOSE and status == FindingReviewStatus.ACKNOWLEDGED:
+        return FindingReviewStatus.CLOSED
+    raise ValueError("review action is invalid for the current review status")
+
+
 def finding_review_status(
     events: Sequence[FindingReviewEvent],
     finding_id: str,
@@ -99,21 +117,7 @@ def finding_review_status(
             raise ValueError("events must contain only FindingReviewEvent values")
         if event.finding_id != finding_id:
             continue
-        if status == FindingReviewStatus.CLOSED:
-            raise ValueError("closed finding review cannot accept additional events")
-        if event.action == FindingReviewAction.NOTE:
-            continue
-        if event.action == FindingReviewAction.ACKNOWLEDGE:
-            if status != FindingReviewStatus.OPEN:
-                raise ValueError("finding review can only be acknowledged from OPEN")
-            status = FindingReviewStatus.ACKNOWLEDGED
-            continue
-        if event.action == FindingReviewAction.CLOSE:
-            if status != FindingReviewStatus.ACKNOWLEDGED:
-                raise ValueError("finding review can only be closed from ACKNOWLEDGED")
-            status = FindingReviewStatus.CLOSED
-            continue
-        raise AssertionError(f"unsupported finding review action: {event.action!r}")
+        status = next_human_review_status(status, event.action)
     return status
 
 
