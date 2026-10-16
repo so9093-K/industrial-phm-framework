@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
+  import { VIEWS, VIEW_INFO, parseRoute, viewUrl, assetUrl, type View } from "./routes";
   import AssetSelector from "./components/AssetSelector.svelte";
   import ObservationDetails from "./components/ObservationDetails.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -18,30 +19,21 @@
   let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
-  const task = new URLSearchParams(location.search).get("view");
-  const signalView = task === "signals";
-  const departuresView = task === "departures";
-  const comparisonView = task === "compare";
-  const projectionView = task === "projection";
-  const relationView = task === "relation";
-  const reviewsView = task === "reviews";
-  const spectrumView = task === "spectrum";
-  const featureView = task === "features";
-  let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
+  let view: View = $state(parseRoute(location.search).view);
+  let selectedId = $state(parseRoute(location.search).assetId);
+  const viewInfo = $derived(VIEW_INFO[view]);
   let controller: AbortController | null = null;
   let selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === selectedId),
   );
 
   function selectAsset(assetId: string) {
-    const previousAssetId = selectedId;
+    if (assetId === selectedId) return;
+    const firstSelection = !selectedId;
+    const url = assetUrl(location.href, assetId);
     selectedId = assetId;
-    const url = new URL(location.href);
-    url.searchParams.set("monitor_asset", assetId);
-    if (assetId !== previousAssetId) url.searchParams.delete("monitor_channel");
-    if (assetId !== previousAssetId) url.searchParams.delete("departure_baseline");
-    if (assetId !== previousAssetId) for (const key of ["compare_a", "compare_b", "projection_horizon", "projection_management", "projection_end"]) url.searchParams.delete(key);
-    history.replaceState(history.state, "", url);
+    if (firstSelection) history.replaceState(history.state, "", url);
+    else history.pushState(history.state, "", url);
   }
 
   async function refresh() {
@@ -56,10 +48,7 @@
       if (pending.signal.aborted) return;
       snapshot = result;
       loadState = result.assets.length ? "ready" : "empty";
-      if (!result.assets.some((asset) => asset.assetId === selectedId)) {
-        if (!selectedId && result.assets.length) selectAsset(result.assets[0].assetId);
-        else if (selectedId) selectedId = "";
-      }
+      if (!selectedId && result.assets.length) selectAsset(result.assets[0].assetId);
     } catch (cause: unknown) {
       if (pending.signal.aborted) return;
       error = cause instanceof Error ? cause.message : "관측 정보를 읽지 못했습니다.";
@@ -79,23 +68,27 @@
     return "/web/?monitor_asset=" + encodeURIComponent(assetId) + "#signals";
   }
 
-  function nextUrl(view: "overview" | "signals" | "departures" | "compare" | "projection" | "relation" | "reviews" | "spectrum" | "features"): string {
-    const url = new URL("/web-next/", location.origin);
-    if (view !== "overview") url.searchParams.set("view", view);
-    if (selectedId) url.searchParams.set("monitor_asset", selectedId);
-    const channel = new URLSearchParams(location.search).get("monitor_channel");
-    if (channel && view !== "overview") url.searchParams.set("monitor_channel", channel);
-    return url.pathname + url.search;
+  function nextUrl(target: View): string {
+    return viewUrl(target, selectedId, new URLSearchParams(location.search).get("monitor_channel"));
   }
 
   onMount(() => {
+    const restore = () => {
+      const route = parseRoute(location.search);
+      view = route.view;
+      selectedId = route.assetId;
+    };
+    window.addEventListener("popstate", restore);
     void refresh();
-    return () => controller?.abort();
+    return () => {
+      controller?.abort();
+      window.removeEventListener("popstate", restore);
+    };
   });
 </script>
 
 <svelte:head>
-  <title>Industrial PHM · {featureView ? "획득 특징 비교" : spectrumView ? "획득 원본 PSD" : reviewsView ? "검토 작업함" : relationView ? "신호 관계" : projectionView ? "버전 연계 전망" : comparisonView ? "두 구간 비교" : departuresView ? "기준 이탈 조사" : signalView ? "저장 신호 탐색" : "관측 현황"} 구조 검증</title>
+  <title>Industrial PHM · {viewInfo.document} 구조 검증</title>
 </svelte:head>
 
 <a class="skip" href="#main">본문으로 건너뛰기</a>
@@ -104,23 +97,19 @@
     <div class="brand">Industrial PHM <small>Operations / UI 실험</small></div>
     <nav aria-label="화면 바로가기">
       <a href="/web/">현재 운영 화면</a>
-      <a href={nextUrl("overview")} aria-current={!signalView && !departuresView && !comparisonView && !projectionView && !relationView && !reviewsView && !spectrumView && !featureView ? "page" : undefined}>새 관측 화면 검증</a>
-      <a href={nextUrl("signals")} aria-current={signalView ? "page" : undefined}>저장 신호 탐색</a>
-      <a href={nextUrl("departures")} aria-current={departuresView ? "page" : undefined}>기준 구간 이탈 조사</a>
-      <a href={nextUrl("compare")} aria-current={comparisonView ? "page" : undefined}>두 기간의 측정 비교</a>
-      <a href={nextUrl("projection")} aria-current={projectionView ? "page" : undefined}>조건부 상태 전망</a>
-      <a href={nextUrl("relation")} aria-current={relationView ? "page" : undefined}>동일 시각 신호 관계</a>
-      <a href={nextUrl("reviews")} aria-current={reviewsView ? "page" : undefined}>사람 검토 기록</a>
-      <a href={nextUrl("spectrum")} aria-current={spectrumView ? "page" : undefined}>획득 원본 파형 PSD</a>
-      <a href={nextUrl("features")} aria-current={featureView ? "page" : undefined}>획득 특징값 2기간 비교</a>
+      {#each VIEWS as target (target)}
+        <a href={nextUrl(target)} aria-current={view === target ? "page" : undefined}>
+          {VIEW_INFO[target].navigation}
+        </a>
+      {/each}
     </nav>
     <p class="note">독립 읽기 전용 화면입니다. 새 분석·판정 기능이 아닙니다.</p>
   </aside>
   <main id="main" tabindex="-1">
     <PageHeading
-      eyebrow={featureView ? "획득 회차 · 저장 특징" : spectrumView ? "획득 회차 · 원본 주파수" : reviewsView ? "검토 · 근거 일치 확인" : relationView ? "설비 조사 · 신호 관계" : projectionView ? "설비 전망 · 계산 근거" : comparisonView ? "설비 조사 · 구간 A/B" : departuresView ? "설비 조사 · 모델 없는 변화" : signalView ? "설비 조사 · 저장된 측정" : "관측 · 사실 확인"}
-      title={featureView ? "획득 특징값 A/B 비교" : spectrumView ? "획득 원본 파형 PSD 비교" : reviewsView ? "사람 검토 기록" : relationView ? "동일 시각 신호 관계 조사" : projectionView ? "조건부 상태 전망 검토" : comparisonView ? "두 기간의 측정 비교" : departuresView ? "기준 구간 이탈 조사" : signalView ? "설비 신호 탐색" : "설비 관측 현황"}
-      description={featureView ? "서버 저장 획득 회차별 특징 통계와 수신·분석 누락을 구분해 비교합니다." : spectrumView ? "검증된 파형 원본으로부터 서버가 계산한 Welch PSD만 비교합니다." : reviewsView ? "저장된 Finding과 정확히 연결된 AnalysisRun·Evidence를 확인합니다." : relationView ? "정확히 같은 출처·시각에 기록된 두 신호의 관측 짝을 비교합니다." : projectionView ? "같은 측정 버전일 때만 미래 신호 예측과 사용자 입력 기준 도달 전망을 함께 표시합니다." : comparisonView ? "측정 근거가 같은 두 기간의 대표값·결측·품질을 비교합니다. 구간 A는 검증된 정상 범위가 아닙니다." : departuresView ? "고른 신호가 선택한 기록 구간에서 얼마나 달라졌는지 탐색합니다. 설비 고장 진단이 아닙니다." : signalView ? "선택한 신호의 원본 의미·시간 구간·품질을 구분해서 확인합니다." : "마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."}
+      eyebrow={viewInfo.eyebrow}
+      title={viewInfo.title}
+      description={viewInfo.description}
       loading={loadState === "loading"}
       onRefresh={() => void refresh()}
     />
@@ -153,37 +142,41 @@
       {:else}
         <div class="workspace">
           <AssetSelector assets={snapshot.assets} {selectedId} onSelect={selectAsset} {observed} />
-          {#if featureView && selected}
+          {#if !selected}
+            <StatusNotice kind="uncertain" title="선택한 설비가 이번 조회에 없습니다"
+              message="이 설비의 저장 근거를 확인할 수 없습니다. 서버의 제한된 목록 또는 데이터 변경 가능성이 있으며, 다른 설비의 결과로 대체하지 않습니다." />
+          {/if}
+          {#if view === "features" && selected}
             {#key selected.assetId}
               <AcquisitionFeatureProfile assetId={selected.assetId} />
             {/key}
-          {:else if spectrumView && selected}
+          {:else if view === "spectrum" && selected}
             {#key selected.assetId}
               <AcquisitionSpectrum assetId={selected.assetId} />
             {/key}
-          {:else if reviewsView && selected}
+          {:else if view === "reviews" && selected}
             <ReviewInboxView inbox={snapshot.reviewInbox} assetId={selected.assetId} />
-          {:else if relationView && selected}
+          {:else if view === "relation" && selected}
             {#key selected.assetId}
               <RelationExplorer assetId={selected.assetId} />
             {/key}
-          {:else if projectionView && selected}
+          {:else if view === "projection" && selected}
             {#key selected.assetId}
               <ProjectionExplorer assetId={selected.assetId} />
             {/key}
-          {:else if comparisonView && selected}
+          {:else if view === "compare" && selected}
             {#key selected.assetId}
               <PeriodComparison assetId={selected.assetId} />
             {/key}
-          {:else if departuresView && selected}
+          {:else if view === "departures" && selected}
             {#key selected.assetId}
               <DepartureExplorer assetId={selected.assetId} />
             {/key}
-          {:else if signalView && selected}
+          {:else if view === "signals" && selected}
             {#key selected.assetId}
               <SignalExplorer assetId={selected.assetId} />
             {/key}
-          {:else}
+          {:else if selected}
             <ObservationDetails asset={selected} {observed} {detailUrl} />
           {/if}
         </div>

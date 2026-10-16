@@ -17,6 +17,15 @@ on:
       - "tests/acceptance/test_operations_web_next_spectrum_browser.py"
       - "tests/acceptance/test_operations_web_next_acquisition_profile_browser.py"
       - ".github/workflows/web-next-spike.yml"
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - "src/industrial_phm/runtime/operations_web_http.py"
+      - "tests/integration/test_operations_web_next_static.py"
+      - "tests/integration/test_operations_web_explore.py"
+      - "tests/acceptance/test_operations_web_next_**"
+      - ".github/workflows/web-next-spike.yml"
 
 permissions:
   contents: read
