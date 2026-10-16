@@ -331,6 +331,7 @@ function showAnswer(root, record) {
     }
     parts.push(list);
   }
+  facts.append(factList);
   const source = result.checks?.source === "computed" && result.checks?.model_unavailable
     ? "AI 응답이 없어 계산된 요약" : SOURCE[result.checks?.source] || "";
   parts.push(facts, create("p", "muted outlook-answer-source", source + (record.model ? " · " + record.model : "")
