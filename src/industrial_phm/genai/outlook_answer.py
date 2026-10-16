@@ -165,22 +165,19 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
                 label = ("종료 기준 " if name == "end" else "관리 기준 ") + known["value"]
                 if _ALREADY.search(clause) and not known["already"]:
                     issues.append(f"마지막 측정은 아직 {label}에 도달하지 않았습니다: {sentence}")
-                elif claims and not known["reached"] and not (
-                    known.get("possible") and bounded_claim(window, known["direction"])
+                elif (
+                    claims
+                    and not known["reached"]
+                    and not (known.get("possible") and bounded_claim(window, known["direction"]))
                 ):
-                    issues.append(
-                        f"{label}에는 중심 예측의 도달 근거가 없습니다: {sentence}"
-                    )
+                    issues.append(f"{label}에는 중심 예측의 도달 근거가 없습니다: {sentence}")
             for reading, reading_states in readings.items():
                 if reading not in clause or not claims:
                     continue
                 qualified = any(
-                    bounded_claim(window, known["direction"])
-                    for known in conditions.values()
+                    bounded_claim(window, known["direction"]) for known in conditions.values()
                 )
-                if not reading_states["reached"] and not (
-                    reading_states["possible"] and qualified
-                ):
+                if not reading_states["reached"] and not (reading_states["possible"] and qualified):
                     issues.append(
                         f"{reading}은 계산 범위 안에서 중심 예측 도달 근거가 없습니다: {sentence}"
                     )
