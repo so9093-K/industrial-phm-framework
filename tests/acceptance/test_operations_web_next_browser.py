@@ -61,7 +61,8 @@ def test_web_next_read_only_observation_and_navigation(tmp_path: Path, width: in
                 page.goto(base + "/web-next/", wait_until="networkidle")
                 pw.expect(page.get_by_role("heading", name="설비 관측 현황")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="조회된 설비 2개")).to_be_visible()
-                page.get_by_role("button", name="asset-two").click()
+                page.get_by_role("button", name="asset-two").focus()
+                page.get_by_role("button", name="asset-two").press("Enter")
                 pw.expect(page.locator(".detail dd").first).to_have_text("asset-two")
                 assert "monitor_asset=asset-two" in page.url
                 assert (
@@ -125,9 +126,11 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(base + "/web-next/", wait_until="networkidle")
                 pw.expect(page.get_by_role("heading", name="조회된 설비가 없습니다")).to_be_visible()
-                pw.expect(page.get_by_role("status")).to_contain_text(
-                    "일부 저장소·수집 근거를 확인하지 못했습니다"
-                )
+                pw.expect(
+                    page.get_by_role("status").filter(
+                        has_text="일부 저장소·수집 근거를 확인하지 못했습니다"
+                    )
+                ).to_be_visible()
                 pw.expect(page.get_by_role("link", name="데이터 연결 화면 열기")).to_have_attribute(
                     "href", "/web/#connect"
                 )
