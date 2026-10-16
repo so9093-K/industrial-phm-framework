@@ -159,9 +159,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
                 pw.expect(archive).to_contain_text("새로운 측정 내용", timeout=30000)
-                pw.expect(archive).to_contain_text(
-                    "현재 계산 입력이 저장 당시와 다릅니다"
-                )
+                pw.expect(archive).to_contain_text("현재 계산 입력이 저장 당시와 다릅니다")
                 pw.expect(archive).to_contain_text("#64 → #65")
                 pw.expect(archive).to_contain_text("관리 기준: 이전")
 
