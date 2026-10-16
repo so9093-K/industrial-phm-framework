@@ -117,6 +117,8 @@ def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edg
     ("utterance", "accepted"),
     [
         ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달할 수 있습니다.", True),
+        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달 가능합니다.", True),
+        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달 가능합니다.", False),
         ("관리 상한 8에는 4개 획득 뒤 도달합니다.", False),
         ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달할 수 있습니다.", False),
         ("관리 상한 8에는 예측 범위 상단에서만 5개 획득 뒤 도달할 수 있습니다.", False),
