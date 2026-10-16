@@ -77,6 +77,7 @@ def test_connecting_a_model_from_the_anomaly_tab_shows_its_scores(
         thread.join(timeout=10)
 
 
+@pytest.mark.linux_only
 def test_large_saved_csv_keeps_analysis_limit_and_measured_signal_available(tmp_path: Path) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     from industrial_phm.runtime.operations_workspace import (
@@ -124,6 +125,7 @@ def test_large_saved_csv_keeps_analysis_limit_and_measured_signal_available(tmp_
         _stop(proc, workspace.root)
 
 
+@pytest.mark.linux_only
 def test_supervised_runner_analyzes_a_web_connection_without_a_manual_analysis_call(
     tmp_path: Path,
 ) -> None:

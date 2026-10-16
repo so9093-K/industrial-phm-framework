@@ -26,6 +26,22 @@ uv run --locked --extra operations pytest tests/unit tests/contract
 의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
 추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는 `uv build`도 확인합니다.
 
+### Linux 재현 검증
+
+Operations는 Linux만 지원합니다. supervisor의 Web 명령 경계는 Linux의 peer credential(`SO_PEERCRED`)과
+pidfd를 쓰므로, 이 테스트는 `linux_only`로 표시되어 다른 OS에서는 이유와 함께 건너뜁니다.
+macOS 등에서 CI와 같은 결과를 확인하려면 Docker로 다음을 실행합니다.
+
+```bash
+make verify-linux                      # CI 세 워크플로의 검사 전체
+make verify-linux VERIFY_STAGE=source  # lock·lint·format·mypy·unit/contract만
+make verify-linux VERIFY_STAGE=full    # 워크플로가 고르지 않은 테스트까지 전부 (CI 게이트 아님)
+```
+
+git이 보는 작업 트리(추적·미추적, 무시 제외)만 컨테이너로 보내므로 호스트의 `.venv`·`node_modules`·빌드
+결과는 섞이지 않습니다. CI 각 단계와 이 명령은 같은 `tools/verify/gate.sh` 단계를 호출하고, 도구 버전은
+`tools/verify/versions.env` 한 곳에서 고정합니다. CI의 테스트 목록을 바꿀 때는 `gate.sh`를 고칩니다.
+
 의존성을 추가·제거·변경할 때는 `pyproject.toml`을 수정한 뒤 `uv lock`으로 `uv.lock`을 갱신하고
 두 파일을 같은 변경 단위로 commit합니다. 일반 개발과 CI에서는 lockfile을 암묵적으로 갱신하지 않습니다.
 

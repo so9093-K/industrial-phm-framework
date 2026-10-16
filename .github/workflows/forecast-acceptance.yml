@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/forecast-acceptance.yml"
+      - "tools/verify/**"
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
@@ -38,6 +39,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/forecast-acceptance.yml"
+      - "tools/verify/**"
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
@@ -83,10 +85,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Load verification toolchain pins
+        run: grep -v '^#' tools/verify/versions.env >> "$GITHUB_ENV"
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          version: "0.12.13"
+          version: ${{ env.UV_VERSION }}
           enable-cache: true
 
       - name: Install Python 3.14
@@ -96,22 +100,10 @@ jobs:
         run: uv sync --locked --extra operations
 
       - name: Forecast and outlook API integration
-        run: >-
-          uv run --locked --extra operations pytest tests/integration/test_operations_web_forecast.py
-          tests/integration/test_operations_web_outlook.py tests/unit/test_condition_outlook.py
-          tests/integration/test_operations_web_outlook_briefing.py tests/unit/test_outlook_answer.py
+        run: sh tools/verify/gate.sh forecast-python
 
       - name: Install browser test runtime
-        run: |
-          uv pip install --python .venv/bin/python "playwright>=1.56,<2"
-          uv run --no-sync python -m playwright install --with-deps chromium
+        run: sh tools/verify/gate.sh browser-runtime
 
       - name: Forecast Web browser acceptance
-        run: >-
-          uv run --no-sync pytest tests/acceptance/test_operations_forecast_browser.py
-          tests/acceptance/test_operations_outlook_browser.py tests/acceptance/test_operations_phm_browser.py
-          tests/acceptance/test_operations_phm_connect_browser.py
-          tests/acceptance/test_operations_phm_monitor_browser.py
-          tests/acceptance/test_operations_electrical_phm_browser.py
-          tests/acceptance/test_operations_signal_explore_browser.py
-          tests/acceptance/test_operations_stored_monitor_browser.py
+        run: sh tools/verify/gate.sh forecast-browser
