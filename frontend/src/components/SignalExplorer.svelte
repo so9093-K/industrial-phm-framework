@@ -162,13 +162,13 @@
         <StatusNotice kind="uncertain" message="선택 구간에 시간 버킷은 없지만 별도의 최근 저장값이 있을 수 있습니다." />
       {/if}
       {#each groups as group (group.key)}
+        {@const points = pointsForChart(group, trend.startAt, trend.endAt)}
         <section class="series" aria-label={"관측 시계열 " + group.sourceId}>
           <h3>{selectedChannel} · {group.sourceId}</h3>
           <p class="context">
             측정 지점 {group.pointId} · 측정 의미 {group.observedProperty ?? "미확인"}
             · 단위 {group.unit ?? "미확인"}
           </p>
-          {@const points = pointsForChart(group, trend.startAt, trend.endAt)}
           {#if points.length}
             <svg viewBox="0 0 650 145" role="img"
               aria-label="연속선 없이 유효한 측정 버킷 평균만 표시한 점 그래프. 표시되지 않은 구간은 공백입니다.">
