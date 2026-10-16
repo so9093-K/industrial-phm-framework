@@ -67,7 +67,9 @@ RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-lif
   동일 입력·관측 버전의 재요청은 최초 저장한 계산을 그대로 돌려줍니다. 과거 계산은 새 데이터가
   들어와도 덮어쓰지 않습니다. 브라우저의 JSON 수치를 저장하도록 신뢰하지 않습니다.
 - `GET /api/v1/outlook/captures?asset_id=...`에서 해당 설비의 저장 전망과 사람 검토 이벤트를
-  읽습니다. 조회는 저장소를 만들거나 변경하지 않으며 읽기 전용 Web에서도 가능합니다.
+  읽습니다. 목록은 최근 20건부터 보여주고, `next_before`가 있으면 해당 캡처 ID를
+  `before_id`로 전달해 더 오래된 기록을 손실 없이 이어 읽습니다. 다른 설비의 커서나
+  잘못된 식별자는 거부합니다. 조회는 저장소를 만들거나 변경하지 않으며 읽기 전용 Web에서도 가능합니다.
   쓰기는 `POST /api/v1/outlook/captures/confirm`, 명시적 검토는
   `POST /api/v1/outlook/captures/review/action`의 권한·동일 출처·CSRF 검사를 통과합니다.
 - 사람의 `메모 → 확인함 → 검토 완료`는 기존 AnalysisRun finding과 같은 상태 전이 규칙을
