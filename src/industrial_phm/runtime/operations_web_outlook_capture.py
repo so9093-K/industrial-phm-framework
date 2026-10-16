@@ -12,7 +12,7 @@ import sqlite3
 from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs
 
 from industrial_phm.application.forecast import ForecastUnavailable
@@ -44,6 +44,10 @@ _MAX_SNAPSHOT_BYTES = 64 * 1024
 
 def _digest(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+class OutlookCaptureCorrupted(RuntimeError):
+    """Stored bytes fail their persisted content identity."""
 
 
 class OutlookCaptureStore:
@@ -110,7 +114,7 @@ class OutlookCaptureStore:
         result = []
         for identifier, captured_at, digest, rendered in records:
             if _digest(rendered) != digest or "outlook-capture-" + digest != identifier:
-                raise ValueError("stored outlook evidence digest mismatch")
+                raise OutlookCaptureCorrupted("stored outlook evidence digest mismatch")
             result.append(
                 {
                     "capture_id": identifier,
@@ -129,7 +133,7 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
         raise ValueError("unexpected capture fields")
     if any(not isinstance(value, str) or len(value) > 512 for value in payload.values()):
         raise ValueError("invalid capture parameter")
-    params = {key: value for key, value in payload.items() if key in _SELECTION}
+    params = {key: cast(str, value) for key, value in payload.items() if key in _SELECTION}
     for name in _VERSIONS:
         version = payload[name]
         if not isinstance(version, str) or len(version) != 64:
@@ -181,5 +185,5 @@ def handle_outlook_captures_read(
         return HTTPStatus.OK, {"schema_version": 1, "captures": records}
     except (ValueError, TypeError):
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
-    except (OSError, sqlite3.Error):
+    except (OSError, sqlite3.Error, OutlookCaptureCorrupted):
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
