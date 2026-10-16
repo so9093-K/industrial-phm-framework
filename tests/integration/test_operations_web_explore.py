@@ -93,6 +93,12 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         )
         assert status == 200 and relation["pairing"] == "same-acquisition"
         assert [g["pair_count"] for g in relation["groups"]] == [4, 4]
+        assert all(
+            group["binding_id"] == acquisition["binding_id"]
+            and group["source_id"] == acquisition["source_id"]
+            and group["measurement_point_id"] is None
+            for group in relation["groups"]
+        )
         assert relation["groups"][1]["points"][0][0] == 5
 
         status, spectrum = get("/api/v1/explore/spectrum", asset_id="bearing-a", **ranges)

@@ -48,6 +48,10 @@ not install Node dependencies.
   Does not submit reviews, store outlook captures, or call AI for explanations.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
+- `src/components/AcquisitionRelation.svelte`: server-owned two-feature correlations
+  and acquisition-ordinal scatter evidence. Exact selected source/binding/ordinal
+  contracts are validated; uncomputed coefficients remain absent rather than zero.
+- `src/acquisition-relation.ts`: read-only same-acquisition response boundary.
 - `src/components/AcquisitionFeatureProfile.svelte`: read-only saved acquisition
   feature A/B ordinal comparison, separating delivered/analyzed/unanalyzed/missing
   counts from potentially sampled feature statistics. No time-axis inference.

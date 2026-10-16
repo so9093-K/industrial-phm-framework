@@ -1,7 +1,7 @@
 /** Browser location is selection context, never a source of measured or calculated facts. */
 export const VIEWS = [
   "overview", "signals", "departures", "compare", "projection",
-  "relation", "reviews", "spectrum", "features",
+  "relation", "reviews", "spectrum", "features", "acq-relation",
 ] as const;
 export type View = (typeof VIEWS)[number];
 
@@ -37,6 +37,11 @@ export const VIEW_INFO: Record<View, ViewInfo> = {
     navigation: "동일 시각 신호 관계", document: "신호 관계",
     eyebrow: "설비 조사 · 신호 관계", title: "동일 시각 신호 관계 조사",
     description: "정확히 같은 출처·시각에 기록된 두 신호의 관측 짝을 비교합니다.",
+  },
+  "acq-relation": {
+    navigation: "획득 특징 관계", document: "획득 특징 관계",
+    eyebrow: "획득 회차 · 두 특징 관계", title: "동일 획득 특징 관계",
+    description: "같은 원본·binding·획득 회차에 저장된 두 특징의 관계를 비교하며 고장·인과관계를 추정하지 않습니다.",
   },
   reviews: {
     navigation: "사람 검토 기록", document: "검토 작업함",

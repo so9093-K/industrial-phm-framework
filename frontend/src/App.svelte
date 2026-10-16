@@ -14,6 +14,7 @@
   import ReviewInboxView from "./components/ReviewInbox.svelte";
   import AcquisitionSpectrum from "./components/AcquisitionSpectrum.svelte";
   import AcquisitionFeatureProfile from "./components/AcquisitionFeatureProfile.svelte";
+  import AcquisitionRelation from "./components/AcquisitionRelation.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   let loadState: LoadState = $state("loading");
@@ -146,7 +147,11 @@
             <StatusNotice kind="uncertain" title="선택한 설비가 이번 조회에 없습니다"
               message="이 설비의 저장 근거를 확인할 수 없습니다. 서버의 제한된 목록 또는 데이터 변경 가능성이 있으며, 다른 설비의 결과로 대체하지 않습니다." />
           {/if}
-          {#if view === "features" && selected}
+          {#if view === "acq-relation" && selected}
+            {#key selected.assetId}
+              <AcquisitionRelation assetId={selected.assetId} />
+            {/key}
+          {:else if view === "features" && selected}
             {#key selected.assetId}
               <AcquisitionFeatureProfile assetId={selected.assetId} />
             {/key}
