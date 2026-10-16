@@ -179,8 +179,13 @@ def test_page_rechecks_each_distinct_measurement_projection_once(
     for last, expected_version in ((64, version), (65, "0" * 64)):
         snapshot = _snapshot(last=last)
         snapshot["identity"].update(
-            {"kind": kind, "source_id": "bench", "measurement_point_id": None,
-             "time_basis": "recorded", "measurement_version": expected_version}
+            {
+                "kind": kind,
+                "source_id": "bench",
+                "measurement_point_id": None,
+                "time_basis": "recorded",
+                "measurement_version": expected_version,
+            }
         )
         snapshot["selection"]["kind"] = kind
         snapshot["outlook"]["kind"] = kind
@@ -197,6 +202,7 @@ def test_page_rechecks_each_distinct_measurement_projection_once(
     status, response = handle_outlook_captures_read(workspace, "asset_id=bearing-a")
     assert status == 200
     assert {item["source_recheck"] for item in response["captures"]} == {
-        "same_measurement_projection", "changed"
+        "same_measurement_projection",
+        "changed",
     }
     assert requests == [(asset, series)]
