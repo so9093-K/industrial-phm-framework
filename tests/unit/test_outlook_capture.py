@@ -144,12 +144,14 @@ def test_outlook_capture_api_pages_after_exact_asset_scoped_cursor(
     )
     assert status == 200 and len(second["captures"]) == 5
     assert "next_before" not in second
-    assert not {
-        item["capture_id"] for item in first["captures"]
-    } & {item["capture_id"] for item in second["captures"]}
-    assert handle_outlook_captures_read(
+    first_ids = {item["capture_id"] for item in first["captures"]}
+    second_ids = {item["capture_id"] for item in second["captures"]}
+    assert first_ids.isdisjoint(second_ids)
+    wrong_asset_status, _ = handle_outlook_captures_read(
         workspace, "asset_id=other&before_id=" + first["next_before"]
-    )[0] == 404
-    assert handle_outlook_captures_read(
+    )
+    invalid_cursor_status, _ = handle_outlook_captures_read(
         workspace, "asset_id=bearing-a&before_id=not-a-capture"
-    )[0] == 400
+    )
+    assert wrong_asset_status == 404
+    assert invalid_cursor_status == 400
