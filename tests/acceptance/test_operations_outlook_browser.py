@@ -106,7 +106,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 review_route = "**/api/v1/outlook/captures/review/action"
                 page.route(review_route, uncertain_review_response)
                 archive.get_by_role("button", name="메모 남기기").click()
-                pw.expect(archive).to_contain_text("검토 결과를 확인하지 못했습니다")
+                pw.expect(archive).to_contain_text("검토 응답을 확인하지 못했습니다")
                 archive.get_by_role("button", name="메모 남기기").click()
                 pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
                 assert len(submitted_events) == 2
