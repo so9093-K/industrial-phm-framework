@@ -444,8 +444,8 @@ function renderDetails(facts) {
     row.append(technical);root.append(row);
     if (focusedBinding === item.binding_id) {
       row.tabIndex = -1;
-      const target = focusedPart === "A" ? row.querySelector("a")
-        : focusedPart === "SUMMARY" ? technical.querySelector("summary") : row;
+      const target = focusedPart === "a" ? row.querySelector("a")
+        : focusedPart === "summary" ? technical.querySelector("summary") : row;
       (target || row).focus({preventScroll: true});
     }
   }
