@@ -24,7 +24,8 @@
   let direction:Direction=$state(params.get("acq_direction")==="lower"?"lower":"upper");
   let listAbort:AbortController|null=null;
   let resultAbort:AbortController|null=null;
-  const available=$derived(options?.features.filter(item=>item.countForecast)??[]);
+  const available=$derived.by(():AcquisitionFeature[]=>
+    options?options.features.filter((item:AcquisitionFeature)=>item.countForecast):[]);
   function floatOrNull(text:string):number|null{
     if(text.trim()==="")return null;
     const number=Number(text);
