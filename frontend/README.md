@@ -43,7 +43,7 @@ not install Node dependencies.
 - `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
   deviation exploration (stored bucket means, not trained model outputs).
 - `src/components/OutlookBriefings.svelte`: existing supervisor's persisted
-  AI explanations, exact server-selected `data_version` and recalculated
+  AI explanations, exact server-selected settings, `data_version` and recalculated
   `measurement_version` verification, CSRF-protected explicit question.
   A changed version clears the joined projection and all stale answers.
 - `src/outlook-briefings.ts`: strict server echo, answer/evidence citation and
