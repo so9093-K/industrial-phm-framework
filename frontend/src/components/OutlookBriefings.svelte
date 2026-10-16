@@ -22,7 +22,7 @@
     record.answer?.source==="computed"?"서버 계산 요약":
     record.answer?.source==="model-trimmed"?"AI 문장 일부 근거 검증 수정":
     record.answer?.source==="model"?"근거 검증된 AI 설명":"생성 방식 미확인";
-  const readyVersion=$derived(/^[a-f0-9]{64}$/.test(projection.dataVersion));
+  const readyVersion=$derived(/^[a-f0-9]{64}$/.test(projection.dataVersion) && !!projection.outlookSettings);
   function cancel(){
     request?.abort();
     if(timer!==null)clearTimeout(timer);
@@ -68,7 +68,7 @@
     }
   }
   onMount(()=>{
-    if(!readyVersion){briefingState="failed";error="설명 근거 버전이 유효하지 않아 AI 설명을 조회하지 않았습니다.";return;}
+    if(!readyVersion){briefingState="failed";error="설명 근거 버전이나 계산 설정을 확인할 수 없어 AI 설명을 조회하지 않았습니다.";return;}
     const permissionRequest=new AbortController();
     void readPermission(permissionRequest.signal).then(allowed=>{
       if(!permissionRequest.signal.aborted)writable=allowed;
