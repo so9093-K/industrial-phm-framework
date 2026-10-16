@@ -83,6 +83,9 @@ explicit = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/industrial_phm"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"src/industrial_phm/apps/web_next" = "industrial_phm/apps/web_next"
+
 [tool.ruff]
 line-length = 100
 target-version = "py314"

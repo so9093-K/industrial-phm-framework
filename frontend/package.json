@@ -6,7 +6,7 @@
   "engines": {"node": ">=22.12"},
   "scripts": {
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "build": "vite build"
+    "build": "node ./scripts/clean-dist.mjs && vite build"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",

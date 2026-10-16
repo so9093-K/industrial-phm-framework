@@ -22,7 +22,7 @@ export default defineConfig({
   plugins: [svelte(), packagedAssetManifest()],
   build: {
     outDir: "../src/industrial_phm/apps/web_next",
-    emptyOutDir: true,
+    emptyOutDir: false,
     assetsDir: "assets",
     sourcemap: false,
   },
