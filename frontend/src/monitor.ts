@@ -1,3 +1,4 @@
+import {parseReviewInbox,type ReviewInbox} from "./reviews";
 // The server owns observation values and PHM meaning. This preview only renders
 // validated fields from the existing read-only monitor API.
 export type Asset = {
@@ -12,6 +13,7 @@ export type Snapshot = {
   assets: Asset[];
   truncated: boolean;
   systemReadUncertain: boolean;
+  reviewInbox: ReviewInbox;
 };
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -48,6 +50,7 @@ export function parseMonitor(value: unknown): Snapshot {
     assets,
     truncated: assetGroup.truncated === true,
     systemReadUncertain: !Array.isArray(response.system_error_scopes) || response.system_error_scopes.length > 0,
+    reviewInbox: parseReviewInbox(response),
   };
 }
 
