@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type NoticeKind = "information" | "uncertain" | "failure";
+  type NoticeKind = "information" | "uncertain" | "failure";
   type Props = {
     message: string;
     title?: string;
