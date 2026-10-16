@@ -64,9 +64,12 @@ def test_web_next_read_only_observation_and_navigation(tmp_path: Path, width: in
                 page.get_by_role("button", name="asset-two").click()
                 pw.expect(page.locator(".detail dd").first).to_have_text("asset-two")
                 assert "monitor_asset=asset-two" in page.url
-                assert page.get_by_role("link", name="원본 신호와 저장 이력 확인").get_attribute(
-                    "href"
-                ) == "/web/?monitor_asset=asset-two#signals"
+                assert (
+                    page.get_by_role("link", name="원본 신호와 저장 이력 확인").get_attribute(
+                        "href"
+                    )
+                    == "/web/?monitor_asset=asset-two#signals"
+                )
                 page.reload(wait_until="networkidle")
                 pw.expect(page.locator(".detail dd").first).to_have_text("asset-two")
 
