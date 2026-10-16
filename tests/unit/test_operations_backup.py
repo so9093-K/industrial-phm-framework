@@ -5,8 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
-
 from industrial_phm.runtime import (
     OperationsBackupFormatError,
     OperationsWorkspace,
@@ -15,6 +13,7 @@ from industrial_phm.runtime import (
     restore_operations_backup,
     validate_operations_backup,
 )
+from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
 
 
 def _seed_workspace(root: Path) -> OperationsWorkspace:
