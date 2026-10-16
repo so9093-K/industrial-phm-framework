@@ -19,7 +19,16 @@ const svgNode = (name, attributes = {}) => {
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
   return node;
 };
-let options = null, request = 0, loadedFor = "", shown = null, previous = null, showWholeScale = false;
+let options = null, request = 0, loadedFor = "", shown = null, previous = null, compareCandidate = null, showWholeScale = false;
+
+// Only a successful, synchronized result may be used by resize/navigation rendering.
+function invalidateResults() {
+  if (shown) compareCandidate = shown;
+  shown = null;previous = null;
+  clear(byId("forecast-result"));
+  clear(byId("forecast-detail-metrics"));
+  byId("forecast-chart-section").hidden = true;
+}
 
 async function getJson(url) {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin"});
@@ -59,7 +68,7 @@ export function initializeForecast() {
 async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
-  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));clear(byId("forecast-result"));shown = null;previous = null;
+  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));compareCandidate = null;invalidateResults();
   clear(byId("forecast-settings-root"));byId("forecast-settings").hidden = true;
   clearOutlook();byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
@@ -118,6 +127,7 @@ async function renderControls() {
 
   const drawHorizons = async () => {
     const ticket = ++request;
+    invalidateResults();
     const [kind, ...parts] = series.value.split("|");
     const query = new URLSearchParams({asset_id: currentAsset(), kind, series: parts.join("|")});
     const training = byId("forecast-training")?.value;
@@ -250,6 +260,7 @@ async function renderControls() {
 
 // The two independently calculated API responses must describe the same last observation.
 function sameObservation(forecast, outlook) {
+  if (!forecast.measurement_version || forecast.measurement_version !== outlook.measurement_version) return false;
   if (forecast.asset_id !== outlook.asset_id || forecast.kind !== outlook.kind ||
       forecast.series !== outlook.series || forecast.axis !== outlook.axis ||
       forecast.source_id !== outlook.source_id ||
@@ -262,6 +273,7 @@ function sameObservation(forecast, outlook) {
 
 async function run() {
   const asset = currentAsset(), ticket = ++request;
+  invalidateResults();
   const value = byId("forecast-series")?.value;
   if (!value) return;
   const [kind, ...rest] = value.split("|");
@@ -296,8 +308,7 @@ async function run() {
   for (const field of ["changepoint_prior_scale", "changepoint_range", "training_points", "seasonality", "assumed_period_seconds"])
     if (query.has(field)) outlookQuery.set(field, query.get(field));
   if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
-  // Hide old results while both requests run. Neither is shown as a fresh pair alone.
-  clear(byId("forecast-result"));byId("forecast-chart-section").hidden = true;
+  // Neither result is presented until both calculations share an identical input projection.
   clearOutlook();
   const context = contextText(kind);
   state("예측과 상태 전망을 계산합니다.");
@@ -314,9 +325,12 @@ async function run() {
       }
       if (sameObservation(data, outlook)) {
         state("");
-        previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
-          && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
-          && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
+        previous = compareCandidate && compareCandidate.measurement_version === data.measurement_version
+          && compareCandidate.asset_id === data.asset_id && compareCandidate.kind === data.kind
+          && compareCandidate.series === data.series && compareCandidate.axis === data.axis
+          && compareCandidate.horizon === data.horizon && compareCandidate.period_seconds === data.period_seconds
+          && compareCandidate.horizon_count === data.horizon_count ? compareCandidate : null;
+        compareCandidate = null;
         render(data);
         renderOutlook(outlook, context);
         return;
