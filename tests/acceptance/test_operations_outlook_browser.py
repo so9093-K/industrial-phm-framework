@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event, Thread
+from typing import Any
 
 import pytest
 
@@ -135,6 +136,53 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                     timeout=30000
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
+
+                # If acquisition #65 arrives between the two independent reads, only
+                # a matching snapshot may appear. The mismatched first read is retried.
+                replies = {"count": 0}
+
+                def mismatch_once(route: Any) -> None:
+                    replies["count"] += 1
+                    if replies["count"] == 1:
+                        response = route.fetch()
+                        body = response.json()
+                        body["record"]["last"] += 1
+                        route.fulfill(response=response, json=body)
+                    else:
+                        route.continue_()
+
+                page.route("**/api/v1/outlook?*", mismatch_once)
+                page.locator("#refresh").click()
+                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
+                    "마지막 획득 #65", timeout=30000
+                )
+                pw.expect(page.locator("#forecast-chart-section .forecast-chart")).to_be_visible(
+                    timeout=30000
+                )
+                assert replies["count"] >= 2
+                page.unroute("**/api/v1/outlook?*", mismatch_once)
+
+                # A failed half of the pair must never leave the other half
+                # presented as a newly synchronized forecast.
+                def unavailable(route: Any) -> None:
+                    route.fulfill(
+                        status=503, content_type="application/json",
+                        body='{"error":"outlook_store_unavailable"}',
+                    )
+
+                page.route("**/api/v1/outlook?*", unavailable)
+                page.locator("#refresh").click()
+                pw.expect(page.locator("#forecast-state")).to_contain_text(
+                    "상태 전망을 계산하지 못했습니다", timeout=30000
+                )
+                pw.expect(page.locator("#forecast-chart-section")).to_be_hidden()
+                pw.expect(outlook.locator(".outlook-figures")).to_have_count(0)
+                page.unroute("**/api/v1/outlook?*", unavailable)
+                page.locator("#refresh").click()
+                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
+                    "마지막 획득 #65", timeout=30000
+                )
+
                 # Readable lower-limit and bounded-horizon wording on the same screen.
                 page.evaluate(
                     """async () => {
