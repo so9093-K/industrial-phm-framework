@@ -73,9 +73,13 @@ def test_web_next_read_only_observation_and_navigation(tmp_path: Path, width: in
                 page.unroute("**/api/v1/monitor")
                 page.route("**/api/v1/monitor", lambda route: route.abort())
                 page.get_by_role("button", name="다시 불러오기").click()
-                pw.expect(page.get_by_role("alert")).to_contain_text("조회 결과를 확인할 수 없습니다")
+                pw.expect(page.get_by_role("alert")).to_contain_text(
+                    "조회 결과를 확인할 수 없습니다"
+                )
                 assert page.get_by_role("heading", name="조회된 설비 2개").count() == 0
-                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth + 2"
+                )
                 assert not errors, errors
             finally:
                 browser.close()
