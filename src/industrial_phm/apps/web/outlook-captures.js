@@ -123,8 +123,14 @@ function entry(capture, now) {
     && old.measurement_point_id === now.measurement_point_id
     && old.kind === now.kind && old.series === now.series
     && old.axis === now.axis && old.time_basis === now.time_basis;
-  const sameConditions = JSON.stringify(old.conditions) === JSON.stringify(now.conditions)
-    && JSON.stringify(old.settings) === JSON.stringify(now.settings);
+  // JSON key order changes when the archived evidence is canonicalized. Compare
+  // semantic fields instead, including an explicitly assumed acquisition interval.
+  const equalFields = (left, right, names) => names.every((key) => left[key] === right[key]);
+  const sameConditions = equalFields(old.conditions, now.conditions,
+    ["direction", "management", "end"])
+    && equalFields(old.settings, now.settings,
+      ["changepoint_prior_scale", "changepoint_range", "training_points", "seasonality"])
+    && (old.time_basis !== "assumed" || old.period_seconds === now.period_seconds);
   if (!sameIdentity) {
     compare.textContent = "현재 선택 신호와 다른 출처·축의 기록입니다. 직접 비교하지 않습니다.";
   } else if (!sameConditions) {
