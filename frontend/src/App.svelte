@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
+  import AssetSelector from "./components/AssetSelector.svelte";
+  import ObservationDetails from "./components/ObservationDetails.svelte";
+  import PageHeading from "./components/PageHeading.svelte";
+  import StatusNotice from "./components/StatusNotice.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   let loadState: LoadState = $state("loading");
@@ -8,8 +12,9 @@
   let snapshot: Snapshot | null = $state(null);
   let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
   let controller: AbortController | null = null;
-
-  let selected: Asset | undefined = $derived.by(() => snapshot?.assets.find((asset: Asset) => asset.assetId === selectedId));
+  let selected: Asset | undefined = $derived.by(
+    () => snapshot?.assets.find((asset: Asset) => asset.assetId === selectedId),
+  );
 
   function selectAsset(assetId: string) {
     selectedId = assetId;
@@ -44,7 +49,9 @@
   function observed(at: string | null): string {
     if (!at) return "마지막 관측 시각 없음";
     const date = new Date(at);
-    return Number.isNaN(date.getTime()) ? "관측 시각 해석 불가" : date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+    return Number.isNaN(date.getTime())
+      ? "관측 시각 해석 불가"
+      : date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
   }
 
   function detailUrl(assetId: string): string {
@@ -72,70 +79,43 @@
     <p class="note">독립 읽기 전용 화면입니다. 새 분석·판정 기능이 아닙니다.</p>
   </aside>
   <main id="main" tabindex="-1">
-    <header class="heading">
-      <div>
-        <p class="eyebrow">관측 · 사실 확인</p>
-        <h1>설비 관측 현황</h1>
-        <p class="support">마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다.</p>
-      </div>
-      <button type="button" onclick={() => void refresh()} disabled={loadState === "loading"}>다시 불러오기</button>
-    </header>
+    <PageHeading
+      eyebrow="관측 · 사실 확인"
+      title="설비 관측 현황"
+      description="마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."
+      loading={loadState === "loading"}
+      onRefresh={() => void refresh()}
+    />
 
     {#if loadState === "loading"}
-      <p class="notice" role="status">저장된 관측을 확인하는 중입니다.</p>
+      <StatusNotice message="저장된 관측을 확인하는 중입니다." />
     {:else if loadState === "failed"}
-      <section class="notice failure" role="alert">
-        <h2>조회 결과를 확인할 수 없습니다</h2>
-        <p>{error} 데이터 없음이나 설비 이상으로 판단하지 않습니다.</p>
-        <button type="button" onclick={() => void refresh()}>다시 시도</button>
-      </section>
+      <StatusNotice
+        title="조회 결과를 확인할 수 없습니다"
+        message={error + " 데이터 없음이나 설비 이상으로 판단하지 않습니다."}
+        kind="failure"
+        actionLabel="다시 시도"
+        onAction={() => void refresh()}
+      />
     {:else if snapshot}
       <p class="meta">조회 평가 시각: {observed(snapshot.assessedAt)} · API가 반환한 저장 이력 기준</p>
       {#if snapshot.systemReadUncertain}
-        <p class="notice" role="status">일부 저장소·수집 근거를 확인하지 못했습니다. 조회 가능한 결과도 현재 상태를 보장하지 않습니다.</p>
+        <StatusNotice kind="uncertain" message="일부 저장소·수집 근거를 확인하지 못했습니다. 조회 가능한 결과도 현재 상태를 보장하지 않습니다." />
       {/if}
       {#if snapshot.truncated}
-        <p class="notice" role="status">설비 목록은 서버 조회 제한에 따라 일부만 표시됩니다.</p>
+        <StatusNotice kind="uncertain" message="설비 목록은 서버 조회 제한에 따라 일부만 표시됩니다." />
       {/if}
       {#if loadState === "empty"}
-        <section class="notice">
-          <h2>조회된 설비가 없습니다</h2>
-          <p>데이터 미등록과 부분적인 읽기 실패는 서로 다른 상태입니다. 연결 상태에서 확인하세요.</p>
-          <a href="/web/#connect">데이터 연결 화면 열기</a>
-        </section>
+        <StatusNotice
+          title="조회된 설비가 없습니다"
+          message="데이터 미등록과 부분적인 읽기 실패는 서로 다른 상태입니다. 연결 상태에서 확인하세요."
+          actionLabel="데이터 연결 화면 열기"
+          actionHref="/web/#connect"
+        />
       {:else}
         <div class="workspace">
-          <section class="asset-list" aria-labelledby="asset-title">
-            <h2 id="asset-title">조회된 설비 <span>{snapshot.assets.length}개</span></h2>
-            <div class="asset-choices">
-              {#each snapshot.assets as asset (asset.assetId)}
-                <button
-                  type="button"
-                  class:active={selectedId === asset.assetId}
-                  aria-pressed={selectedId === asset.assetId}
-                  onclick={() => selectAsset(asset.assetId)}
-                >
-                  <strong>{asset.assetId}</strong>
-                  <span>마지막 관측: {observed(asset.lastObservedAt)}</span>
-                </button>
-              {/each}
-            </div>
-          </section>
-          <section class="detail" aria-labelledby="detail-title">
-            <h2 id="detail-title">선택한 설비의 관측 사실</h2>
-            {#if selected}
-              <dl class="facts">
-                <div><dt>설비 식별자</dt><dd>{selected.assetId}</dd></div>
-                <div><dt>마지막 관측 시각</dt><dd>{observed(selected.lastObservedAt)}</dd></div>
-                <div><dt>데이터 흐름 상태(서버 제공 값)</dt><dd>{selected.flow}</dd></div>
-                <div><dt>확인 항목 수</dt><dd>{selected.attentionCount ?? '미확인'}</dd></div>
-              </dl>
-              <p class="explain">수집 상태와 설비의 정상·고장 상태는 다릅니다. 이 화면은 고장 진단이나 실시간 경보가 아닙니다.</p>
-              <a class="detail-link" href={detailUrl(selected.assetId)}>원본 신호와 저장 이력 확인 →</a>
-            {:else}
-              <p class="notice">설비를 선택하면 마지막 관측 근거를 표시합니다.</p>
-            {/if}
-          </section>
+          <AssetSelector assets={snapshot.assets} {selectedId} onSelect={selectAsset} {observed} />
+          <ObservationDetails asset={selected} {observed} {detailUrl} />
         </div>
       {/if}
     {/if}

@@ -3,13 +3,14 @@
 This is an **isolated technical acceptance slice**, not the default product.
 It exercises real `GET /api/v1/monitor` observations without importing models or
 recalculating health verdicts. The current `/web/` UI remains authoritative.
-This slice is intended to test Svelte + TypeScript + Vite, selected asset
-context, error vs empty states, token-based styles and packaged static assets.
+
+## Verification
 
 ```sh
 cd frontend
 npm ci
 npm run check
+npm test
 npm run build
 ```
 
@@ -18,6 +19,26 @@ The build outputs `src/industrial_phm/apps/web_next` and an explicit
 on the **same loopback origin** under `/web-next/` only after building it.
 No Node process is required to serve the compiled output; the runtime does
 not install Node dependencies.
+
+## Component and design boundaries
+
+- `src/design/tokens.css`: role-based colors, surface/ink, action, focus,
+  spacing, typography and panel/control radius. Tokens describe UI meaning;
+  they do **not** encode a physical asset's health or a validated alarm.
+- `src/styles.css`: shell, accessible shared controls and responsive layout
+  used across the new frontend; a page should not invent its own unrelated
+  colors, fields or button treatment.
+- `src/components/PageHeading.svelte`: page title, context and reload action.
+- `src/components/StatusNotice.svelte`: information, uncertainty and
+  failure with explicit message/action; an unknown or failed read is not empty.
+- `src/components/AssetSelector.svelte`: semantic asset selection.
+- `src/components/ObservationDetails.svelte`: measured fact, quality/flow
+  distinction and evidence navigation.
+
+New workflow components must reuse these meanings and preserve keyboard
+focus, labels and screen-reader reading order. A status token is not evidence
+of equipment condition. Actual operator usability must be observed
+separately from CI and browser layout tests.
 
 The build must be performed before `uv build` for a wheel that includes this
 preview. Default `make up` and `/web/` work without a Node toolchain.
