@@ -48,6 +48,13 @@ not install Node dependencies.
   Does not submit reviews, store outlook captures, or call AI for explanations.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
+- `src/components/ModelRunEvidence.svelte`: read-only model binding, recent
+  persisted step, AnalysisRun and exact input-reference verification. Excluded
+  steps remain distinct from scored steps. The PHM model store has no separate
+  Operational Evidence ID: none is synthesized by the UI.
+- `src/model-evidence.ts`: strict asset/source/measurement point, binding,
+  position, run, stored input SHA-256 or window digest validation across existing
+  /phm/bindings, /phm/trace and /phm/result APIs.
 - `src/components/AcquisitionRelation.svelte`: server-owned two-feature correlations
   and acquisition-ordinal scatter evidence. Exact selected source/binding/ordinal
   contracts are validated; uncomputed coefficients remain absent rather than zero.
