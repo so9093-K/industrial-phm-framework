@@ -103,3 +103,21 @@ def test_review_events_are_exact_scoped_idempotent_and_persisted(tmp_path: Path)
         "close",
     ]
     assert restored["snapshot"] == _snapshot()
+
+
+def test_captured_review_history_can_be_paginated_without_losing_old_entries(
+    tmp_path: Path,
+) -> None:
+    store = OutlookCaptureStore(tmp_path / "outlook.sqlite")
+    for ordinal in range(30, 55):
+        store.save(_snapshot(last=ordinal))
+    first = store.list_for("bearing-a", limit=20)
+    assert len(first) == 20
+    second = store.list_for("bearing-a", before_id=first[-1]["capture_id"], limit=20)
+    assert len(second) == 5
+    ids = [record["capture_id"] for record in first + second]
+    assert len(set(ids)) == 25
+    assert store.list_for("bearing-a", before_id=second[-1]["capture_id"]) == []
+    assert store.list_for("bearing-b") == []
+    with pytest.raises(LookupError, match="cursor"):
+        store.list_for("bearing-b", before_id=first[-1]["capture_id"])
