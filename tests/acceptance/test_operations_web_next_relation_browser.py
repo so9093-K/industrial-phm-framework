@@ -88,24 +88,26 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                             ("source-a", "motor-1", 0.8),
                             ("source-b", "motor-2", None),
                         ]:
-                            groups.append({
-                                "period": "a",
-                                "source_id": source,
-                                "measurement_point_id": point,
-                                "meaning_id": source + "-meaning",
-                                "x_unit": "A",
-                                "y_unit": "V",
-                                "x_usable_count": 4,
-                                "y_usable_count": 4,
-                                "pair_count": 2,
-                                "pearson": pearson,
-                                "spearman": pearson,
-                                "sampled": False,
-                                "points": [
-                                    ["2026-10-15T00:00:00Z", 2.0, 9.0],
-                                    ["2026-10-15T00:01:00Z", 3.0, 10.0],
-                                ],
-                            })
+                            groups.append(
+                                {
+                                    "period": "a",
+                                    "source_id": source,
+                                    "measurement_point_id": point,
+                                    "meaning_id": source + "-meaning",
+                                    "x_unit": "A",
+                                    "y_unit": "V",
+                                    "x_usable_count": 4,
+                                    "y_usable_count": 4,
+                                    "pair_count": 2,
+                                    "pearson": pearson,
+                                    "spearman": pearson,
+                                    "sampled": False,
+                                    "points": [
+                                        ["2026-10-15T00:00:00Z", 2.0, 9.0],
+                                        ["2026-10-15T00:01:00Z", 3.0, 10.0],
+                                    ],
+                                }
+                            )
                     payload = {
                         "schema_version": 1,
                         "asset_id": "motor-a",
@@ -149,8 +151,7 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                 page.get_by_role("button", name="같은 시각의 신호 짝 비교").click()
                 pw.expect(page.get_by_role("heading", name="관계 분석 조회 실패")).to_be_visible()
                 assert (
-                    page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다").count()
-                    == 0
+                    page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다").count() == 0
                 )
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
