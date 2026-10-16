@@ -7,6 +7,8 @@ acquisition interval. Nothing is stored: a forecast is computed when asked.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import sqlite3
 from collections.abc import Sequence
@@ -42,6 +44,39 @@ _BUCKETS = 1000
 # Acquisitions are placed on a time axis by their recorded interval; the origin is arbitrary
 # and only positions are reported back.
 _ORIGIN = datetime(2000, 1, 1, tzinfo=UTC)
+
+
+def measurement_version(
+    asset_id: str,
+    kind: str,
+    series: str,
+    times: Sequence[datetime],
+    values: Sequence[float],
+    meta: dict[str, Any],
+) -> str:
+    """Hash the exact finite measurement projection shared by forecast and outlook.
+
+    An arrival timestamp or acquisition number alone cannot detect corrected historical values.
+    This is not a storage revision or a fingerprint of raw input: the bounded, identity-specific
+    observations used by both calculations are the authoritative input to this version.
+    """
+    observations = [
+        (time.astimezone(UTC).isoformat(), float(value).hex())
+        for time, value in zip(times, values, strict=True)
+        if math.isfinite(value)
+    ]
+    payload = {
+        "schema": 1,
+        "asset_id": asset_id,
+        "kind": kind,
+        "series": series,
+        "source_id": meta["source_id"],
+        "measurement_point_id": meta.get("measurement_point_id"),
+        "observations": observations,
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def handle_forecast_read(
@@ -281,6 +316,7 @@ def forecast_series(
         seasonal = False
     else:
         raise ValueError("unknown forecast kind")
+    version = measurement_version(asset_id, kind, series, times, values, meta)
     period = meta.get("period_seconds")
     seconds = (
         horizon_count * period
@@ -320,6 +356,7 @@ def forecast_series(
                     result["threshold"][key] = position(result["threshold"][key])
     return {
         "schema_version": 1,
+        "measurement_version": version,
         "asset_id": asset_id,
         "kind": kind,
         "series": series,
