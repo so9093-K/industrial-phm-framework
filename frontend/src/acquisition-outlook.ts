@@ -1,5 +1,5 @@
 /** Two server-owned acquisition projections, never an invented observation clock. */
-import type {Conditions,Reach,Scenario} from "./projections.ts";
+import {parseOutlookSettings,type Conditions,type OutlookSettings,type Reach,type Scenario} from "./projections.ts";
 
 export type TimeBasis="recorded"|"assumed"|"ordinal";
 export type AcquisitionFeature={
@@ -13,7 +13,7 @@ export type AcquisitionProjection={
   assetId:string;sourceId:string;bindingId:string;featureId:string;
   measurementVersion:string;dataVersion:string;timeBasis:TimeBasis;
   recordedPeriod:number|null;assumedPeriod:number|null;effectivePeriod:number;
-  horizonCount:number;searchCount:number;searchUntil:number;
+  horizonCount:number;searchCount:number;searchUntil:number;outlookSettings:OutlookSettings;
   conditions:Conditions;record:{first:number;last:number;points:number};
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
   scenarios:Scenario[];
@@ -157,6 +157,8 @@ export function parseAcquisitionPair(
   const first=ordinal(record.first),last=ordinal(record.last),points=count(record.points);
   if(first<options.first||last>options.last||last<first||points<20)
     throw new AcquisitionVersionMismatch("획득 전망이 선택 범위를 벗어났습니다.");
+  const outlookSettings=parseOutlookSettings(outlook.settings);
+  if(!outlookSettings)throw new Error("획득 전망의 서버 계산 설정을 확인할 수 없습니다.");
   const search=obj(outlook.search);
   if(!search)throw new Error("조건부 도달 탐색 회차의 근거가 없습니다.");
   const searchCount=ordinal(search.acquisitions),searchUntil=ordinal(search.until);
@@ -186,7 +188,8 @@ export function parseAcquisitionPair(
   return {assetId:options.assetId,sourceId:options.sourceId,bindingId:options.bindingId,
     featureId,measurementVersion:fVersion,dataVersion:version(outlook.data_version),
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
-    horizonCount,searchCount,searchUntil,conditions,record:{first,last,points},forecast:future,scenarios};
+    horizonCount,searchCount,searchUntil,outlookSettings,
+    conditions,record:{first,last,points},forecast:future,scenarios};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});
