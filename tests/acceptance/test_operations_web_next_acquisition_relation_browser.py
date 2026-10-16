@@ -145,7 +145,7 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                     page.get_by_role("heading", name="획득 회차 두 특징 관계 비교")
                 ).to_be_visible()
                 pw.expect(page.get_by_text("binding-a", exact=True)).to_be_visible()
-                pw.expect(page.get_by_role("table")).to_have_count(2)
+                pw.expect(page.locator("table")).to_have_count(2)
                 pw.expect(page.get_by_role("status").filter(has_text="관계 없음(0)")).to_have_count(
                     2
                 )
