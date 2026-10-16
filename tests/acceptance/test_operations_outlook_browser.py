@@ -80,6 +80,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
                 pw.expect(archive).to_contain_text("확정 저장한 전망")
                 pw.expect(archive).to_contain_text("같은 측정 내용")
+                pw.expect(archive).to_contain_text("현재 저장된 측정 투영과 동일합니다")
                 # A captured outlook has its own exact human-review subject, not a
                 # fabricated file/phase analysis ID.
                 archive.get_by_role("textbox", name="이 전망의 검토 메모").fill(
@@ -158,6 +159,9 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
                 pw.expect(archive).to_contain_text("새로운 측정 내용", timeout=30000)
+                pw.expect(archive).to_contain_text(
+                    "현재 계산 입력이 저장 당시와 다릅니다"
+                )
                 pw.expect(archive).to_contain_text("#64 → #65")
                 pw.expect(archive).to_contain_text("관리 기준: 이전")
 
