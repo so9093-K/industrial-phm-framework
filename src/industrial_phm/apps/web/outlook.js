@@ -366,4 +366,5 @@ export function clearOutlook() {
   if (!root) return;
   root.hidden = true;
   for (const id of ["outlook-body", "outlook-more", "outlook-evidence-root"]) clear(byId(id));
+  document.dispatchEvent(new Event("outlook-cleared"));
 }
