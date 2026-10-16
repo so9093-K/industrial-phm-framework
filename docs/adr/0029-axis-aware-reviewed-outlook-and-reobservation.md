@@ -1,6 +1,6 @@
 # 0029. Preserve explicitly reviewed outlooks with axis-aware evidence and compare later observations
 
-Status: Proposed (2026-10-16)
+Status: Accepted (2026-10-16)
 
 Related: [ADR-0023](0023-retain-live-evidence-for-a-bounded-period.md),
 [ADR-0025](0025-run-versioned-model-packages-over-ordered-asset-steps.md),
@@ -29,7 +29,7 @@ backup/restore; it must not silently reinterpret retained data after a history c
 or retention action. It must distinguish **the archived computation's truth** from whether
 the original input is still retrievable and independently reproducible.
 
-## Proposed decision
+## Decision
 
 1. **Explicit capture:** Ordinary outlook queries and AI questions remain ephemeral.
    Only a user-initiated, authorized `capture for review` command creates a reviewed
@@ -42,7 +42,7 @@ the original input is still retrievable and independently reproducible.
    point/kind/series, observation axis and bounded positions, measurement and anomaly
    evidence versions, complete validated selection, prediction settings and interval,
    actual calculated facts/scenarios/meaning, creation time, and provenance
-   availability status. Only this evidence record owns the archived outlook's
+   availability status on re-read. Only this evidence record owns the archived outlook's
    numerical truth. An idempotent replay of the same capture identity must not overwrite
    its bytes. New observations/settings create a distinct record.
 3. **Axis-aware observation:** For time history, store actual timezone-aware timestamps.
@@ -58,19 +58,26 @@ the original input is still retrievable and independently reproducible.
    independent review-status implementation or reinterpretation of a transient
    outlook as an unrelated PHM finding. A review close is not completed maintenance,
    diagnosis, or a safety assessment.
-5. **Honest restoration and retention:** Preserve the captured fact payload and
-   provenance digest even if the original raw history is no longer available. Mark
-   `input_recheck_unavailable` explicitly; never fabricate data, look up a different
-   signal identity or silently replace the captured calculation with a new one.
-   Register the durable repository in the workspace state/backup inventory and
-   add restart/restore coverage. Honor ADR-0023's protected evidence rules where
-   source evidence can still be pinned.
+5. **Honest restoration and retention:** Persist the computed fact payload, the
+   exact input identity and its digest even if raw history is no longer available.
+   On each archived read, calculate a separately labelled `source_recheck`
+   (`same_measurement_projection`, `changed`, `different_source`,
+   `unavailable`). A matching measurement projection does **not** attest to
+   unchanged anomaly/model evidence; a missing source never triggers a fallback
+   to a different stream or overwrites the captured facts. Register the new
+   repository in the stopped-workspace backup inventory. This capture is a
+   **persisted derived numerical projection**, not a pinned raw input snapshot:
+   raw live input continues under ADR-0023's bounded retention and is **not**
+   kept indefinitely while an outlook review is open. ADR-0023's protection
+   of actual AnalysisRun/Evidence reviews is unchanged. The product must not
+   claim that it can independently reproduce a captured outlook once its raw
+   inputs have expired.
 6. **Comparable reobservation:** A comparison is only labelled `same settings,
    new observation` when asset/source/point/kind/series, axis/time basis, limits,
    direction, forecast settings and interpretation match while measurement versions
-   differ. Compare archived server-computed states, central estimates and ranges;
-   do not convert between acquisition counts and duration unless a verified recorded
-   interval exists. Changes to settings are reported separately as assumption
+   differ. Compare archived server-computed reach states and expected/earliest
+   offsets without converting acquisition counts and durations unless a verified
+   recorded interval exists. Changes to settings are reported separately as assumption
    changes, not observed deterioration. A missing or invalid older record is an
    explicit unavailability result, never a fallback to the newest computation.
 7. **Consumer responsibilities:** The Web shows one clear flow to inspect exact
@@ -90,15 +97,25 @@ the original input is still retrievable and independently reproducible.
 - Defining an all-capability generic workflow framework: current two real subjects
   need an axis-aware, narrowly scoped review subject contract instead.
 
-## Acceptance gates before Accepted
+## Acceptance and verified boundaries
 
-- A real, authorized capture is reconstructed from server-owned measurements,
-  not browser-supplied figures; stale versions/conflicting requests fail closed.
-- Same evidence and action are idempotent; different versions/settings are distinct.
-- Time-only and acquisition-only evidence store their original axis honestly.
-- Restart, stopped-workspace backup/restore, source-history loss and read-only mode
-  preserve truthful behavior.
-- Existing AnalysisRun/Evidence/Review contracts and historical records remain readable.
-- Browser acceptance covers capture → evidence → explicit review note/acknowledge →
-  new observation → same-settings comparison, plus wrong asset and unavailable provenance.
-- Accepted state is recorded **only after the implementation and checks pass**.
+- Supervisor re-computation rejects stale measurement/anomaly versions; the Web
+  submits no numerical calculation as authoritative input.
+- Content-addressed capture IDs, saved-byte digest validation and append-only
+  review event IDs prevent accidental overwrites and duplicate human actions.
+  Concurrent writes serialize state transitions.
+- Unit/API/Chromium tests cover acquisition-axis capture and new observations;
+  the existing forecast-history projection preserves timezone-aware instants.
+  A made-up timestamp is never introduced for an ordinal acquisition.
+- Stopped-workspace backup/restore and view-only read tests exercise durable facts;
+  missing/changed source and wrong-asset access are distinguished from a valid
+  archived computation. Existing AnalysisRun/Evidence/Review remains unchanged
+  except for sharing the same human status transition function.
+- Chromium 390/1280px covers capture → review note/acknowledge/close →
+  later observation comparison; the integrated #590/#591/#592 branch passes
+  baseline CI and Chromium user-flow regression tests.
+- **Conscious limitation:** the captured fact snapshot is durable, but raw-input
+  pinning and future independent replay after retention are not included.
+  The UI exposes this limitation via source re-check. Separately measuring
+  screen-reader usability, 200% zoom and longer-term live-history retention
+  remains a product evaluation responsibility, not an implicit capability claim.
