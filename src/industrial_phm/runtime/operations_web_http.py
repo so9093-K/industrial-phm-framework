@@ -61,6 +61,10 @@ from industrial_phm.runtime.operations_web_outlook_briefing import (
     BRIEFINGS_ROUTE,
     handle_briefings_read,
 )
+from industrial_phm.runtime.operations_web_outlook_capture import (
+    CAPTURES_ROUTE,
+    handle_outlook_captures_read,
+)
 from industrial_phm.runtime.operations_web_phm import PHM_READ_ROUTES, handle_phm_read
 from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
@@ -350,6 +354,12 @@ def create_operations_web_read_server(
                 status, briefings = handle_briefings_read(OperationsWorkspace(root), parts.query)
                 self._send_json(status, briefings)
                 return
+            if parts.path == CAPTURES_ROUTE:
+                status, captures = handle_outlook_captures_read(
+                    OperationsWorkspace(root), parts.query
+                )
+                self._send_json(status, captures)
+                return
             if parts.path == OUTLOOK_ROUTE:
                 status, outlook = handle_outlook_read(OperationsWorkspace(root), parts.query)
                 self._send_json(status, outlook)
@@ -608,6 +618,7 @@ def create_operations_web_read_server(
                         "/api/v1/sources/file/upload",
                         "/api/v1/sources/opcua",
                         "/api/v1/reviews/request",
+                        "/api/v1/outlook/captures/confirm",
                         "/api/v1/analysis/file",
                         "/api/v1/analysis/phase-file",
                     }
