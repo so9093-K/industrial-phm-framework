@@ -71,6 +71,15 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 3")
                 pw.expect(outlook.locator(".outlook-observed")).to_have_text("마지막 획득 #64")
                 pw.expect(figures).to_contain_text("모델 기준 초과")
+                # An explicit operator request captures server-recomputed facts, not UI numbers.
+                archive = page.locator("#outlook-saved")
+                save = archive.get_by_role("button", name="현재 전망을 검토 대상으로 저장")
+                pw.expect(save).to_be_enabled(timeout=15000)
+                pw.expect(archive).to_contain_text("아직 저장한 전망이 없습니다.")
+                save.click()
+                pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
+                pw.expect(archive).to_contain_text("확정 저장한 전망")
+                pw.expect(archive).to_contain_text("같은 측정 내용")
                 details = page.locator("#outlook-evidence .outlook-details")
                 pw.expect(details).to_contain_text("이상 탐지 모델")
                 pw.expect(details).to_contain_text("처음 초과 #62")
@@ -136,6 +145,9 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                     timeout=30000
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
+                pw.expect(archive).to_contain_text("새로운 측정 내용", timeout=30000)
+                pw.expect(archive).to_contain_text("#64 → #65")
+                pw.expect(archive).to_contain_text("관리 기준: 이전")
 
                 # A corrected historical observation keeps the same last acquisition.
                 # A differing measurement fingerprint must force a coherent re-read.
@@ -238,6 +250,12 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 # A Web without running operations shows the outlook but cannot ask.
                 page.goto(f"http://127.0.0.1:{viewer.server_port}/web/{query}")
                 pw.expect(lead).to_be_visible(timeout=30000)
+                pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(
+                    1, timeout=30000
+                )
+                pw.expect(archive.get_by_role(
+                    "button", name="현재 전망을 검토 대상으로 저장"
+                )).to_be_disabled()
                 pw.expect(briefing.locator("#outlook-ask")).to_be_disabled()
                 pw.expect(briefing).to_contain_text("운영이 실행 중이 아닌 화면입니다")
                 assert not errors, errors
