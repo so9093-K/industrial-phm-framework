@@ -163,6 +163,12 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                                 },
                                 "record": {"first": 1, "last": 64, "points": 64},
                                 "search": {"acquisitions": 31, "until": 95},
+                                "settings": {
+                                    "changepoint_prior_scale": 0.05,
+                                    "changepoint_range": 0.9,
+                                    "training_points": None,
+                                    "seasonality": "off",
+                                },
                                 "scenarios": [
                                     {
                                         "id": "linear",
