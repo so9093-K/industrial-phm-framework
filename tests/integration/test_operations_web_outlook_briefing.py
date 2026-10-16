@@ -73,6 +73,48 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         sent = json.loads(model.requests[0][1]["content"])
         assert sent["facts"]["management"].startswith("관리 상한 2.4까지: 현재 설정")
         assert "owner" not in record and str(tmp_path) not in json.dumps(body)
+        # The supervisor must recheck the exact acquisition source, binding,
+        # measurement version and time basis before accepting AI-generated facts.
+        checked = condition_outlook(workspace, **outlook_arguments(selection))
+        with_evidence = {
+            **selection,
+            "source_id": checked["source_id"],
+            "binding_id": checked["binding_id"],
+            "measurement_version": checked["measurement_version"],
+            "time_basis": checked["time_basis"],
+            "recorded_period_seconds": str(checked["recorded_period_seconds"]),
+            "changepoint_prior_scale": "0.05",
+            "changepoint_range": "0.9",
+            "seasonality": "off",
+        }
+        exact_job = execute_web_source_action(
+            workspace.root.resolve(),
+            ROUTE,
+            {**with_evidence, "question": "획득 회차가 얼마나 남았나요?"},
+        )
+        for _ in range(300):
+            status, exact = get("/api/v1/outlook/briefings", **with_evidence)
+            if status == 200 and exact["briefings"] and exact["briefings"][0]["status"] != "pending":
+                break
+            time.sleep(0.05)
+        assert exact["selection"] == exact_job["selection"]
+        assert exact["briefings"][0]["status"] == "complete"
+        # A forged binding with the same numerical measurement/data versions
+        # must be recorded as failed, never as a successful explanation.
+        wrong = {**with_evidence, "binding_id": "different-binding"}
+        bad_job = execute_web_source_action(
+            workspace.root.resolve(), ROUTE, {**wrong, "question": "다른 binding?"}
+        )
+        for _ in range(300):
+            status, failed = get("/api/v1/outlook/briefings", **wrong)
+            if status == 200 and failed["briefings"] and failed["briefings"][0]["status"] != "pending":
+                break
+            time.sleep(0.05)
+        assert failed["selection"] == bad_job["selection"]
+        assert failed["briefings"][0]["status"] == "failed"
+        assert failed["briefings"][0]["answer"] is None
+        # The old /web/ selection without optional provenance must remain readable.
+        assert get("/api/v1/outlook/briefings", **selection)[1]["briefings"][0]["status"] == "complete"
         # Another selection has its own briefings.
         status, other = get("/api/v1/outlook/briefings", **{**selection, "end_limit": "4"})
         assert status == 200 and other["briefings"] == []
