@@ -191,6 +191,10 @@
             <dt>이상 탐지 포함 설명 근거 버전</dt><dd>{outlook.dataVersion}</dd>
           </dl>
         </details>
+        <p class="context">특징값 예측 범위: 추가 {outlook.horizonCount}회.
+          조건부 기준 도달 탐색 범위: 마지막 관측 #{outlook.record.last} 이후
+          추가 {outlook.searchCount}회 (최대 #{outlook.searchUntil})입니다.
+          두 계산의 탐색 범위는 서로 다를 수 있습니다.</p>
         <h3>추가 획득 회차별 예상 특징값</h3>
         <p class="context">서버 Prophet 추세 계산값입니다. 예측 범위는 고장 신뢰구간이 아닙니다.</p>
         <div class="scroll"><table>
