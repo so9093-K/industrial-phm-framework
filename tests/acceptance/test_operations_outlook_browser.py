@@ -90,8 +90,28 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 archive.get_by_role("textbox", name="이 전망의 검토 메모").fill(
                     "최초 획득의 기준과 모델 입력 확인"
                 )
+                submitted_events = []
+
+                def uncertain_review_response(route: Any) -> None:
+                    submitted_events.append(route.request.post_data_json["event_id"])
+                    if len(submitted_events) == 1:
+                        route.fulfill(
+                            status=503,
+                            content_type="application/json",
+                            body='{"error":"temporary"}',
+                        )
+                    else:
+                        route.continue_()
+
+                review_route = "**/api/v1/outlook/captures/review/action"
+                page.route(review_route, uncertain_review_response)
+                archive.get_by_role("button", name="메모 남기기").click()
+                pw.expect(archive).to_contain_text("검토 결과를 확인하지 못했습니다")
                 archive.get_by_role("button", name="메모 남기기").click()
                 pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
+                assert len(submitted_events) == 2
+                assert submitted_events[0] == submitted_events[1]
+                page.unroute(review_route, uncertain_review_response)
                 archive.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(archive).to_contain_text("담당자 검토 · 확인함")
                 page.once("dialog", lambda dialog: dialog.accept())
