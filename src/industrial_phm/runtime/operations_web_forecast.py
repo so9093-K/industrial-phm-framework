@@ -259,6 +259,8 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 }
             )
         body["acquisition"] = {
+            "source_id": acquisition["source_id"],
+            "binding_id": acquisition["binding_id"],
             "series": series,
             "first": acquisition["first"],
             "last": acquisition["last"],
@@ -440,6 +442,7 @@ def acquisition_points(
             "label": feature_label(feature),
             "unit": None,
             "source_id": binding.source_id,
+            "binding_id": binding.binding_id,
             "measurement_point_id": None,
             "raw_count": total,
             "period_seconds": period,

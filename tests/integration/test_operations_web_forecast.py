@@ -201,6 +201,8 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
         assert status == 200 and acquisition["period_seconds"] == 60
         assert (acquisition["first"], acquisition["last"], acquisition["count"]) == (1, 125, 125)
         assert acquisition["horizons"]["1h"] is None
+        assert isinstance(acquisition["source_id"], str) and acquisition["source_id"]
+        assert acquisition["binding_id"] == "anomaly-a"
         status, body = get(
             "/api/v1/forecast",
             asset_id="bearing-a",
@@ -209,6 +211,8 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
             horizon="1h",
         )
         assert status == 200 and body["axis"] == "acquisition"
+        assert body["binding_id"] == acquisition["binding_id"]
+        assert body["source_id"] == acquisition["source_id"]
         assert body["history"][0][0] == 1 and body["history"][-1][0] == 125
         # One hour at one acquisition a minute: sixty acquisitions ahead.
         assert body["forecast"][0][0] == 125 and body["forecast"][-1][0] == pytest.approx(185)

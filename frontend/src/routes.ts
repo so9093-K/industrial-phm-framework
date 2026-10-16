@@ -1,7 +1,7 @@
 /** Browser location is selection context, never a source of measured or calculated facts. */
 export const VIEWS = [
   "overview", "signals", "departures", "compare", "projection",
-  "relation", "reviews", "spectrum", "features", "acq-relation", "model-evidence",
+  "relation", "reviews", "spectrum", "features", "acq-relation", "model-evidence", "acq-outlook",
 ] as const;
 export type View = (typeof VIEWS)[number];
 
@@ -37,6 +37,11 @@ export const VIEW_INFO: Record<View, ViewInfo> = {
     navigation: "동일 시각 신호 관계", document: "신호 관계",
     eyebrow: "설비 조사 · 신호 관계", title: "동일 시각 신호 관계 조사",
     description: "정확히 같은 출처·시각에 기록된 두 신호의 관측 짝을 비교합니다.",
+  },
+  "acq-outlook": {
+    navigation: "획득 조건부 전망", document: "획득 조건부 전망",
+    eyebrow: "획득 특징 · 순서 기반 예측", title: "획득 순번 조건부 전망",
+    description: "같은 바인딩·측정 버전의 추가 획득 횟수 예측입니다. 기록된 간격·가정한 간격·실제 시각을 구분합니다.",
   },
   "model-evidence": {
     navigation: "모델 실행 근거", document: "모델 실행 근거",

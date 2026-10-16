@@ -42,6 +42,12 @@ not install Node dependencies.
   selection and bounded, unconnected mean-bucket dots with a quality table.
 - `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
   deviation exploration (stored bucket means, not trained model outputs).
+- `src/components/AcquisitionOutlook.svelte`: acquisition-ordinal forecast and
+  conditional limits with honest recorded/assumed/ordinal spacing semantics.
+  Only server-provided values on an identical asset/source/binding/measurement-version
+  are shown. No made-up acquisition timestamps, diagnosis or implicit capture.
+- `src/acquisition-outlook.ts`: strict paired acquisition DTO and count horizon
+  validation. Read-only GET /forecast/options, /forecast and /outlook.
 - `src/components/OutlookBriefings.svelte`: existing supervisor's persisted
   AI explanations, exact server-selected settings, `data_version` and recalculated
   `measurement_version` verification, CSRF-protected explicit question.
