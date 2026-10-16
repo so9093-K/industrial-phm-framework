@@ -136,6 +136,9 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         assert saved["measurement_version"] == body["measurement_version"]
         assert saved["conditions"] == body["conditions"]
         assert saved["record"] == body["record"]
+        assert saved["settings"] == body["settings"]
+        assert saved["search"] == body["search"]
+        assert saved["sentences"] == body["sentences"]
         assert handle_outlook_captures_read(workspace, "asset_id=elsewhere")[1] == {
             "schema_version": 1,
             "captures": [],
