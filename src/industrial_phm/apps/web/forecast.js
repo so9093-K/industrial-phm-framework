@@ -3,7 +3,7 @@
 // ahead with an interval, the model's own reading of the history, the conditions and a check
 // against the signal's own recent past. The server computes; this screen draws.
 import { currentAsset, onAssetChange } from "./asset-context.js";
-import { clearOutlook, refreshOutlook } from "./outlook.js";
+import { clearOutlook, refreshOutlook, renderOutlook } from "./outlook.js";
 import { formatTime } from "./time.js";
 import { byId, clear, create, num } from "./web-utils.js";
 
@@ -248,6 +248,18 @@ async function renderControls() {
 
 }
 
+// The two independently calculated API responses must describe the same last observation.
+function sameObservation(forecast, outlook) {
+  if (forecast.asset_id !== outlook.asset_id || forecast.kind !== outlook.kind ||
+      forecast.series !== outlook.series || forecast.axis !== outlook.axis ||
+      forecast.source_id !== outlook.source_id ||
+      (forecast.measurement_point_id || null) !== (outlook.measurement_point_id || null)) return false;
+  const last = forecast.history?.at(-1)?.[0], observed = outlook.record?.last;
+  if (forecast.axis === "acquisition") return Number.isFinite(last) && last === observed;
+  return typeof last === "string" && typeof observed === "string" &&
+    Number.isFinite(Date.parse(last)) && Date.parse(last) === Date.parse(observed);
+}
+
 async function run() {
   const asset = currentAsset(), ticket = ++request;
   const value = byId("forecast-series")?.value;
@@ -283,20 +295,39 @@ async function run() {
   if (end && Number.isFinite(Number(end))) outlookQuery.set("end_limit", end);
   for (const field of ["changepoint_prior_scale", "changepoint_range", "training_points", "seasonality", "assumed_period_seconds"])
     if (query.has(field)) outlookQuery.set(field, query.get(field));
-  void refreshOutlook(outlookQuery, contextText(kind));
   if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
-  state("예측을 계산합니다.");
+  // Hide old results while both requests run. Neither is shown as a fresh pair alone.
+  clear(byId("forecast-result"));byId("forecast-chart-section").hidden = true;
+  clearOutlook();
+  const context = contextText(kind);
+  state("예측과 상태 전망을 계산합니다.");
   try {
-    const data = await getJson("/api/v1/forecast?" + query.toString());
-    if (ticket !== request || asset !== currentAsset()) return;
-    state("");
-    previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
-      && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
-      && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
-    render(data);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const [data, outlook] = await Promise.all([
+        getJson("/api/v1/forecast?" + query.toString()),
+        refreshOutlook(outlookQuery, context, {deferRender: true, force: true}),
+      ]);
+      if (ticket !== request || asset !== currentAsset()) return;
+      if (!outlook) {
+        state("상태 전망을 계산하지 못했습니다. 새로고침해 주세요.", true);
+        return;
+      }
+      if (sameObservation(data, outlook)) {
+        state("");
+        previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
+          && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
+          && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
+        render(data);
+        renderOutlook(outlook, context);
+        return;
+      }
+      state("새 측정을 확인하며 예측과 전망을 다시 맞춥니다.");
+    }
+    clearOutlook();
+    state("예측과 상태 전망의 마지막 측정 시점이 다릅니다. 다시 새로고침해 주세요.", true);
   } catch (error) {
     if (ticket !== request) return;
-    clear(byId("forecast-result"));byId("forecast-chart-section").hidden = false;
+    clearOutlook();
     state(error.status === 422 ? REASON[error.reason] || "이 측정값은 예측할 수 없습니다." : "예측을 계산하지 못했습니다.", true);
   }
 }
