@@ -53,10 +53,28 @@ function entry(capture, now) {
     + " · " + old.source_id + " · " + old.series));
   const review = create("details", "outlook-saved-evidence");
   review.append(create("summary", null, "당시의 계산 사실 확인"));
-  review.append(create("p", null, "관측 내용 버전 " + old.measurement_version),
+  review.append(create("p", null, "당시 관측 " + place(old, old.record.first) + " → "
+    + place(old, old.record.last) + " · " + num(old.record.points) + "개"),
+    create("p", null, "관측 내용 버전 " + old.measurement_version),
+    create("p", null, "분석 근거 버전 " + old.data_version),
     create("p", null, "관리 기준 " + limit(old, "management")),
-    create("p", null, "종료 기준 " + limit(old, "end")),
-    create("p", "muted", "검토용 계산을 보존한 것이며 고장 판정이나 정비 완료 기록은 아닙니다."));
+    create("p", null, "종료 기준 " + limit(old, "end")));
+  if (Array.isArray(old.sentences) && old.sentences.length) {
+    const explanation = create("ul", "outlook-saved-sentences");
+    for (const sentence of old.sentences) explanation.append(create("li", null, sentence));
+    review.append(create("strong", null, "당시 서버가 계산한 설명"), explanation);
+  }
+  if (old.settings && old.search) {
+    const settings = old.settings;
+    review.append(create("p", "muted", "당시 계산 조건 · 추세 민감도 "
+      + num(settings.changepoint_prior_scale) + " · 변화점 탐색 범위 "
+      + num(settings.changepoint_range) + " · 학습 "
+      + (settings.training_points === null ? "전체 관측" : num(settings.training_points) + "개")
+      + " · 반복 패턴 " + (settings.seasonality === "off" ? "제외" : "자동 선택")
+      + " · 계산 종료 " + place(old, old.search.until)));
+  }
+  review.append(create("p", "muted",
+    "검토용 계산을 보존한 것이며 고장 판정이나 정비 완료 기록은 아닙니다."));
   wrapper.append(review);
   const provenance = {
     same_measurement_projection: "현재 저장된 측정 투영과 동일합니다. 이상 탐지 근거의 동일성까지 보증하지는 않습니다.",
