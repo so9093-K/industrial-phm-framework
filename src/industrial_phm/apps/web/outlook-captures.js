@@ -133,7 +133,24 @@ function entry(capture, now) {
           }),
         });
         pendingEvent = null;
-        if (current === now) void show(now, capture.capture_id);
+        if (current !== now) return;
+        // Refresh this exact review subject in place. Reloading only the first
+        // page would make an older captured review disappear after a note.
+        try {
+          const url = "/api/v1/outlook/captures?asset_id="
+            + encodeURIComponent(capture.snapshot.outlook.asset_id)
+            + "&capture_id=" + encodeURIComponent(capture.capture_id);
+          const latest = await json(url);
+          if (current !== now || !wrapper.isConnected) return;
+          if (latest.captures.length !== 1) throw new Error("review_not_found");
+          const updated = entry(latest.captures[0], now);
+          wrapper.replaceWith(updated);
+          updated.querySelector(".outlook-saved-review")?.focus({preventScroll: true});
+        } catch {
+          if (current === now && wrapper.isConnected) {
+            notice.textContent = "검토는 저장됐지만 화면을 갱신하지 못했습니다. 새로고침해 확인하세요.";
+          }
+        }
       } catch (error) {
         if (current !== now) return;
         notice.textContent = error.status === 409 ? "검토 상태가 이미 바뀌었습니다. 새로고침하세요."
