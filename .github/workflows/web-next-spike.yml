@@ -1,0 +1,45 @@
+name: Web-next foundation
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "src/industrial_phm/runtime/operations_web_http.py"
+      - "tests/integration/test_operations_web_next_static.py"
+      - ".github/workflows/web-next-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Temporary lock generation for isolated dependency validation
+        run: |
+          cd frontend
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          echo "LOCKZIP=$(gzip -n -9 -c package-lock.json | base64 -w 0)"
+          npm ci --no-audit --no-fund
+      - name: Type and Svelte checks
+        run: npm run --prefix frontend check
+      - name: Generate packaged assets
+        run: npm run --prefix frontend build
+      - name: Check generated manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("src/industrial_phm/apps/web_next")
+          files = json.loads((root / "asset-manifest.json").read_text())
+          assert "index.html" in files
+          assert any(name.startswith("assets/") and name.endswith(".js") for name in files)
+          assert all((root / name).is_file() for name in files)
+          PY
