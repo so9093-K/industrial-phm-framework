@@ -14,7 +14,10 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 
 
 @pytest.mark.parametrize("width", [390, 1024])
-def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: int) -> None:
+@pytest.mark.parametrize("drift", ["data", "settings"])
+def test_briefing_version_and_supervisor_write_contract(
+    tmp_path: Path, width: int, drift: str
+) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "briefing")
     initialize_operations_workspace(workspace)
@@ -100,7 +103,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                         ),
                     ),
                 )
-                versions = {"data": "a" * 64}
+                versions = {"data": "a" * 64, "prior": 0.05}
                 writable = {"yes": True}
                 requested = {"yes": False}
 
@@ -135,7 +138,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                                 },
                                 "scenarios": [],
                                 "settings": {
-                                    "changepoint_prior_scale": 0.05,
+                                    "changepoint_prior_scale": versions["prior"],
                                     "changepoint_range": 0.9,
                                     "training_points": None,
                                     "seasonality": "auto",
@@ -265,7 +268,10 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
 
                 # A new anomaly input can change data_version without moving
                 # the recorded measurement version or last sample timestamp.
-                versions["data"] = "b" * 64
+                if drift == "data":
+                    versions["data"] = "b" * 64
+                else:
+                    versions["prior"] = 0.5
                 page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
                 pw.expect(
                     page.get_by_role("heading", name="측정 버전 불일치로 결합 보류")
