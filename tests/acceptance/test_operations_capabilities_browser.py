@@ -125,7 +125,7 @@ def test_the_overview_says_what_each_assets_data_supports_and_opens_it(
                     "사용 불가상태 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
                 pw.expect(listing.locator('[data-capability="period-compare"]')).to_contain_text(
-                    "획득 #1–#8"
+                    "측정 #1–#8"
                 )
                 listing.get_by_role("button", name="주파수 성분 열기").click()
                 pw.expect(page.locator("svg.explore-spectrum-chart")).to_be_visible()

@@ -42,8 +42,10 @@ _INSTRUCTIONS = (
     "연결하세요. 교체·정비 시점을 물으면 이 화면은 정비 시점을 정하지 않는다고 한 번 말하고 "
     "management·end의 여유로 답하세요. points: summary를 뒷받침하는 사실 1~4개입니다. text는 "
     "한 문장, evidence는 그 문장이 기대는 facts의 키입니다. 규칙: 숫자와 시점은 facts에 쓰인 "
-    "표기를 그대로 옮기고, 새로 계산하거나 반올림하거나 단위를 바꾸지 마세요. 기준 도달은 "
-    "예측이므로 '56개 획득 뒤 도달할 것으로 계산됩니다'처럼 미래로 쓰고, '도달했습니다'는 "
+    "표기를 그대로 옮기고, 새로 계산하거나 반올림하거나 단위를 바꾸지 마세요. "
+    "시간 환산 조건을 함께 밝히고, 측정 횟수와 기록 번호·파형 샘플 수를 혼동하지 마세요. "
+    "기준 도달은 "
+    "예측이므로 '56분 후 도달할 것으로 계산됩니다'처럼 미래로 쓰고, '도달했습니다'는 "
     "마지막 측정이 이미 넘은 경우에만 쓰세요. 'possible'인 경우는 예측 범위 상단 또는 하단에서만 "
     "도달 가능하다고 표현하고 중심 예측의 도달과 구별하세요. "
     "'잔여수명'과 '수명'은 반드시 '종료 기준 "
@@ -80,7 +82,21 @@ _KEYWORD = {"management": "관리", "end": "종료"}
 _CONDITION_VALUE = re.compile(
     r"(관리\s*(?:상한|하한|기준)|종료\s*기준)\s*([+-]?\d[\d,]*(?:\.\d+)?)"
 )
-_REACH_OFFSET = re.compile(r"(?<![\d.])([\d,]+(?:\.\d+)?(?:개 획득|일|시간|분|초))\s*뒤")
+_REACH_OFFSET = re.compile(
+    r"(?<![\d.])((?:추가\s*측정\s*)?[\d,]+(?:\.\d+)?"
+    r"(?:회(?:\s*(?:추가\s*)?측정)?|일|시간|분|초))\s*(?:뒤|후)"
+)
+
+
+def _offset_token(value: str | None) -> str:
+    if value is None:
+        return ""
+    return (
+        re.sub(r"\s+", "", value)
+        .removeprefix("추가측정")
+        .replace("회추가측정", "회")
+        .replace("회측정", "회")
+    )
 
 
 def _normalized(token: str) -> str:
@@ -145,10 +161,16 @@ def reach_issues(text: str, reach: dict[str, dict[str, Any]]) -> list[str]:
             claim = _REACH_OFFSET.search(part)
             qualified = bounded_claim(part, known["direction"])
             valid = expected | (possible if qualified else {})
-            if claim and claim.group(1) not in {value for value in valid.values() if value}:
+            if claim and _offset_token(claim.group(1)) not in {
+                _offset_token(value) for value in valid.values() if value
+            }:
                 issues.append(f"{name} 조건에 없는 도달 시간입니다: {sentence}")
             for reading, duration in valid.items():
-                if reading in part and claim and claim.group(1) != duration:
+                if (
+                    reading in part
+                    and claim
+                    and _offset_token(claim.group(1)) != _offset_token(duration)
+                ):
                     issues.append(f"{reading}의 {name} 도달 시간과 다른 숫자입니다: {sentence}")
         clauses = _CLAUSE.split(sentence)
         for index, clause in enumerate(clauses):

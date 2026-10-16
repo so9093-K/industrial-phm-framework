@@ -12,7 +12,7 @@ const REASON = {
   "few-points": "예측하려면 기록이 20개 이상 필요합니다.",
   "short-history": "선택한 기간의 2배 이상 기록이 있어야 예측합니다.",
   "engine-unavailable": "예측 엔진이 설치되지 않았습니다. make up으로 다시 시작하면 설치됩니다.",
-  "unknown-interval": "획득 간격이 기록되지 않아 시간 기준으로 예측할 수 없습니다.",
+  "unknown-interval": "측정 간격이 기록되지 않아 시간 기준으로 예측할 수 없습니다.",
 };
 const svgNode = (name, attributes = {}) => {
   const node = document.createElementNS("http://www.w3.org/2000/svg", name);
@@ -100,7 +100,7 @@ function choices() {
 async function renderControls() {
   const root = byId("forecast-controls");clear(root);
   const series = create("select");series.id = "forecast-series";
-  const groups = {history: "측정 이력", acquisition: "진동 획득 특징"};
+  const groups = {history: "측정 이력", acquisition: "진동 측정별 특징"};
   const items = choices();
   if (!items.length) {
     state("분석 이력은 있지만 유효한 측정값이 20개 이상인 신호가 없습니다.");
@@ -185,7 +185,7 @@ async function renderControls() {
   for (const input of [thresholdInput, endInput]) input.addEventListener("keydown", (event) => {if (event.key === "Enter") {event.preventDefault();applyThreshold();}});
 
   const horizonField = create("div", "forecast-horizon-field");horizonField.append(horizons);
-  const countField = create("label", "forecast-inline", "획득 수");const countInput = create("input");
+  const countField = create("label", "forecast-inline", "추가 측정 횟수");const countInput = create("input");
   countInput.type = "number";countInput.min = "1";countInput.max = "2000";countInput.step = "1";
   countInput.id = "forecast-count";
   const acquisition = options.acquisition;
@@ -198,17 +198,18 @@ async function renderControls() {
   countField.append(countInput);
   const unitField = create("label", "forecast-inline", "단위");const unitSelect = create("select");
   unitSelect.id = "forecast-unit";
-  for (const [key, label] of [["time", "시간"], ["count", "획득 개수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
+  for (const [key, label] of [["time", "시간"], ["count", "추가 측정 횟수"]]) unitSelect.append(Object.assign(create("option", null, label), {value: key}));
   unitSelect.value = params().get("forecast_unit") === "count"
     || (series.value.startsWith("acquisition|") && !Object.values(options.acquisition?.horizons || {}).some(reason => !reason))
     ? "count" : "time";
+  unitSelect.title = "진동 측정 1회는 여러 샘플이 담긴 파형 한 묶음입니다. 시간과 측정 횟수를 구분합니다.";
   unitField.append(unitSelect);
   const countApply = create("button", "secondary compact", "적용");countApply.type = "button";
-  countApply.setAttribute("aria-label", "획득 수 적용");
+  countApply.setAttribute("aria-label", "추가 측정 횟수 적용");
   const countChanged = () => {remember({forecast_count: countInput.value, forecast_backtest: ""});void run();};
   countApply.addEventListener("click", countChanged);
   countInput.addEventListener("keydown", event => {if (event.key === "Enter") {event.preventDefault();countChanged();}});
-  const assumption = create("label", null, "가정 획득 간격 · 초 (선택)");
+  const assumption = create("label", null, "가정한 측정 간격 · 초 (선택)");
   const assumedInput = create("input");assumedInput.type = "number";assumedInput.min = "1";assumedInput.max = "86400";assumedInput.step = "any";
   assumedInput.placeholder = "원본 간격";assumedInput.id = "forecast-assumed-period";
   assumedInput.value = params().get("forecast_assumed_period") || "";assumption.append(assumedInput);
@@ -228,7 +229,7 @@ async function renderControls() {
   };
   const prior = numeric("forecast-prior", "추세 민감도 (0.001-0.5)", "0.05", 0.001, 0.5, 0.001);
   const changeRange = numeric("forecast-range", "변화점 탐색 범위 (0.5–0.95)", "0.9", 0.5, 0.95, 0.01);
-  const training = numeric("forecast-training", "최근 학습 획득·측정 수 (선택)", "", 20, 1000, 1);
+  const training = numeric("forecast-training", "학습에 쓸 최근 데이터 수 (선택)", "", 20, 1000, 1);
   const seasonality = create("select");seasonality.id = "forecast-seasonality";
   for (const [key, label] of [["auto", "반복 패턴 자동"], ["off", "반복 패턴 사용 안 함"]]) seasonality.append(Object.assign(create("option", null, label), {value: key}));
   seasonality.value = params().get("forecast_seasonality") || "auto";
@@ -300,7 +301,7 @@ async function run() {
     && (kind !== "acquisition" || setNumber("forecast-assumed-period", "assumed_period_seconds", 1, 86400)))) {
     state("예측 설정값의 범위를 확인하세요.", true);return;
   }
-  if (horizon === "count" && !query.has("horizon_count")) {state("예측할 획득 수를 입력하세요.", true);return;}
+  if (horizon === "count" && !query.has("horizon_count")) {state("예측할 추가 측정 횟수를 입력하세요.", true);return;}
   if (kind === "acquisition" && byId("forecast-unit")) remember({forecast_unit: unit});
   query.set("seasonality", byId("forecast-seasonality")?.value || "auto");
   const outlookQuery = new URLSearchParams({asset_id: asset, kind, series, direction: query.get("threshold_direction")});
@@ -316,13 +317,24 @@ async function run() {
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       const [data, outlook] = await Promise.all([
-        getJson("/api/v1/forecast?" + query.toString()),
+        getJson("/api/v1/forecast?" + query.toString()).catch(error => {
+          if (error.status === 422 && error.reason === "short-history") return null;
+          throw error;
+        }),
         refreshOutlook(outlookQuery, context, {deferRender: true, force: true}),
       ]);
       if (ticket !== request || asset !== currentAsset()) return;
       if (!outlook) {
         compareCandidate = null;
         state("상태 전망을 계산하지 못했습니다. 새로고침해 주세요.", true);
+        return;
+      }
+      if (!data) {
+        // A short record can support an outlook even when no chart horizon is eligible.
+        // There is no second calculation to pair or present as matching evidence.
+        compareCandidate = null;previous = null;
+        renderOutlook(outlook, context);
+        state("예측 그래프는 선택 기간의 2배 이상 기록이 있어야 표시합니다. 상태 변화와 기준까지의 여유는 아래에서 확인할 수 있습니다.");
         return;
       }
       if (sameObservation(data, outlook)) {
@@ -356,7 +368,7 @@ function summary(data) {
   const row = (label, text) => {const item = create("div");item.append(create("dt", null, label), create("dd", null, text));list.append(item);};
   const words = {up: "증가", down: "감소", flat: "유지"};
   const trend = data.trend, unit = data.unit ? " " + data.unit : "";
-  const span = data.horizon === "count" ? data.horizon_count + "개 획득" : HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
+  const span = data.horizon === "count" ? "추가 측정 " + data.horizon_count + "회" : HORIZONS.find(([key]) => key === data.horizon)?.[1] || data.horizon;
   row("예측 종료값", "마지막 측정 " + value(data.history.at(-1)[1]) + " · " + span + " 뒤 " + value(trend.end) + unit
     + " (" + Math.round(data.model.interval_width * 100) + "% 범위 " + value(trend.end_lower) + "–" + value(trend.end_upper) + ")");
   row("예측선 변화", words[trend.change > 0 ? "up" : trend.change < 0 ? "down" : "flat"]
@@ -460,8 +472,8 @@ function render(data) {
   const focusedScale = root.contains(document.activeElement)
     && document.activeElement?.classList.contains("link-button");
   const note = create("p", "muted", "Prophet · 학습 " + num(data.model.points) + "점"
-    + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? " · 획득 순서 기준 (기록된 시간 간격 없음)"
-      : " · " + (data.time_basis === "assumed" ? "가정 획득 간격 " : "기록 획득 간격 ") + duration(data.period_seconds) + " 기준")
+    + (data.axis === "acquisition" ? (data.time_basis === "ordinal" ? " · 측정 순서 기준 (기록된 시간 간격 없음)"
+      : " · " + (data.time_basis === "assumed" ? "가정한 측정 간격 " : "기록된 측정 간격 ") + duration(data.period_seconds) + " 기준")
       : " (원본 " + num(data.raw_count) + "개" + (data.bucket_seconds && data.raw_count > data.model.points * 1.5 ? ", " + duration(data.bucket_seconds) + " 구간 평균" : "") + ")")
     + (data.model.seasonality.length ? " · 반복 패턴 " + data.model.seasonality.map((name) => name === "daily" ? "하루" : "일주일").join("·") : "")
     + (data.other_identities ? " · 같은 이름의 다른 출처·해석 " + data.other_identities + "개는 제외" : ""));

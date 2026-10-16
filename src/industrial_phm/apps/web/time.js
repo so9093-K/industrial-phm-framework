@@ -38,3 +38,28 @@ export function kstInputToInstant(value) {
   if (!match) throw new Error("invalid-local-time");
   return match[1] + "-" + match[2] + "-" + match[3] + "T" + match[4] + ":" + match[5] + ":" + (match[6] || "00") + "+09:00";
 }
+
+// A measurement burst may contain many waveform samples. Counts are additional measurements,
+// positions remain identifiers, and elapsed time needs a recorded or explicitly assumed cadence.
+export function measurementPeriod(data) {
+  return ["recorded", "assumed"].includes(data.time_basis)
+    && typeof data.period_seconds === "number" && Number.isFinite(data.period_seconds) && data.period_seconds > 0
+    ? data.period_seconds : null;
+}
+export function formatDuration(seconds) {
+  const one = value => value.toLocaleString("ko-KR", {maximumFractionDigits: 1});
+  return seconds >= 86400 ? one(seconds / 86400) + "일" : seconds >= 3600 ? one(seconds / 3600) + "시간"
+    : seconds >= 60 ? one(seconds / 60) + "분" : one(seconds) + "초";
+}
+export function formatMargin(data, offset) {
+  if (data.offset_unit !== "acquisition") return formatDuration(offset);
+  const period = measurementPeriod(data);
+  return period === null ? "추가 측정 " + offset.toLocaleString("ko-KR", {maximumFractionDigits: 3}) + "회"
+    : formatDuration(offset * period);
+}
+export function measurementIntervalNote(data) {
+  if (data.axis !== "acquisition") return "";
+  const period = measurementPeriod(data);
+  return period === null ? "측정 간격 정보 없음 · 시간 환산 불가"
+    : (data.time_basis === "recorded" ? "기록된 " : "가정한 ") + formatDuration(period) + " 측정 간격이 유지될 경우";
+}

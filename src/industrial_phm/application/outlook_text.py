@@ -9,6 +9,7 @@ the screen does not, and its fallback reads the same as the screen.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -21,6 +22,7 @@ READING = {
 }
 FACT_LABEL = {
     "signal": "측정값",
+    "time_basis": "시간 환산 조건",
     "change": "기준 대비 변화",
     "baseline": "기준 구간",
     "rate": "변화 속도",
@@ -53,13 +55,43 @@ def signed(value: float) -> str:
 
 
 def span(seconds: float) -> str:
+    # Positive duration ties round the same way as Intl.NumberFormat in the Web.
+    def rounded(value: float) -> str:
+        return num(math.floor(value * 10 + 0.5) / 10, 1)
+
     if seconds >= 86_400:
-        return one(seconds / 86_400) + "일"
+        return rounded(seconds / 86_400) + "일"
     if seconds >= 3_600:
-        return one(seconds / 3_600) + "시간"
+        return rounded(seconds / 3_600) + "시간"
     if seconds >= 60:
-        return one(seconds / 60) + "분"
-    return one(seconds) + "초"
+        return rounded(seconds / 60) + "분"
+    return rounded(seconds) + "초"
+
+
+def measurement_period(outlook: dict[str, Any]) -> float | None:
+    """A declared measurement cadence; an ordinal's internal one-second step is not time."""
+    period = outlook.get("period_seconds")
+    if (
+        outlook.get("time_basis") in {"recorded", "assumed"}
+        and isinstance(period, (int, float))
+        and math.isfinite(period)
+        and period > 0
+    ):
+        return float(period)
+    return None
+
+
+def interval_note(outlook: dict[str, Any]) -> str:
+    if outlook["axis"] != "acquisition":
+        return ""
+    period = measurement_period(outlook)
+    if period is None:
+        return "측정 간격 정보 없음 · 시간 환산 불가"
+    return (
+        "기록된 " + span(period) + " 측정 간격이 유지될 경우"
+        if outlook["time_basis"] == "recorded"
+        else "가정한 " + span(period) + " 측정 간격이 유지될 경우"
+    )
 
 
 def _clock(value: str, *, zone: bool = True) -> str:
@@ -78,7 +110,10 @@ def window(outlook: dict[str, Any], part: dict[str, Any]) -> str:
 
 
 def after(outlook: dict[str, Any], offset: float) -> str:
-    return num(offset) + "개 획득" if outlook["offset_unit"] == "acquisition" else span(offset)
+    if outlook["offset_unit"] != "acquisition":
+        return span(offset)
+    period = measurement_period(outlook)
+    return span(offset * period) if period is not None else "추가 측정 " + num(offset) + "회"
 
 
 def reached_at(outlook: dict[str, Any], offset: float) -> str:
@@ -89,7 +124,7 @@ def reached_at(outlook: dict[str, Any], offset: float) -> str:
 
 
 def rate_text(outlook: dict[str, Any], rate: float) -> str:
-    return {"acquisition": "획득당 ", "hour": "시간당 ", "day": "하루 "}[
+    return {"acquisition": "측정 1회당 ", "hour": "시간당 ", "day": "하루 "}[
         outlook["rate_unit"]
     ] + signed(rate)
 
@@ -102,7 +137,7 @@ def condition_name(outlook: dict[str, Any], name: str) -> str:
 
 def search_text(outlook: dict[str, Any]) -> str:
     if outlook["offset_unit"] == "acquisition":
-        return num(outlook["search"]["acquisitions"]) + "개 획득"
+        return after(outlook, outlook["search"]["acquisitions"])
     return span(outlook["search"]["seconds"])
 
 
@@ -223,10 +258,10 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
         low, high = min(reached), max(reached)
         if low == high:
             spread = after(outlook, low)
-        elif outlook["offset_unit"] == "acquisition":
-            spread = f"{num(low)}–{num(high)}개 획득"
+        elif outlook["offset_unit"] == "acquisition" and measurement_period(outlook) is None:
+            spread = f"추가 측정 {num(low)}–{num(high)}회"
         else:
-            spread = span(low) + "–" + span(high)
+            spread = after(outlook, low) + "–" + after(outlook, high)
         now = every[0]["expected"] if every[0]["state"] == "expected" else None
         possible_count = sum(item["state"] == "possible" for item in every)
         partly = (
@@ -401,6 +436,8 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
             place(outlook, outlook["search"]["until"])
             + f"까지 계산 ({search_text(outlook)}, 학습 기록 길이의 절반)"
         )
+    if note := interval_note(outlook):
+        facts["time_basis"] = note
     return facts
 
 

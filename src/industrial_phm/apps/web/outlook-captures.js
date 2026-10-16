@@ -2,7 +2,7 @@
 // This is immutable evidence for a later human review, NOT a finding or maintenance action.
 import { currentAsset, onAssetChange } from "./asset-context.js";
 import { byId, canChange, clear, create, num, OPERATIONS_REQUIRED } from "./web-utils.js";
-import { formatTime } from "./time.js";
+import { formatTime, formatMargin, measurementIntervalNote } from "./time.js";
 
 let current = null, ticket = 0, allowed = false;
 const STATES = {
@@ -17,9 +17,9 @@ const place = (data, point) => data.axis === "acquisition" ? "#" + point
 const limit = (data, name) => {
   const scenario = data.scenarios.find((item) => item.id === "current");
   if (!scenario || data.conditions[name] === null) return "기준 미입력";
-  const reached = scenario.limits[name], unit = data.offset_unit === "acquisition" ? "개 획득" : "초";
+  const reached = scenario.limits[name];
   const offset = reached.expected ?? reached.earliest;
-  return STATES[reached.state] + (offset === null ? "" : " · " + num(offset) + unit + " 뒤");
+  return STATES[reached.state] + (offset === null ? "" : " · " + formatMargin(data, offset) + " 후");
 };
 const json = async (url, options = {}) => {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin", ...options});
@@ -73,6 +73,7 @@ function entry(capture, now) {
       + " · 반복 패턴 " + (settings.seasonality === "off" ? "제외" : "자동 선택")
       + " · 계산 종료 " + place(old, old.search.until)));
   }
+  if (measurementIntervalNote(old)) wrapper.append(create("p", "muted", measurementIntervalNote(old)));
   review.append(create("p", "muted",
     "검토용 계산을 보존한 것이며 고장 판정이나 정비 완료 기록은 아닙니다."));
   wrapper.append(review);

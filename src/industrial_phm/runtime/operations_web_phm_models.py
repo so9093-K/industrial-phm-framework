@@ -185,7 +185,7 @@ def _fit(package: dict[str, Any], stream: dict[str, Any]) -> str | None:
     """Return why the package cannot read the stream, or None when its declared input fits."""
     spec = package["input"]
     if spec.get("step_kind") != stream["kind"]:
-        wanted = "진동 획득 파형" if spec.get("step_kind") == _ACQUISITION else "관측 윈도우"
+        wanted = "진동 파형" if spec.get("step_kind") == _ACQUISITION else "관측 윈도우"
         return wanted + " 입력이 필요합니다"
     channels = spec.get("channels") or []
     if stream["kind"] == _ACQUISITION:
@@ -196,7 +196,7 @@ def _fit(package: dict[str, Any], stream: dict[str, Any]) -> str | None:
             return "샘플링 주파수가 다릅니다"
         samples = spec.get("samples_per_step")
         if samples is not None and int(samples) != int(stream["sample_count"]):
-            return "획득당 표본 수가 다릅니다"
+            return "측정 1회당 표본 수가 다릅니다"
     elif spec.get("feature_set_id") == ELECTRICAL_WINDOW_FEATURE_SET_ID:
         if tuple(channels) != ELECTRICAL_WINDOW_CHANNELS:
             return "모델의 전기 신호 입력 규격이 다릅니다"

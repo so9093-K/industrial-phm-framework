@@ -242,7 +242,7 @@ async function loadSignals(token = generation) {
   if (monitor && !rows(monitor, "assets").some((asset) => asset.asset_id === selectedAsset)) {
     const box = byId("channel-options");
     box.replaceChildren(create("legend", null, "비교할 신호 (최대 6개)"), create("p", "empty", "이 설비에는 저장된 측정 이력이 없습니다."));
-    trendState("획득별 특징은 아래 구간 비교에서, 원본 파형은 개요와 이상 탐지 탭에서 볼 수 있습니다.");
+    trendState("측정별 특징은 아래 구간 비교에서, 원본 파형은 개요와 이상 탐지 탭에서 볼 수 있습니다.");
     return;
   }
   trendState("설비의 저장된 신호 목록을 확인합니다.");

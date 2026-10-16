@@ -22,22 +22,22 @@ function fact(item, data) {
       if (item.id === "relation") return facts.channels > 2 ? "신호 " + num(facts.channels) + "개 중 2개 선택" : "신호 2개";
       return "두 시간 구간의 분포·데이터 상태";
     case "acquisition":
-      if (item.id === "measurements") return "획득 " + num(facts.count) + "개 · 원본 파형";
-      if (item.id === "relation") return "같은 획득의 두 특징";
+      if (item.id === "measurements") return "진동 측정 " + num(facts.count) + "회 · 원본 파형";
+      if (item.id === "relation") return "동일 측정의 두 특징";
       if (item.id === "spectrum") return "원본 파형 · " + num(acquisition.sampling_rate_hz / 1000) + " kHz";
-      return "획득 #" + acquisition.first + "–#" + acquisition.last;
+      return "측정 #" + acquisition.first + "–#" + acquisition.last;
     case "explore": return "모델 없이 기준 구간에서 벗어난 값 찾기" + (facts.packages ? " · 맞는 모델 " + num(facts.packages) + "개 연결 가능" : "");
     case "stored-flow": return "변화·기준까지 여유 · 최대 " + (HORIZON[facts.horizon] || facts.horizon) + " 앞까지 예측";
-    case "stored-flow-count": return "변화·기준까지 여유 · 획득 순서 기준";
+    case "stored-flow-count": return "변화·기준까지 여유 · 측정 순서 기준";
     case "outlook-only": return "변화·기준까지 여유 · 예측 그래프는 기록이 짧음";
     case "short-history": return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected": return "결과 " + num(facts.results) + "건" + (facts.recorded_replay ? " · 기록 재생" : "");
     case "model-results": return "결과 시점을 골라 질문";
     case "outlook": return "상태 전망을 근거로 질문";
     case "compatible-model": return "입력이 맞는 모델 " + num(facts.packages) + "개";
-    case "waveforms-need-model": return "모델 연결 후 획득별 특징 계산";
+    case "waveforms-need-model": return "모델 연결 후 측정별 특징 계산";
     case "waiting-results": return "첫 결과 대기";
-    case "few-acquisitions": return "분석된 획득 " + num(facts.count) + "개";
+    case "few-acquisitions": return "분석한 진동 측정 " + num(facts.count) + "회";
     case "no-waveform": return "원본 진동 파형 없음";
     case "no-model-input": return "CSV 측정 이력은 모델 입력이 아님";
     case "no-model-package": return "설치된 모델 없음";

@@ -31,10 +31,10 @@ OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 own
 
 ## 1. 시스템 아키텍처
 
-![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.svg)
+![설비 관측에서 사람의 운영·정비 판단까지 이어지는 시스템 아키텍처](../../assets/system-architecture.png)
 
-README와 이 문서는 같은 대표 SVG를 사용합니다. CSV·OPC UA 측정 이력과 진동 획득 기록을
-구별하고, 저장된 데이터의 분석·전망을 Operations Web과 사람의 검토로 연결합니다.
+README와 이 문서는 같은 대표 구성도 PNG를 사용합니다. 현장 데이터 소스부터 데이터 파이프라인,
+DuckLake, 분석, Operations Web과 운영자 판단까지의 개념적 흐름을 보여줍니다.
 생성형 AI는 계산된 사실을 설명하는 선택적 연결이며 데이터 조회·분석의 필수 경로가 아닙니다.
 SQLite·DuckLake·spool·window coordinator의 세부 책임은 아래 상세 runtime에서 설명합니다.
 기능별 지원 조건은 [현재 지원 상태](../status.md)를 따릅니다.
@@ -438,5 +438,5 @@ Generic workflow engine이나 결과 registry도 아직 만들지 않습니다.
 
 ## Reference Diagrams
 
-`assets/system-architecture.svg`는 대표 상위 시스템 구조입니다. 모델 학습·평가와 서비스 아키텍처
+`assets/system-architecture.png`는 대표 상위 시스템 구조입니다. 모델 학습·평가와 서비스 아키텍처
 PNG는 research path와 service responsibility를 설명하는 reference이며 지원 범위 표로 사용하지 않습니다.

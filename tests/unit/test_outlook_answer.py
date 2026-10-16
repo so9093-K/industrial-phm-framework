@@ -25,6 +25,8 @@ def _outlook() -> dict[str, Any]:
     }
     outlook: dict[str, Any] = {
         "axis": "acquisition",
+        "time_basis": "recorded",
+        "period_seconds": 60.0,
         "offset_unit": "acquisition",
         "rate_unit": "acquisition",
         "label": "수평 진동 RMS",
@@ -110,18 +112,18 @@ def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edg
     facts = outlook_facts(outlook)
     assert "0가지에서 도달 예상" in facts["management"]
     assert "2가지에서 예측 범위만 도달 가능" in facts["management"]
-    assert "예측 범위에서만 4개 획득 뒤 도달" in facts["management"]
+    assert "예측 범위에서만 4분 뒤 도달" in facts["management"]
 
 
 @pytest.mark.parametrize(
     ("utterance", "accepted"),
     [
-        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달할 수 있습니다.", True),
-        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달 가능합니다.", True),
-        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달 가능합니다.", False),
-        ("관리 상한 8에는 4개 획득 뒤 도달합니다.", False),
-        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달할 수 있습니다.", False),
-        ("관리 상한 8에는 예측 범위 상단에서만 5개 획득 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 예측 범위 상단에서만 4분 뒤 도달할 수 있습니다.", True),
+        ("관리 상한 8에는 예측 범위 상단에서만 4분 뒤 도달 가능합니다.", True),
+        ("관리 상한 8에는 예측 범위 하단에서만 4분 뒤 도달 가능합니다.", False),
+        ("관리 상한 8에는 4분 뒤 도달합니다.", False),
+        ("관리 상한 8에는 예측 범위 하단에서만 4분 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 예측 범위 상단에서만 5분 뒤 도달할 수 있습니다.", False),
         ("관리 상한 8에는 기간 내 중심 예측으로 도달할 것으로 예상됩니다.", False),
     ],
 )
@@ -159,15 +161,15 @@ def test_expected_and_possible_are_counted_separately() -> None:
 def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> None:
     outlook = _outlook()
     assert outlook["sentences"] == [
-        "#76 이후 값의 86%가 초기 비교 범위 밖이며, 최근 획득당 +0.021씩 변하고 있습니다.",
-        "관리 상한 8까지 현재 설정으로 56개 획득, 읽는 방법에 따라 36–56개 획득 "
+        "#76 이후 값의 86%가 초기 비교 범위 밖이며, 최근 측정 1회당 +0.021씩 변하고 있습니다.",
+        "관리 상한 8까지 현재 설정으로 56분, 읽는 방법에 따라 36분–56분 "
         "(4가지 중 3가지에서 도달) 남았습니다.",
-        "종료 기준 15에는 61개 획득 안에 닿지 않습니다.",
+        "종료 기준 15에는 1시간 안에 닿지 않습니다.",
     ]
     facts = outlook["facts"]
     assert facts["change"].endswith("(+389.7%) · 마지막 측정 7.268")
     assert facts["management"].startswith(
-        "관리 상한 8까지: 현재 설정 56개 획득 뒤 도달 예상 (#179, 빠르면 47개 획득)"
+        "관리 상한 8까지: 현재 설정 56분 뒤 도달 예상 (#179, 빠르면 47분)"
     )
     assert facts["management"].endswith("마지막 측정은 아직 도달하지 않음")
     assert facts["end"].startswith("잔여수명 · 종료 기준 15까지:")
@@ -177,14 +179,14 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
 @pytest.mark.parametrize(
     ("text", "reason"),
     [
-        ("관리 상한 8까지 50개 획득 남았습니다.", "'50'"),
-        ("관리 상한 15까지 현재 설정으로 56개 획득 뒤 도달합니다.", "기준값"),
-        ("관리 상한 8까지 현재 설정으로 42개 획득 뒤 도달합니다.", "도달 시간"),
-        ("관리 상한 8까지 61개 획득 뒤 도달합니다.", "도달 시간"),
+        ("관리 상한 8까지 50분 남았습니다.", "'50'"),
+        ("관리 상한 15까지 현재 설정으로 56분 뒤 도달합니다.", "기준값"),
+        ("관리 상한 8까지 현재 설정으로 42분 뒤 도달합니다.", "도달 시간"),
+        ("관리 상한 8까지 61분 뒤 도달합니다.", "도달 시간"),
         ("베어링 마모가 진행되고 있습니다.", "원인"),
         ("곧 베어링을 교체해야 합니다.", "지시"),
         ("이 설비는 정상 상태입니다.", "판정"),
-        ("잔여수명은 56개 획득입니다.", "종료 기준"),
+        ("잔여수명은 56분입니다.", "종료 기준"),
         ("고장이 임박했습니다.", "고장"),
         ("**요약**: 증가했습니다.", "마크다운"),
     ],
@@ -201,8 +203,9 @@ def test_a_text_that_states_more_than_the_facts_is_named(text: str, reason: str)
 def test_a_text_that_copies_the_facts_passes() -> None:
     facts = _outlook()["facts"]
     text = (
-        "#76부터 기준 범위를 계속 벗어나 최근 획득당 +0.021씩 오르고 있어, 관리 상한 8까지 현재 "
-        "설정으로 56개 획득(#179) 남았습니다. 종료 기준 15까지의 잔여수명은 61개 획득 안에 "
+        "#76부터 기준 범위를 계속 벗어나 최근 측정 1회당 +0.021씩 오르고 있어, "
+        "관리 상한 8까지 현재 "
+        "설정으로 56분(#179) 남았습니다. 종료 기준 15까지의 잔여수명은 1시간 안에 "
         "도달하지 않습니다. 이는 고장 판정이 아닙니다."
     )
     assert outlook_answer.text_issues(text, facts) == []
@@ -214,12 +217,11 @@ def test_a_good_answer_is_shown_with_the_facts_its_points_cite(
     outlook = _outlook()
     model = ScriptedModel(
         {
-            "summary": "#76부터 기준 범위를 계속 벗어나 있고 관리 상한 8까지 "
-            "36–56개 획득 남았습니다.",
+            "summary": "#76부터 기준 범위를 계속 벗어나 있고 관리 상한 8까지 36–56분 남았습니다.",
             "points": [
-                {"text": "최근 획득당 +0.021씩 오르고 있습니다.", "evidence": ["rate"]},
+                {"text": "최근 측정 1회당 +0.021씩 오르고 있습니다.", "evidence": ["rate"]},
                 {
-                    "text": "추세 변화에 민감하게 읽으면 42개 획득입니다.",
+                    "text": "추세 변화에 민감하게 읽으면 42분입니다.",
                     "evidence": ["management", "nope"],
                 },
             ],
@@ -240,8 +242,8 @@ def test_a_failing_draft_is_rewritten_once_and_then_trimmed_to_what_passes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     outlook = _outlook()
-    bad = {"summary": "잔여수명은 50개 획득입니다.", "points": []}
-    fixed = {"summary": "관리 상한 8까지 현재 설정으로 56개 획득 남았습니다.", "points": []}
+    bad = {"summary": "잔여수명은 50분입니다.", "points": []}
+    fixed = {"summary": "관리 상한 8까지 현재 설정으로 56분 남았습니다.", "points": []}
     model = ScriptedModel(bad, fixed)
     monkeypatch.setattr(outlook_answer, "complete_json", model)
     answer = outlook_answer.generate_outlook_briefing(outlook, "여유?", PROVIDER)
@@ -250,13 +252,13 @@ def test_a_failing_draft_is_rewritten_once_and_then_trimmed_to_what_passes(
     assert "다시 답하세요" in model.requests[1][-1]["content"]
 
     mixed = {
-        "summary": "관리 상한 8까지 현재 설정으로 56개 획득 남았습니다. 베어링 손상이 의심됩니다.",
-        "points": [{"text": "50개 획득 뒤 도달합니다.", "evidence": ["management"]}],
+        "summary": "관리 상한 8까지 현재 설정으로 56분 남았습니다. 베어링 손상이 의심됩니다.",
+        "points": [{"text": "50분 뒤 도달합니다.", "evidence": ["management"]}],
     }
     monkeypatch.setattr(outlook_answer, "complete_json", ScriptedModel(mixed))
     answer = outlook_answer.generate_outlook_briefing(outlook, "여유?", PROVIDER)
     assert answer["checks"]["source"] == "model-trimmed"
-    assert answer["summary"] == "관리 상한 8까지 현재 설정으로 56개 획득 남았습니다."
+    assert answer["summary"] == "관리 상한 8까지 현재 설정으로 56분 남았습니다."
     # Its only point failed; the screen's facts stand in.
     assert answer["points"][0]["evidence"] == ["change"]
 
@@ -281,20 +283,20 @@ def test_without_a_model_the_screen_summary_answers(monkeypatch: pytest.MonkeyPa
 @pytest.mark.parametrize(
     ("text", "flagged"),
     [
-        ("종료 기준 15까지 4가지 모두 61개 획득 안 도달 예상입니다.", True),
+        ("종료 기준 15까지 4가지 모두 61분 안 도달 예상입니다.", True),
         ("관리 상한 8까지 도달하지 않았으나, 종료 기준 15까지 도달할 것으로 계산됩니다.", True),
         ("마지막 측정이 이미 관리 상한 8을 넘었습니다.", True),
         (
             "종료 기준 15까지 도달 예상 시점은 현재 설정, 최근 구간만 학습 모두 도달하지 않음.",
             False,
         ),
-        ("관리 상한 8까지 현재 설정으로 56개 획득 뒤 도달할 것으로 계산됩니다.", False),
+        ("관리 상한 8까지 현재 설정으로 56분 뒤 도달할 것으로 계산됩니다.", False),
         (
-            "최근 구간만 학습 기준으로는 61개 획득 뒤에 도달할 것으로 예상되지만, 마지막 측정값은 "
+            "최근 구간만 학습 기준으로는 61분 뒤에 도달할 것으로 예상되지만, 마지막 측정값은 "
             "아직 어떤 기준에도 도달하지 않았습니다.",
             True,
         ),
-        ("추세 변화에 민감 기준으로는 42개 획득 뒤 도달할 것으로 계산됩니다.", False),
+        ("추세 변화에 민감 기준으로는 42분 뒤 도달할 것으로 계산됩니다.", False),
     ],
 )
 def test_a_reach_the_outlook_does_not_compute_is_named(text: str, flagged: bool) -> None:
@@ -308,7 +310,53 @@ def test_a_reach_the_outlook_does_not_compute_is_named(text: str, flagged: bool)
 def test_a_question_about_differences_falls_back_to_the_computed_differences() -> None:
     answer = outlook_answer.computed_briefing(_outlook(), "예측 조건에 따라 왜 달라져?")
     assert answer["summary"].startswith(
-        "관리 상한 8까지 가장 빠른 읽기는 최근 변화 속도 유지(36개 획득)이고, 가장 느린 읽기는 "
-        "현재 설정(56개 획득)입니다."
+        "관리 상한 8까지 가장 빠른 읽기는 최근 변화 속도 유지(36분)이고, 가장 느린 읽기는 "
+        "현재 설정(56분)입니다."
     )
     assert answer["points"][0]["evidence"] == ["differences"]
+
+
+@pytest.mark.parametrize(
+    "basis,period,expected",
+    [
+        ("recorded", 60.0, "56분"),
+        ("assumed", 120.0, "1.9시간"),
+        ("ordinal", 1.0, "추가 측정 56회"),
+        (None, 60.0, "추가 측정 56회"),
+        ("recorded", 0.0, "추가 측정 56회"),
+    ],
+)
+def test_margin_uses_declared_cadence_without_turning_positions_into_time(
+    basis: str | None, period: float, expected: str
+) -> None:
+    from industrial_phm.application.outlook_text import after, interval_note
+
+    outlook = _outlook()
+    outlook.update(time_basis=basis, period_seconds=period)
+    assert after(outlook, 56) == expected
+    if basis == "recorded" and period:
+        assert "기록된 1분" in interval_note(outlook)
+    if expected.startswith("추가"):
+        assert "시간 환산 불가" in interval_note(outlook)
+    elif basis == "assumed":
+        assert "가정한 2분" in interval_note(outlook)
+    # The recorded ordinal identity and API offsets are unaffected by display units.
+    assert outlook["record"]["last"] == 123
+    assert outlook["scenarios"][0]["limits"]["management"]["expected"] == 56
+
+
+def test_ai_rejects_measurement_counts_as_elapsed_minutes_without_cadence() -> None:
+    from industrial_phm.application.outlook_text import condition_reach
+
+    outlook = _outlook()
+    outlook.update(time_basis="ordinal", period_seconds=1.0)
+    facts = outlook_facts(outlook)
+    relations = condition_reach(outlook)
+    assert not outlook_answer.text_issues(
+        "관리 상한 8까지 현재 설정으로 추가 측정 56회 후 도달할 것으로 계산됩니다.",
+        facts,
+        relations,
+    )
+    assert outlook_answer.text_issues(
+        "관리 상한 8까지 현재 설정으로 56분 후 도달할 것으로 계산됩니다.", facts, relations
+    )

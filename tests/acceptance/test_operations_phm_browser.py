@@ -100,7 +100,7 @@ def test_anomaly_and_rul_screens_follow_new_steps_with_linked_evidence(
 
                 # Older selections stay pinned while new data arrives; latest is an explicit action.
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #4")
-                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #4")
+                pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #4")
                 page.locator("#anomaly-latest").click()
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text("선택 기록 #7")
                 page.locator("#anomaly-model summary").click()
@@ -238,7 +238,7 @@ def test_phm_screen_names_the_mismatch_and_the_input_the_package_needs(
                 pw.expect(page.locator("#anomaly-cards>*")).to_have_count(0)
                 page.locator("#anomaly-model summary").click()
                 pw.expect(page.locator("#anomaly-model")).to_contain_text(
-                    "획득 파형 · 수평 진동, 수직 진동 · 1,000 Hz · 획득당 64개 표본"
+                    "진동 파형 · 수평 진동, 수직 진동 · 1,000 Hz · 측정 1회당 64개 표본"
                 )
                 page.locator('nav a[href="#monitor"]').click()
                 alert = page.locator('.monitor-attention-item[data-asset-id="pump-1"]')

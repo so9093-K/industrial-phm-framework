@@ -34,7 +34,7 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
     model = ScriptedModel(
         {
             "summary": "#41부터 기준 범위를 벗어나 관리 상한 2.4까지 4개 획득 남았습니다.",
-            "points": [{"text": "최근 획득당 +0.067씩 오르고 있습니다.", "evidence": ["rate"]}],
+            "points": [{"text": "최근 측정 1회당 +0.067씩 오르고 있습니다.", "evidence": ["rate"]}],
         }
     )
     monkeypatch.setattr(outlook_answer, "complete_json", model)
@@ -67,7 +67,7 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
         assert record["question"] == "기준까지 얼마나 남았어?" and record["model"] == "local-main"
         answer = record["answer"]
         assert answer["checks"]["source"] == "model", answer["checks"]
-        assert answer["evidence"]["rate"]["text"].startswith("최근 획득당 +0.067")
+        assert answer["evidence"]["rate"]["text"].startswith("최근 측정 1회당 +0.067")
         # The facts the model saw were computed by the supervisor, not sent by the browser.
         sent = json.loads(model.requests[0][1]["content"])
         assert sent["facts"]["management"].startswith("관리 상한 2.4까지: 현재 설정")

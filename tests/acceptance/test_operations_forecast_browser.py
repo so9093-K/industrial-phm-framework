@@ -107,7 +107,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 # The margin is searched past the chart's horizon: 0.02 A a minute from 13.58 A.
                 pw.expect(figures).to_contain_text("관리 상한 14.3까지", timeout=30000)
                 pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 15")
-                pw.expect(figures).to_contain_text("분 뒤")
+                pw.expect(figures).to_contain_text("분 후")
                 pw.expect(outlook.locator(".outlook-lead")).to_contain_text("읽는 방법에 따라")
                 pw.expect(panel.locator(".outlook-scenarios tbody tr")).to_have_count(4)
                 scenarios = panel.locator(".outlook-scenarios")
@@ -121,7 +121,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
                     "추세 민감도 0.1", timeout=30000
                 )
-                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("100")
+                panel.get_by_label("학습에 쓸 최근 데이터 수 (선택)").fill("100")
                 panel.get_by_role("button", name="설정 적용").click()
                 pw.expect(
                     panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
@@ -130,7 +130,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                     panel.get_by_role("button", name="24시간", exact=True, include_hidden=True)
                 ).to_be_disabled()
                 pw.expect(panel.locator("#forecast-state")).to_contain_text("2배 이상")
-                panel.get_by_label("최근 학습 획득·측정 수 (선택)").fill("150")
+                panel.get_by_label("학습에 쓸 최근 데이터 수 (선택)").fill("150")
                 panel.get_by_role("button", name="설정 적용").click()
                 pw.expect(
                     panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
@@ -195,13 +195,20 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
         thread.join(timeout=10)
 
 
-def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Path) -> None:
+@pytest.mark.parametrize("period_seconds", [60.0, None])
+def test_count_only_acquisition_record_opens_forecast_from_overview(
+    tmp_path: Path, period_seconds: float | None
+) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     pytest.importorskip("prophet")
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal in range(1, 31):
         deliver(
-            workspace, tmp_path / "waves", ordinal, 4.0 if ordinal == 30 else 0.5 + 0.01 * ordinal
+            workspace,
+            tmp_path / "waves",
+            ordinal,
+            4.0 if ordinal == 30 else 0.5 + 0.01 * ordinal,
+            period_seconds=period_seconds,
         )
     analyze(workspace)
     server = create_operations_web_read_server(workspace.root)
@@ -221,34 +228,39 @@ def test_count_only_acquisition_record_opens_forecast_from_overview(tmp_path: Pa
                 ).click()
                 panel = page.locator("#forecast")
                 pw.expect(panel.locator(".forecast-chart")).to_be_visible(timeout=30000)
+                expected_basis = "기록된 1분" if period_seconds else "시간 환산 불가"
+                pw.expect(panel.locator(".outlook-observed")).to_contain_text(expected_basis)
                 # The outlook reads the acquisition axis too: changes per acquisition.
                 pw.expect(panel.locator("#outlook-evidence .outlook-details")).to_contain_text(
-                    "획득당", timeout=30000
+                    "측정 1회당", timeout=30000
                 )
                 pw.expect(panel.locator("#forecast-unit")).to_have_value("count")
                 pw.expect(panel.locator("#forecast-count")).to_have_value("14")
-                pw.expect(panel.locator(METRICS)).to_contain_text("14개 획득 뒤")
+                pw.expect(panel.locator(METRICS)).to_contain_text("추가 측정 14회 뒤")
                 panel.locator("#forecast-count").fill("10")
                 with page.expect_response(
                     lambda response: "/api/v1/forecast?" in response.url
                 ) as response:
-                    panel.get_by_role("button", name="획득 수 적용").click()
+                    panel.get_by_role("button", name="추가 측정 횟수 적용").click()
                 forecast = response.value.json()
                 # A rising model forecast can still end below the latest observed spike.
                 assert forecast["trend"]["change"] > 0
                 assert forecast["trend"]["end"] < forecast["history"][-1][1]
                 pw.expect(panel.locator(METRICS + " > div").first).not_to_contain_text("증가")
-                pw.expect(panel.locator(METRICS)).to_contain_text("10개 획득 뒤", timeout=30000)
+                pw.expect(panel.locator(METRICS)).to_contain_text(
+                    "추가 측정 10회 뒤", timeout=30000
+                )
                 pw.expect(panel.locator(".forecast-compare")).to_have_count(0)
                 panel.locator("#forecast-settings > summary").click()
                 panel.locator("#forecast-assumed-period").fill("120")
                 panel.get_by_role("button", name="간격 적용").click()
                 pw.expect(panel.locator("#forecast-detail-metrics")).to_contain_text(
-                    "가정 획득 간격 2분", timeout=30000
+                    "가정한 측정 간격 2분", timeout=30000
                 )
                 pw.expect(
                     panel.get_by_role("button", name="1시간", exact=True, include_hidden=True)
                 ).to_be_disabled()
+                pw.expect(panel.locator(".outlook-observed")).to_contain_text("가정한 2분")
                 panel.locator("#forecast-assumed-period").fill("600")
                 panel.get_by_role("button", name="간격 적용").click()
                 pw.expect(

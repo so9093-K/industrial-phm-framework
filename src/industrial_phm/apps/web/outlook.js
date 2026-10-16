@@ -4,7 +4,7 @@
 // condition the user set (the remaining life under that definition), read four ways. The server
 // computes every number; this module words and lays them out.
 import { modelFamily } from "./phm-connect.js";
-import { formatTime } from "./time.js";
+import { formatTime, formatMargin, measurementIntervalNote, measurementPeriod } from "./time.js";
 import { byId, canChange, clear, create, num, OPERATIONS_REQUIRED } from "./web-utils.js";
 
 let shownKey = "", request = 0, current = null, briefingTicket = 0, refreshedAt = 0;
@@ -18,7 +18,7 @@ const REASON = {
   "few-points": "유효한 값이 20개 이상 있어야 상태 전망을 계산합니다.",
   "short-history": "기록이 짧아 기준까지의 여유를 계산할 수 없습니다.",
   "engine-unavailable": "예측 엔진이 설치되지 않았습니다. make up으로 다시 시작하면 설치됩니다.",
-  "unknown-interval": "획득 간격이 기록되지 않았습니다.",
+  "unknown-interval": "측정 간격 정보가 없어 시간으로 환산할 수 없습니다.",
 };
 const one = (value) => typeof value === "number" && Number.isFinite(value)
   ? value.toLocaleString("ko-KR", {maximumFractionDigits: 1}) : "—";
@@ -33,13 +33,13 @@ const place = (data, value) => data.axis === "acquisition" ? "#" + value : forma
 const range = (data, part) => data.axis === "acquisition" ? "#" + part.from + "–#" + part.to
   : formatTime(part.from, {seconds: false}) + " ~ " + formatTime(part.to, {seconds: false, zone: false});
 // An offset after the last measurement: acquisitions or seconds.
-const after = (data, offset) => data.offset_unit === "acquisition" ? num(offset) + "개 획득" : span(offset);
+const after = formatMargin;
 const reachedAt = (data, offset) => data.offset_unit === "acquisition" ? "#" + (data.record.last + offset)
   : formatTime(new Date(Date.parse(data.record.last) + offset * 1000).toISOString(), {seconds: false});
-const rateText = (data, rate) => ({acquisition: "획득당 ", hour: "시간당 ", day: "하루 "})[data.rate_unit] + signed(rate);
+const rateText = (data, rate) => ({acquisition: "측정 1회당 ", hour: "시간당 ", day: "하루 "})[data.rate_unit] + signed(rate);
 const conditionName = (data, name) => (name === "end" ? "종료 기준 " : "관리 " + (data.conditions.direction === "lower" ? "하한 " : "상한 "))
   + num(data.conditions[name]);
-const searchText = (data) => data.offset_unit === "acquisition" ? num(data.search.acquisitions) + "개 획득" : span(data.search.seconds);
+const searchText = (data) => after(data, data.offset_unit === "acquisition" ? data.search.acquisitions : data.search.seconds);
 
 function change(data) {
   const d = data.degradation;
@@ -54,14 +54,15 @@ function margin(data, reached) {
   if (reached.state === "expected") {
     const bounds = [reached.earliest !== null && reached.earliest !== reached.expected ? "빠르면 " + after(data, reached.earliest) : "",
       reached.latest !== null && reached.latest !== reached.expected ? "늦으면 " + after(data, reached.latest) : ""].filter(Boolean);
-    return [after(data, reached.expected) + " 뒤",
-      ["중심 예측의 기준 도달 예상", reachedAt(data, reached.expected), ...bounds].join(" · ")];
+    return [(data.offset_unit === "acquisition" && measurementPeriod(data) === null ? "" : "약 ") + after(data, reached.expected) + " 후",
+      ["중심 예측의 기준 도달 예상", (data.axis === "acquisition" ? "측정 순서 " : "") + reachedAt(data, reached.expected), ...bounds].join(" · ")];
   }
   if (reached.state === "possible") return [
     data.conditions.direction === "lower" ? "범위 하단만 도달" : "범위 상단만 도달",
     "중심 예측은 미도달 · 빠르면 " + after(data, reached.earliest) + " 뒤",
   ];
-  return ["기간 내 미도달", place(data, data.search.until) + "까지 계산"];
+  return [data.offset_unit === "acquisition" && measurementPeriod(data) === null ? "계산 횟수 내 미도달" : "기간 내 미도달",
+    "계산 범위 · " + searchText(data)];
 }
 
 // The four numbers a reader takes away: how far it moved, what the model says, and the margins.
@@ -345,8 +346,8 @@ export function renderOutlook(data, context = "") {
   root.hidden = false;
   // The server words the summary once, so the AI briefing's fallback reads the same.
   byId("outlook-body").replaceChildren(
-    create("p", "outlook-observed", (data.axis === "acquisition" ? "마지막 획득 " : "마지막 측정 ")
-      + place(data, data.record.last)),
+    create("p", "outlook-observed", "마지막 측정 " + place(data, data.record.last)
+      + (measurementIntervalNote(data) ? " · " + measurementIntervalNote(data) : "")),
     figures(data),
     create("p", "outlook-lead", data.sentences.join(" ")),
   );

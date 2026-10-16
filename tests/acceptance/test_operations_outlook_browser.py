@@ -39,8 +39,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
         deliver(workspace, tmp_path / "waves", ordinal, scale)
     analyze(workspace)
     good = {
-        "summary": "최근 획득당 +0.067씩 오르고 있어 관리 상한 2.4까지의 여유가 줄고 있습니다.",
-        "points": [{"text": "최근 획득당 +0.067씩 오릅니다.", "evidence": ["rate"]}],
+        "summary": "최근 측정 1회당 +0.067씩 오르고 있어 관리 상한 2.4까지의 여유가 줄고 있습니다.",
+        "points": [{"text": "최근 측정 1회당 +0.067씩 오릅니다.", "evidence": ["rate"]}],
     }
     # The first draft invents a margin; the user only sees the checked rewrite.
     model = ScriptedModel({**good, "summary": "관리 상한 2.4까지 777개 획득 남았습니다."}, good)
@@ -65,11 +65,11 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 lead = outlook.locator(".outlook-lead")
                 pw.expect(lead).to_contain_text("이후 값의", timeout=30000)
                 pw.expect(lead).to_contain_text("%가 초기 비교 범위 밖")
-                pw.expect(lead).to_contain_text("최근 획득당 +0.067씩")
+                pw.expect(lead).to_contain_text("최근 측정 1회당 +0.067씩")
                 figures = outlook.locator(".outlook-figures")
                 pw.expect(figures).to_contain_text("관리 상한 2.4까지")
                 pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 3")
-                pw.expect(outlook.locator(".outlook-observed")).to_have_text("마지막 획득 #64")
+                pw.expect(outlook.locator(".outlook-observed")).to_contain_text("마지막 측정 #64")
                 pw.expect(figures).to_contain_text("모델 기준 초과")
                 # An explicit operator request captures server-recomputed facts, not UI numbers.
                 archive = page.locator("#outlook-saved")
@@ -79,6 +79,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 save.click()
                 pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
                 pw.expect(archive).to_contain_text("확정 저장한 전망")
+                pw.expect(archive).to_contain_text("기록된 1분 측정 간격이 유지될 경우")
                 archive.locator(".outlook-saved-evidence summary").first.click()
                 pw.expect(archive).to_contain_text("당시 서버가 계산한 설명")
                 pw.expect(archive).to_contain_text("당시 계산 조건")
@@ -185,8 +186,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 deliver(workspace, tmp_path / "waves", 65, 2.2)
                 analyze(workspace)
                 page.locator("#refresh").click()
-                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
-                    "마지막 획득 #65", timeout=30000
+                pw.expect(outlook.locator(".outlook-observed")).to_contain_text(
+                    "마지막 측정 #65", timeout=30000
                 )
                 pw.expect(page.locator("#forecast-chart-section .forecast-chart")).to_be_visible(
                     timeout=30000
@@ -213,8 +214,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
 
                 page.route("**/api/v1/outlook?*", mismatch_once)
                 page.locator("#refresh").click()
-                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
-                    "마지막 획득 #65", timeout=30000
+                pw.expect(outlook.locator(".outlook-observed")).to_contain_text(
+                    "마지막 측정 #65", timeout=30000
                 )
                 pw.expect(page.locator("#forecast-chart-section .forecast-chart")).to_be_visible(
                     timeout=30000
@@ -249,8 +250,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(page.locator("#forecast-chart-section")).to_be_hidden()
                 page.unroute("**/api/v1/outlook?*", unavailable)
                 page.locator("#refresh").click()
-                pw.expect(outlook.locator(".outlook-observed")).to_have_text(
-                    "마지막 획득 #65", timeout=30000
+                pw.expect(outlook.locator(".outlook-observed")).to_contain_text(
+                    "마지막 측정 #65", timeout=30000
                 )
 
                 # Readable lower-limit and bounded-horizon wording on the same screen.

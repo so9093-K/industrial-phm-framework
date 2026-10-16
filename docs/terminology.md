@@ -19,6 +19,25 @@ ML/data-science 용어, 일반적인 software-engineering 용어**를 우선합�
    일반적인 data-science/ML 용어를, machine condition monitoring 기능에는 ISO 계열 용어를 우선합니다.
 6. 용어의 의미가 바뀌면 관련 문서와 public contract를 함께 검토합니다.
 
+### 사용자에게 표시하는 측정 단위
+
+내부 식별자인 `acquisition`을 화면에서 ‘획득’이라는 수량 단위로 옮기지 않습니다.
+수집 동작, 파형 묶음, 원시 샘플, 위치 번호와 남은 시간을 구별합니다.
+계측 분야의 Data Acquisition은 [NI의 한국어 안내](https://www.ni.com/ko/shop/data-acquisition.html)에서도
+‘데이터 수집’으로 설명합니다. 아래 표현은 이 프로젝트의 사용자 안내 원칙이며 표준 용어 인증을 주장하지 않습니다.
+
+| 개념 | 화면 표현 | 의미 |
+| --- | --- | --- |
+| 데이터 입력 과정 | 데이터 수집 | 센서·파일에서 데이터를 받아 보존하는 동작 |
+| 진동 파형 묶음 한 개 | 진동 측정 1회 | 한 번 저장한 여러 채널·샘플의 파형 묶음. 원시 샘플 한 점과 다름 |
+| 기록에서의 위치 | 측정 순서 #123 | 어떤 측정인지 찾는 식별자. 남은 시간의 단위가 아님 |
+| 이후 측정의 개수 | 추가 측정 56회 후 | 시간 간격이 없는 경우의 도달 전망. 시간 환산 불가를 함께 표시 |
+| 간격이 명시된 도달 전망 | 약 56분 후 | 기록된 1분 측정 간격이 유지될 경우. 사용자 가정 간격이면 가정임을 표시 |
+
+시간은 마지막 관측을 기준으로 한 경과량입니다. 기록 재생의 전망을 현재 시각 기준의 고장 예정 시각으로
+표현하지 않습니다. 내부 순서 계산에 사용하는 임의의 1초 간격을 실제 측정 간격으로 바꾸지 않습니다.
+API 필드·저장된 축·도달 offset의 수치 단위는 그대로 유지하며 화면과 AI 설명에서 표시 단위를 명시합니다.
+
 ## 2. Research and experiment lifecycle
 
 아래 용어는 주로 일반적인 data-science/ML 연구 lifecycle을 설명하기 위한 것입니다. ISO 13374 기능 block의
@@ -30,7 +49,7 @@ ML/data-science 용어, 일반적인 software-engineering 용어**를 우선합�
 
 ### Data acquisition
 
-데이터를 명시적으로 획득·보존하고 source/version/license/provenance를 기록하는 과정입니다. Domain Adapter의
+데이터를 명시적으로 수집·보존하고 source/version/license/provenance를 기록하는 과정입니다. Domain Adapter의
 변환 책임과 구분합니다.
 
 ### Dataset validation
