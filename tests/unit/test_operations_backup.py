@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
+
 from industrial_phm.runtime import (
     OperationsBackupFormatError,
     OperationsWorkspace,
@@ -86,6 +88,45 @@ def test_backup_and_restore_preserve_owned_state_without_ephemeral_files(
         assert restored_db.execute("SELECT value FROM demo").fetchone() == ("kept",)
     finally:
         restored_db.close()
+
+
+def test_stopped_workspace_backup_restores_immutable_outlook_and_review(
+    tmp_path: Path,
+) -> None:
+    from uuid import uuid4
+
+    from industrial_phm.application.maintenance_review import FindingReviewAction
+
+    workspace = _seed_workspace(tmp_path / "capture-plant")
+    snapshot = {
+        "schema_version": 1,
+        "identity": {"asset_id": "bearing-a", "measurement_version": "f" * 64},
+        "outlook": {
+            "asset_id": "bearing-a",
+            "measurement_version": "f" * 64,
+            "axis": "acquisition",
+            "record": {"first": 1, "last": 64},
+        },
+        "selection": {"asset_id": "bearing-a", "kind": "acquisition"},
+    }
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    captured = store.save(snapshot)
+    store.write_review(
+        "bearing-a",
+        captured["capture_id"],
+        FindingReviewAction.ACKNOWLEDGE,
+        "",
+        str(uuid4()),
+    )
+    backup = tmp_path / "capture-backup"
+    manifest = create_operations_backup(workspace, backup).manifest
+    assert "outlook-captures.sqlite" in {file.relative_path for file in manifest.files}
+    restored = OperationsWorkspace(tmp_path / "capture-restored")
+    restore_operations_backup(backup, restored)
+    records = OutlookCaptureStore(restored.outlook_capture_path).list_for("bearing-a")
+    assert len(records) == 1
+    assert records[0]["snapshot"] == snapshot
+    assert records[0]["review"]["status"] == "acknowledged"
 
 
 def test_backup_refuses_live_supervisor_lock(
