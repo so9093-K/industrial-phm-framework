@@ -419,7 +419,14 @@ function updateLegend() {
 function renderDetails(facts) {
   const key = JSON.stringify(facts.items);
   if (detailsKey === key) return;detailsKey = key;
-  const root = byId("monitor-analysis-models");root.replaceChildren();
+  const root = byId("monitor-analysis-models");
+  const active = document.activeElement;
+  const focusedRow = root.contains(active) ? active.closest(".monitor-model") : null;
+  const focusedBinding = focusedRow?.dataset.bindingId;
+  const focusedPart = focusedRow === active ? "article" : active?.tagName.toLowerCase();
+  const expanded = new Set([...root.querySelectorAll(".monitor-model")]
+    .filter((row) => row.querySelector("details")?.open).map((row) => row.dataset.bindingId));
+  root.replaceChildren();
   for (const item of facts.items) {
     const row = node("article", "", "monitor-model");row.dataset.bindingId = item.binding_id;
     row.append(node("h4", role(item)), node("p", states[item.processing_state] || "상태 미확인"));
@@ -433,7 +440,14 @@ function renderDetails(facts) {
     const technical = node("details", "", "monitor-technical");technical.append(node("summary", "모델 정보"), node("p", "패키지 " + item.package_id));
     if (item.processing_state === "unavailable") technical.append(node("p", healthText(item.processing_reason)));
     else if (item.processing_state === "rejected") technical.append(node("p", friendlyReason(item.processing_reason)));
+    technical.open = expanded.has(item.binding_id);
     row.append(technical);root.append(row);
+    if (focusedBinding === item.binding_id) {
+      row.tabIndex = -1;
+      const target = focusedPart === "A" ? row.querySelector("a")
+        : focusedPart === "SUMMARY" ? technical.querySelector("summary") : row;
+      (target || row).focus({preventScroll: true});
+    }
   }
 }
 function schedule() {clearTimeout(timer);if (active()) timer = setTimeout(refreshMonitor, POLL_MS);}
