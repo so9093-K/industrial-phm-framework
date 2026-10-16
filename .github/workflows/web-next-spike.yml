@@ -25,6 +25,7 @@ on:
       - "tests/acceptance/test_operations_web_next_acquisition_profile_browser.py"
       - "tests/acceptance/test_operations_web_next_acquisition_relation_browser.py"
       - "tests/acceptance/test_operations_web_next_model_evidence_browser.py"
+      - "tools/verify/**"
       - ".github/workflows/web-next-spike.yml"
   push:
     branches: [main]
@@ -34,6 +35,7 @@ on:
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/acceptance/test_operations_web_next_**"
+      - "tools/verify/**"
       - ".github/workflows/web-next-spike.yml"
 
 permissions:
@@ -47,72 +49,35 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Load verification toolchain pins
+        run: grep -v '^#' tools/verify/versions.env >> "$GITHUB_ENV"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
       - name: Install locked frontend dependencies
-        run: npm ci --prefix frontend --no-audit --no-fund
+        run: sh tools/verify/gate.sh frontend-install
       - name: Type and Svelte checks
-        run: npm run --prefix frontend check
+        run: sh tools/verify/gate.sh frontend-check
       - name: Read DTO parser regression tests
-        run: npm test --prefix frontend
+        run: sh tools/verify/gate.sh frontend-test
       - name: Generate packaged assets
-        run: npm run --prefix frontend build
-      - name: Check generated manifest
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          root = Path("src/industrial_phm/apps/web_next")
-          files = json.loads((root / "asset-manifest.json").read_text())
-          assert "index.html" in files
-          assert any(name.startswith("assets/") and name.endswith(".js") for name in files)
-          assert all((root / name).is_file() for name in files)
-          PY
+        run: sh tools/verify/gate.sh frontend-build
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          version: "0.12.13"
+          version: ${{ env.UV_VERSION }}
       - name: Install Python 3.14
         run: uv python install 3.14
       - name: Sync locked runtime
         run: uv sync --locked --extra operations
+      - name: Check generated manifest
+        run: sh tools/verify/gate.sh manifest
       - name: Python static route integration
-        run: >-
-          uv run --locked --extra operations pytest tests/integration/test_operations_web_next_static.py
-          tests/integration/test_operations_web_explore.py
-          tests/integration/test_operations_web_phm.py
-          tests/integration/test_operations_web_outlook_briefing.py
+        run: sh tools/verify/gate.sh web-next-python
       - name: Verify wheel contains compiled assets
-        run: |
-          uv build --wheel
-          uv run --locked --extra operations python - <<'PY'
-          import zipfile
-          from pathlib import Path
-          wheel = next(Path("dist").glob("*.whl"))
-          with zipfile.ZipFile(wheel) as archive:
-              names = archive.namelist()
-          assert any(name.endswith("/web_next/index.html") for name in names), names
-          assert any("/web_next/assets/" in name and name.endswith(".js") for name in names), names
-          assert any(name.endswith("/web_next/asset-manifest.json") for name in names), names
-          PY
+        run: sh tools/verify/gate.sh wheel
       - name: Install Chromium acceptance tools
-        run: |
-          uv pip install --python .venv/bin/python "playwright>=1.56,<2"
-          uv run --no-sync python -m playwright install --with-deps chromium
+        run: sh tools/verify/gate.sh browser-runtime
       - name: Web-next Chromium user journey
-        run: >-
-          uv run --no-sync pytest tests/acceptance/test_operations_web_next_browser.py
-          tests/acceptance/test_operations_web_next_signal_browser.py
-          tests/acceptance/test_operations_web_next_departures_browser.py
-          tests/acceptance/test_operations_web_next_compare_browser.py
-          tests/acceptance/test_operations_web_next_projection_browser.py
-          tests/acceptance/test_operations_web_next_briefings_browser.py
-          tests/acceptance/test_operations_web_next_acquisition_outlook_browser.py
-          tests/acceptance/test_operations_web_next_relation_browser.py
-          tests/acceptance/test_operations_web_next_review_browser.py
-          tests/acceptance/test_operations_web_next_spectrum_browser.py
-          tests/acceptance/test_operations_web_next_acquisition_profile_browser.py
-          tests/acceptance/test_operations_web_next_acquisition_relation_browser.py
-          tests/acceptance/test_operations_web_next_model_evidence_browser.py
+        run: sh tools/verify/gate.sh web-next-browser

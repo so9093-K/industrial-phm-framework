@@ -13,6 +13,9 @@ import pytest
 
 from industrial_phm.runtime import operations_web_command as command
 
+# Every broker binds a socket authenticated with Linux SO_PEERCRED.
+pytestmark = pytest.mark.linux_only
+
 
 def test_broker_is_private_pid_bound_and_dispatches_exact_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

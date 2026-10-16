@@ -103,6 +103,8 @@ indent-style = "space"
 
 [tool.mypy]
 python_version = "3.14"
+# Operations supports Linux only (README); check its os/socket APIs on every host.
+platform = "linux"
 strict = true
 mypy_path = "src"
 packages = ["industrial_phm"]
@@ -110,4 +112,7 @@ packages = ["industrial_phm"]
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+markers = [
+  "linux_only: needs Linux kernel features (SO_PEERCRED peer credentials, pidfd); skipped elsewhere, run make verify-linux",
+]
 

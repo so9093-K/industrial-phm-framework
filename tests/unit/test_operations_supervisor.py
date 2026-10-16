@@ -90,6 +90,7 @@ def test_supervisor_state_repository_round_trips_process_identity(tmp_path: Path
     assert repository.load() == state
 
 
+@pytest.mark.linux_only
 def test_supervisor_starts_collection_analysis_ui_and_stops_as_one_set(
     tmp_path: Path,
 ) -> None:
@@ -130,6 +131,7 @@ def test_supervisor_starts_collection_analysis_ui_and_stops_as_one_set(
     assert processes[OperationsComponentKind.UI].signals == [signal.SIGINT]
 
 
+@pytest.mark.linux_only
 def test_supervisor_fails_whole_set_when_one_component_exits(tmp_path: Path) -> None:
     plan = _plan(tmp_path / "plant-a")
     repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
@@ -162,6 +164,7 @@ def test_supervisor_fails_whole_set_when_one_component_exits(tmp_path: Path) -> 
     assert processes[OperationsComponentKind.UI].signals == [signal.SIGINT]
 
 
+@pytest.mark.linux_only
 def test_supervisor_cleans_started_child_when_later_spawn_fails(tmp_path: Path) -> None:
     plan = _plan(tmp_path / "plant-a")
     repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
@@ -314,6 +317,7 @@ def test_ui_child_environment_adds_authoritative_workspace_without_scrubbing_par
     assert environment["INDUSTRIAL_PHM_OPERATIONS_SOURCE_REGISTRY"] == "/tmp/wrong-registry"
 
 
+@pytest.mark.linux_only
 def test_supervisor_treats_sigterm_as_coordinated_clean_stop(tmp_path: Path) -> None:
     plan = _plan(tmp_path / "plant-a")
     repository = OperationsSupervisorStateRepository(plan.workspace.supervisor_state_path)
@@ -386,6 +390,7 @@ def _interrupted_run(tmp_path: Path, raised_signal: int | None):
     )
 
 
+@pytest.mark.linux_only
 @pytest.mark.parametrize("own_signal", [signal.SIGINT, signal.SIGHUP])
 def test_terminal_interrupt_that_reaches_components_first_is_a_clean_stop(
     tmp_path: Path, own_signal: int
@@ -396,6 +401,7 @@ def test_terminal_interrupt_that_reaches_components_first_is_a_clean_stop(
     assert result.state.failure is None
 
 
+@pytest.mark.linux_only
 def test_component_interrupted_without_a_stop_request_is_still_a_failure(tmp_path: Path) -> None:
     result = _interrupted_run(tmp_path, None)
     assert result.exit_code == 1
