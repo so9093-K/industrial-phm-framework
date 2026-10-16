@@ -278,6 +278,19 @@ def test_briefing_version_and_supervisor_write_contract(
                 ).to_be_visible()
                 assert page.get_by_text("저장된 근거를 설명합니다.").count() == 0
                 assert page.get_by_role("heading", name="예측 신호값 · 1h").count() == 0
+
+                # When the supervisor is absent, stored evidence stays readable
+                # but the AI action must never become enabled.
+                versions["data"] = "a" * 64
+                versions["prior"] = 0.05
+                writable["yes"] = False
+                requested["yes"] = False
+                page.reload(wait_until="networkidle")
+                page.get_by_label("관리 기준 (선택)").fill("12")
+                page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
+                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
+                pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_disabled()
+                assert not requested["yes"]
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
