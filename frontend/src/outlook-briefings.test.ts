@@ -9,12 +9,14 @@ const projection:Projection={
   sourceId:"source-1",pointId:"point-1",unit:"A",
   record:{first:"2026-10-15T00:00:00Z",last:"2026-10-16T00:00:00Z",points:22},
   future:[],scenarios:[],conditions:{direction:"upper",management:12,end:null},
+  outlookSettings:{changepointPriorScale:0.05,changepointRange:0.9,trainingPoints:null,seasonality:"auto"},
 };
 const serverOutlook=()=>({
   schema_version:1,asset_id:"pump-1",kind:"history",series:"R",axis:"time",
   source_id:"source-1",measurement_point_id:"point-1",
   measurement_version:"measured-1",data_version:version,
   conditions:{direction:"upper",management:12,end:null},
+  settings:{changepoint_prior_scale:0.05,changepoint_range:0.9,training_points:null,seasonality:"auto"},
 });
 const selection=briefingSelection(projection);
 function response(){
@@ -27,8 +29,9 @@ function response(){
 }
 test("canonical briefing identity includes selected conditions and independent AI version",()=>{
   assert.equal(selection,
-    "asset_id=pump-1&data_version="+version+
-    "&direction=upper&kind=history&management_limit=12&series=R");
+    "asset_id=pump-1&changepoint_prior_scale=0.05&changepoint_range=0.9"+
+    "&data_version="+version+"&direction=upper&kind=history"+
+    "&management_limit=12&seasonality=auto&series=R");
   assert.notEqual(briefingSelection({...projection,dataVersion:"b".repeat(64)}),selection);
   assert.notEqual(briefingSelection({...projection,conditions:{...projection.conditions,end:30}}),selection);
   assert.throws(()=>briefingSelection({...projection,dataVersion:"stale"}),/버전/);
@@ -39,6 +42,7 @@ test("server measurement/data versions and source/point must still match after r
     {data_version:"b".repeat(64)}, {measurement_version:"revised"},
     {source_id:"another"}, {measurement_point_id:"other"},
     {conditions:{direction:"lower",management:12,end:null}},
+    {settings:{changepoint_prior_scale:0.5,changepoint_range:0.9,training_points:null,seasonality:"auto"}},
     {asset_id:"pump-2"},
   ];
   for(const patch of cases)
