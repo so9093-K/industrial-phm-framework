@@ -12,6 +12,7 @@ import base64
 import binascii
 import json
 import os
+import re
 import secrets
 from datetime import datetime
 from http import HTTPStatus
@@ -211,6 +212,49 @@ def create_operations_web_read_server(
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_web_next_asset(self, name: str) -> None:
+            """Serve only build-manifest-listed, package-owned preview assets."""
+            if name != "index.html" and not re.fullmatch(
+                r"assets/[A-Za-z0-9_-]+\.(?:js|css)", name
+            ):
+                self._error(HTTPStatus.NOT_FOUND, "not_found")
+                return
+            try:
+                package = files("industrial_phm.apps").joinpath("web_next")
+                manifest = json.loads(
+                    package.joinpath("asset-manifest.json").read_text(encoding="utf-8")
+                )
+                if not isinstance(manifest, list) or name not in manifest:
+                    self._error(HTTPStatus.NOT_FOUND, "not_found")
+                    return
+                body = package.joinpath(*name.split("/")).read_bytes()
+            except OSError, UnicodeError, ValueError:
+                # No Node build is needed to run the existing /web/ product.
+                self._error(HTTPStatus.NOT_FOUND, "not_found")
+                return
+            content_type = (
+                "text/html; charset=utf-8"
+                if name == "index.html"
+                else "text/javascript; charset=utf-8"
+                if name.endswith(".js")
+                else "text/css; charset=utf-8"
+            )
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'none'; base-uri 'none'; script-src 'self'; "
+                "style-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
+                "form-action 'none'; object-src 'none'",
+            )
+            self.end_headers()
+            self.wfile.write(body)
+
         def _error(self, status: HTTPStatus, code: str) -> None:
             self._send_json(status, {"error": {"code": code}})
 
@@ -345,6 +389,14 @@ def create_operations_web_read_server(
                 self._send_asset(static_paths[asset_path])
                 return
             parts = urlsplit(self.path)
+            if parts.path == "/web-next/" or parts.path.startswith("/web-next/assets/"):
+                relative = (
+                    "index.html"
+                    if parts.path == "/web-next/"
+                    else parts.path.removeprefix("/web-next/")
+                )
+                self._send_web_next_asset(relative)
+                return
             if parts.path in FORECAST_ROUTES:
                 status, forecast = handle_forecast_read(
                     OperationsWorkspace(root), parts.path, parts.query

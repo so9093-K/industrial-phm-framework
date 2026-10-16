@@ -1,0 +1,20 @@
+{
+  "name": "industrial-phm-web-next",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.12"},
+  "scripts": {
+    "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "build": "node ./scripts/clean-dist.mjs && vite build"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/node": "22.20.2",
+    "svelte": "5.57.1",
+    "svelte-check": "4.7.6",
+    "typescript": "5.9.3",
+    "vite": "8.0.0"
+  }
+}
