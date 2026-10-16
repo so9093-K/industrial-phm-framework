@@ -120,6 +120,7 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         capture_status, archive = handle_outlook_captures_read(workspace, "asset_id=motor-01")
         assert capture_status == 200
         assert len(archive["captures"]) == 1
+        assert archive["captures"][0]["source_recheck"] == "same_measurement_projection"
         saved = archive["captures"][0]["snapshot"]["outlook"]
         assert saved["measurement_version"] == body["measurement_version"]
         assert saved["conditions"] == body["conditions"]
