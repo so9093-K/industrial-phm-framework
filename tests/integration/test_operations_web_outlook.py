@@ -117,9 +117,7 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
             },
         )
         assert same["capture_id"] == captured["capture_id"]
-        capture_status, archive = handle_outlook_captures_read(
-            workspace, "asset_id=motor-01"
-        )
+        capture_status, archive = handle_outlook_captures_read(workspace, "asset_id=motor-01")
         assert capture_status == 200
         assert len(archive["captures"]) == 1
         saved = archive["captures"][0]["snapshot"]["outlook"]
@@ -127,7 +125,8 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
         assert saved["conditions"] == body["conditions"]
         assert saved["record"] == body["record"]
         assert handle_outlook_captures_read(workspace, "asset_id=elsewhere")[1] == {
-            "schema_version": 1, "captures": []
+            "schema_version": 1,
+            "captures": [],
         }
         with pytest.raises(ValueError, match="changed before capture"):
             capture_outlook(
