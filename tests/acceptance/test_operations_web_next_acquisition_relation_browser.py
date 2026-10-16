@@ -141,26 +141,30 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                     "?view=acq-relation&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
-                pw.expect(page.get_by_role("heading", name="획득 회차 두 특징 관계 비교")
-                          ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="획득 회차 두 특징 관계 비교")
+                ).to_be_visible()
                 pw.expect(page.get_by_text("binding-a", exact=True)).to_be_visible()
                 pw.expect(page.get_by_role("table")).to_have_count(2)
-                pw.expect(page.get_by_role("status").filter(has_text="관계 없음(0)")
-                          ).to_have_count(2)
+                pw.expect(page.get_by_role("status").filter(has_text="관계 없음(0)")).to_have_count(
+                    2
+                )
                 assert "acq_a_from=1" in page.url
                 assert "acq_b_to=20" in page.url
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_label("X 특징")).to_have_value("rms")
                 response["binding"] = "binding-other"
                 page.get_by_role("button", name="동일 획득의 특징 짝 비교").click()
-                pw.expect(page.get_by_role("heading", name="획득 특징 관계 확인 실패")
-                          ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="획득 특징 관계 확인 실패")
+                ).to_be_visible()
                 assert page.get_by_role("table").count() == 0
                 response["binding"] = "binding-a"
                 response["failed"] = True
                 page.get_by_role("button", name="같은 조건 다시 조회").click()
-                pw.expect(page.get_by_role("heading", name="획득 특징 관계 확인 실패")
-                          ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="획득 특징 관계 확인 실패")
+                ).to_be_visible()
                 assert page.get_by_role("table").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
