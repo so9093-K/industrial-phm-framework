@@ -17,6 +17,10 @@ npm run build
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
 on the **same loopback origin** under `/web-next/` only after building it.
+Open `/web-next/` for asset observation and `/web-next/?view=signals&monitor_asset=...`
+for stored signal exploration. The latter is a partial workflow migration: one
+channel at a time, original semantics and bucket quality preserved, no model
+results or review writes.
 No Node process is required to serve the compiled output; the runtime does
 not install Node dependencies.
 
@@ -34,6 +38,10 @@ not install Node dependencies.
 - `src/components/AssetSelector.svelte`: semantic asset selection.
 - `src/components/ObservationDetails.svelte`: measured fact, quality/flow
   distinction and evidence navigation.
+- `src/components/SignalExplorer.svelte`: read-only asset/channel/range/anchor
+  selection and bounded, unconnected mean-bucket dots with a quality table.
+- `src/history.ts`: typed boundary for existing stored-history APIs; source,
+  measurement-point and interpretation identities are never merged.
 
 New workflow components must reuse these meanings and preserve keyboard
 focus, labels and screen-reader reading order. A status token is not evidence
