@@ -65,8 +65,7 @@ class OutlookCaptureStore:
             "snapshot TEXT NOT NULL)"
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS idx_capture_asset "
-            "ON capture(asset_id, captured_at DESC)"
+            "CREATE INDEX IF NOT EXISTS idx_capture_asset ON capture(asset_id, captured_at DESC)"
         )
         return connection
 
@@ -216,7 +215,7 @@ def handle_outlook_captures_read(
         if capture_id and not records:
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
         return HTTPStatus.OK, {"schema_version": 1, "captures": records}
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
-    except (OSError, sqlite3.Error, OutlookCaptureCorrupted):
+    except OSError, sqlite3.Error, OutlookCaptureCorrupted:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
