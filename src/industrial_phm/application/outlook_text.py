@@ -214,8 +214,6 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             if len(reached) < len(every)
             else ""
         )
-        if possible_count:
-            partly += f" · 나머지 {possible_count}가지에서는 예측 범위만 도달 가능"
         sentences.append(
             (label + "까지의 잔여수명은 " if name == "end" else label + "까지 ")
             + ("현재 설정으로 " + after(outlook, now) + ", " if now is not None else "")
@@ -224,6 +222,8 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             + partly
             + ("입니다." if name == "end" else " 남았습니다.")
         )
+        if possible_count:
+            sentences[-1] += f" 그 밖의 {possible_count}가지는 예측 범위에서만 도달 가능합니다."
     return sentences
 
 
