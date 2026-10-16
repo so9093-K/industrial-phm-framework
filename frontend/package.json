@@ -6,6 +6,7 @@
   "engines": {"node": ">=22.12"},
   "scripts": {
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "test": "node --experimental-strip-types --test src/*.test.ts",
     "build": "node ./scripts/clean-dist.mjs && vite build"
   },
   "devDependencies": {

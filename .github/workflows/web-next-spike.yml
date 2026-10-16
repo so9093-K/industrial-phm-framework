@@ -28,6 +28,8 @@ jobs:
         run: npm ci --prefix frontend --no-audit --no-fund
       - name: Type and Svelte checks
         run: npm run --prefix frontend check
+      - name: Read DTO parser regression tests
+        run: npm test --prefix frontend
       - name: Generate packaged assets
         run: npm run --prefix frontend build
       - name: Check generated manifest
