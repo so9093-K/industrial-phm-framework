@@ -12,7 +12,7 @@ import { initializeCsvStart, exploreExample } from "./csv-start.js";
 import { formatTime } from "./time.js";
 import { initializeSignalExplore } from "./signal-explore.js";
 import { initializeCapabilities } from "./capabilities.js";
-import { initializeForecast } from "./forecast.js";
+import { initializeForecast, refreshForecast } from "./forecast.js";
 import { initializeAnomalyExplore } from "./anomaly-explore.js";
 // Packaged Operations Web UI. All server strings enter the DOM as text, never HTML.
 // Source mutations are explicit and protected; monitoring reads never trigger analysis.
@@ -317,7 +317,8 @@ async function refresh() {
 byId("refresh").addEventListener("click",() => {
   if (document.body.dataset.view === "anomaly") {void refreshPhm();return;}
   if (document.body.dataset.view === "monitor") {void refreshMonitor({force: true});return;}
-  refresh();loadSources();loadRuntimeStatus();
+  if (document.body.dataset.view === "forecast") void refreshForecast();
+  void refresh();void loadSources();void loadRuntimeStatus();
 });
 byId("runtime-refresh").addEventListener("click",loadRuntimeStatus);
 onAssetChange(() => void selectAsset());

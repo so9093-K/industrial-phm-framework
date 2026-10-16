@@ -1,6 +1,9 @@
 # 0027. Condition and remaining-life outlook from stored analyses
 
-Status: Accepted (2026-10-15)
+Status: Accepted (2026-10-15) · Amended by [ADR-0028](0028-bind-forecast-and-outlook-to-one-measurement-projection.md)
+
+> ADR-0028은 독립 예측·전망 API의 공통 측정 버전과 기존 이탈·가능 도달 문구의 정확한 의미를 보완합니다.
+> 아래 원래 결정의 역사적 문맥은 유지합니다.
 
 Amends: [ADR-0026](0026-retire-remaining-life-estimation.md). ADR-0026이 폐기한 것은 RUL **모델**(Ridge·LSTM
 패키지와 학습·평가·추론 경로)과 별도 RUL 화면입니다. RUL을 **제품 콘텐츠**로 제공하지 않는다는 결정이 아닙니다.

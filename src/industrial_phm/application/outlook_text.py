@@ -146,6 +146,16 @@ def condition_reach(outlook: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "value": num(outlook["conditions"][name]),
             "already": states[0] == "already",
             "reached": any(state in {"expected", "already"} for state in states),
+            "possible": any(state == "possible" for state in states),
+            "direction": outlook["conditions"]["direction"],
+            "possible_offsets": {
+                READING[scenario["id"]]: (
+                    after(outlook, scenario["limits"][name]["earliest"])
+                    if scenario["limits"][name]["state"] == "possible"
+                    else None
+                )
+                for scenario in outlook["scenarios"]
+            },
             "expected_offsets": {
                 READING[scenario["id"]]: (
                     None
@@ -156,9 +166,15 @@ def condition_reach(outlook: dict[str, Any]) -> dict[str, dict[str, Any]]:
             },
         }
     readings = {
-        READING[scenario["id"]]: any(
-            reached["state"] in {"expected", "already"} for reached in scenario["limits"].values()
-        )
+        READING[scenario["id"]]: {
+            "reached": any(
+                reached["state"] in {"expected", "already"}
+                for reached in scenario["limits"].values()
+            ),
+            "possible": any(
+                reached["state"] == "possible" for reached in scenario["limits"].values()
+            ),
+        }
         for scenario in outlook["scenarios"]
     }
     return {"conditions": conditions, "readings": readings}
@@ -169,14 +185,16 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
     indicator, departure = outlook["degradation"], outlook["degradation"]["departure"]
     motion = "최근 " + rate_text(outlook, indicator["rate"]) + "씩 변하고 있습니다."
     if departure and departure["since"] is not None:
-        lead = place(outlook, departure["since"]) + "부터 기준 구간의 범위를 계속 벗어나 있고, "
-    elif departure and departure["outside"]:
         lead = (
-            f"기준 구간의 범위를 벗어난 값이 {num(departure['outside'])}개 있지만 "
-            "계속되지는 않았고, "
+            place(outlook, departure["since"])
+            + " 이후 값의 "
+            + one(departure["since_share"] * 100)
+            + "%가 초기 비교 범위 밖이며, "
         )
+    elif departure and departure["outside"]:
+        lead = f"초기 비교 범위를 벗어난 값이 {num(departure['outside'])}개이고, "
     else:
-        lead = "기준 구간의 범위 안에 있고, "
+        lead = "초기 비교 범위 밖인 값은 없고, "
     sentences = [lead + motion]
     for name in ("management", "end"):
         if outlook["conditions"][name] is None or not outlook["scenarios"]:
@@ -188,7 +206,19 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             continue
         reached = [item["expected"] for item in every if item["state"] == "expected"]
         if not reached:
-            sentences.append(label + "에는 " + search_text(outlook) + " 안에 닿지 않습니다.")
+            possible = [item for item in every if item["state"] == "possible"]
+            if possible:
+                edge = "하단" if outlook["conditions"]["direction"] == "lower" else "상단"
+                sentences.append(
+                    label
+                    + ": 중심 예측은 "
+                    + search_text(outlook)
+                    + " 내 미도달 · 일부 예측 범위 "
+                    + edge
+                    + "에서만 도달 가능."
+                )
+            else:
+                sentences.append(label + "에는 " + search_text(outlook) + " 안에 닿지 않습니다.")
             continue
         low, high = min(reached), max(reached)
         if low == high:
@@ -198,6 +228,7 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
         else:
             spread = span(low) + "–" + span(high)
         now = every[0]["expected"] if every[0]["state"] == "expected" else None
+        possible_count = sum(item["state"] == "possible" for item in every)
         partly = (
             f" ({len(every)}가지 중 {len(reached)}가지에서 도달)"
             if len(reached) < len(every)
@@ -211,6 +242,8 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             + partly
             + ("입니다." if name == "end" else " 남았습니다.")
         )
+        if possible_count:
+            sentences[-1] += f" 그 밖의 {possible_count}가지는 예측 범위에서만 도달 가능합니다."
     return sentences
 
 
@@ -282,11 +315,14 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
     if departure is not None:
         facts["departure"] = (
             (
-                place(outlook, departure["since"]) + "부터 기준 범위를 계속 벗어남"
+                place(outlook, departure["since"])
+                + " 이후 값의 "
+                + one(departure["since_share"] * 100)
+                + "%가 초기 비교 범위 밖"
                 if departure["since"] is not None
-                else f"기준 범위를 벗어난 값 {num(departure['outside'])}개 · 계속되지 않음"
+                else f"초기 비교 범위 밖인 값 {num(departure['outside'])}개"
                 if departure["outside"]
-                else "기준 범위를 벗어난 값 없음"
+                else "초기 비교 범위 밖인 값 없음"
             )
             + f" · 기준 범위는 기준 중앙값에서 변동폭의 {num(departure['threshold'])}배 안"
             + f" · 마지막 측정은 기준 변동폭의 {one(abs(departure['latest_distance']))}배 거리"
@@ -325,12 +361,14 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
             for scenario in scenarios
         ]
         reached = sum(scenario["limits"][name]["state"] == "expected" for scenario in scenarios)
+        possible = sum(scenario["limits"][name]["state"] == "possible" for scenario in scenarios)
         facts[name] = (
             ("잔여수명 · " if name == "end" else "")
             + condition_name(outlook, name)
             + "까지: "
             + "; ".join(cells)
             + f" ({len(scenarios)}가지 중 {reached}가지에서 도달 예상)"
+            + (f" · {possible}가지에서 예측 범위만 도달 가능" if possible else "")
             + (
                 " · 마지막 측정은 아직 도달하지 않음"
                 if scenarios[0]["limits"][name]["state"] != "already"

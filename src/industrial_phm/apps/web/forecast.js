@@ -3,7 +3,7 @@
 // ahead with an interval, the model's own reading of the history, the conditions and a check
 // against the signal's own recent past. The server computes; this screen draws.
 import { currentAsset, onAssetChange } from "./asset-context.js";
-import { clearOutlook, refreshOutlook } from "./outlook.js";
+import { clearOutlook, refreshOutlook, renderOutlook } from "./outlook.js";
 import { formatTime } from "./time.js";
 import { byId, clear, create, num } from "./web-utils.js";
 
@@ -19,7 +19,18 @@ const svgNode = (name, attributes = {}) => {
   for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value));
   return node;
 };
-let options = null, request = 0, loadedFor = "", shown = null, previous = null, showWholeScale = false;
+let options = null, request = 0, loadedFor = "", shown = null, previous = null, compareCandidate = null, showWholeScale = false;
+
+// Only a successful, synchronized result may be used by resize/navigation rendering.
+function invalidateResults() {
+  if (shown) compareCandidate = shown;
+  shown = null;previous = null;
+  clear(byId("forecast-result"));
+  const metrics = byId("forecast-detail-metrics");
+  if (metrics) clear(metrics);
+  byId("forecast-chart-section").hidden = true;
+  clearOutlook();
+}
 
 async function getJson(url) {
   const response = await fetch(url, {cache: "no-store", credentials: "same-origin"});
@@ -39,6 +50,11 @@ function remember(values) {
 const duration = (seconds) => seconds >= 86400 ? num(seconds / 86400) + "일" : seconds >= 3600 ? num(seconds / 3600) + "시간"
   : seconds >= 60 ? num(Math.round(seconds / 60)) + "분" : num(Math.round(seconds)) + "초";
 
+// Reload options as well as forecast/outlook: new stored measurements can change eligibility.
+export function refreshForecast() {
+  if (document.body.dataset.view === "forecast") void load();
+}
+
 export function initializeForecast() {
   onAssetChange(() => {loadedFor = "";clearOutlook();remember({forecast_series: "", forecast_horizon: "", forecast_threshold: "", forecast_end: "", forecast_direction: "", forecast_context_from: "", forecast_context_to: "", forecast_context_kind: "", forecast_unit: "", forecast_count: "", forecast_assumed_period: "", forecast_prior: "", forecast_range: "", forecast_training: "", forecast_seasonality: "", forecast_backtest: ""});if (document.body.dataset.view === "forecast") void load();});
   window.addEventListener("hashchange", () => {
@@ -54,9 +70,9 @@ export function initializeForecast() {
 async function load() {
   const asset = currentAsset(), ticket = ++request;
   loadedFor = asset;
-  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));clear(byId("forecast-result"));shown = null;previous = null;
+  clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));invalidateResults();compareCandidate = null;
   clear(byId("forecast-settings-root"));byId("forecast-settings").hidden = true;
-  clearOutlook();byId("forecast-chart-section").hidden = true;
+  byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
   state("전망할 수 있는 측정값을 확인합니다.");
   let found;
@@ -113,6 +129,7 @@ async function renderControls() {
 
   const drawHorizons = async () => {
     const ticket = ++request;
+    invalidateResults();
     const [kind, ...parts] = series.value.split("|");
     const query = new URLSearchParams({asset_id: currentAsset(), kind, series: parts.join("|")});
     const training = byId("forecast-training")?.value;
@@ -243,8 +260,22 @@ async function renderControls() {
 
 }
 
+// The two independently calculated API responses must describe the same last observation.
+function sameObservation(forecast, outlook) {
+  if (!forecast.measurement_version || forecast.measurement_version !== outlook.measurement_version) return false;
+  if (forecast.asset_id !== outlook.asset_id || forecast.kind !== outlook.kind ||
+      forecast.series !== outlook.series || forecast.axis !== outlook.axis ||
+      forecast.source_id !== outlook.source_id ||
+      (forecast.measurement_point_id || null) !== (outlook.measurement_point_id || null)) return false;
+  const last = forecast.history?.at(-1)?.[0], observed = outlook.record?.last;
+  if (forecast.axis === "acquisition") return Number.isFinite(last) && last === observed;
+  return typeof last === "string" && typeof observed === "string" &&
+    Number.isFinite(Date.parse(last)) && Date.parse(last) === Date.parse(observed);
+}
+
 async function run() {
   const asset = currentAsset(), ticket = ++request;
+  invalidateResults();
   const value = byId("forecast-series")?.value;
   if (!value) return;
   const [kind, ...rest] = value.split("|");
@@ -278,20 +309,41 @@ async function run() {
   if (end && Number.isFinite(Number(end))) outlookQuery.set("end_limit", end);
   for (const field of ["changepoint_prior_scale", "changepoint_range", "training_points", "seasonality", "assumed_period_seconds"])
     if (query.has(field)) outlookQuery.set(field, query.get(field));
-  void refreshOutlook(outlookQuery, contextText(kind));
   if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
-  state("예측을 계산합니다.");
+  // Neither result is presented until both calculations share an identical input projection.
+  const context = contextText(kind);
+  state("예측과 상태 전망을 계산합니다.");
   try {
-    const data = await getJson("/api/v1/forecast?" + query.toString());
-    if (ticket !== request || asset !== currentAsset()) return;
-    state("");
-    previous = shown && shown.asset_id === data.asset_id && shown.kind === data.kind
-      && shown.series === data.series && shown.axis === data.axis && shown.horizon === data.horizon
-      && shown.period_seconds === data.period_seconds && shown.horizon_count === data.horizon_count ? shown : null;
-    render(data);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const [data, outlook] = await Promise.all([
+        getJson("/api/v1/forecast?" + query.toString()),
+        refreshOutlook(outlookQuery, context, {deferRender: true, force: true}),
+      ]);
+      if (ticket !== request || asset !== currentAsset()) return;
+      if (!outlook) {
+        compareCandidate = null;
+        state("상태 전망을 계산하지 못했습니다. 새로고침해 주세요.", true);
+        return;
+      }
+      if (sameObservation(data, outlook)) {
+        state("");
+        previous = compareCandidate && compareCandidate.measurement_version === data.measurement_version
+          && compareCandidate.asset_id === data.asset_id && compareCandidate.kind === data.kind
+          && compareCandidate.series === data.series && compareCandidate.axis === data.axis
+          && compareCandidate.horizon === data.horizon && compareCandidate.period_seconds === data.period_seconds
+          && compareCandidate.horizon_count === data.horizon_count ? compareCandidate : null;
+        compareCandidate = null;
+        render(data);
+        renderOutlook(outlook, context);
+        return;
+      }
+      state("새 측정을 확인하며 예측과 전망을 다시 맞춥니다.");
+    }
+    clearOutlook();compareCandidate = null;
+    state("예측과 상태 전망의 측정 내용 버전이 다릅니다. 다시 새로고침해 주세요.", true);
   } catch (error) {
     if (ticket !== request) return;
-    clear(byId("forecast-result"));byId("forecast-chart-section").hidden = false;
+    clearOutlook();compareCandidate = null;
     state(error.status === 422 ? REASON[error.reason] || "이 측정값은 예측할 수 없습니다." : "예측을 계산하지 못했습니다.", true);
   }
 }

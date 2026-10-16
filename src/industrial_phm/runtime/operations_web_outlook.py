@@ -38,6 +38,7 @@ from industrial_phm.runtime.operations_web_forecast import (
     _ORIGIN,
     acquisition_points,
     history_points,
+    measurement_version,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -153,6 +154,7 @@ def condition_outlook(
     if len(pairs) < MIN_POINTS:
         raise ForecastUnavailable("few-points")
     times, values = [t for t, _ in pairs], [v for _, v in pairs]
+    version = measurement_version(asset_id, kind, series, times, values, meta)
     acquisitions = kind == "acquisition"
     period = meta.get("period_seconds") or 1.0
     span = (times[-1] - times[0]).total_seconds()
@@ -255,6 +257,7 @@ def condition_outlook(
     ).hexdigest()
     body = {
         "data_version": revision,
+        "measurement_version": version,
         "schema_version": 1,
         "asset_id": asset_id,
         "kind": kind,

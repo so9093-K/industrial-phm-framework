@@ -59,6 +59,10 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
             "/api/v1/outlook", **query, management_limit="16", end_limit="18", direction="upper"
         )
         assert status == 200 and body["axis"] == "time" and body["offset_unit"] == "second"
+        f_status, forecast = get("/api/v1/forecast", **query, horizon="1h")
+        assert f_status == 200
+        assert forecast["measurement_version"] == body["measurement_version"]
+        assert len(body["measurement_version"]) == 64
         indicator = body["degradation"]
         assert indicator["baseline"]["median"] == pytest.approx(10.001, abs=0.002)
         assert indicator["change_ratio"] > 0.2
@@ -120,11 +124,27 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert status == 200 and body["axis"] == "acquisition"
         assert body["offset_unit"] == "acquisition" and body["rate_unit"] == "acquisition"
         assert body["record"] == {"first": 1, "last": 64, "points": 64}
+        f_status, forecast = get(
+            "/api/v1/forecast",
+            asset_id="bearing-a",
+            kind="acquisition",
+            series="feature.Horizontal_vibration_signals.rms",
+            horizon="count",
+            horizon_count="20",
+        )
+        assert f_status == 200
+        assert forecast["measurement_version"] == body["measurement_version"]
         # Half of the 63 acquisition intervals recorded, rounded down.
         assert body["search"] == {"seconds": 1860.0, "acquisitions": 31, "until": 95}
         indicator = body["degradation"]
         assert indicator["rate"] == pytest.approx(0.06 * 1.118, rel=0.02)
         assert 41 <= indicator["departure"]["since"] <= 43
+        assert 0.8 <= indicator["departure"]["since_share"] <= 1
+        description = " ".join(body["sentences"])
+        assert "%가 초기 비교 범위 밖" in description
+        assert "계속 벗어나" not in description
+        assert "%가 초기 비교 범위 밖" in body["facts"]["departure"]
+        assert "계속 벗어나" not in body["facts"]["departure"]
         linear = body["scenarios"][-1]["limits"]
         # From 2.17 at #64, 0.067 an acquisition: 2.4 is 4 acquisitions on, 3.0 is 13.
         assert linear["management"] == {

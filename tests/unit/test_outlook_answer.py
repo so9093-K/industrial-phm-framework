@@ -43,6 +43,7 @@ def _outlook() -> dict[str, Any]:
                 "threshold": 3.5,
                 "outside": 48,
                 "since": 76,
+                "since_share": 0.86,
                 "latest_distance": 81.2,
             },
         },
@@ -92,10 +93,73 @@ def _outlook() -> dict[str, Any]:
 PROVIDER = ExplanationProvider()
 
 
+@pytest.mark.parametrize("direction,edge", [("upper", "상단"), ("lower", "하단")])
+def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edge: str) -> None:
+    outlook = _outlook()
+    outlook["conditions"]["direction"] = direction
+    for scenario in outlook["scenarios"]:
+        scenario["limits"]["management"] = {
+            "state": "possible" if scenario["id"] in {"current", "responsive"} else "beyond",
+            "expected": None,
+            "earliest": 4 if scenario["id"] in {"current", "responsive"} else None,
+            "latest": None,
+        }
+    sentences = outlook_sentences(outlook)
+    assert f"일부 예측 범위 {edge}에서만 도달 가능" in sentences[1]
+    assert "닿지 않습니다" not in sentences[1]
+    facts = outlook_facts(outlook)
+    assert "0가지에서 도달 예상" in facts["management"]
+    assert "2가지에서 예측 범위만 도달 가능" in facts["management"]
+    assert "예측 범위에서만 4개 획득 뒤 도달" in facts["management"]
+
+
+@pytest.mark.parametrize(
+    ("utterance", "accepted"),
+    [
+        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달할 수 있습니다.", True),
+        ("관리 상한 8에는 예측 범위 상단에서만 4개 획득 뒤 도달 가능합니다.", True),
+        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달 가능합니다.", False),
+        ("관리 상한 8에는 4개 획득 뒤 도달합니다.", False),
+        ("관리 상한 8에는 예측 범위 하단에서만 4개 획득 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 예측 범위 상단에서만 5개 획득 뒤 도달할 수 있습니다.", False),
+        ("관리 상한 8에는 기간 내 중심 예측으로 도달할 것으로 예상됩니다.", False),
+    ],
+)
+def test_possible_reach_is_accepted_only_as_qualified_range_claim(
+    utterance: str, accepted: bool
+) -> None:
+    outlook = _outlook()
+    for scenario in outlook["scenarios"]:
+        scenario["limits"]["management"] = {
+            "state": "possible" if scenario["id"] == "current" else "beyond",
+            "expected": None,
+            "earliest": 4 if scenario["id"] == "current" else None,
+            "latest": None,
+        }
+    facts = outlook_facts(outlook)
+    issues = outlook_answer.text_issues(utterance, facts, outlook_answer.condition_reach(outlook))
+    assert (not issues) is accepted, issues
+
+
+def test_expected_and_possible_are_counted_separately() -> None:
+    outlook = _outlook()
+    outlook["scenarios"][1]["limits"]["management"] = {
+        "state": "possible",
+        "expected": None,
+        "earliest": 39,
+        "latest": None,
+    }
+    facts = outlook_facts(outlook)
+    assert "3가지에서 도달 예상" in facts["management"]
+    assert "1가지에서 예측 범위만 도달 가능" in facts["management"]
+    assert "4가지 중 3가지에서 도달" in outlook_sentences(outlook)[1]
+    assert "그 밖의 1가지는 예측 범위에서만 도달 가능합니다" in outlook_sentences(outlook)[1]
+
+
 def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> None:
     outlook = _outlook()
     assert outlook["sentences"] == [
-        "#76부터 기준 구간의 범위를 계속 벗어나 있고, 최근 획득당 +0.021씩 변하고 있습니다.",
+        "#76 이후 값의 86%가 초기 비교 범위 밖이며, 최근 획득당 +0.021씩 변하고 있습니다.",
         "관리 상한 8까지 현재 설정으로 56개 획득, 읽는 방법에 따라 36–56개 획득 "
         "(4가지 중 3가지에서 도달) 남았습니다.",
         "종료 기준 15에는 61개 획득 안에 닿지 않습니다.",

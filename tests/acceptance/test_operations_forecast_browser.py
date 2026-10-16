@@ -77,7 +77,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(figures).to_contain_text("관리·종료 기준을 입력하면 계산")
                 details = panel.locator("#outlook-evidence .outlook-details")
                 pw.expect(details).to_contain_text("변화 속도")
-                pw.expect(details).to_contain_text("기준 범위 이탈")
+                pw.expect(details).to_contain_text("초기 비교 범위 이탈")
                 pw.expect(panel.get_by_role("button", name="24시간")).to_be_disabled()
                 pw.expect(panel.get_by_role("button", name="1시간")).to_have_attribute(
                     "aria-pressed", "true"
@@ -88,7 +88,7 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 panel.get_by_role("button", name="기준 적용").click()
                 # The margin is searched past the chart's horizon: 0.02 A a minute from 13.58 A.
                 pw.expect(figures).to_contain_text("관리 상한 14.3까지", timeout=30000)
-                pw.expect(figures).to_contain_text("잔여수명 · 종료 기준 15")
+                pw.expect(figures).to_contain_text("조건부 잔여수명 · 종료 기준 15")
                 pw.expect(figures).to_contain_text("분 뒤")
                 pw.expect(outlook.locator(".outlook-lead")).to_contain_text("읽는 방법에 따라")
                 pw.expect(panel.locator(".outlook-scenarios tbody tr")).to_have_count(4)
@@ -158,7 +158,9 @@ def test_a_stored_signal_is_forecast_with_its_level_and_its_own_check(
                 pw.expect(evidence).to_contain_text("이상 탐지에서 고른 구간", timeout=30000)
                 # The evidence opens the baseline-versus-recent comparison of the same signal.
                 panel.locator("#forecast-settings > summary").click()
-                evidence.get_by_role("link", name="기준 구간과 최근 구간 비교").click()
+                panel.locator("#outlook-more").get_by_role(
+                    "link", name="기준 구간과 최근 구간 비교"
+                ).click()
                 pw.expect(page.locator("#explore-state")).to_contain_text("구간 A", timeout=30000)
 
                 # An old remaining-life link opens its replacement.
