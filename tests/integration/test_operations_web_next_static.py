@@ -33,9 +33,7 @@ def _server(root: Path) -> Iterator[int]:
 def _get(port: int, path: str, *, host: str | None = None) -> tuple[int, dict[str, str], bytes]:
     connection = HTTPConnection("127.0.0.1", port, timeout=6)
     try:
-        connection.request(
-            "GET", path, headers={"Host": host or f"127.0.0.1:{port}"}
-        )
+        connection.request("GET", path, headers={"Host": host or f"127.0.0.1:{port}"})
         response = connection.getresponse()
         headers = {key.lower(): value for key, value in response.getheaders()}
         return response.status, headers, response.read()

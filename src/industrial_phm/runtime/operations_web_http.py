@@ -228,7 +228,7 @@ def create_operations_web_read_server(
                     self._error(HTTPStatus.NOT_FOUND, "not_found")
                     return
                 body = package.joinpath(*name.split("/")).read_bytes()
-            except (OSError, UnicodeError, ValueError):
+            except OSError, UnicodeError, ValueError:
                 # No Node build is needed to run the existing /web/ product.
                 self._error(HTTPStatus.NOT_FOUND, "not_found")
                 return

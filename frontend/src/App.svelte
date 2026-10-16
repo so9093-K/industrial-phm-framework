@@ -9,7 +9,7 @@
   let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
   let controller: AbortController | null = null;
 
-  let selected: Asset | undefined = $derived(snapshot?.assets.find((asset) => asset.assetId === selectedId));
+  let selected: Asset | undefined = $derived.by(() => snapshot?.assets.find((asset: Asset) => asset.assetId === selectedId));
 
   function selectAsset(assetId: string) {
     selectedId = assetId;
