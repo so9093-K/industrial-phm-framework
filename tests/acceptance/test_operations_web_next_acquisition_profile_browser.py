@@ -153,7 +153,9 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                 assert "acquisition_feature=feature.R.rms" in page.url
                 assert "feature_b_from=11" in page.url
                 page.get_by_label("비교할 획득 특징").select_option("feature.R.mean")
-                pw.expect(page.get_by_role("heading", name="feature.R.mean · feature.R.mean")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="feature.R.mean · feature.R.mean")
+                ).to_be_visible()
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_label("비교할 획득 특징")).to_have_value("feature.R.mean")
                 error["enabled"] = True

@@ -56,7 +56,11 @@
       if(!response||!response.features.length){listState="empty";return;}
       source=response;
       if(!response.features.some(x=>x.id===selected))selected=response.features[0].id;
-      try{spans=savedSpans(defaultSpans(response),response);}
+      try{
+        const bounds={source:response.sourceId,binding:response.bindingId,
+          first:response.first,last:response.last,count:response.count};
+        spans=savedSpans(defaultSpans(bounds),response);
+      }
       catch(cause:unknown){
         listState="unavailable";
         message=cause instanceof Error?cause.message:"비교할 획득 회차가 부족합니다.";
