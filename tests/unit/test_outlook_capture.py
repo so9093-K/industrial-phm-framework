@@ -13,8 +13,8 @@ from industrial_phm.application.maintenance_review import FindingReviewAction
 from industrial_phm.runtime.operations_web_outlook_capture import (
     OutlookCaptureCorrupted,
     OutlookCaptureStore,
+    handle_outlook_captures_read,
 )
-from industrial_phm.runtime.operations_web_outlook_capture import handle_outlook_captures_read
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
