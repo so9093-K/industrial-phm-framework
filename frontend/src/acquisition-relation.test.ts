@@ -47,10 +47,8 @@ test("zero pairs are not mistaken for a zero correlation or a diagnosis",()=>{
   assert.equal(result.groups[0].pairs,0);
   assert.equal(result.groups[0].pearson,null);
   const invalid=payload();
-  invalid.groups[0].pearson=0.2;
-  invalid.groups[0].pair_count=0;
-  invalid.groups[0].x_usable_count=0;
-  invalid.groups[0].y_usable_count=0;
-  invalid.groups[0].points=[];
-  assert.throws(()=>parseAcquisitionRelation(invalid,"a",source,"rms","peak",spans),/계수/);
+  const fake={...invalid.groups[0],pearson:0.2,pair_count:0,
+    x_usable_count:0,y_usable_count:0,points:[]};
+  assert.throws(()=>parseAcquisitionRelation({...invalid,groups:[fake,invalid.groups[1]]},
+    "a",source,"rms","peak",spans),/계수/);
 });
