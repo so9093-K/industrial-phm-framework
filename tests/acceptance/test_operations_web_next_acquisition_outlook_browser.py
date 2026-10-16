@@ -126,7 +126,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 def forecast(route):
                     query = matched_query(route)
                     assert query["horizon"] == ["count"]
-                    assert query["horizon_count"] == ["20"]
+                    assert query["horizon_count"] == ["5"]
                     route.fulfill(
                         status=200,
                         content_type="application/json",
@@ -134,11 +134,11 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                             {
                                 **base_body(selected["forecast_version"]),
                                 "horizon": "count",
-                                "horizon_count": 20,
+                                "horizon_count": 5,
                                 "meaning": (
                                     "stored-flow-continued-not-failure-time-or-remaining-life"
                                 ),
-                                "forecast": [[64, 2.2, 2.0, 2.4], [84, 3.4, 3.2, 3.8]],
+                                "forecast": [[64, 2.2, 2.0, 2.4], [69, 3.4, 3.2, 3.8]],
                             }
                         ),
                     )
@@ -213,7 +213,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     pw.expect(
                         page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)
                     ).to_be_visible()
-                assert "acq_forecast_count=20" in page.url
+                assert "acq_forecast_count=5" in page.url
                 # Even if the observed version is unchanged, a different
                 # binding cannot inherit the prior result.
                 selected["binding"] = "binding-changed"
