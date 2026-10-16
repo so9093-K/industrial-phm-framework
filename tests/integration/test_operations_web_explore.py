@@ -201,5 +201,23 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
             )[0]
             == 404
         )
+        # Model-free comparison uses the same stored evidence as signal exploration.
+        status, departures = get(
+            "/api/v1/explore/anomaly",
+            asset_id="motor-01",
+            series=["current"],
+            baseline="first-30",
+        )
+        assert status == 200
+        assert departures["meaning"] == "departures-from-a-chosen-baseline-not-fault-diagnosis"
+        assert departures["asset_id"] == "motor-01"
+        assert departures["series"] == ["current"]
+        assert departures["baseline"]["name"] == "first-30"
+        assert departures["channels"][0]["state"] == "scored"
+        assert departures["units"]["current"] == "A"
+        assert departures["interval_count"] > 0
+        assert all(interval["channel"] == "current" for interval in departures["intervals"])
+        missing_status, missing = get("/api/v1/explore/anomaly", asset_id="unknown-asset")
+        assert missing_status == 404 and missing["error"] == "nothing_to_explore"
     finally:
         stop()

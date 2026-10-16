@@ -127,6 +127,11 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 pw.expect(page.get_by_role("heading", name="설비 신호 탐색")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="R · source-2")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("link", name="이 신호의 기준 구간 이탈 조사")
+                ).to_have_attribute(
+                    "href", "/web-next/?view=departures&monitor_asset=motor-a&monitor_channel=R"
+                )
                 pw.expect(page.locator("svg circle")).to_have_count(2)
                 page.get_by_text("시간별 평균·결측·원본 품질 확인").first.click()
                 pw.expect(page.get_by_role("table").first).to_contain_text("결측")

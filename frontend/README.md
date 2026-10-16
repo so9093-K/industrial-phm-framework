@@ -40,6 +40,12 @@ not install Node dependencies.
   distinction and evidence navigation.
 - `src/components/SignalExplorer.svelte`: read-only asset/channel/range/anchor
   selection and bounded, unconnected mean-bucket dots with a quality table.
+- `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
+  deviation exploration (stored bucket means, not trained model outputs).
+- `src/departures.ts`: strict asset/channel/baseline and server-meaning DTO
+  validation; missing evidence, no threshold departures and failed reads differ.
+  The endpoint does not expose the underlying source/point/interpretation identity.
+  Use stored signal investigation to inspect provenance; do not infer fault health.
 - `src/history.ts`: typed boundary for existing stored-history APIs; source,
   measurement-point and interpretation identities are never merged.
 
