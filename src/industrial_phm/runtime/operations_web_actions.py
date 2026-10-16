@@ -15,6 +15,7 @@ from industrial_phm.runtime.operations_web_opcua import (
     register_local_opcua,
 )
 from industrial_phm.runtime.operations_web_outlook_briefing import request_outlook_briefing
+from industrial_phm.runtime.operations_web_outlook_capture import capture_outlook
 from industrial_phm.runtime.operations_web_phm_explanation import (
     request_phm_explanation,
     request_phm_review,
@@ -57,6 +58,7 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/phm/reviews/request",
         "/api/v1/phm/bindings/create",
         "/api/v1/outlook/briefings/request",
+        "/api/v1/outlook/captures/confirm",
         "/api/v1/reviews/request",
         "/api/v1/reviews/action",
         "/api/v1/demo/synthetic/start",
@@ -79,6 +81,7 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
         "/api/v1/phm/reviews/request",
         # Briefings ask the configured model in the supervisor's background.
         "/api/v1/outlook/briefings/request",
+        "/api/v1/outlook/captures/confirm",
         # Model connection changes what the supervisor's analysis runner executes.
         "/api/v1/phm/bindings/create",
         "/api/v1/demo/synthetic/start",
@@ -117,6 +120,8 @@ def execute_web_source_action(
         return connect_web_phm_model(root, payload)
     if route == "/api/v1/outlook/briefings/request":
         return request_outlook_briefing(root, payload)
+    if route == "/api/v1/outlook/captures/confirm":
+        return capture_outlook(root, payload)
     if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
         return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":
