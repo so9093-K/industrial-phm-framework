@@ -242,6 +242,12 @@ def test_attention_actions_open_the_matching_problem_with_visible_context(
                 pw.expect(model).to_be_focused()
                 pw.expect(model).to_contain_text("분석 거부")
                 pw.expect(model.locator("details")).to_have_attribute("open", "")
+                # A background refresh may replace the model article: retain the
+                # operator's focus and expanded evidence on the same binding.
+                with page.expect_response("**/api/v1/phm/monitor"):
+                    pw.expect(model).to_be_focused()
+                pw.expect(model).to_be_focused()
+                pw.expect(model.locator("details")).to_have_attribute("open", "")
                 box = model.bounding_box()
                 assert box and 0 <= box["y"] < 900
                 deliver(workspace, tmp_path / "waves", 4, 0.6)
