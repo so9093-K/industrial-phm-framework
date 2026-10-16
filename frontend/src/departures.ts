@@ -150,7 +150,13 @@ export async function readDepartures(
   const response = await fetch("/api/v1/explore/anomaly?" + query, {
     signal, cache: "no-store", credentials: "same-origin",
   });
-  if (response.status === 404) throw new NoStoredEvidenceError("해당 설비의 저장된 비교 근거가 없습니다.");
+  if (response.status === 404) {
+    const error = await response.json().catch(() => null) as unknown;
+    if (obj(error)?.error === "nothing_to_explore") {
+      throw new NoStoredEvidenceError("해당 설비의 저장된 비교 근거가 없습니다.");
+    }
+    throw new Error("조회 경로를 확인할 수 없습니다. 근거가 없다는 뜻은 아닙니다.");
+  }
   if (!response.ok) throw new Error("기준 이탈 분석 근거를 읽지 못했습니다. 조회 오류를 정상 상태로 해석하지 않습니다.");
   return parseDepartures(await response.json() as unknown, assetId, series, baseline);
 }
