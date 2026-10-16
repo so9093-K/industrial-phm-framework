@@ -5,11 +5,13 @@
   import ObservationDetails from "./components/ObservationDetails.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
+  import SignalExplorer from "./components/SignalExplorer.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
+  const signalView = new URLSearchParams(location.search).get("view") === "signals";
   let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
   let controller: AbortController | null = null;
   let selected: Asset | undefined = $derived.by(
@@ -17,9 +19,11 @@
   );
 
   function selectAsset(assetId: string) {
+    const previousAssetId = selectedId;
     selectedId = assetId;
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);
+    if (assetId !== previousAssetId) url.searchParams.delete("monitor_channel");
     history.replaceState(history.state, "", url);
   }
 
@@ -65,7 +69,7 @@
 </script>
 
 <svelte:head>
-  <title>Industrial PHM · 관측 현황 구조 검증</title>
+  <title>Industrial PHM · {signalView ? "저장 신호 탐색" : "관측 현황"} 구조 검증</title>
 </svelte:head>
 
 <a class="skip" href="#main">본문으로 건너뛰기</a>
@@ -74,15 +78,16 @@
     <div class="brand">Industrial PHM <small>Operations / UI 실험</small></div>
     <nav aria-label="화면 바로가기">
       <a href="/web/">현재 운영 화면</a>
-      <a href="/web-next/" aria-current="page">새 관측 화면 검증</a>
+      <a href={selectedId ? "/web-next/?monitor_asset=" + encodeURIComponent(selectedId) : "/web-next/"} aria-current={signalView ? undefined : "page"}>새 관측 화면 검증</a>
+      <a href={selectedId ? "/web-next/?view=signals&monitor_asset=" + encodeURIComponent(selectedId) : "/web-next/?view=signals"} aria-current={signalView ? "page" : undefined}>저장 신호 탐색</a>
     </nav>
     <p class="note">독립 읽기 전용 화면입니다. 새 분석·판정 기능이 아닙니다.</p>
   </aside>
   <main id="main" tabindex="-1">
     <PageHeading
-      eyebrow="관측 · 사실 확인"
-      title="설비 관측 현황"
-      description="마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."
+      eyebrow={signalView ? "설비 조사 · 저장된 측정" : "관측 · 사실 확인"}
+      title={signalView ? "설비 신호 탐색" : "설비 관측 현황"}
+      description={signalView ? "선택한 신호의 원본 의미·시간 구간·품질을 구분해서 확인합니다." : "마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다."}
       loading={loadState === "loading"}
       onRefresh={() => void refresh()}
     />
@@ -115,7 +120,13 @@
       {:else}
         <div class="workspace">
           <AssetSelector assets={snapshot.assets} {selectedId} onSelect={selectAsset} {observed} />
-          <ObservationDetails asset={selected} {observed} {detailUrl} />
+          {#if signalView && selected}
+            {#key selected.assetId}
+              <SignalExplorer assetId={selected.assetId} />
+            {/key}
+          {:else}
+            <ObservationDetails asset={selected} {observed} {detailUrl} />
+          {/if}
         </div>
       {/if}
     {/if}

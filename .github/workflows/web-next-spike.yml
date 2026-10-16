@@ -7,6 +7,7 @@ on:
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/acceptance/test_operations_web_next_browser.py"
+      - "tests/acceptance/test_operations_web_next_signal_browser.py"
       - ".github/workflows/web-next-spike.yml"
 
 permissions:
@@ -71,4 +72,6 @@ jobs:
           uv pip install --python .venv/bin/python "playwright>=1.56,<2"
           uv run --no-sync python -m playwright install --with-deps chromium
       - name: Web-next Chromium user journey
-        run: uv run --no-sync pytest tests/acceptance/test_operations_web_next_browser.py
+        run: >-
+          uv run --no-sync pytest tests/acceptance/test_operations_web_next_browser.py
+          tests/acceptance/test_operations_web_next_signal_browser.py
