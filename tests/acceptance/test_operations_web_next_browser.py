@@ -106,9 +106,7 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
             try:
-                page = browser.new_page(
-                    viewport={"width": 1024, "height": 900}, locale="ko-KR"
-                )
+                page = browser.new_page(viewport={"width": 1024, "height": 900}, locale="ko-KR")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(
