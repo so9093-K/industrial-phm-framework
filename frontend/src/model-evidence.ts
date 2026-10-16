@@ -160,7 +160,7 @@ export function parseModelRun(raw:unknown,binding:ModelBinding,expected:StepPoin
     pointId:point,packageId:binding.packageId,position:step.position,runId:step.runId,
     state:step.state,stepKey:step.stepKey,changeSeq:step.changeSeq,
     reason:step.reason,replay:row.replay,eventStart:time(row.event_start),
-    eventEnd:time(row.event_end),processedAt:time(row.processed_at)??"",
+    eventEnd:time(row.event_end),processedAt,
     evidenceKind:binding.stepKind,inputReference:ref,output,features};
 }
 async function get(url:string,signal:AbortSignal):Promise<unknown>{
