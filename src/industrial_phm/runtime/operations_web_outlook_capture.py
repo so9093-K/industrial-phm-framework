@@ -125,7 +125,14 @@ class OutlookCaptureStore:
             # with identical observations and options. Preserve the first saved bytes.
         return {"capture_id": identifier, "captured_at": stored[2]}
 
-    def list_for(self, asset_id: str, *, capture_id: str | None = None) -> list[dict[str, Any]]:
+    def list_for(
+        self,
+        asset_id: str,
+        *,
+        capture_id: str | None = None,
+        before_id: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
         # Listing is read-only even in standalone Web previews.
@@ -137,11 +144,28 @@ class OutlookCaptureStore:
                     (asset_id, capture_id),
                 ).fetchall()
             else:
-                records = connection.execute(
-                    "SELECT id, captured_at, digest, snapshot FROM capture "
-                    "WHERE asset_id=? ORDER BY captured_at DESC LIMIT 20",
-                    (asset_id,),
-                ).fetchall()
+                cursor = None
+                if before_id:
+                    cursor = connection.execute(
+                        "SELECT captured_at, id FROM capture WHERE asset_id=? AND id=?",
+                        (asset_id, before_id),
+                    ).fetchone()
+                    if cursor is None:
+                        raise LookupError("capture page cursor does not belong to asset")
+                if cursor is None:
+                    records = connection.execute(
+                        "SELECT id, captured_at, digest, snapshot FROM capture "
+                        "WHERE asset_id=? ORDER BY captured_at DESC, id DESC LIMIT ?",
+                        (asset_id, limit),
+                    ).fetchall()
+                else:
+                    records = connection.execute(
+                        "SELECT id, captured_at, digest, snapshot FROM capture "
+                        "WHERE asset_id=? AND (captured_at < ? "
+                        "OR (captured_at = ? AND id < ?)) "
+                        "ORDER BY captured_at DESC, id DESC LIMIT ?",
+                        (asset_id, cursor[0], cursor[0], cursor[1], limit),
+                    ).fetchall()
         result = []
         for identifier, captured_at, digest, rendered in records:
             if _digest(rendered) != digest:
@@ -153,7 +177,11 @@ class OutlookCaptureStore:
                 )
             except (ValueError, TypeError, KeyError) as error:
                 raise OutlookCaptureCorrupted("invalid captured evidence shape") from error
-            if identifier != expected_id or snapshot["outlook"]["asset_id"] != asset_id:
+            if identifier != expected_id:
+                raise OutlookCaptureCorrupted("stored outlook identity mismatch")
+            if not isinstance(snapshot.get("outlook"), dict):
+                raise OutlookCaptureCorrupted("invalid captured evidence shape")
+            if snapshot["outlook"].get("asset_id") != asset_id:
                 raise OutlookCaptureCorrupted("stored outlook identity mismatch")
             result.append(
                 {
@@ -378,29 +406,40 @@ def handle_outlook_captures_read(
         if len(raw_query) > 800:
             raise ValueError("capture query too long")
         query = parse_qs(raw_query, strict_parsing=True)
-        if set(query) - {"asset_id", "capture_id"} or any(
+        if set(query) - {"asset_id", "capture_id", "before_id"} or any(
             len(values) != 1 for values in query.values()
         ):
             raise ValueError("invalid capture query")
         asset_id = query.get("asset_id", [""])[0]
         capture_id = query.get("capture_id", [""])[0] or None
-        if not 1 <= len(asset_id) <= 512 or (
-            capture_id is not None
-            and (
-                not capture_id.startswith("outlook-capture-")
-                or len(capture_id) != len("outlook-capture-") + 64
-            )
-        ):
-            raise ValueError("invalid capture identity")
-        records = OutlookCaptureStore(workspace.outlook_capture_path).list_for(
-            asset_id, capture_id=capture_id
+        before_id = query.get("before_id", [""])[0] or None
+        if capture_id and before_id:
+            raise ValueError("capture_id and before_id cannot be combined")
+        for identifier in (capture_id, before_id):
+            if identifier and (
+                not identifier.startswith("outlook-capture-")
+                or len(identifier) != len("outlook-capture-") + 64
+                or any(char not in "0123456789abcdef" for char in identifier[16:])
+            ):
+                raise ValueError("invalid capture identity")
+        if not 1 <= len(asset_id) <= 512:
+            raise ValueError("invalid asset identity")
+        page = OutlookCaptureStore(workspace.outlook_capture_path).list_for(
+            asset_id, capture_id=capture_id, before_id=before_id, limit=21
         )
-        if capture_id and not records:
+        if capture_id and not page:
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
+        records = page[:20]
         for item in records:
             item["source_recheck"] = current_measurement_recheck(workspace, item["snapshot"])
-        return HTTPStatus.OK, {"schema_version": 1, "captures": records}
+        return HTTPStatus.OK, {
+            "schema_version": 1,
+            "captures": records,
+            "next_before": records[-1]["capture_id"] if len(page) > 20 else None,
+        }
     except ValueError, TypeError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
+    except LookupError:
+        return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
     except OSError, sqlite3.Error, OutlookCaptureCorrupted:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
