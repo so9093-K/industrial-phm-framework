@@ -58,6 +58,7 @@
     traceRequest?.abort();resultRequest?.abort();
     const matched=bindings.find(item=>item.bindingId===bindingId);
     if(!matched)return;
+    if(binding && binding.bindingId!==matched.bindingId)selectedPosition="";
     binding=matched;selectedBinding=bindingId;trace=null;selectedStep=null;result=null;
     traceState="loading";detailState="empty";error="";
     const request=new AbortController();traceRequest=request;
