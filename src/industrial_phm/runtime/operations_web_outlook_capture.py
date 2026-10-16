@@ -16,13 +16,12 @@ from typing import Any, cast
 from urllib.parse import parse_qs
 from uuid import UUID
 
+from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewStatus,
     next_human_review_status,
 )
-
-from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -211,7 +210,9 @@ class OutlookCaptureStore:
                     raise WebReviewConflict("review event identity conflicts with saved action")
                 outcome = self._review_on_connection(connection, capture_id)
                 return {"event_id": event_id, **outcome}
-            state = FindingReviewStatus(self._review_on_connection(connection, capture_id)["status"])
+            state = FindingReviewStatus(
+                self._review_on_connection(connection, capture_id)["status"]
+            )
             try:
                 next_human_review_status(state, action)
             except ValueError as error:
