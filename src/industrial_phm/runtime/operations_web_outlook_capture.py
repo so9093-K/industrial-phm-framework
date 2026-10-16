@@ -158,9 +158,7 @@ class OutlookCaptureStore:
         return result
 
     @staticmethod
-    def _review_on_connection(
-        connection: sqlite3.Connection, capture_id: str
-    ) -> dict[str, Any]:
+    def _review_on_connection(connection: sqlite3.Connection, capture_id: str) -> dict[str, Any]:
         rows = connection.execute(
             "SELECT event_id, action, note, recorded_at FROM review_event "
             "WHERE capture_id=? ORDER BY rowid",
@@ -240,7 +238,7 @@ def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str,
     if not 1 <= len(asset) <= 512 or not capture.startswith("outlook-capture-"):
         raise ValueError("invalid outlook review identity")
     if len(capture) != len("outlook-capture-") + 64 or any(
-        char not in "0123456789abcdef" for char in capture[len("outlook-capture-"):]
+        char not in "0123456789abcdef" for char in capture[len("outlook-capture-") :]
     ):
         raise ValueError("invalid captured evidence ID")
     if UUID(event_id).version != 4 or not 0 <= len(note) <= 1000:
