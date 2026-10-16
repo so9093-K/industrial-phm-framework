@@ -12,8 +12,8 @@ import base64
 import binascii
 import json
 import os
-import secrets
 import re
+import secrets
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -391,7 +391,9 @@ def create_operations_web_read_server(
             parts = urlsplit(self.path)
             if parts.path == "/web-next/" or parts.path.startswith("/web-next/assets/"):
                 relative = (
-                    "index.html" if parts.path == "/web-next/" else parts.path.removeprefix("/web-next/")
+                    "index.html"
+                    if parts.path == "/web-next/"
+                    else parts.path.removeprefix("/web-next/")
                 )
                 self._send_web_next_asset(relative)
                 return

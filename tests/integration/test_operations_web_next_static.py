@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from contextlib import contextmanager
 from http.client import HTTPConnection
 from importlib.resources import files
 from pathlib import Path
 from threading import Thread
-from typing import Iterator
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server

@@ -3,7 +3,7 @@
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
-  let state: LoadState = $state("loading");
+  let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
   let selectedId = $state(new URLSearchParams(location.search).get("monitor_asset") ?? "");
@@ -22,14 +22,14 @@
     controller?.abort();
     const pending = new AbortController();
     controller = pending;
-    state = "loading";
+    loadState = "loading";
     error = "";
     snapshot = null;
     try {
       const result = await readMonitor(pending.signal);
       if (pending.signal.aborted) return;
       snapshot = result;
-      state = result.assets.length ? "ready" : "empty";
+      loadState = result.assets.length ? "ready" : "empty";
       if (!result.assets.some((asset) => asset.assetId === selectedId)) {
         if (!selectedId && result.assets.length) selectAsset(result.assets[0].assetId);
         else if (selectedId) selectedId = "";
@@ -37,7 +37,7 @@
     } catch (cause: unknown) {
       if (pending.signal.aborted) return;
       error = cause instanceof Error ? cause.message : "관측 정보를 읽지 못했습니다.";
-      state = "failed";
+      loadState = "failed";
     }
   }
 
@@ -78,12 +78,12 @@
         <h1>설비 관측 현황</h1>
         <p class="support">마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다.</p>
       </div>
-      <button type="button" onclick={() => void refresh()} disabled={state === "loading"}>다시 불러오기</button>
+      <button type="button" onclick={() => void refresh()} disabled={loadState === "loading"}>다시 불러오기</button>
     </header>
 
-    {#if state === "loading"}
+    {#if loadState === "loading"}
       <p class="notice" role="status">저장된 관측을 확인하는 중입니다.</p>
-    {:else if state === "failed"}
+    {:else if loadState === "failed"}
       <section class="notice failure" role="alert">
         <h2>조회 결과를 확인할 수 없습니다</h2>
         <p>{error} 데이터 없음이나 설비 이상으로 판단하지 않습니다.</p>
@@ -97,7 +97,7 @@
       {#if snapshot.truncated}
         <p class="notice" role="status">설비 목록은 서버 조회 제한에 따라 일부만 표시됩니다.</p>
       {/if}
-      {#if state === "empty"}
+      {#if loadState === "empty"}
         <section class="notice">
           <h2>조회된 설비가 없습니다</h2>
           <p>데이터 미등록과 부분적인 읽기 실패는 서로 다른 상태입니다. 연결 상태에서 확인하세요.</p>
