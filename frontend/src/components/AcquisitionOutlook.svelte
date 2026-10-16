@@ -17,7 +17,7 @@
   let message=$state("");
   const params=new URLSearchParams(location.search);
   let featureId=$state(params.get("acq_forecast_feature")??"");
-  let countText=$state(params.get("acq_forecast_count")??"20");
+  let countText=$state(params.get("acq_forecast_count")??"5");
   let assumedText=$state(params.get("acq_assumed_period")??"");
   let managementText=$state(params.get("acq_management")??"");
   let endText=$state(params.get("acq_end")??"");
