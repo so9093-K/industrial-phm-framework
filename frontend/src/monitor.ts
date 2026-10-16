@@ -16,6 +16,16 @@ export type Snapshot = {
   reviewInbox: ReviewInbox;
 };
 
+/** The same receive-state words as the current /web/ monitor; never a health verdict. */
+const FLOW_LABELS: Record<string, string> = {
+  running: "수신 중", waiting: "수신 대기", delayed: "수신 지연", stopped: "수집 중지",
+  "needs-attention": "수신 확인 필요", error: "수신 오류", unavailable: "수신 상태 미확인",
+  "stored-history": "저장된 기록",
+};
+export function flowLabel(flow: string): string {
+  return FLOW_LABELS[flow] ?? "수신 상태 미확인";
+}
+
 function object(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)

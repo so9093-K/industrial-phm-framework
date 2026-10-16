@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {assetTabUrl} from "../routes";
   import {
     groupHistory, pointsForChart, readChannels, readTrend,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
@@ -146,20 +147,17 @@
       </label>
     </div>
     <p class="context">
-      <a href={"/web-next/?view=departures&monitor_asset=" + encodeURIComponent(assetId)
-        + "&monitor_channel=" + encodeURIComponent(selectedChannel)}>
+      <a href={assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel)}>
         이 신호의 기준 구간 이탈 조사 →
       </a>
     </p>
     <p class="context">
-      <a href={"/web-next/?view=compare&monitor_asset=" + encodeURIComponent(assetId)
-        + "&monitor_channel=" + encodeURIComponent(selectedChannel)}>
+      <a href={assetTabUrl(assetId, "change", "compare", "history", selectedChannel)}>
         이 신호의 두 기간 비교 →
       </a>
     </p>
     <p class="context">
-      <a href={"/web-next/?view=projection&monitor_asset=" + encodeURIComponent(assetId)
-        + "&monitor_channel=" + encodeURIComponent(selectedChannel)}>
+      <a href={assetTabUrl(assetId, "outlook", null, "history", selectedChannel)}>
         이 신호의 조건부 상태 전망 검토 →
       </a>
     </p>

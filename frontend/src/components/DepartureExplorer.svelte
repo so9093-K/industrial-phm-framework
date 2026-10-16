@@ -6,6 +6,7 @@
     type Baseline, type Departures,
   } from "../departures";
   import StatusNotice from "./StatusNotice.svelte";
+  import {assetTabUrl} from "../routes";
 
   type Props = { assetId: string };
   type LoadState = "loading" | "ready" | "empty" | "unavailable" | "failed";
@@ -149,8 +150,7 @@
         </select>
       </label>
     </div>
-    <p class="context"><a href={"/web-next/?view=signals&monitor_asset=" + encodeURIComponent(assetId)
-      + "&monitor_channel=" + encodeURIComponent(selectedChannel)}>선택 신호의 저장값·원본 출처·품질 확인 →</a></p>
+    <p class="context"><a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>선택 신호의 저장값·원본 출처·품질 확인 →</a></p>
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="서버 제한으로 일부 신호만 선택할 수 있습니다." />
     {/if}
@@ -163,7 +163,7 @@
       <StatusNotice kind="uncertain" title="저장된 비교 근거가 없습니다"
         message="이 결과는 '이상이 없음'을 뜻하지 않습니다. 저장 기록과 신호를 확인하세요."
         actionLabel="저장 신호 확인"
-        actionHref={"/web-next/?view=signals&monitor_asset=" + encodeURIComponent(assetId)} />
+        actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
       <p class="context">계산 기준: {date(result.baseline.from)} ~ {date(result.baseline.to)}
         · 임계값 {result.threshold} · 비교된 버킷 폭 약 {result.bucketSeconds}초</p>

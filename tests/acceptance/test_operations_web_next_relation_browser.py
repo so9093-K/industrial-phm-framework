@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -127,9 +128,7 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                     base + "/web-next/?view=relation&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                pw.expect(
-                    page.get_by_role("heading", name="동일 시각 신호 관계 조사")
-                ).to_be_visible()
+                expect_place(pw, page, "변화 분석", "신호 관계")
                 pw.expect(
                     page.get_by_role("heading", name="구간 A · source-a / motor-1")
                 ).to_be_visible()

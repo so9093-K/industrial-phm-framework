@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -123,7 +124,7 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                     base + "/web-next/?view=compare&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                pw.expect(page.get_by_role("heading", name="두 기간의 측정 비교")).to_be_visible()
+                expect_place(pw, page, "변화 분석", "두 기간 비교")
                 pw.expect(page.get_by_role("heading", name="current · src-A")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="current · src-B")).to_be_visible()
                 pw.expect(page.get_by_role("table")).to_have_count(2)

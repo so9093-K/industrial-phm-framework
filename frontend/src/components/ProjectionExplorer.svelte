@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import {
     loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable,
@@ -127,7 +128,7 @@
   {:else if optionsState === "empty"}
     <StatusNotice kind="uncertain" title="전망할 저장 측정이 없습니다"
       message="해당 설비에 저장된 이력 신호가 없습니다. 설비가 정상이라는 의미가 아닙니다."
-      actionLabel="저장 신호 조사" actionHref={"/web-next/?view=signals&monitor_asset="+encodeURIComponent(assetId)} />
+      actionLabel="저장 신호 조사" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options}
     <div class="controls">
       <label for="projection-channel">측정 신호
@@ -245,8 +246,7 @@
           error="AI 브리핑 재검증 중 측정·분석 근거가 변경됐습니다. 전망을 다시 계산하세요.";
         }}/>
       {/key}
-      <p class="intro"><a href={"/web-next/?view=signals&monitor_asset="+encodeURIComponent(assetId)
-        +"&monitor_channel="+encodeURIComponent(channel)}>원본 측정·출처·품질 다시 확인 →</a></p>
+      <p class="intro"><a href={assetTabUrl(assetId, "signals", null, null, channel)}>원본 측정·출처·품질 다시 확인 →</a></p>
     {/if}
   {/if}
 </section>

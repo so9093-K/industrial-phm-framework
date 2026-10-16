@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import {
     loadAcquisitionOptions,loadAcquisitionPair,
@@ -121,7 +122,7 @@
   {:else if listState==="empty"||listState==="unavailable"}
     <StatusNotice kind="uncertain" title="획득 특징 전망의 입력 근거 부족"
       message="유효한 모델 분석 획득 특징이 최소 20개 필요합니다. 데이터가 없거나 계산할 수 없는 상태는 설비 정상 판정이 아닙니다."
-      actionLabel="획득 특징 분석 확인" actionHref={"/web-next/?view=features&monitor_asset="+encodeURIComponent(assetId)}/>
+      actionLabel="획득 특징 분석 확인" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
     <p class="context">원본 <strong>{options.sourceId}</strong> · binding <strong>{options.bindingId}</strong>
       · 획득 #{options.first}~#{options.last} · 저장 분석 {options.count}회</p>

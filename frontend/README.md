@@ -1,8 +1,9 @@
-# Operations Web-next read-only vertical slice
+# Operations Web-next
 
-This is an **isolated technical acceptance slice**, not the default product.
-It exercises real `GET /api/v1/monitor` observations without importing models or
-recalculating health verdicts. The current `/web/` UI remains authoritative.
+The next Operations Web, organised by user task. It is **not yet the default
+product**: the current `/web/` UI stays authoritative until every workflow, permission
+and recovery path is accepted here. It reads the existing APIs and never recalculates
+measured values or health verdicts in the browser.
 
 ## Verification
 
@@ -17,10 +18,12 @@ npm run build
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
 on the **same loopback origin** under `/web-next/` only after building it.
-Open `/web-next/` for asset observation and `/web-next/?view=signals&monitor_asset=...`
-for stored signal exploration. The latter is a partial workflow migration: one
-channel at a time, original semantics and bucket quality preserved, no model
-results or review writes.
+Screens follow the task menus of `docs/product/overview.md`:
+`/web-next/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
+`tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
+`?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are
+replaced by their new place with the workflow's own parameters kept. Screen words follow
+[Web 화면 용어 기준](../docs/terminology.md#web-화면-용어-기준).
 No Node process is required to serve the compiled output; the runtime does
 not install Node dependencies.
 
@@ -32,12 +35,21 @@ not install Node dependencies.
 - `src/styles.css`: shell, accessible shared controls and responsive layout
   used across the new frontend; a page should not invent its own unrelated
   colors, fields or button treatment.
-- `src/components/PageHeading.svelte`: page title, context and reload action.
+- `src/routes.ts`: task pages, asset tabs, analysis methods and data kinds; former
+  addresses map to their new place. Only the route, the asset and a chosen signal travel
+  between screens; another asset's conditions or review identities never do.
+- `src/App.svelte`: top task menu, read-only/operating mode, same-document navigation.
+- `src/components/AssetWorkspace.svelte`: one asset's header, tabs, method/data choice and
+  the workflow for that choice. The default data kind comes from the asset's stored data.
+- `src/asset-data.ts`: which stored data an asset has (from `/api/v1/forecast/options`);
+  it picks a default analysis and says nothing about the asset's condition.
+- `src/components/AssetList.svelte`: assets with something to check first, last
+  measurement and receive state words shared with `/web/`.
+- `src/components/AssetSummary.svelte`: the asset's first screen: record facts and next actions.
+- `src/components/CautionNote.svelte`: the single interpretation caution under a result.
+- `src/components/PageHeading.svelte`: page title, context and optional reload action.
 - `src/components/StatusNotice.svelte`: information, uncertainty and
   failure with explicit message/action; an unknown or failed read is not empty.
-- `src/components/AssetSelector.svelte`: semantic asset selection.
-- `src/components/ObservationDetails.svelte`: measured fact, quality/flow
-  distinction and evidence navigation.
 - `src/components/SignalExplorer.svelte`: read-only asset/channel/range/anchor
   selection and bounded, unconnected mean-bucket dots with a quality table.
 - `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
@@ -83,8 +95,9 @@ not install Node dependencies.
   frequency/power axes, missing raw-waveform and storage failures distinguished.
 - `src/spectrum.ts`: acquisition binding/sampling rate/ordinal and PSD channel/
   frequency/band consistency contracts. Ordinal positions are not clock times.
-- `src/components/ReviewInbox.svelte`: one-snapshot, read-only Finding/AnalysisRun/
-  Evidence identity-linked review queue. No review commands or reobservation writes.
+- `src/components/ReviewInbox.svelte`: the maintenance page's one-snapshot review list for
+  every asset, exact Finding/AnalysisRun/Evidence identities under 기술 상세. Review actions
+  stay in `/web/` until migrated.
 - `src/reviews.ts`: exact asset/run/evidence joins; partial/truncated/missing
   read evidence remains explicit and never turns into a missing or closed review.
 - `src/components/RelationExplorer.svelte`: read-only paired signal correlation

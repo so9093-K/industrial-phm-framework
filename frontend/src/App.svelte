@@ -1,42 +1,55 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
-  import { VIEWS, VIEW_INFO, parseRoute, viewUrl, assetUrl, type View } from "./routes";
-  import AssetSelector from "./components/AssetSelector.svelte";
-  import ObservationDetails from "./components/ObservationDetails.svelte";
+  import { readPermission } from "./outlook-briefings";
+  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, routeUrl, type Route } from "./routes";
+  import AssetList from "./components/AssetList.svelte";
+  import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
-  import SignalExplorer from "./components/SignalExplorer.svelte";
-  import DepartureExplorer from "./components/DepartureExplorer.svelte";
-  import PeriodComparison from "./components/PeriodComparison.svelte";
-  import ProjectionExplorer from "./components/ProjectionExplorer.svelte";
-  import RelationExplorer from "./components/RelationExplorer.svelte";
   import ReviewInboxView from "./components/ReviewInbox.svelte";
-  import AcquisitionSpectrum from "./components/AcquisitionSpectrum.svelte";
-  import AcquisitionFeatureProfile from "./components/AcquisitionFeatureProfile.svelte";
-  import AcquisitionRelation from "./components/AcquisitionRelation.svelte";
-  import ModelRunEvidence from "./components/ModelRunEvidence.svelte";
-  import AcquisitionOutlook from "./components/AcquisitionOutlook.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
+  if (parseRoute(location.search).legacy) {
+    history.replaceState(history.state, "", canonicalUrl(location.search));
+  }
+  let route: Route = $state(parseRoute(location.search).route);
   let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
-  let view: View = $state(parseRoute(location.search).view);
-  let selectedId = $state(parseRoute(location.search).assetId);
-  const viewInfo = $derived(VIEW_INFO[view]);
+  let writable: boolean | null = $state(null);
   let controller: AbortController | null = null;
-  let selected: Asset | undefined = $derived.by(
-    () => snapshot?.assets.find((asset: Asset) => asset.assetId === selectedId),
-  );
+  const selected: Asset | undefined = $derived.by(
+    () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
+  const pendingReviews = $derived.by(() => {
+    if (!snapshot?.reviewInbox.available) return null;
+    return snapshot.reviewInbox.reviews.filter((review) =>
+      review.assetId === route.assetId && review.status !== "closed").length;
+  });
+  const documentTitle = $derived(
+    route.page === "assets" && route.assetId
+      ? TAB_INFO[route.tab] + " · " + route.assetId + " · Industrial PHM"
+      : PAGE_INFO[route.page].label + " · Industrial PHM");
 
+  async function navigate(url: string) {
+    const before = route;
+    history.pushState(history.state, "", url);
+    route = parseRoute(location.search).route;
+    // A new page moves focus to its content. A tab switch, or choosing another asset with
+    // the keyboard in its select, keeps focus where the user is.
+    if (before.page !== route.page) {
+      await tick();
+      document.getElementById("main")?.focus();
+    }
+  }
   function selectAsset(assetId: string) {
-    if (assetId === selectedId) return;
-    const firstSelection = !selectedId;
-    const url = assetUrl(location.href, assetId);
-    selectedId = assetId;
-    if (firstSelection) history.replaceState(history.state, "", url);
-    else history.pushState(history.state, "", url);
+    if (assetId !== route.assetId) void navigate(assetUrl(location.href, assetId));
+  }
+  function assetHref(assetId: string): string {
+    return routeUrl({page: "assets", assetId, tab: "summary", method: null, data: null});
+  }
+  function pageHref(page: Route["page"]): string {
+    return routeUrl({page, assetId: page === "assets" ? route.assetId : "", tab: "summary", method: null, data: null});
   }
 
   async function refresh() {
@@ -51,7 +64,6 @@
       if (pending.signal.aborted) return;
       snapshot = result;
       loadState = result.assets.length ? "ready" : "empty";
-      if (!selectedId && result.assets.length) selectAsset(result.assets[0].assetId);
     } catch (cause: unknown) {
       if (pending.signal.aborted) return;
       error = cause instanceof Error ? cause.message : "관측 정보를 읽지 못했습니다.";
@@ -60,142 +72,123 @@
   }
 
   function observed(at: string | null): string {
-    if (!at) return "마지막 관측 시각 없음";
+    if (!at) return "기록 없음";
     const date = new Date(at);
     return Number.isNaN(date.getTime())
-      ? "관측 시각 해석 불가"
+      ? "시각 해석 불가"
       : date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
   }
 
-  function detailUrl(assetId: string): string {
-    return "/web/?monitor_asset=" + encodeURIComponent(assetId) + "#signals";
-  }
-
-  function nextUrl(target: View): string {
-    return viewUrl(target, selectedId, new URLSearchParams(location.search).get("monitor_channel"));
-  }
-
   onMount(() => {
-    const restore = () => {
-      const route = parseRoute(location.search);
-      view = route.view;
-      selectedId = route.assetId;
+    const restore = () => { route = parseRoute(location.search).route; };
+    // Same-document links switch screens without reloading the asset list.
+    const follow = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey
+        || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element | null)?.closest?.("a");
+      if (!link || link.target || link.hasAttribute("download")) return;
+      const url = new URL(link.href, location.href);
+      if (url.origin !== location.origin || url.pathname !== "/web-next/") return;
+      event.preventDefault();
+      if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
     };
+    const permission = new AbortController();
+    void readPermission(permission.signal).then((allowed) => {
+      if (!permission.signal.aborted) writable = allowed;
+    }).catch(() => {});
     window.addEventListener("popstate", restore);
+    document.addEventListener("click", follow);
     void refresh();
     return () => {
       controller?.abort();
+      permission.abort();
       window.removeEventListener("popstate", restore);
+      document.removeEventListener("click", follow);
     };
   });
 </script>
 
 <svelte:head>
-  <title>Industrial PHM · {viewInfo.document} 구조 검증</title>
+  <title>{documentTitle}</title>
 </svelte:head>
 
 <a class="skip" href="#main">본문으로 건너뛰기</a>
-<div class="shell">
-  <aside class="sidebar" aria-label="검증 화면 정보">
-    <div class="brand">Industrial PHM <small>Operations / UI 실험</small></div>
-    <nav aria-label="화면 바로가기">
-      <a href="/web/">현재 운영 화면</a>
-      {#each VIEWS as target (target)}
-        <a href={nextUrl(target)} aria-current={view === target ? "page" : undefined}>
-          {VIEW_INFO[target].navigation}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/web-next/">Industrial PHM</a>
+    <nav class="topnav" aria-label="업무 메뉴">
+      {#each PAGES as page (page)}
+        <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
+          {PAGE_INFO[page].label}
+          {#if page === "maintenance" && snapshot?.reviewInbox.available}
+            {@const open = snapshot.reviewInbox.reviews.filter((review) => review.status !== "closed").length}
+            {#if open}<span class="count">{open}<span class="visually-hidden">건 검토 대기</span></span>{/if}
+          {/if}
         </a>
       {/each}
     </nav>
-    <p class="note">독립 읽기 전용 화면입니다. 새 분석·판정 기능이 아닙니다.</p>
-  </aside>
-  <main id="main" tabindex="-1">
-    <PageHeading
-      eyebrow={viewInfo.eyebrow}
-      title={viewInfo.title}
-      description={viewInfo.description}
-      loading={loadState === "loading"}
-      onRefresh={() => void refresh()}
-    />
+    <div class="topbar-side">
+      {#if writable === true}<span class="mode">운영 중 · 기록 가능</span>
+      {:else if writable === false}<span class="mode">보기 전용</span>{/if}
+      <a class="legacy" href="/web/">이전 화면</a>
+    </div>
+  </div>
+</header>
 
-    {#if loadState === "loading"}
-      <StatusNotice message="저장된 관측을 확인하는 중입니다." />
-    {:else if loadState === "failed"}
-      <StatusNotice
-        title="조회 결과를 확인할 수 없습니다"
-        message={error + " 데이터 없음이나 설비 이상으로 판단하지 않습니다."}
-        kind="failure"
-        actionLabel="다시 시도"
-        onAction={() => void refresh()}
-      />
-    {:else if snapshot}
-      <p class="meta">조회 평가 시각: {observed(snapshot.assessedAt)} · API가 반환한 저장 이력 기준</p>
+<main id="main" tabindex="-1">
+  {#if route.page === "investigations"}
+    <PageHeading title={PAGE_INFO.investigations.label} description={PAGE_INFO.investigations.description} />
+    <StatusNotice title="분석 기록 목록은 이전 화면에서 제공합니다"
+      message="설비별 모델 점수와 실행 근거는 설비·신호의 이상 징후 탭에서 볼 수 있습니다. 파일 특징·3상 불평형 분석 기록과 그 검토는 아직 이전 화면에 있습니다."
+      actionLabel="이전 화면의 분석 기록 열기" actionHref="/web/#evidence" />
+  {:else if route.page === "system"}
+    <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description} />
+    <StatusNotice title="데이터 연결과 시스템 상태는 이전 화면에서 제공합니다"
+      message="새 화면으로 옮기기 전까지 이전 화면에서 데이터를 연결하고 수집·저장·분석 상태를 확인하세요."
+      actionLabel="데이터 연결 열기" actionHref="/web/#connect" />
+    <p class="meta"><a href="/web/#system">이전 화면의 시스템 상태 열기 →</a></p>
+  {:else if loadState === "loading"}
+    <StatusNotice message="설비 목록을 불러오고 있습니다." />
+  {:else if loadState === "failed"}
+    <StatusNotice
+      title="설비 목록을 불러오지 못했습니다"
+      message={error + " 데이터가 없다는 뜻은 아닙니다."}
+      kind="failure"
+      actionLabel="다시 시도"
+      onAction={() => void refresh()}
+    />
+  {:else if snapshot}
+    {#if route.page === "assets" && selected}
+      {#key selected.assetId}
+        <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {pendingReviews} {observed}
+          onSelectAsset={selectAsset} />
+      {/key}
+    {:else}
+      <PageHeading title={PAGE_INFO[route.page].label} description={PAGE_INFO[route.page].description}
+        loading={false} onRefresh={() => void refresh()} />
+      <p class="meta">{observed(snapshot.assessedAt)} 기준</p>
       {#if snapshot.systemReadUncertain}
-        <StatusNotice kind="uncertain" message="일부 저장소·수집 근거를 확인하지 못했습니다. 조회 가능한 결과도 현재 상태를 보장하지 않습니다." />
+        <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
       {/if}
       {#if snapshot.truncated}
-        <StatusNotice kind="uncertain" message="설비 목록은 서버 조회 제한에 따라 일부만 표시됩니다." />
+        <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
       {/if}
-      {#if loadState === "empty"}
+      {#if route.page === "maintenance"}
+        <ReviewInboxView inbox={snapshot.reviewInbox} assetId={null} />
+      {:else if loadState === "empty"}
         <StatusNotice
-          title="조회된 설비가 없습니다"
-          message="데이터 미등록과 부분적인 읽기 실패는 서로 다른 상태입니다. 연결 상태에서 확인하세요."
-          actionLabel="데이터 연결 화면 열기"
+          title="등록된 설비가 없습니다"
+          message="아직 연결된 데이터가 없거나 일부 저장소를 읽지 못했을 수 있습니다."
+          actionLabel="데이터 연결하기"
           actionHref="/web/#connect"
         />
       {:else}
-        <div class="workspace">
-          <AssetSelector assets={snapshot.assets} {selectedId} onSelect={selectAsset} {observed} />
-          {#if !selected}
-            <StatusNotice kind="uncertain" title="선택한 설비가 이번 조회에 없습니다"
-              message="이 설비의 저장 근거를 확인할 수 없습니다. 서버의 제한된 목록 또는 데이터 변경 가능성이 있으며, 다른 설비의 결과로 대체하지 않습니다." />
-          {/if}
-          {#if view === "acq-outlook" && selected}
-            {#key selected.assetId}
-              <AcquisitionOutlook assetId={selected.assetId} />
-            {/key}
-          {:else if view === "model-evidence" && selected}
-            {#key selected.assetId}
-              <ModelRunEvidence assetId={selected.assetId} />
-            {/key}
-          {:else if view === "acq-relation" && selected}
-            {#key selected.assetId}
-              <AcquisitionRelation assetId={selected.assetId} />
-            {/key}
-          {:else if view === "features" && selected}
-            {#key selected.assetId}
-              <AcquisitionFeatureProfile assetId={selected.assetId} />
-            {/key}
-          {:else if view === "spectrum" && selected}
-            {#key selected.assetId}
-              <AcquisitionSpectrum assetId={selected.assetId} />
-            {/key}
-          {:else if view === "reviews" && selected}
-            <ReviewInboxView inbox={snapshot.reviewInbox} assetId={selected.assetId} />
-          {:else if view === "relation" && selected}
-            {#key selected.assetId}
-              <RelationExplorer assetId={selected.assetId} />
-            {/key}
-          {:else if view === "projection" && selected}
-            {#key selected.assetId}
-              <ProjectionExplorer assetId={selected.assetId} />
-            {/key}
-          {:else if view === "compare" && selected}
-            {#key selected.assetId}
-              <PeriodComparison assetId={selected.assetId} />
-            {/key}
-          {:else if view === "departures" && selected}
-            {#key selected.assetId}
-              <DepartureExplorer assetId={selected.assetId} />
-            {/key}
-          {:else if view === "signals" && selected}
-            {#key selected.assetId}
-              <SignalExplorer assetId={selected.assetId} />
-            {/key}
-          {:else if selected}
-            <ObservationDetails asset={selected} {observed} {detailUrl} />
-          {/if}
-        </div>
+        {#if route.page === "assets" && route.assetId}
+          <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
+            message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
+        {/if}
+        <AssetList assets={snapshot.assets} {observed} href={assetHref} />
       {/if}
     {/if}
-  </main>
-</div>
+  {/if}
+</main>

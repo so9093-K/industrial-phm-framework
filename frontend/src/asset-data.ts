@@ -1,0 +1,56 @@
+/** Which stored data an asset has. It picks a sensible default analysis; it says nothing
+ * about the asset's condition. Read from the existing GET /api/v1/forecast/options. */
+import type {DataKind} from "./routes.ts";
+
+export type AssetData = {
+  history: {signals: number} | null;
+  vibration: {measurements: number; first: number; last: number} | null;
+};
+
+function object(raw: unknown): Record<string, unknown> | null {
+  return raw !== null && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Record<string, unknown> : null;
+}
+function count(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0)
+    throw new Error("설비 데이터 개수를 확인할 수 없습니다.");
+  return raw;
+}
+
+export function parseAssetData(raw: unknown, assetId: string): AssetData {
+  const root = object(raw);
+  if (!root || root.schema_version !== 1 || root.asset_id !== assetId)
+    throw new Error("선택한 설비의 데이터 목록이 아닙니다.");
+  const history = root.history === null ? null : object(root.history);
+  const vibration = root.acquisition === null || root.acquisition === undefined
+    ? null : object(root.acquisition);
+  if ((root.history !== null && (!history || !Array.isArray(history.series)))
+    || (root.acquisition !== null && root.acquisition !== undefined && !vibration))
+    throw new Error("설비 데이터 목록의 형식이 올바르지 않습니다.");
+  return {
+    history: history ? {signals: (history.series as unknown[]).length} : null,
+    vibration: vibration
+      ? {measurements: count(vibration.count), first: count(vibration.first), last: count(vibration.last)}
+      : null,
+  };
+}
+
+/** Unknown availability offers both kinds rather than hiding one. */
+export function kindsOf(data: AssetData | null): DataKind[] {
+  if (!data) return ["history", "vibration"];
+  const kinds: DataKind[] = [];
+  if (data.history) kinds.push("history");
+  if (data.vibration) kinds.push("vibration");
+  return kinds.length ? kinds : ["history", "vibration"];
+}
+
+export function defaultKind(data: AssetData | null): DataKind {
+  return kindsOf(data)[0];
+}
+
+export async function readAssetData(assetId: string, signal: AbortSignal): Promise<AssetData> {
+  const response = await fetch("/api/v1/forecast/options?" + new URLSearchParams({asset_id: assetId}),
+    {signal, cache: "no-store", credentials: "same-origin"});
+  if (!response.ok) throw new Error("설비의 데이터 종류를 확인하지 못했습니다.");
+  return parseAssetData(await response.json() as unknown, assetId);
+}

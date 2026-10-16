@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import choose_asset, expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -120,9 +121,7 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                     base + "/web-next/?view=spectrum&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                pw.expect(
-                    page.get_by_role("heading", name="획득 원본 파형 PSD 비교")
-                ).to_be_visible()
+                expect_place(pw, page, "변화 분석", "주파수 분석")
                 pw.expect(page.get_by_role("heading", name="bearing R · R")).to_be_visible()
                 pw.expect(page.locator(".spectra svg polyline")).to_have_count(2)
                 assert "spectrum_a_from=1" in page.url
@@ -135,7 +134,8 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                 pw.expect(page.get_by_role("heading", name="원본 파형 확인 불가")).to_be_visible()
                 assert page.locator(".spectra svg polyline").count() == 0
 
-                page.get_by_role("button", name="motor-b").click()
+                choose_asset(page, "motor-b")
+                expect_place(pw, page, "변화 분석", "주파수 분석")
                 pw.expect(
                     page.get_by_role("heading", name="스펙트럼 비교 근거가 없습니다")
                 ).to_be_visible()
