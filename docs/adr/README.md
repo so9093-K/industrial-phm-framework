@@ -43,3 +43,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0026: Retire remaining-life estimation](0026-retire-remaining-life-estimation.md)
 - [ADR-0027: Condition and remaining-life outlook from stored analyses](0027-condition-and-remaining-life-outlook-from-stored-analyses.md)
 - [ADR-0028: Bind forecast and condition outlook to one measurement projection](0028-bind-forecast-and-outlook-to-one-measurement-projection.md)
+- [ADR-0029 (Proposed): Axis-aware reviewed outlook and reobservation](0029-axis-aware-reviewed-outlook-and-reobservation.md)
