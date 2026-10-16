@@ -157,6 +157,12 @@
         이 신호의 두 기간 비교 →
       </a>
     </p>
+    <p class="context">
+      <a href={"/web-next/?view=projection&monitor_asset=" + encodeURIComponent(assetId)
+        + "&monitor_channel=" + encodeURIComponent(selectedChannel)}>
+        이 신호의 조건부 상태 전망 검토 →
+      </a>
+    </p>
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="서버 제한으로 신호 목록이 일부만 표시됩니다." />
     {/if}
