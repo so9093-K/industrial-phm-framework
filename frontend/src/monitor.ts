@@ -4,7 +4,7 @@ export type Asset = {
   assetId: string;
   flow: string;
   lastObservedAt: string | null;
-  attentionCount: number;
+  attentionCount: number | null;
 };
 
 export type Snapshot = {
@@ -20,8 +20,8 @@ function object(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function count(value: unknown): number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : 0;
+function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 export function parseMonitor(value: unknown): Snapshot {
@@ -47,7 +47,7 @@ export function parseMonitor(value: unknown): Snapshot {
     assessedAt: typeof response.assessed_at === "string" ? response.assessed_at : null,
     assets,
     truncated: assetGroup.truncated === true,
-    systemReadUncertain: Array.isArray(response.system_error_scopes) && response.system_error_scopes.length > 0,
+    systemReadUncertain: !Array.isArray(response.system_error_scopes) || response.system_error_scopes.length > 0,
   };
 }
 

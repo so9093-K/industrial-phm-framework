@@ -128,7 +128,7 @@
                 <div><dt>설비 식별자</dt><dd>{selected.assetId}</dd></div>
                 <div><dt>마지막 관측 시각</dt><dd>{observed(selected.lastObservedAt)}</dd></div>
                 <div><dt>데이터 흐름 상태(서버 제공 값)</dt><dd>{selected.flow}</dd></div>
-                <div><dt>확인 항목 수</dt><dd>{selected.attentionCount}</dd></div>
+                <div><dt>확인 항목 수</dt><dd>{selected.attentionCount ?? '미확인'}</dd></div>
               </dl>
               <p class="explain">수집 상태와 설비의 정상·고장 상태는 다릅니다. 이 화면은 고장 진단이나 실시간 경보가 아닙니다.</p>
               <a class="detail-link" href={detailUrl(selected.assetId)}>원본 신호와 저장 이력 확인 →</a>
