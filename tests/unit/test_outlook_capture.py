@@ -147,6 +147,13 @@ def test_outlook_capture_api_pages_after_exact_asset_scoped_cursor(
     first_ids = {item["capture_id"] for item in first["captures"]}
     second_ids = {item["capture_id"] for item in second["captures"]}
     assert first_ids.isdisjoint(second_ids)
+    old_id = second["captures"][-1]["capture_id"]
+    direct_status, direct = handle_outlook_captures_read(
+        workspace, "asset_id=bearing-a&capture_id=" + old_id
+    )
+    assert direct_status == 200
+    assert len(direct["captures"]) == 1
+    assert direct["captures"][0]["capture_id"] == old_id
     wrong_asset_status, _ = handle_outlook_captures_read(
         workspace, "asset_id=other&before_id=" + first["next_before"]
     )
