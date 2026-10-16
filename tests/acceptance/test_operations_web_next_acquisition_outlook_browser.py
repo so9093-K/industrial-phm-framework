@@ -162,6 +162,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                                     "end": None,
                                 },
                                 "record": {"first": 1, "last": 64, "points": 64},
+                                "search": {"acquisitions": 31, "until": 95},
                                 "scenarios": [
                                     {
                                         "id": "linear",
@@ -197,6 +198,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     page.get_by_role("heading", name="서버에 검증된 획득 전망 근거")
                 ).to_be_visible()
                 pw.expect(page.get_by_text("추가 4회 획득 시 도달 예상")).to_be_visible()
+                pw.expect(page.get_by_text("추가 31회", exact=False)).to_be_visible()
                 assert page.get_by_role("columnheader", name="획득 #").count() == 1
                 assert page.get_by_role("columnheader", name="예측 시점").count() == 0
                 if spacing == "ordinal":
