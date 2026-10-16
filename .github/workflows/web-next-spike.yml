@@ -19,15 +19,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-      - name: Temporary lock generation for isolated dependency validation
-        run: |
-          cd frontend
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          echo "LOCKJSON=$(base64 -w 0 package-lock.json)"
-          npm ci --no-audit --no-fund
+          package-manager-cache: false
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
       - name: Type and Svelte checks
         run: npm run --prefix frontend check
       - name: Generate packaged assets
@@ -42,4 +39,27 @@ jobs:
           assert "index.html" in files
           assert any(name.startswith("assets/") and name.endswith(".js") for name in files)
           assert all((root / name).is_file() for name in files)
+          PY
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+      - name: Install Python 3.14
+        run: uv python install 3.14
+      - name: Sync locked runtime
+        run: uv sync --locked --extra operations
+      - name: Python static route integration
+        run: uv run --locked --extra operations pytest tests/integration/test_operations_web_next_static.py
+      - name: Verify wheel contains compiled assets
+        run: |
+          uv build --wheel
+          uv run --locked --extra operations python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          wheel = next(Path("dist").glob("*.whl"))
+          with zipfile.ZipFile(wheel) as archive:
+              names = archive.namelist()
+          assert any(name.endswith("/web_next/index.html") for name in names), names
+          assert any("/web_next/assets/" in name and name.endswith(".js") for name in names), names
+          assert any(name.endswith("/web_next/asset-manifest.json") for name in names), names
           PY
