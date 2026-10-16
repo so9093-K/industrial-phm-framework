@@ -135,9 +135,7 @@ def test_possible_reach_is_accepted_only_as_qualified_range_claim(
             "latest": None,
         }
     facts = outlook_facts(outlook)
-    issues = outlook_answer.text_issues(
-        utterance, facts, outlook_answer.condition_reach(outlook)
-    )
+    issues = outlook_answer.text_issues(utterance, facts, outlook_answer.condition_reach(outlook))
     assert (not issues) is accepted, issues
 
 
