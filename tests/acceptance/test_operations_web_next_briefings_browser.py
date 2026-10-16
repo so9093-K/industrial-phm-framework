@@ -103,6 +103,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                 versions = {"data": "a" * 64}
                 writable = {"yes": True}
                 requested = {"yes": False}
+
                 def outlook(route):
                     query = parse_qs(urlsplit(route.request.url).query)
                     assert query["asset_id"] == ["motor-a"]
@@ -157,6 +158,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                         ),
                     ),
                 )
+
                 def canonical(query: str) -> str:
                     pairs = parse_qs(query)
                     return urlencode(sorted((key, value[0]) for key, value in pairs.items()))
@@ -199,6 +201,7 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                     )
 
                 page.route("**/api/v1/outlook/briefings?**", briefings)
+
                 def request_briefing(route):
                     headers = route.request.headers
                     assert headers["x-csrf-token"] == "correct-supervisor-csrf-token"
@@ -255,8 +258,9 @@ def test_briefing_version_and_supervisor_write_contract(tmp_path: Path, width: i
                 # the recorded measurement version or last sample timestamp.
                 versions["data"] = "b" * 64
                 page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
-                pw.expect(page.get_by_role("heading", name="측정 버전 불일치로 결합 보류")
-                          ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="측정 버전 불일치로 결합 보류")
+                ).to_be_visible()
                 assert page.get_by_text("저장된 근거를 설명합니다.").count() == 0
                 assert page.get_by_role("heading", name="예측 신호값 · 1h").count() == 0
                 assert page.evaluate(
