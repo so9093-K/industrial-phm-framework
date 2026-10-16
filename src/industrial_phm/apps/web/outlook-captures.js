@@ -47,6 +47,7 @@ function capturePayload(data) {
 
 function entry(capture, now) {
   const old = capture.snapshot.outlook, wrapper = create("article", "outlook-saved-entry");
+  wrapper.dataset.captureId = capture.capture_id;
   const head = create("strong", null, "확정 저장한 전망 · " + place(old, old.record.last));
   wrapper.append(head, create("p", "muted", "저장 " + formatTime(capture.captured_at)
     + " · " + old.source_id + " · " + old.series));
@@ -59,6 +60,7 @@ function entry(capture, now) {
   wrapper.append(review);
   const human = capture.review || {status: "open", events: []};
   const reviewBox = create("section", "outlook-saved-review");
+  reviewBox.tabIndex = -1;
   const statusNames = {open: "확인 필요", acknowledged: "확인함", closed: "완료"};
   reviewBox.append(create("p", null, "담당자 검토 · " + (statusNames[human.status] || human.status)));
   if (human.events.length) {
@@ -97,7 +99,7 @@ function entry(capture, now) {
             note: noteText,
           }),
         });
-        if (current === now) void show(now);
+        if (current === now) void show(now, capture.capture_id);
       } catch (error) {
         if (current !== now) return;
         notice.textContent = error.status === 409 ? "검토 상태가 이미 바뀌었습니다. 새로고침하세요."
@@ -154,7 +156,7 @@ function entry(capture, now) {
   return wrapper;
 }
 
-async function show(data) {
+async function show(data, focusCapture = null) {
   const mine = ++ticket, root = byId("outlook-saved");
   current = data;
   if (!root || !data || data.asset_id !== currentAsset()) return;
@@ -172,14 +174,14 @@ async function show(data) {
     try {
       const session = await json("/api/v1/session");
       if (!canChange(session)) throw new Error("read_only");
-      await json("/api/v1/outlook/captures/confirm", {
+      const saved = await json("/api/v1/outlook/captures/confirm", {
         method: "POST",
         headers: {"Content-Type": "application/json", "X-CSRF-Token": session.csrf_token},
         body: JSON.stringify(capturePayload(data)),
       });
       if (current !== data) return;
       status.textContent = "서버에서 검증한 계산 근거를 저장했습니다.";
-      void show(data);
+      void show(data, saved.capture_id);
     } catch (error) {
       if (current !== data) return;
       status.textContent = error.status === 400
@@ -194,6 +196,11 @@ async function show(data) {
     if (mine !== ticket || current !== data) return;
     if (!all.captures.length) list.append(create("p", "muted", "아직 저장한 전망이 없습니다."));
     else for (const stored of all.captures) list.append(entry(stored, data));
+    if (focusCapture) {
+      const matching = [...list.querySelectorAll(".outlook-saved-entry")]
+        .find((item) => item.dataset.captureId === focusCapture);
+      matching?.querySelector(".outlook-saved-review")?.focus({preventScroll: true});
+    }
   } catch {
     if (mine === ticket && current === data) list.append(
       create("p", "state error", "저장된 전망 기록을 읽지 못했습니다. 새로고침해 주세요."));
