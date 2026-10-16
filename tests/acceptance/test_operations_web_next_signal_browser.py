@@ -14,9 +14,7 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 
 
 @pytest.mark.parametrize("width", [390, 1024])
-def test_web_next_signal_history_preserves_context_and_quality(
-    tmp_path: Path, width: int
-) -> None:
+def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, width: int) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "signals")
     initialize_operations_workspace(workspace)
