@@ -28,6 +28,7 @@ const outlook=()=>({
   meaning:"remaining-margin-to-user-conditions-not-a-diagnosis",
   conditions:{direction:"upper",management:2.4,end:3},
   record:{first:1,last:64,points:64},
+  search:{acquisitions:31,until:95},
   scenarios:[{id:"linear",limits:{
     management:{state:"expected",expected:4,earliest:null,latest:null},
     end:{state:"possible",expected:null,earliest:13,latest:null},
@@ -54,6 +55,8 @@ test("paired ordinal forecast and conditional offsets never become UTC timestamp
   assert.equal(result.record.last,64);
   assert.equal(result.forecast[1].ordinal,65);
   assert.equal(result.scenarios[0].management?.expected,4);
+  assert.equal(result.searchCount,31);
+  assert.equal(result.searchUntil,95);
   assert.equal(result.dataVersion,data);
 });
 test("same observations with another binding, measurement version or source must fail",()=>{
@@ -103,5 +106,7 @@ test("invalid acquisition count, scope and future ordinates never render",()=>{
   assert.throws(()=>paired({...forecast(),forecast:[[100,12,11,13]]}),/구간/);
   assert.throws(()=>paired(forecast(),{...outlook(),offset_unit:"second"}),/의미/);
   assert.throws(()=>paired(forecast(),{...outlook(),record:{first:1,last:65,points:64}}),
+    AcquisitionVersionMismatch);
+  assert.throws(()=>paired(forecast(),{...outlook(),search:{acquisitions:30,until:95}}),
     AcquisitionVersionMismatch);
 });
