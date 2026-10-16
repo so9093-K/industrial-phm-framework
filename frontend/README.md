@@ -42,6 +42,12 @@ not install Node dependencies.
   selection and bounded, unconnected mean-bucket dots with a quality table.
 - `src/components/DepartureExplorer.svelte`: read-only, model-free baseline
   deviation exploration (stored bucket means, not trained model outputs).
+- `src/components/OutlookBriefings.svelte`: existing supervisor's persisted
+  AI explanations, exact server-selected settings, `data_version` and recalculated
+  `measurement_version` verification, CSRF-protected explicit question.
+  A changed version clears the joined projection and all stale answers.
+- `src/outlook-briefings.ts`: strict server echo, answer/evidence citation and
+  read/write capability boundaries without client-side calculations.
 - `src/components/ProjectionExplorer.svelte`: read-only paired history
   forecast/conditional-outlook view; only the same measurement hash and exact
   source/point are displayed together. Condition edits invalidate previous results.

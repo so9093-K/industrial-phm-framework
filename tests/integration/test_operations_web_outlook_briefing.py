@@ -62,6 +62,7 @@ def test_a_briefing_recomputes_the_outlook_and_is_read_by_its_selection(
             if status == 200 and body["briefings"] and body["briefings"][0]["status"] != "pending":
                 break
             time.sleep(0.05)
+        assert body["selection"] == job["selection"]
         (record,) = body["briefings"]
         assert record["id"] == job["briefing_id"] and record["status"] == "complete"
         assert record["question"] == "기준까지 얼마나 남았어?" and record["model"] == "local-main"

@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import OutlookBriefings from "./OutlookBriefings.svelte";
   import {
     loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
@@ -236,6 +237,14 @@
       {:else}
         <StatusNotice message="관리·종료 기준을 입력하면 조건부 기준 도달 전망을 함께 계산할 수 있습니다." />
       {/if}
+      {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
+        <OutlookBriefings {projection} onEvidenceChanged={()=>{
+          requestProjection?.abort();
+          projection=null;
+          resultState="unverified";
+          error="AI 브리핑 재검증 중 측정·분석 근거가 변경됐습니다. 전망을 다시 계산하세요.";
+        }}/>
+      {/key}
       <p class="intro"><a href={"/web-next/?view=signals&monitor_asset="+encodeURIComponent(assetId)
         +"&monitor_channel="+encodeURIComponent(channel)}>원본 측정·출처·품질 다시 확인 →</a></p>
     {/if}

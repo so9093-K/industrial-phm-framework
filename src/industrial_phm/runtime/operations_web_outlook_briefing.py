@@ -224,7 +224,11 @@ def handle_briefings_read(
         briefings = OutlookBriefingStore(workspace.outlook_briefing_path).list_for(
             params["asset_id"], selection_key(params)
         )
-        return HTTPStatus.OK, {"schema_version": 1, "briefings": briefings}
+        return HTTPStatus.OK, {
+            "schema_version": 1,
+            "selection": selection_key(params),
+            "briefings": briefings,
+        }
     except ValueError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_briefing_query"}
     except OSError, sqlite3.Error:

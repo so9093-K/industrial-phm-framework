@@ -13,6 +13,8 @@ on:
       - "tests/acceptance/test_operations_web_next_departures_browser.py"
       - "tests/acceptance/test_operations_web_next_compare_browser.py"
       - "tests/acceptance/test_operations_web_next_projection_browser.py"
+      - "tests/acceptance/test_operations_web_next_briefings_browser.py"
+      - "src/industrial_phm/runtime/operations_web_outlook_briefing.py"
       - "tests/acceptance/test_operations_web_next_relation_browser.py"
       - "tests/acceptance/test_operations_web_next_review_browser.py"
       - "tests/acceptance/test_operations_web_next_spectrum_browser.py"
@@ -101,6 +103,7 @@ jobs:
           tests/acceptance/test_operations_web_next_departures_browser.py
           tests/acceptance/test_operations_web_next_compare_browser.py
           tests/acceptance/test_operations_web_next_projection_browser.py
+          tests/acceptance/test_operations_web_next_briefings_browser.py
           tests/acceptance/test_operations_web_next_relation_browser.py
           tests/acceptance/test_operations_web_next_review_browser.py
           tests/acceptance/test_operations_web_next_spectrum_browser.py
