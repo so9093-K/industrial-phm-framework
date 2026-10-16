@@ -29,6 +29,7 @@ function invalidateResults() {
   const metrics = byId("forecast-detail-metrics");
   if (metrics) clear(metrics);
   byId("forecast-chart-section").hidden = true;
+  clearOutlook();
 }
 
 async function getJson(url) {
@@ -71,7 +72,7 @@ async function load() {
   loadedFor = asset;
   clear(byId("forecast-controls"));clear(byId("forecast-chart-controls"));invalidateResults();compareCandidate = null;
   clear(byId("forecast-settings-root"));byId("forecast-settings").hidden = true;
-  clearOutlook();byId("forecast-chart-section").hidden = true;
+  byId("forecast-chart-section").hidden = true;
   if (!asset) {state("설비를 선택하세요.");return;}
   state("전망할 수 있는 측정값을 확인합니다.");
   let found;
@@ -310,7 +311,6 @@ async function run() {
     if (query.has(field)) outlookQuery.set(field, query.get(field));
   if (params().get("forecast_backtest") === "multi") query.set("backtest", "multi");
   // Neither result is presented until both calculations share an identical input projection.
-  clearOutlook();
   const context = contextText(kind);
   state("예측과 상태 전망을 계산합니다.");
   try {
