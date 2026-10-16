@@ -421,6 +421,7 @@ def _acquisition_group(
     return {
         "period": name,
         "source_id": binding.source_id,
+        "binding_id": binding.binding_id,
         "measurement_point_id": None,
         "analyzed_count": analyzed,
         "x_usable_count": len(pairs),
