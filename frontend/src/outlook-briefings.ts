@@ -1,5 +1,8 @@
 /** Version-bound outlook explanations; the server alone computes facts and authorizes writes. */
 import {parseOutlookSettings,type Projection} from "./projections.ts";
+import type {AcquisitionProjection} from "./acquisition-outlook.ts";
+export type BriefingProjection=Projection|AcquisitionProjection;
+const isAcquisition=(p:BriefingProjection):p is AcquisitionProjection=>"featureId" in p;
 
 export type BriefingFact={label:string;text:string};
 export type BriefingAnswer={
@@ -29,18 +32,31 @@ function time(raw:unknown):string{
 }
 
 /** Python urlencode(sorted(selection.items())) is the authoritative identity. */
-export function briefingSelection(projection:Projection):string{
+export function briefingSelection(projection:BriefingProjection):string{
   if(!/^[a-f0-9]{64}$/.test(projection.dataVersion)
-    ||!projection.outlookSettings||!projection.assetId||!projection.channel
+    ||!projection.outlookSettings||!projection.assetId
+    ||!(isAcquisition(projection)?projection.featureId:projection.channel)
     ||!["upper","lower"].includes(projection.conditions.direction))
     throw new Error("AI 설명용 근거 버전 또는 전망 선택이 유효하지 않습니다.");
   const entries:Record<string,string>={
-    asset_id:projection.assetId,kind:"history",series:projection.channel,
+    asset_id:projection.assetId,
+    kind:isAcquisition(projection)?"acquisition":"history",
+    series:isAcquisition(projection)?projection.featureId:projection.channel,
     direction:projection.conditions.direction,data_version:projection.dataVersion,
     changepoint_prior_scale:String(projection.outlookSettings.changepointPriorScale),
     changepoint_range:String(projection.outlookSettings.changepointRange),
     seasonality:projection.outlookSettings.seasonality,
   };
+  if(isAcquisition(projection)){
+    entries.source_id=projection.sourceId;
+    entries.binding_id=projection.bindingId;
+    entries.measurement_version=projection.measurementVersion;
+    entries.time_basis=projection.timeBasis;
+    if(projection.recordedPeriod!==null)
+      entries.recorded_period_seconds=String(projection.recordedPeriod);
+    if(projection.assumedPeriod!==null)
+      entries.assumed_period_seconds=String(projection.assumedPeriod);
+  }
   if(projection.outlookSettings.trainingPoints!==null)
     entries.training_points=String(projection.outlookSettings.trainingPoints);
   if(projection.conditions.management!==null)
@@ -51,20 +67,37 @@ export function briefingSelection(projection:Projection):string{
   for(const key of Object.keys(entries).sort())query.set(key,entries[key]);
   return query.toString();
 }
-function requestArgs(projection:Projection):Record<string,string>{
+function requestArgs(projection:BriefingProjection):Record<string,string>{
   return Object.fromEntries(new URLSearchParams(briefingSelection(projection)));
 }
 
 /** The outlook is recomputed by the server; a changed data version invalidates the
  * cached measurement projection even when the original last timestamp did not move. */
-export function verifyOutlookVersion(raw:unknown,projection:Projection):void{
+export function verifyOutlookVersion(raw:unknown,projection:BriefingProjection):void{
   const root=object(raw),conditions=object(root?.conditions);
   const actualSettings=parseOutlookSettings(root?.settings);
   const expectedSettings=projection.outlookSettings;
+  const acquisition=isAcquisition(projection);
+  const stream=acquisition?projection.featureId:projection.channel;
+  const expectedKind=acquisition?"acquisition":"history";
+  const expectedAxis=acquisition?"acquisition":"time";
+  const acquireMatches=!acquisition||(
+    root?.binding_id===projection.bindingId
+    &&root?.time_basis===projection.timeBasis
+    &&root?.recorded_period_seconds===projection.recordedPeriod
+    &&root?.assumed_period_seconds===projection.assumedPeriod
+    &&root?.period_seconds===projection.effectivePeriod
+    &&object(root?.record)?.first===projection.record.first
+    &&object(root?.record)?.last===projection.record.last
+    &&object(root?.record)?.points===projection.record.points
+    &&object(root?.search)?.acquisitions===projection.searchCount
+    &&object(root?.search)?.until===projection.searchUntil
+  );
   if(!root||root.schema_version!==1||root.asset_id!==projection.assetId
-    ||root.kind!=="history"||root.series!==projection.channel||root.axis!=="time"
+    ||root.kind!==expectedKind||root.series!==stream||root.axis!==expectedAxis
     ||root.source_id!==projection.sourceId
-    ||(root.measurement_point_id??null)!==projection.pointId
+    ||(root.measurement_point_id??null)!==(acquisition?null:projection.pointId)
+    ||!acquireMatches
     ||root.measurement_version!==projection.measurementVersion
     ||root.data_version!==projection.dataVersion
     ||!actualSettings||!expectedSettings
@@ -148,13 +181,14 @@ async function fetchJson(url:string,signal:AbortSignal,options:RequestInit={}):P
   }
   return await response.json() as unknown;
 }
-export async function assertCurrentVersion(projection:Projection,signal:AbortSignal):Promise<void>{
+export async function assertCurrentVersion(projection:BriefingProjection,signal:AbortSignal):Promise<void>{
   const query=new URLSearchParams(requestArgs(projection));
-  query.delete("data_version");
+  for(const key of ["data_version","source_id","binding_id","measurement_version",
+    "time_basis","recorded_period_seconds"])query.delete(key);
   const body=await fetchJson("/api/v1/outlook?"+query,signal);
   verifyOutlookVersion(body,projection);
 }
-export async function readBriefings(projection:Projection,signal:AbortSignal):Promise<Briefing[]>{
+export async function readBriefings(projection:BriefingProjection,signal:AbortSignal):Promise<Briefing[]>{
   const selection=briefingSelection(projection);
   return parseBriefings(
     await fetchJson("/api/v1/outlook/briefings?"+selection,signal),selection);
@@ -166,7 +200,7 @@ export async function readPermission(signal:AbortSignal):Promise<boolean>{
   return response.can_change===true&&response.write_scope==="supervisor-owned-source-control";
 }
 export async function requestBriefing(
-  projection:Projection,question:string,signal:AbortSignal,
+  projection:BriefingProjection,question:string,signal:AbortSignal,
 ):Promise<string>{
   const selection=briefingSelection(projection);
   const trimmed=question.trim();
