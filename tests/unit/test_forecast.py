@@ -38,8 +38,7 @@ def test_measurement_version_identifies_corrected_input_without_a_new_last_obser
     assert measurement_version(*identity, times, corrected, meta) != original
     assert measurement_version(*identity, times, values, meta) == original
     assert (
-        measurement_version(*identity, times, values, {**meta, "source_id": "sensor-b"})
-        != original
+        measurement_version(*identity, times, values, {**meta, "source_id": "sensor-b"}) != original
     )
     assert measurement_version("pump-2", "history", "current", times, values, meta) != original
 
