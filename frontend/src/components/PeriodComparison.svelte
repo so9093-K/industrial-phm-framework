@@ -91,7 +91,7 @@
     if (!periods) return;
     try {
       validatePeriods(periods);
-      const expected = structuredClone(periods);
+      const expected: Periods = {a: {...periods.a}, b: {...periods.b}};
       const data = await readProfile(assetId, selected, expected, request.signal);
       if (request.signal.aborted) return;
       result = data; compareState = data.series.length ? "ready" : "empty"; remember();
