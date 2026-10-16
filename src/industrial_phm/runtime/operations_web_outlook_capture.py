@@ -322,9 +322,7 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
     return {"schema_version": 1, **result, "asset_id": outlook["asset_id"]}
 
 
-def current_measurement_recheck(
-    workspace: OperationsWorkspace, snapshot: dict[str, Any]
-) -> str:
+def current_measurement_recheck(workspace: OperationsWorkspace, snapshot: dict[str, Any]) -> str:
     """Check only the current bounded measurement projection, not anomaly provenance.
 
     The archived computation remains trustworthy as an archived statement when
@@ -353,18 +351,23 @@ def current_measurement_recheck(
             or meta.get("time_basis") != identity.get("time_basis")
         ):
             return "different_source"
-        finite = [(time, value) for time, value in zip(times, values, strict=True)
-                  if math.isfinite(value)]
+        finite = [
+            (time, value) for time, value in zip(times, values, strict=True) if math.isfinite(value)
+        ]
         if len(finite) < 20:
             return "unavailable"
         actual = measurement_version(
-            asset_id, kind, series,
-            [time for time, _ in finite], [value for _, value in finite], meta,
+            asset_id,
+            kind,
+            series,
+            [time for time, _ in finite],
+            [value for _, value in finite],
+            meta,
         )
         if actual == identity["measurement_version"]:
             return "same_measurement_projection"
         return "changed"
-    except (LookupError, ValueError, OSError, OperationsReadError, PhmAnalysisError, sqlite3.Error):
+    except LookupError, ValueError, OSError, OperationsReadError, PhmAnalysisError, sqlite3.Error:
         return "unavailable"
 
 
@@ -395,9 +398,7 @@ def handle_outlook_captures_read(
         if capture_id and not records:
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
         for item in records:
-            item["source_recheck"] = current_measurement_recheck(
-                workspace, item["snapshot"]
-            )
+            item["source_recheck"] = current_measurement_recheck(workspace, item["snapshot"])
         return HTTPStatus.OK, {"schema_version": 1, "captures": records}
     except ValueError, TypeError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
