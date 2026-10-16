@@ -80,6 +80,18 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
                 pw.expect(archive).to_contain_text("확정 저장한 전망")
                 pw.expect(archive).to_contain_text("같은 측정 내용")
+                # A captured outlook has its own exact human-review subject, not a
+                # fabricated file/phase analysis ID.
+                archive.get_by_role("textbox", name="이 전망의 검토 메모").fill(
+                    "최초 획득의 기준과 모델 입력 확인"
+                )
+                archive.get_by_role("button", name="메모 남기기").click()
+                pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
+                archive.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(archive).to_contain_text("담당자 검토 · 확인함")
+                page.once("dialog", lambda dialog: dialog.accept())
+                archive.get_by_role("button", name="검토 완료로 표시").click()
+                pw.expect(archive).to_contain_text("담당자 검토 · 완료")
                 details = page.locator("#outlook-evidence .outlook-details")
                 pw.expect(details).to_contain_text("이상 탐지 모델")
                 pw.expect(details).to_contain_text("처음 초과 #62")
@@ -251,6 +263,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 page.goto(f"http://127.0.0.1:{viewer.server_port}/web/{query}")
                 pw.expect(lead).to_be_visible(timeout=30000)
                 pw.expect(archive.locator(".outlook-saved-entry")).to_have_count(1, timeout=30000)
+                pw.expect(archive).to_contain_text("담당자 검토 · 완료")
+                pw.expect(archive).to_contain_text("최초 획득의 기준과 모델 입력 확인")
                 pw.expect(
                     archive.get_by_role("button", name="현재 전망을 검토 대상으로 저장")
                 ).to_be_disabled()
