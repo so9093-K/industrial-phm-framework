@@ -137,8 +137,8 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 )
                 pw.expect(briefing.locator(".outlook-answer-summary")).to_have_count(0)
 
-                # If acquisition #65 arrives between the two independent reads, only
-                # a matching snapshot may appear. The mismatched first read is retried.
+                # A corrected historical observation keeps the same last acquisition.
+                # A differing measurement fingerprint must force a coherent re-read.
                 replies = {"count": 0}
 
                 def mismatch_once(route: Any) -> None:
@@ -146,7 +146,7 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                     if replies["count"] == 1:
                         response = route.fetch()
                         body = response.json()
-                        body["record"]["last"] += 1
+                        body["measurement_version"] = "0" * 64
                         route.fulfill(response=response, json=body)
                     else:
                         route.continue_()
@@ -178,6 +178,15 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 )
                 pw.expect(page.locator("#forecast-chart-section")).to_be_hidden()
                 pw.expect(outlook.locator(".outlook-figures")).to_have_count(0)
+                assert not page.locator("#forecast-detail-metrics").inner_text()
+                # Neither resize nor leaving and returning may resurrect the stale forecast.
+                page.set_viewport_size({"width": width + 24, "height": 900})
+                pw.expect(page.locator("#forecast-chart-section")).to_be_hidden()
+                page.evaluate("""() => {
+                    location.hash = '#signals';
+                    location.hash = '#forecast';
+                }""")
+                pw.expect(page.locator("#forecast-chart-section")).to_be_hidden()
                 page.unroute("**/api/v1/outlook?*", unavailable)
                 page.locator("#refresh").click()
                 pw.expect(outlook.locator(".outlook-observed")).to_have_text(
