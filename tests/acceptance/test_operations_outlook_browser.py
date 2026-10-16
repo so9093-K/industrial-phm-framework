@@ -216,9 +216,9 @@ def test_margins_readings_evidence_and_a_checked_briefing(
                 # At 320px, each reading identifies its limit without horizontal scrolling.
                 page.set_viewport_size({"width": 320, "height": 900})
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
-                pw.expect(
-                    page.locator(".outlook-scenarios td[data-condition]")
-                ).not_to_have_count(0)
+                pw.expect(page.locator(".outlook-scenarios td[data-condition]")).not_to_have_count(
+                    0
+                )
                 assert page.evaluate("""() => {
                     const links = document.querySelector('#outlook-more .forecast-explore-links');
                     const briefing = document.querySelector('#outlook-briefing');
