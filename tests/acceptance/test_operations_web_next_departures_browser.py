@@ -73,7 +73,16 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                         status=200, content_type="application/json", body=json.dumps(data)
                     )
 
+                response_override = {"error": None}
+
                 def departures(route):
+                    if response_override["error"]:
+                        route.fulfill(
+                            status=503 if response_override["error"] == "store" else 404,
+                            content_type="application/json",
+                            body=json.dumps({"error": response_override["error"]}),
+                        )
+                        return
                     params = parse_qs(urlsplit(route.request.url).query)
                     assert params["asset_id"] == ["motor-a"]
                     assert params["series"] == ["R"]
@@ -152,6 +161,15 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                     page.get_by_role("heading", name="저장된 비교 근거가 없습니다")
                 ).to_be_visible()
                 assert page.get_by_text("0개").count() == 0
+                response_override["error"] = "store"
+                page.get_by_label("비교 기준 구간").select_option("first-30")
+                pw.expect(
+                    page.get_by_role("heading", name="기준 이탈 분석 조회 실패")
+                ).to_be_visible()
+                assert page.get_by_role("heading", name="저장된 비교 근거가 없습니다").count() == 0
+                response_override["error"] = "not_found"
+                page.get_by_label("비교 기준 구간").select_option("all")
+                pw.expect(page.get_by_text("조회 경로를 확인할 수 없습니다")).to_be_visible()
                 page.get_by_role("button", name="motor-b").click()
                 pw.expect(
                     page.get_by_role("heading", name="이 설비에 저장된 신호가 없습니다")
