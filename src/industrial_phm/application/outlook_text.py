@@ -194,8 +194,12 @@ def outlook_sentences(outlook: dict[str, Any]) -> list[str]:
             if possible:
                 edge = "하단" if outlook["conditions"]["direction"] == "lower" else "상단"
                 sentences.append(
-                    label + ": 중심 예측은 " + search_text(outlook)
-                    + " 내 미도달 · 일부 예측 범위 " + edge + "에서만 도달 가능."
+                    label
+                    + ": 중심 예측은 "
+                    + search_text(outlook)
+                    + " 내 미도달 · 일부 예측 범위 "
+                    + edge
+                    + "에서만 도달 가능."
                 )
             else:
                 sentences.append(label + "에는 " + search_text(outlook) + " 안에 닿지 않습니다.")
