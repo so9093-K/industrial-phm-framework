@@ -73,8 +73,10 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                     assert q["asset_id"] == ["motor-a"]
                     assert q["kind"] == ["history"]
                     channel = q["series"][0]
+
                     def period(name):
                         return {"from": q[name + "_from"][0], "to": q[name + "_to"][0]}
+
                     def stats(n):
                         return {
                             "observation_count": n,
@@ -85,6 +87,7 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                             "mean": float(n),
                             "quantiles": [1, 2, float(n), 4, 5],
                         }
+
                     data = {
                         "schema_version": 1,
                         "asset_id": "motor-a",
@@ -93,8 +96,10 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                         "periods": {"a": period("a"), "b": period("b")},
                         "series": [
                             {
-                                "kind": "history", "key": channel,
-                                "source_id": source, "source_type": "csv",
+                                "kind": "history",
+                                "key": channel,
+                                "source_id": source,
+                                "source_type": "csv",
                                 "measurement_point_id": source,
                                 "interpretation_id": source + "-meaning",
                                 "unit": "A" if source == "src-A" else "V",
