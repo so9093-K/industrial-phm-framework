@@ -10,6 +10,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -136,7 +137,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                     base + "/web-next/?view=projection&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                pw.expect(page.get_by_role("heading", name="조건부 상태 전망 검토")).to_be_visible()
+                expect_place(pw, page, "상태 전망")
                 page.get_by_label("관리 기준 (선택)").fill("12")
                 page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
                 pw.expect(page.get_by_role("heading", name="예측 신호값 · 1h")).to_be_visible()

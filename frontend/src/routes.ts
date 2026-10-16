@@ -1,98 +1,107 @@
-/** Browser location is selection context, never a source of measured or calculated facts. */
-export const VIEWS = [
-  "overview", "signals", "departures", "compare", "projection",
-  "relation", "reviews", "spectrum", "features", "acq-relation", "model-evidence", "acq-outlook",
-] as const;
-export type View = (typeof VIEWS)[number];
+/** Browser location is selection context, never a source of measured or calculated facts.
+ * Pages are user tasks (docs/product/overview.md); analysis methods live inside an asset. */
+export const PAGES = ["monitor", "assets", "investigations", "maintenance", "system"] as const;
+export type Page = (typeof PAGES)[number];
+export const TABS = ["summary", "anomaly", "signals", "change", "outlook"] as const;
+export type Tab = (typeof TABS)[number];
+export const METHODS = {anomaly: ["model", "baseline"], change: ["compare", "relation", "spectrum"]} as const;
+export type Method = (typeof METHODS)[keyof typeof METHODS][number];
+export type DataKind = "history" | "vibration";
+export type Route = {page: Page; assetId: string; tab: Tab; method: Method | null; data: DataKind | null};
 
-type ViewInfo = { navigation: string; document: string; eyebrow: string;
-  title: string; description: string };
-export const VIEW_INFO: Record<View, ViewInfo> = {
-  overview: {
-    navigation: "새 관측 화면 검증", document: "관측 현황",
-    eyebrow: "관측 · 사실 확인", title: "설비 관측 현황",
-    description: "마지막으로 기록된 관측과 출처의 상태를 구분해서 확인합니다.",
-  },
-  signals: {
-    navigation: "저장 신호 탐색", document: "저장 신호 탐색",
-    eyebrow: "설비 조사 · 저장된 측정", title: "설비 신호 탐색",
-    description: "선택한 신호의 원본 의미·시간 구간·품질을 구분해서 확인합니다.",
-  },
-  departures: {
-    navigation: "기준 구간 이탈 조사", document: "기준 이탈 조사",
-    eyebrow: "설비 조사 · 모델 없는 변화", title: "기준 구간 이탈 조사",
-    description: "고른 신호가 선택한 기록 구간에서 얼마나 달라졌는지 탐색합니다. 설비 고장 진단이 아닙니다.",
-  },
-  compare: {
-    navigation: "두 기간의 측정 비교", document: "두 구간 비교",
-    eyebrow: "설비 조사 · 구간 A/B", title: "두 기간의 측정 비교",
-    description: "측정 근거가 같은 두 기간의 대표값·결측·품질을 비교합니다. 구간 A는 검증된 정상 범위가 아닙니다.",
-  },
-  projection: {
-    navigation: "조건부 상태 전망", document: "버전 연계 전망",
-    eyebrow: "설비 전망 · 계산 근거", title: "조건부 상태 전망 검토",
-    description: "같은 측정 버전일 때만 미래 신호 예측과 사용자 입력 기준 도달 전망을 함께 표시합니다.",
-  },
-  relation: {
-    navigation: "동일 시각 신호 관계", document: "신호 관계",
-    eyebrow: "설비 조사 · 신호 관계", title: "동일 시각 신호 관계 조사",
-    description: "정확히 같은 출처·시각에 기록된 두 신호의 관측 짝을 비교합니다.",
-  },
-  "acq-outlook": {
-    navigation: "획득 조건부 전망", document: "획득 조건부 전망",
-    eyebrow: "획득 특징 · 순서 기반 예측", title: "획득 순번 조건부 전망",
-    description: "같은 바인딩·측정 버전의 추가 획득 횟수 예측입니다. 기록된 간격·가정한 간격·실제 시각을 구분합니다.",
-  },
-  "model-evidence": {
-    navigation: "모델 실행 근거", document: "모델 실행 근거",
-    eyebrow: "PHM 모델 · 저장 실행", title: "모델 AnalysisRun 근거",
-    description: "명시적으로 연결된 패키지의 저장 실행·원본 해시와 분석/제외 상태를 구분합니다. 모델 점수는 고장 진단이 아닙니다.",
-  },
-  "acq-relation": {
-    navigation: "획득 특징 관계", document: "획득 특징 관계",
-    eyebrow: "획득 회차 · 두 특징 관계", title: "동일 획득 특징 관계",
-    description: "같은 원본·binding·획득 회차에 저장된 두 특징의 관계를 비교하며 고장·인과관계를 추정하지 않습니다.",
-  },
-  reviews: {
-    navigation: "사람 검토 기록", document: "검토 작업함",
-    eyebrow: "검토 · 근거 일치 확인", title: "사람 검토 기록",
-    description: "저장된 Finding과 정확히 연결된 AnalysisRun·Evidence를 확인합니다.",
-  },
-  spectrum: {
-    navigation: "획득 원본 파형 PSD", document: "획득 원본 PSD",
-    eyebrow: "획득 회차 · 원본 주파수", title: "획득 원본 파형 PSD 비교",
-    description: "검증된 파형 원본으로부터 서버가 계산한 Welch PSD만 비교합니다.",
-  },
-  features: {
-    navigation: "획득 특징값 2기간 비교", document: "획득 특징 비교",
-    eyebrow: "획득 회차 · 저장 특징", title: "획득 특징값 A/B 비교",
-    description: "서버 저장 획득 회차별 특징 통계와 수신·분석 누락을 구분해 비교합니다.",
-  },
+export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
+  monitor: {label: "관측 현황", description: "어느 설비에서 무엇이 언제 들어왔고, 먼저 확인할 설비가 어디인지 봅니다."},
+  assets: {label: "설비·신호", description: "설비를 고르면 상태 요약부터 이상 징후·신호·변화·전망을 차례로 봅니다."},
+  investigations: {label: "분석 기록", description: "어떤 입력과 모델로 언제 분석 결과가 나왔는지 확인합니다."},
+  maintenance: {label: "정비 검토", description: "분석 결과에 사람이 남긴 확인·메모·종료 기록입니다. 검토 종료는 정비 완료를 뜻하지 않습니다."},
+  system: {label: "운영 관리", description: "데이터 연결과 수집·저장·분석 상태를 관리합니다."},
+};
+export const TAB_INFO: Record<Tab, string> = {
+  summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "상태 전망",
+};
+export const METHOD_INFO: Record<Method, string> = {
+  model: "모델 점수", baseline: "기준 구간 이탈",
+  compare: "두 기간 비교", relation: "신호 관계", spectrum: "주파수 분석",
+};
+export const DATA_INFO: Record<DataKind, string> = {history: "시계열 기록", vibration: "진동 측정"};
+
+/** Addresses from before the task navigation keep working and land on the same workflow. */
+const LEGACY: Record<string, Omit<Route, "assetId">> = {
+  overview: {page: "monitor", tab: "summary", method: null, data: null},
+  signals: {page: "assets", tab: "signals", method: null, data: null},
+  departures: {page: "assets", tab: "anomaly", method: "baseline", data: null},
+  "model-evidence": {page: "assets", tab: "anomaly", method: "model", data: null},
+  compare: {page: "assets", tab: "change", method: "compare", data: "history"},
+  features: {page: "assets", tab: "change", method: "compare", data: "vibration"},
+  relation: {page: "assets", tab: "change", method: "relation", data: "history"},
+  "acq-relation": {page: "assets", tab: "change", method: "relation", data: "vibration"},
+  spectrum: {page: "assets", tab: "change", method: "spectrum", data: "vibration"},
+  projection: {page: "assets", tab: "outlook", method: null, data: "history"},
+  "acq-outlook": {page: "assets", tab: "outlook", method: null, data: "vibration"},
+  reviews: {page: "maintenance", tab: "summary", method: null, data: null},
 };
 
-export function parseRoute(search: string): { view: View; assetId: string } {
-  const params = new URLSearchParams(search);
-  const requested = params.get("view");
-  return {
-    view: VIEWS.find((view) => view === requested) ?? "overview",
-    assetId: params.get("monitor_asset") ?? "",
-  };
+function oneOf<T extends string>(values: readonly T[], raw: string | null): T | null {
+  return values.find((value) => value === raw) ?? null;
+}
+export function methodsOf(tab: Tab): readonly Method[] {
+  return tab === "anomaly" || tab === "change" ? METHODS[tab] : [];
+}
+/** Spectrum exists only for vibration waveforms; the other methods choose a data kind. */
+export function usesDataKind(tab: Tab, method: Method | null): boolean {
+  return tab === "outlook" || (tab === "change" && method !== "spectrum");
 }
 
-/** Cross-workflow navigation carries only an asset and a chosen signal, not a
- * previous workflow's period, threshold, binding, version or review identity. */
-export function viewUrl(view: View, assetId: string, channel: string | null): string {
+export function parseRoute(search: string): {route: Route; legacy: boolean} {
+  const params = new URLSearchParams(search);
+  const assetId = params.get("monitor_asset") ?? "";
+  const legacy = LEGACY[params.get("view") ?? ""];
+  if (legacy && !params.has("page")) return {route: {...legacy, assetId}, legacy: true};
+  const page = oneOf(PAGES, params.get("page")) ?? "monitor";
+  const tab = oneOf(TABS, params.get("tab")) ?? "summary";
+  const method = oneOf(methodsOf(tab), params.get("method"));
+  const data = usesDataKind(tab, method) ? oneOf(["history", "vibration"] as const, params.get("data")) : null;
+  return {route: {page, assetId, tab, method, data}, legacy: params.has("view")};
+}
+
+/** Only the route itself and an asset's chosen signal travel between screens; a previous
+ * workflow's period, threshold, binding, version or review identity never does. */
+export function routeUrl(route: Route, channel: string | null = null): string {
   const params = new URLSearchParams();
-  if (view !== "overview") params.set("view", view);
-  if (assetId) params.set("monitor_asset", assetId);
-  if (view !== "overview" && channel) params.set("monitor_channel", channel);
+  if (route.page !== "monitor") params.set("page", route.page);
+  if (route.page === "assets") {
+    if (route.tab !== "summary") params.set("tab", route.tab);
+    if (route.method && methodsOf(route.tab).includes(route.method)) params.set("method", route.method);
+    if (route.data && usesDataKind(route.tab, route.method)) params.set("data", route.data);
+  }
+  if (route.assetId) params.set("monitor_asset", route.assetId);
+  if (route.page === "assets" && channel) params.set("monitor_channel", channel);
   return "/web-next/" + (params.size ? "?" + params.toString() : "");
+}
+
+/** The canonical address of a legacy link keeps the workflow's own parameters. */
+export function canonicalUrl(search: string): string {
+  const {route} = parseRoute(search);
+  const target = new URL(routeUrl(route), "http://local");
+  for (const [key, value] of new URLSearchParams(search)) {
+    if (key !== "view" && !target.searchParams.has(key)) target.searchParams.set(key, value);
+  }
+  return target.pathname + target.search;
 }
 
 /** Never reuse any old-asset query parameter, including parameters added by future
  * workflows. This is safer than maintaining an incomplete delete list. */
 export function assetUrl(currentHref: string, assetId: string): string {
   if (!assetId) throw new Error("설비 식별자가 필요합니다.");
-  const current = new URL(currentHref);
-  return viewUrl(parseRoute(current.search).view, assetId, null);
+  const {route} = parseRoute(new URL(currentHref).search);
+  const page = route.page === "monitor" ? "assets" : route.page;
+  return routeUrl({...route, page, assetId, data: null});
+}
+
+/** Workflow links inside an asset (e.g. from a signal to its outlook). */
+export function assetTabUrl(
+  assetId: string, tab: Tab, method: Method | null = null,
+  data: DataKind | null = null, channel: string | null = null,
+): string {
+  return routeUrl({page: "assets", assetId, tab, method, data}, channel);
 }

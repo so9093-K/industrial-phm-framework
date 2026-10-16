@@ -3,6 +3,7 @@
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type Relation} from "../relation";
   import StatusNotice from "./StatusNotice.svelte";
+  import {assetTabUrl} from "../routes";
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let listState:State=$state("loading");
@@ -99,7 +100,7 @@
   {:else if listState==="empty"||listState==="unavailable"}
     <StatusNotice kind="uncertain" title="비교할 측정 신호가 부족합니다"
       message="서로 다른 두 신호에 같은 출처·시각의 관측이 있어야 합니다. 목록이 부족하다는 것은 정상 설비라는 의미가 아닙니다."
-      actionLabel="신호와 품질 확인" actionHref={"/web-next/?view=signals&monitor_asset="+encodeURIComponent(assetId)}/>
+      actionLabel="신호와 품질 확인" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
     <div class="controls">
       <label for="relation-x">X 측정

@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import choose_asset, expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -124,13 +125,15 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 page.goto(
                     base + "/web-next/?view=signals&monitor_asset=motor-a", wait_until="networkidle"
                 )
-                pw.expect(page.get_by_role("heading", name="설비 신호 탐색")).to_be_visible()
+                expect_place(pw, page, "신호")
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="R · source-2")).to_be_visible()
                 pw.expect(
                     page.get_by_role("link", name="이 신호의 기준 구간 이탈 조사")
                 ).to_have_attribute(
-                    "href", "/web-next/?view=departures&monitor_asset=motor-a&monitor_channel=R"
+                    "href",
+                    "/web-next/?page=assets&tab=anomaly&method=baseline"
+                    "&monitor_asset=motor-a&monitor_channel=R",
                 )
                 pw.expect(page.locator("svg circle")).to_have_count(2)
                 page.get_by_text("시간별 평균·결측·원본 품질 확인").first.click()
@@ -144,7 +147,8 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 pw.expect(page.get_by_label("조회 기간")).to_have_value("15m")
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
 
-                page.get_by_role("button", name="motor-b").click()
+                choose_asset(page, "motor-b")
+                expect_place(pw, page, "신호")
                 pw.expect(
                     page.get_by_role("heading", name="저장된 신호가 없습니다")
                 ).to_be_visible()

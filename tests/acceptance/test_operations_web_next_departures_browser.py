@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import choose_asset, expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024, 1440])
@@ -143,10 +144,10 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                     base + "/web-next/?view=departures&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                pw.expect(page.get_by_role("heading", name="기준 구간 이탈 조사")).to_be_visible()
+                expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("1개")
                 pw.expect(page.locator(".departures svg circle")).to_have_count(1)
-                assert "고장 진단이 아닙니다" in page.locator("main").inner_text()
+                assert "고장 가능성" in page.locator("main").inner_text()
                 page.get_by_label("비교 기준 구간").select_option("all")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("0개")
                 assert "departure_baseline=all" in page.url
@@ -170,7 +171,8 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 response_override["error"] = "not_found"
                 page.get_by_label("비교 기준 구간").select_option("all")
                 pw.expect(page.get_by_text("조회 경로를 확인할 수 없습니다")).to_be_visible()
-                page.get_by_role("button", name="motor-b").click()
+                choose_asset(page, "motor-b")
+                expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(
                     page.get_by_role("heading", name="이 설비에 저장된 신호가 없습니다")
                 ).to_be_visible()
