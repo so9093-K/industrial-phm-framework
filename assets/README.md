@@ -2,13 +2,14 @@
 
 ## 구성도
 
-- [`system-architecture.svg`](system-architecture.svg): README와 아키텍처 문서가 공유하는 편집 가능한 원본.
-  측정 이력과 진동 측정 경로, 저장된 데이터의 분석·전망, Operations Web, 선택적 AI와 사람의 검토를 표현합니다.
+- [`system-architecture.png`](system-architecture.png): README와 아키텍처 문서가 공유하는 대표 구성도.
+  2026-10-16 사용자가 제공한 PNG 원본(1672×941)입니다. 현장 데이터 소스 → 데이터 파이프라인 →
+  DuckLake → 분석 → Operations Web → 운영자 판단의 개념적 흐름과 AI 브리핑·운영 지원을 표현합니다.
 - `model-training-evaluation.png`: 연구 경로의 모델 학습·평가 흐름 참조.
 - `service-architecture.png`: 서비스 책임을 설명하는 참조 그림. 배포된 서비스 목록을 뜻하지 않습니다.
 
 실행·저장 책임은 [아키텍처](../docs/architecture/overview.md), 기능별 지원 조건은
-[현재 지원 상태](../docs/status.md)가 기준입니다. 입력·저장·분석 경계가 바뀌면 대표 SVG와 설명을 함께 갱신합니다.
+[현재 지원 상태](../docs/status.md)가 기준입니다. 입력·저장·분석 경계가 바뀌면 대표 구성도와 설명을 함께 갱신합니다.
 
 ## 화면 캡처
 
