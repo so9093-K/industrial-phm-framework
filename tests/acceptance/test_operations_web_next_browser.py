@@ -91,3 +91,51 @@ def test_web_next_read_only_observation_and_navigation(tmp_path: Path, width: in
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) -> None:
+    """Uncertain evidence remains visible even when the asset list is empty."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "empty-uncertain")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(
+                    viewport={"width": 1024, "height": 900}, locale="ko-KR"
+                )
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps(
+                            {
+                                "assessed_at": "2026-10-10T03:00:00Z",
+                                "assets": {"items": [], "total": 0, "truncated": False},
+                                "system_error_scopes": ["history"],
+                            }
+                        ),
+                    ),
+                )
+                base = f"http://127.0.0.1:{server.server_port}"
+                page.goto(base + "/web-next/", wait_until="networkidle")
+                pw.expect(page.get_by_role("heading", name="조회된 설비가 없습니다")).to_be_visible()
+                pw.expect(page.get_by_role("status")).to_contain_text(
+                    "일부 저장소·수집 근거를 확인하지 못했습니다"
+                )
+                pw.expect(page.get_by_role("link", name="데이터 연결 화면 열기")).to_have_attribute(
+                    "href", "/web/#connect"
+                )
+                assert page.get_by_role("heading", name="선택한 설비의 관측 사실").count() == 0
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()
