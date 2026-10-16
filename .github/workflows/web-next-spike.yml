@@ -6,6 +6,7 @@ on:
       - "frontend/**"
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
+      - "tests/acceptance/test_operations_web_next_browser.py"
       - ".github/workflows/web-next-spike.yml"
 
 permissions:
@@ -63,3 +64,9 @@ jobs:
           assert any("/web_next/assets/" in name and name.endswith(".js") for name in names), names
           assert any(name.endswith("/web_next/asset-manifest.json") for name in names), names
           PY
+      - name: Install Chromium acceptance tools
+        run: |
+          uv pip install --python .venv/bin/python "playwright>=1.56,<2"
+          uv run --no-sync python -m playwright install --with-deps chromium
+      - name: Web-next Chromium user journey
+        run: uv run --no-sync pytest tests/acceptance/test_operations_web_next_browser.py
