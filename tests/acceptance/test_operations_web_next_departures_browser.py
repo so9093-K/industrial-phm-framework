@@ -146,7 +146,9 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 )
 
                 page.get_by_label("비교 기준 구간").select_option("first-50")
-                pw.expect(page.get_by_role("heading", name="저장된 비교 근거가 없습니다")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="저장된 비교 근거가 없습니다")
+                ).to_be_visible()
                 assert page.get_by_text("0개").count() == 0
                 page.get_by_role("button", name="motor-b").click()
                 pw.expect(

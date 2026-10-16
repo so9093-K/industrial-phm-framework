@@ -110,7 +110,7 @@ export function parseDepartures(
     if (Date.parse(end) < Date.parse(start)) throw new Error("이상 구간의 시작과 끝이 뒤바뀌었습니다.");
     return {
       start, end, channel: selectedChannel, channels: item.channels.map(nonEmpty),
-      direction: item.direction,
+      direction: item.direction as DepartureInterval["direction"],
       median: amount(item.median), value: amount(item.value), distance: amount(item.distance),
     };
   });
