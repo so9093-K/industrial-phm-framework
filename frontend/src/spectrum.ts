@@ -66,6 +66,13 @@ export function parseSpectrum(
       ||usedOrdinal[n].some(v=>v<spans[n].from||v>spans[n].to))
       throw new Error("요청하지 않은 획득 회차가 스펙트럼에 포함됐습니다.");
   }
+  const rate=num(data.sampling_rate_hz),segment=count(data.segment);
+  if(rate<=0||segment<2)throw new Error("파형의 기록 주파수 또는 분석 구간이 올바르지 않습니다.");
+  // Band edges retain the original Welch frequency resolution; displayed
+  // frequencies are *averages* of bins, whose last center is below Nyquist.
+  const nyquist=rate/2;
+  if(frequency[frequency.length-1]>nyquist)
+    throw new Error("서버 표시 주파수가 Nyquist 범위를 초과합니다.");
   const keys=new Set<string>();
   const channels=data.channels.map((raw:unknown):SpectrumChannel=>{
     const channel=record(raw);
@@ -82,14 +89,12 @@ export function parseSpectrum(
       const row=record(item);
       if(!row)throw new Error("대역 변화 수치가 올바르지 않습니다.");
       const from=num(row.from_hz),to=num(row.to_hz),changeDb=num(row.change_db);
-      if(from<0||to<from||to>frequency[frequency.length-1])
+      if(from<0||to<from||to>nyquist)
         throw new Error("파워 대역 범위가 유효하지 않습니다.");
       return {from,to,changeDb};
     });
     return {id:name,label:typeof channel.label==="string"?channel.label:name,a,b,bands};
   });
-  const rate=num(data.sampling_rate_hz),segment=count(data.segment);
-  if(rate<=0||segment<2)throw new Error("파형의 기록 주파수 또는 분석 구간이 올바르지 않습니다.");
   return {asset,source:acq.source,samplingRate:rate,segment,frequencies:frequency,
     used:usedOrdinal,channels};
 }

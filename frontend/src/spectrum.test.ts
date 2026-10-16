@@ -31,3 +31,12 @@ test("unreliable waveform shape does not produce a plausible graph",()=>{
  const negative=spectrum();negative.channels[0].a=[-1,0.2,0.3];
  assert.throws(()=>parseSpectrum(negative,"motor",acq,spans),/일치하지/);
 });
+
+test("a full-resolution Welch band can extend above the last DISPLAYED mean bin",()=>{
+  const valid=spectrum();
+  valid.channels[0].band_changes[0]={from_hz:150,to_hz:250,change_db:3.2};
+  assert.equal(parseSpectrum(valid,"motor",acq,spans).channels[0].bands[0].to,250);
+  const impossible=spectrum();
+  impossible.channels[0].band_changes[0].to_hz=6500; // Nyquist is 6000 Hz.
+  assert.throws(()=>parseSpectrum(impossible,"motor",acq,spans),/범위/);
+});
