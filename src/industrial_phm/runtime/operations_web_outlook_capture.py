@@ -432,11 +432,10 @@ def handle_outlook_captures_read(
         records = page[:20]
         for item in records:
             item["source_recheck"] = current_measurement_recheck(workspace, item["snapshot"])
-        return HTTPStatus.OK, {
-            "schema_version": 1,
-            "captures": records,
-            "next_before": records[-1]["capture_id"] if len(page) > 20 else None,
-        }
+        response: dict[str, Any] = {"schema_version": 1, "captures": records}
+        if len(page) > 20:
+            response["next_before"] = records[-1]["capture_id"]
+        return HTTPStatus.OK, response
     except ValueError, TypeError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_outlook_capture_query"}
     except LookupError:
