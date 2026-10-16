@@ -17,6 +17,12 @@ from industrial_phm.runtime.operations_web_outlook_capture import (
 def _snapshot(*, last: int = 64) -> dict[str, object]:
     return {
         "schema_version": 1,
+        "identity": {
+            "asset_id": "bearing-a",
+            "kind": "acquisition",
+            "series": "rms",
+            "record_last": last,
+        },
         "selection": {"asset_id": "bearing-a", "kind": "acquisition", "series": "rms"},
         "outlook": {
             "asset_id": "bearing-a",
