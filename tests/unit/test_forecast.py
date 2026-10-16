@@ -17,7 +17,6 @@ from industrial_phm.application.forecast import (
     forecast_values,
     horizon_reasons,
 )
-
 from industrial_phm.runtime.operations_web_forecast import measurement_version
 
 T0 = datetime(2026, 10, 1, tzinfo=UTC)
@@ -38,7 +37,10 @@ def test_measurement_version_identifies_corrected_input_without_a_new_last_obser
     assert times[-1] == times[-1] and corrected[-1] == values[-1]
     assert measurement_version(*identity, times, corrected, meta) != original
     assert measurement_version(*identity, times, values, meta) == original
-    assert measurement_version(*identity, times, values, {**meta, "source_id": "sensor-b"}) != original
+    assert (
+        measurement_version(*identity, times, values, {**meta, "source_id": "sensor-b"})
+        != original
+    )
     assert measurement_version("pump-2", "history", "current", times, values, meta) != original
 
 
