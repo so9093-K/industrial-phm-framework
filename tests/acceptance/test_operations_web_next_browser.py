@@ -142,3 +142,118 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+
+def test_asset_history_navigation_clears_old_context_and_restores_selection(
+    tmp_path: Path,
+) -> None:
+    """Switching assets cannot reuse another asset's query, even after back/forward."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "route-history")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 1024, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps({
+                            "assessed_at": "2026-10-16T00:00:00Z",
+                            "assets": {
+                                "items": [
+                                    {"asset_id": "motor-a", "data_flow_status": "stored-history",
+                                     "last_data_at": None, "attention_count": 0},
+                                    {"asset_id": "motor-b", "data_flow_status": "waiting",
+                                     "last_data_at": None, "attention_count": 0},
+                                ],
+                                "total": 2, "truncated": False,
+                            },
+                            "system_error_scopes": [],
+                        }),
+                    ),
+                )
+                base = f"http://127.0.0.1:{server.server_port}"
+                page.goto(base + "/web-next/?view=reviews&monitor_asset=motor-a"
+                          "&monitor_channel=R&projection_direction=lower"
+                          "&capture_id=old&unanticipated_selection=old", wait_until="networkidle")
+                pw.expect(page.get_by_role("button", name="motor-a")).to_have_attribute(
+                    "aria-pressed", "true"
+                )
+                page.get_by_role("button", name="motor-b").click()
+                pw.expect(page.get_by_role("button", name="motor-b")).to_have_attribute(
+                    "aria-pressed", "true"
+                )
+                assert page.url.endswith("/web-next/?view=reviews&monitor_asset=motor-b")
+                page.go_back(wait_until="domcontentloaded")
+                pw.expect(page.get_by_role("button", name="motor-a")).to_have_attribute(
+                    "aria-pressed", "true"
+                )
+                assert "capture_id=old" in page.url
+                page.go_forward(wait_until="domcontentloaded")
+                pw.expect(page.get_by_role("button", name="motor-b")).to_have_attribute(
+                    "aria-pressed", "true"
+                )
+                assert "monitor_channel=R" not in page.url
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_unknown_asset_deep_link_does_not_show_another_asset(
+    tmp_path: Path,
+) -> None:
+    """A direct link to unavailable evidence must fail closed, not fall back."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "unknown-asset")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900}, locale="ko-KR")
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=json.dumps({
+                            "assessed_at": "2026-10-16T00:00:00Z",
+                            "assets": {
+                                "items": [{"asset_id": "motor-b",
+                                           "data_flow_status": "stored-history",
+                                           "last_data_at": None, "attention_count": 0}],
+                                "total": 2, "truncated": True,
+                            },
+                            "system_error_scopes": [],
+                        }),
+                    ),
+                )
+                page.goto(f"http://127.0.0.1:{server.server_port}/web-next/"
+                          "?monitor_asset=motor-a", wait_until="networkidle")
+                pw.expect(page.get_by_role("heading", name="선택한 설비가 이번 조회에 없습니다")
+                          ).to_be_visible()
+                assert page.get_by_role("heading", name="선택한 설비의 관측 사실").count() == 0
+                assert "monitor_asset=motor-a" in page.url
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
