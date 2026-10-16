@@ -201,7 +201,7 @@ def test_vibration_features_are_forecast_on_the_acquisition_axis(tmp_path: Path)
         assert status == 200 and acquisition["period_seconds"] == 60
         assert (acquisition["first"], acquisition["last"], acquisition["count"]) == (1, 125, 125)
         assert acquisition["horizons"]["1h"] is None
-        assert acquisition["source_id"] == "source-a" or acquisition["source_id"]
+        assert isinstance(acquisition["source_id"], str) and acquisition["source_id"]
         assert acquisition["binding_id"] == "anomaly-a"
         status, body = get(
             "/api/v1/forecast",
