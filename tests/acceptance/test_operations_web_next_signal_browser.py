@@ -112,12 +112,16 @@ def test_web_next_signal_history_preserves_context_and_quality(
                 pw.expect(page.locator("svg circle")).to_have_count(2)
                 page.get_by_text("시간별 평균·결측·원본 품질 확인").first.click()
                 pw.expect(page.get_by_role("table").first).to_contain_text("결측")
-                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 2")
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth + 2"
+                )
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
 
                 page.get_by_role("button", name="motor-b").click()
-                pw.expect(page.get_by_role("heading", name="저장된 신호가 없습니다")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="저장된 신호가 없습니다")
+                ).to_be_visible()
                 assert page.get_by_role("heading", name="R · source-1").count() == 0
                 assert "motor-b" in page.url
                 assert not errors, errors
