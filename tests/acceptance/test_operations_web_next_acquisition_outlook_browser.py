@@ -135,7 +135,9 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                                 **base_body(selected["forecast_version"]),
                                 "horizon": "count",
                                 "horizon_count": 20,
-                                "meaning": "stored-flow-continued-not-failure-time-or-remaining-life",
+                                "meaning": (
+                                    "stored-flow-continued-not-failure-time-or-remaining-life"
+                                ),
                                 "forecast": [[64, 2.2, 2.0, 2.4], [84, 3.4, 3.2, 3.8]],
                             }
                         ),
@@ -184,7 +186,9 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     base + "/web-next/?view=acq-outlook&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
-                pw.expect(page.get_by_role("heading", name="획득 특징의 조건부 전망")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="획득 특징의 조건부 전망")
+                ).to_be_visible()
                 if spacing == "assumed":
                     page.get_by_label("가정한 획득 간격 (선택 · 초/회, 1~86400)").fill("120")
                 page.get_by_label("관리 기준 (선택)").fill("2.4")
@@ -195,11 +199,17 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 assert page.get_by_role("columnheader", name="획득 #").count() == 1
                 assert page.get_by_role("columnheader", name="예측 시점").count() == 0
                 if spacing == "ordinal":
-                    pw.expect(page.get_by_text("획득 순번만 확인 가능", exact=False)).to_be_visible()
+                    pw.expect(
+                        page.get_by_text("획득 순번만 확인 가능", exact=False)
+                    ).to_be_visible()
                 elif spacing == "assumed":
-                    pw.expect(page.get_by_text("사용자가 가정한 획득 간격", exact=False)).to_be_visible()
+                    pw.expect(
+                        page.get_by_text("사용자가 가정한 획득 간격", exact=False)
+                    ).to_be_visible()
                 else:
-                    pw.expect(page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)).to_be_visible()
+                    pw.expect(
+                        page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)
+                    ).to_be_visible()
                 assert "acq_forecast_count=20" in page.url
                 # Even if the observed version is unchanged, a different
                 # binding cannot inherit the prior result.
