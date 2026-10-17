@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import replace
 from pathlib import Path
 from threading import Thread
+from typing import Any
 
 import pytest
 
@@ -12,6 +14,22 @@ from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSna
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from tests.support.phm import T0, analyze, deliver, phm_workspace
+
+
+def _choose_by_keyboard(page: Any, selector: str, key: str, value: str) -> None:
+    """Change a native select from the keyboard where the platform does so.
+
+    Chromium on Linux (CI and ``make verify-linux``) changes a closed select with the
+    arrow keys. On macOS the key opens the native menu instead and a headless run never
+    commits it, so there the same change event comes from choosing the option while the
+    select keeps focus.
+    """
+    control = page.locator(selector)
+    control.focus()
+    if sys.platform.startswith("linux"):
+        control.press(key)
+    else:
+        control.select_option(value)
 
 
 @pytest.mark.parametrize("width", [390, 1024, 1440])
@@ -115,8 +133,7 @@ def test_monitor_discovers_inputs_waits_rejects_recovers_and_opens_exact_result(
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #2")
                 pw.expect(page.locator("#anomaly-explanation h3")).to_contain_text("분석 #2")
                 # A keyboard-selected older record updates summary, raw input and bookmark together.
-                page.locator("#anomaly-position").focus()
-                page.locator("#anomaly-position").press("ArrowUp")
+                _choose_by_keyboard(page, "#anomaly-position", "ArrowUp", "1")
                 pw.expect(page.locator("#anomaly-detail h3")).to_contain_text("측정 #1")
                 pw.expect(page.locator("#anomaly-observation")).to_contain_text(
                     "선택한 이전 기록 #1"
@@ -237,6 +254,10 @@ def test_attention_actions_open_the_matching_problem_with_visible_context(
                 deliver(workspace, tmp_path / "waves", 3, 4.0)
                 (tmp_path / "waves/3.csv").write_text("corrupted after delivery")
                 analyze(workspace)
+                # Act on what the operator sees once both models' refusals are shown (#614).
+                # A poll taken while analyze() was between the two models showed only one
+                # refusal, and its button rightly opened that model instead.
+                pw.expect(alert).to_contain_text("2개 분석", timeout=10_000)
                 alert.get_by_role("button", name="분석 입력·모델 확인").click()
                 model = page.locator('.monitor-model[data-binding-id="anomaly-a"]')
                 pw.expect(model).to_be_focused()
@@ -260,7 +281,7 @@ def test_attention_actions_open_the_matching_problem_with_visible_context(
                 with page.expect_response("**/api/v1/phm/series?*"):
                     pw.expect(page.locator("#anomaly-position")).to_be_focused()
                 pw.expect(page.locator("#anomaly-position")).to_be_focused()
-                page.locator("#anomaly-position").press("ArrowDown")
+                _choose_by_keyboard(page, "#anomaly-position", "ArrowDown", "2")
                 pw.expect(page.locator("#anomaly-position")).to_have_value("2")
                 assert "phm_position=2" in page.url
                 page.reload()

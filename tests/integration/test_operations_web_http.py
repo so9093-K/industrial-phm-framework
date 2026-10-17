@@ -428,3 +428,40 @@ def test_recorded_history_anchor_preserves_old_event_time_without_source_registr
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+def test_a_burst_of_browser_connections_is_queued_not_reset(tmp_path: Path) -> None:
+    """A page loads its modules over many connections at once (#614).
+
+    Connections beyond the listen backlog are reset on macOS rather than retried, which
+    left the page without some of its scripts. Every connection of a burst is served.
+    """
+    workspace = OperationsWorkspace(tmp_path / "burst")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root, port=0)
+    assert server.request_queue_size >= 64
+    # Hold the accept loop so the whole burst waits in the listen queue at once.
+    burst = 48
+    connections = []
+    try:
+        for _ in range(burst):
+            # A reset or a stalled connect fails here rather than hanging the run.
+            connection = HTTPConnection("127.0.0.1", server.server_port, timeout=3)
+            connection.connect()
+            connections.append(connection)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        statuses = []
+        for connection in connections:
+            connection.request(
+                "GET", "/api/v1/session", headers={"Host": f"127.0.0.1:{server.server_port}"}
+            )
+            response = connection.getresponse()
+            response.read()
+            statuses.append(response.status)
+        assert statuses == [200] * burst
+    finally:
+        for connection in connections:
+            connection.close()
+        server.shutdown()
+        server.server_close()
