@@ -17,6 +17,7 @@ test("pages and asset tabs are user tasks; unknown values are not invented", () 
   assert.deepEqual(parseRoute("?page=assets&tab=signals&method=relation&data=vibration").route,
     {page: "assets", assetId: "", tab: "signals", method: null, data: null});
   assert.equal(parseRoute("?page=assets&tab=change&method=spectrum&data=history").route.data, null);
+  assert.equal(parseRoute("?page=assets&tab=change&method=electrical&data=vibration").route.data, null);
   assert.equal(parseRoute("?page=assets&tab=outlook&data=vibration").route.data, "vibration");
 });
 

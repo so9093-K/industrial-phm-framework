@@ -4,7 +4,7 @@ export const PAGES = ["monitor", "assets", "investigations", "maintenance", "sys
 export type Page = (typeof PAGES)[number];
 export const TABS = ["summary", "anomaly", "signals", "change", "outlook"] as const;
 export type Tab = (typeof TABS)[number];
-export const METHODS = {anomaly: ["model", "baseline"], change: ["compare", "relation", "spectrum"]} as const;
+export const METHODS = {anomaly: ["model", "baseline"], change: ["compare", "relation", "spectrum", "electrical"]} as const;
 export type Method = (typeof METHODS)[keyof typeof METHODS][number];
 export type DataKind = "history" | "vibration";
 export type Route = {page: Page; assetId: string; tab: Tab; method: Method | null; data: DataKind | null};
@@ -21,7 +21,7 @@ export const TAB_INFO: Record<Tab, string> = {
 };
 export const METHOD_INFO: Record<Method, string> = {
   model: "모델 점수", baseline: "기준 구간 이탈",
-  compare: "두 기간 비교", relation: "신호 관계", spectrum: "주파수 분석",
+  compare: "두 기간 비교", relation: "신호 관계", spectrum: "주파수 분석", electrical: "부하·불평형",
 };
 export const DATA_INFO: Record<DataKind, string> = {history: "시계열 기록", vibration: "진동 측정"};
 
@@ -47,9 +47,10 @@ function oneOf<T extends string>(values: readonly T[], raw: string | null): T | 
 export function methodsOf(tab: Tab): readonly Method[] {
   return tab === "anomaly" || tab === "change" ? METHODS[tab] : [];
 }
-/** Spectrum exists only for vibration waveforms; the other methods choose a data kind. */
+/** Spectrum exists only for vibration waveforms and load/unbalance only for 3-phase history;
+ * the other methods choose a data kind. */
 export function usesDataKind(tab: Tab, method: Method | null): boolean {
-  return tab === "outlook" || (tab === "change" && method !== "spectrum");
+  return tab === "outlook" || (tab === "change" && method !== "spectrum" && method !== "electrical");
 }
 
 export function parseRoute(search: string): {route: Route; legacy: boolean} {
