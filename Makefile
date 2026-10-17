@@ -10,7 +10,7 @@ VERIFY_STAGE ?= ci
 VERIFY_PLATFORM ?=
 _verify_platform = $(if $(VERIFY_PLATFORM),--platform $(VERIFY_PLATFORM),)
 
-.PHONY: help up down status logs demo verify-linux _require-uv _prepare
+.PHONY: help up down status logs demo verify-linux _require-uv _require-npm frontend _prepare
 
 help:
 	@printf '%s\n' \
@@ -21,6 +21,7 @@ help:
 		'  make status   Show local Operations status' \
 		'  make logs     Show component logs' \
 		'  make demo     Start the synthetic Operations demo' \
+		'  make frontend Build the Operations Web static assets (needs Node.js and npm)' \
 		'  make verify-linux  Run the CI checks in a Linux container (needs Docker)' \
 		'' \
 		'Variables:' \
@@ -35,7 +36,17 @@ _require-uv:
 		exit 127; \
 	}
 
-_prepare: _require-uv
+_require-npm:
+	@command -v npm >/dev/null 2>&1 || { \
+		echo "Node.js >=22.12 and npm are required to build Operations Web from source." >&2; \
+		exit 127; \
+	}
+
+frontend: _require-npm
+	npm ci --prefix frontend --no-audit --no-fund
+	npm run --prefix frontend build
+
+_prepare: _require-uv frontend
 	$(UV) python install $(PYTHON_VERSION)
 	$(UV) sync --locked --extra operations
 

@@ -44,7 +44,6 @@ from tools.phm.acceptance_common import (
     NOT_CAUGHT_UP,
     Checks,
     Supervisor,
-    check_explanation,
     cli,
     displayed,
     free_port,
@@ -54,6 +53,7 @@ from tools.phm.acceptance_common import (
     set_config,
     write_evidence,
 )
+from tools.phm.acceptance_web import expect_saved_review, open_model, review_explained_result
 
 MEMBER = "3.공기압축기/SourceData_16.json"
 BINDING = "tools/opcua/presets/aihub-air-compressor-1338-replay.json"
@@ -187,10 +187,10 @@ def main(argv: list[str] | None = None) -> int:
                 stderr=subprocess.STDOUT,
             )
             replay_began = time.monotonic()
-            page.goto(url + "#anomaly")
+            open_model(page, url, "aihub-1338")
             record_display(page, "anomaly-freshness")
             shown_text: list[tuple[datetime, str]] = []
-            selected = interrupted = False
+            interrupted = False
             # The replay server stays up after publishing the selection; it is done when it says so.
             while server.poll() is None and "replay selection finished" not in replay_log.read_text(
                 encoding="utf-8", errors="replace"
@@ -205,10 +205,12 @@ def main(argv: list[str] | None = None) -> int:
                     # While the node is down the screen must say it cannot read results,
                     # not keep presenting the last analysis as current.
                     try:
-                        expect(page.locator("#anomaly-state")).to_contain_text(
-                            "PHM 분석 결과를 읽지 못했습니다", timeout=10_000
+                        expect(page.get_by_role("region", name="모델 이상 점수")).to_contain_text(
+                            "최신 모델 결과를 다시 읽지 못했습니다", timeout=10_000
                         )
-                        outage_state = page.locator("#anomaly-state").inner_text()
+                        outage_state = page.get_by_role(
+                            "region", name="모델 이상 점수"
+                        ).inner_text()
                     except AssertionError:
                         outage_state = None
                     checks.add("outage-shows-read-failure", outage_state is not None, outage_state)
@@ -221,14 +223,9 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     interrupted = True
                     shown_text += displayed(page)
-                    page.reload()
+                    open_model(page, url, "aihub-1338")
                     record_display(page, "anomaly-freshness")
-                    selected = False
                     continue
-                option = page.locator('#anomaly-binding option[value="aihub-1338"]')
-                if not selected and option.count():
-                    page.select_option("#anomaly-binding", "aihub-1338")
-                    selected = True
             evidence["replay_finished_seconds"] = round(time.monotonic() - replay_began, 1)
             checks.add(
                 "replay-published-whole-selection",
@@ -262,16 +259,12 @@ def main(argv: list[str] | None = None) -> int:
             checks.add(
                 "window-finalized-to-commit-p95-le-10s", p95 is not None and p95 <= 10.0, p95
             )
-            # The window screen shows "최신 분석 원본 측정 <event start, KST> · 분석 완료 <time>"
-            # for the latest analyzed window, so a commit is reflected once that start reaches it.
+            # The recorder reads the displayed result's actual event-start ISO timestamp.
+            # A commit is reflected once the selected window start reaches it.
             shown = [
-                (at, datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S").replace(tzinfo=SEOUL))
+                (at, datetime.fromisoformat(match.group(1)).astimezone(UTC).replace(microsecond=0))
                 for at, text in shown_text
-                if (
-                    match := re.search(
-                        r"최신 분석 원본 측정 (\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) KST", text
-                    )
-                )
+                if (match := re.search(r"원본 측정 ([^ ]+) ", text))
             ]
             measured = [
                 (r.event_start.astimezone(UTC).replace(microsecond=0), r.processed_at)
@@ -347,23 +340,9 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             # 4. Real local-main explanation and human review on the screen -----------------
-            page.goto(url + "#anomaly")
-            page.select_option("#anomaly-binding", "aihub-1338")
-            panel = page.locator("#anomaly-explanation")
-            expect(panel).to_contain_text("사람 검토", timeout=15_000)
-            page.locator("#anomaly-review-options > summary").click()
-            panel.locator(".phm-ai-details summary").click()
-            panel.get_by_role("button", name="AI 설명 생성").click()
-            expect(panel.locator(".phm-ai-text")).not_to_be_empty(timeout=180_000)
-            explanation = check_explanation(checks, "", panel, window=True)
+            panel = open_model(page, url, "aihub-1338")
+            explanation = review_explained_result(page, panel, checks, "", window=True)
             evidence["explanation"] = explanation
-            panel.get_by_role("button", name="검토 요청").click()
-            expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
-            panel.get_by_label("검토 메모").first.fill("R/S/T 전류와 전압 원본 신호를 함께 확인함")
-            panel.get_by_role("button", name="검토 확인").click()
-            expect(panel.locator(".phm-review-history")).to_contain_text("검토 확인됨")
-            panel.get_by_role("button", name="검토 종료").click()
-            expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
             page.screenshot(path=str(output / "anomaly-reviewed.png"), full_page=True)
 
             # 5. Restart: results, explanation, review persist --------------------------------
@@ -390,11 +369,7 @@ def main(argv: list[str] | None = None) -> int:
                 and all(r.event_start is not None and r.event_start > latest for r in added),
                 {"kept": len(before), "changed": changed, "added": len(added)},
             )
-            page.goto(url + "#anomaly")
-            page.select_option("#anomaly-binding", "aihub-1338")
-            panel = page.locator("#anomaly-explanation")
-            expect(panel.locator(".phm-ai-text")).to_have_text(explanation["text"], timeout=15_000)
-            expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
+            expect_saved_review(page, explanation)
             checks.add("restart-keeps-explanation-and-review", True)
             page.screenshot(path=str(output / "anomaly-after-restart.png"), full_page=True)
             checks.add("no-browser-errors", not errors, errors)

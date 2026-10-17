@@ -41,7 +41,8 @@ AI 설명에는 별도 모델 서버 연결이 필요합니다. 사용자는 상
 각각 `관리 상한`과 `종료 기준`이라는 이름으로 적용했습니다. 이 화면이 읽는 특징 데이터에는 물리 단위가 등록돼 있지 않으며,
 두 값은 실제 설비의 허용 진동값이나 고장 기준으로 검증되지 않았습니다.
 
-두 화면은 **XJTU-SY Bearing1_1 기록 재생 데이터**를 최신 Web의 조회 화면에서 캡처했습니다.
+두 화면은 **XJTU-SY Bearing1_1 기록 재생 데이터**를 이전 Web에서 캡처한 참고 이미지입니다.
+현재 `/web/`는 업무 메뉴와 설비별 탭으로 이동하는 Svelte 화면입니다. [화면 전환과 검증 범위](docs/product/web-migration.md).
 현장 실시간 수신이나 고장 예측 성능을 보여주는 사례는 아닙니다.
 [촬영 조건](assets/README.md#화면-캡처) · [설정별 예측 화면](docs/product/forecast-flexibility-and-condition-outlook.md#설정별-화면-예시)
 
@@ -73,8 +74,10 @@ AI 설명에는 별도 모델 서버 연결이 필요합니다. 사용자는 상
 
 ## 빠른 시작
 
-**준비:** Linux, `make`, [uv](https://docs.astral.sh/uv/).
+**준비:** Linux, `make`, [uv](https://docs.astral.sh/uv/), Node.js 22.12 이상과 npm.
 첫 실행은 Python 3.14와 버전이 고정된 의존성(LSTM 실행용 CPU PyTorch 포함)을 설치하므로 네트워크가 필요합니다.
+`make up`은 잠금 파일 기준으로 Web 화면을 빌드한 뒤 서비스를 시작합니다.
+Node와 npm은 소스에서 화면·배포본을 만들 때만 필요하며, 만들어진 wheel의 설치·실행에는 필요 없습니다.
 
 ```bash
 git clone https://github.com/so9093-K/industrial-phm-framework.git

@@ -8,6 +8,7 @@ persisted capability-specific AnalysisRuns only.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
@@ -126,7 +127,9 @@ def _file_analysis(result: RegisteredFileFeatureAnalysis) -> dict[str, object]:
     }
 
 
-def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, object]:
+def project_operations_monitor(
+    snapshot: OperationsAppSnapshot, *, phm: dict[str, Any] | None = None
+) -> dict[str, object]:
     """Build an explicit GET /api/v1/monitor payload without filesystem or secrets.
 
     Collections have deterministic order and a fixed response cap. An unavailable or
@@ -163,7 +166,33 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
             }
         )
         known_assets.add(historical.asset_id)
+    # Model bindings and delivered waveforms exist independently of registered FILE/
+    # OPC UA sources and DuckLake history. Preserve those actual asset identities in
+    # the common list, including streams no model reads. Delivery ordinals/times are
+    # never invented as the original measurement's event time.
+    if phm is not None:
+        for item in [*phm["items"], *phm["unbound_streams"]]:
+            asset_id = item["asset_id"]
+            if asset_id in known_assets:
+                continue
+            assets.append(
+                {
+                    "asset_id": asset_id,
+                    "data_flow_status": "stored-history"
+                    if item.get("latest_delivered") or item.get("last_ordinal")
+                    else "waiting",
+                    "source_count": 0,
+                    "last_data_at": None,
+                    "latest_analysis_at": None,
+                    "pending_review_count": None,
+                    "attention_count": None,
+                }
+            )
+            known_assets.add(asset_id)
     assets.sort(key=lambda item: str(item["asset_id"]))
+    asset_list = _bounded(assets)
+    if phm is not None and phm["truncated"]:
+        asset_list["truncated"] = True
     attention: list[dict[str, object]] = [
         {
             "attention_id": item.attention_id,
@@ -223,7 +252,7 @@ def project_operations_monitor(snapshot: OperationsAppSnapshot) -> dict[str, obj
         "schema_version": _API_VERSION,
         "assessed_at": _utc(snapshot.assessed_at),
         "meaning": "observations-and-review-evidence-not-asset-health",
-        "assets": _bounded(assets),
+        "assets": asset_list,
         "attention": _bounded(attention),
         "phase_unbalance_analyses": _bounded(phase_results),
         "file_feature_analyses": _bounded(file_results),

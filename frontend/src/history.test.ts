@@ -46,3 +46,8 @@ test("mixed source, invalid counts and wrong asset cannot render", () => {
   assert.throws(() => parseTrend(data([{...bucket("src1", "i1", 1), null_count: -1}]), "motor", "R"),
     /품질 건수/);
 });
+
+ test("a real OPC UA measurement may have no registered measurement point",()=>{
+  const trend=parseTrend(data([{...bucket("opcua-source","i1",2),measurement_point_id:null}]),"motor","R");
+  assert.equal(groupHistory(trend)[0].pointId,null);
+ });

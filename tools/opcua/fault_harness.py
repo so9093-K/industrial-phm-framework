@@ -855,21 +855,21 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
     page.goto(url, wait_until="domcontentloaded")
-    try:
-        page.wait_for_function(
-            "() => document.getElementById('asset-count').textContent.trim() !== '—'",
-            timeout=30000,
-        )
-    except Exception:
-        pass
+    from playwright.sync_api import expect
+    # The asset list is a labelled section; the heading also carries its real count.
+    rows = page.locator("a.row")
+    expect(rows.first).to_be_visible(timeout=30000)
+    count = str(rows.count())
+    facts = rows.locator("strong").all_inner_texts()
+    attention_panel = page.get_by_role("region", name="확인이 필요한 설비")
+    if attention:
+        expect(attention_panel.get_by_text(attention, exact=True)).to_be_visible(timeout=30000)
     seconds = time.monotonic() - started
-    count = page.locator("#asset-count").inner_text().strip()
-    facts = page.locator("#asset-facts .fact strong").all_inner_texts()
-    statuses = page.locator("#monitor-attention strong").all_inner_texts()
+    statuses = attention_panel.locator("strong").all_inner_texts()
     attention_seen = None if not attention else attention in statuses
-    system_scoped = "설비 정상" in page.locator("#system-status").inner_text()
+    system_scoped = "고장 판정이 아닙니다" in attention_panel.inner_text()
     overflow = page.evaluate(OVERFLOW_JS)
-    monitor_ready = count not in ("—", "0") and bool(facts) and system_scoped and not overflow
+    monitor_ready = count != "0" and bool(facts) and system_scoped and not overflow
     page.screenshot(path=shot, full_page=True)
     browser.close()
 print("BROWSER " + json.dumps({
@@ -894,12 +894,15 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     page = browser.new_page(viewport={"width": 1440, "height": 1100})
     started = time.monotonic()
-    page.goto(url, wait_until="domcontentloaded")
-    card = page.locator('.source-record[data-source-id="aihub239-replay-boiler-2297"]')
+    from urllib.parse import urljoin
+    page.goto(urljoin(url, "/web/?page=system"), wait_until="domcontentloaded")
+    card = page.locator('article[aria-labelledby="source-aihub239-replay-boiler-2297"]')
     try:
         card.wait_for(state="visible", timeout=30000)
     except Exception:
         pass
+    if card.count():
+        card.get_by_text("기술 상세", exact=True).click()
     text = card.inner_text() if card.count() else ""
     # Read source evidence independently; static text alone is not a live receipt.
     from urllib.parse import urljoin
@@ -921,13 +924,19 @@ with sync_playwright() as p:
     matched = match_web_source_state(expected, source) if source else None
     session = source.get("opcua_session_last_state") if source else None
     fresh = source.get("last_live_receive_fresh") if source else None
+    receipt = (
+        "현재 연결 미확인" if isinstance(session, str) and session.upper() != "CONNECTED"
+        else "수신 확인됨" if fresh is True else "최근 수신 미확인"
+    )
     source_evidence_seen = bool(
         source
         and isinstance(session, str)
-        and ("OPC UA 세션 마지막 기록: " + session) in text
-        and "live 이벤트 마지막 수신: UTC " in text
+        and "OPC UA 세션 마지막 기록" in text
+        and session in text
+        and "마지막 수신" in text
+        and source.get("last_live_received_at") is not None
         and (
-            ("30초 이내 수신 근거 있음" if fresh is True else "최근 수신 근거 미확인")
+            receipt
             in text
         )
     )

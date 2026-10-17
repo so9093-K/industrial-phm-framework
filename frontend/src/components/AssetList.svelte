@@ -4,12 +4,16 @@
     assets: Asset[];
     observed: (at: string | null) => string;
     href: (assetId: string) => string;
+    /** Model attention items per asset from 관측 현황, added to the monitor's own count. */
+    notes?: Record<string, number>;
   };
-  let {assets, observed, href}: Props = $props();
+  let {assets, observed, href, notes = {}}: Props = $props();
+  const count = (asset: Asset): number | null =>
+    asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
   // Assets with something to check come first; the server order is kept otherwise.
   const ordered = $derived(assets
     .map((asset, index) => ({asset, index}))
-    .sort((a, b) => (b.asset.attentionCount ?? 0) - (a.asset.attentionCount ?? 0) || a.index - b.index)
+    .sort((a, b) => (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
   function attention(count: number | null): string {
     if (count === null) return "확인할 항목 미확인";
@@ -27,7 +31,7 @@
           <strong>{asset.assetId}</strong>
           <span>마지막 측정 {observed(asset.lastObservedAt)}</span>
           <span>{flowLabel(asset.flow)}</span>
-          <span class:attention={!!asset.attentionCount}>{attention(asset.attentionCount)}</span>
+          <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>
       </li>
     {/each}

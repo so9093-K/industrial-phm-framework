@@ -1,8 +1,7 @@
-"""Real Chromium CSV → fresh analysis → exact review → restart via supervised Web."""
+"""Real Chromium and separate processes: Web → supervisor IPC → durable records → restart."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import signal
@@ -12,21 +11,16 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta, timezone
 from http.client import HTTPConnection
 from pathlib import Path
-from urllib.parse import quote
 
 import pytest
 
 from industrial_phm.application import (
-    JsonFileFeatureAnalysisRepository,
     JsonFindingReviewRepository,
     JsonOperationalFindingRepository,
     JsonSourceRepository,
-    SqlitePhaseUnbalanceRepository,
 )
-from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
 from industrial_phm.runtime import (
     OperationsComponentKind,
     OperationsSupervisorStateKind,
@@ -40,7 +34,6 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
 )
-from tests.support.window_analysis import phase_unbalance_analysis
 
 _RUN = "from industrial_phm.cli import main; raise SystemExit(main())"
 
@@ -95,639 +88,9 @@ def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
     pytest.fail("supervised Web not ready: " + log.read_text(errors="replace")[-4000:])
 
 
-def _stored_values(page):
-    """Stored history is read on the asset's signal tab; open it and return the latest values."""
-    page.locator('nav a[href="#monitor"]').click()
-    page.locator('.asset-tabs a[data-tab="signals"]').click()
-    return page.locator("#last-values")
-
-
 def _no_overflow(page, width: int) -> None:
     measured = page.evaluate("() => [window.innerWidth, document.documentElement.scrollWidth]")
     assert measured[0] == width and measured[1] <= width + 2, measured
-
-
-@pytest.mark.parametrize("width", [390, 1440])
-def test_supervised_web_csv_first_data_reaches_stored_monitor_graph(
-    tmp_path: Path, width: int
-) -> None:
-    """Empty workspace → CSV preview → server check → visible writes → measured graph."""
-    if not hasattr(socket, "SO_PEERCRED"):
-        pytest.skip("Linux peer credentials required")
-    pw = pytest.importorskip("playwright.sync_api")
-    pytest.importorskip("duckdb")
-    pytest.importorskip("filelock")
-    workspace = OperationsWorkspace(tmp_path / "web")
-    init = initialize_operations_workspace(workspace)
-    port = _port()
-    write_operations_runtime_config(
-        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
-    )
-    files = tmp_path / "files"
-    files.mkdir()
-    (files / "naive.csv").write_text(
-        "time,current_r,current_s\n2020-03-02 09:00:00,1.0,2.0\n2020-03-02 09:00:10,,2.1\n",
-        encoding="utf-8",
-    )
-    kst = timezone(timedelta(hours=9))
-    start = datetime(2020, 3, 2, 9, 0, tzinfo=kst)
-    # Large enough that storing history takes longer than one bounded 5 s Web command.
-    rows = [(seconds, round(12 + seconds / 100000, 3)) for seconds in range(0, 360000, 30)]
-    (files / "motor.csv").write_text(
-        "timestamp,current_r,current_s,status\n"
-        + "".join(
-            f"{(start + timedelta(seconds=s)).isoformat()},{v},{v + 1},RUN\n" for s, v in rows
-        ),
-        encoding="utf-8",
-    )
-    log = tmp_path / "supervisor.log"
-    proc = _start(workspace.root, port, log)
-    try:
-        with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-            errors: list[str] = []
-            external: list[str] = []
-            page.on("pageerror", lambda e: errors.append(str(e)))
-            page.on(
-                "request",
-                lambda r: (
-                    external.append(r.url)
-                    if not r.url.startswith(f"http://127.0.0.1:{port}/")
-                    else None
-                ),
-            )
-            try:
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                pw.expect(page.locator("#workspace-start")).to_be_visible(timeout=30000)
-                pw.expect(page.locator("#phm-monitor")).to_be_hidden()
-                page.get_by_role("link", name="파일에서 시작").click()
-                chooser = page.locator("#csv-start-file")
-                pw.expect(chooser).to_be_focused()
-
-                # An unsupported file is explained by row before anything is written.
-                chooser.set_input_files(str(files / "naive.csv"))
-                issues = page.locator("#csv-start-issues")
-                pw.expect(issues).to_contain_text("시간대")
-                pw.expect(issues).to_contain_text("current_r 컬럼의 3행이 비어 있습니다")
-                page.locator("#csv-start-asset").fill("motor-01")
-                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                check = page.locator("#csv-start-check-result")
-                pw.expect(check).to_contain_text("3행", timeout=30000)
-                pw.expect(page.get_by_role("button", name="등록하고 이력 저장")).to_be_disabled()
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                assert not (workspace.root / "web-uploads").exists()
-
-                # A supported file shows its own values; a text column is not stored.
-                chooser.set_input_files(str(files / "motor.csv"))
-                pw.expect(page.locator("#csv-start-chart svg")).to_be_visible()
-                pw.expect(issues).to_contain_text("구조 문제는 없습니다")
-                summary = page.locator("#csv-start-summary")
-                pw.expect(summary).to_contain_text("측정 컬럼 요약")
-                pw.expect(summary.locator("tr").nth(1)).to_contain_text(f"{len(rows):,}")
-                pw.expect(summary).to_contain_text(
-                    "측정 간격 · 보통 30초 · 간격이 크게 다른 곳 0곳"
-                )
-                status = page.locator('#csv-start-channels input[value="status"]')
-                pw.expect(status).to_be_disabled()
-                pw.expect(status).not_to_be_checked()
-                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
-                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                pw.expect(check).to_contain_text("서버 점검 통과", timeout=30000)
-                pw.expect(check).to_contain_text("2020-03-02 09:00:00 KST")
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-
-                # A failed later write keeps inputs, and a retry never registers twice.
-                page.route(
-                    "**/api/v1/sources/file/backfill/start",
-                    lambda route: route.fulfill(
-                        status=503, json={"error": {"code": "source_state_unavailable"}}
-                    ),
-                )
-                page.get_by_role("button", name="등록하고 이력 저장").click()
-                steps = page.locator("#csv-start-save-steps")
-                pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
-                    "실패", timeout=60000
-                )
-                pw.expect(steps.locator('[data-step="receive"]')).to_contain_text("완료")
-                pw.expect(page.locator("#csv-start-save-result")).to_contain_text(
-                    "완료된 단계는 건너뜁니다"
-                )
-                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
-                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
-                assert not workspace.history_catalog_path.exists()
-                page.unroute("**/api/v1/sources/file/backfill/start")
-                with page.expect_response(lambda r: "/api/v1/sources/file/backfill/start" in r.url):
-                    page.get_by_role("button", name="실패한 단계부터 다시 시도").click()
-                # Browser lifecycle cannot cancel the supervisor's write. Re-selecting the same
-                # bytes restores the pending input and verifies identity before resuming.
-                page.reload()
-                chooser.set_input_files(str(files / "motor.csv"))
-                pw.expect(page.locator("#csv-start-file-state")).to_contain_text(
-                    "이전 작업 입력 복원"
-                )
-                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
-                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                pw.expect(check).to_contain_text("기존 파일·설정과 동일", timeout=30000)
-                page.get_by_role("button", name="등록하고 이력 저장").click()
-                pw.expect(steps.locator('[data-step="store"]')).to_contain_text(
-                    f"측정값 {len(rows) * 2:,}개", timeout=180000
-                )
-                sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
-                assert len(sources) == 1
-                source_id = sources[0].source_id
-                assert workspace.history_catalog_path.exists()
-                # Where the data arrived: what it supports now, and what it cannot support.
-                done = page.locator("#csv-start-capabilities")
-                pw.expect(done).to_contain_text("분석 바로가기", timeout=30000)
-                compare = done.locator('[data-capability="period-compare"]')
-                pw.expect(compare.get_by_role("button", name="구간 비교 열기")).to_be_visible()
-                unavailable = done.locator(".capability-unavailable")
-                pw.expect(unavailable).to_contain_text("주파수 성분 — 원본 진동 파형 없음")
-                pw.expect(
-                    done.locator('[data-capability="anomaly"]').get_by_role(
-                        "button", name="이상 탐지 열기"
-                    )
-                ).to_be_visible()
-
-                page.get_by_role("button", name="모니터링에서 실제 그래프 보기").click()
-                pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                selected = page.locator('.monitor-asset[aria-pressed="true"]')
-                pw.expect(selected).to_contain_text("motor-01", timeout=30000)
-                reading = page.locator("#monitor-signal-reading")
-                pw.expect(reading).to_contain_text(f"{rows[-1][1]:g}", timeout=30000)
-                last_at = start + timedelta(seconds=rows[-1][0])
-                pw.expect(reading).to_contain_text(
-                    "원본 측정 " + last_at.strftime("%Y-%m-%d %H:%M:%S") + " KST"
-                )
-                pw.expect(page.locator("#monitor-signal-chart .monitor-raw-line")).to_have_count(1)
-                pw.expect(page.locator("#monitor-history-range")).to_have_value("7d")
-
-                # The saved file can be analyzed right away; the result opens on the asset.
-                page.locator('nav a[href="#connect"]').click()
-                page.locator("#csv-start-analyze").click()
-                pw.expect(page.locator('.asset-tabs a[data-tab="evidence"]')).to_have_attribute(
-                    "aria-current", "page", timeout=30000
-                )
-                pw.expect(page.locator("#evidence-results")).to_contain_text("신호 통계 분석")
-                pw.expect(page.locator("#asset-switch")).to_have_value("motor-01")
-
-                # The real server refuses a duplicate source; inputs stay for correction.
-                page.locator('nav a[href="#connect"]').click()
-                page.get_by_role("button", name="다른 파일로 시작").click()
-                (files / "motor.csv").write_text(
-                    (files / "motor.csv").read_text().replace(",RUN", ",STOP")
-                )
-                chooser.set_input_files(str(files / "motor.csv"))
-                page.locator("#csv-start-asset").fill("motor-01")
-                page.locator(".csv-start-advanced > summary").click()
-                page.locator("#csv-start-source-id").fill(source_id)
-                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                pw.expect(check).to_contain_text(
-                    "기존 파일·측정 컬럼·설정이 다릅니다", timeout=30000
-                )
-                pw.expect(page.locator("#csv-start-save")).to_be_disabled()
-                pw.expect(page.locator("#csv-start-asset")).to_be_enabled()
-                pw.expect(page.locator("#csv-start-asset")).to_have_value("motor-01")
-                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
-                _no_overflow(page, width)
-                assert not errors, errors
-                assert not external, external
-            finally:
-                browser.close()
-    finally:
-        _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-
-
-def test_supervised_web_one_click_example_opens_monitoring_without_duplicates(
-    tmp_path: Path,
-) -> None:
-    """A real isolated demo stays separate; its measurements cannot mutate the parent."""
-    if not hasattr(socket, "SO_PEERCRED"):
-        pytest.skip("Linux peer credentials required")
-    pw = pytest.importorskip("playwright.sync_api")
-    pytest.importorskip("duckdb")
-    pytest.importorskip("filelock")
-    workspace = OperationsWorkspace(tmp_path / "web")
-    init = initialize_operations_workspace(workspace)
-    port = _port()
-    write_operations_runtime_config(
-        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
-    )
-    log = tmp_path / "supervisor.log"
-    proc = _start(workspace.root, port, log)
-    try:
-        with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1440, "height": 900}, locale="ko-KR")
-            errors: list[str] = []
-            page.on("pageerror", lambda e: errors.append(str(e)))
-            try:
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                page.get_by_role("button", name="예시 데이터로 둘러보기").click(timeout=30000)
-                pw.expect(page.locator(".synthetic-context")).to_contain_text(
-                    "읽기 전용", timeout=60000
-                )
-                assert page.url.startswith("http://127.0.0.1:")
-                assert not page.url.startswith(f"http://127.0.0.1:{port}/")
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                pw.expect(page.locator("#monitor-signal-chart svg").first).to_be_visible(
-                    timeout=60000
-                )
-                session = page.request.get(page.url.split("/web/")[0] + "/api/v1/session").json()
-                assert session["write_scope"] == "read-only-synthetic-demo"
-                page.get_by_role("link", name="내 작업공간으로 돌아가기").click()
-                pw.expect(page.locator("#workspace-start")).to_be_visible(timeout=30000)
-                # Reopening the owned demo does not mix data into the parent's source catalogue.
-                page.get_by_role("button", name="예시 데이터로 둘러보기").click()
-                pw.expect(page.locator(".synthetic-context")).to_be_visible(timeout=30000)
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                # From the example straight to one's own file, in one's own workspace.
-                page.get_by_role("link", name="내 데이터로 해보기 (CSV)").click()
-                pw.expect(page.locator("#view-title")).to_have_text("데이터 연결", timeout=30000)
-                assert page.url.startswith(f"http://127.0.0.1:{port}/")
-                page.get_by_role("button", name="합성 CSV 미리보기 · 저장하지 않음").click()
-                page.get_by_role("button", name="서버에서 파일 점검 (저장 안 함)").click()
-                pw.expect(page.locator("#csv-start-check-result")).to_contain_text("미리보기 전용")
-                pw.expect(page.locator("#csv-start-save")).to_be_disabled()
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                assert not errors, errors
-            finally:
-                browser.close()
-    finally:
-        _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-
-
-@pytest.mark.parametrize("width", [1024, 1440])
-def test_supervised_web_first_run_to_review_persists_across_restart(
-    tmp_path: Path, width: int
-) -> None:
-    if not hasattr(socket, "SO_PEERCRED"):
-        pytest.skip("Linux peer credentials required")
-    pw = pytest.importorskip("playwright.sync_api")
-    pytest.importorskip("duckdb")
-    pytest.importorskip("filelock")
-    workspace = OperationsWorkspace(tmp_path / "web")
-    init = initialize_operations_workspace(workspace)
-    port = _port()
-    write_operations_runtime_config(
-        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
-    )
-    asset_id = "journey-pump"
-    inputs = workspace.root / "inputs"
-    inputs.mkdir()
-    observed = datetime.now(UTC) - timedelta(minutes=3)
-    (inputs / "vibration.csv").write_text(
-        "timestamp,vibration_x,vibration_y\n"
-        f"{observed.isoformat()},-1.0,2.0\n"
-        f"{(observed + timedelta(seconds=1)).isoformat()},0.0,3.0\n"
-        f"{(observed + timedelta(seconds=2)).isoformat()},1.5,4.0\n",
-        encoding="utf-8",
-    )
-    (inputs / "phase.csv").write_text(
-        "timestamp,leg_a,leg_b,leg_c\n"
-        f"{observed.isoformat()},220.0,225.0,230.0\n"
-        f"{(observed + timedelta(seconds=1)).isoformat()},222.0,226.0,231.0\n"
-        f"{(observed + timedelta(seconds=2)).isoformat()},221.0,224.0,228.0\n",
-        encoding="utf-8",
-    )
-    log = tmp_path / "supervisor.log"
-    proc = _start(workspace.root, port, log)
-    try:
-        with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-            errors: list[str] = []
-            external: list[str] = []
-            page.on("pageerror", lambda e: errors.append(str(e)))
-            page.on(
-                "request",
-                lambda r: (
-                    external.append(r.url)
-                    if not r.url.startswith(f"http://127.0.0.1:{port}/")
-                    else None
-                ),
-            )
-            page.on("dialog", lambda dialog: dialog.accept())
-            try:
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                pw.expect(page.locator("#runtime-facts")).to_contain_text(
-                    str(proc.pid), timeout=30000
-                )
-                pw.expect(page.locator("#runtime-components")).to_contain_text("데이터 수집기")
-                pw.expect(page.locator("#runtime-components")).to_contain_text("분석 실행기")
-                pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
-                page.locator('nav a[href="#system"]').click()
-                page.get_by_role("button", name="실행 상태 다시 확인").click()
-                pw.expect(page.locator("#runtime-facts")).to_contain_text(str(proc.pid))
-                page.locator('nav a[href="#connect"]').click()
-                pw.expect(page.locator("#onboarding-state")).to_contain_text(
-                    "소스 미등록", timeout=30000
-                )
-                handoff = page.locator("#onboarding-monitor-link")
-                pw.expect(handoff).to_be_hidden()
-                pw.expect(page.locator("#onboarding-next")).to_contain_text("소스를 등록하세요")
-                page.locator("#connection-progress > summary").click()
-                page.get_by_role("button", name="CSV 등록 양식으로 이동").click()
-                pw.expect(page.locator("#csv-start-file")).to_be_focused()
-                page.locator("#advanced-file-registration > summary").click()
-                pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                pw.expect(page.locator("#asset-switch")).to_be_disabled()
-                assert page.locator(".skip-link").get_attribute("href") == "#main"
-                assert page.locator("html").get_attribute("lang") == "ko"
-                assert page.locator("#last-values .latest-item").count() == 0
-                page.get_by_role("link", name="데이터 연결", exact=True).click()
-                pw.expect(page.locator('nav a[href="#connect"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                fields = {
-                    "source_id": "journey-file",
-                    "name": "브라우저 여정",
-                    "asset_id": asset_id,
-                    "measurement_point_id": "panel",
-                    "channel_columns": "vibration_x,vibration_y",
-                    "timestamp_column": "timestamp",
-                }
-                for key, value in fields.items():
-                    page.locator(f'#file-form input[name="{key}"]').fill(value)
-                page.locator("#csv-upload").set_input_files(
-                    {
-                        "name": "vibration.csv",
-                        "mimeType": "text/csv",
-                        "buffer": (inputs / "vibration.csv").read_bytes(),
-                    }
-                )
-                pw.expect(page.locator("#csv-file-preview")).to_contain_text(
-                    "헤더 후보: timestamp, vibration_x, vibration_y"
-                )
-                pw.expect(page.locator('#file-form input[name="file_path"]')).to_be_disabled()
-                page.get_by_role("button", name="CSV 분석 전 점검").click()
-                pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
-                    "CSV 구조와 이력 적재의 필수 조건 확인", timeout=30000
-                )
-                pw.expect(page.locator("#csv-preflight-result")).to_contain_text("표본 3행")
-                assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
-                assert not (workspace.root / "web-uploads").exists()
-                assert not workspace.history_catalog_path.exists()
-                page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
-                listing = page.locator("#source-list")
-                pw.expect(listing).to_contain_text("journey-file", timeout=30000)
-                pw.expect(page.locator("#asset-switch")).to_have_value(asset_id)
-                saved_uploads = tuple((workspace.root / "web-uploads").glob("*.csv"))
-                assert len(saved_uploads) == 1
-                assert saved_uploads[0].read_bytes() == (inputs / "vibration.csv").read_bytes()
-                pw.expect(listing).to_contain_text("수신 미확인")
-                pw.expect(listing.locator(".receipt-missing")).to_contain_text("파일 확인 대기")
-                pw.expect(listing.locator(".source-diagnostics")).not_to_have_attribute("open", "")
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 0개")
-                pw.expect(page.locator("#onboarding-source-select")).to_have_value("journey-file")
-                page.get_by_role("button", name="이 연결 사용하기 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="이 연결 사용하기")).to_be_focused()
-                pw.expect(handoff).to_be_hidden()
-                assert not workspace.history_catalog_path.exists()
-                listing.get_by_role("button", name="이 연결 사용하기").click()
-                pw.expect(listing).to_contain_text("관리 상태: active")
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text("사용 중(active): 1개")
-                pw.expect(page.locator("#onboarding-next")).to_contain_text("수신을 확인하세요")
-                page.get_by_role("button", name="파일 읽기 확인 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="파일 읽기 확인")).to_be_focused()
-                pw.expect(handoff).to_be_hidden()
-                listing.get_by_role("button", name="파일 읽기 확인").click()
-                pw.expect(listing).to_contain_text("파일 읽기 확인됨")
-                pw.expect(listing.locator(".receipt-confirmed")).to_contain_text("파일 읽기 확인됨")
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "사용 중이면서 수신을 확인한 소스 1개"
-                )
-                pw.expect(page.locator("#onboarding-next")).to_contain_text(
-                    "모니터링에서 측정값을 볼 수 있습니다"
-                )
-                page.get_by_role("button", name="측정 이력 저장 버튼 찾기").click()
-                pw.expect(listing.get_by_role("button", name="측정 이력 저장")).to_be_focused()
-                page.locator('nav a[href="#connect"]').click()
-                if page.locator("#connection-progress").get_attribute("open") is None:
-                    page.locator("#connection-progress > summary").click()
-                pw.expect(handoff).to_be_visible()
-                assert not workspace.history_catalog_path.exists()
-                handoff.click()
-                pw.expect(page.locator('nav a[href="#monitor"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                page.locator('nav a[href="#connect"]').click()
-                listing.get_by_role("button", name="측정 이력 저장").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "6개 이벤트", timeout=30000
-                )
-                pw.expect(_stored_values(page)).to_contain_text("1.5", timeout=30000)
-                page.locator('nav a[href="#connect"]').click()
-                assert workspace.history_catalog_path.exists()
-                listing.locator(".source-settings > summary").click()
-                listing.get_by_role("button", name="신호 통계 분석").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "신호 통계 분석 저장 완료", timeout=30000
-                )
-                analyses = JsonFileFeatureAnalysisRepository(
-                    workspace.file_feature_analysis_path
-                ).list_results()
-                assert len(analyses) == 1
-                analysis = analyses[0]
-                assert analysis.run.source_id == "journey-file"
-                assert analysis.run.asset_id == asset_id
-                assert (
-                    analysis.evidence.source_snapshot_sha256
-                    == hashlib.sha256((inputs / "vibration.csv").read_bytes()).hexdigest()
-                )
-                page.locator('.asset-tabs a[data-tab="evidence"]').click()
-                pw.expect(page.locator("#evidence-results")).to_contain_text(
-                    analysis.evidence.evidence_id
-                )
-                page.get_by_role("button", name="확인·메모 시작").click()
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    analysis.run.analysis_run_id, timeout=30000
-                )
-                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                page.get_by_role("button", name="확인 기록 보기").click()
-                pw.expect(page.locator("#review-results .review-record")).to_be_focused()
-                page.get_by_role("textbox", name="메모").fill("증거 확인")
-                page.get_by_role("button", name="메모 저장").click()
-                page.get_by_role("button", name="확인함으로 표시").click()
-                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 확인함")
-                page.get_by_role("button", name="완료로 표시").click()
-                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
-                # A completed record still links only to the exact persisted Run/Evidence.
-                evidence_link = page.locator("#review-results").get_by_role(
-                    "button",
-                    name=f"분석 결과로 이동 · {analysis.evidence.evidence_id}",
-                )
-                evidence_link.click()
-                target = page.locator("#evidence-results .evidence-target")
-                pw.expect(target).to_be_focused()
-                pw.expect(target).to_contain_text(analysis.run.analysis_run_id)
-                pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
-                pw.expect(page.locator('.asset-tabs a[data-tab="evidence"]')).to_have_attribute(
-                    "aria-current", "page"
-                )
-                # A distinct CSV with deliberately non-phase column names
-                # requires explicit evidence-backed V/A and R/S/T mapping.
-                page.get_by_role("link", name="데이터 연결", exact=True).click()
-                phase_fields = {
-                    "source_id": "phase-file",
-                    "name": "확인된 3상 전압",
-                    "asset_id": asset_id,
-                    "measurement_point_id": "panel",
-                    "channel_columns": "leg_a,leg_b,leg_c",
-                    "timestamp_column": "timestamp",
-                }
-                page.locator("#advanced-file-registration").evaluate("el => el.open = true")
-                for key, value in phase_fields.items():
-                    page.locator(f'#file-form input[name="{key}"]').fill(value)
-                page.locator('#file-form textarea[name="phase_bindings"]').fill(
-                    "\n".join(
-                        f"{channel},voltage,{phase},계측기 표시 V 확인,배선도 {phase}상 연결 확인"
-                        for channel, phase in (("leg_a", "R"), ("leg_b", "S"), ("leg_c", "T"))
-                    )
-                )
-                page.locator("#csv-upload").set_input_files(
-                    {
-                        "name": "phase.csv",
-                        "mimeType": "text/csv",
-                        "buffer": (inputs / "phase.csv").read_bytes(),
-                    }
-                )
-                page.get_by_role("button", name="CSV 분석 전 점검").click()
-                pw.expect(page.locator("#csv-preflight-result")).to_contain_text(
-                    "3상 R/S/T 매핑 3개 이상 제출됨", timeout=30000
-                )
-                page.get_by_role("button", name="CSV 확인 후 소스 등록").click()
-                phase_card = page.locator('.source-record[data-source-id="phase-file"]')
-                pw.expect(phase_card).to_contain_text("등록된 3상 역할 3개", timeout=30000)
-                phase_card.get_by_role("button", name="이 연결 사용하기").click()
-                pw.expect(phase_card).to_contain_text("관리 상태: active")
-                phase_card.get_by_role("button", name="파일 읽기 확인").click()
-                pw.expect(phase_card).to_contain_text("파일 읽기 확인됨")
-                phase_card.locator(".source-settings > summary").click()
-                phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "분석 불가", timeout=30000
-                )
-                assert not SqlitePhaseUnbalanceRepository(
-                    workspace.phase_unbalance_state_path
-                ).list_results()
-                phase_card.get_by_role("button", name="측정 이력 저장").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "측정 이력 저장 완료", timeout=30000
-                )
-                phase_card.get_by_role("button", name="저장된 3상 이력 분석 실행").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "신규 3상 분석 기록 완료", timeout=30000
-                )
-                phase_results = SqlitePhaseUnbalanceRepository(
-                    workspace.phase_unbalance_state_path
-                ).list_results()
-                assert len(phase_results) == 1
-                phase_analysis = phase_results[0]
-                assert phase_analysis.run.source_id == "phase-file"
-                assert phase_analysis.evidence.semantic_versions == ("file-web-phase-v1",)
-                assert phase_analysis.evidence.results[0].evaluated_samples == 3
-                pw.expect(page.locator("#evidence-results")).to_contain_text(
-                    phase_analysis.evidence.evidence_id
-                )
-                page.get_by_role("button", name="확인·메모 시작").click()
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    phase_analysis.run.analysis_run_id, timeout=30000
-                )
-                _no_overflow(page, width)
-                assert not errors, errors
-                assert not external, external
-            finally:
-                browser.close()
-    finally:
-        _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-    assert JsonSourceRepository(workspace.source_registry_path).get("journey-file")
-    assert JsonSourceRepository(workspace.source_registry_path).get("phase-file")
-    assert SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).list_results() == (
-        phase_analysis,
-    )
-    persisted = JsonFileFeatureAnalysisRepository(workspace.file_feature_analysis_path)
-    assert persisted.list_results() == (analysis,)
-    repository = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
-    assert [event.action.value for event in repository.list_events()] == [
-        "note",
-        "acknowledge",
-        "close",
-    ]
-
-    proc = _start(workspace.root, port, log)
-    try:
-        with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
-            try:
-                page = browser.new_page(viewport={"width": width, "height": 900})
-                page.goto(f"http://127.0.0.1:{port}/web/#evidence", wait_until="domcontentloaded")
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    "확인 기록 · 완료", timeout=30000
-                )
-                # The newest FILE source is now phase-file; the history preview
-                # must reflect its stored values rather than the earlier vibration CSV.
-                page.locator('.asset-tabs a[data-tab="signals"]').click()
-                pw.expect(page.locator("#last-values")).to_contain_text(
-                    "leg_a / phase-file", timeout=30000
-                )
-                pw.expect(page.locator("#last-values")).to_contain_text("221")
-                handoff = page.locator("#onboarding-monitor-link")
-                page.locator('nav a[href="#connect"]').click()
-                if page.locator("#connection-progress").get_attribute("open") is None:
-                    page.locator("#connection-progress > summary").click()
-                pw.expect(handoff).to_be_visible()
-                # Losing the real source GET must revoke a prior ready state,
-                # without claiming the stored measurements or review disappeared.
-                page.route("**/api/v1/sources", lambda route: route.abort("failed"))
-                page.get_by_role("button", name="데이터 다시 불러오기").click()
-                pw.expect(page.locator("#onboarding-next")).to_contain_text(
-                    "준비 여부를 확인할 수 없습니다"
-                )
-                pw.expect(handoff).to_be_hidden()
-                page.unroute("**/api/v1/sources")
-                page.get_by_role("button", name="데이터 다시 불러오기").click()
-                page.locator('nav a[href="#connect"]').click()
-                if page.locator("#connection-progress").get_attribute("open") is None:
-                    page.locator("#connection-progress > summary").click()
-                pw.expect(handoff).to_be_visible()
-                pw.expect(page.locator("#onboarding-steps")).to_contain_text(
-                    "사용 중이면서 수신을 확인한 소스 2개"
-                )
-                page.locator('nav a[href="#monitor"]').click()
-                page.locator('.asset-tabs a[data-tab="evidence"]').click()
-                pw.expect(page.get_by_role("button", name="확인·메모 시작")).to_have_count(0)
-                pw.expect(page.get_by_role("button", name="완료로 표시")).to_have_count(0)
-                page.locator("#review-results").get_by_role(
-                    "button",
-                    name=f"분석 결과로 이동 · {analysis.evidence.evidence_id}",
-                ).click()
-                target = page.locator("#evidence-results .evidence-target").filter(
-                    has_text=analysis.run.analysis_run_id
-                )
-                pw.expect(target).to_be_focused()
-                pw.expect(target).to_contain_text(analysis.evidence.evidence_id)
-                pw.expect(page.locator("#evidence-results")).to_contain_text(
-                    phase_analysis.evidence.evidence_id
-                )
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    phase_analysis.run.analysis_run_id
-                )
-                _no_overflow(page, width)
-            finally:
-                browser.close()
-    finally:
-        _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-    assert len(repository.list_events()) == 3
 
 
 def test_supervised_web_serializes_separate_http_processes_and_recovers(tmp_path: Path) -> None:
@@ -1266,164 +629,128 @@ def test_independent_preview_process_cannot_mutate_supervised_workspace(
         _stop(supervisor, workspace.root)
 
 
-@pytest.mark.parametrize("width", [1024, 1440])
-def test_supervised_web_keeps_cross_asset_review_evidence_and_system_state_exact(
+pytestmark = pytest.mark.linux_only
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
     tmp_path: Path, width: int
 ) -> None:
-    """Two persisted analyses, real Supervisor IPC, cross-asset review and system recovery.
+    """Every write reaches the real PID-bound broker; reload resumes from durable state."""
+    from tests.acceptance.test_operations_web_next_connections_browser import _csv
+    from tests.support.web_next import same_origin
 
-    This tests the currently supported Analysis Evidence / Human Review / System
-    screens; it does not pretend the retired Investigation/Maintenance UI exists.
-    """
-    if not hasattr(socket, "SO_PEERCRED"):
-        pytest.skip("Linux peer credentials required")
     pw = pytest.importorskip("playwright.sync_api")
-    pytest.importorskip("duckdb")
-    pytest.importorskip("filelock")
-
-    workspace = OperationsWorkspace(tmp_path / "cross-asset")
-    init = initialize_operations_workspace(workspace)
+    workspace = OperationsWorkspace(tmp_path / "csv-journey")
+    initialized = initialize_operations_workspace(workspace)
     port = _port()
     write_operations_runtime_config(
-        workspace.config_path, replace(init.config, ui=OperationsUiConfig(port=port))
+        workspace.config_path, replace(initialized.config, ui=OperationsUiConfig(port=port))
     )
-    first = phase_unbalance_analysis()
-    second_run_id = "analysis-second-asset"
-    second_source_id = "other-site-opcua"
-    second_asset_id = "motor-8"
-    second = PhaseUnbalanceAnalysis(
-        run=replace(
-            first.run,
-            analysis_run_id=second_run_id,
-            source_id=second_source_id,
-            asset_id=second_asset_id,
-        ),
-        evidence=replace(
-            first.evidence,
-            evidence_id="evidence-second-asset",
-            analysis_run_id=second_run_id,
-            source_id=second_source_id,
-            input_reference=replace(
-                first.evidence.input_reference,
-                source_id=second_source_id,
-                asset_id=second_asset_id,
-                window_id="window-second-asset",
-            ),
-        ),
-    )
-    analyses = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
-    analyses.record(first)
-    analyses.record(second)
-    log = tmp_path / "cross-asset-supervisor.log"
+    log = tmp_path / "supervisor.log"
     proc = _start(workspace.root, port, log)
+    address = f"http://127.0.0.1:{port}/web/"
+    review_url = ""
     try:
         with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
+            browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                errors: list[str] = []
-                page.on("pageerror", lambda exc: errors.append(str(exc)))
-                page.on("dialog", lambda dialog: dialog.accept())
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="domcontentloaded")
-                selector = page.locator("#asset-switch")
-                pw.expect(selector).to_be_enabled(timeout=30000)
-
-                # The real stored System status must not become a false green
-                # merely because an earlier snapshot was loaded successfully.
-                pw.expect(page.locator("#runtime-facts")).to_contain_text(
-                    str(proc.pid), timeout=30000
+                errors = []
+                external = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on(
+                    "request",
+                    lambda request: (
+                        external.append(request.url)
+                        if not request.url.startswith(address.split("/web/")[0] + "/")
+                        else None
+                    ),
                 )
-                page.route("**/api/v1/system/runtime", lambda route: route.abort("failed"))
-                page.locator('nav a[href="#system"]').click()
-                page.get_by_role("button", name="실행 상태 다시 확인").click()
-                pw.expect(page.locator("#runtime-status")).to_contain_text(
-                    "실행 상태 조회 실패", timeout=30000
-                )
-                pw.expect(page.locator("#runtime-facts")).to_be_empty()
-                pw.expect(page.locator("#runtime-components")).to_be_empty()
-                page.unroute("**/api/v1/system/runtime")
-                page.locator('nav a[href="#system"]').click()
-                page.get_by_role("button", name="실행 상태 다시 확인").click()
-                pw.expect(page.locator("#runtime-facts")).to_contain_text(
-                    str(proc.pid), timeout=30000
-                )
-                pw.expect(page.locator("#runtime-components")).to_contain_text("Web 화면")
+                page.goto(address)
+                page.get_by_role("link", name="데이터 연결하기").click()
+                start = page.get_by_role("region", name="CSV 파일로 시작")
+                chosen = {"name": "pump.csv", "mimeType": "text/csv", "buffer": _csv()}
+                start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(files=[chosen])
+                start.get_by_label("설비 이름·번호").fill("journey-pump")
+                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                pw.expect(start.get_by_text("점검 통과")).to_be_visible()
+                assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
 
-                page.locator('nav a[href="#monitor"]').click()
-                page.locator('.asset-tabs a[data-tab="evidence"]').click()
-                selector.select_option(first.run.asset_id)
-                evidence = page.locator("#evidence-results")
-                review = page.locator("#review-results")
-                pw.expect(evidence).to_contain_text(first.evidence.evidence_id)
-                pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
-                page.get_by_role("button", name="확인·메모 시작").click()
-                pw.expect(review).to_contain_text(first.run.analysis_run_id, timeout=30000)
-                pw.expect(review).not_to_contain_text(second.run.analysis_run_id)
+                def lose(route):
+                    response = route.fetch(headers=same_origin(route))
+                    assert response.status == 201
+                    route.fulfill(status=503, json={"error": {"code": "command_outcome_unknown"}})
 
-                selector.select_option(second_asset_id)
-                pw.expect(evidence).to_contain_text(second.evidence.evidence_id)
-                pw.expect(evidence).not_to_contain_text(first.evidence.evidence_id)
-                pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
-                pw.expect(review).to_contain_text("남긴 확인·메모가 없습니다")
-
-                # Returning to the first asset reopens only its exact record and analysis.
-                selector.select_option(first.run.asset_id)
-                pw.expect(review).to_contain_text(first.evidence.evidence_id)
-                pw.expect(review).not_to_contain_text(second.evidence.evidence_id)
-                review.get_by_role(
-                    "button", name=f"분석 결과로 이동 · {first.evidence.evidence_id}"
+                page.route("**/api/v1/sources/file/upload", lose)
+                start.get_by_role("button", name="등록하고 이력 저장").click()
+                pw.expect(start).to_contain_text("결과 확인 필요")
+                registered = JsonSourceRepository(workspace.source_registry_path).list_sources()
+                assert len(registered) == 1 and not workspace.history_catalog_path.exists()
+                page.unroute("**/api/v1/sources/file/upload")
+                page.reload()
+                start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(files=[chosen])
+                pw.expect(start).to_contain_text("이전 작업 입력 복원")
+                pw.expect(start.get_by_label("설비 이름·번호")).to_have_value("journey-pump")
+                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                pw.expect(start).to_contain_text("같은 파일과 설정이 이미 등록")
+                start.get_by_role("button", name="등록하고 이력 저장").click()
+                pw.expect(start).to_contain_text("저장했습니다", timeout=60_000)
+                assert len(JsonSourceRepository(workspace.source_registry_path).list_sources()) == 1
+                page.get_by_role("article", name="pump.csv").get_by_role(
+                    "button", name="신호 통계 분석"
                 ).click()
-                pw.expect(evidence.locator(".evidence-target")).to_be_focused()
-                pw.expect(evidence).not_to_contain_text(second.evidence.evidence_id)
-
-                selector.select_option(second_asset_id)
-                page.get_by_role("button", name="확인·메모 시작").click()
-                pw.expect(review).to_contain_text(second.run.analysis_run_id, timeout=30000)
-                pw.expect(review).not_to_contain_text(first.run.analysis_run_id)
+                pw.expect(page.get_by_role("article", name="pump.csv")).to_contain_text(
+                    "분석을 저장했습니다"
+                )
+                page.get_by_role("link", name="분석 기록에서 보기").click()
+                record = page.get_by_role("region", name="분석 결과").get_by_role("article")
+                pw.expect(record).to_contain_text("journey-pump")
+                record.get_by_role("button", name="검토 요청").click()
+                record.get_by_role("link", name="정비 검토함에서 보기").click()
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                pw.expect(detail).to_contain_text("journey-pump")
+                detail.get_by_label("메모 (최대 1000자)").fill(
+                    "실제 supervisor IPC와 재시작 후 이력 확인"
+                )
+                detail.get_by_role("button", name="메모 남기기").click()
+                pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
+                detail.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(detail.get_by_role("button", name="검토 종료")).to_be_visible()
+                detail.get_by_role("button", name="검토 종료").click()
+                detail.get_by_role("button", name="종료하기").click()
+                pw.expect(detail.get_by_role("button", name="메모 남기기")).to_have_count(0)
+                pw.expect(detail).to_contain_text("검토 종료")
+                review_url = page.url
                 _no_overflow(page, width)
-                assert not errors, errors
+                assert not errors and not external, (errors, external)
             finally:
                 browser.close()
     finally:
         _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
-    review_store = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
-    assert len(review_store.list_events()) == 0
-    stored = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
-    assert {item.analysis_run_id for item in stored} == {
-        first.run.analysis_run_id,
-        second.run.analysis_run_id,
-    }
-
-    # Both finding identities must remain stable after a real supervisor restart.
+    assert proc.returncode == 0, log.read_text()[-4000:]
+    (finding,) = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
+    events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
+    assert [event.action.value for event in events] == ["note", "acknowledge", "close"]
+    assert all(event.finding_id == finding.finding_id for event in events)
     proc = _start(workspace.root, port, log)
     try:
         with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
+            browser = runtime.chromium.launch()
             try:
-                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                # A link to one asset's records reopens that asset after a restart.
-                page.goto(
-                    f"http://127.0.0.1:{port}/web/?monitor_asset={quote(second_asset_id)}#evidence",
-                    wait_until="domcontentloaded",
-                )
-                pw.expect(page.locator("#asset-switch")).to_have_value(
-                    second_asset_id, timeout=30000
-                )
-                pw.expect(page.locator("#review-results")).to_contain_text(
-                    second.evidence.evidence_id, timeout=30000
-                )
-                pw.expect(page.locator("#review-results")).not_to_contain_text(
-                    first.evidence.evidence_id
-                )
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.goto(review_url)
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                pw.expect(detail).to_contain_text("실제 supervisor IPC와 재시작 후 이력 확인")
+                pw.expect(detail).to_contain_text("검토 종료")
+                assert detail.get_by_role("button", name="메모 남기기").count() == 0
             finally:
                 browser.close()
     finally:
         _stop(proc, workspace.root)
-    assert proc.returncode == 0, log.read_text(errors="replace")[-4000:]
 
 
-@pytest.mark.parametrize("width", [1024, 1440])
+@pytest.mark.parametrize("width", [390, 1440])
 def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
     tmp_path: Path, width: int
 ) -> None:
@@ -1533,92 +860,60 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
             page.screenshot(path=str(target / f"opcua-{width}-{stage}.png"), full_page=True)
 
     simulator = simulator_start()
-    supervisor: subprocess.Popen[bytes] | None = None
+    supervisor = None
     try:
         supervisor = _start(workspace.root, web_port, supervisor_log)
         with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
+            browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                errors: list[str] = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("dialog", lambda dialog: dialog.accept())
-                page.goto(f"http://127.0.0.1:{web_port}/web/", wait_until="domcontentloaded")
-                pw.expect(page.locator("#runtime-facts")).to_contain_text(
-                    str(supervisor.pid), timeout=30000
+                page.goto(f"http://127.0.0.1:{web_port}/web/?page=system")
+                page.get_by_text("OPC UA로 연결", exact=True).click()
+                form = (
+                    page.get_by_role("region", name="다른 방법으로 연결")
+                    .locator("details")
+                    .filter(has_text="OPC UA로 연결")
                 )
-                pw.expect(page.locator("#onboarding-state")).to_contain_text(
-                    "소스 미등록", timeout=30000
-                )
-                page.get_by_role("link", name="데이터 연결", exact=True).click()
-                page.locator("#opcua-registration > summary").click()
-                page.locator("#opcua-endpoint").fill(endpoint)
-                page.get_by_role("button", name="로컬 변수 탐색").click()
-                # Server internals can consume the bounded root browse budget.
-                # Narrowing to the discovered synthetic object must recover the
-                # actual variable candidate without reading values or saving a source.
-                browse_result = page.locator("#opcua-browse-result")
-                pw.expect(browse_result).to_contain_text("변수 후보", timeout=30000)
-                pw.expect(browse_result).to_contain_text(
-                    "SyntheticPower 객체 내부 탐색", timeout=30000
-                )
-                browse_result.get_by_role("button", name="SyntheticPower 객체 내부 탐색").click()
-                pw.expect(browse_result).to_contain_text("ns=2;s=active_power", timeout=30000)
-                pw.expect(browse_result).to_contain_text("수신 근거 아님")
-                assert source_row(page) is None
-                assert not workspace.history_catalog_path.exists()
-
-                form = page.locator("#opcua-form")
-                for name, value in (
-                    ("source_id", source_id),
-                    ("name", "Browser live OPC UA"),
-                    ("asset_id", asset_id),
-                ):
-                    form.locator(f'input[name="{name}"]').fill(value)
-                form.locator('textarea[name="node_mappings"]').fill(
-                    "active_power=ns=2;s=active_power\nvoltage=ns=2;s=voltage"
-                )
-                page.get_by_role("button", name="OPC UA 매핑 등록").click()
-                listing = page.locator("#source-list")
-                pw.expect(listing).to_contain_text(source_id, timeout=30000)
-                pw.expect(listing).to_contain_text("수신 미확인")
-                assert not workspace.history_catalog_path.exists()
-
-                listing.get_by_role("button", name="이 연결 사용하기").click()
-                pw.expect(listing).to_contain_text("관리 상태: active")
-                listing.locator(".source-settings > summary").click()
-                listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "수신 근거 기록 완료", timeout=30000
-                )
+                for label, value in {
+                    "연결 ID": source_id,
+                    "연결 이름": "Browser live OPC UA",
+                    "설비": asset_id,
+                    "OPC UA 서버 주소": endpoint,
+                }.items():
+                    form.get_by_label(label, exact=True).fill(value)
+                form.get_by_role("button", name="변수 찾기").click()
+                form.get_by_role("listitem").filter(has_text="SyntheticPower").get_by_role(
+                    "button", name="안쪽 찾기"
+                ).click()
+                form.get_by_role("listitem").filter(has_text="active_power").get_by_role(
+                    "button", name="가져올 변수로 추가"
+                ).click()
+                assert source_row(page) is None and not workspace.history_catalog_path.exists()
+                form.get_by_role("button", name="OPC UA 연결 등록").click()
+                card = page.get_by_role("article", name="Browser live OPC UA")
+                card.get_by_role("button", name="이 연결 사용하기").click()
+                card.get_by_role("button", name="1회 읽기로 연결 확인").click()
+                pw.expect(card).to_contain_text("한 번 읽어 연결을 확인했습니다")
                 assert source_row(page)["last_live_history_committed_at"] is None
-
-                listing.get_by_role("button", name="수집 시작 요청").click()
-                pw.expect(listing).to_contain_text("연속 수집 요청: running")
+                card.get_by_role("button", name="수집 시작 요청").click()
                 first = until_evidence(
-                    "collector live receive and DuckLake commit",
+                    "collector live history",
                     lambda: matching_source(
                         page,
                         lambda row: (
-                            str(row["opcua_session_last_state"]).upper() == "CONNECTED"
+                            row["last_live_history_snapshot_id"] is not None
                             and row["last_live_received_at"] is not None
-                            and row["last_live_history_snapshot_id"] is not None
                         ),
                     ),
                 )
-                first_snapshot = first["last_live_history_snapshot_id"]
                 first_received = first["last_live_received_at"]
-                page.locator("#refresh").click()
-                pw.expect(listing).to_contain_text(
-                    "OPC UA 이력 저장(DuckLake 커밋):", timeout=30000
-                )
-                pw.expect(_stored_values(page)).to_contain_text(source_id, timeout=30000)
-                pw.expect(page.locator("#last-values")).to_contain_text("마지막 저장된 측정값")
-                browser_evidence(page, "receiving")
-                page.locator('nav a[href="#connect"]').click()
-
+                assert first["last_live_history_snapshot_id"] is not None
+                page.get_by_role("button", name="다시 불러오기", exact=True).click()
+                pw.expect(card.locator(".badge")).to_have_text("수신 확인됨")
+                card.get_by_role("link", name="측정 신호 보기").click()
+                pw.expect(page.get_by_role("region", name="측정 신호")).to_contain_text(source_id)
                 simulator_stop(simulator)
-                disconnected = until_evidence(
+                until_evidence(
                     "collector-observed disconnect",
                     lambda: matching_source(
                         page,
@@ -1628,41 +923,38 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                         ),
                     ),
                 )
-                assert disconnected["last_live_history_snapshot_id"] is not None
-                assert disconnected["collection_desired_state"] == "running"
-                page.locator("#refresh").click()
-                # A disconnected worker can transition STOPPED → CONNECTING while
-                # this read is in flight. The UI must keep the *meaning* unknown;
-                # matching the earlier enum snapshot would be a race.
-                pw.expect(listing).to_contain_text("OPC UA 세션 마지막 기록:", timeout=30000)
-                pw.expect(listing).to_contain_text("현재 연결 미확인")
-                pw.expect(listing).not_to_contain_text("OPC UA 세션 마지막 기록: CONNECTED")
-                pw.expect(_stored_values(page)).to_contain_text("마지막 저장된 측정값")
-                browser_evidence(page, "disconnected")
-                page.locator('nav a[href="#connect"]').click()
-
                 simulator = simulator_start()
-                recovered = until_evidence(
-                    "same-source reconnect, new live receive and new DuckLake snapshot",
+                until_evidence(
+                    "reconnected live receipt",
                     lambda: matching_source(
                         page,
                         lambda row: (
                             str(row["opcua_session_last_state"]).upper() == "CONNECTED"
-                            and row["last_live_received_at"] != first_received
-                            and row["last_live_history_snapshot_id"] not in (None, first_snapshot)
+                            and row["last_live_received_at"] > first_received
                         ),
                     ),
                 )
-                assert recovered["source_id"] == source_id
-                assert recovered["asset_id"] == asset_id
-                page.locator("#refresh").click()
-                pw.expect(listing).to_contain_text(
-                    "OPC UA 세션 마지막 기록: " + str(recovered["opcua_session_last_state"])
+                page.goto(f"http://127.0.0.1:{web_port}/web/?page=system")
+                card.get_by_text("다른 작업").click()
+                card.get_by_role("button", name="수집 중지 요청").click()
+                card.get_by_role("group", name="수집 중지 요청할까요?", exact=False).get_by_role(
+                    "button", name="수집 중지 요청"
+                ).click()
+                until_evidence(
+                    "stopped collection",
+                    lambda: matching_source(
+                        page, lambda row: row["collection_desired_state"] == "stopped"
+                    ),
                 )
-                pw.expect(_stored_values(page)).to_contain_text(source_id, timeout=30000)
-                browser_evidence(page, "recovered")
+                history = DuckLakeAssetHistory(
+                    DuckLakeAssetHistoryConfig(
+                        workspace.history_catalog_path, workspace.history_data_path
+                    )
+                )
+                events = history.query_opcua_events(source_id)
+                assert events and all(event.event.asset_id == asset_id for event in events)
+                assert len({event.local_delivery_identity for event in events}) == len(events)
                 _no_overflow(page, width)
-                assert not errors, errors
             finally:
                 browser.close()
     finally:
@@ -1670,12 +962,153 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
             _stop(supervisor, workspace.root)
         simulator_stop(simulator)
 
-    assert supervisor is not None and supervisor.returncode == 0
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_cross_asset_reviews_and_runtime_failure_keep_their_own_evidence(
+    tmp_path: Path, width: int
+) -> None:
+    from industrial_phm.application import SqlitePhaseUnbalanceRepository
+    from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
+    from tests.support.window_analysis import phase_unbalance_analysis
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "cross-asset")
+    initialized = initialize_operations_workspace(workspace)
+    port = _port()
+    write_operations_runtime_config(
+        workspace.config_path, replace(initialized.config, ui=OperationsUiConfig(port=port))
     )
-    events = history.query_opcua_events(source_id)
-    assert events, "Collection must commit real OPC UA events, not only a one-shot receipt"
-    identities = [event.local_delivery_identity for event in events]
-    assert len(identities) == len(set(identities)), "Reconnect duplicated persisted delivery"
-    assert all(event.source_id == source_id for event in events)
+    first = phase_unbalance_analysis()
+    second = PhaseUnbalanceAnalysis(
+        run=replace(
+            first.run,
+            analysis_run_id="analysis-other",
+            source_id="other-source",
+            asset_id="motor-8",
+        ),
+        evidence=replace(
+            first.evidence,
+            evidence_id="evidence-other",
+            analysis_run_id="analysis-other",
+            source_id="other-source",
+            input_reference=replace(
+                first.evidence.input_reference,
+                source_id="other-source",
+                asset_id="motor-8",
+                window_id="window-other",
+            ),
+        ),
+    )
+    store = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path)
+    store.record(first)
+    store.record(second)
+    log = tmp_path / "supervisor.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.goto(f"http://127.0.0.1:{port}/web/?page=system&section=status")
+                status = page.get_by_role("region", name="실행 상태")
+                status.get_by_text("기술 상세", exact=True).click()
+                pw.expect(status).to_contain_text(str(proc.pid))
+                page.route("**/api/v1/system/runtime", lambda route: route.abort())
+                page.get_by_role("button", name="다시 불러오기", exact=True).click()
+                pw.expect(status).to_contain_text("실행 상태를 확인하지 못했습니다")
+                assert status.get_by_text(str(proc.pid), exact=True).count() == 0
+                page.unroute("**/api/v1/system/runtime")
+                page.get_by_role("button", name="다시 불러오기", exact=True).click()
+                pw.expect(status).to_contain_text("데이터 수집기")
+                for run in (first, second):
+                    page.goto(
+                        f"http://127.0.0.1:{port}/web/?page=investigations&monitor_asset={run.run.asset_id}"
+                    )
+                    record = page.get_by_role("region", name="분석 결과").get_by_role("article")
+                    pw.expect(record).to_contain_text(run.run.asset_id)
+                    record.get_by_role("button", name="검토 요청").click()
+                    record.get_by_role("link", name="정비 검토함에서 보기").click()
+                    detail = page.get_by_role("region", name="고른 검토 항목")
+                    pw.expect(detail).to_contain_text(run.run.asset_id)
+                    pw.expect(detail).not_to_contain_text(
+                        "evidence-other" if run is first else first.evidence.evidence_id
+                    )
+                _no_overflow(page, width)
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)
+    findings = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
+    assert {finding.analysis_run_id for finding in findings} == {
+        first.run.analysis_run_id,
+        second.run.analysis_run_id,
+    }
+    assert {finding.evidence_refs for finding in findings} == {
+        (first.evidence.evidence_id,),
+        (second.evidence.evidence_id,),
+    }
+
+
+def test_model_connection_is_analyzed_by_real_runner_and_following_can_be_pinned(
+    tmp_path: Path,
+) -> None:
+    from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+    from industrial_phm.runtime.operations_config import load_operations_runtime_config
+    from tests.support.phm import deliver, phm_workspace
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "real-model", bind=False)
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    port = _port()
+    config = load_operations_runtime_config(workspace.config_path)
+    write_operations_runtime_config(
+        workspace.config_path, replace(config, ui=OperationsUiConfig(port=port))
+    )
+    log = tmp_path / "supervisor.log"
+    proc = _start(workspace.root, port, log)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900})
+                page.goto(f"http://127.0.0.1:{port}/web/?monitor_asset=bearing-a#anomaly")
+                offer = page.get_by_role("region", name="연결할 수 있는 이상 탐지 모델")
+                offer.get_by_role("listitem").filter(has_text="synthetic-rms-score-v1").get_by_role(
+                    "button"
+                ).click()
+                pw.expect(page.get_by_role("group", name="측정 순서 #1 모델 결과")).to_be_visible(
+                    timeout=30_000
+                )
+                store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+                (binding,) = store.list_bindings()
+                assert store.get_result(binding.binding_id, 1).state.value == "analyzed"
+                deliver(workspace, tmp_path / "waves", 2, 3.0)
+                pw.expect(page.get_by_role("group", name="측정 순서 #2 모델 결과")).to_contain_text(
+                    "기준 초과", timeout=20_000
+                )
+                selector = page.get_by_label("측정 선택 (최근 64회)")
+                selector.select_option("1")
+                pw.expect(
+                    page.get_by_role("button", name="최신 결과 따라보기", exact=True)
+                ).to_be_visible()
+                deliver(workspace, tmp_path / "waves", 3, 3.2)
+                deadline = time.monotonic() + 25
+                while store.get_result(binding.binding_id, 3) is None:
+                    assert time.monotonic() < deadline, "runner did not analyze the new input"
+                    page.wait_for_timeout(100)
+                pw.expect(selector).to_have_value("1")
+                page.get_by_role("button", name="최신 결과 따라보기", exact=True).click()
+                pw.expect(selector).to_have_value("3", timeout=20_000)
+                page.route("**/api/v1/phm/trace?*", lambda route: route.abort())
+                pw.expect(
+                    page.get_by_text("최신 모델 결과를 다시 읽지 못했습니다", exact=False)
+                ).to_be_visible(timeout=15_000)
+                assert page.locator("[data-model-position]").count() == 0
+                page.unroute("**/api/v1/phm/trace?*")
+                pw.expect(page.get_by_role("group", name="측정 순서 #3 모델 결과")).to_be_visible(
+                    timeout=15_000
+                )
+            finally:
+                browser.close()
+    finally:
+        _stop(proc, workspace.root)

@@ -9,6 +9,7 @@
 uv python install 3.14
 uv lock --check
 uv sync --locked --extra operations
+make frontend  # Node.js >=22.12와 npm으로 Web 정적 파일 생성
 ```
 
 제품의 정상 repository-local 실행은 root `make up`을 사용합니다. 아래 `uv` 명령은 개발 환경과
@@ -24,7 +25,13 @@ uv run --locked --extra operations pytest tests/unit tests/contract
 ```
 
 의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
-추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는 `uv build`도 확인합니다.
+추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는
+`sh tools/verify/gate.sh wheel`도 확인합니다. `uv build`는 잠금 파일 기준으로
+프런트엔드를 빌드하고 sdist에서 wheel을 다시 만듭니다(Node.js >=22.12와 npm 필요).
+`wheel` 검증은 sdist의 빌드 입력과 wheel의 전체 manifest를 확인하고, 별도 환경에
+wheel을 설치해 Node 없는 PATH에서 정적 파일을 제공합니다. 기존 `dist/`는 건드리지 않습니다.
+Python editable 설치(`uv sync`)는 Node 없이도 가능하지만, 새 화면을 실행하려면
+`make frontend` 또는 `make up`으로 정적 파일을 준비해야 합니다.
 
 ### Linux 재현 검증
 

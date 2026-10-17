@@ -23,6 +23,8 @@ browser() {
 
 WEB_NEXT_PYTHON="
 tests/integration/test_operations_web_next_static.py
+tests/integration/test_operations_web_http.py
+tests/integration/test_operations_unread_waveforms.py
 tests/integration/test_operations_web_explore.py
 tests/integration/test_operations_web_phm.py
 tests/integration/test_operations_web_outlook_briefing.py
@@ -31,10 +33,12 @@ tests/integration/test_operations_web_phm_explanation.py
 "
 WEB_NEXT_BROWSER="
 tests/acceptance/test_operations_web_next_browser.py
+tests/acceptance/test_operations_web_navigation_browser.py
 tests/acceptance/test_operations_web_next_signal_browser.py
 tests/acceptance/test_operations_web_next_departures_browser.py
 tests/acceptance/test_operations_web_next_compare_browser.py
 tests/acceptance/test_operations_web_next_projection_browser.py
+tests/acceptance/test_operations_web_forecast_settings_browser.py
 tests/acceptance/test_operations_web_next_briefings_browser.py
 tests/acceptance/test_operations_web_next_acquisition_outlook_browser.py
 tests/acceptance/test_operations_web_next_relation_browser.py
@@ -48,6 +52,13 @@ tests/acceptance/test_operations_web_next_finding_review_browser.py
 tests/acceptance/test_operations_web_next_model_explanation_browser.py
 tests/acceptance/test_operations_web_next_investigations_browser.py
 tests/acceptance/test_operations_web_next_operations_browser.py
+tests/acceptance/test_operations_web_next_connections_browser.py
+tests/acceptance/test_operations_web_next_registration_browser.py
+tests/acceptance/test_operations_web_next_model_connect_browser.py
+tests/acceptance/test_operations_web_next_score_trend_browser.py
+tests/acceptance/test_operations_web_next_monitor_attention_browser.py
+tests/acceptance/test_operations_web_next_electrical_condition_browser.py
+tests/acceptance/test_operations_web_next_capabilities_browser.py
 "
 FORECAST_PYTHON="
 tests/integration/test_operations_web_forecast.py
@@ -57,14 +68,12 @@ tests/integration/test_operations_web_outlook_briefing.py
 tests/unit/test_outlook_answer.py
 "
 FORECAST_BROWSER="
-tests/acceptance/test_operations_forecast_browser.py
-tests/acceptance/test_operations_outlook_browser.py
-tests/acceptance/test_operations_phm_browser.py
-tests/acceptance/test_operations_phm_connect_browser.py
-tests/acceptance/test_operations_phm_monitor_browser.py
-tests/acceptance/test_operations_electrical_phm_browser.py
-tests/acceptance/test_operations_signal_explore_browser.py
-tests/acceptance/test_operations_stored_monitor_browser.py
+tests/acceptance/test_operations_web_next_projection_browser.py
+tests/acceptance/test_operations_web_forecast_settings_browser.py
+tests/acceptance/test_operations_web_next_acquisition_outlook_browser.py
+tests/acceptance/test_operations_web_next_outlook_capture_browser.py
+tests/acceptance/test_operations_web_next_model_explanation_browser.py
+tests/acceptance/test_operations_web_next_electrical_condition_browser.py
 "
 
 stage() {
@@ -82,11 +91,7 @@ stage() {
     frontend-build) run npm run --prefix frontend build ;;
     manifest) locked python tools/verify/check_web_next_package.py manifest ;;
     web-next-python) locked pytest $WEB_NEXT_PYTHON ;;
-    wheel)
-      rm -f dist/*.whl
-      run uv build --wheel
-      locked python tools/verify/check_web_next_package.py wheel
-      ;;
+    wheel) locked python tools/verify/check_web_next_package.py build ;;
     browser-runtime)
       locked python -c "pass"
       run uv pip install --python .venv/bin/python "playwright==$PLAYWRIGHT_VERSION"
@@ -98,6 +103,7 @@ stage() {
       fi
       ;;
     web-next-browser) browser pytest $WEB_NEXT_BROWSER ;;
+    supervised-browser) browser pytest tests/integration/test_operations_web_opcua.py tests/acceptance/test_operations_web_controlled_journey_browser.py tests/acceptance/test_operations_web_sample_browser.py tests/acceptance/test_operations_web_cross_action_http.py ;;
     # Forecast acceptance
     forecast-python) locked pytest $FORECAST_PYTHON ;;
     forecast-browser) browser pytest $FORECAST_BROWSER ;;
@@ -105,12 +111,12 @@ stage() {
     source) for name in lock lint format types unit; do stage "$name"; done ;;
     web-next)
       for name in frontend-install frontend-check frontend-test frontend-build manifest \
-        web-next-python wheel browser-runtime web-next-browser; do
+        web-next-python wheel browser-runtime web-next-browser supervised-browser; do
         stage "$name"
       done
       ;;
     forecast)
-      for name in forecast-python browser-runtime forecast-browser; do stage "$name"; done
+      for name in frontend-install frontend-build forecast-python browser-runtime forecast-browser; do stage "$name"; done
       ;;
     ci) for name in source web-next forecast; do stage "$name"; done ;;
     # Every test, including layers no workflow selects yet. Not a CI gate.

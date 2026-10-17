@@ -123,14 +123,14 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 page.route("**/api/v1/history/trend?**", trend)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=signals&monitor_asset=motor-a", wait_until="networkidle"
+                    base + "/web/?view=signals&monitor_asset=motor-a", wait_until="networkidle"
                 )
                 expect_place(pw, page, "신호")
                 pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="R · source-2")).to_be_visible()
                 pw.expect(page.get_by_role("link", name="기준 구간 이탈 →")).to_have_attribute(
                     "href",
-                    "/web-next/?page=assets&tab=anomaly&method=baseline"
+                    "/web/?page=assets&tab=anomaly&method=baseline"
                     "&monitor_asset=motor-a&monitor_channel=R",
                 )
                 pw.expect(page.locator("svg circle")).to_have_count(2)

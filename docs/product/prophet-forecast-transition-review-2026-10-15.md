@@ -1,5 +1,8 @@
 # Prophet 기반 미래 예측 전환 — 사례 리서치·현행 구조 리뷰·작업 계획
 
+> 2026-10-15 당시 전환 검토 기록입니다. 당시 `apps/web/` 코드 경로는 2026-10-17 업무 UI 전환으로 제거됐습니다. 현재 구현과 회귀 범위는 [Web 전환](web-migration.md)을 따릅니다.
+
+
 > **구현 상태 (2026-10-15)**: #578(RUL 폐기, [ADR-0026](../adr/0026-retire-remaining-life-estimation.md))과
 > #579(미래 예측)로 구현했습니다. 구현은 이 계획보다 단순합니다. 예측은 요청할 때 계산하고(0.1–0.5초) 저장하지
 > 않으며(`GET /api/v1/forecast/options`, `GET /api/v1/forecast`), 저장된 ForecastRun·POST 실행 작업·실행 보호

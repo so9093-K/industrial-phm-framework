@@ -59,7 +59,7 @@ def test_web_next_read_only_observation_and_navigation(tmp_path: Path, width: in
                         body=json.dumps(recorded),
                     ),
                 )
-                page.goto(base + "/web-next/", wait_until="networkidle")
+                page.goto(base + "/web/", wait_until="networkidle")
                 pw.expect(page.get_by_role("heading", name="관측 현황", level=1)).to_be_visible()
                 pw.expect(page.get_by_role("heading", name="설비 2개")).to_be_visible()
                 rows = page.get_by_role("list").locator("a.row")
@@ -132,7 +132,7 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                     ),
                 )
                 base = f"http://127.0.0.1:{server.server_port}"
-                page.goto(base + "/web-next/", wait_until="networkidle")
+                page.goto(base + "/web/", wait_until="networkidle")
                 pw.expect(
                     page.get_by_role("heading", name="등록된 설비가 없습니다")
                 ).to_be_visible()
@@ -142,7 +142,7 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                     )
                 ).to_be_visible()
                 pw.expect(page.get_by_role("link", name="데이터 연결하기")).to_have_attribute(
-                    "href", "/web/#connect"
+                    "href", "/web/?page=system&section=connections"
                 )
                 assert page.get_by_role("heading", name="설비 0개").count() == 0
             finally:
@@ -204,12 +204,12 @@ def test_asset_history_navigation_clears_old_context_and_restores_selection(
                 )
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=reviews&monitor_asset=motor-a", wait_until="networkidle"
+                    base + "/web/?view=reviews&monitor_asset=motor-a", wait_until="networkidle"
                 )
                 # A former address is replaced by its new place, not left half-understood.
                 assert "page=maintenance" in page.url and "view=" not in page.url
                 page.goto(
-                    base + "/web-next/?page=assets&tab=outlook&data=history&monitor_asset=motor-a"
+                    base + "/web/?page=assets&tab=outlook&data=history&monitor_asset=motor-a"
                     "&monitor_channel=R&projection_direction=lower"
                     "&capture_id=old&unanticipated_selection=old",
                     wait_until="networkidle",
@@ -287,7 +287,7 @@ def test_unknown_asset_deep_link_does_not_show_another_asset(
                     ),
                 )
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web-next/?page=assets&tab=outlook"
+                    f"http://127.0.0.1:{server.server_port}/web/?page=assets&tab=outlook"
                     "&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )

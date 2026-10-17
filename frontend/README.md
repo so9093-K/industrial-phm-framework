@@ -1,9 +1,9 @@
-# Operations Web-next
+# Operations Web
 
-The next Operations Web, organised by user task. It is **not yet the default
-product**: the current `/web/` UI stays authoritative until every workflow, permission
-and recovery path is accepted here. It reads the existing APIs and never recalculates
-measured values or health verdicts in the browser.
+The Operations Web, organised by user task, is served at **`/web/`**. The former
+`/web-next/` address redirects to it on the same origin. It reads the existing APIs
+and never recalculates measured values or health verdicts in the browser.
+See [migration and verification boundaries](../docs/product/web-migration.md).
 
 ## Verification
 
@@ -17,9 +17,9 @@ npm run build
 
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
-on the **same loopback origin** under `/web-next/` only after building it.
+on the **same loopback origin** under `/web/` only after building it.
 Screens follow the task menus of `docs/product/overview.md`:
-`/web-next/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
+`/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
 `tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
 `?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are
 replaced by their new place with the workflow's own parameters kept. Screen words follow
@@ -119,10 +119,36 @@ not install Node dependencies.
   feature analyses, applied models and analyses that did not run, per asset, each result with its
   review request. `src/analysis-records.ts`: their strict DTOs; a malformed list is reported as
   unreadable without hiding the asset list.
-- `src/components/OperationsStatus.svelte`: the ‘운영 관리’ page. Local service readiness,
-  registered connections with the same receipt words as `/web/` (registration, file read and live
-  receipt kept apart) and store read state; it opens even when the store read fails.
-  `src/operations-status.ts`: their DTOs.
+- `src/components/OperationsPage.svelte`: the ‘운영 관리’ page with two sections, ‘데이터 연결’
+  (`CsvStart`, `ConnectionList`) and ‘시스템 상태’ (`SystemStatus`: local service readiness and store
+  read state; it opens even when the store read fails). `src/operations-status.ts`: their DTOs, with
+  the same receipt words as `/web/` (registration, file read and live receipt kept apart).
+- `src/components/CsvStart.svelte`: one CSV to stored measurements. The browser preview
+  (`src/csv-preview.ts`) shows columns, blocking problems, a summary and a chart; the server checks
+  without saving; then register → use → read once → store history as visible steps. A retry resumes
+  from the server's state and never registers or stores twice.
+- `src/components/ConnectionList.svelte`: each registered connection with its one next step and other
+  actions (`src/connections.ts`). Pause and collection stop ask once more.
+- `src/components/ConnectionRegistration.svelte`: a CSV in the workspace or with declared 3-phase roles
+  (checked before registering) and a local OPC UA server's variables. `src/components/SampleWorkspace.svelte`:
+  the isolated synthetic sample; an unknown start or stop is checked again, never resent.
+- `src/components/ModelConnect.svelte`, `src/model-connect.ts`: anomaly detection packages whose
+  declared input fits this asset's streams, and connecting one; why nothing fits is said plainly.
+- `src/components/ScoreTrend.svelte`, `src/components/ModelInput.svelte`, `src/model-trend.ts`: a model's
+  stored scores in input order with its threshold and exceedance intervals (skipped steps stay gaps),
+  and the selected measurement's raw waveform envelope or window values.
+- `src/components/MonitorAttention.svelte`, `src/monitor-attention.ts`: what needs a look per asset (model
+  over threshold, refused or waiting input, model that cannot run, review in progress, a requested
+  collection without recent receipt), each opening the exact place; read again every 3 seconds while
+  visible, and a failed read hides earlier items.
+- `src/components/ElectricalCondition.svelte`, `src/electrical-condition.ts`: 3-phase load, unbalance and
+  reference-pattern score of a recent period against an earlier one (`/api/v1/condition`), times to check
+  first and per-phase values; KST inputs travel as the same instant and lines never cross missing data.
+- `src/components/AnalysisOptions.svelte`, `src/capabilities.ts`: what an asset's stored data supports
+  (`/api/v1/explore/capabilities`), each analysis opening for that asset and data kind, a fitting model one
+  link away, and what cannot be done listed once with its reason.
+- `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
+  tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
   `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation
@@ -152,7 +178,14 @@ focus, labels and screen-reader reading order. A status token is not evidence
 of equipment condition. Actual operator usability must be observed
 separately from CI and browser layout tests.
 
-The build must be performed before `uv build` for a wheel that includes this
-preview. Default `make up` and `/web/` work without a Node toolchain.
-This preview is not a capability-complete replacement, does not modify data,
-and must not be called a UX acceptance or field-validation result.
+Standard `uv build` rebuilds the frontend with `npm ci` and includes it in both
+the sdist and wheel. A wheel rebuilt from the sdist uses those same locked sources.
+Missing Node/npm or an incomplete manifest fails the distribution build; an old local
+bundle is never accepted instead. `make up` and `make demo` also prepare these assets.
+Python editable setup (`uv sync`) skips the frontend build, so use `make frontend`
+before opening `/web/` directly. Node.js >=22.12 and npm are needed for these
+source builds; installing and serving a prebuilt wheel needs neither.
+`sh tools/verify/gate.sh wheel` checks sdist → wheel, exact manifest contents and
+serving every asset from an installed wheel with no Node on PATH or checkout imports.
+This frontend is the default `/web/` UI; the previous direct-DOM assets are removed.
+Automated checks do not establish UX acceptance or field validation.

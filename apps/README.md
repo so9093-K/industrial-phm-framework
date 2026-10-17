@@ -9,8 +9,9 @@
 
 ## Operations — supervised Web
 
-현재 운영자 제품은 패키지 내 Web 자산(`src/industrial_phm/apps/web/`)과
-Python API로 실행합니다. 운영용 marimo 애플리케이션 및 `--ui marimo`는 제거했습니다.
+현재 운영자 제품은 패키지 내 Web 자산(`src/industrial_phm/apps/web_next/`에 빌드한 Svelte 번들)과
+Python API로 `/web/`에서 실행합니다. `/web-next/`는 같은 화면으로 이동합니다.
+소스 실행은 Node.js 22.12 이상·npm으로 화면을 빌드하며 설치된 wheel 실행은 Python만 필요합니다. 운영용 marimo 애플리케이션 및 `--ui marimo`는 제거했습니다.
 연구용 marimo 화면은 `notebooks/`와 선택 설치 `research` group에서 별도로 관리합니다.
 
 ```bash

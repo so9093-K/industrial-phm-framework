@@ -351,7 +351,7 @@ and Chromium before running this test:
 uv sync --locked --extra operations
 uv run --locked --extra operations --with playwright python -m playwright install chromium
 uv run --locked --extra operations --with playwright pytest \
-  tests/acceptance/test_operations_web_monitor_browser.py \
+  tests/acceptance/test_operations_web_next_monitor_attention_browser.py \
   tests/acceptance/test_operations_web_controlled_journey_browser.py \
   tests/acceptance/test_operations_web_sample_browser.py
 ```
@@ -363,8 +363,9 @@ reconnect, collector failure, spool overflow and persisted evidence, use
 AI-Hub 2297 archive/binding and keep its JSON verdict. Without that recorded
 input, the full fault-replay gate is **unexecuted**, not passed.
 
-The Web assets are `industrial_phm/apps/web/index.html`, `app.js` and
-`styles.css`. Stored history does not interpolate null/gap buckets or silently
+Build the current UI with `make frontend` first. The compiled Web assets live in
+`industrial_phm/apps/web_next/` and are served at `/web/`; the previous
+`industrial_phm/apps/web/` implementation is removed. Stored history does not interpolate null/gap buckets or silently
 replace channel semantics. Screenshots require a visual review and do not alone
 prove live collection or persistence.
 

@@ -16,6 +16,7 @@
   import RelationExplorer from "./RelationExplorer.svelte";
   import AcquisitionRelation from "./AcquisitionRelation.svelte";
   import AcquisitionSpectrum from "./AcquisitionSpectrum.svelte";
+  import ElectricalCondition from "./ElectricalCondition.svelte";
   import ProjectionExplorer from "./ProjectionExplorer.svelte";
   import AcquisitionOutlook from "./AcquisitionOutlook.svelte";
 
@@ -123,6 +124,8 @@
         <ModelRunEvidence assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "spectrum"}
         <AcquisitionSpectrum assetId={asset.assetId} />
+      {:else if route.tab === "change" && method === "electrical"}
+        <ElectricalCondition assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "relation" && kind === "vibration"}
         <AcquisitionRelation assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "relation"}

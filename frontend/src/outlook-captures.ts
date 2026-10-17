@@ -260,16 +260,16 @@ export function capturePayload(projection:BriefingProjection):Record<string,stri
 }
 
 const NOT_FOUND="이 설비에서 해당 검토 요청을 찾을 수 없습니다. 다른 설비의 기록으로 대신하지 않습니다.";
-function refuseCapture(response:Response):void{
-  if(response.status===400)
+function refuseCapture(status:number):void{
+  if(status===400)
     throw new CaptureRejected("요청하는 사이 데이터나 계산 결과가 바뀌어 남기지 않았습니다. 다시 계산하세요.");
-  if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
+  if(status===404)throw new CaptureNotFound(NOT_FOUND);
   // A capture has no review status yet; a conflict here is not someone else's review.
-  if(response.status===409)
+  if(status===409)
     throw new Error("처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.");
 }
-function refuseReview(response:Response):void{
-  if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
+function refuseReview(status:number):void{
+  if(status===404)throw new CaptureNotFound(NOT_FOUND);
 }
 
 export async function readCaptures(
@@ -359,7 +359,7 @@ export function positionText(value:Position):string{
 
 /** The exact review subject inside the maintenance task. */
 export function captureUrl(assetId:string,captureId:string):string{
-  return "/web-next/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,capture_id:captureId});
+  return "/web/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,capture_id:captureId});
 }
 /** Reopen the archived subject's conditions for a new recomputation. Server settings
  * that the page cannot choose are compared afterwards rather than silently assumed. */
@@ -373,5 +373,5 @@ export function reobservationUrl(saved:CapturedOutlook):string{
   if(saved.conditions.management!==null)params.set(prefix+"management",String(saved.conditions.management));
   if(saved.conditions.end!==null)params.set(prefix+"end",String(saved.conditions.end));
   if(!history&&saved.assumedPeriod!==null)params.set("acq_assumed_period",String(saved.assumedPeriod));
-  return "/web-next/?"+params;
+  return "/web/?"+params;
 }

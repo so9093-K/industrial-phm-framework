@@ -1,3 +1,4 @@
+import json
 import socket
 from pathlib import Path
 from types import SimpleNamespace
@@ -43,6 +44,17 @@ def test_deployment_preflight_accepts_initialized_absolute_workspace(
         workspace.config_path,
         OperationsRuntimeConfig(ui=OperationsUiConfig(port=_free_port())),
     )
+
+    import industrial_phm.runtime.operations_deployment as deployment_module
+
+    packaged = tmp_path / "package"
+    bundle = packaged / "web_next"
+    (bundle / "assets").mkdir(parents=True)
+    names = ["index.html", "assets/main-a.js", "assets/main-b.css"]
+    (bundle / "asset-manifest.json").write_text(json.dumps(names))
+    for name in names:
+        (bundle / name).write_text("packaged asset")
+    monkeypatch.setattr(deployment_module, "files", lambda _package: packaged)
 
     report = inspect_operations_deployment(workspace)
 
@@ -141,3 +153,20 @@ def test_deployment_preflight_reuses_recently_closed_web_port() -> None:
     # The listener exited while the server side held the last TIME_WAIT.
     # HTTPServer sets SO_REUSEADDR; its deployment probe must do the same.
     assert deployment_module._ui_port_check(port).state == OperationsDeploymentCheckState.PASS
+
+
+def test_deployment_preflight_rejects_missing_or_unsafe_frontend_manifest(tmp_path, monkeypatch):
+    import industrial_phm.runtime.operations_deployment as deployment_module
+
+    root = tmp_path / "package"
+    bundle = root / "web_next"
+    bundle.mkdir(parents=True)
+    monkeypatch.setattr(deployment_module, "files", lambda _package: root)
+    assert deployment_module._web_assets_check().state == OperationsDeploymentCheckState.FAIL
+    (bundle / "asset-manifest.json").write_text('["index.html", "../outside.js", "assets/a.css"]')
+    assert deployment_module._web_assets_check().state == OperationsDeploymentCheckState.FAIL
+    (bundle / "asset-manifest.json").write_text('["index.html", "assets/a.js", "assets/a.css"]')
+    (bundle / "index.html").write_text("html")
+    (bundle / "assets").mkdir()
+    (bundle / "assets/a.js").write_text("js")
+    assert deployment_module._web_assets_check().state == OperationsDeploymentCheckState.FAIL

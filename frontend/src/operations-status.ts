@@ -7,10 +7,12 @@ export type Component={kind:"collection"|"analysis"|"ui";condition:Condition;pid
   runtimeState:string|null;heartbeatAt:string|null};
 export type RuntimeStatus={assessedAt:string|null;ready:boolean;supervisor:{condition:Condition;pid:number|null;
   heartbeatAt:string|null};components:Component[]};
-export type HistoryJob={state:string;startedAt:string|null;finishedAt:string|null};
+export type HistoryJob={state:string;startedAt:string|null;finishedAt:string|null;
+  eventCount:number|null;snapshotId:number|null;failure:string|null};
 export type Source={
   sourceId:string;name:string;type:"file"|"opcua";assetId:string;pointId:string|null;
   lifecycle:string|null;receiptConfirmed:boolean;lastAcceptedAt:string|null;lastObservedAt:string|null;
+  phaseBindings:number;
   live:{receivedAt:string|null;fresh:boolean;session:string|null;desired:string|null;
     historyCommittedAt:string|null}|null;
   job:HistoryJob|null;readError:boolean;
@@ -39,6 +41,9 @@ function optional(raw:unknown):string|null{
 }
 function instant(raw:unknown):string|null{
   return typeof raw==="string"&&Number.isFinite(Date.parse(raw))?raw:null;
+}
+function count(raw:unknown):number|null{
+  return typeof raw==="number"&&Number.isSafeInteger(raw)&&raw>=0?raw:null;
 }
 function pid(raw:unknown):number|null{
   return typeof raw==="number"&&Number.isSafeInteger(raw)&&raw>0?raw:null;
@@ -85,8 +90,11 @@ export function parseSources(raw:unknown):Sources{
           fresh:row.last_live_receive_fresh===true,session:optional(row.opcua_session_last_state),
           desired:optional(row.collection_desired_state),
           historyCommittedAt:instant(row.last_live_history_committed_at)}:null,
+        phaseBindings:typeof row.phase_binding_count==="number"&&Number.isSafeInteger(row.phase_binding_count)
+          ?row.phase_binding_count:0,
         job:job&&typeof job.state==="string"?{state:job.state,startedAt:instant(job.started_at),
-          finishedAt:instant(job.finished_at)}:null,
+          finishedAt:instant(job.finished_at),eventCount:count(job.event_count),
+          snapshotId:count(job.history_snapshot_id),failure:optional(job.failure)}:null,
         readError:row.live_telemetry_read_error===true};
     })};
 }

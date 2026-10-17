@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ForecastSettings from "./ForecastSettings.svelte";
+  import ForecastValidation from "./ForecastValidation.svelte";
+  import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
@@ -20,6 +23,8 @@
   let projection: Projection | null = $state(null);
   let error = $state("");
   const params = new URLSearchParams(location.search);
+  let settings=$state(savedSettings(params));
+  let customSettings=$state([...params.keys()].some(key=>/^forecast_(prior|range|training|seasonality|backtest)$/.test(key)));
   let channel = $state(params.get("monitor_channel") ?? "");
   const savedHorizon = params.get("projection_horizon");
   let horizon: Horizon = $state(
@@ -55,6 +60,7 @@
     else url.searchParams.delete("projection_management");
     if (endLimit.trim()) url.searchParams.set("projection_end",endLimit);
     else url.searchParams.delete("projection_end");
+    if(customSettings)rememberSettings(url,settings);
     history.replaceState(history.state,"",url);
   }
   function invalidate() {
@@ -74,8 +80,9 @@
       if (abort.signal.aborted) return;
       options=data;
       if (!data.channels.length){optionsState="empty";return;}
-      if (!data.channels.includes(channel)) channel=data.channels[0];
-      if (data.horizons[horizon] !== null) {
+      if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다. 다른 신호로 대신하지 않습니다.");
+      if(!channel)channel=data.channels[0];
+      if (!savedHorizon && data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
         if (allowed) horizon=allowed;
       }
@@ -98,7 +105,7 @@
       );
       const conditions:Conditions={direction,management:parseLimit(management),end:parseLimit(endLimit)};
       save();
-      const data=await loadPaired(assetId,channel,horizon,conditions,abort.signal);
+      const data=await loadPaired(assetId,channel,horizon,conditions,abort.signal,customSettings?settings:undefined);
       if(abort.signal.aborted)return;
       projection=data;resultState="ready";
     }catch(cause:unknown){
@@ -155,6 +162,7 @@
           value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
       </label>
     </div>
+    <ForecastSettings value={settings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
     <button type="button" class="ui-button ui-button-primary"
       onclick={()=>void calculate()} disabled={!horizons.some(key=>options?.horizons[key]===null)}>
       계산하기
@@ -205,6 +213,7 @@
             error=message;
           }}/>
         {/key}
+        <ForecastValidation checks={projection.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 기준은 사용자가 정한 값이며, 고장 시점이나 남은 수명이 아닙니다." />
         <details>
           <summary>예측값 보기 · {projection.horizon}</summary>

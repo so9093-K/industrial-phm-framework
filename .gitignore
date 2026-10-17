@@ -38,7 +38,7 @@ htmlcov/
 /notebooks/__marimo__/
 /apps/__marimo__/
 
-# Optional compiled read-only frontend preview
+# Generated Operations frontend assets
 /frontend/node_modules/
 /src/industrial_phm/apps/web_next/asset-manifest.json
 /src/industrial_phm/apps/web_next/index.html

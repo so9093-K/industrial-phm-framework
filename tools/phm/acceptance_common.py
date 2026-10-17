@@ -125,20 +125,23 @@ class Checks:
         return all(item["pass"] for item in self.items)
 
 
-_RECORDER = """(id) => {
+_RECORDER = """() => {
   window.__phmShown = [];
-  const element = document.getElementById(id);
-  const record = () => window.__phmShown.push([Date.now(), element.textContent]);
+  const record = () => {
+    const node = document.querySelector('[data-model-position]');
+    if (node) window.__phmShown.push([Date.now(),
+      '최신 분석 #' + node.dataset.modelPosition
+      + ' · 원본 측정 ' + node.dataset.modelEventStart + ' ']);
+  };
   new MutationObserver(record).observe(
-    element, {childList: true, characterData: true, subtree: true}
-  );
+    document.body, {childList:true,characterData:true,subtree:true});
   record();
 }"""
 
 
-def record_display(page: Any, element_id: str) -> None:
-    """Record every text change of one element with the browser's wall-clock time."""
-    page.evaluate(_RECORDER, element_id)
+def record_display(page: Any, _element_id: str) -> None:
+    """Record the actually displayed stored result, including after its DOM is replaced."""
+    page.evaluate(_RECORDER)
 
 
 def displayed(page: Any) -> list[tuple[datetime, str]]:
@@ -184,16 +187,17 @@ def check_explanation(checks: Checks, suffix: str, panel: Any, *, window: bool) 
     """
     from industrial_phm.genai.local_explanation import verdict_phrases
 
-    card = panel.locator(".phm-answer")
     item = {
-        "heading": panel.locator("h3").first.inner_text(),
-        "text": card.locator(".phm-ai-text").inner_text(),
-        "signals": card.locator(".phm-answer-signals li").all_inner_texts(),
-        "status": panel.locator("[role=status]").first.inner_text(),
+        "heading": panel.locator("..").locator("[data-model-position]").get_attribute("aria-label"),
+        "text": panel.locator("p.summary").inner_text(),
+        "signals": panel.get_by_role("table", name="해설이 짚은 측정값")
+        .get_by_role("row")
+        .all_inner_texts(),
+        "status": panel.locator(".head .meta").inner_text(),
     }
     item["verdict_phrases"] = verdict_phrases(item["text"])
     checks.add(f"real-local-main-explanation{suffix}", bool(item["text"].strip()), item["status"])
     checks.add(f"answer-has-no-status-verdict{suffix}", not item["verdict_phrases"], item["text"])
-    named = item["heading"].startswith("분석 윈도우 ") if window else "분석 #" in item["heading"]
+    named = ("시간 구간 #" if window else "측정 순서 #") in item["heading"]
     checks.add(f"explanation-names-the-step{suffix}", named, item["heading"])
     return item

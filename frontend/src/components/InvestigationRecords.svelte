@@ -6,7 +6,7 @@
   import {loadModelBindings, type ModelBinding} from "../model-evidence";
   import {num} from "../format";
   import {OutcomeUnknown, WriteForbidden, type ReviewStatus} from "../review-writes";
-  import {assetTabUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
   import CautionNote from "./CautionNote.svelte";
   import StatusNotice from "./StatusNotice.svelte";
 
@@ -93,8 +93,8 @@
 
 <section class="ui-panel" aria-labelledby="analysis-results-title">
   <h2 id="analysis-results-title">분석 결과</h2>
-  <p class="context">저장된 3상 불평형 분석과 파일 특징 분석입니다. 분석을 새로 실행하는 일은 아직
-    <a href="/web/#connect">이전 화면의 데이터 연결</a>에서 합니다.</p>
+  <p class="context">저장된 3상 불평형 분석과 파일 특징 분석입니다. 분석을 새로 실행하려면
+    <a href={systemUrl("connections")}>운영 관리 › 데이터 연결</a>에서 해당 연결의 분석을 실행하세요.</p>
   {#if !snapshot.analyses.available}
     <StatusNotice kind="uncertain" message="이번 조회에 분석 결과 목록이 없습니다. 분석이 없다는 뜻은 아닙니다." />
   {:else}

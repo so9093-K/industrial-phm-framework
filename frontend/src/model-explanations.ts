@@ -1,6 +1,7 @@
 /** AI explanations and review requests of one stored model result. The server keeps the
  * feature comparison the answer was checked against; the screen shows that stored
  * comparison and never recomputes a value or a direction. */
+import type {Focus} from "./model-comparison.ts";
 import type {ModelBinding,ModelRun} from "./model-evidence.ts";
 import {object,postReviewWrite,OutcomeUnknown,type ReviewStatus} from "./review-writes.ts";
 
@@ -15,7 +16,7 @@ export type ModelAnswer={
 };
 export type ModelExplanation={
   id:string;status:"pending"|"complete"|"failed";model:string|null;requestedAt:string;
-  question:string;comparePosition:number|null;previousScore:number|null;
+  question:string;comparePosition:number|null;previousScore:number|null;focus:Focus|null;
   features:FeatureChange[];answer:ModelAnswer|null;
 };
 export type ModelReview={findingId:string|null;status:ReviewStatus|null};
@@ -81,12 +82,14 @@ export function parseModelExplanations(raw:unknown,binding:ModelBinding,run:Mode
       invalid("비교 근거");
     const features=comparison.features.map(feature);
     const previousOutput=object(comparison.previous_output);
+    const focused=object(context.focus);
+    const focus:Focus|null=focused?{position:position(focused.position)??invalid("질문 기준"),series:typeof focused.series==="string"?focused.series:null}:null;
     const requestedAt=text(row.requested_at,"요청 시각",64);
     if(!Number.isFinite(Date.parse(requestedAt)))invalid("요청 시각");
     return [{id:text(row.id,"식별자",128),status:row.status as ModelExplanation["status"],
       model:typeof row.model==="string"?row.model:null,requestedAt,
       question:text(context.question,"질문",600),comparePosition:position(comparison.previous_position),
-      previousScore:finite(previousOutput?.score),features,
+      previousScore:finite(previousOutput?.score),features,focus,
       answer:row.status==="complete"?answer(row.answer,features):null}];
   });
 }
@@ -112,15 +115,20 @@ export async function readModelExplanations(
 
 export async function requestModelExplanation(
   binding:ModelBinding,run:ModelRun,comparePosition:number|null,question:string,
-  parentId:string|null,signal:AbortSignal,
+  parentId:string|null,signal:AbortSignal,focus:Focus|null=null,
 ):Promise<string>{
   const asked=question.trim();
   if(!asked||asked.length>600)throw new Error("질문은 1~600자로 입력하세요.");
   const payload:Record<string,unknown>={binding_id:binding.bindingId,position:run.position,question:asked};
   if(comparePosition!==null)payload.compare_position=comparePosition;
   if(parentId!==null)payload.parent_id=parentId;
-  const result=await postReviewWrite("/api/v1/phm/explanations/request",payload,signal,(response)=>{
-    if(response.status===400)
+  if(focus){
+    if(comparePosition===null||focus.position<=comparePosition||focus.position>run.position)throw new Error("질문 기준 지점이 비교 구간 밖입니다.");
+    payload.focus_position=focus.position;
+    if(focus.series!==null)payload.focus_series=focus.series;
+  }
+  const result=await postReviewWrite("/api/v1/phm/explanations/request",payload,signal,(status)=>{
+    if(status===400)
       throw new Error("해설을 요청하지 못했습니다. 동시에 만들 수 있는 해설 수를 넘었거나 비교 조건이 맞지 않습니다.");
   });
   if(result.binding_id!==binding.bindingId||result.position!==run.position

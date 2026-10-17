@@ -186,6 +186,16 @@ export async function loadModelRun(binding:ModelBinding,step:StepPointer,signal:
   return parseModelRun(await get("/api/v1/phm/result?"+query,signal),binding,step);
 }
 
+/** A bookmark can name a stored result older than the recent trace. Its position and
+ * full input provenance must still match, and an unavailable one never selects another. */
+export async function loadModelPosition(binding:ModelBinding,at:number,signal:AbortSignal):Promise<ModelRun>{
+  if(!Number.isSafeInteger(at)||at<1)throw new NoModelEvidence("북마크의 측정 위치가 올바르지 않습니다.");
+  const raw=await get("/api/v1/phm/result?"+new URLSearchParams({binding_id:binding.bindingId,position:String(at)}),signal);
+  const step=pointer(obj(raw)?.step);
+  if(step.position!==at)throw new NoModelEvidence("북마크와 다른 측정이 돌아왔습니다.");
+  return parseModelRun(raw,binding,step);
+}
+
 /** What the stored output says about the score; nothing is recomputed or inferred. */
 export type ScoreSummary={score:number|null;threshold:number|null;exceeds:boolean|null};
 export function scoreSummary(output:Record<string,unknown>):ScoreSummary{

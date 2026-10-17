@@ -137,7 +137,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                         else None
                     ),
                 )
-                page.goto(f"http://127.0.0.1:{writer.server_port}/web-next/{outlook_query}")
+                page.goto(f"http://127.0.0.1:{writer.server_port}/web/{outlook_query}")
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 request_button = page.get_by_role("button", name="검토 요청")
                 pw.expect(request_button).to_be_enabled(timeout=60000)
@@ -195,7 +195,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                         route.fulfill(
                             status=503,
                             content_type="application/json",
-                            body='{"error":"command_outcome_unknown"}',
+                            body='{"error":{"code":"command_outcome_unknown"}}',
                         )
                     else:
                         route.continue_()
@@ -468,7 +468,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                     ),
                 )
                 address = (
-                    f"http://127.0.0.1:{server.server_port}/web-next/?page=assets&tab=outlook"
+                    f"http://127.0.0.1:{server.server_port}/web/?page=assets&tab=outlook"
                     "&data=history&monitor_asset=motor-a&monitor_channel=R&projection_management=12"
                 )
                 page.goto(address)

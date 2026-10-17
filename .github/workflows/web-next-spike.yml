@@ -1,9 +1,22 @@
-name: Web-next foundation
+name: Operations Web
 
 on:
   pull_request:
     paths:
+      - "pyproject.toml"
+      - "hatch_build.py"
+      - "Makefile"
+      - "tests/acceptance/test_operations_web_controlled_journey_browser.py"
+      - "tests/acceptance/test_operations_web_sample_browser.py"
+      - "tests/acceptance/test_operations_web_cross_action_http.py"
+      - "tests/acceptance/test_operations_web_navigation_browser.py"
+      - "tests/integration/test_operations_web_http.py"
       - "frontend/**"
+      - "tests/integration/test_operations_web_opcua.py"
+      - "tools/phm/**"
+      - "tools/opcua/fault_harness.py"
+      - "src/industrial_phm/runtime/operations_deployment.py"
+      - "tests/acceptance/test_operations_web_forecast_settings_browser.py"
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/integration/test_operations_web_explore.py"
@@ -40,6 +53,20 @@ on:
       - "tests/acceptance/test_operations_web_next_model_explanation_browser.py"
       - "tests/acceptance/test_operations_web_next_investigations_browser.py"
       - "tests/acceptance/test_operations_web_next_operations_browser.py"
+      - "tests/acceptance/test_operations_web_next_connections_browser.py"
+      - "tests/acceptance/test_operations_web_next_registration_browser.py"
+      - "tests/acceptance/test_operations_web_next_model_connect_browser.py"
+      - "tests/acceptance/test_operations_web_next_score_trend_browser.py"
+      - "tests/acceptance/test_operations_web_next_monitor_attention_browser.py"
+      - "tests/acceptance/test_operations_web_next_electrical_condition_browser.py"
+      - "src/industrial_phm/runtime/operations_web_condition.py"
+      - "tests/support/electrical_condition.py"
+      - "tests/acceptance/test_operations_web_next_capabilities_browser.py"
+      - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "src/industrial_phm/runtime/operations_web_phm_models.py"
+      - "tests/support/opcua.py"
+      - "src/industrial_phm/runtime/operations_web_setup.py"
+      - "src/industrial_phm/runtime/operations_web_file_history.py"
       - "src/industrial_phm/application/phm_explanation.py"
       - "src/industrial_phm/genai/phm_answer.py"
       - "tests/support/web_next.py"
@@ -48,7 +75,20 @@ on:
   push:
     branches: [main]
     paths:
+      - "pyproject.toml"
+      - "hatch_build.py"
+      - "Makefile"
+      - "tests/acceptance/test_operations_web_controlled_journey_browser.py"
+      - "tests/acceptance/test_operations_web_sample_browser.py"
+      - "tests/acceptance/test_operations_web_cross_action_http.py"
+      - "tests/acceptance/test_operations_web_navigation_browser.py"
+      - "tests/integration/test_operations_web_http.py"
       - "frontend/**"
+      - "tests/integration/test_operations_web_opcua.py"
+      - "tools/phm/**"
+      - "tools/opcua/fault_harness.py"
+      - "src/industrial_phm/runtime/operations_deployment.py"
+      - "tests/acceptance/test_operations_web_forecast_settings_browser.py"
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/integration/test_operations_web_explore.py"
@@ -64,7 +104,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -95,9 +135,12 @@ jobs:
         run: sh tools/verify/gate.sh manifest
       - name: Python static route integration
         run: sh tools/verify/gate.sh web-next-python
-      - name: Verify wheel contains compiled assets
+      - name: Verify source archive, wheel and installed runtime without Node
         run: sh tools/verify/gate.sh wheel
       - name: Install Chromium acceptance tools
         run: sh tools/verify/gate.sh browser-runtime
-      - name: Web-next Chromium user journey
+      - name: Operations Web Chromium user journeys
         run: sh tools/verify/gate.sh web-next-browser
+
+      - name: Real supervisor, restart and cross-process browser journeys
+        run: sh tools/verify/gate.sh supervised-browser

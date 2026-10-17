@@ -1,3 +1,4 @@
+import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Read-only version-coupled history forecast and conditional outlook. */
 export type Horizon = "1h" | "24h" | "7d" | "30d";
 export type Direction = "upper" | "lower";
@@ -16,7 +17,7 @@ export type Projection = {
   dataVersion: string; sourceId: string; pointId: string | null; unit: string | null;
   record: {first: string; last: string; points: number};
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
-  scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
+  checks?: Backtest[]; scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
 };
 export class ProjectionUnavailable extends Error {}
 export class MeasurementVersionMismatch extends Error {}
@@ -168,16 +169,17 @@ export async function loadOptions(assetId: string, signal: AbortSignal): Promise
 }
 export async function loadPaired(
   assetId: string, channel: string, horizon: Horizon,
-  conditions: Conditions, signal: AbortSignal,
+  conditions: Conditions, signal: AbortSignal, settings?:ForecastSettings,
 ): Promise<Projection> {
-  const args={asset_id:assetId,kind:"history",series:channel};
+  const args={asset_id:assetId,kind:"history",series:channel,...settingsQuery(settings)};
   const direction={direction:conditions.direction};
   const limits: Record<string,string> = {};
   if (conditions.management !== null) limits.management_limit=String(conditions.management);
   if (conditions.end !== null) limits.end_limit=String(conditions.end);
   const [forecast,outlook] = await Promise.all([
-    json("/api/v1/forecast?" + new URLSearchParams({...args,horizon}),signal),
+    json("/api/v1/forecast?" + new URLSearchParams({...args,horizon,...(settings?{backtest:settings.backtest}:{})}),signal),
     json("/api/v1/outlook?" + new URLSearchParams({...args,...direction,...limits}),signal),
   ]);
-  return parsePairedProjection(forecast,outlook,assetId,channel,horizon,conditions);
+  verifySettings(forecast,outlook,settings);
+  return {...parsePairedProjection(forecast,outlook,assetId,channel,horizon,conditions),checks:backtests(forecast)};
 }

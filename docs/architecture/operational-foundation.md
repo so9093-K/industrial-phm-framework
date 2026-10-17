@@ -164,7 +164,8 @@ threshold가 만나는 시각을 사용합니다. Data Quality는 아직 fleet-w
 Operations 제품 UI는 `runtime/operations_app_composition.py`의 bounded read snapshot,
 `runtime/operations_web_read.py`와 `operations_web_setup.py`의 명시적 JSON projection,
 `runtime/operations_web_http.py`의 loopback HTTP/API, 그리고 wheel에 포함된
-`src/industrial_phm/apps/web/index.html`/`app.js`/`styles.css`를 사용합니다.
+`frontend/`의 Svelte·TypeScript를 빌드한 `src/industrial_phm/apps/web_next/` 번들을
+기본 `/web/`에서 제공합니다. `/web-next/`는 같은 origin의 기본 주소로 이동합니다.
 변경 명령은 Supervisor-owned IPC 또는 명시된 독립 preview writer lease를 따라야 하며,
 Web에서 저장소 상태를 임의로 다시 계산하거나 writer 잠금을 우회하지 않습니다.
 기존 marimo Operations 앱과 anywidget Monitor 조립, HTML presenter 및 해당 브라우저 도구는

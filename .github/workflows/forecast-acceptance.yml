@@ -5,6 +5,11 @@ on:
     paths:
       - ".github/workflows/forecast-acceptance.yml"
       - "tools/verify/**"
+      - "frontend/**"
+      - "tests/acceptance/test_operations_web_forecast_settings_browser.py"
+      - "tests/acceptance/test_operations_web_next_*browser.py"
+      - "hatch_build.py"
+      - "pyproject.toml"
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
@@ -19,28 +24,24 @@ on:
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "src/industrial_phm/application/signal_exploration.py"
       - "src/industrial_phm/application/phm_analysis.py"
-      - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
       - "tests/integration/test_operations_web_outlook.py"
       - "tests/unit/test_condition_outlook.py"
       - "tests/unit/test_outlook_answer.py"
       - "tests/integration/test_operations_web_outlook_briefing.py"
-      - "tests/acceptance/test_operations_outlook_browser.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
-      - "tests/acceptance/test_operations_forecast_browser.py"
-      - "tests/acceptance/test_operations_phm_browser.py"
-      - "tests/acceptance/test_operations_phm_connect_browser.py"
-      - "tests/acceptance/test_operations_phm_monitor_browser.py"
-      - "tests/acceptance/test_operations_electrical_phm_browser.py"
-      - "tests/acceptance/test_operations_signal_explore_browser.py"
-      - "tests/acceptance/test_operations_stored_monitor_browser.py"
   push:
     branches: [main]
     paths:
       - ".github/workflows/forecast-acceptance.yml"
       - "tools/verify/**"
+      - "frontend/**"
+      - "tests/acceptance/test_operations_web_forecast_settings_browser.py"
+      - "tests/acceptance/test_operations_web_next_*browser.py"
+      - "hatch_build.py"
+      - "pyproject.toml"
       - "src/industrial_phm/application/forecast.py"
       - "src/industrial_phm/application/condition_outlook.py"
       - "src/industrial_phm/application/exploratory_anomaly.py"
@@ -55,23 +56,14 @@ on:
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "src/industrial_phm/application/signal_exploration.py"
       - "src/industrial_phm/application/phm_analysis.py"
-      - "src/industrial_phm/apps/web/**"
       - "tests/integration/test_operations_web_forecast.py"
       - "tests/integration/test_operations_web_outlook.py"
       - "tests/unit/test_condition_outlook.py"
       - "tests/unit/test_outlook_answer.py"
       - "tests/integration/test_operations_web_outlook_briefing.py"
-      - "tests/acceptance/test_operations_outlook_browser.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
-      - "tests/acceptance/test_operations_forecast_browser.py"
-      - "tests/acceptance/test_operations_phm_browser.py"
-      - "tests/acceptance/test_operations_phm_connect_browser.py"
-      - "tests/acceptance/test_operations_phm_monitor_browser.py"
-      - "tests/acceptance/test_operations_electrical_phm_browser.py"
-      - "tests/acceptance/test_operations_signal_explore_browser.py"
-      - "tests/acceptance/test_operations_stored_monitor_browser.py"
 
 permissions:
   contents: read
@@ -97,6 +89,13 @@ jobs:
 
       - name: Install Python 3.14
         run: uv python install 3.14
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Build the default Operations Web
+        run: sh tools/verify/gate.sh frontend-install frontend-build
 
       - name: Sync locked operations dependencies
         run: uv sync --locked --extra operations

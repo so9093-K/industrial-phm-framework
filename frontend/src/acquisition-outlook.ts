@@ -1,5 +1,6 @@
+import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Two server-owned acquisition projections, never an invented observation clock. */
-import {parseOutlookSettings,type Conditions,type OutlookSettings,type Reach,type Scenario} from "./projections.ts";
+import {parseOutlookSettings,type Conditions,type OutlookSettings,type Horizon,type Reach,type Scenario} from "./projections.ts";
 
 export type TimeBasis="recorded"|"assumed"|"ordinal";
 export type AcquisitionFeature={
@@ -16,7 +17,7 @@ export type AcquisitionProjection={
   horizonCount:number;searchCount:number;searchUntil:number;outlookSettings:OutlookSettings;
   conditions:Conditions;record:{first:number;last:number;points:number};
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
-  scenarios:Scenario[];
+  scenarios:Scenario[];checks?:Backtest[];
 };
 export class AcquisitionOutlookUnavailable extends Error {}
 export class AcquisitionVersionMismatch extends Error {}
@@ -110,18 +111,18 @@ function conditionsMatch(raw:unknown,expected:Conditions):boolean{
 export function parseAcquisitionPair(
   forecastRaw:unknown,outlookRaw:unknown,options:AcquisitionOptions,
   featureId:string,horizonCount:number,assumedPeriod:number|null,
-  conditions:Conditions,
+  conditions:Conditions,timeHorizon:Horizon|null=null,
 ):AcquisitionProjection{
   const feature=options.features.find(f=>f.id===featureId);
   if(!feature)throw new Error("이 데이터 출처에는 고른 진동 특징이 없습니다.");
-  validateAcquisitionChoice(feature,horizonCount,assumedPeriod);
+  validateAcquisitionChoice(feature,timeHorizon===null?horizonCount:1,assumedPeriod);
   const forecast=obj(forecastRaw),outlook=obj(outlookRaw);
   if(!forecast||!outlook||forecast.schema_version!==1||outlook.schema_version!==1
     ||forecast.kind!=="acquisition"||outlook.kind!=="acquisition"
     ||forecast.axis!=="acquisition"||outlook.axis!=="acquisition"
     ||forecast.asset_id!==options.assetId||outlook.asset_id!==options.assetId
     ||forecast.series!==featureId||outlook.series!==featureId
-    ||forecast.horizon!=="count"||forecast.horizon_count!==horizonCount
+    ||forecast.horizon!==(timeHorizon??"count")||forecast.horizon_count!==(timeHorizon===null?horizonCount:null)
     ||outlook.offset_unit!=="acquisition"
     ||forecast.meaning!=="stored-flow-continued-not-failure-time-or-remaining-life"
     ||outlook.meaning!=="remaining-margin-to-user-conditions-not-a-diagnosis"
@@ -148,6 +149,9 @@ export function parseAcquisitionPair(
   if(recorded!==options.recordedPeriod||assumed!==assumedPeriod
     ||effective===null||Math.abs(effective-(assumed??recorded??1))>1e-9)
     throw new AcquisitionVersionMismatch("기록된 측정 간격이나 가정한 간격이 계산에 쓴 값과 다릅니다.");
+  if(timeHorizon!==null&&(basis==="ordinal"||forecast.forecast_seconds!==({"1h":3600,"24h":86400,"7d":604800,"30d":2592000}[timeHorizon])))
+    throw new AcquisitionVersionMismatch("시간 예측의 기간·측정 간격 근거를 확인할 수 없습니다.");
+  const forecastCount=timeHorizon===null?horizonCount:({"1h":3600,"24h":86400,"7d":604800,"30d":2592000}[timeHorizon])/effective;
   const fVersion=version(forecast.measurement_version);
   if(fVersion!==version(outlook.measurement_version))
     throw new AcquisitionVersionMismatch("예측과 기준 도달 계산에 쓴 데이터가 서로 다릅니다.");
@@ -169,7 +173,7 @@ export function parseAcquisitionPair(
     if(!Array.isArray(raw)||raw.length<2||raw.length>4)
       throw new Error("특징 예측값의 형식이 올바르지 않습니다.");
     const position=finite(raw[0]);
-    if(position<last||position>last+horizonCount+1e-6||position<previous)
+    if(position<last||position>last+forecastCount+1e-6||position<previous)
       throw new Error("예측한 측정 순서가 마지막 측정이나 요청 범위와 맞지 않습니다.");
     previous=position;
     return {ordinal:position,estimate:finite(raw[1]),
@@ -188,7 +192,7 @@ export function parseAcquisitionPair(
   return {assetId:options.assetId,sourceId:options.sourceId,bindingId:options.bindingId,
     featureId,measurementVersion:fVersion,dataVersion:version(outlook.data_version),
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
-    horizonCount,searchCount,searchUntil,outlookSettings,
+    horizonCount:forecastCount,searchCount,searchUntil,outlookSettings,
     conditions,record:{first,last,points},forecast:future,scenarios};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
@@ -211,12 +215,12 @@ export async function loadAcquisitionOptions(
 }
 export async function loadAcquisitionPair(
   options:AcquisitionOptions,featureId:string,horizonCount:number,
-  assumedPeriod:number|null,conditions:Conditions,signal:AbortSignal,
+  assumedPeriod:number|null,conditions:Conditions,signal:AbortSignal,settings?:ForecastSettings,timeHorizon:Horizon|null=null,
 ):Promise<AcquisitionProjection>{
   const feature=options.features.find(f=>f.id===featureId);
   if(!feature)throw new Error("고른 특징이 이 데이터 출처에 없습니다.");
-  validateAcquisitionChoice(feature,horizonCount,assumedPeriod);
-  const base={asset_id:options.assetId,kind:"acquisition",series:featureId};
+  validateAcquisitionChoice(feature,timeHorizon===null?horizonCount:1,assumedPeriod);
+  const base={asset_id:options.assetId,kind:"acquisition",series:featureId,...settingsQuery(settings)};
   const limit:Record<string,string>={direction:conditions.direction};
   if(conditions.management!==null)limit.management_limit=String(conditions.management);
   if(conditions.end!==null)limit.end_limit=String(conditions.end);
@@ -224,9 +228,10 @@ export async function loadAcquisitionPair(
   const [forecast,outlook]=await Promise.all([
     json("/api/v1/forecast?"+new URLSearchParams({
       ...base,...(assumedPeriod!==null?{assumed_period_seconds:String(assumedPeriod)}:{}),
-      horizon:"count",horizon_count:String(horizonCount),
+      horizon:timeHorizon??"count",...(timeHorizon===null?{horizon_count:String(horizonCount)}:{}),...(settings?{backtest:settings.backtest}:{}),
     }),signal),
     json("/api/v1/outlook?"+new URLSearchParams({...base,...limit}),signal),
   ]);
-  return parseAcquisitionPair(forecast,outlook,options,featureId,horizonCount,assumedPeriod,conditions);
+  verifySettings(forecast,outlook,settings);
+  return {...parseAcquisitionPair(forecast,outlook,options,featureId,horizonCount,assumedPeriod,conditions,timeHorizon),checks:backtests(forecast)};
 }

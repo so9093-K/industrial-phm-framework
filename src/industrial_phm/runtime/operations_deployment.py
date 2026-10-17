@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
+import re
 import socket
 import stat
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
+from importlib.resources import files
 from pathlib import Path
 
 from industrial_phm.runtime.operations_config import load_operations_runtime_config
@@ -109,26 +112,44 @@ def inspect_operations_deployment(
     if config is not None:
         checks.append(_ui_port_check(config.ui.port))
 
-    # Check the real packaged Web files instead of the retired marimo notebook.
-    web_root = Path(__file__).resolve().parents[1] / "apps" / "web"
-    required_assets = ("index.html", "app.js", "styles.css")
-    missing = tuple(
-        name
-        for name in required_assets
-        if not (web_root / name).is_file() or not os.access(web_root / name, os.R_OK)
-    )
-    checks.append(
-        OperationsDeploymentCheck(
-            "operations-web-assets",
-            OperationsDeploymentCheckState.FAIL if missing else OperationsDeploymentCheckState.PASS,
-            (
-                f"packaged Operations Web assets unavailable: {', '.join(missing)}"
-                if missing
-                else "packaged Operations Web assets are readable"
-            ),
-        )
-    )
+    checks.append(_web_assets_check())
     return OperationsDeploymentPreflight(workspace, tuple(checks))
+
+
+def _web_assets_check() -> OperationsDeploymentCheck:
+    """Check the same packaged bundle served by the Web manifest route."""
+    try:
+        root = files("industrial_phm.apps").joinpath("web_next")
+        manifest = json.loads(root.joinpath("asset-manifest.json").read_text(encoding="utf-8"))
+        if (
+            not isinstance(manifest, list)
+            or not manifest
+            or any(not isinstance(name, str) for name in manifest)
+            or len(manifest) != len(set(manifest))
+            or "index.html" not in manifest
+            or not any(name.endswith(".js") for name in manifest)
+            or not any(name.endswith(".css") for name in manifest)
+            or any(
+                name != "index.html"
+                and not re.fullmatch(r"assets/[A-Za-z0-9_-]+\.(?:js|css)", name)
+                for name in manifest
+            )
+        ):
+            raise ValueError("invalid frontend manifest")
+        for name in manifest:
+            if not root.joinpath(*name.split("/")).read_bytes():
+                raise ValueError("empty frontend asset")
+    except OSError, UnicodeError, ValueError:
+        return OperationsDeploymentCheck(
+            "operations-web-assets",
+            OperationsDeploymentCheckState.FAIL,
+            "packaged Operations Web bundle unavailable or incomplete; build with make frontend",
+        )
+    return OperationsDeploymentCheck(
+        "operations-web-assets",
+        OperationsDeploymentCheckState.PASS,
+        "packaged Operations Web manifest and all assets are readable",
+    )
 
 
 def _platform_check() -> OperationsDeploymentCheck:

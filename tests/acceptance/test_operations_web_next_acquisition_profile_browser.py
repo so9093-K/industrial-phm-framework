@@ -141,7 +141,7 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                 page.route("**/api/v1/explore/profile?**", profile)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=features&monitor_asset=motor-a",
+                    base + "/web/?view=features&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 pw.expect(

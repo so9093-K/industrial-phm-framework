@@ -185,7 +185,7 @@ test("positions stay on their axis and links reopen the same subject and conditi
     {page:"assets",tab:"outlook",data:"history",monitor_asset:"motor-a",monitor_channel:"R",
       projection_direction:"upper",projection_management:"12"});
   assert.equal(captureUrl("a b","outlook-capture-x"),
-    "/web-next/?page=maintenance&monitor_asset=a+b&capture_id=outlook-capture-x");
+    "/web/?page=maintenance&monitor_asset=a+b&capture_id=outlook-capture-x");
 });
 
 test("today's recomputation is parsed like the archived facts and compared on the same axis",()=>{

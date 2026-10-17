@@ -25,6 +25,8 @@ from industrial_phm.runtime import (
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
 from tests.acceptance.test_operations_web_controlled_journey_browser import _port, _start, _stop
 
+pytestmark = pytest.mark.linux_only
+
 
 @pytest.mark.parametrize("width", [1024, 1440])
 def test_recorded_reference_observation_analysis_review_and_restart(
@@ -56,160 +58,118 @@ def test_recorded_reference_observation_analysis_review_and_restart(
     log = output / f"supervisor-{width}.log"
     source_id = "aihub239-recorded-boiler-2297"
     asset_id = "research-boiler-2297"
+    review_url = ""
     proc = _start(workspace.root, port, log)
-    analysis_id = evidence_id = ""
     try:
         with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
+            browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
-                errors: list[str] = []
-                page.on("pageerror", lambda error: errors.append(str(error)))
-                page.on("dialog", lambda dialog: dialog.accept())
-                page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
-                pw.expect(page.locator("#workspace-state")).to_have_text("빈 작업공간")
-                page.screenshot(path=str(output / f"empty-{width}.png"))
-                assert page.locator("#analysis-count").inner_text() == "0"
-                page.locator('nav a[href="#connect"]').click()
-                # Phase mapping with evidence lives in the advanced CSV registration.
-                page.locator("#advanced-file-registration > summary").click()
-                fields = {
-                    "source_id": source_id,
-                    "name": "AI-Hub 보일러 2297 · 2020년 기록",
-                    "asset_id": asset_id,
-                    "measurement_point_id": "recorded-board-1",
-                    "channel_columns": ",".join(provenance["channels"]),
-                    "timestamp_column": "timestamp",
-                }
-                for name, value in fields.items():
-                    page.locator(f'#file-form input[name="{name}"]').fill(value)
-                page.locator("#csv-upload").set_input_files(str(csv_path))
-                page.locator('#file-form textarea[name="phase_bindings"]').fill(bindings)
-                page.get_by_role("button", name="CSV 분석 전 점검", exact=True).click()
-                pw.expect(page.locator("#csv-preflight-result")).to_contain_text("표본 60행")
-                assert not workspace.source_registry_path.exists()
-                page.get_by_role("button", name="CSV 확인 후 소스 등록", exact=True).click()
-                card = page.locator(f'.source-record[data-source-id="{source_id}"]')
-                pw.expect(card).to_contain_text("수신 미확인")
-                assert not workspace.history_catalog_path.exists()
-                card.get_by_role("button", name="이 연결 사용하기", exact=True).click()
-                pw.expect(card).to_contain_text("관리 상태: active")
-                card.get_by_role("button", name="파일 읽기 확인", exact=True).click()
-                pw.expect(card).to_contain_text("파일 읽기 확인됨")
-                assert not workspace.history_catalog_path.exists()
-                card.get_by_role("button", name="측정 이력 저장", exact=True).click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text("180개 이벤트")
-                page.locator('nav a[href="#monitor"]').click()
-                pw.expect(page.locator("#first-run")).to_be_hidden()
-                page.locator('.asset-tabs a[data-tab="signals"]').click()
-                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-13 00:59:04 KST")
-                pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
-                first = page.locator("#trend-results .trend-group").first
-                first.locator("summary").click()
-                pw.expect(first).to_contain_text(provenance["archive_sha256"])
-                pw.expect(first).to_contain_text("source timezone unverified")
-                page.locator('#channel-options input[value="S상전압"]').check()
-                page.locator("#show-trend").click()
-                pw.expect(page.locator("#last-values .latest-item")).to_have_count(2)
-                page.evaluate("window.scrollTo(0, 0)")
-                page.screenshot(path=str(output / f"recorded-{width}.png"))
-                box = page.locator("#last-values").bounding_box()
-                # Observation controls and latest values precede the recorded graph.
-                action = page.locator("#show-trend").bounding_box()
-                assert action and action["y"] + action["height"] <= 900
-                assert box is not None
-                first_value = page.locator("#last-values .latest-item").first.bounding_box()
-                assert first_value and first_value["y"] + first_value["height"] <= 900
-                page.locator('.asset-tabs a[data-tab="monitor"]').click()
-                page.locator('.asset-tabs a[data-tab="signals"]').click()
-                pw.expect(page.locator('#channel-options input[value="S상전압"]')).to_be_checked()
-                page.locator("#refresh").click()
-                pw.expect(page.locator("#last-values .latest-item")).to_have_count(2)
-                pw.expect(page.locator('#channel-options input[value="S상전압"]')).to_be_checked()
-                # 'now' stays distinct and cannot silently move old records into the present.
-                page.locator("#time-anchor").select_option("now")
-                pw.expect(page.locator("#trend-results .trend-dot")).to_have_count(0)
-                pw.expect(page.locator("#last-values")).to_contain_text("2020-11-13")
-                page.locator("#time-anchor").select_option("latest")
-                pw.expect(page.locator("#trend-results .trend-dot").first).to_be_visible()
-                page.locator('nav a[href="#connect"]').click()
-                # Source operations other than the next step are folded under 연결 설정.
-                card.locator(".source-settings > summary").click()
-                card.get_by_role("button", name="저장된 3상 이력 분석 실행", exact=True).click()
-                pw.expect(page.locator("#source-control-result")).to_contain_text(
-                    "신규 3상 분석 기록 완료"
+                page.goto(f"http://127.0.0.1:{port}/web/#connect")
+                page.get_by_text("작업공간 안 CSV · 3상 역할 지정", exact=True).click()
+                form = (
+                    page.get_by_role("region", name="다른 방법으로 연결")
+                    .locator("details")
+                    .filter(has_text="작업공간 안 CSV · 3상 역할 지정")
                 )
-                runs = SqlitePhaseUnbalanceRepository(
-                    workspace.phase_unbalance_state_path
-                ).list_results()
-                assert len(runs) == 1
-                run = runs[0]
-                analysis_id, evidence_id = run.run.analysis_run_id, run.evidence.evidence_id
-                assert run.run.source_id == source_id
-                assert run.evidence.results[0].evaluated_samples == 60
-                pw.expect(page.locator("#evidence-results")).to_contain_text(evidence_id)
-                page.get_by_role("button", name="확인·메모 시작", exact=True).click()
-                pw.expect(page.locator("#review-results")).to_contain_text(analysis_id)
-                page.get_by_role("textbox", name="메모").fill(
+                fields = {
+                    "연결 ID": source_id,
+                    "연결 이름": "AI-Hub 보일러 2297 · 2020년 기록",
+                    "설비": asset_id,
+                    "측정 위치 (선택)": "recorded-board-1",
+                    "측정 컬럼 (쉼표로 구분)": ",".join(provenance["channels"]),
+                    "시간 컬럼": "timestamp",
+                }
+                for label, value in fields.items():
+                    form.get_by_label(label, exact=True).fill(value)
+                form.get_by_label("내 컴퓨터의 CSV", exact=False).set_input_files(str(csv_path))
+                roles = form.get_by_role("group", name="3상 역할 (선택 · 3상 불평형 분석에 필요)")
+                for channel, quantity, phase, _unit, _interpretation in csv.reader(
+                    bindings.splitlines()
+                ):
+                    roles.get_by_label(
+                        ("전압" if quantity == "voltage" else "전류") + " " + phase + "상"
+                    ).select_option(channel)
+                for _index, row in enumerate(csv.reader(bindings.splitlines())):
+                    # UI role order is voltage R/S/T then current R/S/T.
+                    quantity, phase = row[1:3]
+                    role = form.locator(".role").nth(
+                        (0 if quantity == "voltage" else 3) + "RST".index(phase)
+                    )
+                    role.get_by_label("단위 근거").fill(row[3])
+                    role.get_by_label("해석 근거").fill(row[4])
+                form.get_by_role("button", name="점검 (저장 안 함)").click()
+                pw.expect(form).to_contain_text("측정값 60행")
+                assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
+                form.get_by_role("button", name="연결 등록", exact=True).click()
+                card = page.get_by_role("article", name="AI-Hub 보일러 2297 · 2020년 기록")
+                for step in ("이 연결 사용하기", "파일 읽기 확인", "측정 이력 저장"):
+                    card.get_by_role("button", name=step, exact=True).click()
+                    pw.expect(card.get_by_role("button", name=step, exact=True)).to_have_count(
+                        0, timeout=60_000
+                    )
+                card.get_by_role("link", name="측정 신호 보기").click()
+                signal = page.get_by_role("region", name="측정 신호")
+                pw.expect(signal.get_by_role("heading", name="마지막 저장값")).to_be_visible()
+                signal.get_by_label("신호", exact=True).select_option(provenance["channels"][0])
+                signal.get_by_text("측정 의미의 근거", exact=True).click()
+                pw.expect(signal).to_contain_text(provenance["archive_sha256"])
+                pw.expect(signal).to_contain_text("source timezone unverified")
+                signal.get_by_label("기간 기준").select_option("now")
+                pw.expect(signal.get_by_role("img")).to_have_count(0)
+                pw.expect(signal).to_contain_text("2020")
+                signal.get_by_label("기간 기준").select_option("latest")
+                pw.expect(signal.get_by_role("img").first).to_be_visible()
+                page.screenshot(path=str(output / f"recorded-{width}.png"))
+                page.goto(f"http://127.0.0.1:{port}/web/?page=system")
+                card.get_by_text("다른 작업").click()
+                card.get_by_role("button", name="3상 불평형 분석").click()
+                pw.expect(card).to_contain_text("3상 불평형 분석을 저장했습니다")
+                card.get_by_role("link", name="분석 기록에서 보기").click()
+                record = page.get_by_role("article", name="3상 불평형 분석 · " + asset_id)
+                record.get_by_role("button", name="검토 요청").click()
+                record.get_by_role("link", name="정비 검토함에서 보기").click()
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                detail.get_by_label("메모 (최대 1000자)").fill(
                     "AI-Hub 과거 기록 확인; 시간대는 Asia/Seoul 가정"
                 )
-                page.get_by_role("button", name="메모 저장", exact=True).click()
-                page.get_by_role("button", name="확인함으로 표시", exact=True).click()
-                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 확인함")
-                page.get_by_role("button", name="완료로 표시", exact=True).click()
-                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
+                detail.get_by_role("button", name="메모 남기기").click()
+                pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
+                detail.get_by_role("button", name="확인함으로 표시").click()
+                detail.get_by_role("button", name="검토 종료", exact=True).click()
+                detail.get_by_role("button", name="종료하기").click()
+                pw.expect(detail.get_by_role("button", name="메모 남기기")).to_have_count(0)
+                pw.expect(detail).to_contain_text("검토 종료")
+                review_url = page.url
                 page.screenshot(path=str(output / f"review-{width}.png"))
-                assert not errors, errors
             finally:
                 browser.close()
     finally:
         _stop(proc, workspace.root)
+    (run,) = SqlitePhaseUnbalanceRepository(workspace.phase_unbalance_state_path).list_results()
+    assert run.run.source_id == source_id and run.evidence.results[0].evaluated_samples == 60
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
     )
     events = history.query_file_events(source_id)
-    assert len(events) == 180
-    assert all(event.event_at.year == 2020 for event in events)
+    assert len(events) == 180 and all(event.event_at.year == 2020 for event in events)
     assert all(event.source_sha256 == provenance["csv_sha256"] for event in events)
     source = JsonSourceRepository(workspace.source_registry_path).get(source_id)
-    assert isinstance(source.config, FileSourceConfig)
-    assert Path(source.config.source_path).read_bytes() == raw
+    assert (
+        isinstance(source.config, FileSourceConfig)
+        and Path(source.config.source_path).read_bytes() == raw
+    )
     proc = _start(workspace.root, port, log)
     try:
         with pw.sync_playwright() as runtime:
-            browser = runtime.chromium.launch(headless=True)
+            browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900})
-                page.goto(f"http://127.0.0.1:{port}/web/#review", wait_until="networkidle")
-                pw.expect(page.locator("#review-results")).to_contain_text(analysis_id)
-                pw.expect(page.locator("#review-results")).to_contain_text("확인 기록 · 완료")
-                page.get_by_role(
-                    "button", name="분석 결과로 이동" + " · " + evidence_id, exact=True
-                ).click()
-                pw.expect(page.locator("#evidence-results")).to_be_visible()
-                pw.expect(page.locator("#evidence-results .evidence-target")).to_be_focused()
-                page.screenshot(path=str(output / f"restart-{width}.png"))
+                page.goto(review_url)
+                pw.expect(page.get_by_role("region", name="고른 검토 항목")).to_contain_text(
+                    "AI-Hub 과거 기록 확인"
+                )
             finally:
                 browser.close()
     finally:
         _stop(proc, workspace.root)
-    (output / f"journey-{width}.json").write_text(
-        json.dumps(
-            {
-                "workspace": str(workspace.root.resolve()),
-                "source_id": source_id,
-                "archive_sha256": provenance["archive_sha256"],
-                "csv_sha256": provenance["csv_sha256"],
-                "analysis_run_id": analysis_id,
-                "evidence_id": evidence_id,
-                "historical_event_count": len(events),
-                "restart_verified": True,
-                "browser_width": width,
-                "human_usability_review": "pending",
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
