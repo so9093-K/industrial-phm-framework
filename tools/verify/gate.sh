@@ -4,7 +4,8 @@
 #
 #   sh tools/verify/gate.sh <stage> [<stage> ...]
 #
-# Composite stages: source, web-next, forecast, ci (all three workflows), full (every test).
+# Composite stages: source, web-next, forecast, ci (those three workflows), full (every test).
+# The packaged-stack Compose smoke workflow runs separately on the Docker host.
 set -eu
 cd "$(dirname "$0")/../.."
 . tools/verify/versions.env

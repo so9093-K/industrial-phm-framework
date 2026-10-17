@@ -43,10 +43,14 @@ pidfd를 쓰므로, 이 테스트는 `linux_only`로 표시되어 다른 OS에�
 macOS 등에서 CI와 같은 결과를 확인하려면 Docker로 다음을 실행합니다.
 
 ```bash
-make verify-linux                      # CI 세 워크플로의 검사 전체
+make verify-linux                      # Python·Web·예측 CI 검사
 make verify-linux VERIFY_STAGE=source  # lock·lint·format·mypy·unit/contract만
 make verify-linux VERIFY_STAGE=full    # 워크플로가 고르지 않은 테스트까지 전부 (CI 게이트 아님)
 ```
+
+배포 이미지·localhost 프록시·영속 볼륨 재생성은 별도 `Operations container` CI가 검사합니다.
+같은 검사는 [컨테이너 실행 안내](docs/architecture/operations-container.md#verification)의
+`container_smoke.py`로 실행합니다. `make verify-linux`는 이 Docker 호스트 검사를 중첩 실행하지 않습니다.
 
 git이 보는 작업 트리(추적·미추적, 무시 제외)만 컨테이너로 보내므로 호스트의 `.venv`·`node_modules`·빌드
 결과는 섞이지 않습니다. CI 각 단계와 이 명령은 같은 `tools/verify/gate.sh` 단계를 호출하고, 도구 버전은
