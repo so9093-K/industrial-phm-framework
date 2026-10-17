@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -298,66 +299,71 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     base + "/web-next/?view=acq-outlook&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
-                pw.expect(
-                    page.get_by_role("heading", name="획득 특징의 조건부 전망")
-                ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="기준 도달 전망")).to_be_visible()
+                expect_place(pw, page, "상태 전망")
                 if spacing == "assumed":
-                    page.get_by_label("가정한 획득 간격 (선택 · 초/회, 1~86400)").fill("120")
+                    page.get_by_label("측정 간격 가정 (선택 · 초, 1~86400)").fill("120")
                 page.get_by_label("관리 기준 (선택)").fill("2.4")
-                page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(
-                    page.get_by_role("heading", name="서버에 검증된 획득 전망 근거")
-                ).to_be_visible()
-                pw.expect(page.get_by_text("추가 4회 획득 시 도달 예상")).to_be_visible()
-                pw.expect(page.get_by_text("추가 31회", exact=False)).to_be_visible()
-                assert page.get_by_role("columnheader", name="획득 #").count() == 1
-                assert page.get_by_role("columnheader", name="예측 시점").count() == 0
+                page.get_by_role("button", name="계산하기").click()
+                pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
+                pw.expect(page.get_by_text("추가 측정 4회 후 닿음").first).to_be_visible()
+                # Measurement order is never shown as a clock time.
+                page.get_by_text("앞으로 5회 측정의 예측값").click()
+                assert page.get_by_role("columnheader", name="측정 #").count() == 1
+                assert page.get_by_role("columnheader", name="예측 시각").count() == 0
+                page.get_by_text("기술 상세").click()
+                pw.expect(page.get_by_text("기준 탐색 31회", exact=False)).to_be_visible()
                 if spacing == "ordinal":
                     pw.expect(
-                        page.get_by_text("획득 순번만 확인 가능", exact=False)
+                        page.get_by_text("측정 간격 정보 없음", exact=False).first
                     ).to_be_visible()
                 elif spacing == "assumed":
                     pw.expect(
-                        page.get_by_text("사용자가 가정한 획득 간격", exact=False)
+                        page.get_by_text("가정한 측정 간격", exact=False).first
                     ).to_be_visible()
                 else:
                     pw.expect(
-                        page.get_by_text("수집 메타데이터에 기록된 획득 간격", exact=False)
+                        page.get_by_text("기록된 측정 간격", exact=False).first
                     ).to_be_visible()
                 assert "acq_forecast_count=5" in page.url
-                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
-                pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_enabled()
-                page.get_by_label("AI에게 물을 질문 (최대 600자)").fill("획득 변화 설명")
-                page.get_by_role("button", name="AI 브리핑 요청").click()
+                ai = page.get_by_role("region", name="AI 해설")
+                pw.expect(ai.get_by_role("heading", name="AI 해설")).to_be_visible()
+                pw.expect(ai.get_by_role("button", name="해설 만들기")).to_be_enabled()
+                ai.get_by_text("직접 질문하기").click()
+                ai.get_by_label("AI에게 물을 질문 (최대 600자)").fill("획득 변화 설명")
+                ai.get_by_role("button", name="질문 보내기").click()
                 pw.expect(page.get_by_text("순번별 저장 근거만 설명합니다.")).to_be_visible()
                 assert asked["yes"]
                 # Even if the observed version is unchanged, a different
                 # binding cannot inherit the prior result.
                 selected["binding"] = "binding-changed"
-                page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
+                ai.get_by_role("button", name="해설 다시 확인").click()
+                changed = page.get_by_role(
+                    "heading", name="데이터가 바뀌어 결과를 다시 계산해야 합니다"
+                )
+                pw.expect(changed).to_be_visible()
                 assert page.get_by_text("순번별 저장 근거만 설명합니다.").count() == 0
-                page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
-                assert page.get_by_role("heading", name="서버에 검증된 획득 전망 근거").count() == 0
+                page.get_by_role("button", name="계산하기").click()
+                pw.expect(changed).to_be_visible()
+                assert page.get_by_role("heading", name="결과", exact=True).count() == 0
                 selected["binding"] = "binding-a"
                 selected["outlook_version"] = "c" * 64
-                page.get_by_role("button", name="원본 목록 다시 조회").click()
-                page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="획득 전망 근거 불일치")).to_be_visible()
-                # Read-only mode still observes numerical provenance but never
-                # offers a supervisor AI write.
+                page.get_by_role("button", name="진동 특징 목록 다시 불러오기").click()
+                page.get_by_role("button", name="계산하기").click()
+                pw.expect(changed).to_be_visible()
+                # Read-only mode still shows the numbers but never offers an AI write.
                 if width == 390 and spacing == "ordinal":
                     selected["outlook_version"] = "a" * 64
                     writable["yes"] = False
                     asked["yes"] = False
                     page.reload(wait_until="networkidle")
                     page.get_by_label("관리 기준 (선택)").fill("2.4")
-                    page.get_by_role("button", name="같은 획득 근거로 전망 계산").click()
-                    pw.expect(
-                        page.get_by_role("heading", name="버전 일치 AI 브리핑")
-                    ).to_be_visible()
-                    pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_disabled()
+                    page.get_by_role("button", name="계산하기").click()
+                    ai = page.get_by_role("region", name="AI 해설")
+                    pw.expect(ai).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
+                    assert ai.get_by_role("button", name="해설 만들기").count() == 0
+                    ai.get_by_text("직접 질문하기").click()
+                    pw.expect(ai.get_by_role("button", name="질문 보내기")).to_be_disabled()
                     assert not asked["yes"]
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

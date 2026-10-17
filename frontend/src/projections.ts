@@ -26,40 +26,40 @@ function object(raw: unknown): Record<string, unknown> | null {
     ? raw as Record<string, unknown> : null;
 }
 function str(raw: unknown): string {
-  if (typeof raw !== "string" || !raw) throw new Error("예측 근거의 식별자가 올바르지 않습니다.");
+  if (typeof raw !== "string" || !raw) throw new Error("전망 결과의 식별 정보가 올바르지 않습니다.");
   return raw;
 }
 function numberOrNull(raw: unknown): number | null {
   if (raw === null) return null;
   if (typeof raw !== "number" || !Number.isFinite(raw))
-    throw new Error("예측 근거의 수치가 올바르지 않습니다.");
+    throw new Error("전망 결과의 수치가 올바르지 않습니다.");
   return raw;
 }
 function date(raw: unknown): string {
   const value = str(raw);
   if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value) || !Number.isFinite(Date.parse(value)))
-    throw new Error("예측 근거의 시각이 올바르지 않습니다.");
+    throw new Error("전망 결과의 시각이 올바르지 않습니다.");
   return value;
 }
 function count(raw: unknown): number {
   if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0)
-    throw new Error("예측 근거의 측정 개수가 올바르지 않습니다.");
+    throw new Error("전망에 쓴 측정 개수가 올바르지 않습니다.");
   return raw;
 }
 export function parseOptions(payload: unknown, assetId: string): Options {
   const data = object(payload), history = object(data?.history);
   if (data?.schema_version !== 1 || data.asset_id !== assetId)
-    throw new Error("다른 설비의 예측 선택지가 응답됐습니다.");
+    throw new Error("다른 설비의 전망 선택지가 돌아왔습니다.");
   if (data.history === null)
     return {assetId, channels: [], horizons: {"1h":"no-history","24h":"no-history",
       "7d":"no-history","30d":"no-history"}};
   if (!history || !Array.isArray(history.series) || !object(history.horizons))
-    throw new Error("예측 선택지의 자료 형태가 올바르지 않습니다.");
+    throw new Error("전망 선택지의 형식이 올바르지 않습니다.");
   const horizons = {} as Record<Horizon, string | null>;
   for (const key of ["1h","24h","7d","30d"] as const) {
     const value = object(history.horizons)?.[key];
     if (value !== null && typeof value !== "string")
-      throw new Error("예측 기간의 계산 가능 여부가 명확하지 않습니다.");
+      throw new Error("예측 기간을 쓸 수 있는지 확인할 수 없습니다.");
     horizons[key] = value as string | null;
   }
   const channels = history.series.map((item: unknown) => str(object(item)?.key));
@@ -77,7 +77,7 @@ export function parseOutlookSettings(raw:unknown):OutlookSettings|null{
     ||!(v.training_points===null||(typeof v.training_points==="number"
       &&Number.isSafeInteger(v.training_points)&&v.training_points>=20))
     ||(v.seasonality!=="auto"&&v.seasonality!=="off"))
-    throw new Error("조건부 전망 계산 설정의 서버 근거가 올바르지 않습니다.");
+    throw new Error("전망 계산 설정을 확인할 수 없습니다.");
   return {
     changepointPriorScale:v.changepoint_prior_scale,
     changepointRange:v.changepoint_range,
@@ -89,7 +89,7 @@ export function parseOutlookSettings(raw:unknown):OutlookSettings|null{
 function parseReach(raw: unknown): Reach | null {
   if (raw === null || raw === undefined) return null;
   const obj = object(raw);
-  if (!obj) throw new Error("조건 도달 전망의 계산 근거가 올바르지 않습니다.");
+  if (!obj) throw new Error("기준 도달 결과의 형식이 올바르지 않습니다.");
   return {state:str(obj.state), expected:numberOrNull(obj.expected),
     earliest:numberOrNull(obj.earliest), latest:numberOrNull(obj.latest)};
 }
@@ -106,7 +106,7 @@ export function parsePairedProjection(
     || forecast.horizon !== horizon
     || forecast.meaning !== "stored-flow-continued-not-failure-time-or-remaining-life"
     || outlook.meaning !== "remaining-margin-to-user-conditions-not-a-diagnosis") {
-    throw new Error("예측·상태 전망의 대상 설비·신호·계산 의미가 맞지 않습니다.");
+    throw new Error("받은 결과가 고른 설비·신호와 맞지 않아 표시하지 않았습니다.");
   }
   const fVersion = str(forecast.measurement_version);
   const oVersion = str(outlook.measurement_version);
@@ -115,27 +115,27 @@ export function parsePairedProjection(
   const op = outlook.measurement_point_id ?? null;
   if (fVersion !== oVersion || fs !== os || fp !== op) {
     throw new MeasurementVersionMismatch(
-      "두 계산에 사용된 측정 버전 또는 원본 출처가 서로 다릅니다. 값을 결합하지 않았습니다."
+      "예측과 기준 도달 계산에 쓴 데이터가 서로 달라 결과를 합치지 않았습니다. 다시 계산하세요."
     );
   }
   const configured = object(outlook.conditions), record = object(outlook.record);
   if (!configured || !record || configured.direction !== conditions.direction
     || numberOrNull(configured.management) !== conditions.management
     || numberOrNull(configured.end) !== conditions.end)
-    throw new Error("표시한 조건과 서버가 계산한 조건이 다릅니다.");
+    throw new Error("입력한 조건과 계산된 조건이 달라 결과를 표시하지 않았습니다.");
   if (!Array.isArray(forecast.forecast) || !Array.isArray(outlook.scenarios))
-    throw new Error("예측과 시나리오 결과가 완전하지 않습니다.");
+    throw new Error("예측 결과가 완전하지 않습니다.");
   const future = forecast.forecast.map((row: unknown) => {
     if (!Array.isArray(row) || row.length < 2)
-      throw new Error("미래 예측값 형식이 올바르지 않습니다.");
+      throw new Error("예측값의 형식이 올바르지 않습니다.");
     const estimate = numberOrNull(row[1]);
-    if (estimate === null) throw new Error("미래 예측값이 누락됐습니다.");
+    if (estimate === null) throw new Error("예측값이 빠져 있습니다.");
     return {at:date(row[0]), estimate,
       lower:numberOrNull(row[2] ?? null), upper:numberOrNull(row[3] ?? null)};
   });
   const scenarios = outlook.scenarios.map((raw: unknown) => {
     const item = object(raw), limits = object(item?.limits);
-    if (!item || !limits) throw new Error("조건부 시나리오 구조가 올바르지 않습니다.");
+    if (!item || !limits) throw new Error("계산 방식별 결과의 형식이 올바르지 않습니다.");
     return {id:str(item.id), management:parseReach(limits.management),
       end:parseReach(limits.end)};
   });
@@ -154,12 +154,12 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
       || name==="forecast_unavailable" || name==="outlook_unavailable"){
       const reason=object(result)?.reason;
       throw new ProjectionUnavailable(
-        "선택한 측정 또는 계산 기간에 예측을 제공할 수 없습니다."
+        "고른 신호나 기간으로는 전망할 수 없습니다."
         + (typeof reason==="string" ? " ("+reason+")" : "")
       );
     }
   }
-  if (!response.ok) throw new Error("예측 서버의 조회 오류입니다. 측정값 부재나 설비 정상 판정과 다릅니다.");
+  if (!response.ok) throw new Error("전망을 불러오지 못했습니다. 기록이 없거나 이상이 없다는 뜻은 아닙니다.");
   return await response.json() as unknown;
 }
 export async function loadOptions(assetId: string, signal: AbortSignal): Promise<Options> {

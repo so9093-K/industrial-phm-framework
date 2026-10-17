@@ -35,7 +35,7 @@ test("canonical briefing identity includes selected conditions and independent A
     "&management_limit=12&seasonality=auto&series=R");
   assert.notEqual(briefingSelection({...projection,dataVersion:"b".repeat(64)}),selection);
   assert.notEqual(briefingSelection({...projection,conditions:{...projection.conditions,end:30}}),selection);
-  assert.throws(()=>briefingSelection({...projection,dataVersion:"stale"}),/버전/);
+  assert.throws(()=>briefingSelection({...projection,dataVersion:"stale"}),/조건을 확인할 수 없습니다/);
 });
 test("server measurement/data versions and source/point must still match after refresh",()=>{
   assert.doesNotThrow(()=>verifyOutlookVersion(serverOutlook(),projection));
@@ -62,7 +62,7 @@ test("the server echoes the exact selection before a stored answer can be displa
 test("an AI point without the cited server fact must not be shown",()=>{
   const changed=response();
   changed.briefings[0].answer.points[0].evidence=["invented"];
-  assert.throws(()=>parseBriefings(changed,selection),/존재하지 않는 계산 근거/);
+  assert.throws(()=>parseBriefings(changed,selection),/없는 계산 사실/);
 });
 test("stored pending/failed states never masquerade as completed explanations",()=>{
   const raw=response();
@@ -71,7 +71,7 @@ test("stored pending/failed states never masquerade as completed explanations",(
   assert.throws(()=>parseBriefings({...raw,briefings:[{...pending,status:"complete"}]},selection),
     /내용이 없습니다/);
   assert.throws(()=>parseBriefings({...raw,briefings:[{...pending,answer:raw.briefings[0].answer}]},
-    selection),/완료되지 않은/);
+    selection),/만드는 중인/);
 });
 
 const acquired:AcquisitionProjection={

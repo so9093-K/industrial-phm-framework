@@ -2,9 +2,10 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
+  import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,NoModelEvidence,
+    loadModelBindings,loadModelTrace,loadModelRun,NoModelEvidence,scoreSummary,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
 
@@ -27,13 +28,6 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
-  const number=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)
-    ?(Number.isInteger(v)?String(v):v.toFixed(3)):null;
-  // Only fields the stored output actually carries are summarized; nothing is recomputed.
-  const scoreOf=(output:Record<string,unknown>)=>({
-    score:number(output.score),threshold:number(output.threshold),
-    exceeds:typeof output.exceeds_threshold==="boolean"?output.exceeds_threshold:null,
-  });
   const place=(position:number)=>binding?.stepKind==="observation-window"
     ?"시간 구간 #"+position:"측정 순서 #"+position;
 
@@ -179,10 +173,10 @@
             <StatusNotice kind="uncertain" title="이 측정은 모델 분석에서 제외됐습니다"
               message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
           {:else}
-            {@const summary=scoreOf(result.output)}
+            {@const summary=scoreSummary(result.output)}
             <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"}>
-              <div><span>모델 점수</span><strong>{summary.score??"기록 없음"}</strong></div>
-              <div><span>모델 기준</span><strong>{summary.threshold??"기록 없음"}</strong></div>
+              <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
+              <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
               <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
             </div>
           {/if}

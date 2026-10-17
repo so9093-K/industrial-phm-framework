@@ -254,16 +254,17 @@ def test_briefing_version_and_supervisor_write_contract(
                     wait_until="networkidle",
                 )
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
-                pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_enabled()
-                page.get_by_label("AI에게 물을 질문 (최대 600자)").fill(
-                    "이 측정이 어떻게 변했나요?"
-                )
-                page.get_by_role("button", name="AI 브리핑 요청").click()
+                page.get_by_role("button", name="계산하기").click()
+                ai = page.get_by_role("region", name="AI 해설")
+                pw.expect(ai.get_by_role("heading", name="AI 해설")).to_be_visible()
+                pw.expect(ai).to_contain_text("아직 이 결과에 대한 해설이 없습니다")
+                pw.expect(ai.get_by_role("button", name="해설 만들기")).to_be_enabled()
+                ai.get_by_text("직접 질문하기").click()
+                ai.get_by_label("AI에게 물을 질문 (최대 600자)").fill("이 측정이 어떻게 변했나요?")
+                ai.get_by_role("button", name="질문 보내기").click()
                 pw.expect(page.get_by_text("저장된 근거를 설명합니다.")).to_be_visible()
                 pw.expect(page.get_by_text("저장된 측정과 비교 결과")).to_be_hidden()
-                page.get_by_text("AI 설명이 실제로 사용한 서버 계산 근거").click()
+                ai.get_by_text("해설에 쓴 계산 사실").click()
                 pw.expect(page.get_by_text("저장된 측정과 비교 결과")).to_be_visible()
 
                 # A new anomaly input can change data_version without moving
@@ -272,12 +273,12 @@ def test_briefing_version_and_supervisor_write_contract(
                     versions["data"] = "b" * 64
                 else:
                     versions["prior"] = 0.5
-                page.get_by_role("button", name="저장된 브리핑 다시 확인").click()
+                ai.get_by_role("button", name="해설 다시 확인").click()
                 pw.expect(
-                    page.get_by_role("heading", name="측정 버전 불일치로 결합 보류")
+                    page.get_by_role("heading", name="데이터가 바뀌어 결과를 다시 계산해야 합니다")
                 ).to_be_visible()
                 assert page.get_by_text("저장된 근거를 설명합니다.").count() == 0
-                assert page.get_by_role("heading", name="예측 신호값 · 1h").count() == 0
+                assert page.get_by_role("heading", name="결과", exact=True).count() == 0
 
                 # When the supervisor is absent, stored evidence stays readable
                 # but the AI action must never become enabled.
@@ -287,9 +288,12 @@ def test_briefing_version_and_supervisor_write_contract(
                 requested["yes"] = False
                 page.reload(wait_until="networkidle")
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="버전 일치 AI 브리핑")).to_be_visible()
-                pw.expect(page.get_by_role("button", name="AI 브리핑 요청")).to_be_disabled()
+                page.get_by_role("button", name="계산하기").click()
+                ai = page.get_by_role("region", name="AI 해설")
+                pw.expect(ai).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
+                assert ai.get_by_role("button", name="해설 만들기").count() == 0
+                ai.get_by_text("직접 질문하기").click()
+                pw.expect(ai.get_by_role("button", name="질문 보내기")).to_be_disabled()
                 assert not requested["yes"]
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

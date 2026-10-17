@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
   binding_id:"bind-a",package_id:"model-v1",source_id:"source-a",asset_id:"bearing-a",
@@ -82,4 +82,12 @@ test("trace does not accept duplicated positions, other bindings or too many ste
   assert.throws(()=>parseModelTrace({...pointers(),binding_id:"other"},model),/적용 모델/);
   assert.throws(()=>parseModelTrace({...pointers(),steps:[step(),step()]},model),/두 번/);
   assert.throws(()=>parseModelTrace({...pointers(),steps:Array(65).fill(step())},model),/목록/);
+});
+
+test("a stored score is summarized only from the fields the output carries",()=>{
+  assert.deepEqual(scoreSummary({score:2.169,threshold:2,exceeds_threshold:true}),
+    {score:2.169,threshold:2,exceeds:true});
+  assert.deepEqual(scoreSummary({score:0.5}),{score:0.5,threshold:null,exceeds:null});
+  assert.deepEqual(scoreSummary({score:"high",threshold:Number.NaN,exceeds_threshold:"yes"}),
+    {score:null,threshold:null,exceeds:null});
 });

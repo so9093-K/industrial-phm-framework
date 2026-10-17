@@ -49,7 +49,7 @@ test("acquisition choices preserve source and precise model binding",()=>{
   assert.equal(result?.features[0].validPoints,64);
   assert.throws(()=>parseAcquisitionOptions({...options(),asset_id:"another"},"bearing-a"),/설비/);
   assert.throws(()=>parseAcquisitionOptions({...options(),acquisition:{...options().acquisition,
-    binding_id:""} },"bearing-a"),/식별자/);
+    binding_id:""} },"bearing-a"),/데이터 출처 정보/);
 });
 test("paired ordinal forecast and conditional offsets never become UTC timestamps",()=>{
   const result=paired();
@@ -104,9 +104,9 @@ test("invalid acquisition count, scope and future ordinates never render",()=>{
   assert.throws(()=>validateAcquisitionChoice(feature,0,null),/1~2000/);
   assert.throws(()=>validateAcquisitionChoice(feature,2001,null),/1~2000/);
   assert.throws(()=>validateAcquisitionChoice(feature,20,0),/1~86400/);
-  assert.throws(()=>validateAcquisitionChoice({...feature,validPoints:1,countForecast:false},20,null),/20개/);
-  assert.throws(()=>paired({...forecast(),forecast:[[100,12,11,13]]}),/구간/);
-  assert.throws(()=>paired(forecast(),{...outlook(),offset_unit:"second"}),/의미/);
+  assert.throws(()=>validateAcquisitionChoice({...feature,validPoints:1,countForecast:false},20,null),/20회/);
+  assert.throws(()=>paired({...forecast(),forecast:[[100,12,11,13]]}),/요청 범위/);
+  assert.throws(()=>paired(forecast(),{...outlook(),offset_unit:"second"}),/맞지 않아/);
   assert.throws(()=>paired(forecast(),{...outlook(),record:{first:1,last:65,points:64}}),
     AcquisitionVersionMismatch);
   assert.throws(()=>paired(forecast(),{...outlook(),search:{acquisitions:30,until:95}}),

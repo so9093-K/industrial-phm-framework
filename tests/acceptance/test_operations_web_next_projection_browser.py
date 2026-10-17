@@ -139,21 +139,21 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 )
                 expect_place(pw, page, "상태 전망")
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
-                pw.expect(page.get_by_role("heading", name="예측 신호값 · 1h")).to_be_visible()
-                pw.expect(
-                    page.get_by_role("heading", name="사용자가 지정한 기준까지의 조건부 전망")
-                ).to_be_visible()
+                page.get_by_role("button", name="계산하기").click()
+                pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
+                pw.expect(page.locator(".tiles")).to_contain_text("관리 기준 12")
+                page.get_by_text("예측값 보기 · 1h").click()
+                pw.expect(page.get_by_role("columnheader", name="예측 시각")).to_be_visible()
                 assert "projection_management=12" in page.url
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
                 version["outlook"] = "new-history"
-                page.get_by_role("button", name="같은 측정 버전으로 전망 계산").click()
+                page.get_by_role("button", name="계산하기").click()
                 pw.expect(
-                    page.get_by_role("heading", name="측정 버전 불일치로 결합 보류")
+                    page.get_by_role("heading", name="데이터가 바뀌어 결과를 다시 계산해야 합니다")
                 ).to_be_visible()
-                assert page.get_by_role("heading", name="예측 신호값 · 1h").count() == 0
+                assert page.get_by_role("heading", name="결과", exact=True).count() == 0
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_label("관리 기준 (선택)")).to_have_value("12")
                 assert not errors, errors
