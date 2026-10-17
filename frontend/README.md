@@ -75,7 +75,7 @@ not install Node dependencies.
 - `src/components/ProjectionExplorer.svelte`: read-only paired history
   forecast/conditional-outlook view; only the same measurement hash and exact
   source/point are displayed together. Condition edits invalidate previous results.
-  Does not submit reviews, store outlook captures, or call AI for explanations.
+  AI explanations and review requests live in their own components below.
 - `src/projections.ts`: separate `measurement_version` and `data_version`,
   exact server meaning/axis/limits verification, bounded table DTO.
 - `src/components/ModelRunEvidence.svelte`: read-only model binding, recent
@@ -102,11 +102,17 @@ not install Node dependencies.
 - `src/components/ReviewRequest.svelte`: the outlook's ‘검토 요청’. It names the shown selection,
   versions and source/binding/time-basis provenance; the supervisor recomputes and stores every
   number (ADR-0029). A changed recomputation discards the shown result; an unknown outcome is safe to retry.
-- `src/components/ReviewQueue.svelte`: the maintenance queue of analysis reviews and requested
-  outlooks, filtered by status and kind, with exact `capture_id`/`finding_id` links.
+- `src/components/ReviewQueue.svelte`: the maintenance queue of analysis, model-result and requested
+  outlook reviews, filtered by status and kind, with exact `capture_id`/`finding_id` links. The item
+  just acted on stays open when its new status leaves the filter.
 - `src/components/OutlookReviewDetail.svelte`: one requested outlook: the archived result, source
-  re-check, ‘지금 데이터로 다시 계산해 비교’ and append-only note/acknowledge/close (a retried uncertain
-  action reuses its event ID; a 409 re-reads; close asks once more).
+  re-check and ‘지금 데이터로 다시 계산해 비교’.
+- `src/components/FindingReviewDetail.svelte`: one requested analysis or model-result review: its
+  exact evidence (or the stored model result's binding/position) and its history.
+- `src/components/ReviewActions.svelte`: the shared append-only note/acknowledge/close for every
+  review subject (a retried uncertain action reuses its event ID; a 409 re-reads; close asks once more).
+- `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
+  `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation
   under the saved conditions and same-axis comparison. `src/session.ts`: supervisor write session and
   CSRF token shared by AI explanation and review writes.

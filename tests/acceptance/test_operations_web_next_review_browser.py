@@ -1,10 +1,11 @@
-"""Read-only review inbox must link the exact persisted evidence identity only."""
+"""The maintenance queue links a review only to its exact persisted evidence identity."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from threading import Thread
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -90,7 +91,39 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                         status=200, content_type="application/json", body=json.dumps(response)
                     )
 
+                def reviews(route):
+                    asset = parse_qs(urlsplit(route.request.url).query)["asset_id"][0]
+                    items = [
+                        {
+                            "finding_id": "finding-a",
+                            "subject": "analysis",
+                            "analysis_run_id": "run-a",
+                            "evidence_ids": ["evidence-a"],
+                            "capability_id": "phase-unbalance",
+                            "measurement_point_id": "winding-a",
+                            "observed_at": "2026-10-10T00:00:00+00:00",
+                            "status": "open",
+                            "model": None,
+                            "events": [],
+                            "events_total": 0,
+                        }
+                    ]
+                    body = {
+                        "schema_version": 1,
+                        "asset_id": asset,
+                        "meaning": "human-review-records-not-maintenance-or-diagnosis",
+                        "reviews": {
+                            "items": items if asset == "motor-a" else [],
+                            "total": 1 if asset == "motor-a" else 0,
+                            "truncated": False,
+                        },
+                    }
+                    route.fulfill(
+                        status=200, content_type="application/json", body=json.dumps(body)
+                    )
+
                 page.route("**/api/v1/monitor", monitor)
+                page.route("**/api/v1/reviews?*", reviews)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
                     base + "/web-next/?view=reviews&monitor_asset=motor-a",
@@ -116,10 +149,9 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 pw.expect(detail.get_by_text("finding-a", exact=True)).to_be_visible()
                 pw.expect(detail.get_by_text("run-a", exact=True)).to_be_visible()
                 pw.expect(detail.get_by_text("evidence-a", exact=True)).to_be_visible()
-                pw.expect(
-                    detail.get_by_role("link", name="이전 화면에서 메모·확인·종료하기")
-                ).to_have_attribute("href", "/web/?monitor_asset=motor-a#evidence")
-                # Analysis reviews stay read-only here until their write path is migrated.
+                # Without the supervisor this screen shows the history but changes nothing.
+                read_only = detail.get_by_text("보기 전용이라 검토 기록을 남길 수 없습니다")
+                pw.expect(read_only).to_be_visible()
                 for action in ("메모 남기기", "확인함으로 표시", "검토 종료"):
                     assert detail.get_by_role("button", name=action).count() == 0
 

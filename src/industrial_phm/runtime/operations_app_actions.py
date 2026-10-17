@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from uuid import UUID
 
 from industrial_phm.application import (
     CollectionControlRecord,
@@ -264,8 +265,11 @@ class OperationsAppActions:
         *,
         action: FindingReviewAction,
         note: str,
+        request_id: UUID | None = None,
     ) -> tuple[FindingReviewEvent, tuple[FindingReviewEvent, ...]]:
-        event = create_finding_review_event(finding, action=action, note=note)
+        event = create_finding_review_event(
+            finding, action=action, note=note, request_id=request_id
+        )
         repository = JsonFindingReviewRepository(self.paths.review)
         repository.record(event)
         return event, repository.list_events()

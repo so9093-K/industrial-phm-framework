@@ -2,12 +2,12 @@
   import {onMount, tick} from "svelte";
   import {
     compareReobservation, positionText, readCaptures, recomputeForComparison, recordReview,
-    reobservationUrl, reviewNote, CompareUnavailable, OutcomeUnknown, ReviewConflict, WriteForbidden,
-    type Capture, type Reobservation, type ReviewAction, type SourceRecheck,
+    reobservationUrl, CompareUnavailable, type Capture, type Reobservation, type SourceRecheck,
   } from "../outlook-captures";
   import {reachText} from "../reach";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
+  import ReviewActions from "./ReviewActions.svelte";
   import StatusNotice from "./StatusNotice.svelte";
 
   type Props = {capture: Capture; writable: boolean; onUpdated: (capture: Capture) => void};
@@ -16,24 +16,14 @@
   const axis = $derived(saved.kind === "acquisition" ? "acquisition" as const : "time" as const);
   const status = $derived(capture.review.status);
   const main = $derived(saved.scenarios.find((item) => item.id === "current") ?? saved.scenarios[0]);
-  let note = $state("");
-  let busy = $state(false);
-  let message = $state("");
-  let messageKind: "information" | "uncertain" | "failure" = $state("information");
-  let confirmingClose = $state(false);
   let comparison: Reobservation | null = $state(null);
   let comparedLast: string | number | null = $state(null);
   let compareState: "idle" | "loading" | "failed" = $state("idle");
   let compareError = $state("");
   let heading: HTMLElement | null = $state(null);
-  let confirmBox: HTMLElement | null = $state(null);
-  // A retry of one uncertain action reuses its event ID; a different action gets a new one.
-  let pending: {key: string; eventId: string} | null = null;
-  let controller: AbortController | null = null;
   let compareRequest: AbortController | null = null;
 
   const STATUS = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
-  const ACTION = {note: "메모", acknowledge: "확인", close: "검토 종료"};
   const RECHECK: Record<SourceRecheck, string> = {
     same_measurement_projection: "원본 데이터: 요청 때와 같음",
     changed: "원본 데이터: 요청 뒤 바뀜 (새 측정이 들어왔거나 수정됨)",
@@ -53,44 +43,7 @@
       heading?.focus();
       return true;
     } catch {
-      if (signal.aborted) return false;
-      messageKind = "uncertain";
-      message = "검토 기록을 다시 불러오지 못했습니다. 새로고침해 확인하세요.";
       return false;
-    }
-  }
-  async function act(action: ReviewAction) {
-    if (busy || !writable || status === "closed") return;
-    let text: string;
-    try { text = reviewNote(action, note); }
-    catch (cause: unknown) {
-      messageKind = "failure"; message = cause instanceof Error ? cause.message : "메모를 확인하세요.";
-      return;
-    }
-    const key = action + "\n" + text;
-    if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
-    controller?.abort();
-    const request = new AbortController(); controller = request;
-    busy = true; messageKind = "information"; message = "검토 기록을 남기고 있습니다.";
-    try {
-      await recordReview(capture, action, text, pending.eventId, request.signal);
-      if (request.signal.aborted) return;
-      pending = null; confirmingClose = false;
-      if (action === "note") note = "";
-      if (await refresh(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
-    } catch (cause: unknown) {
-      if (request.signal.aborted) return;
-      if (cause instanceof ReviewConflict) {
-        pending = null; confirmingClose = false;
-        messageKind = "uncertain"; message = "다른 사람이 먼저 검토 상태를 바꿨습니다. 최신 기록을 다시 불러왔습니다.";
-        await refresh(request.signal);
-        return;
-      }
-      messageKind = cause instanceof OutcomeUnknown ? "uncertain" : "failure";
-      message = cause instanceof WriteForbidden ? cause.message
-        : "처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.";
-    } finally {
-      if (controller === request) busy = false;
     }
   }
   async function compare() {
@@ -110,9 +63,7 @@
       if (cause instanceof CompareUnavailable) compareState = "failed";
     }
   }
-  async function askClose() { confirmingClose = true; await tick(); confirmBox?.focus(); }
-  async function cancelClose() { confirmingClose = false; await tick(); heading?.focus(); }
-  onMount(() => () => { controller?.abort(); compareRequest?.abort(); });
+  onMount(() => () => compareRequest?.abort());
 </script>
 
 <article class="detail" data-capture-id={capture.id} aria-labelledby={"capture-" + capture.id}>
@@ -182,50 +133,10 @@
     {/if}
   </section>
 
-  <section aria-labelledby={"review-" + capture.id}>
-    <h3 id={"review-" + capture.id}>검토 기록</h3>
-    {#if capture.review.events.length}
-      <ol class="events">
-        {#each capture.review.events as event (event.eventId)}
-          <li>{clock(event.recordedAt)} · {ACTION[event.action]}{event.note ? " · " + event.note : ""}</li>
-        {/each}
-      </ol>
-    {:else}
-      <p class="context">아직 남긴 검토 기록이 없습니다.</p>
-    {/if}
-    {#if status === "closed"}
-      <p class="context">검토가 종료되어 기록을 더 남길 수 없습니다.</p>
-    {:else if !writable}
-      <p class="context">보기 전용이라 검토 기록을 남길 수 없습니다. 운영을 시작하면 남길 수 있습니다.</p>
-    {:else}
-      <label>메모 (최대 1000자)
-        <textarea maxlength="1000" rows="3" value={note} disabled={busy}
-          oninput={(event) => note = event.currentTarget.value}></textarea>
-      </label>
-      <div class="actions">
-        <button type="button" class="ui-button" disabled={busy} onclick={() => void act("note")}>메모 남기기</button>
-        {#if status === "open"}
-          <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
-        {:else if !confirmingClose}
-          <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void askClose()}>검토 종료</button>
-        {/if}
-      </div>
-      {#if status === "open"}<p class="context">확인한 뒤에 검토를 종료할 수 있습니다.</p>{/if}
-      {#if confirmingClose}
-        <div class="confirm" role="group" aria-labelledby={"close-" + capture.id} tabindex="-1" bind:this={confirmBox}>
-          <p id={"close-" + capture.id}>검토를 종료할까요? 종료하면 이 요청에 기록을 더 남길 수 없습니다.</p>
-          <div class="actions">
-            <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("close")}>종료하기</button>
-            <button type="button" class="ui-button" disabled={busy} onclick={() => void cancelClose()}>취소</button>
-          </div>
-        </div>
-      {/if}
-    {/if}
-    {#if message}
-      <p class="message" class:uncertain={messageKind === "uncertain"} class:failure={messageKind === "failure"}
-        role={messageKind === "failure" ? "alert" : "status"}>{message}</p>
-    {/if}
-  </section>
+  <ReviewActions id={capture.id} {status} events={capture.review.events} {writable}
+    closeQuestion="검토를 종료할까요? 종료하면 이 요청에 기록을 더 남길 수 없습니다."
+    submit={(action, text, eventId, signal) => recordReview(capture, action, text, eventId, signal)}
+    reload={refresh} />
 
   <CautionNote message="검토 종료는 정비 완료나 고장 판정이 아닙니다. 요청 당시 결과는 그때의 계산이며, 원본 측정 전체를 보관하지는 않습니다." />
 
@@ -289,16 +200,6 @@
   table { border-collapse: collapse; width: 100%; }
   caption { text-align: left; color: var(--color-ink-muted); font-size: var(--font-small); }
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
-  .events { padding-inline-start: var(--space-5); }
-  .events li { overflow-wrap: anywhere; }
-  label { display: grid; gap: var(--space-2); font-weight: 650; }
-  textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
-  .confirm { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
-  .message { overflow-wrap: anywhere; }
-  .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }
-  .failure { background: var(--color-failure-surface); color: var(--color-failure-ink); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
   dl { display: grid; gap: var(--space-2); margin: var(--space-2) 0; }
   dt { color: var(--color-ink-muted); font-size: var(--font-small); }

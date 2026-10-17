@@ -1,7 +1,8 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {BriefingEvidenceChanged, readPermission, type BriefingProjection} from "../outlook-briefings";
-  import {captureUrl, confirmCapture, CaptureRejected, OutcomeUnknown} from "../outlook-captures";
+  import {captureUrl, confirmCapture, CaptureRejected} from "../outlook-captures";
+  import {OutcomeUnknown} from "../review-writes";
   import {routeUrl} from "../routes";
 
   /** Leaves the shown result in the maintenance review queue. The supervisor recomputes and

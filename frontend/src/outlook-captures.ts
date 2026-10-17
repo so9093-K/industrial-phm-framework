@@ -4,12 +4,12 @@
 import {assertCurrentVersion,type BriefingProjection} from "./outlook-briefings.ts";
 import {parseOutlookSettings,type Conditions,type OutlookSettings,type Reach,type Scenario} from "./projections.ts";
 import type {AcquisitionProjection,TimeBasis} from "./acquisition-outlook.ts";
-import {readWriteSession} from "./session.ts";
+import {
+  nextReviewStatus,object,postReviewWrite,reviewNote,OutcomeUnknown,ReviewNotFound,
+  REQUEST_ID,type ReviewAction,type ReviewEvent,type ReviewStatus,
+} from "./review-writes.ts";
 
 export type SourceRecheck="same_measurement_projection"|"changed"|"different_source"|"unavailable";
-export type ReviewStatus="open"|"acknowledged"|"closed";
-export type ReviewAction="note"|"acknowledge"|"close";
-export type ReviewEvent={eventId:string;action:ReviewAction;note:string;recordedAt:string};
 export type Position=string|number;
 export type OutlookFacts=Omit<CapturedOutlook,"settings">&{settings:OutlookSettings|null};
 export type CapturedOutlook={
@@ -35,22 +35,14 @@ export type Reobservation=
 
 /** Nothing was saved: the supervisor's recomputation differed or could not run. */
 export class CaptureRejected extends Error {}
-export class CaptureNotFound extends Error {}
-export class ReviewConflict extends Error {}
-/** The supervisor may or may not have committed the write. */
-export class OutcomeUnknown extends Error {}
-export class WriteForbidden extends Error {}
+export class CaptureNotFound extends ReviewNotFound {}
 
 const CAPTURE_ID=/^outlook-capture-[0-9a-f]{64}$/;
 const VERSION=/^[0-9a-f]{64}$/;
-const EVENT_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RECHECKS:readonly SourceRecheck[]=["same_measurement_projection","changed","different_source","unavailable"];
 const STATES=["already","expected","possible","beyond","not-reached"];
 const isAcquisition=(p:BriefingProjection):p is AcquisitionProjection=>"featureId" in p;
 
-function object(raw:unknown):Record<string,unknown>|null{
-  return raw!==null&&typeof raw==="object"&&!Array.isArray(raw)?raw as Record<string,unknown>:null;
-}
 function invalid(what:string):never{
   throw new Error("검토 요청한 전망의 "+what+" 형식이 올바르지 않습니다.");
 }
@@ -195,15 +187,6 @@ export function factsOf(projection:BriefingProjection):OutlookFacts{
     dataVersion:projection.dataVersion,sentences:[]};
 }
 
-/** One authoritative OPEN → ACKNOWLEDGED → CLOSED policy, replayed to reject a status
- * that its own append-only events cannot produce. */
-export function nextReviewStatus(status:ReviewStatus,action:ReviewAction):ReviewStatus{
-  if(status==="closed")throw new Error("완료된 검토에는 기록을 더할 수 없습니다.");
-  if(action==="note")return status;
-  if(action==="acknowledge"&&status==="open")return "acknowledged";
-  if(action==="close"&&status==="acknowledged")return "closed";
-  throw new Error("검토 상태 전이가 올바르지 않습니다.");
-}
 function parseReview(raw:unknown):Capture["review"]{
   const review=object(raw);
   if(!review||!Array.isArray(review.events)||review.events.length>500)invalid("검토 기록");
@@ -214,7 +197,7 @@ function parseReview(raw:unknown):Capture["review"]{
     if(!row||!["note","acknowledge","close"].includes(String(row.action))
       ||typeof row.note!=="string"||row.note.length>1000)invalid("검토 기록");
     const eventId=text(row.event_id,"검토 기록 식별자",64);
-    if(!EVENT_ID.test(eventId)||seen.has(eventId))invalid("검토 기록 식별자");
+    if(!REQUEST_ID.test(eventId)||seen.has(eventId))invalid("검토 기록 식별자");
     seen.add(eventId);
     const action=row.action as ReviewAction;
     replayed=nextReviewStatus(replayed,action);
@@ -276,35 +259,17 @@ export function capturePayload(projection:BriefingProjection):Record<string,stri
   return payload;
 }
 
-async function failure(response:Response,write:"capture"|"review"|null):Promise<never>{
-  const body=object(await response.json().catch(()=>null));
-  const code=typeof body?.error==="string"?body.error:"";
-  if(response.status===503&&code==="command_outcome_unknown")
-    throw new OutcomeUnknown("요청이 처리됐는지 확인하지 못했습니다.");
-  if(response.status===403)
-    throw new WriteForbidden("기록 권한이 확인되지 않았습니다. 새로고침한 뒤 다시 시도하세요.");
-  if(response.status===409&&write==="review")
-    throw new ReviewConflict("검토 상태가 이미 바뀌었습니다.");
-  if(response.status===404)
-    throw new CaptureNotFound("이 설비에서 해당 검토 요청을 찾을 수 없습니다. 다른 설비의 기록으로 대신하지 않습니다.");
-  if(response.status===400&&write==="capture")
+const NOT_FOUND="이 설비에서 해당 검토 요청을 찾을 수 없습니다. 다른 설비의 기록으로 대신하지 않습니다.";
+function refuseCapture(response:Response):void{
+  if(response.status===400)
     throw new CaptureRejected("요청하는 사이 데이터나 계산 결과가 바뀌어 남기지 않았습니다. 다시 계산하세요.");
-  throw new Error(write===null
-    ?"검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다."
-    :"처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.");
+  if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
+  // A capture has no review status yet; a conflict here is not someone else's review.
+  if(response.status===409)
+    throw new Error("처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.");
 }
-async function post(url:string,payload:object,signal:AbortSignal,write:"capture"|"review"):Promise<Record<string,unknown>>{
-  const session=await readWriteSession(signal);
-  if(!session.csrf)
-    throw new WriteForbidden("보기 전용이라 검토를 요청하거나 기록을 남길 수 없습니다.");
-  const response=await fetch(url,{method:"POST",signal,cache:"no-store",credentials:"same-origin",
-    headers:{"Content-Type":"application/json","X-CSRF-Token":session.csrf},
-    body:JSON.stringify(payload)});
-  if(!response.ok)await failure(response,write);
-  const result=object(await response.json().catch(()=>null));
-  if(!result||result.schema_version!==1)
-    throw new OutcomeUnknown("처리 응답을 해석하지 못했습니다.");
-  return result;
+function refuseReview(response:Response):void{
+  if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
 }
 
 export async function readCaptures(
@@ -318,7 +283,8 @@ export async function readCaptures(
   if(before!==null)query.set("before_id",before);
   const response=await fetch("/api/v1/outlook/captures?"+query,
     {signal,cache:"no-store",credentials:"same-origin"});
-  if(!response.ok)await failure(response,null);
+  if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
+  if(!response.ok)throw new Error("검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
   return parseCapturePage(await response.json() as unknown,assetId,captureId);
 }
 
@@ -326,20 +292,11 @@ export async function readCaptures(
 export async function confirmCapture(projection:BriefingProjection,signal:AbortSignal):Promise<string>{
   const payload=capturePayload(projection);
   await assertCurrentVersion(projection,signal);
-  const result=await post("/api/v1/outlook/captures/confirm",payload,signal,"capture");
+  const result=await postReviewWrite("/api/v1/outlook/captures/confirm",payload,signal,refuseCapture);
   if(result.asset_id!==projection.assetId||typeof result.capture_id!=="string"
     ||!CAPTURE_ID.test(result.capture_id))
     throw new OutcomeUnknown("처리 응답의 대상이 요청과 다릅니다. 정비 검토함에서 확인하세요.");
   return result.capture_id;
-}
-
-export function reviewNote(action:ReviewAction,raw:string):string{
-  const note=action==="note"?raw.trim():"";
-  if(action==="note"&&!note)throw new Error("메모를 입력하세요.");
-  if(note.length>1000||new TextEncoder().encode(note).length>2048)
-    throw new Error("메모는 1000자(UTF-8 2048바이트) 이내로 입력하세요.");
-  if(/[\u0000-\u0008\u000b-\u001f]/.test(note))throw new Error("메모에 제어 문자를 사용할 수 없습니다.");
-  return note;
 }
 
 /** The caller reuses `eventId` while retrying one uncertain action, so a retry can never
@@ -347,11 +304,11 @@ export function reviewNote(action:ReviewAction,raw:string):string{
 export async function recordReview(
   capture:Capture,action:ReviewAction,note:string,eventId:string,signal:AbortSignal,
 ):Promise<ReviewStatus>{
-  if(!EVENT_ID.test(eventId))throw new Error("검토 기록 식별자가 올바르지 않습니다.");
-  const result=await post("/api/v1/outlook/captures/review/action",{
+  if(!REQUEST_ID.test(eventId))throw new Error("검토 기록 식별자가 올바르지 않습니다.");
+  const result=await postReviewWrite("/api/v1/outlook/captures/review/action",{
     asset_id:capture.outlook.assetId,capture_id:capture.id,event_id:eventId,
     action,note:reviewNote(action,note),
-  },signal,"review");
+  },signal,refuseReview);
   if(result.capture_id!==capture.id||result.asset_id!==capture.outlook.assetId
     ||result.event_id!==eventId||!["open","acknowledged","closed"].includes(String(result.status))
     ||result.meaning!=="human-review-not-maintenance-or-diagnosis")
