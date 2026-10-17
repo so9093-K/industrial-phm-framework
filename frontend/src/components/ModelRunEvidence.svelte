@@ -2,6 +2,7 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
+  import ModelConnect from "./ModelConnect.svelte";
   import ModelExplanation from "./ModelExplanation.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
   import {num} from "../format";
@@ -113,6 +114,12 @@
       error=cause instanceof Error?cause.message:"모델 실행 근거 조회 실패";
     }
   }
+  let connectedNotice=$state("");
+  function connected(bindingId:string){
+    selectedBinding=bindingId;selectedPosition="";
+    connectedNotice="모델을 연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다.";
+    void loadBindings();
+  }
   onMount(()=>{
     const permission=new AbortController();
     void readPermission(permission.signal).then(allowed=>{
@@ -128,6 +135,7 @@
 <section class="ui-panel" aria-labelledby="model-evidence-title">
   <h2 id="model-evidence-title">모델 이상 점수</h2>
   <p class="context">이 설비에 적용한 이상 탐지 모델이 측정마다 계산한 점수와 기준을 봅니다.</p>
+  {#if connectedNotice}<StatusNotice message={connectedNotice}/>{/if}
   {#if listState==="loading"}
     <StatusNotice message="이 설비에 적용한 모델을 확인하고 있습니다."/>
   {:else if listState==="failed"}
@@ -137,6 +145,7 @@
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
       message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
       actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
+    <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
   {:else}
     {#if bindings.length>1}
       <label class="selector">적용 모델
@@ -235,6 +244,7 @@
         {/if}
       {/if}
     {/if}
+    <ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
   {/if}
 </section>
 <style>

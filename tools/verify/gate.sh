@@ -50,6 +50,7 @@ tests/acceptance/test_operations_web_next_investigations_browser.py
 tests/acceptance/test_operations_web_next_operations_browser.py
 tests/acceptance/test_operations_web_next_connections_browser.py
 tests/acceptance/test_operations_web_next_registration_browser.py
+tests/acceptance/test_operations_web_next_model_connect_browser.py
 "
 FORECAST_PYTHON="
 tests/integration/test_operations_web_forecast.py
