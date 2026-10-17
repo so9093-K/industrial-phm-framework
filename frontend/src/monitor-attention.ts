@@ -13,12 +13,12 @@ export type MonitoredModel={
   processed:number|null;reviewStatus:"open"|"acknowledged"|"closed"|null;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean;reviewsUnknown:boolean};
-export type NoteKind="threshold"|"refusal"|"unavailable"|"receipt"|"pending"|"review";
+export type NoteKind="threshold"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
 export type Note={kind:NoteKind;label:string;detail:string;href:string;action:string};
 export type AssetAttention={assetId:string;notes:Note[]};
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
-const PRIORITY:Record<NoteKind,number>={threshold:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4};
+const PRIORITY:Record<NoteKind,number>={threshold:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4,warmup:3};
 
 function invalid():never{throw new Error("모델 처리 상태의 형식이 올바르지 않습니다.");}
 function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:null;}
@@ -78,6 +78,8 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null):
     const down=list.filter(model=>model.state==="unavailable");
     if(down.length)add(assetId,{kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 실행기 상태를 확인하세요",
       href:at(down[0],null),action:"모델 확인"});
+    const warmups=list.filter(model=>model.state==="warmup");
+    if(warmups.length)add(assetId,{kind:"warmup",label:"모델 입력을 모으는 중",detail:warmups.length+"개 모델 · "+(warmups[0].reason??"준비할 입력이 더 필요합니다"),href:at(warmups[0],warmups[0].processed),action:"입력 준비 상태 보기"});
     const waiting=list.filter(model=>model.state==="pending");
     if(waiting.length)add(assetId,{kind:"pending",label:"새 입력 분석 대기",detail:waiting.length+"개 모델이 아직 처리하지 않았습니다",
       href:at(waiting[0],null),action:"분석 진행 보기"});

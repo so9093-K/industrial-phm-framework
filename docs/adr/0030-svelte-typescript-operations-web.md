@@ -1,7 +1,9 @@
 # 0030. Build the next Operations Web UI with Svelte, TypeScript and a packaged static bundle
 
 Status: Accepted (2026-10-16); required distribution build added 2026-10-17.
-The default `/web/` cutover remains a separate migration decision and verification step.
+The user explicitly requested the default `/web/` cutover and old-UI removal on
+2026-10-17. The workflow mapping and verification boundary are recorded in
+[Web migration](../product/web-migration.md).
 
 Extends: [ADR-0024](0024-separate-operations-web-ui-from-marimo.md). Does not change
 the existing Python Operations API, local supervisor, read/write/CSRF contracts,
@@ -51,8 +53,11 @@ assertion that all dedicated screens, review queues or multi-user workflows exis
    `/web-next/`. Build complete workflow slices against the current API and
    exact asset/source/point/channel/time/version/review identity. Never share a
    second unverified write path with the existing UI. The current `/web/`
-   remains the default until meaningful functional equivalence and user
-   acceptance, including empty/error and accessibility behavior, are verified.
+   was retained during migration. Following the explicit cutover request, serve the
+   migrated task UI at `/web/`, redirect `/web-next/`, preserve former workflow
+   selections, and remove the old DOM implementation. Automated workflow and
+   permission/recovery evidence is required; actual operator usability remains
+   a separate, unclaimed validation boundary.
 6. Require TypeScript/Svelte checks, reproducible static build, sdist-to-wheel
    reconstruction, exact wheel manifest contents, installed-wheel static serving
    without Node or checkout imports, safe static routing, actual Chromium user interactions at 390,
@@ -88,5 +93,6 @@ and measured acceptance under the existing product/status owners.
 
 The additional npm/Vite toolchain, locked dependency maintenance and
 cross-language CI are accepted build costs. Source-build users now need Node/npm;
-wheel users still run only Python. Packaging completion does not authorize removal
-of legacy-only workflows or substitute for user observation. Research marimo remains unchanged.
+wheel users still run only Python. Packaging completion alone is not a migration
+gate; the cutover includes workflow/recovery verification and tooling migration.
+It does not substitute for user observation. Research marimo remains unchanged.

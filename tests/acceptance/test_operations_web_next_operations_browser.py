@@ -55,7 +55,7 @@ def test_operations_page_separates_registration_receipt_and_service_state(
                 )
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                base = f"http://127.0.0.1:{server.server_port}/web-next/?page=system"
+                base = f"http://127.0.0.1:{server.server_port}/web/?page=system"
                 page.goto(base)
                 pw.expect(page.get_by_role("heading", name="운영 관리", level=1)).to_be_visible()
                 connections = page.get_by_role("region", name="등록한 연결")
@@ -63,7 +63,7 @@ def test_operations_page_separates_registration_receipt_and_service_state(
                 pw.expect(card.locator(".badge")).to_have_text("파일 확인 대기")
                 pw.expect(card).to_contain_text("CSV 파일 · 설비 pump-01")
                 pw.expect(card.get_by_role("link", name="측정 신호 보기")).to_have_attribute(
-                    "href", "/web-next/?page=assets&tab=signals&monitor_asset=pump-01"
+                    "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # A view-only page shows the next step without offering to take it.
                 pw.expect(card).to_contain_text("이 연결을 사용하면 데이터를 읽을 수 있습니다")

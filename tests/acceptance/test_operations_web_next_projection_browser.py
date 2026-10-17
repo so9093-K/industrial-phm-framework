@@ -134,7 +134,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 page.route("**/api/v1/outlook?**", serve_outlook)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=projection&monitor_asset=motor-a",
+                    base + "/web/?view=projection&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "상태 전망")

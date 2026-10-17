@@ -9,7 +9,7 @@
   };
   let {assets, observed, href, notes = {}}: Props = $props();
   const count = (asset: Asset): number | null =>
-    asset.attentionCount === null && !notes[asset.assetId] ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
+    asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
   // Assets with something to check come first; the server order is kept otherwise.
   const ordered = $derived(assets
     .map((asset, index) => ({asset, index}))

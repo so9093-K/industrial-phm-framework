@@ -14,8 +14,9 @@
   type Props = {
     snapshot: Snapshot | null; storeState: "loading" | "ready" | "empty" | "failed"; storeError: string;
     writable: boolean; section: SystemSection;
+    onChanged?: () => Promise<void>;
   };
-  let {snapshot, storeState, storeError, writable, section}: Props = $props();
+  let {snapshot, storeState, storeError, writable, section, onChanged}: Props = $props();
   let sources: Sources | null = $state(null);
   let sourceState: "loading" | "ready" | "failed" = $state("loading");
   // Analyses run here count at once; the monitor snapshot catches up on the next read.
@@ -30,7 +31,7 @@
     sourceState = "loading";
     try {
       const value = await readSources(pending.signal);
-      if (!pending.signal.aborted) { sources = value; sourceState = "ready"; }
+      if (!pending.signal.aborted) { sources = value; sourceState = "ready"; await onChanged?.(); }
     } catch {
       if (!pending.signal.aborted) sourceState = "failed";
     }

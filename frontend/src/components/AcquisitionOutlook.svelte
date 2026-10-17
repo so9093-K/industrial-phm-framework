@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ForecastSettings from "./ForecastSettings.svelte";
+  import ForecastValidation from "./ForecastValidation.svelte";
+  import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
@@ -12,7 +15,7 @@
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
     type AcquisitionOptions,type AcquisitionProjection,type AcquisitionFeature,
   } from "../acquisition-outlook";
-  import type {Conditions,Direction} from "../projections";
+  import type {Conditions,Direction,Horizon} from "../projections";
 
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed"|"mismatch";
@@ -22,7 +25,10 @@
   let outlook:AcquisitionProjection|null=$state(null);
   let message=$state("");
   const params=new URLSearchParams(location.search);
+  let settings=$state(savedSettings(params));
+  let customSettings=$state([...params.keys()].some(key=>/^forecast_(prior|range|training|seasonality|backtest)$/.test(key)));
   let featureId=$state(params.get("acq_forecast_feature")??"");
+  let timeHorizon:Horizon|null=$state(params.get("acq_forecast_unit")==="time" ? (params.get("acq_forecast_horizon")??"1h") as Horizon : null);
   let countText=$state(params.get("acq_forecast_count")??"5");
   let assumedText=$state(params.get("acq_assumed_period")??"");
   let managementText=$state(params.get("acq_management")??"");
@@ -45,6 +51,7 @@
     const url=new URL(location.href);
     url.searchParams.set("monitor_asset",assetId);
     const values={
+      acq_forecast_unit:timeHorizon===null?"count":"time",acq_forecast_horizon:timeHorizon??"",
       acq_forecast_feature:featureId,acq_forecast_count:countText,
       acq_assumed_period:assumedText,acq_direction:direction,
       acq_management:managementText,acq_end:endText,
@@ -53,6 +60,7 @@
       if(value.trim())url.searchParams.set(key,value);
       else url.searchParams.delete(key);
     }
+    if(customSettings)rememberSettings(url,settings);
     history.replaceState(history.state,"",url);
   }
   function invalidate(){
@@ -70,7 +78,8 @@
       options=next;
       const valid=next.features.filter(f=>f.countForecast);
       if(!valid.length){listState="unavailable";return;}
-      if(!valid.some(f=>f.id===featureId))featureId=valid[0].id;
+      if(featureId&&!valid.some(f=>f.id===featureId))throw new Error("고른 진동 특징이 이 데이터 출처에 없거나 전망할 수 없습니다.");
+      if(!featureId)featureId=valid[0].id;
       listState="ready";remember();
     }catch(cause:unknown){
       if(request.signal.aborted)return;
@@ -88,7 +97,7 @@
       const conditions:Conditions={direction,management:floatOrNull(managementText),
         end:floatOrNull(endText)};
       remember();
-      const data=await loadAcquisitionPair(options,featureId,count,assumed,conditions,request.signal);
+      const data=await loadAcquisitionPair(options,featureId,count,assumed,conditions,request.signal,customSettings?settings:undefined,timeHorizon);
       if(request.signal.aborted)return;
       outlook=data;resultState="ready";
     }catch(cause:unknown){
@@ -134,6 +143,8 @@
           {/each}
         </select>
       </label>
+      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{h}</option>{/each}</select></label>{/if}
       <label>앞으로 볼 측정 횟수 (1~2000)
         <input type="number" min="1" max="2000" step="1" value={countText}
           oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
@@ -157,6 +168,7 @@
           oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
       </label>
     </div>
+    <ForecastSettings value={settings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
     <button type="button" class="ui-button ui-button-primary"
       onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
     <p class="context">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
@@ -205,9 +217,10 @@
             message=reason;
           }}/>
         {/key}
+        <ForecastValidation checks={outlook.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 측정 순서는 실제 날짜가 아니며, 기준 도달은 고장 시점이나 남은 수명이 아닙니다."/>
         <details>
-          <summary>앞으로 {outlook.horizonCount}회 측정의 예측값</summary>
+          <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>
             <caption>측정 순서별 특징 예측값 (최대 12개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
             <thead><tr><th scope="col">측정 #</th><th scope="col">예측값</th>

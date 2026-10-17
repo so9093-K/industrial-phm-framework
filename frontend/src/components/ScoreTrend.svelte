@@ -8,8 +8,8 @@
   /** Every stored score of this model in input order, its threshold and the intervals the
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
-    onSelect: (step: StepPointer) => void};
-  let {binding, selected, place, onSelect}: Props = $props();
+    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[]) => void};
+  let {binding, selected, place, onSelect, onLoaded}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   const W = 640, H = 170, LEFT = 44, RIGHT = 628, TOP = 14, BOTTOM = 142;
@@ -51,7 +51,7 @@
   onMount(() => {
     const request = new AbortController();
     void readScoreTrend(binding, request.signal).then((value) => {
-      if (!request.signal.aborted) { trend = value; loadState = "ready"; }
+      if (!request.signal.aborted) { trend = value; loadState = "ready"; onLoaded?.(value.points.map(point=>point.pointer)); }
     }).catch(() => { if (!request.signal.aborted) loadState = "failed"; });
     return () => request.abort();
   });

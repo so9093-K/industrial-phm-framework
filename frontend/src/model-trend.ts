@@ -10,7 +10,7 @@ export type Envelope={channel:string;bands:[number,number][]};
 export type Waveform=
   |{available:false;reason:string}
   |{available:true;fileName:string;rateHz:number;samples:number;perBin:number;channels:Envelope[]};
-export type WindowChannel={channel:string;unit:string|null;points:{at:string;value:number|null}[]};
+export type WindowChannel={channel:string;unit:string|null;property?:string|null;scope?:string|null;points:{at:string;value:number|null}[]};
 export type WindowInput=
   |{available:false;reason:string}
   |{available:true;start:string;end:string;channels:WindowChannel[]};
@@ -106,6 +106,7 @@ export function parseWindow(raw:unknown,position:number):WindowInput{
     const row=object(item);
     if(!row||typeof row.channel_id!=="string"||!Array.isArray(row.points))invalid("관측 구간");
     return {channel:row.channel_id,unit:typeof row.unit==="string"?row.unit:null,
+      property:typeof row.observed_property==="string"?row.observed_property:null,scope:typeof row.scope==="string"?row.scope:null,
       points:row.points.map((point:unknown)=>{
         const value=object(point);
         if(!value||typeof value.at!=="string")invalid("관측 구간");

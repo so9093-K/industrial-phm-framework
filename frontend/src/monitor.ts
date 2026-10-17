@@ -9,7 +9,9 @@ export type Asset = {
   attentionCount: number | null;
 };
 
+export type OperationAttention={id:string;title:string;status:string;destination:string;assetId:string|null;sourceId:string|null;findingId:string|null;at:string|null};
 export type Snapshot = {
+  operationsAttention?: {items:OperationAttention[];complete:boolean};
   assessedAt: string | null;
   assets: Asset[];
   truncated: boolean;
@@ -49,6 +51,20 @@ function analysesOf(response: Record<string, unknown>): AnalysisRecords {
   }
 }
 
+function attentionOf(raw:unknown):{items:OperationAttention[];complete:boolean} {
+  const list=object(raw);
+  if(!list||!Array.isArray(list.items)||list.items.length>100)return {items:[],complete:false};
+  try {
+    const id=(v:unknown)=>{if(typeof v!=="string"||!v||v.length>512)throw new Error("invalid attention");return v;};
+    const optional=(v:unknown)=>v===null?null:id(v);
+    const items=list.items.map((value:unknown)=>{const v=object(value);if(!v)throw new Error("invalid attention");
+      return {id:id(v.attention_id),title:id(v.title),status:id(v.status),destination:id(v.destination),assetId:optional(v.asset_id),
+        sourceId:optional(v.source_id),findingId:optional(v.finding_id),at:optional(v.occurred_at)};});
+    if(new Set(items.map(item=>item.id)).size!==items.length)throw new Error("duplicate attention");
+    return {items,complete:list.truncated===false};
+  }catch{return {items:[],complete:false};}
+}
+
 export function parseMonitor(value: unknown): Snapshot {
   const response = object(value);
   const assetGroup = object(response?.assets);
@@ -69,6 +85,7 @@ export function parseMonitor(value: unknown): Snapshot {
     });
   }
   return {
+    operationsAttention:attentionOf(response.attention),
     assessedAt: typeof response.assessed_at === "string" ? response.assessed_at : null,
     assets,
     truncated: assetGroup.truncated === true,

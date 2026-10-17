@@ -39,6 +39,7 @@ PHM_READ_ROUTES = frozenset(
         "/api/v1/phm/bindings",
         "/api/v1/phm/models",
         "/api/v1/phm/range",
+        "/api/v1/phm/comparison",
         "/api/v1/phm/monitor",
         "/api/v1/phm/result",
         "/api/v1/phm/trace",
@@ -99,6 +100,39 @@ def handle_phm_read(
         if path == "/api/v1/phm/models":
             return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
         binding_id = _required_id(params, "binding_id")
+        if path == "/api/v1/phm/comparison":
+            position = _int(params, "position", default=None, minimum=1)
+            previous_position = (
+                _int(params, "compare_position", default=None, minimum=1)
+                if "compare_position" in params
+                else None
+            )
+            current = store.get_result(binding_id, position)
+            previous = (
+                store.get_result(binding_id, previous_position)
+                if previous_position is not None
+                else None
+            )
+            if (
+                current is None
+                or (
+                    previous_position is not None
+                    and (previous is None or previous_position >= position)
+                )
+                or current.state.value != "analyzed"
+                or (previous is not None and previous.state.value != "analyzed")
+            ):
+                raise PhmReadError("comparison needs two stored analyzed results in order")
+            return HTTPStatus.OK, {
+                "schema_version": 1,
+                "binding_id": binding_id,
+                "position": position,
+                "analysis_run_id": current.analysis_run_id,
+                "compare_position": previous_position,
+                "previous_analysis_run_id": previous.analysis_run_id if previous else None,
+                "previous_score": previous.output.get("score") if previous else None,
+                "features": feature_comparison(current, previous),
+            }
         if path == "/api/v1/phm/trace":
             return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)
         if path == "/api/v1/phm/range":

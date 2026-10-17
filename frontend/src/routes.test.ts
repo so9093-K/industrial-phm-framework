@@ -48,13 +48,13 @@ test("every former workflow address lands on its new place with its own paramete
 });
 
 test("changing assets removes all old evidence and conditions while keeping the task", () => {
-  const original = "http://localhost:2718/web-next/?page=assets&tab=outlook&data=history" +
+  const original = "http://localhost:2718/web/?page=assets&tab=outlook&data=history" +
     "&monitor_asset=motor-a&monitor_channel=R&projection_direction=lower&projection_management=7" +
     "&measurement_version=old&capture_id=unrelated&future_param=old";
   const changed = new URL(assetUrl(original, "motor-b"), "http://localhost");
   assert.deepEqual([...changed.searchParams.entries()],
     [["page", "assets"], ["tab", "outlook"], ["monitor_asset", "motor-b"]]);
-  assert.equal(new URL(assetUrl("http://l/web-next/", "a"), "http://l").searchParams.get("page"),
+  assert.equal(new URL(assetUrl("http://l/web/", "a"), "http://l").searchParams.get("page"),
     "assets");
   assert.throws(() => assetUrl(original, ""), /설비 식별자/);
 });
@@ -65,7 +65,7 @@ test("links inside an asset carry only the asset, the task and a chosen signal",
   assert.equal(url.searchParams.get("monitor_channel"), "R/S");
   assert.equal(url.searchParams.get("method"), "compare");
   assert.equal(routeUrl({page: "monitor", assetId: "", tab: "summary", method: null, data: null}),
-    "/web-next/");
+    "/web/");
   assert.equal(new URL(routeUrl({page: "maintenance", assetId: "x", tab: "summary", method: null,
     data: null}, "R"), "http://local").searchParams.has("monitor_channel"), false);
 });
@@ -80,5 +80,33 @@ test("운영 관리 opens data connections unless the address asks for system st
   assert.equal(systemSection("?page=system"),"connections");
   assert.equal(systemSection("?page=system&section=status"),"status");
   assert.equal(systemSection("?page=system&section=unknown"),"connections");
-  assert.equal(systemUrl("status"),"/web-next/?page=system&section=status");
+  assert.equal(systemUrl("status"),"/web/?page=system&section=status");
+});
+
+test("retired hash and model bookmarks keep their exact selection at the default address",()=>{
+  const cases:[[string,string],string][]=[[["","#connect"],"page=system&section=connections"],[["","#system"],"page=system&section=status"],
+    [["?phm_binding=b%2Fa&phm_position=2&phm_compare=1","#anomaly"],"page=assets&tab=anomaly&method=model&model_binding=b%2Fa&model_position=2&model_compare=1"]];
+  for(const [[search,hash],expected] of cases){
+    const actual=new URL(canonicalUrl(search,hash),"http://local");
+    assert.equal(actual.pathname,"/web/");
+    for(const [key,value] of new URLSearchParams(expected))assert.equal(actual.searchParams.get(key),value);
+    assert.equal(actual.searchParams.has("phm_binding"),false);
+  }
+  assert.equal(parseRoute("?page=maintenance","#connect").route.page,"maintenance");
+});
+
+test("legacy forecast and exploration conditions move with their axis and exact series",()=>{
+  const projection=new URL(canonicalUrl("?monitor_asset=a&forecast_series=history%7CR&forecast_horizon=7d&forecast_threshold=8&forecast_prior=0.2","#forecast"),"http://local");
+  assert.equal(projection.searchParams.get("monitor_channel"),"R");
+  assert.equal(projection.searchParams.get("projection_horizon"),"7d");
+  assert.equal(projection.searchParams.get("projection_management"),"8");
+  assert.equal(projection.searchParams.get("forecast_prior"),"0.2");
+  const acq=new URL(canonicalUrl("?forecast_series=acquisition%7Cfeature.rms&forecast_horizon=24h&forecast_assumed_period=60","#rul"),"http://local");
+  assert.equal(acq.searchParams.get("data"),"vibration");
+  assert.equal(acq.searchParams.get("acq_forecast_unit"),"time");
+  assert.equal(acq.searchParams.get("acq_assumed_period"),"60");
+  const compare=new URL(canonicalUrl("?explore_kind=acquisition&explore_series=feature.rms&explore_a=1~8&explore_b=9~16","#signals"),"http://local");
+  assert.equal(compare.searchParams.get("method"),"compare");
+  assert.equal(compare.searchParams.get("acquisition_feature"),"feature.rms");
+  assert.equal(compare.searchParams.get("feature_b_from"),"9");
 });

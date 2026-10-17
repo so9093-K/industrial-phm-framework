@@ -48,7 +48,6 @@ from tools.phm.acceptance_common import (
     NOT_CAUGHT_UP,
     Checks,
     Supervisor,
-    check_explanation,
     cli,
     displayed,
     free_port,
@@ -59,6 +58,7 @@ from tools.phm.acceptance_common import (
     wait_until,
     write_evidence,
 )
+from tools.phm.acceptance_web import expect_saved_review, open_model, review_explained_result
 
 SOURCE_ID = "xjtu-sy-replay"
 BEARING = "Bearing1_1"  # fold-1 held-out bearing, 123 acquisitions
@@ -273,8 +273,7 @@ def main(argv: list[str] | None = None) -> int:
                     replay=True,
                 )
             )
-            page.goto(url + "#anomaly")
-            page.select_option("#anomaly-binding", anomaly_binding)
+            open_model(page, url, anomaly_binding)
             record_display(page, "anomaly-freshness")
             live = replay(1, 30, 1.0)
             evidence["phase_live_replay"] = live.communicate()[0].splitlines()[-1]
@@ -368,23 +367,19 @@ def main(argv: list[str] | None = None) -> int:
             checks.add("commit-to-screen-p95-le-5s", p95 is not None and p95 <= 5.0, p95)
 
             # 6. Rejections reach the screen ---------------------------------------------
-            page.reload()
-            page.select_option("#anomaly-binding", "foreign-pump-x")
-            expect(page.locator("#anomaly-state")).to_contain_text(
-                "입력을 분석할 수 없습니다", timeout=15_000
+            open_model(page, url, "foreign-pump-x")
+            expect(page.get_by_text("이 측정은 모델 분석에서 제외됐습니다")).to_be_visible(
+                timeout=15_000
             )
             checks.add(
                 "incompatible-input-reason-on-screen",
-                "channels differ" in page.locator("#anomaly-state").inner_text(),
-                page.locator("#anomaly-state").inner_text(),
+                "channels differ" in page.locator("main").inner_text(),
             )
-            page.select_option("#anomaly-binding", "tampered-pump-y")
-            expect(page.locator("#anomaly-state")).to_contain_text(
-                "모델을 실행할 수 없습니다", timeout=15_000
-            )
-            checks.add(
-                "unloadable-package-on-screen", True, page.locator("#anomaly-state").inner_text()
-            )
+            open_model(page, url, "tampered-pump-y")
+            expect(
+                page.get_by_text("모델 정보 파일을 읽지 못했습니다", exact=False)
+            ).to_be_visible()
+            checks.add("unloadable-package-on-screen", True)
             checks.add(
                 "unloadable-package-produces-no-results",
                 store.list_results("tampered-pump-y") == (),
@@ -394,22 +389,10 @@ def main(argv: list[str] | None = None) -> int:
             # 7. Real local-main explanation and human review ----------------------------
             explanations: dict[str, Any] = {}
             for view, binding in (("anomaly", anomaly_binding),):
-                page.goto(url + "#" + view)
-                page.select_option(f"#{view}-binding", binding)
-                panel = page.locator(f"#{view}-explanation")
-                expect(panel).to_contain_text("사람 검토", timeout=15_000)
-                page.locator("#anomaly-review-options > summary").click()
-                panel.locator(".phm-ai-details summary").click()
-                panel.get_by_role("button", name="AI 설명 생성").click()
-                expect(panel.locator(".phm-ai-text")).not_to_be_empty(timeout=180_000)
-                explanations[view] = check_explanation(checks, f"-{view}", panel, window=False)
-                panel.get_by_role("button", name="검토 요청").click()
-                expect(panel.locator(".phm-review-history")).to_contain_text("검토 요청됨")
-                panel.get_by_label("검토 메모").first.fill(f"{view}: 원본 파형과 추세를 확인함")
-                panel.get_by_role("button", name="검토 확인").click()
-                expect(panel.locator(".phm-review-history")).to_contain_text("검토 확인됨")
-                panel.get_by_role("button", name="검토 종료").click()
-                expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
+                panel = open_model(page, url, binding)
+                explanations[view] = review_explained_result(
+                    page, panel, checks, f"-{view}", window=False
+                )
                 page.screenshot(path=str(output / f"{view}-reviewed.png"), full_page=True)
             evidence["explanations"] = explanations
 
@@ -420,14 +403,8 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(3)
             after = {b: len(store.list_results(b)) for b in bindings.values()}
             checks.add("restart-keeps-results-unchanged", before == after, after)
-            for view, binding in (("anomaly", anomaly_binding),):
-                page.goto(url + "#" + view)
-                page.select_option(f"#{view}-binding", binding)
-                panel = page.locator(f"#{view}-explanation")
-                expect(panel.locator(".phm-ai-text")).to_have_text(
-                    explanations[view]["text"], timeout=15_000
-                )
-                expect(panel.locator(".phm-review-history")).to_contain_text("검토 완료")
+            for view, _binding in (("anomaly", anomaly_binding),):
+                expect_saved_review(page, explanations[view])
                 checks.add(f"restart-keeps-explanation-and-review-{view}", True)
                 page.screenshot(path=str(output / f"{view}-after-restart.png"), full_page=True)
             checks.add("no-browser-errors", not errors, errors)

@@ -40,7 +40,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                 )
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(f"http://127.0.0.1:{writer.server_port}/web-next/?page=system")
+                page.goto(f"http://127.0.0.1:{writer.server_port}/web/?page=system")
                 sections = page.get_by_role("navigation", name="운영 관리")
                 pw.expect(sections.get_by_role("link", name="데이터 연결")).to_have_attribute(
                     "aria-current", "page"
@@ -98,7 +98,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                 pw.expect(done.get_by_role("heading", name="다음 할 일")).to_be_focused()
                 signals = done.get_by_role("link", name="설비 화면에서 신호 보기")
                 pw.expect(signals).to_have_attribute(
-                    "href", "/web-next/?page=assets&tab=signals&monitor_asset=pump-01"
+                    "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # Where the data arrived: what it supports now, and what it cannot support.
                 options = done.get_by_role("region", name="이 데이터로 할 수 있는 분석")
@@ -131,7 +131,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                 observer: Any = browser.new_page(
                     viewport={"width": width, "height": 900}, locale="ko-KR"
                 )
-                observer.goto(f"http://127.0.0.1:{viewer.server_port}/web-next/?page=system")
+                observer.goto(f"http://127.0.0.1:{viewer.server_port}/web/?page=system")
                 watched = observer.get_by_role("region", name="등록한 연결")
                 pw.expect(watched.get_by_role("article", name="pump.csv")).to_be_visible()
                 pw.expect(watched).to_contain_text("보기 전용이라")

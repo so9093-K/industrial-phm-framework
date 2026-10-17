@@ -137,7 +137,7 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
 
                 page.route("**/api/v1/explore/relation?**", relation)
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web-next/"
+                    f"http://127.0.0.1:{server.server_port}/web/"
                     "?view=acq-relation&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )

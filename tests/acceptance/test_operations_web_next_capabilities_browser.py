@@ -72,7 +72,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 runtime, server.server_port, width, "motor-01", "bearing-a"
             )
             try:
-                base = f"http://127.0.0.1:{server.server_port}/web-next/?page=assets"
+                base = f"http://127.0.0.1:{server.server_port}/web/?page=assets"
                 page.goto(base + "&monitor_asset=motor-01")
                 options = page.get_by_role("region", name="이 데이터로 할 수 있는 분석")
                 rows = options.get_by_role("listitem")
@@ -145,7 +145,7 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
             browser, page, errors = _page(runtime, server.server_port, 1280, "bearing-a")
             try:
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web-next/"
+                    f"http://127.0.0.1:{server.server_port}/web/"
                     "?page=assets&monitor_asset=bearing-a"
                 )
                 options = page.get_by_role("region", name="이 데이터로 할 수 있는 분석")

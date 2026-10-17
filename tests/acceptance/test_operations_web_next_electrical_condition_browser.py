@@ -19,7 +19,7 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 from tests.support.electrical_condition import condition_workspace
 from tests.support.web_next import asset_list, start_web, stop_web
 
-PLACE = "/web-next/?page=assets&tab=change&method=electrical&monitor_asset=condition-motor"
+PLACE = "/web/?page=assets&tab=change&method=electrical&monitor_asset=condition-motor"
 
 
 def _open(runtime: Any, port: int, **options: Any) -> tuple[Any, Any, list[str]]:

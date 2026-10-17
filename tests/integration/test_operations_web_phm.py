@@ -406,6 +406,30 @@ def test_range_route_reads_the_shape_between_two_stored_results(tmp_path: Path) 
         assert "feature.Horizontal_vibration_signals.rms" in span["features"]
         assert get("/api/v1/phm/range?binding_id=anomaly-a&from=8&to=1")[0] == 400
         assert get("/api/v1/phm/range?binding_id=anomaly-a&from=1&to=99")[0] == 400
+        status, compared = get(
+            "/api/v1/phm/comparison?binding_id=anomaly-a&position=8&compare_position=1"
+        )
+        assert status == 200
+        assert (
+            compared["analysis_run_id"]
+            == SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+            .get_result("anomaly-a", 8)
+            .analysis_run_id
+        )
+        assert compared["features"][0]["current"] > compared["features"][0]["previous"]
+        assert not workspace.phm_explanation_path.exists(), (
+            "reading a comparison must never request AI"
+        )
+        status, single = get("/api/v1/phm/comparison?binding_id=anomaly-a&position=1")
+        assert status == 200 and single["compare_position"] is None
+        assert single["features"] and all(row["previous"] is None for row in single["features"])
+        for query in (
+            "position=8&compare_position=8",
+            "position=1&compare_position=8",
+            "position=99&compare_position=1",
+        ):
+            assert get("/api/v1/phm/comparison?binding_id=anomaly-a&" + query)[0] == 400
+
         assert get("/api/v1/phm/range?binding_id=nope&from=1&to=8")[0] == 404
     finally:
         server.shutdown()

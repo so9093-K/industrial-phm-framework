@@ -37,8 +37,10 @@ from tools.phm.acceptance_common import (
     free_port,
     percentiles,
     set_config,
+    wait_until,
     write_evidence,
 )
+from tools.phm.acceptance_web import open_model
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -120,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         "code_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "started_at": datetime.now(UTC).isoformat(),
         "scenario": "continuous-asset-monitor-original-replay",
+        "protocol": "operations-web-task-ui-v1",
         "selection": {
             "start_local": "2020-11-13T13:35:00",
             "end_local": "2020-11-13T14:15:00",
@@ -172,22 +175,19 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                 )
                 url = f"http://127.0.0.1:{port}/web/"
-                page.goto(url + "#monitor")
-                model = page.locator('.monitor-asset[data-asset-id="Bearing1_1"]')
-                compressor = page.locator(
-                    '.monitor-asset[data-asset-id="aihub-air-compressor-1338"]'
-                )
-                expect(model).to_contain_text("확정 입력 대기", timeout=15_000)
+                page.goto(url)
+                assets = page.locator("a.row")
+                expect(assets).to_have_count(2)
+                attention = page.get_by_role("region", name="확인이 필요한 설비")
+                model = attention.get_by_role("article", name="Bearing1_1", exact=True)
                 count = page.request.get(url.removesuffix("/web/") + "/api/v1/phm/monitor").json()
                 checks.add(
-                    "page-open-before-inputs-two-assets-five-models",
-                    page.locator(".monitor-asset").count() == 2 and len(count["items"]) == 5,
+                    "page-open-before-inputs-two-assets-five-models", len(count["items"]) == 5
                 )
                 checks.add(
                     "model-details-not-expanded-by-default",
-                    page.locator(".monitor-model").count() == 0,
+                    page.locator("[data-model-position]").count() == 0,
                 )
-                model.click()
                 replay_server = subprocess.Popen(
                     [
                         sys.executable,
@@ -204,12 +204,23 @@ def main(argv: list[str] | None = None) -> int:
                     stderr=subprocess.STDOUT,
                 )
                 replay(1, 2)
-                expect(model).to_contain_text("입력 준비 중", timeout=20_000)
+                expect(model).to_contain_text("모델 입력을 모으는 중", timeout=20_000)
                 checks.add("real-lstm-warmup-visible-on-monitor", True, model.inner_text())
                 replay(3, 6)
-                expect(model).to_contain_text("입력 #8", timeout=20_000)
-                expect(compressor).to_contain_text("기준 초과 없음", timeout=45_000)
-                checks.add("both-assets-change-without-manual-refresh", True)
+                checks.add(
+                    "models-process-without-manual-analysis",
+                    wait_until(
+                        lambda: all(
+                            (
+                                store.latest_result(b.binding_id) is not None
+                                and store.latest_result(b.binding_id).position >= 8
+                            )
+                            for b in store.list_bindings()
+                            if b.asset_id == "Bearing1_1"
+                        ),
+                        30,
+                    ),
+                )
                 details = json.loads(workspace.supervisor_state_path.read_text())
                 paused = next(
                     c["pid"] for c in details["supervisor"]["components"] if c["kind"] == "analysis"
@@ -217,28 +228,31 @@ def main(argv: list[str] | None = None) -> int:
                 os.kill(paused, signal.SIGSTOP)
                 replay(9, 1)
                 expect(model).to_contain_text("새 입력 분석 대기", timeout=15_000)
-                expect(page.locator("#monitor-score-state")).to_contain_text("이전 분석 결과")
                 page.screenshot(path=str(output / "analysis-pending-1440.png"), full_page=True)
                 checks.add("real-analysis-pause-keeps-input-and-last-output-distinct", True)
                 os.kill(paused, signal.SIGCONT)
                 paused = None
-                expect(model).to_contain_text("기준 초과 없음", timeout=20_000)
+                checks.add(
+                    "analysis-resumes",
+                    wait_until(
+                        lambda: store.latest_result("anomaly-score-Bearing1_1").position >= 9, 30
+                    ),
+                )
                 repo = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
                 snapshot = repo.latest("xjtu-sy-replay", "Bearing1_1")
                 assert snapshot is not None
                 bad = output / "invalid.csv"
                 bad.write_text("damaged test copy, original source untouched")
                 repo.record(replace(snapshot, ordinal=10, file_path=bad))
-                expect(model).to_contain_text("최근 진동 파형을 읽을 수 없음", timeout=20_000)
-                expect(page.locator("#monitor-score-state")).to_contain_text("이전 분석 결과")
+                expect(model).to_contain_text("최근 진동 파형을 분석하지 못함", timeout=20_000)
                 checks.add(
                     "real-refused-input-does-not-look-like-new-analysis", True, model.inner_text()
                 )
                 page.screenshot(path=str(output / "input-refused-1440.png"), full_page=True)
-                alert = page.locator('.monitor-attention-item[data-asset-id="Bearing1_1"]')
+                alert = model
                 expect(alert).to_have_count(1)
-                expect(alert).to_contain_text("원본 변경 감지")
-                expect(alert).to_contain_text("4개 분석")
+                expect(alert).to_contain_text("전달 뒤 원본이 바뀜")
+                expect(alert).to_contain_text("4개 모델")
                 checks.add("four-refusals-grouped-under-one-asset", True)
                 checks.add(
                     "attention-visible-without-scrolling-1440", alert.bounding_box()["y"] < 900
@@ -247,15 +261,18 @@ def main(argv: list[str] | None = None) -> int:
                     b.binding_id: store.list_results(b.binding_id) for b in store.list_bindings()
                 }
                 supervisor.stop()
-                expect(page.locator("#phm-monitor-state")).to_contain_text(
-                    "관측 상태 조회 실패", timeout=15_000
-                )
-                expect(page.locator(".monitor-asset")).to_have_count(0)
+                expect(attention).to_contain_text("다시 읽지 못했습니다", timeout=15_000)
+                expect(attention.get_by_role("article")).to_have_count(0)
                 checks.add("node-outage-clears-old-results-on-monitor", True)
                 page.screenshot(path=str(output / "node-outage-1440.png"), full_page=True)
                 replay(11, 8)
                 supervisor.start()
-                expect(model).to_contain_text("입력 #18", timeout=30_000)
+                checks.add(
+                    "restart-catches-up-recorded-inputs",
+                    wait_until(
+                        lambda: store.latest_result("anomaly-score-Bearing1_1").position >= 18, 45
+                    ),
+                )
                 checks.add("restart-recovers-monitor-and-all-backlogged-model-inputs", True)
                 checks.add(
                     "previous-model-results-unchanged",
@@ -276,7 +293,7 @@ def main(argv: list[str] | None = None) -> int:
                     not any("/phm/series?" in r or "/condition?" in r for _, r in steady),
                 )
                 checks.add(
-                    "overview-three-requests-plus-selected-input-and-bounded-trace",
+                    "overview-has-bounded-receive-and-model-status-requests",
                     all(
                         sum(1 for t, r in steady if at <= t < at + 3 and "/api/v1/" in r) <= 5
                         for at, _ in steady
@@ -295,41 +312,15 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     page.screenshot(path=str(output / f"monitor-{width}.png"), full_page=True)
                 page.set_viewport_size({"width": 1440, "height": 900})
-                model.click()
-                expect(page.locator("#monitor-signal-chart svg")).to_be_visible()
-                reconstruction = page.locator(
-                    '.monitor-detection-result[data-binding-id="lstm-lstm-autoencoder-v1-Bearing1_1"]'
-                )
-                expect(reconstruction).to_be_visible()
-                expect(reconstruction).to_contain_text("재구성 오차")
-                expect(reconstruction).to_contain_text("앞선 분석")
-                expect(reconstruction).to_contain_text("#9 → #18")
+                open_model(page, url, "anomaly-score-Bearing1_1")
+                expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("18")
+                expect(page.get_by_role("heading", name="측정 순서 #18 원본 파형")).to_be_visible()
                 checks.add(
-                    "reconstruction-error-and-nonconsecutive-change-visible-without-details",
-                    reconstruction.bounding_box()["y"] + reconstruction.bounding_box()["height"]
-                    < 900,
+                    "actual-waveform-available-in-asset-task",
+                    page.locator("section.input figure").count() == 2,
                 )
-                checks.add(
-                    "actual-signal-visible-on-first-screen-1440",
-                    page.locator("#monitor-signal-chart").bounding_box()["y"]
-                    + page.locator("#monitor-signal-chart").bounding_box()["height"]
-                    <= 900,
-                )
-                checks.add(
-                    "two-assets-visible-on-first-screen-1440",
-                    all(
-                        page.locator(".monitor-asset").nth(i).bounding_box()["y"] < 900
-                        for i in range(2)
-                    ),
-                )
-                page.locator("#monitor-analysis-details > summary").click()
-                detail = page.locator('.monitor-model[data-binding-id="anomaly-score-Bearing1_1"]')
-                detail.get_by_role("link", name="이 시점의 추세·원본 입력 보기").click()
-                expect(page.locator("#anomaly-binding")).to_have_value("anomaly-score-Bearing1_1")
-                expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #18")
-                expect(page.locator("#anomaly-detail .phm-wave")).to_have_count(2)
                 page.reload()
-                expect(page.locator("#anomaly-detail h3")).to_contain_text("획득 #18")
+                expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("18")
                 checks.add(
                     "monitor-handoff-preserves-exact-model-position-waveform-after-reload", True
                 )

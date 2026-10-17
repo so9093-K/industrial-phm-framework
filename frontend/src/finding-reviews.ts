@@ -120,7 +120,7 @@ export async function recordFindingAction(
 }
 
 export function findingUrl(assetId:string,findingId:string):string{
-  return "/web-next/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,finding_id:findingId});
+  return "/web/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,finding_id:findingId});
 }
 
 /** The anomaly tab opens exactly this stored model result. */

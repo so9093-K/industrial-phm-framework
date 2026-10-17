@@ -66,29 +66,20 @@ interlock only for cooperating Web previews and the normal supervisor; direct
 file edits or an unsupported directly mutating process remain outside
 this contract. The preview does not become the collector/analysis lifecycle owner.
 
-The static HTML/CSS/JavaScript live inside `industrial_phm/apps/web/`, are
-shipped with the **Python wheel**, and use the same-origin, explicit
-`GET /api/v1/monitor`, `GET /api/v1/history/channels`, and
-`GET /api/v1/history/trend` endpoints. Monitor summary and PHM detail use 3-second polling of saved facts; signal/history and
-manual operating-change inspection remain explicit selections. This is not a live subscription.
-The default Monitor reads stored Asset History for the selected asset independently of PHM bindings: the channel list once per
-asset (re-read after 30 s) and a `anchor=latest` trend only when the selection changes, the asset's live history commit
-or source-less recorded end changes, or 30 s pass. Each history read loads a full snapshot, so it is not part of the 3-second
-poll. A failed read clears the stored values instead of keeping an earlier reading. The HTML uses native form
-labels, semantic controls, keyboard focus and responsive layout. Dynamic
-IDs, evidence and source fields are assigned via `textContent`, never
-`innerHTML`; browser content security policy only allows self-hosted
-scripts/styles/connections, denies framing and form actions.
+The compiled Svelte/TypeScript static bundle lives in `industrial_phm/apps/web_next/`
+and is shipped with the **Python wheel**, served at `/web/`. `/web-next/` redirects
+with the query intact. Standard source distribution builds require the locked frontend
+build, while an installed wheel runs without Node. The explicit manifest owns the
+served assets; previous direct-DOM assets are removed.
 
-The first screen provides **per-asset observed data-flow context**, up to
-six selected stored signals with bounded, **unconnected time-bucket dots**
-(no interpolated gaps), per-source last stored values and quality/conflict
-flags, persisted phase-unbalance numeric evidence and persisted review
-requests. All counts and timestamps come from current API responses.
-There are **no fallback demo numbers, prognostic predictions, fault
-alarms or local browser-only review mutations**. When the history store
-is not initialized, the Web preview displays a distinct read failure
-rather than inventing zero-valued measurements.
+The task UI uses same-origin bounded APIs. The overview's model/source attention
+and the model result's optional latest-result tracking poll saved facts every three
+seconds while visible. Selecting a result or asking a question pins the result;
+raw signal/history and other investigations use explicit selections. Missing values
+and failed reads never become healthy equipment or interpolated observations.
+Svelte escapes dynamic content; native labels, semantic controls, focus handling,
+responsive layout and the existing CSP/Host/Origin/CSRF contracts apply.
+See [workflow migration and validation boundaries](../product/web-migration.md).
 
 The Web-only Operations product cutover (#480) is complete. Synthetic first-run and
 bounded OPC UA / FILE / Review journeys have landed, but whole-workflow parity,

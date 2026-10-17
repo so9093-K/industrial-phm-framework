@@ -89,44 +89,6 @@ from industrial_phm.runtime.operations_web_signals import (
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-_WEB_ASSET_MIME = {
-    "index.html": "text/html; charset=utf-8",
-    "styles.css": "text/css; charset=utf-8",
-    "example-motor.csv": "text/csv; charset=utf-8",
-    "example-invalid.csv": "text/csv; charset=utf-8",
-    **dict.fromkeys(
-        (
-            "app.js",
-            "navigation.js",
-            "asset-context.js",
-            "phm-connect.js",
-            "source-card.js",
-            "condition.js",
-            "phm.js",
-            "monitor.js",
-            "monitor-signal.js",
-            "phm-explanation.js",
-            "time.js",
-            "monitor-history.js",
-            "csv-start.js",
-            "web-utils.js",
-            "source-management.js",
-            "analysis-records.js",
-            "system-status.js",
-            "synthetic-demo.js",
-            "file-registration.js",
-            "opcua-registration.js",
-            "signal-explore.js",
-            "capabilities.js",
-            "forecast.js",
-            "outlook.js",
-            "outlook-captures.js",
-            "anomaly-explore.js",
-        ),
-        "text/javascript; charset=utf-8",
-    ),
-}
-
 _MAX_WEB_CSV_UPLOAD = 20 * 1024 * 1024
 # Base64 of the largest upload plus the bounded JSON setup fields.
 _MAX_WEB_CSV_REQUEST = 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3) + 8192
@@ -190,35 +152,8 @@ def create_operations_web_read_server(
             self.end_headers()
             self.wfile.write(body)
 
-        def _send_asset(self, asset_name: str) -> None:
-            """Serve only package-owned frontend files at exact allowlisted routes."""
-            mime = _WEB_ASSET_MIME
-            if asset_name not in mime:
-                self._error(HTTPStatus.NOT_FOUND, "not_found")
-                return
-            try:
-                body = files("industrial_phm.apps").joinpath("web", asset_name).read_bytes()
-            except OSError:
-                self._error(HTTPStatus.SERVICE_UNAVAILABLE, "web_asset_unavailable")
-                return
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", mime[asset_name])
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("X-Frame-Options", "DENY")
-            self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header(
-                "Content-Security-Policy",
-                "default-src 'none'; base-uri 'none'; script-src 'self'; "
-                "style-src 'self'; connect-src 'self'; frame-ancestors 'none'; "
-                "form-action 'none'; object-src 'none'",
-            )
-            self.end_headers()
-            self.wfile.write(body)
-
-        def _send_web_next_asset(self, name: str) -> None:
-            """Serve only build-manifest-listed, package-owned preview assets."""
+        def _send_asset(self, name: str) -> None:
+            """Serve only build-manifest-listed, package-owned frontend assets."""
             if name != "index.html" and not re.fullmatch(
                 r"assets/[A-Za-z0-9_-]+\.(?:js|css)", name
             ):
@@ -230,12 +165,18 @@ def create_operations_web_read_server(
                     package.joinpath("asset-manifest.json").read_text(encoding="utf-8")
                 )
                 if not isinstance(manifest, list) or name not in manifest:
+                    if name == "index.html":
+                        raise ValueError("default Web entry is missing from the manifest")
                     self._error(HTTPStatus.NOT_FOUND, "not_found")
                     return
                 body = package.joinpath(*name.split("/")).read_bytes()
             except OSError, UnicodeError, ValueError:
-                # No Node build is needed to run the existing /web/ product.
-                self._error(HTTPStatus.NOT_FOUND, "not_found")
+                self._error(
+                    HTTPStatus.SERVICE_UNAVAILABLE
+                    if name == "index.html"
+                    else HTTPStatus.NOT_FOUND,
+                    "web_assets_unavailable" if name == "index.html" else "not_found",
+                )
                 return
             content_type = (
                 "text/html; charset=utf-8"
@@ -385,22 +326,28 @@ def create_operations_web_read_server(
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
-            static_paths = {
-                "/web/": "index.html",
-                **{"/web/" + name: name for name in _WEB_ASSET_MIME if name != "index.html"},
-            }
-            asset_path = "/web/" if urlsplit(self.path).path == "/web/" else self.path
-            if asset_path in static_paths:
-                self._send_asset(static_paths[asset_path])
-                return
             parts = urlsplit(self.path)
-            if parts.path == "/web-next/" or parts.path.startswith("/web-next/assets/"):
-                relative = (
-                    "index.html"
-                    if parts.path == "/web-next/"
-                    else parts.path.removeprefix("/web-next/")
+            if parts.path in {"/web", "/web-next", "/web-next/"}:
+                self.send_response(HTTPStatus.PERMANENT_REDIRECT)
+                self.send_header("Location", "/web/" + ("?" + parts.query if parts.query else ""))
+                self.send_header("Content-Length", "0")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header(
+                    "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
                 )
-                self._send_web_next_asset(relative)
+                self.end_headers()
+                return
+            if parts.path == "/web/" or parts.path.startswith("/web/assets/"):
+                if parts.path != "/web/" and parts.query:
+                    self._error(HTTPStatus.NOT_FOUND, "not_found")
+                    return
+                relative = (
+                    "index.html" if parts.path == "/web/" else parts.path.removeprefix("/web/")
+                )
+                self._send_asset(relative)
                 return
             if parts.path in FORECAST_ROUTES:
                 status, forecast = handle_forecast_read(
@@ -507,7 +454,15 @@ def create_operations_web_read_server(
                     environ={"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)}
                 )
                 if self.path == "/api/v1/monitor":
-                    payload = project_operations_monitor(snapshot)
+                    phm_status, phm = handle_phm_read(
+                        OperationsWorkspace(root), "/api/v1/phm/monitor", ""
+                    )
+                    payload = project_operations_monitor(
+                        snapshot, phm=phm if phm_status == HTTPStatus.OK else None
+                    )
+                    if phm_status != HTTPStatus.OK:
+                        scopes = cast(list[str], payload["system_error_scopes"])
+                        payload["system_error_scopes"] = sorted({*scopes, "phm-monitor"})
                 elif parts.path == "/api/v1/condition":
                     payload = project_electrical_condition(
                         snapshot,

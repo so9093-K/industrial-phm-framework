@@ -1,9 +1,9 @@
-# Operations Web-next
+# Operations Web
 
-The next Operations Web, organised by user task. It is **not yet the default
-product**: the current `/web/` UI stays authoritative until every workflow, permission
-and recovery path is accepted here. It reads the existing APIs and never recalculates
-measured values or health verdicts in the browser.
+The Operations Web, organised by user task, is served at **`/web/`**. The former
+`/web-next/` address redirects to it on the same origin. It reads the existing APIs
+and never recalculates measured values or health verdicts in the browser.
+See [migration and verification boundaries](../docs/product/web-migration.md).
 
 ## Verification
 
@@ -17,9 +17,9 @@ npm run build
 
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
-on the **same loopback origin** under `/web-next/` only after building it.
+on the **same loopback origin** under `/web/` only after building it.
 Screens follow the task menus of `docs/product/overview.md`:
-`/web-next/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
+`/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
 `tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
 `?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are
 replaced by their new place with the workflow's own parameters kept. Screen words follow
@@ -183,9 +183,9 @@ the sdist and wheel. A wheel rebuilt from the sdist uses those same locked sourc
 Missing Node/npm or an incomplete manifest fails the distribution build; an old local
 bundle is never accepted instead. `make up` and `make demo` also prepare these assets.
 Python editable setup (`uv sync`) skips the frontend build, so use `make frontend`
-before opening `/web-next/` directly. Node.js >=22.12 and npm are needed for these
+before opening `/web/` directly. Node.js >=22.12 and npm are needed for these
 source builds; installing and serving a prebuilt wheel needs neither.
 `sh tools/verify/gate.sh wheel` checks sdist → wheel, exact manifest contents and
 serving every asset from an installed wheel with no Node on PATH or checkout imports.
-This frontend has supervised writes, but is not yet the default `/web/` replacement.
+This frontend is the default `/web/` UI; the previous direct-DOM assets are removed.
 Automated checks do not establish UX acceptance or field validation.

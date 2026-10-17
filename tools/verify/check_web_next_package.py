@@ -40,6 +40,10 @@ def check_manifest() -> None:
 
 def check_wheel(wheel: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
+        assert not any(
+            name.startswith("industrial_phm/apps/web/") for name in archive.namelist()
+        ), "retired UI must not ship"
+        assert len(archive.namelist()) == len(set(archive.namelist())), "duplicate wheel entries"
         names = manifest_names(archive.read(_ASSETS + "asset-manifest.json"))
         expected = {_ASSETS + name for name in ["asset-manifest.json", *names]}
         packaged = {name for name in archive.namelist() if name.startswith(_ASSETS)}
@@ -55,8 +59,10 @@ def check_installed() -> None:
     from importlib.resources import files
 
     import industrial_phm
+    from industrial_phm.runtime.operations_deployment import _web_assets_check
     from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
+    assert _web_assets_check().state.value == "pass"
     assert shutil.which("node") is None and shutil.which("npm") is None
     assert Path(industrial_phm.__file__).is_relative_to(Path(sys.prefix))
     package = files("industrial_phm.apps").joinpath("web_next")
@@ -67,7 +73,7 @@ def check_installed() -> None:
         thread.start()
         try:
             for name in names:
-                path = "/web-next/" + ("" if name == "index.html" else name)
+                path = "/web/" + ("" if name == "index.html" else name)
                 connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
                 try:
                     connection.request("GET", path)

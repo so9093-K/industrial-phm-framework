@@ -51,6 +51,7 @@
     confirming = {...confirming, [id]: null};
     busy = {...busy, [id]: true};
     const signal = new AbortController().signal;
+    let reloaded = false;
     say(id, ACTION_LABEL[action] + " 요청을 보내고 있습니다.");
     try {
       if (action === "activate" || action === "pause") {
@@ -70,6 +71,7 @@
         say(id, "측정 이력을 저장했습니다 · 측정값 " + stored.eventCount.toLocaleString("ko-KR") + "개");
       } else {
         const saved = await (action === "phase" ? analyzePhase : analyzeFile)(id, signal);
+        await onReload(); reloaded = true;
         onAnalyzed(id);
         say(id, (action === "phase" ? "3상 불평형 분석" : "신호 통계 분석") + "을 저장했습니다.", "information", saved);
       }
@@ -80,7 +82,7 @@
     } finally {
       busy = {...busy, [id]: false};
     }
-    await onReload();
+    if (!reloaded) await onReload();
   }
 </script>
 

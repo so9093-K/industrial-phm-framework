@@ -34,9 +34,9 @@
       const candidate={a:span("a"),b:span("b")};
       validateSpans(candidate);
       for(const key of ["a","b"] as const)
-        if(candidate[key].from<src.first||candidate[key].to>src.last)return defaults;
+        if(candidate[key].from<src.first||candidate[key].to>src.last)throw new Error("고른 측정 구간이 현재 데이터 범위를 벗어났습니다.");
       return candidate;
-    }catch{return defaults;}
+    }catch{throw new Error("고른 측정 구간을 확인할 수 없어 다른 구간으로 대신하지 않습니다.");}
   }
   function remember(){
     if(!spans)return;
@@ -57,8 +57,11 @@
       const response=await loadFeatureSource(assetId,request.signal);
       if(request.signal.aborted)return;
       if(!response||!response.features.length){listState="empty";return;}
+      if(url.has("acquisition_binding")&&url.get("acquisition_binding")!==response.bindingId)
+        throw new Error("넘겨받은 모델과 탐색 데이터의 적용 모델이 달라 비교하지 않았습니다.");
       source=response;
-      if(!response.features.some(x=>x.id===selected))selected=response.features[0].id;
+      if(selected&&!response.features.some(x=>x.id===selected))throw new Error("고른 특징이 이 데이터 출처에 없습니다.");
+      if(!selected)selected=response.features[0].id;
       try{
         const bounds={source:response.sourceId,binding:response.bindingId,
           first:response.first,last:response.last,count:response.count};

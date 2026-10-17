@@ -67,8 +67,8 @@ test("OPC UA channel IDs are safe and distinct; the sample opens only a local ad
     "http://127.0.0.1:2719/web/");
   assert.throws(()=>parseSample({synthetic:true,state:"running",separate_workspace:true,url:"http://evil.example/web/"}));
   assert.throws(()=>parseSample({synthetic:false,state:"stopped"}));
-  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/web-next/?page=system")),
-    "http://127.0.0.1:2718/web-next/?page=system");
+  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/web/?page=system")),
+    "http://127.0.0.1:2718/web/?page=system");
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("https://evil.example/web/")),null);
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/other")),null);
 });

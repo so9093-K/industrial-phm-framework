@@ -51,7 +51,7 @@ def test_model_result_explanation_and_review_request(
     root = workspace.root.resolve()
     running = [start_web(root, writer=True), start_web(root, writer=False)]
     writer, viewer = running[0][0], running[1][0]
-    address = "/web-next/?" + urlencode(
+    address = "/web/?" + urlencode(
         {
             "page": "assets",
             "tab": "anomaly",
@@ -145,3 +145,120 @@ def test_model_result_explanation_and_review_request(
     finally:
         for server, thread in running:
             stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
+    tmp_path: Path, width: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "flow")
+    for ordinal, scale in enumerate((0.5, 0.5, 0.5, 3, 3, 3.1, 3.1, 3.2), 1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    model = ScriptedModel(
+        {
+            "summary": SUMMARY,
+            "observations": [{"feature": RMS, "change": "증가"}],
+            "next_signals": [],
+            "next_step": "원본 파형을 비교해 보세요.",
+        }
+    )
+    monkeypatch.setattr(phm_answer, "complete_json", model)
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    running = [start_web(workspace.root, writer=False), start_web(workspace.root, writer=True)]
+    suffix = (
+        "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
+        "&model_binding=anomaly-a&model_position=8&model_compare=1"
+    )
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                observer = _open(browser, width)
+                observer.goto(f"http://127.0.0.1:{running[0][0].server_port}{suffix}")
+                table = observer.get_by_role("table", name="측정 특징 비교")
+                pw.expect(table.get_by_role("row", name="수평 진동 RMS")).to_be_visible()
+                pw.expect(observer.get_by_role("table", name="구간 흐름")).to_be_visible()
+                assert (
+                    PhmExplanationStore(workspace.phm_explanation_path).list_for("anomaly-a", 8)
+                    == []
+                )
+                assert observer.get_by_role("button", name="해설 만들기").count() == 0
+                page = _open(browser, width)
+                page.goto(f"http://127.0.0.1:{running[1][0].server_port}{suffix}")
+                flow = page.get_by_role("table", name="구간 흐름")
+                flow.get_by_role("row").first.get_by_role(
+                    "button", name="가장 큰 변화", exact=False
+                ).click()
+                explanation = page.get_by_role("region", name="AI 해설")
+                pw.expect(explanation).to_contain_text("질문 기준 지점 · 측정 순서 #4 · 모델 점수")
+                pw.expect(
+                    explanation.get_by_role("region", name="측정값 비교").get_by_role(
+                        "heading", name="측정 순서 #4 원본 파형"
+                    )
+                ).to_be_visible()
+                explanation.get_by_text("직접 질문하기", exact=True).click()
+                explanation.get_by_role(
+                    "button", name="이 지점 전후로 무엇이 달라졌어?", exact=True
+                ).click()
+                pw.expect(explanation.get_by_text("답변 기준 지점 · 측정 순서 #4")).to_be_visible(
+                    timeout=20_000
+                )
+                (record,) = PhmExplanationStore(workspace.phm_explanation_path).list_for(
+                    "anomaly-a", 8
+                )
+                assert record["context"]["focus"]["position"] == 4
+                assert record["context"]["focus"]["series"] == "primary"
+                assert record["context"]["signal_comparison"]["previous_position"] == 1
+                explanation.get_by_role("button", name="질문 기준 지점 해제").click()
+                assert explanation.get_by_text("답변 기준 지점 · 측정 순서 #4").count() == 0
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        for server, thread in running:
+            stop_web(server, thread)
+
+
+def test_recorded_acceptance_helpers_follow_current_review_ui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.phm.acceptance_common import Checks
+    from tools.phm.acceptance_web import expect_saved_review, open_model, review_explained_result
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    monkeypatch.setattr(
+        phm_answer,
+        "complete_json",
+        ScriptedModel(
+            {
+                "summary": SUMMARY,
+                "observations": [{"feature": RMS, "change": "증가"}],
+                "next_signals": [],
+                "next_step": "두 측정의 원본 파형을 비교해 보세요.",
+            }
+        ),
+    )
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    running = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page()
+                panel = open_model(
+                    page, f"http://127.0.0.1:{running[0].server_port}/web/", "anomaly-a"
+                )
+                checks = Checks()
+                answer = review_explained_result(page, panel, checks, "-helper", window=False)
+                assert checks.passed
+                expect_saved_review(page, answer)
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)

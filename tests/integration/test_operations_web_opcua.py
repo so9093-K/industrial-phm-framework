@@ -19,8 +19,11 @@ from tests.support.opcua import local_opcua_server
 
 
 @contextmanager
-def _web(workspace: OperationsWorkspace) -> Iterator[int]:
-    server = create_operations_web_read_server(workspace.root)
+def _web(workspace: OperationsWorkspace, *, controlled: bool = False) -> Iterator[int]:
+    from tests.support.web_next import InProcessSupervisor
+
+    client = InProcessSupervisor(workspace.root) if controlled else None
+    server = create_operations_web_read_server(workspace.root, command_client=client)
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -212,43 +215,43 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
     initialize_operations_workspace(workspace)
     with (
         local_opcua_server() as (endpoint, node_id),
-        _web(workspace) as port,
+        _web(workspace, controlled=True) as port,
         sync_api.sync_playwright() as playwright,
     ):
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1024, "height": 900})
         errors: list[str] = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        page.goto(f"http://127.0.0.1:{port}/web/", wait_until="networkidle")
-        page.locator('nav a[href="#connect"]').click()
-        page.locator("#opcua-registration > summary").click()
-        page.locator("#opcua-endpoint").fill(endpoint)
-        page.get_by_role("button", name="로컬 변수 탐색").click()
-        sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(
-            "Machine 객체 내부 탐색"
-        )
-        page.get_by_role("button", name="Machine 객체 내부 탐색").click()
-        sync_api.expect(page.locator("#opcua-browse-result")).to_contain_text(node_id)
-        assert page.locator("#opcua-browse-start").input_value() != "i=85"
-        sync_api.expect(page.locator("#source-list")).to_contain_text("등록 소스가 없습니다")
-        page.locator('#opcua-form input[name="source_id"]').fill("web-opcua-1")
-        page.locator('#opcua-form input[name="name"]').fill("OPC UA browser")
-        page.locator('#opcua-form input[name="asset_id"]').fill("pump-01")
-        page.locator('#opcua-form textarea[name="node_mappings"]').fill("vibration_x=" + node_id)
-        page.get_by_role("button", name="OPC UA 매핑 등록").click()
-        listing = page.locator("#source-list")
-        sync_api.expect(listing).to_contain_text("web-opcua-1")
-        sync_api.expect(listing).to_contain_text("수신 미확인")
-        page.on("dialog", lambda dialog: dialog.accept())
-        listing.get_by_role("button", name="이 연결 사용하기").click()
-        sync_api.expect(listing).to_contain_text("관리 상태: active")
-        listing.locator(".source-settings > summary").click()
-        listing.get_by_role("button", name="OPC UA 1회 수신 진단").click()
-        sync_api.expect(page.locator("#source-control-result")).to_contain_text(
-            "수신 근거 기록 완료"
-        )
-        sync_api.expect(listing).to_contain_text("1회 수신 확인 · 연속 수신 미확인")
-        assert not page.locator("#last-values .latest-item").count()
+        page.goto(f"http://127.0.0.1:{port}/web/?page=system")
+        methods = page.get_by_role("region", name="다른 방법으로 연결")
+        methods.get_by_text("OPC UA로 연결", exact=True).click()
+        form = methods.locator("details").filter(has_text="OPC UA로 연결")
+        for label, value in {
+            "연결 ID": "web-opcua-1",
+            "연결 이름": "OPC UA browser",
+            "설비": "pump-01",
+            "OPC UA 서버 주소": endpoint,
+        }.items():
+            form.get_by_label(label, exact=True).fill(value)
+        form.get_by_role("button", name="변수 찾기").click()
+        form.get_by_role("listitem").filter(has_text="Machine").get_by_role(
+            "button", name="안쪽 찾기"
+        ).click()
+        variable = form.get_by_role("listitem").filter(has_text="VibrationX")
+        sync_api.expect(variable).to_contain_text(node_id)
+        variable.get_by_role("button", name="가져올 변수로 추가").click()
+        form.get_by_label("채널 ID").fill("vibration_x")
+        assert not JsonSourceRepository(workspace.source_registry_path).list_sources()
+        form.get_by_role("button", name="OPC UA 연결 등록").click()
+        card = page.get_by_role("article", name="OPC UA browser")
+        sync_api.expect(card).to_contain_text("수신 미확인")
+        source = JsonSourceRepository(workspace.source_registry_path).get("web-opcua-1")
+        assert source.config.node_mappings[0].node_id == node_id
+        card.get_by_role("button", name="이 연결 사용하기").click()
+        sync_api.expect(card).to_contain_text("사용 중")
+        card.get_by_role("button", name="1회 읽기로 연결 확인").click()
+        sync_api.expect(card).to_contain_text("한 번 읽어 연결을 확인했습니다")
+        sync_api.expect(card).to_contain_text("1회 수신 확인 · 연속 수신 미확인")
         assert not workspace.history_catalog_path.exists()
         assert not errors, errors
         browser.close()

@@ -7,16 +7,19 @@
     type FeatureChange, type ModelExplanation, type Relation,
   } from "../model-explanations";
   import {WriteForbidden} from "../review-writes";
+  import type {Focus} from "../model-comparison";
+  import ModelComparison from "./ModelComparison.svelte";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** AI explanation of one stored model result against an earlier analyzed measurement.
    * The table shows the comparison the server stored and checked the answer against. */
   type Props = {
     binding: ModelBinding; run: ModelRun; earlier: number[]; writable: boolean;
-    place: (position: number) => string; onExplained: (explanationId: string | null) => void;
+    place: (position: number) => string; onInteract?: () => void; onExplained: (explanationId: string | null) => void;
   };
-  let {binding, run, earlier, writable, place, onExplained}: Props = $props();
+  let {binding, run, earlier, writable, place, onExplained, onInteract}: Props = $props();
   let compare: number | null = $state(null);
+  let focus: Focus | null = $state(null);
   let records: ModelExplanation[] = $state([]);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let requesting = $state(false);
@@ -32,7 +35,7 @@
   const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
   const percent = (value: number | null) => value === null ? "—"
     : (value > 0 ? "+" : "") + value.toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
-  const same = (item: ModelExplanation) => item.comparePosition === compare;
+  const same = (item: ModelExplanation) => item.comparePosition === compare && (item.focus?.position ?? null) === (focus?.position ?? null) && (item.focus?.series ?? null) === (focus?.series ?? null);
   const latest = $derived(records.find((item) => same(item) && item.status === "complete" && item.answer) ?? null);
   const newest = $derived(records.find(same) ?? null);
   const waiting = $derived(newest?.status === "pending");
@@ -45,6 +48,7 @@
     });
   });
 
+  $effect(() => { if (compare === null && earlier.length) compare = earlier[0]; });
   $effect(() => { onExplained(latest?.id ?? null); });
 
   function cancel() {
@@ -72,13 +76,14 @@
   }
   async function ask(text: string) {
     if (!writable || requesting || !text.trim()) return;
+    onInteract?.();
     cancel();
     const pending = new AbortController(); request = pending;
     requesting = true; error = ""; remaining = 40;
     try {
       // A follow-up continues the shown answer of the same comparison.
       await requestModelExplanation(binding, run, compare, text,
-        text === DEFAULT_QUESTION ? null : latest?.id ?? null, pending.signal);
+        text === DEFAULT_QUESTION ? null : latest?.id ?? null, pending.signal, focus);
       if (pending.signal.aborted) return;
       question = "";
       requesting = false;
@@ -92,12 +97,19 @@
     }
   }
   function choose(value: string) {
+    onInteract?.();
     compare = value === "" ? null : Number(value);
+    focus = null;
+    const url = new URL(location.href);
+    if (compare !== null) url.searchParams.set("model_compare", String(compare));
+    else url.searchParams.delete("model_compare");
+    history.replaceState(history.state, "", url);
     remaining = 40;
     void refresh();
   }
   onMount(() => {
-    compare = earlier[0] ?? null;
+    const saved = Number(new URLSearchParams(location.search).get("model_compare"));
+    compare = Number.isSafeInteger(saved) && saved > 0 && saved < run.position ? saved : earlier[0] ?? null;
     void refresh();
     return cancel;
   });
@@ -115,6 +127,7 @@
     <label class="compare">비교할 이전 측정
       <select value={compare === null ? "" : String(compare)} disabled={requesting}
         onchange={(event) => choose(event.currentTarget.value)}>
+        {#if compare !== null && !earlier.includes(compare)}<option value={String(compare)}>{place(compare)}</option>{/if}
         {#each earlier as position (position)}
           <option value={String(position)}>{place(position)}</option>
         {/each}
@@ -123,6 +136,10 @@
   {:else}
     <p class="context">비교할 이전 분석이 없어 {place(run.position)} 한 시점만 설명합니다.</p>
   {/if}
+
+  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
+  {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
+    <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
 
   {#if requesting}
     <StatusNotice message="해설을 요청하고 있습니다." />
@@ -135,6 +152,7 @@
     <StatusNotice message="두 측정의 값과 모델 점수를 비교해 해설을 만들고 있습니다. 잠시 후 자동으로 다시 확인합니다." />
   {:else if latest?.answer}
     <p class="question">질문 · {latest.question}</p>
+    {#if latest.focus}<p class="context">답변 기준 지점 · {place(latest.focus.position)}</p>{/if}
     <p class="summary">{latest.answer.summary}</p>
     {#if latest.comparePosition !== null}
       <p class="context">모델 점수 {num(latest.previousScore, "기록 없음")} → {num(score.score, "기록 없음")}
@@ -183,6 +201,8 @@
   {:else}
     <details class="ask">
       <summary>{latest ? "이어서 질문하기" : "직접 질문하기"}</summary>
+      {#if focus}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("이 지점 전후로 무엇이 달라졌어?")}>이 지점 전후로 무엇이 달라졌어?</button>{/if}
+      {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체에서 어떤 흐름을 보였어?")}>구간 전체에서 어떤 흐름을 보였어?</button>{/if}
       <label>AI에게 물을 질문 (최대 600자)
         <input maxlength="600" value={question} disabled={requesting} placeholder={DEFAULT_QUESTION}
           oninput={(event) => question = event.currentTarget.value} />

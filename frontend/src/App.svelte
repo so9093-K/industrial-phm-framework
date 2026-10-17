@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession, sampleReturn } from "./session";
+  import {loadModelBindings} from "./model-evidence";
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
@@ -13,8 +14,8 @@
   import OperationsPage from "./components/OperationsPage.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
-  if (parseRoute(location.search).legacy) {
-    history.replaceState(history.state, "", canonicalUrl(location.search));
+  if (parseRoute(location.search,location.hash).legacy) {
+    history.replaceState(history.state, "", canonicalUrl(location.search,location.hash));
   }
   let route: Route = $state(parseRoute(location.search).route);
   let focus = $state(reviewFocus(location.search));
@@ -26,7 +27,9 @@
   let example = $state(false);
   let notes: Record<string, number> = $state({});
   const returnTo = sampleReturn(location.search);
+  const previousSeries=new URLSearchParams(location.search).get("explore_series")?.split(",")??[];
   let controller: AbortController | null = null;
+  let snapshotRead = 0;
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
   const documentTitle = $derived(
@@ -58,6 +61,7 @@
   }
 
   async function refresh() {
+    const read = ++snapshotRead;
     controller?.abort();
     const pending = new AbortController();
     controller = pending;
@@ -65,8 +69,18 @@
     error = "";
     snapshot = null;
     try {
+      const requested=new URLSearchParams(location.search).get("model_binding");
+      if(route.page==="assets"&&!route.assetId&&requested){
+        const bindings=await loadModelBindings(null,pending.signal);
+        if(pending.signal.aborted)return;
+        const matched=bindings.find(binding=>binding.bindingId===requested);
+        if(!matched)throw new Error("북마크의 적용 모델을 찾을 수 없습니다. 다른 설비로 대신하지 않습니다.");
+        route={...route,assetId:matched.assetId};
+        const url=new URL(location.href);url.searchParams.set("monitor_asset",matched.assetId);
+        history.replaceState(history.state,"",url);
+      }
       const result = await readMonitor(pending.signal);
-      if (pending.signal.aborted) return;
+      if (pending.signal.aborted || read !== snapshotRead) return;
       snapshot = result;
       loadState = result.assets.length ? "ready" : "empty";
     } catch (cause: unknown) {
@@ -80,7 +94,9 @@
    * reported by that page and never blanks or replaces what is shown. */
   async function quietRefresh() {
     if (loadState !== "ready" && loadState !== "empty") return;
+    const read = ++snapshotRead;
     const result = await readMonitor(new AbortController().signal);
+    if (read !== snapshotRead) return;
     if (loadState === "ready" || loadState === "empty") {
       snapshot = result;
       loadState = result.assets.length ? "ready" : "empty";
@@ -97,6 +113,7 @@
 
   onMount(() => {
     const restore = () => {
+      if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
     };
     // Same-document links switch screens without reloading the asset list.
@@ -106,7 +123,7 @@
       const link = (event.target as Element | null)?.closest?.("a");
       if (!link || link.target || link.hasAttribute("download")) return;
       const url = new URL(link.href, location.href);
-      if (url.origin !== location.origin || url.pathname !== "/web-next/") return;
+      if (url.origin !== location.origin || url.pathname !== "/web/") return;
       event.preventDefault();
       if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
     };
@@ -115,12 +132,14 @@
       if (!permission.signal.aborted) { writable = session.writable; example = session.example; }
     }).catch(() => {});
     window.addEventListener("popstate", restore);
+    window.addEventListener("hashchange", restore);
     document.addEventListener("click", follow);
     void refresh();
     return () => {
       controller?.abort();
       permission.abort();
       window.removeEventListener("popstate", restore);
+      window.removeEventListener("hashchange", restore);
       document.removeEventListener("click", follow);
     };
   });
@@ -133,7 +152,7 @@
 <a class="skip" href="#main">본문으로 건너뛰기</a>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="/web-next/">Industrial PHM</a>
+    <a class="brand" href="/web/">Industrial PHM</a>
     <nav class="topnav" aria-label="업무 메뉴">
       {#each PAGES as page (page)}
         <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
@@ -144,19 +163,21 @@
     <div class="topbar-side">
       {#if writable === true}<span class="mode">운영 중 · 기록 가능</span>
       {:else if writable === false}<span class="mode">보기 전용</span>{/if}
-      <a class="legacy" href="/web/">이전 화면</a>
     </div>
   </div>
 </header>
 
 <main id="main" tabindex="-1">
+  {#if previousSeries.length>1&&route.page==="assets"&&route.tab==="change"}
+    <p class="meta">이전 주소에 고른 신호: {previousSeries.join(", ")}. 두 기간 비교는 신호별로 확인합니다. 먼저 {previousSeries[0]}을 열었으며 신호 선택에서 나머지를 확인할 수 있습니다.</p>
+  {/if}
   {#if example}
     <p class="example">합성 예시 데이터 · 별도 작업공간 · 보기 전용{#if returnTo} · <a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
   {/if}
   {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
       loading={loadState === "loading"} onRefresh={() => void refresh()} />
-    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} />
+    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} onChanged={quietRefresh} />
   {:else if loadState === "loading"}
     <StatusNotice message="설비 목록을 불러오고 있습니다." />
   {:else if loadState === "failed"}
@@ -183,6 +204,7 @@
       {#if snapshot.truncated}
         <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
       {/if}
+      {#if route.page === "monitor"}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
       {#if route.page === "maintenance"}
         <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
           focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
@@ -201,7 +223,7 @@
           <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
             message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
         {/if}
-        {#if route.page === "monitor"}<MonitorAttention onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
+
         <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : {}} />
       {/if}
     {/if}

@@ -21,7 +21,7 @@ def test_model_is_connected_to_the_assets_own_stream(tmp_path: Path, width: int)
     root = workspace.root.resolve()
     running = [start_web(root, writer=True), start_web(root, writer=False)]
     writer, viewer = running[0][0], running[1][0]
-    address = "/web-next/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
+    address = "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
     try:
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)

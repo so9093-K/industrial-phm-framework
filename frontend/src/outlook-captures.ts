@@ -359,7 +359,7 @@ export function positionText(value:Position):string{
 
 /** The exact review subject inside the maintenance task. */
 export function captureUrl(assetId:string,captureId:string):string{
-  return "/web-next/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,capture_id:captureId});
+  return "/web/?"+new URLSearchParams({page:"maintenance",monitor_asset:assetId,capture_id:captureId});
 }
 /** Reopen the archived subject's conditions for a new recomputation. Server settings
  * that the page cannot choose are compared afterwards rather than silently assumed. */
@@ -373,5 +373,5 @@ export function reobservationUrl(saved:CapturedOutlook):string{
   if(saved.conditions.management!==null)params.set(prefix+"management",String(saved.conditions.management));
   if(saved.conditions.end!==null)params.set(prefix+"end",String(saved.conditions.end));
   if(!history&&saved.assumedPeriod!==null)params.set("acq_assumed_period",String(saved.assumedPeriod));
-  return "/web-next/?"+params;
+  return "/web/?"+params;
 }

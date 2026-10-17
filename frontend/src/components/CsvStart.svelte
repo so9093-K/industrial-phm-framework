@@ -29,6 +29,9 @@
   ];
   const STATE_TEXT: Record<StepState, string> = {pending: "대기", running: "진행 중", done: "완료", failed: "실패", unknown: "결과 확인 필요"};
 
+  const TICKET_KEY = "phm-csv-pending-v1";
+  let fileDigest = "";
+  let fileChoice = 0;
   let file: File | null = $state(null);
   let table: CsvTable | null = $state(null);
   let fileMessage = $state("아직 파일을 고르지 않았습니다. 저장하기 전까지 파일은 이 브라우저에서만 읽습니다.");
@@ -80,7 +83,9 @@
   }
 
   async function choose() {
+    const token = ++fileChoice;
     const chosen = fileInput?.files?.[0] ?? null;
+    fileDigest = "";
     file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; analysis = "";
     fileProblem = false; changed();
     if (!chosen) { fileMessage = "아직 파일을 고르지 않았습니다."; return; }
@@ -92,11 +97,17 @@
       return;
     }
     let text: string;
+    let bytes: ArrayBuffer;
     try {
-      text = new TextDecoder("utf-8", {fatal: true}).decode(await chosen.arrayBuffer()).replace(/^﻿/, "");
+      bytes = await chosen.arrayBuffer();
+      if (token !== fileChoice) return;
+      text = new TextDecoder("utf-8", {fatal: true}).decode(bytes).replace(/^﻿/, "");
     } catch {
       fileProblem = true; fileMessage = "UTF-8로 읽을 수 없는 파일입니다. UTF-8로 다시 저장한 뒤 고르세요."; return;
     }
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    if (token !== fileChoice) return;
+    fileDigest = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
     const inspected = inspectCsv(parseCsv(text));
     file = chosen; table = inspected;
     timeIndex = inspected.times[0]?.index ?? -1;
@@ -104,7 +115,20 @@
     chartChannel = channels[0] ?? "";
     sourceId = suggestedSourceId(chosen.name, Math.random().toString(16).slice(2, 6));
     sourceName = chosen.name.slice(0, 128);
-    fileMessage = chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 컬럼 " + inspected.header.length + "개";
+    let restored = false;
+    try {
+      const ticket = JSON.parse(localStorage.getItem(TICKET_KEY) ?? "null");
+      const prior = ticket?.setup;
+      if (ticket?.digest === fileDigest && prior
+        && ["source_id", "name", "asset_id", "measurement_point_id", "timestamp_column"].every(key => typeof prior[key] === "string" && prior[key].length <= 128)
+        && Array.isArray(prior.channel_columns) && prior.channel_columns.length <= MAX_CHANNELS
+        && prior.channel_columns.every((name: unknown) => typeof name === "string" && inspected.header.includes(name))) {
+        sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
+        timeIndex = inspected.header.indexOf(prior.timestamp_column); channels = [...prior.channel_columns];
+        chartChannel = channels[0] ?? ""; restored = true;
+      }
+    } catch { /* Blocked browser storage does not prevent a new upload. */ }
+    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 컬럼 " + inspected.header.length + "개";
   }
   function chooseTime(value: string) {
     timeIndex = value === "" ? -1 : Number(value);
@@ -167,6 +191,7 @@
     const signal = new AbortController().signal;
     const retry = progress !== null || report?.match === "matching";
     progress ??= {setup: setup(), done: {}};
+    try { localStorage.setItem(TICKET_KEY, JSON.stringify({digest: fileDigest, setup: progress.setup})); } catch { /* The server still owns every completed step. */ }
     saving = true; saveFailed = false;
     let step: StepId = "register";
     try {
@@ -195,6 +220,7 @@
         known ? "running" : "unknown", seconds + "초 · " + (known ? "다른 화면으로 가도 저장은 계속됩니다" : "상태 조회 실패 · 결과 미확정")));
       progress.done.store = true; setStep(step, "done", "측정값 " + result.eventCount.toLocaleString("ko-KR") + "개");
       stored = result;
+      try { localStorage.removeItem(TICKET_KEY); } catch { /* Storage may be disabled. */ }
       saveMessage = "저장했습니다 · 설비 " + values.asset_id + "에 측정값 " + result.eventCount.toLocaleString("ko-KR") + "개를 원래 측정 시각으로 저장했습니다.";
       await tick(); doneHeading?.focus();
     } catch (cause: unknown) {

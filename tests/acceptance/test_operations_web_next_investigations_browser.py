@@ -35,7 +35,7 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                 )
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
-                page.goto(f"http://127.0.0.1:{writer.server_port}/web-next/?page=investigations")
+                page.goto(f"http://127.0.0.1:{writer.server_port}/web/?page=investigations")
                 pw.expect(page.get_by_role("heading", name="분석 기록", level=1)).to_be_visible()
                 results = page.get_by_role("region", name="분석 결과")
                 record = results.get_by_role("article", name="3상 불평형 분석 · motor-7")
@@ -74,7 +74,7 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                     viewport={"width": width, "height": 900}, locale="ko-KR"
                 )
                 observer.goto(
-                    f"http://127.0.0.1:{viewer.server_port}/web-next/?page=investigations"
+                    f"http://127.0.0.1:{viewer.server_port}/web/?page=investigations"
                     "&monitor_asset=motor-7"
                 )
                 watched = observer.get_by_role("article", name="3상 불평형 분석 · motor-7")

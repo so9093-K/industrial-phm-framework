@@ -18,7 +18,7 @@ function packagedAssetManifest(): Plugin {
 }
 
 export default defineConfig({
-  base: "/web-next/",
+  base: "/web/",
   plugins: [svelte(), packagedAssetManifest()],
   build: {
     outDir: "../src/industrial_phm/apps/web_next",

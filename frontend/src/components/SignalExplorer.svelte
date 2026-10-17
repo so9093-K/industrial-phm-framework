@@ -180,9 +180,10 @@
         <section class="series" aria-label={"측정 기록 " + group.sourceId}>
           <h3>{selectedChannel} · {group.sourceId}</h3>
           <p class="context">
-            데이터 출처 {group.sourceId} · 측정 위치 {group.pointId} · 측정 의미 {group.observedProperty ?? "미확인"}
+            데이터 출처 {group.sourceId} · 측정 위치 {group.pointId ?? "미등록"} · 측정 의미 {group.observedProperty ?? "미확인"}
             · 단위 {group.unit ?? "미확인"}
           </p>
+          {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 의미의 근거</summary><p class="context">단위 근거 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">해석 근거 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
           {#if points.length}
             <svg viewBox="0 0 650 145" role="img"
               aria-label="시간 구간별 평균을 점으로 표시. 빈 곳은 기록이 없는 구간입니다.">
@@ -227,8 +228,8 @@
           <h3>마지막 저장값</h3>
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
-            {#each trend.latest as item (item.sourceId + item.pointId + item.channelId)}
-              <li>{item.sourceId} / {item.pointId}
+            {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
+              <li>{item.sourceId} / {item.pointId ?? "미등록"}
                 · {recorded(item.eventAt)} · {item.usable ? (item.value ?? "값 없음") : "품질 문제로 표시 안 함"}
                 · 원본 품질: {item.quality}</li>
             {/each}

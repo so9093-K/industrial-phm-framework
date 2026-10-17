@@ -31,6 +31,6 @@ export function sampleReturn(search:string):string|null{
   let url:URL;
   try{url=new URL(raw);}catch{return null;}
   if(url.protocol!=="http:"||url.hostname!=="127.0.0.1"||!/^\d{2,5}$/.test(url.port)
-    ||!["/web/","/web-next/"].includes(url.pathname))return null;
+    ||!["/web/","/web/"].includes(url.pathname))return null;
   return url.origin+url.pathname+"?page=system";
 }

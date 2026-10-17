@@ -158,7 +158,7 @@ def test_model_run_evidence_refuses_changed_input_identity(tmp_path: Path, width
                 page.route("**/api/v1/phm/result?**", result)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=model-evidence&monitor_asset=bearing-a",
+                    base + "/web/?view=model-evidence&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()

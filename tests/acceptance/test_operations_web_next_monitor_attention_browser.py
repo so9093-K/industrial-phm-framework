@@ -34,7 +34,7 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                         status=200, content_type="application/json", body=asset_list("bearing-a")
                     ),
                 )
-                page.goto(f"http://127.0.0.1:{server.server_port}/web-next/")
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/")
                 attention = page.get_by_role("region", name="확인이 필요한 설비")
                 asset = attention.get_by_role("article", name="bearing-a")
                 pw.expect(asset).to_contain_text("진동 변화 확인 필요")
@@ -47,7 +47,7 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 trend = asset.get_by_role("link", name="점수 추이 보기")
                 pw.expect(trend).to_have_attribute(
                     "href",
-                    "/web-next/?page=assets&tab=anomaly"
+                    "/web/?page=assets&tab=anomaly"
                     "&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=2",
                 )
 
@@ -84,3 +84,87 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 browser.close()
     finally:
         stop_web(server, thread)
+
+
+def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+    import subprocess
+    import sys
+    from dataclasses import replace
+
+    from industrial_phm.application.operations_monitor import (
+        OperationsAttentionDestination,
+        OperationsMonitorAttention,
+        OperationsMonitorStatus,
+    )
+    from industrial_phm.runtime import operations_web_http
+    from tools.opcua.fault_harness import _BROWSER_SCRIPT
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    original = operations_web_http.load_operations_app_snapshot
+
+    def fault_snapshot(**kwargs):
+        snapshot = original(**kwargs)
+        item = OperationsMonitorAttention(
+            attention_id="attention:collection-down",
+            status=OperationsMonitorStatus.ERROR,
+            title="Collection service is not running",
+            detail="Collector heartbeat is stale",
+            destination=OperationsAttentionDestination.SYSTEM,
+            occurred_at=snapshot.assessed_at,
+        )
+        return replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
+
+    monkeypatch.setattr(operations_web_http, "load_operations_app_snapshot", fault_snapshot)
+    running = start_web(workspace.root.resolve(), writer=False)
+    url = f"http://127.0.0.1:{running[0].server_port}/web/"
+    try:
+        # Exercise the actual replay harness script against the migrated DOM and real API.
+        output = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                _BROWSER_SCRIPT,
+                url,
+                "Collection service is not running",
+                str(tmp_path / "harness.png"),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert output.returncode == 0, output.stderr
+        rendered = json.loads(
+            next(
+                line.removeprefix("BROWSER ")
+                for line in output.stdout.splitlines()
+                if line.startswith("BROWSER ")
+            )
+        )
+        assert rendered["monitor_ready"] and rendered["attention_seen"]
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900})
+                page.goto(url)
+                notes = page.get_by_role("region", name="운영 확인 항목")
+                pw.expect(notes).to_contain_text("Collection service is not running")
+                notes.get_by_role("link", name="상세 확인").click()
+                assert "section=status" in page.url
+                page.goto(url)
+                pw.expect(notes).to_contain_text("Collection service is not running")
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(status=503, json={"error": "unavailable"}),
+                )
+                pw.expect(
+                    page.get_by_text("모델 처리 상태를 다시 읽지 못했습니다", exact=False)
+                ).to_be_visible(timeout=10_000)
+                pw.expect(notes).to_have_count(0)
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)

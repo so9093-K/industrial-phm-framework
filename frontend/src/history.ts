@@ -15,7 +15,7 @@ export type ChannelList = {
 export type HistoryBucket = {
   channelId: string;
   sourceId: string;
-  pointId: string;
+  pointId: string | null;
   interpretationId: string;
   bucketStart: string;
   mean: number | null;
@@ -25,6 +25,8 @@ export type HistoryBucket = {
   conflictCount: number;
   unit: string | null;
   observedProperty: string | null;
+  unitEvidence?: string | null;
+  interpretationEvidence?: string | null;
 };
 
 export type HistoryTrend = {
@@ -34,7 +36,7 @@ export type HistoryTrend = {
   assessedAt: string | null;
   buckets: HistoryBucket[];
   latest: {
-    channelId: string; sourceId: string; pointId: string;
+    channelId: string; sourceId: string; pointId: string | null;
     eventAt: string | null; value: number | null;
     usable: boolean; quality: string;
   }[];
@@ -43,9 +45,11 @@ export type HistoryTrend = {
 export type HistoryGroup = {
   key: string;
   sourceId: string;
-  pointId: string;
+  pointId: string | null;
   unit: string | null;
   observedProperty: string | null;
+  unitEvidence?: string | null;
+  interpretationEvidence?: string | null;
   interpretationId: string;
   buckets: HistoryBucket[];
 };
@@ -103,7 +107,7 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
     return {
       channelId: channelId,
       sourceId: nonEmpty(b.source_id),
-      pointId: nonEmpty(b.measurement_point_id),
+      pointId: b.measurement_point_id === null ? null : nonEmpty(b.measurement_point_id),
       interpretationId: nonEmpty(b.interpretation_id),
       bucketStart: time(b.bucket_start),
       mean: numberOrNull(b.mean),
@@ -112,6 +116,8 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
       nonGoodCount: count(b.non_good_count),
       conflictCount: count(b.conflict_count),
       unit: typeof semantics?.unit === "string" ? semantics.unit : null,
+      unitEvidence: typeof semantics?.unit_evidence === "string" ? semantics.unit_evidence : null,
+      interpretationEvidence: typeof semantics?.interpretation_evidence === "string" ? semantics.interpretation_evidence : null,
       observedProperty: typeof semantics?.observed_property === "string"
         ? semantics.observed_property : null,
     };
@@ -120,7 +126,7 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
     const b = object(raw);
     if (!b || b.channel_id !== channelId) throw new Error("최근 관측 신호 식별자가 일치하지 않습니다.");
     return {
-      channelId, sourceId: nonEmpty(b.source_id), pointId: nonEmpty(b.measurement_point_id),
+      channelId, sourceId: nonEmpty(b.source_id), pointId: b.measurement_point_id === null ? null : nonEmpty(b.measurement_point_id),
       eventAt: b.event_at === null ? null : time(b.event_at),
       value: numberOrNull(b.value), usable: b.usable_for_display === true,
       quality: typeof b.source_quality === "string" ? b.source_quality : "미확인",
@@ -144,6 +150,7 @@ export function groupHistory(trend: HistoryTrend): HistoryGroup[] {
       group = {
         key, sourceId: bucket.sourceId, pointId: bucket.pointId,
         unit: bucket.unit, observedProperty: bucket.observedProperty,
+        unitEvidence: bucket.unitEvidence, interpretationEvidence: bucket.interpretationEvidence,
         interpretationId: bucket.interpretationId, buckets: [],
       };
       map.set(key, group);

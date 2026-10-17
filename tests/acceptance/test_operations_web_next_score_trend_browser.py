@@ -22,7 +22,7 @@ def test_score_trend_intervals_and_raw_waveform(tmp_path: Path, width: int) -> N
     (tmp_path / "waves" / "2.csv").write_text("changed after delivery", encoding="utf-8")
     server, thread = start_web(workspace.root.resolve(), writer=False)
     address = (
-        "/web-next/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
+        "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
         "&model_binding=anomaly-a&model_position=6"
     )
     try:

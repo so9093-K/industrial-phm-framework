@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type {Snapshot,OperationAttention} from "../monitor";
+  import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
   import {attentionByAsset, readPhmMonitor, type PhmMonitor} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
@@ -6,8 +8,8 @@
 
   /** What needs a look, read again every few seconds while this page is visible. A failed
    * read hides the earlier items rather than showing them as current. */
-  type Props = {onTick: () => Promise<void>; onNotes: (counts: Record<string, number>) => void};
-  let {onTick, onNotes}: Props = $props();
+  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>) => void};
+  let {snapshot,onTick, onNotes}: Props = $props();
   const INTERVAL = 3000;
   let phm: PhmMonitor | null = $state(null);
   let sources: Sources | null = $state(null);
@@ -21,9 +23,15 @@
     return current ? attentionByAsset(current.models, connections?.items ?? null) : [];
   });
   // The asset list counts these too, so the two never disagree; a failed read counts nothing.
-  $effect(() => { onNotes(Object.fromEntries(groups.map((group) => [group.assetId, group.notes.length]))); });
+  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])])); });
   const clock = (at: Date) => at.toLocaleTimeString("ko-KR", {timeZone: "Asia/Seoul"});
 
+  function destination(item:OperationAttention):string|null {
+    if(item.destination==="system")return systemUrl("status");
+    if(item.destination==="asset-signals"&&item.assetId)return assetTabUrl(item.assetId,"signals");
+    if(item.destination==="investigations")return routeUrl({page:"investigations",assetId:item.assetId??"",tab:"summary",method:null,data:null});
+    return null;
+  }
   function schedule() {
     if (timer !== null) clearTimeout(timer);
     timer = null;
@@ -64,10 +72,19 @@
   {:else if loadState === "failed" || !phm}
     <StatusNotice kind="uncertain" message="모델 처리 상태를 다시 읽지 못했습니다. 이전 결과를 지금 상태로 보여 주지 않습니다." />
   {:else}
+    {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
+    <section aria-label="운영 확인 항목" class="operations-attention">
+      <h3>운영 확인 항목</h3><p class="context">수집·저장·분석 서비스의 처리 상태입니다. 설비의 고장 판정이 아닙니다.</p>
+      {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
+      {#if snapshot.operationsAttention?.items.length}<ul>{#each snapshot.operationsAttention.items as item(item.id)}
+        <li><strong>{item.title}</strong><span>{item.assetId??"공통 운영 서비스"}{item.sourceId?" · "+item.sourceId:""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
+          {#if destination(item)}<a href={destination(item)!}>상세 확인 →</a>{/if}</li>
+      {/each}</ul>{:else if snapshot.operationsAttention?.complete}<p>운영 처리에서 확인할 항목이 없습니다.</p>{/if}
+    </section>
     {#if !groups.length}
-      <p>지금 확인할 항목이 없습니다.</p>
+      <p>{snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
     {:else}
       <ul class="groups">
         {#each groups as group (group.assetId)}
@@ -88,6 +105,7 @@
 
 <style>
   .attention { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  .operations-attention{margin-block:var(--space-4);padding-block:var(--space-3);border-bottom:1px solid var(--color-border)}.operations-attention ul{padding-left:var(--space-4)}.operations-attention li{display:grid;gap:var(--space-2);padding-block:var(--space-2);overflow-wrap:anywhere}
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
   h2, h3 { margin: 0; }
   h3 { font-size: var(--font-section); overflow-wrap: anywhere; }

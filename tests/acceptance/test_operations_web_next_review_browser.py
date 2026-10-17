@@ -127,7 +127,7 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 page.route("**/api/v1/reviews?*", reviews)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web-next/?view=reviews&monitor_asset=motor-a",
+                    base + "/web/?view=reviews&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 # The former review address lands on the maintenance queue with every asset.

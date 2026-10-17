@@ -61,7 +61,7 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
 
                 # The sample would start another local process; its answers are fixed here.
                 page.route("**/api/v1/demo/synthetic/*", demo)
-                page.goto(f"http://127.0.0.1:{server.server_port}/web-next/?page=system")
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
                 register = page.get_by_role("region", name="다른 방법으로 연결")
 
                 register.get_by_text("작업공간 안 CSV · 3상 역할 지정").click()
@@ -153,7 +153,7 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
                 example = page.get_by_role("region", name="예시로 둘러보기")
                 example.get_by_role("button", name="예시 시작").click()
                 opened = example.get_by_role("link", name="예시 화면 열기 (새 탭)")
-                back = f"http://127.0.0.1:{server.server_port}/web-next/?page=system"
+                back = f"http://127.0.0.1:{server.server_port}/web/?page=system"
                 pw.expect(opened).to_have_attribute(
                     "href", "http://127.0.0.1:2799/web/?" + urlencode({"return_to": back})
                 )
@@ -199,10 +199,9 @@ def test_sample_workspace_says_it_is_an_example(tmp_path: Path) -> None:
                         ),
                     ),
                 )
-                back = "http://127.0.0.1:2718/web-next/?page=system"
+                back = "http://127.0.0.1:2718/web/?page=system"
                 page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web-next/?"
-                    + urlencode({"return_to": back})
+                    f"http://127.0.0.1:{server.server_port}/web/?" + urlencode({"return_to": back})
                 )
                 notice = page.get_by_text("합성 예시 데이터 · 별도 작업공간 · 보기 전용")
                 pw.expect(notice).to_be_visible()

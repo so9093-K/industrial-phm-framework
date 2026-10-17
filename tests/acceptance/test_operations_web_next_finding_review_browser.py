@@ -60,7 +60,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                         else None
                     ),
                 )
-                page.goto(f"http://127.0.0.1:{writer.server_port}/web-next/?page=maintenance")
+                page.goto(f"http://127.0.0.1:{writer.server_port}/web/?page=maintenance")
                 queue = page.get_by_role("region", name="검토함")
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(queue.get_by_role("listitem")).to_have_count(1)
@@ -139,7 +139,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
 
                 read_only = _open(browser, width)
                 read_only.goto(
-                    f"http://127.0.0.1:{viewer.server_port}/web-next/?page=maintenance"
+                    f"http://127.0.0.1:{viewer.server_port}/web/?page=maintenance"
                     f"&monitor_asset=bearing-a&finding_id={finding}"
                 )
                 view = read_only.get_by_role("region", name="고른 검토 항목")
@@ -148,7 +148,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 assert view.get_by_role("button", name="메모 남기기").count() == 0
                 missing = _open(browser, width)
                 missing.goto(
-                    f"http://127.0.0.1:{viewer.server_port}/web-next/?page=maintenance"
+                    f"http://127.0.0.1:{viewer.server_port}/web/?page=maintenance"
                     "&monitor_asset=bearing-a&finding_id=finding-phm-unknown"
                 )
                 pw.expect(
