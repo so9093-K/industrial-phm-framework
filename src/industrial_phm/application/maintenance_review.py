@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from industrial_phm.application.operational import OperationalFinding
 
@@ -71,15 +71,22 @@ def create_finding_review_event(
     action: FindingReviewAction,
     note: str = "",
     clock: Callable[[], datetime] | None = None,
+    request_id: UUID | None = None,
 ) -> FindingReviewEvent:
-    """Create one explicit human review event for an existing finding."""
+    """Create one explicit human review event for an existing finding.
+
+    A caller-chosen ``request_id`` names the event so that a retried request
+    can be recognized instead of recorded twice.
+    """
     if not isinstance(finding, OperationalFinding):
         raise ValueError("finding must be OperationalFinding")
     if not isinstance(action, FindingReviewAction):
         raise ValueError("action must be a FindingReviewAction")
+    if request_id is not None and (not isinstance(request_id, UUID) or request_id.version != 4):
+        raise ValueError("request_id must be a UUIDv4")
     now = datetime.now(UTC) if clock is None else clock()
     return FindingReviewEvent(
-        event_id=f"finding-review-event-{uuid4()}",
+        event_id=f"finding-review-event-{request_id or uuid4()}",
         finding_id=finding.finding_id,
         action=action,
         recorded_at=now,

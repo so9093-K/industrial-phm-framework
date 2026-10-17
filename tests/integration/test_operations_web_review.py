@@ -7,6 +7,7 @@ from http import HTTPStatus
 from http.client import HTTPConnection
 from pathlib import Path
 from threading import Thread
+from uuid import uuid4
 
 import pytest
 
@@ -116,6 +117,37 @@ def test_web_review_events_preserve_status_and_forbid_invalid_transitions(
     assert len({event.event_id for event in events}) == 3
 
 
+def test_retried_review_action_is_recorded_once(tmp_path: Path) -> None:
+    workspace, analysis = _prepared_workspace(tmp_path)
+    finding = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": analysis.run.analysis_run_id,
+            "evidence_id": analysis.evidence.evidence_id,
+        },
+    )["finding_id"]
+    event_id = str(uuid4())
+    note = {"finding_id": finding, "action": "note", "note": "check wiring", "event_id": event_id}
+    first = record_web_review_action(workspace.root, note)
+    again = record_web_review_action(workspace.root, note)
+    assert first == again
+    assert first["event_id"] == "finding-review-event-" + event_id
+    # The same request identity never names a different action.
+    with pytest.raises(WebReviewConflict):
+        record_web_review_action(workspace.root, {**note, "note": "something else"})
+    with pytest.raises(WebReviewConflict):
+        record_web_review_action(workspace.root, {**note, "action": "acknowledge", "note": ""})
+    for bad in ("not-a-uuid", str(uuid4()).upper(), "00000000-0000-1000-8000-000000000000"):
+        with pytest.raises(ValueError):
+            record_web_review_action(workspace.root, {**note, "event_id": bad})
+    acknowledged = {"finding_id": finding, "action": "acknowledge", "note": ""}
+    record_web_review_action(workspace.root, {**acknowledged, "event_id": str(uuid4())})
+    # A replay is answered from the saved event even after the status moved on.
+    assert record_web_review_action(workspace.root, note)["status"] == "acknowledged"
+    events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
+    assert [event.action.value for event in events] == ["note", "acknowledge"]
+
+
 def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path: Path) -> None:
     workspace, analysis = _prepared_workspace(tmp_path)
     server = create_operations_web_read_server(workspace.root, port=0)
@@ -198,6 +230,15 @@ def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path
         assert status == HTTPStatus.OK
         assert monitor["review_requests"]["total"] == 1
         assert monitor["review_requests"]["items"][0]["status"] == "acknowledged"
+        status, reviews = query("GET", "/api/v1/reviews?asset_id=" + analysis.run.asset_id)
+        assert status == HTTPStatus.OK
+        (item,) = reviews["reviews"]["items"]
+        assert item["finding_id"] == found and item["subject"] == "analysis"
+        assert item["evidence_ids"] == [analysis.evidence.evidence_id]
+        assert item["model"] is None and item["status"] == "acknowledged"
+        assert [event["action"] for event in item["events"]] == ["acknowledge"]
+        for bad in ("", "?asset_id=", "?asset_id=a&asset_id=b", "?asset=a"):
+            assert query("GET", "/api/v1/reviews" + bad)[0] == HTTPStatus.BAD_REQUEST
     finally:
         server.shutdown()
         server.server_close()

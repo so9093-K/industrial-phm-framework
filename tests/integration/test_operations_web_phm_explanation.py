@@ -96,6 +96,19 @@ def test_explanation_and_review_lifecycle_are_readable_without_touching_model_ou
             assert status == 200 and review["status"] == expected
         assert [event["action"] for event in review["events"]] == ["acknowledge", "close"]
 
+        # The maintenance queue finds the model result by where it is stored.
+        status, queue = get("/api/v1/reviews?asset_id=bearing-a")
+        assert status == 200 and queue["reviews"]["total"] == 1
+        (item,) = queue["reviews"]["items"]
+        assert item["finding_id"] == finding and item["subject"] == "model"
+        assert item["model"] == {"binding_id": "anomaly-a", "position": 3}
+        assert item["status"] == "closed"
+        assert [event["note"] for event in item["events"]] == [
+            "acknowledge by operator",
+            "close by operator",
+        ]
+        assert get("/api/v1/reviews?asset_id=other")[1]["reviews"]["items"] == []
+
         status, series = get("/api/v1/phm/series?binding_id=anomaly-a")
         step = next(item for item in series["steps"] if item["position"] == 3)
         assert step["output"] == record["context"]["output"]

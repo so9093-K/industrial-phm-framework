@@ -26,6 +26,8 @@ tests/integration/test_operations_web_next_static.py
 tests/integration/test_operations_web_explore.py
 tests/integration/test_operations_web_phm.py
 tests/integration/test_operations_web_outlook_briefing.py
+tests/integration/test_operations_web_review.py
+tests/integration/test_operations_web_phm_explanation.py
 "
 WEB_NEXT_BROWSER="
 tests/acceptance/test_operations_web_next_browser.py
@@ -42,6 +44,7 @@ tests/acceptance/test_operations_web_next_acquisition_profile_browser.py
 tests/acceptance/test_operations_web_next_acquisition_relation_browser.py
 tests/acceptance/test_operations_web_next_model_evidence_browser.py
 tests/acceptance/test_operations_web_next_outlook_capture_browser.py
+tests/acceptance/test_operations_web_next_finding_review_browser.py
 "
 FORECAST_PYTHON="
 tests/integration/test_operations_web_forecast.py

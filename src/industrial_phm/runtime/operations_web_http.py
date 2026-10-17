@@ -71,7 +71,12 @@ from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
     project_operations_runtime_status,
 )
-from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
+from industrial_phm.runtime.operations_web_review import (
+    REVIEWS_ROUTE,
+    WebReviewConflict,
+    WebReviewNotFound,
+    handle_reviews_read,
+)
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,
     project_web_source_setup,
@@ -412,6 +417,10 @@ def create_operations_web_read_server(
                     OperationsWorkspace(root), parts.query
                 )
                 self._send_json(status, captures)
+                return
+            if parts.path == REVIEWS_ROUTE:
+                status, reviews = handle_reviews_read(OperationsWorkspace(root), parts.query)
+                self._send_json(status, reviews)
                 return
             if parts.path == OUTLOOK_ROUTE:
                 status, outlook = handle_outlook_read(OperationsWorkspace(root), parts.query)

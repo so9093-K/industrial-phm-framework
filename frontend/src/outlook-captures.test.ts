@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  capturePayload,compareReobservation,factsOf,nextReviewStatus,parseCapturePage,parseCurrentOutlook,positionText,
-  reobservationUrl,captureUrl,reviewNote,CaptureNotFound,CaptureRejected,
+  capturePayload,compareReobservation,factsOf,parseCapturePage,parseCurrentOutlook,positionText,
+  reobservationUrl,captureUrl,CaptureNotFound,CaptureRejected,
 } from "./outlook-captures.ts";
 import type {Projection} from "./projections.ts";
 import type {AcquisitionProjection} from "./acquisition-outlook.ts";
@@ -131,21 +131,11 @@ test("paging and exact deep links never substitute another record",()=>{
   assert.throws(()=>parseCapturePage(page(),"motor-a",first.capture_id),CaptureNotFound);
 });
 
-test("human review status is replayed from its append-only events",()=>{
-  assert.equal(nextReviewStatus("open","note"),"open");
-  assert.equal(nextReviewStatus("open","acknowledge"),"acknowledged");
-  assert.equal(nextReviewStatus("acknowledged","close"),"closed");
-  assert.throws(()=>nextReviewStatus("open","close"),/전이/);
-  assert.throws(()=>nextReviewStatus("closed","note"),/완료/);
+test("a captured outlook's review status is replayed from its append-only events",()=>{
   const forged=row("history",undefined,{review:{status:"closed",events:[event("1","acknowledge")]}});
   assert.throws(()=>parseCapturePage(page(forged),"motor-a"),/일치하지/);
   const repeated=row("history",undefined,{review:{status:"open",events:[event("1","note","a"),event("1","note","b")]}});
   assert.throws(()=>parseCapturePage(page(repeated),"motor-a"),/식별자/);
-  assert.equal(reviewNote("note","  확인함 \n"),"확인함");
-  assert.equal(reviewNote("acknowledge","무시되는 입력"),"");
-  assert.throws(()=>reviewNote("note","   "),/메모를 입력/);
-  assert.throws(()=>reviewNote("note","가".repeat(1001)),/1000자/);
-  assert.throws(()=>reviewNote("note","bell\u0007"),/제어 문자/);
 });
 
 test("reobservation compares only the same subject and assumptions",()=>{

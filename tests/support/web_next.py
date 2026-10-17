@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from threading import Thread
 from typing import Any
+
+from industrial_phm.runtime.operations_web_actions import execute_web_source_action
+from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
 
 def expect_place(pw: Any, page: Any, tab: str, method: str | None = None) -> None:
@@ -21,3 +27,62 @@ def expect_place(pw: Any, page: Any, tab: str, method: str | None = None) -> Non
 def choose_asset(page: Any, asset_id: str) -> None:
     """Switch to another asset from the asset screen header."""
     page.get_by_label("다른 설비").select_option(asset_id)
+
+
+class InProcessSupervisor:
+    """Executes authorized actions the way the supervisor broker does, without IPC."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+
+    def execute(
+        self, route: str, payload: dict[str, object], *, request_id: str | None = None
+    ) -> dict[str, object]:
+        return execute_web_source_action(self.root, route, payload)
+
+
+def start_web(root: Path, *, writer: bool) -> tuple[Any, Thread]:
+    """A Web server over the real workspace; a writer one forwards writes in process."""
+    client = InProcessSupervisor(root) if writer else None
+    server = create_operations_web_read_server(root, command_client=client)  # type: ignore[arg-type]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
+def stop_web(server: Any, thread: Thread) -> None:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=10)
+
+
+def asset_list(*asset_ids: str) -> str:
+    """A monitor body naming only the assets; every other read reaches the real server."""
+    return json.dumps(
+        {
+            "assessed_at": "2026-10-16T00:00:00Z",
+            "assets": {
+                "items": [
+                    {
+                        "asset_id": asset_id,
+                        "data_flow_status": "stored-history",
+                        "last_data_at": None,
+                        "attention_count": 0,
+                    }
+                    for asset_id in asset_ids
+                ],
+                "total": len(asset_ids),
+                "truncated": False,
+            },
+            "system_error_scopes": [],
+        }
+    )
+
+
+def same_origin(route: Any) -> dict[str, str]:
+    """Headers to forward an intercepted write to the real server so it commits.
+
+    Interception happens before Chromium adds Sec-Fetch-Site; the page's own
+    same-origin request carries it, and the server requires it for writes.
+    """
+    return {**route.request.all_headers(), "sec-fetch-site": "same-origin"}

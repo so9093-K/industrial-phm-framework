@@ -14,6 +14,7 @@ from industrial_phm.runtime import OperationsWorkspace, initialize_operations_wo
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from tests.support.phm import analyze, deliver, phm_workspace
+from tests.support.web_next import same_origin
 
 FEATURE = "feature.Horizontal_vibration_signals.rms"
 SELECTION_KEYS = {
@@ -189,7 +190,8 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 def lost_response(route: Any) -> None:
                     submitted.append(route.request.post_data_json["event_id"])
                     if len(submitted) == 1:
-                        route.fetch()
+                        committed = route.fetch(headers=same_origin(route))
+                        assert committed.status == 200
                         route.fulfill(
                             status=503,
                             content_type="application/json",
@@ -495,7 +497,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 # One asset's request list failed; that is reported, never shown as empty.
                 pw.expect(page.get_by_role("region", name="검토함")).to_contain_text(
-                    "검토 요청을 불러오지 못했습니다", timeout=15000
+                    "검토 항목을 불러오지 못했습니다", timeout=15000
                 )
                 pw.expect(detail).to_contain_text("마지막 기록 후 약 2.0시간 닿음")
 

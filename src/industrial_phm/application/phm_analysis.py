@@ -563,6 +563,25 @@ class SqlitePhmAnalysisStore:
             connection.close()
         return None if row is None else _result(row)
 
+    def run_positions(self, run_ids: Sequence[str]) -> dict[str, tuple[str, int]]:
+        """Where each stored model run is: its binding and step position."""
+        found: dict[str, tuple[str, int]] = {}
+        unique = list(dict.fromkeys(run_ids))
+        connection = self._connect()
+        try:
+            # Stay well under SQLite's bound-parameter limit.
+            for start in range(0, len(unique), 500):
+                chunk = unique[start : start + 500]
+                rows = connection.execute(
+                    "SELECT analysis_run_id, binding_id, position FROM step_result "
+                    "WHERE analysis_run_id IN (" + ",".join("?" * len(chunk)) + ")",
+                    chunk,
+                ).fetchall()
+                found.update({row[0]: (row[1], row[2]) for row in rows})
+        finally:
+            connection.close()
+        return found
+
     def latest_result(
         self,
         binding_id: str,
@@ -680,6 +699,7 @@ class SqlitePhmAnalysisStore:
                 PRIMARY KEY(binding_id, step_key)
             );
             CREATE INDEX IF NOT EXISTS step_result_position ON step_result(binding_id, position);
+            CREATE INDEX IF NOT EXISTS step_result_run ON step_result(analysis_run_id);
             CREATE TABLE IF NOT EXISTS review_interval(
                 binding_id TEXT NOT NULL,
                 interval_id TEXT NOT NULL,
