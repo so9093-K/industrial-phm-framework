@@ -165,7 +165,7 @@ def test_model_run_evidence_refuses_changed_input_identity(tmp_path: Path, width
                 expect_place(pw, page, "이상 징후", "모델 점수")
                 # The stored output is summarized as score and comparison, not recomputed.
                 scores = page.get_by_role("group", name="측정 순서 #3 모델 결과")
-                pw.expect(scores).to_contain_text("0.500")
+                pw.expect(scores).to_contain_text("0.5")
                 pw.expect(scores).to_contain_text("기준 이하")
                 pw.expect(scores).to_contain_text("기록 없음")  # no stored threshold
                 # Identities stay exact but live under the technical details.

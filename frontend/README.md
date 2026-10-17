@@ -48,6 +48,8 @@ not install Node dependencies.
 - `src/components/AssetSummary.svelte`: the asset's first screen: record facts and next actions.
 - `src/components/CautionNote.svelte`: the single interpretation caution under a result.
 - `src/format.ts`: display-only number text (6 significant digits); stored values are never rounded.
+- `src/reach.ts`: one wording for a server-computed limit reach; acquisition counts are never turned into durations.
+- `model-evidence.ts` `scoreSummary()`/`loadLatestScores()`: stored score, threshold and exceedance only; the asset summary's anomaly section.
 - `relation.ts` `strength()`: words for a server-computed correlation shown next to the coefficient.
 - `src/components/PageHeading.svelte`: page title, context and optional reload action.
 - `src/components/StatusNotice.svelte`: information, uncertainty and
@@ -64,10 +66,10 @@ not install Node dependencies.
   No made-up acquisition timestamps, diagnosis or implicit capture.
 - `src/acquisition-outlook.ts`: strict paired acquisition DTO and count horizon
   validation. Read-only GET /forecast/options, /forecast and /outlook.
-- `src/components/OutlookBriefings.svelte`: existing supervisor's persisted
-  AI explanations, exact server-selected settings, `data_version` and recalculated
-  `measurement_version` verification, CSRF-protected explicit question.
-  A changed version clears the joined projection and all stale answers.
+- `src/components/OutlookBriefings.svelte`: the result's AI explanation, placed right after the
+  limit tiles. Shows the latest checked answer with its cited facts, or a single ‘해설 만들기’
+  request; custom questions are folded. `data_version`, settings and recalculated
+  `measurement_version` are verified before and after reading; a change clears the joined result.
 - `src/outlook-briefings.ts`: strict server echo, answer/evidence citation and
   read/write capability boundaries without client-side calculations.
 - `src/components/ProjectionExplorer.svelte`: read-only paired history

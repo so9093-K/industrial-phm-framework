@@ -184,3 +184,23 @@ export async function loadModelRun(binding:ModelBinding,step:StepPointer,signal:
   const query=new URLSearchParams({binding_id:binding.bindingId,position:String(step.position)});
   return parseModelRun(await get("/api/v1/phm/result?"+query,signal),binding,step);
 }
+
+/** What the stored output says about the score; nothing is recomputed or inferred. */
+export type ScoreSummary={score:number|null;threshold:number|null;exceeds:boolean|null};
+export function scoreSummary(output:Record<string,unknown>):ScoreSummary{
+  const finite=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)?v:null;
+  return {score:finite(output.score),threshold:finite(output.threshold),
+    exceeds:typeof output.exceeds_threshold==="boolean"?output.exceeds_threshold:null};
+}
+
+export type LatestScore={binding:ModelBinding;run:ModelRun|null};
+/** The latest analyzed step of each model bound to the asset (at most three models). */
+export async function loadLatestScores(assetId:string,signal:AbortSignal):Promise<LatestScore[]>{
+  const bindings=(await loadModelBindings(assetId,signal)).slice(0,3);
+  return Promise.all(bindings.map(async(binding):Promise<LatestScore>=>{
+    const trace=await loadModelTrace(binding,signal);
+    const step=trace.steps.find(item=>item.position===binding.lastAnalyzed&&item.state==="analyzed")
+      ??trace.steps.find(item=>item.state==="analyzed");
+    return {binding,run:step?await loadModelRun(binding,step,signal):null};
+  }));
+}

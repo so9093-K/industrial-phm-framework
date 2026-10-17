@@ -1,6 +1,9 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import CautionNote from "./CautionNote.svelte";
+  import {reachText} from "../reach";
+  import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import {
@@ -95,62 +98,53 @@
     }
   }
   function timeBasis(record:AcquisitionProjection):string{
-    if(record.timeBasis==="recorded")return "수집 메타데이터에 기록된 획득 간격";
-    if(record.timeBasis==="assumed")return "사용자가 가정한 획득 간격";
-    return "획득 순번만 확인 가능 (시간 간격 미기록)";
-  }
-  function reachState(state:string,offset:number|null):string{
-    if(state==="already")return "마지막 획득 시 기준에 도달";
-    if(state==="expected")return offset===null?"도달 횟수 미산출":`추가 ${offset}회 획득 시 도달 예상`;
-    if(state==="possible")return "예측 범위에서만 도달 가능 (중심값 도달 아님)";
-    return "설정된 계산 범위 내 예상 도달 없음";
+    if(record.timeBasis==="recorded")return "기록된 측정 간격 "+num(record.effectivePeriod)+"초";
+    if(record.timeBasis==="assumed")return "가정한 측정 간격 "+num(record.effectivePeriod)+"초 (실제 측정 간격 아님)";
+    return "측정 간격 정보 없음 — 측정 횟수로만 계산";
   }
   const formatOffset=(n:number)=>Number.isInteger(n)?String(n):n.toFixed(2);
+  const scenarioLabel=(id:string)=>({current:"기본 설정",recent:"최근 구간 중심",responsive:"변화에 민감",linear:"최근 속도 유지"} as Record<string,string>)[id]??id;
   onMount(()=>{void loadOptions();return()=>{listAbort?.abort();resultAbort?.abort();};});
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
-  <h2 id="acq-outlook-title">획득 특징의 조건부 전망</h2>
-  <p class="context">저장된 파형의 <strong>획득 순번(ordinal)</strong>을 기준으로 특징값의
-    미래 범위와 사용자가 설정한 기준까지의 여유를 계산합니다. 획득 순번·간격·실제 측정 시각은
-    서로 다릅니다. 가정한 간격은 수집된 시각이나 실제 사용 수명을 의미하지 않습니다.</p>
+  <h2 id="acq-outlook-title">기준 도달 전망</h2>
+  <p class="context">진동 측정이 이어질 때 특징값이 사용자가 정한 기준에 몇 번째 측정에서 닿는지 계산합니다.</p>
   {#if listState==="loading"}
-    <StatusNotice message="저장된 획득 특징과 기록된 시간 간격을 조회하고 있습니다."/>
+    <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
-    <StatusNotice kind="failure" title="획득 전망 목록 조회 실패" message={message}
-      actionLabel="다시 조회" onAction={()=>void loadOptions()}/>
+    <StatusNotice kind="failure" title="전망할 진동 특징을 불러오지 못했습니다" message={message}
+      actionLabel="다시 불러오기" onAction={()=>void loadOptions()}/>
   {:else if listState==="empty"||listState==="unavailable"}
-    <StatusNotice kind="uncertain" title="획득 특징 전망의 입력 근거 부족"
-      message="유효한 모델 분석 획득 특징이 최소 20개 필요합니다. 데이터가 없거나 계산할 수 없는 상태는 설비 정상 판정이 아닙니다."
-      actionLabel="획득 특징 분석 확인" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
+    <StatusNotice kind="uncertain" title="전망에 필요한 진동 측정이 부족합니다"
+      message="분석된 진동 측정이 20회 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
+      actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <p class="context">원본 <strong>{options.sourceId}</strong> · binding <strong>{options.bindingId}</strong>
-      · 획득 #{options.first}~#{options.last} · 저장 분석 {options.count}회</p>
-    <p class="context">수집 메타데이터의 간격:
-      {options.recordedPeriod===null?"기록 없음":options.recordedPeriod+"초 / 획득"}
-      (획득의 실제 UTC 시각을 나타내지 않음)</p>
+    <p class="context">데이터 출처 <strong>{options.sourceId}</strong> · 적용 모델 {options.bindingId}
+      · 측정 #{options.first}~#{options.last} · 분석 {options.count}회
+      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+num(options.recordedPeriod)+"초"}</p>
     <div class="inputs">
-      <label>저장 획득 특징
+      <label>진동 특징
         <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();}}>
           {#each options.features as item (item.id)}
             <option value={item.id} disabled={!item.countForecast}>
-              {item.label} · {item.id} · 유효 {item.validPoints}회{item.countForecast?"":" (부족)"}
+              {item.label} · {item.id} · {item.validPoints}회{item.countForecast?"":" (부족)"}
             </option>
           {/each}
         </select>
       </label>
-      <label>미래 추가 획득 횟수 (1~2000)
+      <label>앞으로 볼 측정 횟수 (1~2000)
         <input type="number" min="1" max="2000" step="1" value={countText}
           oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
       </label>
-      <label>가정한 획득 간격 (선택 · 초/회, 1~86400)
+      <label>측정 간격 가정 (선택 · 초, 1~86400)
         <input type="number" min="1" max="86400" step="any" value={assumedText}
-          placeholder={options.recordedPeriod===null?"없으면 획득 횟수만 계산":"비우면 기록된 간격 사용"}
+          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
           oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
       </label>
-      <label>기준 도달 방향
+      <label>기준 방향
         <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">상한 이상</option><option value="lower">하한 이하</option>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
         </select>
       </label>
       <label>관리 기준 (선택)
@@ -163,86 +157,94 @@
       </label>
     </div>
     <button type="button" class="ui-button ui-button-primary"
-      onclick={()=>void calculate()} disabled={available.length===0}>같은 획득 근거로 전망 계산</button>
-    <p class="context">서버 계산은 요청 시 실행하며 저장하지 않습니다. 선택한 특징·횟수·간격·조건을
-      바꾸면 이전 결과를 즉시 폐기합니다. AI 요청은 명시적으로 저장하며 사람 검토 기록은 이 화면에서 작성하지 않습니다.</p>
+      onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
+    <p class="context">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
     {#if resultState==="loading"}
-      <StatusNotice message="동일 출처·binding·측정 버전의 획득 전망 두 계산을 검증 중입니다."/>
+      <StatusNotice message="전망을 계산하고 있습니다."/>
     {:else if resultState==="failed"}
-      <StatusNotice kind="failure" title="획득 전망 근거 확인 실패" message={message}
-        actionLabel="같은 조건 재계산" onAction={()=>void calculate()}/>
+      <StatusNotice kind="failure" title="전망을 계산하지 못했습니다" message={message}
+        actionLabel="다시 계산하기" onAction={()=>void calculate()}/>
     {:else if resultState==="mismatch"}
-      <StatusNotice kind="uncertain" title="획득 전망 근거 불일치" message={message}
-        actionLabel="원본 목록 다시 조회" onAction={()=>void loadOptions()}/>
+      <StatusNotice kind="uncertain" title="데이터가 바뀌어 결과를 다시 계산해야 합니다" message={message}
+        actionLabel="진동 특징 목록 다시 불러오기" onAction={()=>void loadOptions()}/>
     {:else if resultState==="unavailable"}
-      <StatusNotice kind="uncertain" title="이 획득 조건에서는 예측 지원 불가" message={message}/>
+      <StatusNotice kind="uncertain" title="이 조건으로는 전망할 수 없습니다" message={message}/>
     {:else if outlook}
-      <section class="result">
-        <h3>서버에 검증된 획득 전망 근거</h3>
-        <p class="context">{timeBasis(outlook)} · 계산 축: 획득 회차
-          · 예측 추가 {outlook.horizonCount}회 · 유효 입력 {outlook.record.points}회</p>
-        <p class="context">입력 획득 #{outlook.record.first}~#{outlook.record.last}
-          · 출처 {outlook.sourceId} · binding {outlook.bindingId}</p>
-        <p class="context">시간 간격 표기는 {outlook.timeBasis==="assumed"?"사용자가 가정한 ":
-          outlook.timeBasis==="recorded"?"저장 출처 메타데이터에서 읽은 ":"산출용 내부 "} 
-          {outlook.effectivePeriod}초/회이며 실제 이벤트 시각을 복원한 값이 아닙니다.</p>
+      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
+      {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
+      {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
+      <section class="result" aria-labelledby="acq-result-title">
+        <div class="result-head">
+          <h3 id="acq-result-title">결과</h3>
+          <span class="context">측정 #{outlook.record.last}까지의 데이터로 계산 · {timeBasis(outlook)}</span>
+        </div>
+        {#if limited}
+          <div class="tiles">
+            {#if outlook.conditions.management!==null}
+              <div><span>관리 기준 {num(outlook.conditions.management)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong></div>
+            {/if}
+            {#if outlook.conditions.end!==null}
+              <div><span>종료 기준 {num(outlook.conditions.end)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong></div>
+            {/if}
+          </div>
+        {:else}
+          <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
+        {/if}
+        {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
+          <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
+            resultAbort?.abort();
+            outlook=null;
+            resultState="mismatch";
+            message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
+          }}/>
+        {/key}
+        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 측정 순서는 실제 날짜가 아니며, 기준 도달은 고장 시점이나 남은 수명이 아닙니다."/>
         <details>
-          <summary>정확한 측정 버전·AI 설명 근거 버전</summary>
-          <dl>
-            <dt>공통 획득 측정 버전</dt><dd>{outlook.measurementVersion}</dd>
-            <dt>이상 탐지 포함 설명 근거 버전</dt><dd>{outlook.dataVersion}</dd>
-          </dl>
-        </details>
-        <p class="context">특징값 예측 범위: 추가 {outlook.horizonCount}회.
-          조건부 기준 도달 탐색 범위: 마지막 관측 #{outlook.record.last} 이후
-          추가 {outlook.searchCount}회 (최대 #{outlook.searchUntil})입니다.
-          두 계산의 탐색 범위는 서로 다를 수 있습니다.</p>
-        <h3>추가 획득 회차별 예상 특징값</h3>
-        <p class="context">서버 Prophet 추세 계산값입니다. 예측 범위는 고장 신뢰구간이 아닙니다.</p>
-        <div class="scroll"><table>
-          <caption>예측 회차는 실제 날짜·시각이 아닌 상대적인 획득 순번입니다</caption>
-          <thead><tr><th scope="col">획득 #</th><th scope="col">특징 예상</th>
-            <th scope="col">계산 하한</th><th scope="col">계산 상한</th></tr></thead>
-          <tbody>
-            {#each outlook.forecast.slice(0,12) as item,i (i)}
-              <tr><td>#{formatOffset(item.ordinal)}</td><td>{item.estimate}</td>
-                <td>{item.lower??"미산출"}</td><td>{item.upper??"미산출"}</td></tr>
-            {/each}
-          </tbody>
-        </table></div>
-        {#if outlook.conditions.management!==null||outlook.conditions.end!==null}
-          <h3>사용자가 지정한 기준 도달 · 추가 획득 횟수</h3>
+          <summary>앞으로 {outlook.horizonCount}회 측정의 예측값</summary>
           <div class="scroll"><table>
-            <caption>추가 획득 횟수는 예측값이며 기계 잔여수명·교체 시점이 아닙니다</caption>
-            <thead><tr><th scope="col">시나리오</th>
-              {#if outlook.conditions.management!==null}<th scope="col">관리 기준</th>{/if}
-              {#if outlook.conditions.end!==null}<th scope="col">종료 기준</th>{/if}
-            </tr></thead>
+            <caption>측정 순서별 특징 예측값 (최대 12개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
+            <thead><tr><th scope="col">측정 #</th><th scope="col">예측값</th>
+              <th scope="col">범위 하한</th><th scope="col">범위 상한</th></tr></thead>
             <tbody>
-              {#each outlook.scenarios as row (row.id)}
-                <tr><th scope="row">{row.id}</th>
-                  {#if outlook.conditions.management!==null}
-                    <td>{row.management?reachState(row.management.state,row.management.expected):"미산출"}</td>
-                  {/if}
-                  {#if outlook.conditions.end!==null}
-                    <td>{row.end?reachState(row.end.state,row.end.expected):"미산출"}</td>
-                  {/if}
-                </tr>
+              {#each outlook.forecast.slice(0,12) as item,i (i)}
+                <tr><td>#{formatOffset(item.ordinal)}</td><td>{num(item.estimate)}</td>
+                  <td>{num(item.lower)}</td><td>{num(item.upper)}</td></tr>
               {/each}
             </tbody>
           </table></div>
-        {:else}
-          <StatusNotice message="관리·종료 기준을 선택하면 해당 기준까지의 획득 횟수 전망을 함께 계산합니다."/>
+        </details>
+        {#if limited}
+          <details>
+            <summary>계산 방식별 결과 {outlook.scenarios.length}가지</summary>
+            <div class="scroll"><table>
+              <caption>계산 방식 사이의 차이는 신뢰 구간이 아닙니다 · 기준 도달은 측정 #{outlook.searchUntil}까지 찾음</caption>
+              <thead><tr><th scope="col">계산 방식</th>
+                {#if outlook.conditions.management!==null}<th scope="col">관리 기준</th>{/if}
+                {#if outlook.conditions.end!==null}<th scope="col">종료 기준</th>{/if}
+              </tr></thead>
+              <tbody>
+                {#each outlook.scenarios as row (row.id)}
+                  <tr><th scope="row">{scenarioLabel(row.id)}</th>
+                    {#if outlook.conditions.management!==null}<td>{reachText(row.management,"acquisition")}</td>{/if}
+                    {#if outlook.conditions.end!==null}<td>{reachText(row.end,"acquisition")}</td>{/if}
+                  </tr>
+                {/each}
+              </tbody>
+            </table></div>
+          </details>
         {/if}
+        <details>
+          <summary>기술 상세</summary>
+          <dl>
+            <dt>데이터 출처 · 적용 모델</dt><dd>{outlook.sourceId} · {outlook.bindingId}</dd>
+            <dt>사용한 측정</dt><dd>#{outlook.record.first}~#{outlook.record.last} · {outlook.record.points}회</dd>
+            <dt>측정 간격 근거 (time_basis)</dt><dd>{outlook.timeBasis} · {num(outlook.effectivePeriod)}초</dd>
+            <dt>예측·기준 탐색 범위</dt><dd>예측 {outlook.horizonCount}회 · 기준 탐색 {outlook.searchCount}회 (최대 #{outlook.searchUntil})</dd>
+            <dt>계산 데이터 버전 (measurement_version)</dt><dd>{outlook.measurementVersion}</dd>
+            <dt>해설 근거 버전 (data_version)</dt><dd>{outlook.dataVersion}</dd>
+          </dl>
+        </details>
       </section>
-      {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
-        <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
-          resultAbort?.abort();
-          outlook=null;
-          resultState="mismatch";
-          message="AI 근거 재검증 중 출처·binding·버전·간격이 변경됐습니다. 획득 원본을 다시 조회하세요.";
-        }}/>
-      {/key}
     {/if}
   {/if}
 </section>
@@ -253,6 +255,13 @@
   select,input{width:100%;min-width:0;padding:var(--space-3);border:1px solid var(--color-border);
     border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink)}
   .result{border-top:1px solid var(--color-border);margin-top:var(--space-6);padding-top:var(--space-4)}
+  .result-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2);align-items:baseline}
+  .result-head h3{margin:0}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-top:var(--space-4)}
+  .tiles div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
+  .tiles span{color:var(--color-ink-muted);font-size:var(--font-small)}.tiles strong{font-size:var(--font-section)}
+  summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-3)}
+  dl{overflow-wrap:anywhere}dt{font-weight:700}dd{margin:var(--space-1) 0 var(--space-3)}
   .scroll{max-width:100%;overflow-x:auto}
   table{border-collapse:collapse;width:100%}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}dd{overflow-wrap:anywhere}

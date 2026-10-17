@@ -25,9 +25,9 @@ function value(raw:unknown,label:string,max=600):string{
   return raw;
 }
 function time(raw:unknown):string{
-  const text=value(raw,"AI 브리핑 시각",64);
+  const text=value(raw,"해설 시각",64);
   if(!/(?:Z|[+-]\d{2}:\d{2})$/.test(text)||!Number.isFinite(Date.parse(text)))
-    throw new Error("AI 브리핑 시각이 올바르지 않습니다.");
+    throw new Error("해설 시각이 올바르지 않습니다.");
   return text;
 }
 
@@ -37,7 +37,7 @@ export function briefingSelection(projection:BriefingProjection):string{
     ||!projection.outlookSettings||!projection.assetId
     ||!(isAcquisition(projection)?projection.featureId:projection.channel)
     ||!["upper","lower"].includes(projection.conditions.direction))
-    throw new Error("AI 설명용 근거 버전 또는 전망 선택이 유효하지 않습니다.");
+    throw new Error("해설을 만들 결과의 조건을 확인할 수 없습니다.");
   const entries:Record<string,string>={
     asset_id:projection.assetId,
     kind:isAcquisition(projection)?"acquisition":"history",
@@ -109,19 +109,19 @@ export function verifyOutlookVersion(raw:unknown,projection:BriefingProjection):
     ||conditions.management!==projection.conditions.management
     ||conditions.end!==projection.conditions.end)
     throw new BriefingEvidenceChanged(
-      "측정·분석 근거 버전 또는 계산 조건이 바뀌어 이전 전망과 AI 브리핑을 무효화했습니다."
+      "계산 후 데이터나 계산 조건이 바뀌어 이전 결과와 해설을 숨겼습니다. 다시 계산하세요."
     );
 }
 
 function parseAnswer(raw:unknown):BriefingAnswer{
   const result=object(raw),facts=object(result?.evidence),points=result?.points;
   if(!result||!facts||!Array.isArray(points)||points.length>4)
-    throw new Error("AI 브리핑의 계산 근거가 올바르지 않습니다.");
+    throw new Error("해설에 쓴 계산 사실의 형식이 올바르지 않습니다.");
   const evidence:Record<string,BriefingFact>={};
   for(const [key,rawFact] of Object.entries(facts)){
     const fact=object(rawFact);
     if(!fact||Object.keys(evidence).length>=32)
-      throw new Error("AI 브리핑에서 사용한 사실을 확인할 수 없습니다.");
+      throw new Error("해설에 쓴 계산 사실을 확인할 수 없습니다.");
     evidence[key]={
       label:value(fact.label,"근거 이름",200),
       text:value(fact.text,"근거 설명",1800),
@@ -131,19 +131,19 @@ function parseAnswer(raw:unknown):BriefingAnswer{
     const part=object(p);
     if(!part||!Array.isArray(part.evidence)||part.evidence.length>3
       ||part.evidence.length===0)
-      throw new Error("AI 설명과 계산 사실의 연결이 올바르지 않습니다.");
+      throw new Error("해설 문장과 계산 사실의 연결이 올바르지 않습니다.");
     const referenced=part.evidence.map((k:unknown)=>{
       const key=value(k,"근거 식별자",128);
       if(!Object.hasOwn(evidence,key))
-        throw new Error("AI 설명이 존재하지 않는 계산 근거를 참조했습니다.");
+        throw new Error("해설이 없는 계산 사실을 근거로 들어 숨겼습니다.");
       return key;
     });
-    return {text:value(part.text,"AI 설명",280),evidence:referenced};
+    return {text:value(part.text,"해설 문장",280),evidence:referenced};
   });
   const checks=object(result.checks);
   const source=checks?.source;
   if(source!==undefined&&source!=="model"&&source!=="model-trimmed"&&source!=="computed")
-    throw new Error("AI 설명의 생성 출처를 확인할 수 없습니다.");
+    throw new Error("해설을 만든 방식을 확인할 수 없습니다.");
   return {summary:value(result.summary,"AI 요약",700),
     points:parsed,evidence,source:typeof source==="string"?source:"unknown"};
 }
@@ -151,20 +151,20 @@ export function parseBriefings(raw:unknown,expectedSelection:string):Briefing[]{
   const root=object(raw);
   if(!root||root.schema_version!==1||root.selection!==expectedSelection
     ||!Array.isArray(root.briefings)||root.briefings.length>5)
-    throw new BriefingEvidenceChanged("서버의 AI 설명 선택 문맥이 현재 전망과 일치하지 않습니다.");
+    throw new BriefingEvidenceChanged("해설이 지금 결과와 다른 조건에 대한 것이라 숨겼습니다.");
   const seen=new Set<string>();
   return root.briefings.map((item:unknown):Briefing=>{
     const row=object(item);
     if(!row||!["pending","failed","complete"].includes(String(row.status)))
-      throw new Error("AI 브리핑의 저장 상태가 올바르지 않습니다.");
-    const id=value(row.id,"브리핑 ID",128);
-    if(seen.has(id))throw new Error("중복된 AI 브리핑이 반환됐습니다.");
+      throw new Error("해설의 저장 상태가 올바르지 않습니다.");
+    const id=value(row.id,"해설 ID",128);
+    if(seen.has(id))throw new Error("같은 해설이 두 번 돌아왔습니다.");
     seen.add(id);
     const status=row.status as Briefing["status"];
     if(row.answer!==null&&status!=="complete")
-      throw new Error("완료되지 않은 AI 설명에 답변이 연결됐습니다.");
+      throw new Error("아직 만드는 중인 해설에 답변이 붙어 있습니다.");
     if(status==="complete"&&row.answer===null)
-      throw new Error("완료된 AI 설명의 내용이 없습니다.");
+      throw new Error("완료된 해설에 내용이 없습니다.");
     return {id,status,question:value(row.question,"질문",600),
       requestedAt:time(row.requested_at),
       finishedAt:row.finished_at===null?null:time(row.finished_at),
@@ -176,8 +176,8 @@ async function fetchJson(url:string,signal:AbortSignal,options:RequestInit={}):P
   const response=await fetch(url,{...options,signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     if(response.status===404||response.status===422)
-      throw new BriefingUnavailable("선택한 전망이나 저장 AI 설명을 조회할 수 없습니다.");
-    throw new Error("AI 설명 서버 요청이 실패했습니다. 이전 설명은 최신으로 표시하지 않습니다.");
+      throw new BriefingUnavailable("이 결과나 저장된 해설을 찾을 수 없습니다.");
+    throw new Error("해설을 불러오지 못했습니다. 이전 해설을 최신으로 보여 주지 않습니다.");
   }
   return await response.json() as unknown;
 }
@@ -196,7 +196,7 @@ export async function readBriefings(projection:BriefingProjection,signal:AbortSi
 export async function readPermission(signal:AbortSignal):Promise<boolean>{
   const response=object(await fetchJson("/api/v1/session",signal));
   if(!response||response.schema_version!==1)
-    throw new Error("브리핑 작성 권한을 확인할 수 없습니다.");
+    throw new Error("해설 작성 권한을 확인할 수 없습니다.");
   return response.can_change===true&&response.write_scope==="supervisor-owned-source-control";
 }
 export async function requestBriefing(
@@ -211,7 +211,7 @@ export async function requestBriefing(
     ||session.can_change!==true
     ||session.write_scope!=="supervisor-owned-source-control"
     ||typeof session.csrf_token!=="string"||session.csrf_token.length<16)
-    throw new BriefingUnavailable("현재 읽기 전용 세션에서는 AI 설명을 요청할 수 없습니다.");
+    throw new BriefingUnavailable("보기 전용이라 해설을 만들 수 없습니다.");
   const raw=await fetchJson("/api/v1/outlook/briefings/request",signal,{
     method:"POST",
     headers:{"Content-Type":"application/json","X-CSRF-Token":session.csrf_token},
@@ -219,6 +219,6 @@ export async function requestBriefing(
   });
   const result=object(raw);
   if(!result||result.status!=="pending"||result.selection!==selection)
-    throw new BriefingEvidenceChanged("서버가 승인한 AI 설명 조건이 요청과 다릅니다.");
+    throw new BriefingEvidenceChanged("요청한 조건과 다른 해설 요청이 접수돼 결과를 숨겼습니다.");
   return value(result.briefing_id,"AI 브리핑 요청 식별자",128);
 }

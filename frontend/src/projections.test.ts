@@ -43,7 +43,7 @@ test("changed measurements or source block every joined result",()=>{
 test("changed conditions, asset and meanings fail closed",()=>{
   assert.throws(()=>parsePairedProjection(forecast(),{...outlook(),
     conditions:{direction:"lower",management:12,end:16}},"a","R","1h",conditions),/조건/);
-  assert.throws(()=>parsePairedProjection(forecast(),outlook(),"b","R","1h",conditions),/대상/);
+  assert.throws(()=>parsePairedProjection(forecast(),outlook(),"b","R","1h",conditions),/맞지 않아/);
   assert.throws(()=>parsePairedProjection({...forecast(),meaning:"failure-time"},outlook(),
-    "a","R","1h",conditions),/의미/);
+    "a","R","1h",conditions),/맞지 않아/);
 });
