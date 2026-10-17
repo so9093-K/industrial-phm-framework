@@ -4,6 +4,8 @@
   import CautionNote from "./CautionNote.svelte";
   import ModelConnect from "./ModelConnect.svelte";
   import ModelExplanation from "./ModelExplanation.svelte";
+  import ModelInput from "./ModelInput.svelte";
+  import ScoreTrend from "./ScoreTrend.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
   import {num} from "../format";
   import {readPermission} from "../outlook-briefings";
@@ -36,6 +38,12 @@
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
   const place=(position:number)=>binding?.stepKind==="observation-window"
     ?"시간 구간 #"+position:"측정 순서 #"+position;
+  // The recent list, plus a step chosen from the trend that is older than it.
+  const choices=$derived.by(():StepPointer[]=>{
+    const steps=trace?.steps??[];
+    const chosen=selectedStep;
+    return chosen&&!steps.some(step=>step.position===chosen.position)?[chosen,...steps]:steps;
+  });
   // Earlier analyzed results of the same model, newest first, to compare against.
   const earlier=$derived.by(():number[]=>{
     const current=result;
@@ -98,7 +106,8 @@
     }
   }
   async function chooseStep(step:StepPointer){
-    if(!trace?.steps.some(s=>s.position===step.position&&s.runId===step.runId)||!binding)return;
+    // A step may come from the recent list or from the whole score trend; the read checks it.
+    if(!binding)return;
     resultRequest?.abort();
     const request=new AbortController();resultRequest=request;
     selectedStep=step;selectedPosition=String(step.position);
@@ -175,13 +184,16 @@
       {:else if traceState==="empty"}
         <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
       {:else if trace}
+        {#key binding.bindingId}
+          <ScoreTrend {binding} selected={selectedStep?.position??null} {place} onSelect={step=>void chooseStep(step)}/>
+        {/key}
         <label class="selector">측정 선택 (최근 {trace.limit}회)
           <select value={selectedStep?String(selectedStep.position):""}
             onchange={e=>{
-              const item=trace!.steps.find(s=>String(s.position)===e.currentTarget.value);
+              const item=choices.find(s=>String(s.position)===e.currentTarget.value);
               if(item)void chooseStep(item);
             }}>
-            {#each trace.steps as item(item.runId)}
+            {#each choices as item(item.runId)}
               <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":"분석에서 제외"}</option>
             {/each}
           </select>
@@ -210,6 +222,7 @@
           {/if}
           <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
+          {#key result.runId}<ModelInput {binding} run={result} {place}/>{/key}
           {#if result.state!=="skipped"}
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {writable} {place}

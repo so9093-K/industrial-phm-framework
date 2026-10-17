@@ -134,6 +134,9 @@ not install Node dependencies.
   the isolated synthetic sample; an unknown start or stop is checked again, never resent.
 - `src/components/ModelConnect.svelte`, `src/model-connect.ts`: anomaly detection packages whose
   declared input fits this asset's streams, and connecting one; why nothing fits is said plainly.
+- `src/components/ScoreTrend.svelte`, `src/components/ModelInput.svelte`, `src/model-trend.ts`: a model's
+  stored scores in input order with its threshold and exceedance intervals (skipped steps stay gaps),
+  and the selected measurement's raw waveform envelope or window values.
 - `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
   tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
