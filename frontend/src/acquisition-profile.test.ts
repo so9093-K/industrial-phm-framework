@@ -29,7 +29,7 @@ test("acquisition feature names and server scope are exact",()=>{
   features:[{key:"feature.R.rms",label:"R RMS"}],
  }};
  assert.deepEqual(parseFeatureSource(options,"motor")?.features,source.features);
- assert.throws(()=>parseFeatureSource(options,"other"),/일치하지/);
+ assert.throws(()=>parseFeatureSource(options,"other"),/다른 설비/);
 });
 test("ordinal periods, sampled metrics and provenance are retained",()=>{
  const x=parseFeatureProfile(payload(),"motor",source,"feature.R.rms",spans);
@@ -41,17 +41,17 @@ test("ordinal periods, sampled metrics and provenance are retained",()=>{
 });
 test("mixed asset, binding and range reject the entire comparison",()=>{
  assert.throws(()=>parseFeatureProfile({...payload(),asset_id:"different"},
-  "motor",source,"feature.R.rms",spans),/일치하지/);
+  "motor",source,"feature.R.rms",spans),/맞지 않아/);
  const wrong=payload();wrong.series[0].binding_id="other";
  assert.throws(()=>parseFeatureProfile(wrong,"motor",source,"feature.R.rms",spans),/출처/);
  assert.throws(()=>parseFeatureProfile(payload(),"motor",source,"feature.R.rms",
-  {a:{from:2,to:20},b:spans.b}),/계산 기간/);
+  {a:{from:2,to:20},b:spans.b}),/계산된 범위/);
 });
 test("no median cannot be mistaken for zero, and response counters must be consistent",()=>{
  const none=payload();
  none.series[0].periods.b=period(0,false);
- assert.throws(()=>parseFeatureProfile(none,"motor",source,"feature.R.rms",spans),/중앙값 근거/);
+ assert.throws(()=>parseFeatureProfile(none,"motor",source,"feature.R.rms",spans),/중앙값 없이/);
  const changed=payload();
  changed.series[0].periods.a.analyzed_count=2;
- assert.throws(()=>parseFeatureProfile(changed,"motor",source,"feature.R.rms",spans),/모순/);
+ assert.throws(()=>parseFeatureProfile(changed,"motor",source,"feature.R.rms",spans),/서로 맞지 않습니다/);
 });

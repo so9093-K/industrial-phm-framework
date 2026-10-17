@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import expect_place
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -160,35 +161,41 @@ def test_model_run_evidence_refuses_changed_input_identity(tmp_path: Path, width
                     base + "/web-next/?view=model-evidence&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
-                pw.expect(
-                    page.get_by_role("heading", name="저장 모델 실행과 입력 근거")
-                ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
+                expect_place(pw, page, "이상 징후", "모델 점수")
+                # The stored output is summarized as score and comparison, not recomputed.
+                scores = page.get_by_role("group", name="측정 순서 #3 모델 결과")
+                pw.expect(scores).to_contain_text("0.500")
+                pw.expect(scores).to_contain_text("기준 이하")
+                pw.expect(scores).to_contain_text("기록 없음")  # no stored threshold
+                # Identities stay exact but live under the technical details.
+                pw.expect(page.get_by_text("run-3", exact=True)).to_be_hidden()
+                page.get_by_text("기술 상세").click()
                 pw.expect(page.get_by_text("run-3", exact=True)).to_be_visible()
                 pw.expect(page.get_by_text("a" * 64, exact=True)).to_be_visible()
-                pw.expect(
-                    page.get_by_text("가장 최근 처리 단계와 최근 분석 성공 단계가 다릅니다")
-                ).to_be_visible()
+                pw.expect(page.get_by_text("모델이 분석하지 않았습니다")).to_be_visible()
                 assert "model_binding=model-binding-a" in page.url
                 assert "model_position=3" in page.url
-                page.get_by_label("모델 실행 회차 (최근 64개 범위)").select_option("4")
+                choose = page.get_by_label("측정 선택 (최근 64회)")
+                choose.select_option("4")
                 pw.expect(
-                    page.get_by_role("heading", name="이 단계는 모델 분석에서 제외됐습니다")
+                    page.get_by_role("heading", name="이 측정은 모델 분석에서 제외됐습니다")
                 ).to_be_visible()
-                assert page.get_by_text("원본 모델 출력").count() == 0
-                page.get_by_label("모델 실행 회차 (최근 64개 범위)").select_option("3")
-                pw.expect(page.get_by_text("run-3", exact=True)).to_be_visible()
+                assert page.get_by_text("모델 출력 원본").count() == 0
+                choose.select_option("3")
+                pw.expect(page.get_by_role("group", name="측정 순서 #3 모델 결과")).to_be_visible()
                 overrides["source_id"] = "different-source"
-                page.get_by_label("모델 실행 회차 (최근 64개 범위)").select_option("4")
-                page.get_by_label("모델 실행 회차 (최근 64개 범위)").select_option("3")
+                choose.select_option("4")
+                choose.select_option("3")
                 pw.expect(
-                    page.get_by_role("heading", name="모델 근거 일치 검증 실패")
+                    page.get_by_role("heading", name="모델 결과를 확인하지 못했습니다")
                 ).to_be_visible()
                 assert page.get_by_text("run-3", exact=True).count() == 0
                 overrides["source_id"] = "source-a"
                 overrides["failed"] = True
-                page.get_by_role("button", name="해당 실행 재조회").click()
+                page.get_by_role("button", name="다시 확인").click()
                 pw.expect(
-                    page.get_by_role("heading", name="모델 근거 일치 검증 실패")
+                    page.get_by_role("heading", name="모델 결과를 확인하지 못했습니다")
                 ).to_be_visible()
                 assert page.get_by_text("run-3", exact=True).count() == 0
                 assert page.evaluate(

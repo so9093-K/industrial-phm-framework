@@ -132,11 +132,11 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
-                page.get_by_label("비교할 측정 신호").select_option("voltage")
+                page.get_by_role("combobox", name="신호").select_option("voltage")
                 pw.expect(page.get_by_role("heading", name="voltage · src-A")).to_be_visible()
                 assert "monitor_channel=voltage" in page.url
                 page.reload(wait_until="networkidle")
-                pw.expect(page.get_by_label("비교할 측정 신호")).to_have_value("voltage")
+                pw.expect(page.get_by_role("combobox", name="신호")).to_have_value("voltage")
                 assert not errors, errors
             finally:
                 browser.close()

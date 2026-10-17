@@ -37,5 +37,5 @@ test("mismatched period, missing quantiles and invalid metrics fail closed",()=>
   assert.throws(()=>parseProfile({...response(),periods:{...periods,b:{from:m,to:a}}},"motor","current",periods),/다른 통계/);
   const withoutEvidence=series("src-1","motor-1","A");
   withoutEvidence.periods.b.quantiles=null as unknown as number[];
-  assert.throws(()=>parseProfile(response([withoutEvidence]),"motor","current",periods),/계산 근거/);
+  assert.throws(()=>parseProfile(response([withoutEvidence]),"motor","current",periods),/대표값 없이/);
 });

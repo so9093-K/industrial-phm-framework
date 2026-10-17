@@ -26,10 +26,10 @@ test("identical source/binding and ordinal pairs retain a sampled comparison",()
 test("different binding, asset or pairing must not reuse analysis evidence",()=>{
   const changed=payload();
   changed.groups[1].binding_id="another-binding";
-  assert.throws(()=>parseAcquisitionRelation(changed,"a",source,"rms","peak",spans),/binding/);
-  assert.throws(()=>parseAcquisitionRelation(payload(),"other",source,"rms","peak",spans),/계약/);
+  assert.throws(()=>parseAcquisitionRelation(changed,"a",source,"rms","peak",spans),/적용 모델/);
+  assert.throws(()=>parseAcquisitionRelation(payload(),"other",source,"rms","peak",spans),/맞지 않아/);
   assert.throws(()=>parseAcquisitionRelation({...payload(),pairing:"same-time"},
-    "a",source,"rms","peak",spans),/계약/);
+    "a",source,"rms","peak",spans),/맞지 않아/);
 });
 test("non-ordinal, duplicated and out-of-range pairs are rejected",()=>{
   const changed=payload();

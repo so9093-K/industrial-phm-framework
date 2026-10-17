@@ -145,22 +145,26 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                     wait_until="networkidle",
                 )
                 pw.expect(
-                    page.get_by_role("heading", name="획득 회차의 특징값 A/B 비교")
+                    page.get_by_role("heading", name="진동 특징 두 기간 비교")
                 ).to_be_visible()
                 pw.expect(page.get_by_role("table")).to_have_count(1)
-                pw.expect(page.get_by_role("table")).to_contain_text("중간 누락 회차")
-                pw.expect(page.get_by_role("table")).to_contain_text("샘플링됨")
+                pw.expect(page.get_by_role("table")).to_contain_text("중간에 빠진 측정")
+                pw.expect(page.get_by_role("table")).to_contain_text("일부만 사용")
                 assert "acquisition_feature=feature.R.rms" in page.url
                 assert "feature_b_from=11" in page.url
-                page.get_by_label("비교할 획득 특징").select_option("feature.R.mean")
+                page.get_by_role("combobox", name="진동 특징").select_option("feature.R.mean")
                 pw.expect(
                     page.get_by_role("heading", name="feature.R.mean · feature.R.mean")
                 ).to_be_visible()
                 page.reload(wait_until="networkidle")
-                pw.expect(page.get_by_label("비교할 획득 특징")).to_have_value("feature.R.mean")
+                pw.expect(page.get_by_role("combobox", name="진동 특징")).to_have_value(
+                    "feature.R.mean"
+                )
                 error["enabled"] = True
-                page.get_by_role("button", name="특징값 분포와 분석 누락 비교").click()
-                pw.expect(page.get_by_role("heading", name="획득 특징 비교 실패")).to_be_visible()
+                page.get_by_role("button", name="비교하기").click()
+                pw.expect(
+                    page.get_by_role("heading", name="진동 특징 비교를 불러오지 못했습니다")
+                ).to_be_visible()
                 assert page.get_by_role("table").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

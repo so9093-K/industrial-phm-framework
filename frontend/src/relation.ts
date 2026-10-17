@@ -29,7 +29,7 @@ function string(raw: unknown): string {
 }
 function nonnegative(raw: unknown): number {
   if(typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0)
-    throw new Error("서버 관계 분석의 건수가 올바르지 않습니다.");
+    throw new Error("신호 관계 결과의 건수가 올바르지 않습니다.");
   return raw;
 }
 function coefficient(raw: unknown): number | null {
@@ -54,7 +54,7 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
   if(!data || data.schema_version!==1 || data.asset_id!==asset || data.kind!=="history"
     || data.x!==x || data.y!==y || x===y
     || data.pairing!=="same-source-point-and-timestamp" || !Array.isArray(data.groups))
-    throw new Error("선택한 설비·측정 짝 또는 서버의 짝지음 계약이 일치하지 않습니다.");
+    throw new Error("받은 결과가 고른 설비·신호와 맞지 않아 표시하지 않았습니다.");
   const seen=new Set<string>();
   const groups=data.groups.map((raw: unknown):PairedGroup=>{
     const group=rec(raw);
@@ -73,7 +73,7 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
       return {at:time(entry[0]),x:finite(entry[1]),y:finite(entry[2])};
     });
     const pairCount=nonnegative(group.pair_count);
-    if(pairCount<points.length) throw new Error("서버의 측정 짝 수가 그래프 자료보다 적습니다.");
+    if(pairCount<points.length) throw new Error("측정 짝 수가 그래프 자료보다 적어 결과를 표시하지 않았습니다.");
     return {
       id,period,source,point,meaning,
       xUnit:typeof group.x_unit==="string"?group.x_unit:null,
@@ -100,4 +100,12 @@ export async function readRelation(asset:string,x:string,y:string,periods:Period
   }
   if(!response.ok)throw new Error("신호 관계 조회가 실패했습니다. 비교할 짝이 없다는 뜻이 아닙니다.");
   return parseRelation(await response.json() as unknown,asset,x,y);
+}
+
+/** Words for a correlation the server computed; the coefficient itself stays visible. */
+export function strength(coefficient: number): string {
+  const size = Math.abs(coefficient);
+  if (size < 0.3) return "함께 움직이는 경향이 거의 없음";
+  const direction = coefficient > 0 ? "같은 방향으로" : "반대 방향으로";
+  return direction + (size >= 0.7 ? " 강하게" : " 어느 정도") + " 함께 움직임";
 }

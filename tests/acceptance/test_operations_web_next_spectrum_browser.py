@@ -127,17 +127,19 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                 assert "spectrum_a_from=1" in page.url
                 assert "spectrum_b_from=11" in page.url
                 page.reload(wait_until="networkidle")
-                pw.expect(page.get_by_text("B/A 파워 변화")).to_be_visible()
+                pw.expect(page.get_by_text("B/A 세기 변화")).to_be_visible()
 
                 error["missing"] = True
-                page.get_by_role("button", name="원본 파형 PSD 비교").click()
-                pw.expect(page.get_by_role("heading", name="원본 파형 확인 불가")).to_be_visible()
+                page.get_by_role("button", name="주파수 비교하기").click()
+                pw.expect(
+                    page.get_by_role("heading", name="원본 파형을 확인할 수 없습니다")
+                ).to_be_visible()
                 assert page.locator(".spectra svg polyline").count() == 0
 
                 choose_asset(page, "motor-b")
                 expect_place(pw, page, "변화 분석", "주파수 분석")
                 pw.expect(
-                    page.get_by_role("heading", name="스펙트럼 비교 근거가 없습니다")
+                    page.get_by_role("heading", name="주파수를 비교할 원본 파형이 없습니다")
                 ).to_be_visible()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

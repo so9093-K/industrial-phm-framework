@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseRelation} from "./relation.ts";
+import {parseRelation,strength} from "./relation.ts";
 const good=()=>({
   schema_version:1,asset_id:"motor",kind:"history",x:"current",y:"voltage",
   pairing:"same-source-point-and-timestamp",
@@ -18,9 +18,9 @@ test("only exact asset/channels and same-source-point-timestamp pairing",()=>{
   const p=parseRelation(good(),"motor","current","voltage");
   assert.equal(p.groups.length,2);
   assert.notEqual(p.groups[0].id,p.groups[1].id);
-  assert.throws(()=>parseRelation(good(),"other","current","voltage"),/일치하지/);
-  assert.throws(()=>parseRelation({...good(),pairing:"nearest-time"},"motor","current","voltage"),/일치하지/);
-  assert.throws(()=>parseRelation(good(),"motor","current","current"),/일치하지/);
+  assert.throws(()=>parseRelation(good(),"other","current","voltage"),/맞지 않아/);
+  assert.throws(()=>parseRelation({...good(),pairing:"nearest-time"},"motor","current","voltage"),/맞지 않아/);
+  assert.throws(()=>parseRelation(good(),"motor","current","current"),/맞지 않아/);
 });
 test("missing/unreliable correlation stays unavailable and is not zero",()=>{
   const p=parseRelation(good(),"motor","current","voltage");
@@ -41,4 +41,11 @@ test("reject mixed or invalid pair evidence",()=>{
   const badTime=good();
   badTime.groups[0].points[0][0]="2026-10-01";
   assert.throws(()=>parseRelation(badTime,"motor","current","voltage"),/시각/);
+});
+
+test("a correlation is described in words without hiding its sign or size",()=>{
+  assert.equal(strength(0.91),"같은 방향으로 강하게 함께 움직임");
+  assert.equal(strength(-0.5),"반대 방향으로 어느 정도 함께 움직임");
+  assert.equal(strength(0.1),"함께 움직이는 경향이 거의 없음");
+  assert.equal(strength(-0.7),"반대 방향으로 강하게 함께 움직임");
 });

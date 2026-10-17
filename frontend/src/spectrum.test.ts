@@ -23,7 +23,7 @@ test("Welch arrays must align with frequency bins and correct ranges",()=>{
  assert.equal(data.used.a[1],15);
  assert.equal(data.channels[0].bands[0].changeDb,3.2);
  const wrong=spectrum();wrong.acquisitions.b=[999];
- assert.throws(()=>parseSpectrum(wrong,"motor",acq,spans),/요청하지 않은/);
+ assert.throws(()=>parseSpectrum(wrong,"motor",acq,spans),/고르지 않은/);
 });
 test("unreliable waveform shape does not produce a plausible graph",()=>{
  const wrong=spectrum();wrong.channels[0].b=[0.1,0.2];

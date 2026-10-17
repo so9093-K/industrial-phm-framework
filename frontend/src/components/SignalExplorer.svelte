@@ -110,20 +110,20 @@
 </script>
 
 <section class="explorer ui-panel" aria-labelledby="explorer-title">
-  <h2 id="explorer-title">선택 설비의 저장 신호</h2>
-  <p class="context">대상 설비: <strong>{assetId}</strong> · 저장된 측정만 표시하며 실시간 수신을 뜻하지 않습니다.</p>
+  <h2 id="explorer-title">측정 신호</h2>
+  <p class="context">고른 신호의 저장된 측정값과 원본 품질을 시간 순서로 봅니다.</p>
   {#if channelState === "loading"}
-    <StatusNotice message="저장된 신호 목록을 확인하고 있습니다." />
+    <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
   {:else if channelState === "failed"}
-    <StatusNotice kind="failure" title="신호 목록 조회 실패" message={error}
-      actionLabel="다시 조회" onAction={() => void loadChannels()} />
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error}
+      actionLabel="다시 불러오기" onAction={() => void loadChannels()} />
   {:else if channelState === "empty"}
     <StatusNotice title="저장된 신호가 없습니다"
-      message="이 설비에서 확인된 저장 신호가 없습니다. 등록 여부와 실제 수신·저장 근거를 확인하세요."
-      actionLabel="데이터 연결 확인" actionHref="/web/#connect" />
+      message="이 설비에 저장된 신호가 없습니다. 데이터 연결과 수신 상태를 확인하세요."
+      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
   {:else if channels}
     <div class="controls">
-      <label for="history-channel">측정 신호
+      <label for="history-channel">신호
         <select id="history-channel" value={selectedChannel}
           onchange={(event) => changeChannel(event.currentTarget.value)}>
           {#each channels.ids as id (id)}
@@ -142,60 +142,50 @@
         <select id="history-anchor" value={anchor}
           onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
           <option value="latest">마지막 저장 기록</option>
-          <option value="now">현재 조회 시각</option>
+          <option value="now">지금</option>
         </select>
       </label>
     </div>
-    <p class="context">
-      <a href={assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel)}>
-        이 신호의 기준 구간 이탈 조사 →
-      </a>
-    </p>
-    <p class="context">
-      <a href={assetTabUrl(assetId, "change", "compare", "history", selectedChannel)}>
-        이 신호의 두 기간 비교 →
-      </a>
-    </p>
-    <p class="context">
-      <a href={assetTabUrl(assetId, "outlook", null, "history", selectedChannel)}>
-        이 신호의 조건부 상태 전망 검토 →
-      </a>
-    </p>
+    <nav class="continue" aria-label="이 신호로 이어서 보기">
+      <span>이 신호로 이어서 보기</span>
+      <a href={assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel)}>기준 구간 이탈 →</a>
+      <a href={assetTabUrl(assetId, "change", "compare", "history", selectedChannel)}>두 기간 비교 →</a>
+      <a href={assetTabUrl(assetId, "outlook", null, "history", selectedChannel)}>기준 도달 전망 →</a>
+    </nav>
     {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="서버 제한으로 신호 목록이 일부만 표시됩니다." />
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
     {/if}
     {#if trendState === "loading"}
-      <StatusNotice message="선택한 신호의 원본 이력과 품질을 조회하고 있습니다." />
+      <StatusNotice message="고른 신호의 측정 기록과 품질을 불러오고 있습니다." />
     {:else if trendState === "failed"}
-      <StatusNotice kind="failure" title="저장 이력 조회 실패" message={error}
-        actionLabel="이력 다시 조회" onAction={() => void loadTrend()} />
+      <StatusNotice kind="failure" title="측정 기록을 불러오지 못했습니다" message={error}
+        actionLabel="다시 불러오기" onAction={() => void loadTrend()} />
     {:else if trendState === "empty"}
       <StatusNotice title="이 기간에 표시할 측정이 없습니다"
-        message="선택한 기준과 기간에 저장된 측정이 없습니다. 다른 기간이나 신호를 선택하세요." />
+        message="고른 기간에 저장된 측정이 없습니다. 다른 기간이나 신호를 고르세요." />
     {:else if trend}
       <p class="context">
-        기준: {anchor === "latest" ? "마지막 저장 시각" : "조회 시각"}
-        · {recorded(trend.startAt)} ~ {recorded(trend.endAt)}
-        · 조회 평가: {recorded(trend.assessedAt)}
+        {recorded(trend.startAt)} ~ {recorded(trend.endAt)}
+        · {anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
       <p class="explain">
-        점은 유효한 저장 측정의 시간 버킷 평균입니다. 결측·품질 오류를 보간하지 않으며,
-        서로 다른 소스·측정 지점·측정 의미는 비교 가능한 하나의 선으로 묶지 않습니다.
+        점은 시간 구간별 평균입니다. 빠진 값이나 품질 불량은 잇거나 채우지 않고,
+        데이터 출처·측정 위치가 다르면 따로 그립니다.
       </p>
       {#if groups.length === 0}
-        <StatusNotice kind="uncertain" message="선택 구간에 시간 버킷은 없지만 별도의 최근 저장값이 있을 수 있습니다." />
+        <StatusNotice kind="uncertain" message="고른 기간에 그릴 구간은 없지만 아래에 마지막 저장값이 있을 수 있습니다." />
       {/if}
       {#each groups as group (group.key)}
         {@const points = pointsForChart(group, trend.startAt, trend.endAt)}
-        <section class="series" aria-label={"관측 시계열 " + group.sourceId}>
+        <section class="series" aria-label={"측정 기록 " + group.sourceId}>
           <h3>{selectedChannel} · {group.sourceId}</h3>
           <p class="context">
-            측정 지점 {group.pointId} · 측정 의미 {group.observedProperty ?? "미확인"}
+            데이터 출처 {group.sourceId} · 측정 위치 {group.pointId} · 측정 의미 {group.observedProperty ?? "미확인"}
             · 단위 {group.unit ?? "미확인"}
           </p>
           {#if points.length}
             <svg viewBox="0 0 650 145" role="img"
-              aria-label="연속선 없이 유효한 측정 버킷 평균만 표시한 점 그래프. 표시되지 않은 구간은 공백입니다.">
+              aria-label="시간 구간별 평균을 점으로 표시. 빈 곳은 기록이 없는 구간입니다.">
               <path d="M28 14 V120 H628" class="axis" />
               {#each points as point (point.bucket.bucketStart)}
                 <circle cx={point.x} cy={point.y} r="4" class="dot">
@@ -205,16 +195,16 @@
               {/each}
             </svg>
           {:else}
-            <p class="context">그릴 수 있는 유효한 평균값이 없습니다. 결측을 0으로 바꾸지 않습니다.</p>
+            <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
           {/if}
           <details>
-            <summary>시간별 평균·결측·원본 품질 확인 ({group.buckets.length}개 버킷)</summary>
+            <summary>시간별 평균·결측·원본 품질 확인 ({group.buckets.length}개 구간)</summary>
             {#if group.buckets.length > 120}
-              <p class="context">표에는 최근 120개 버킷만 표시합니다.</p>
+              <p class="context">표에는 최근 120개 구간만 표시합니다.</p>
             {/if}
             <div class="table-scroll">
               <table>
-                <caption>서버 버킷 집계 · 개별 측정값이 아님</caption>
+                <caption>시간 구간별 집계 · 개별 측정값이 아님</caption>
                 <thead><tr><th scope="col">기간 시작 (KST)</th><th scope="col">유효</th>
                   <th scope="col">평균</th><th scope="col">결측</th>
                   <th scope="col">품질 불량</th><th scope="col">충돌</th></tr></thead>
@@ -234,11 +224,12 @@
       {/each}
       {#if trend.latest.length}
         <section class="latest">
-          <h3>마지막 저장값 (실시간 값 아님)</h3>
+          <h3>마지막 저장값</h3>
+          <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (item.sourceId + item.pointId + item.channelId)}
               <li>{item.sourceId} / {item.pointId}
-                · {recorded(item.eventAt)} · {item.usable ? (item.value ?? "값 없음") : "화면 표시 제외"}
+                · {recorded(item.eventAt)} · {item.usable ? (item.value ?? "값 없음") : "품질 문제로 표시 안 함"}
                 · 원본 품질: {item.quality}</li>
             {/each}
           </ul>
@@ -252,6 +243,8 @@
   .explorer { min-width: 0; }
   .context, .explain { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .explain { margin-block: var(--space-5); }
+  .continue { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-block: var(--space-4); align-items: baseline; }
+  .continue span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-3); }
   label { display: grid; gap: var(--space-1); font-weight: 650; font-size: var(--font-small); }
   select {

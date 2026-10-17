@@ -6,6 +6,8 @@
     type Baseline, type Departures,
   } from "../departures";
   import StatusNotice from "./StatusNotice.svelte";
+  import {num} from "../format";
+  import CautionNote from "./CautionNote.svelte";
   import {assetTabUrl} from "../routes";
 
   type Props = { assetId: string };
@@ -116,26 +118,21 @@
 </script>
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
-  <h2 id="departures-title">모델 없이 기준에서 달라진 구간 찾기</h2>
-  <p class="context">설비: <strong>{assetId}</strong> · 기존 저장 기록의 시간 버킷 평균을 비교합니다.</p>
-  <p class="context">
-    이 비교의 '기준 구간'은 사용자가 고른 기록 부분이지, 정상 운전이나 고장 판정 기준이 아닙니다.
-    현재 API는 비교에 사용된 source·measurement point 식별자를 제공하지 않습니다.
-    정확한 원본 출처는 저장 신호 탐색에서 별도로 확인하세요.
-  </p>
+  <h2 id="departures-title">기준 구간 이탈</h2>
+  <p class="context">모델 없이, 고른 신호가 기록 초반(기준 구간)과 비교해 언제 크게 달라졌는지 찾습니다.</p>
 
   {#if channelState === "loading"}
-    <StatusNotice message="저장된 신호 목록을 확인합니다." />
+    <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
   {:else if channelState === "failed"}
-    <StatusNotice kind="failure" title="신호 목록 조회 실패" message={channelError}
-      actionLabel="신호 목록 다시 조회" onAction={() => void loadChannels()} />
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={channelError}
+      actionLabel="다시 불러오기" onAction={() => void loadChannels()} />
   {:else if channelState === "empty"}
     <StatusNotice title="이 설비에 저장된 신호가 없습니다"
-      message="데이터 등록·수신·저장 근거를 먼저 확인하세요."
-      actionLabel="연결 확인" actionHref="/web/#connect" />
+      message="데이터 연결과 수신 상태를 먼저 확인하세요."
+      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
   {:else if channels}
     <div class="controls">
-      <label for="departure-channel">측정 신호
+      <label for="departure-channel">신호
         <select id="departure-channel" value={selectedChannel}
           onchange={(event) => changeChannel(event.currentTarget.value)}>
           {#each channels.ids as id (id)}<option value={id}>{id}</option>{/each}
@@ -150,67 +147,61 @@
         </select>
       </label>
     </div>
-    <p class="context"><a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>선택 신호의 저장값·원본 출처·품질 확인 →</a></p>
     {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="서버 제한으로 일부 신호만 선택할 수 있습니다." />
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
     {/if}
     {#if analysisState === "loading"}
-      <StatusNotice message="선택한 신호의 기준 구간 이탈을 계산한 서버 결과를 확인합니다." />
+      <StatusNotice message="고른 신호의 기준 구간 이탈을 불러오고 있습니다." />
     {:else if analysisState === "failed"}
-      <StatusNotice kind="failure" title="기준 이탈 분석 조회 실패" message={error}
-        actionLabel="같은 조건으로 재조회" onAction={() => void analyze()} />
+      <StatusNotice kind="failure" title="기준 이탈 결과를 불러오지 못했습니다" message={error}
+        actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
     {:else if analysisState === "unavailable"}
-      <StatusNotice kind="uncertain" title="저장된 비교 근거가 없습니다"
-        message="이 결과는 '이상이 없음'을 뜻하지 않습니다. 저장 기록과 신호를 확인하세요."
-        actionLabel="저장 신호 확인"
+      <StatusNotice kind="uncertain" title="비교할 저장 기록이 없습니다"
+        message="이상이 없다는 뜻은 아닙니다. 신호의 저장 기록을 확인하세요."
+        actionLabel="신호 보기"
         actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
-      <p class="context">계산 기준: {date(result.baseline.from)} ~ {date(result.baseline.to)}
-        · 임계값 {result.threshold} · 비교된 버킷 폭 약 {result.bucketSeconds}초</p>
-      <p class="context">선택한 신호: <strong>{result.selectedChannel}</strong>
-        · 단위 {result.unit ?? "미확인"}</p>
-
       {#if result.scored.state === "short-baseline"}
-        <StatusNotice kind="uncertain" title="비교 기록이 부족합니다"
-          message="이 신호는 선택한 기준 구간의 기록이 부족해 이탈 정도를 평가할 수 없습니다. 이상 없음으로 판단하지 않습니다." />
+        <StatusNotice kind="uncertain" title="기준 구간의 기록이 부족합니다"
+          message="이 신호는 고른 기준 구간의 기록이 적어 달라진 정도를 계산할 수 없습니다. 이상이 없다는 뜻은 아닙니다." />
       {:else if result.scored.state === "constant"}
-        <StatusNotice kind="uncertain" title="기준 구간 값의 변화가 없습니다"
-          message="이 신호의 기준 구간 변동 폭이 0이어서 이탈 점수를 계산하지 못했습니다." />
+        <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
+          message="기준 구간의 변동 폭이 0이라 달라진 정도를 계산할 수 없습니다." />
       {:else}
         <p class="summary">기준에서 크게 벗어난 구간 <strong>{result.intervalCount}개</strong></p>
         {#if result.intervalCount === 0}
-          <StatusNotice message="선택한 기록·기준 구간에서 서버 임계값 이상의 차이를 찾지 못했습니다. 정상 설비 또는 고장 확률 0%의 뜻이 아닙니다." />
+          <p class="context">고른 기록과 기준 구간에서는 기준을 넘는 차이를 찾지 못했습니다.</p>
         {:else}
-          <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여줍니다.</p>
           <ol class="intervals">
             {#each result.intervals as interval, i (interval.start + interval.end + i)}
               <li>
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
-                <span>{interval.direction === "up" ? "기준 중앙값보다 높음" : "기준 중앙값보다 낮음"}
-                  · 기준 중앙값 {interval.median} → 관측 버킷 평균 {interval.value}
+                <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
+                  · 기준 중앙값 {num(interval.median)} → 구간 평균 {num(interval.value)}
                   {result.unit ?? "(단위 미확인)"}
-                  · 기준 변동 폭 대비 거리 {interval.distance.toFixed(2)}</span>
+                  · 벗어난 정도 {interval.distance.toFixed(2)}</span>
               </li>
             {/each}
           </ol>
+          <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
         {/if}
-        <p class="context">이탈 거리 = 기준 중앙값과의 차이 ÷ 기준 구간 변동 폭(MAD 기반). 모델 점수, 고장 가능성 또는 설비 안전 등급이 아닙니다.</p>
+        <CautionNote message="기준 구간은 고른 기록의 일부이며 정상 상태로 확인된 구간이 아닙니다. 벗어난 정도는 모델 점수나 고장 가능성이 아닙니다." />
         {#if dots.length}
           <svg viewBox="0 0 650 150" role="img"
-            aria-label="기준에서 벗어난 상대적 정도를 시간순 점으로 표시. 점 사이 빈 구간은 보간하지 않습니다. 정확한 값은 아래 표를 참조하세요.">
+            aria-label="시간 순서대로 기준에서 벗어난 정도. 기록이 없는 구간은 잇지 않습니다. 정확한 값은 아래 표에 있습니다.">
             <path d="M36 18 V121 H626" class="axis" />
             {#each dots as dot (dot.at)}
               <circle cx={dot.x} cy={dot.y} r="3.5" class="dot">
-                <title>{date(dot.at)} · 기준 이탈 거리 {dot.distance.toFixed(2)}</title>
+                <title>{date(dot.at)} · 벗어난 정도 {dot.distance.toFixed(2)}</title>
               </circle>
             {/each}
           </svg>
           <details>
-            <summary>시간별 이탈 점수 표 ({result.score.length}개)</summary>
+            <summary>시간별 벗어난 정도 표 ({result.score.length}개)</summary>
             <div class="table-scroll">
               <table>
-                <caption>모델 점수가 아닌 선택한 기준 구간 대비 상대적인 이탈 정도</caption>
-                <thead><tr><th scope="col">버킷 시각</th><th scope="col">상대 거리</th></tr></thead>
+                <caption>기준 구간 대비 벗어난 정도</caption>
+                <thead><tr><th scope="col">구간 시각</th><th scope="col">벗어난 정도</th></tr></thead>
                 <tbody>
                   {#each result.score as point, i (point.at + i)}
                     <tr><td>{date(point.at)}</td><td>{point.distance.toFixed(2)}</td></tr>
@@ -221,6 +212,15 @@
           </details>
         {/if}
       {/if}
+      <details>
+        <summary>기술 상세</summary>
+        <p class="context">신호 {result.selectedChannel} · 단위 {result.unit ?? "미확인"}
+          · 기준 구간 {date(result.baseline.from)} ~ {date(result.baseline.to)}
+          · 기준값 {result.threshold} · 구간 폭 약 {result.bucketSeconds}초</p>
+        <p class="context">벗어난 정도 = 기준 중앙값과의 차이 ÷ 기준 구간 변동 폭(MAD 기반).
+          이 결과에는 데이터 출처·측정 위치 정보가 들어 있지 않습니다.
+          <a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>신호 탭에서 출처와 품질 확인 →</a></p>
+      </details>
     {/if}
   {/if}
 </section>
@@ -240,7 +240,7 @@
   svg { width: 100%; height: auto; display: block; margin-block: var(--space-4); }
   .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
   .dot { fill: var(--color-action); }
-  summary { color: var(--color-action); font-weight: 650; cursor: pointer; }
+  summary { color: var(--color-action); font-weight: 650; cursor: pointer; padding-block: var(--space-2); }
   .table-scroll { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-top: var(--space-2); font-size: var(--font-small); }
   th, td { padding: var(--space-2); border-bottom: 1px solid var(--color-border); text-align: left; }

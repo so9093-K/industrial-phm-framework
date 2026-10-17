@@ -143,7 +143,7 @@ export function parseProfile(
     const pa = parsePeriod(stats.a), pb = parsePeriod(stats.b);
     const medianChange = optionalNumber(comp.median_change);
     if ((!pa.quantiles || !pb.quantiles) && medianChange !== null)
-      throw new Error("두 구간의 계산 근거 없이 변화값을 표시할 수 없습니다.");
+      throw new Error("두 기간의 대표값 없이 변화값을 표시할 수 없습니다.");
     return {
       key: identity, channel, source, point, interpretation,
       unit: typeof item.unit === "string" ? item.unit : null,
@@ -159,7 +159,7 @@ async function body(url: string, signal: AbortSignal): Promise<unknown> {
   if (response.status === 404) {
     const error: unknown = await response.json().catch(() => null);
     if (rec(error)?.error === "nothing_to_explore") throw new NoHistoryError("비교할 저장 이력이 없습니다.");
-    throw new Error("이력 API 경로를 조회할 수 없습니다.");
+    throw new Error("결과를 찾을 위치를 확인하지 못했습니다.");
   }
   if (!response.ok) throw new Error("이력 통계를 조회하지 못했습니다. 데이터 없음과는 다른 상태입니다.");
   return await response.json() as unknown;
