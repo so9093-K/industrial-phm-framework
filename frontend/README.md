@@ -111,6 +111,10 @@ not install Node dependencies.
   exact evidence (or the stored model result's binding/position) and its history.
 - `src/components/ReviewActions.svelte`: the shared append-only note/acknowledge/close for every
   review subject (a retried uncertain action reuses its event ID; a 409 re-reads; close asks once more).
+- `src/components/ModelExplanation.svelte`, `src/components/ModelReviewRequest.svelte`: the selected
+  model result's AI explanation against an earlier analyzed measurement (only answers of the same run,
+  shown with the comparison the server stored and checked) and its review request.
+  `src/model-explanations.ts`: their DTOs and writes.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
   `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation
