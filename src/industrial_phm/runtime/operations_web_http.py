@@ -705,6 +705,12 @@ def create_operations_web_read_server(
             # Do not log request URLs containing asset/source identifiers.
             return
 
-    server = ThreadingHTTPServer(("127.0.0.1", port), ReadHandler)
-    server.daemon_threads = True
-    return server
+    return _LocalWebServer(("127.0.0.1", port), ReadHandler)
+
+
+class _LocalWebServer(ThreadingHTTPServer):
+    # A browser loads a page's modules over many connections at once. macOS resets
+    # connections beyond the listen backlog instead of retrying them (#614), which
+    # left a page without some of its scripts; the default backlog is only 5.
+    request_queue_size = 128
+    daemon_threads = True
