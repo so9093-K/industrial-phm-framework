@@ -172,6 +172,11 @@ def main() -> None:
                     BASE + "/api/v1/history/channels?asset_id=container-pump"
                 ).json()
                 assert channels["channels"]["items"] == ["current_a", "voltage_v"], channels
+                trend = page.request.get(
+                    BASE + "/api/v1/history/trend?asset_id=container-pump"
+                    "&channel_id=current_a&range=1h&anchor=latest"
+                ).json()
+                assert sum(bucket["usable_count"] for bucket in trend["buckets"]) == 40, trend
                 assert not errors, errors
                 stop_cleanly()
             finally:
