@@ -52,6 +52,7 @@ tests/acceptance/test_operations_web_next_connections_browser.py
 tests/acceptance/test_operations_web_next_registration_browser.py
 tests/acceptance/test_operations_web_next_model_connect_browser.py
 tests/acceptance/test_operations_web_next_score_trend_browser.py
+tests/acceptance/test_operations_web_next_monitor_attention_browser.py
 "
 FORECAST_PYTHON="
 tests/integration/test_operations_web_forecast.py

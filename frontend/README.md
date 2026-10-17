@@ -137,6 +137,10 @@ not install Node dependencies.
 - `src/components/ScoreTrend.svelte`, `src/components/ModelInput.svelte`, `src/model-trend.ts`: a model's
   stored scores in input order with its threshold and exceedance intervals (skipped steps stay gaps),
   and the selected measurement's raw waveform envelope or window values.
+- `src/components/MonitorAttention.svelte`, `src/monitor-attention.ts`: what needs a look per asset (model
+  over threshold, refused or waiting input, model that cannot run, review in progress, a requested
+  collection without recent receipt), each opening the exact place; read again every 3 seconds while
+  visible, and a failed read hides earlier items.
 - `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
   tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.

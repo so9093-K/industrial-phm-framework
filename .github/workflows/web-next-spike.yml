@@ -44,6 +44,7 @@ on:
       - "tests/acceptance/test_operations_web_next_registration_browser.py"
       - "tests/acceptance/test_operations_web_next_model_connect_browser.py"
       - "tests/acceptance/test_operations_web_next_score_trend_browser.py"
+      - "tests/acceptance/test_operations_web_next_monitor_attention_browser.py"
       - "src/industrial_phm/runtime/operations_web_phm_models.py"
       - "tests/support/opcua.py"
       - "src/industrial_phm/runtime/operations_web_setup.py"

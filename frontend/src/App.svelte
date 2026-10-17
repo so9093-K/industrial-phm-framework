@@ -4,6 +4,7 @@
   import { readWriteSession, sampleReturn } from "./session";
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
+  import MonitorAttention from "./components/MonitorAttention.svelte";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
@@ -23,6 +24,7 @@
   let snapshot: Snapshot | null = $state(null);
   let writable: boolean | null = $state(null);
   let example = $state(false);
+  let notes: Record<string, number> = $state({});
   const returnTo = sampleReturn(location.search);
   let controller: AbortController | null = null;
   const selected: Asset | undefined = $derived.by(
@@ -71,6 +73,17 @@
       if (pending.signal.aborted) return;
       error = cause instanceof Error ? cause.message : "관측 정보를 읽지 못했습니다.";
       loadState = "failed";
+    }
+  }
+
+  /** Re-read the asset list in place for a page that refreshes itself. A failed read is
+   * reported by that page and never blanks or replaces what is shown. */
+  async function quietRefresh() {
+    if (loadState !== "ready" && loadState !== "empty") return;
+    const result = await readMonitor(new AbortController().signal);
+    if (loadState === "ready" || loadState === "empty") {
+      snapshot = result;
+      loadState = result.assets.length ? "ready" : "empty";
     }
   }
 
@@ -188,7 +201,8 @@
           <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
             message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
         {/if}
-        <AssetList assets={snapshot.assets} {observed} href={assetHref} />
+        {#if route.page === "monitor"}<MonitorAttention onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
+        <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : {}} />
       {/if}
     {/if}
   {/if}

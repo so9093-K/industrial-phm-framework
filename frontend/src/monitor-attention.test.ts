@@ -1,0 +1,43 @@
+import assert from "node:assert/strict";
+import {test} from "node:test";
+import {attentionByAsset,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
+import {parseSources} from "./operations-status.ts";
+
+function model(extra:Record<string,unknown>){
+  return {binding_id:"anomaly-a",asset_id:"bearing-a",step_kind:"acquisition-snapshot",recipe_id:"lstm",
+    processing_state:"processed",processing_reason:null,latest_analyzed:{position:3,output:{exceeds_threshold:false}},
+    latest_processed:{position:3},latest_review_status:null,...extra};
+}
+const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,truncated:false,review_read_error:false});
+
+test("threshold, refusal, waiting and review notes open the exact place, most urgent first",()=>{
+  const phm=monitor(
+    model({binding_id:"a",latest_analyzed:{position:7,output:{exceeds_threshold:true}}}),
+    model({binding_id:"b",processing_state:"rejected",processing_reason:"snapshot sha256 mismatch",latest_processed:{position:8}}),
+    model({binding_id:"c",processing_state:"pending",latest_review_status:"open"}),
+    model({binding_id:"d",asset_id:"motor-1",step_kind:"observation-window"}),
+  );
+  const groups=attentionByAsset(phm.models,null);
+  assert.deepEqual(groups.map(group=>group.assetId),["bearing-a"]);
+  assert.deepEqual(groups[0].notes.map(note=>note.kind),["threshold","refusal","pending","review"]);
+  assert.match(groups[0].notes[0].href,/model_binding=a&model_position=7/);
+  assert.match(groups[0].notes[1].href,/model_position=8/);
+  assert.match(groups[0].notes[1].detail,/전달 뒤 원본이 바뀜/);
+  assert.match(groups[0].notes[3].href,/page=maintenance/);
+  assert.equal(refusalReason("package expects 2 channels"),"모델이 받는 입력 규격과 다름");
+});
+
+test("only a collection someone asked to run is flagged when it stops receiving",()=>{
+  const sources=parseSources({schema_version:1,meaning:"registration-does-not-imply-accepted-receipt-or-live-connection",
+    sources:{items:[
+      {source_id:"s1",name:"Live",source_type:"opcua",asset_id:"pump-1",lifecycle_state:"active",collection_desired_state:"running",
+        last_live_receive_fresh:false},
+      {source_id:"s2",name:"Paused",source_type:"opcua",asset_id:"pump-2",lifecycle_state:"paused",collection_desired_state:"running",
+        last_live_receive_fresh:false},
+      {source_id:"s3",name:"Stopped",source_type:"opcua",asset_id:"pump-3",lifecycle_state:"active",collection_desired_state:"stopped",
+        last_live_receive_fresh:false},
+    ],total:3,truncated:false},read_error_scopes:[],live_evidence_error_scopes:[]}).items;
+  const groups=attentionByAsset([],sources);
+  assert.deepEqual(groups.map(group=>[group.assetId,group.notes[0].kind]),[["pump-1","receipt"]]);
+  assert.throws(()=>parsePhmMonitor({schema_version:1,items:[model({processing_state:"healthy"})]}),/형식/);
+});
