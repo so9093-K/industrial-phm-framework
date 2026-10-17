@@ -119,6 +119,10 @@ not install Node dependencies.
   feature analyses, applied models and analyses that did not run, per asset, each result with its
   review request. `src/analysis-records.ts`: their strict DTOs; a malformed list is reported as
   unreadable without hiding the asset list.
+- `src/components/OperationsStatus.svelte`: the ‘운영 관리’ page. Local service readiness,
+  registered connections with the same receipt words as `/web/` (registration, file read and live
+  receipt kept apart) and store read state; it opens even when the store read fails.
+  `src/operations-status.ts`: their DTOs.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
   `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation

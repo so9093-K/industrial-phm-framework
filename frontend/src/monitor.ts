@@ -14,6 +14,8 @@ export type Snapshot = {
   assets: Asset[];
   truncated: boolean;
   systemReadUncertain: boolean;
+  /** Store areas the server could not read this time; never shown as empty. */
+  errorScopes: string[];
   reviewInbox: ReviewInbox;
   analyses: AnalysisRecords;
 };
@@ -71,6 +73,8 @@ export function parseMonitor(value: unknown): Snapshot {
     assets,
     truncated: assetGroup.truncated === true,
     systemReadUncertain: !Array.isArray(response.system_error_scopes) || response.system_error_scopes.length > 0,
+    errorScopes: Array.isArray(response.system_error_scopes)
+      ? response.system_error_scopes.filter((scope): scope is string => typeof scope === "string") : [],
     reviewInbox: parseReviewInbox(response),
     analyses: analysesOf(response),
   };

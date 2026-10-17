@@ -14,7 +14,7 @@ export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
   assets: {label: "설비·신호", description: "설비를 고르면 상태 요약부터 이상 징후·신호·변화·전망을 차례로 봅니다."},
   investigations: {label: "분석 기록", description: "어떤 입력과 모델로 언제 분석 결과가 나왔는지 확인합니다."},
   maintenance: {label: "정비 검토", description: "분석 결과와 검토 요청한 전망을 사람이 확인하고 메모·종료를 남깁니다. 검토 종료는 정비 완료를 뜻하지 않습니다."},
-  system: {label: "운영 관리", description: "데이터 연결과 수집·저장·분석 상태를 관리합니다."},
+  system: {label: "운영 관리", description: "로컬 서비스 실행 상태, 데이터 연결과 저장소 조회 상태를 확인합니다."},
 };
 export const TAB_INFO: Record<Tab, string> = {
   summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "상태 전망",

@@ -9,6 +9,7 @@
   import StatusNotice from "./components/StatusNotice.svelte";
   import ReviewQueue from "./components/ReviewQueue.svelte";
   import InvestigationRecords from "./components/InvestigationRecords.svelte";
+  import OperationsStatus from "./components/OperationsStatus.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   if (parseRoute(location.search).legacy) {
@@ -131,11 +132,9 @@
 
 <main id="main" tabindex="-1">
   {#if route.page === "system"}
-    <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description} />
-    <StatusNotice title="데이터 연결과 시스템 상태는 이전 화면에서 제공합니다"
-      message="새 화면으로 옮기기 전까지 이전 화면에서 데이터를 연결하고 수집·저장·분석 상태를 확인하세요."
-      actionLabel="데이터 연결 열기" actionHref="/web/#connect" />
-    <p class="meta"><a href="/web/#system">이전 화면의 시스템 상태 열기 →</a></p>
+    <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
+      loading={loadState === "loading"} onRefresh={() => void refresh()} />
+    <OperationsStatus {snapshot} storeState={loadState} storeError={error} />
   {:else if loadState === "loading"}
     <StatusNotice message="설비 목록을 불러오고 있습니다." />
   {:else if loadState === "failed"}
@@ -167,6 +166,7 @@
           focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
       {:else if route.page === "investigations"}
         <InvestigationRecords {snapshot} writable={writable === true} assetId={route.assetId} />
+
       {:else if loadState === "empty"}
         <StatusNotice
           title="등록된 설비가 없습니다"
