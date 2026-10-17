@@ -34,13 +34,17 @@
   let keptKey: string | null = $state(null);
 
   const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
-  // Stored analysis evidence comes from the same monitor snapshot; without it the
-  // review is still shown, but never next to another record's evidence.
+  // Stored analysis evidence comes from the same monitor snapshot, matched by asset, run
+  // and evidence ID; without it the review is still shown, never next to another record.
   const evidenceFor = (review: FindingReview): Evidence[] | null => {
-    if (!snapshot.reviewInbox.available) return null;
-    const inbox = snapshot.reviewInbox.reviews.find((item) =>
-      item.findingId === review.findingId && item.assetId === review.assetId && item.runId === review.runId);
-    return inbox ? inbox.linked : snapshot.reviewInbox.evidenceComplete ? [] : null;
+    if (!snapshot.analyses.available) return null;
+    const found = snapshot.analyses.records.filter((item) => item.assetId === review.assetId
+      && item.runId === review.runId && review.evidenceIds.includes(item.evidenceId)).map((item): Evidence => ({
+      runId: item.runId, evidenceId: item.evidenceId, assetId: item.assetId, sourceId: item.sourceId,
+      pointId: item.pointId, capabilityId: item.capabilityId, kind: item.kind, completedAt: item.completedAt,
+      quality: item.quality,
+    }));
+    return found.length || !snapshot.analyses.truncated ? found : null;
   };
   const items = $derived.by((): Item[] => {
     const analysis: Item[] = findings.map((review) => {
@@ -85,7 +89,10 @@
   }
   onMount(() => {
     const request = new AbortController();
-    const assets = snapshot.assets.slice(0, ASSET_LIMIT).map((asset) => asset.assetId);
+    // Assets with stored analyses or reviews count too, even when the asset list omits them.
+    const assets = [...new Set([...snapshot.assets.map((asset) => asset.assetId),
+      ...snapshot.reviewInbox.reviews.map((review) => review.assetId),
+      ...snapshot.analyses.records.map((item) => item.assetId)])].slice(0, ASSET_LIMIT);
     if (focusAssetId && !assets.includes(focusAssetId)) assets.push(focusAssetId);
     const failed = (assetId: string) => {
       if (!request.signal.aborted && !failedAssets.includes(assetId)) failedAssets = [...failedAssets, assetId];

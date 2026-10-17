@@ -46,3 +46,13 @@ test("missing error-scope evidence is not declared healthy", () => {
 test("an invalid payload is not represented as an empty workspace", () => {
   assert.throws(() => parseMonitor({ assets: { total: 0 } }), /관측 응답/);
 });
+
+test("an unreadable analysis list is reported as such without hiding the assets", () => {
+  const data = parseMonitor({
+    ...observed,
+    phase_unbalance_analyses: { items: [{ analysis_run_id: "" }], total: 1, truncated: false },
+    file_feature_analyses: { items: [], total: 0, truncated: false },
+  });
+  assert.equal(data.assets.length, 1);
+  assert.equal(data.analyses.available, false);
+});

@@ -68,7 +68,8 @@ function safeRecord(v:unknown):Record<string,unknown>{
   if(!valid(record,0))throw new Error("분석 근거에 유효하지 않은 값이 있습니다.");
   return record;
 }
-export function parseModelBindings(raw:unknown,assetId:string):ModelBinding[]{
+/** Bindings of one asset, or of every asset when `assetId` is null. */
+export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding[]{
   const root=obj(raw);
   if(!root||root.schema_version!==1||!Array.isArray(root.bindings)||root.bindings.length>1000)
     throw new Error("적용 모델 목록의 형식이 올바르지 않습니다.");
@@ -101,7 +102,7 @@ export function parseModelBindings(raw:unknown,assetId:string):ModelBinding[]{
       task:typeof task==="string"?task:null,
       recipeId:typeof packageSummary?.recipe_id==="string"?packageSummary.recipe_id:null,
       lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed")};
-  }).filter(binding=>binding.assetId===assetId);
+  }).filter(binding=>assetId===null||binding.assetId===assetId);
 }
 function pointer(raw:unknown):StepPointer{
   const row=obj(raw);
@@ -173,7 +174,7 @@ async function get(url:string,signal:AbortSignal):Promise<unknown>{
   if(!response.ok)throw new Error("모델 결과를 읽지 못했습니다. 결과가 없다는 뜻은 아닙니다.");
   return await response.json() as unknown;
 }
-export async function loadModelBindings(assetId:string,signal:AbortSignal):Promise<ModelBinding[]>{
+export async function loadModelBindings(assetId:string|null,signal:AbortSignal):Promise<ModelBinding[]>{
   return parseModelBindings(await get("/api/v1/phm/bindings",signal),assetId);
 }
 export async function loadModelTrace(binding:ModelBinding,signal:AbortSignal):Promise<ModelTrace>{

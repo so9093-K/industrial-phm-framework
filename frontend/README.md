@@ -115,6 +115,10 @@ not install Node dependencies.
   model result's AI explanation against an earlier analyzed measurement (only answers of the same run,
   shown with the comparison the server stored and checked) and its review request.
   `src/model-explanations.ts`: their DTOs and writes.
+- `src/components/InvestigationRecords.svelte`: the ‘분석 기록’ page. Stored 3-phase and file
+  feature analyses, applied models and analyses that did not run, per asset, each result with its
+  review request. `src/analysis-records.ts`: their strict DTOs; a malformed list is reported as
+  unreadable without hiding the asset list.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
   `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation
