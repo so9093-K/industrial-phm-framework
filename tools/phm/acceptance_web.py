@@ -36,17 +36,27 @@ def review_explained_result(
     answer = check_explanation(checks, suffix, panel, window=window)
     answer["model_url"] = page.url
     review = page.get_by_role("region", name="사람 검토")
+    expect(
+        review.get_by_role("button", name="검토 요청", exact=True).or_(
+            review.get_by_role("link", name="정비 검토함에서 보기")
+        )
+    ).to_be_visible()
     if review.get_by_role("button", name="검토 요청", exact=True).count():
         review.get_by_role("button", name="검토 요청", exact=True).click()
     review.get_by_role("link", name="정비 검토함에서 보기").click()
     detail = page.get_by_role("region", name="고른 검토 항목")
+    expect(
+        detail.get_by_role("button", name="메모 남기기").or_(
+            detail.locator(".badge").filter(has_text="검토 종료")
+        )
+    ).to_be_visible()
     if detail.get_by_role("button", name="메모 남기기").count():
         detail.get_by_label("메모 (최대 1000자)").fill("원본 측정과 선택 구간을 확인함")
         detail.get_by_role("button", name="메모 남기기").click()
         expect(detail).to_contain_text("검토 기록을 남겼습니다")
     if detail.get_by_role("button", name="확인함으로 표시").count():
         detail.get_by_role("button", name="확인함으로 표시").click()
-        expect(detail.get_by_role("button", name="검토 종료", exact=True)).to_be_visible()
+        expect(detail.locator(".badge")).to_have_text("확인함")
     if detail.get_by_role("button", name="검토 종료", exact=True).count():
         detail.get_by_role("button", name="검토 종료", exact=True).click()
         detail.get_by_role("button", name="종료하기", exact=True).click()
