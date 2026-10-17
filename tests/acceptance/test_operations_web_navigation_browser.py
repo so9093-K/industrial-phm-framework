@@ -49,6 +49,9 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
                 page.goto(base + "/web/#system")
                 pw.expect(page.get_by_role("heading", name="실행 상태")).to_be_visible()
                 assert "section=status" in page.url
+                page.get_by_role("link", name="본문으로 건너뛰기").focus()
+                page.keyboard.press("Enter")
+                pw.expect(page.locator("#main")).to_be_focused()
             finally:
                 browser.close()
     finally:

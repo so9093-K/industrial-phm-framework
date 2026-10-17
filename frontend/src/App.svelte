@@ -124,6 +124,7 @@
       if (!link || link.target || link.hasAttribute("download")) return;
       const url = new URL(link.href, location.href);
       if (url.origin !== location.origin || url.pathname !== "/web/") return;
+      if (url.hash && url.pathname + url.search === location.pathname + location.search) return;
       event.preventDefault();
       if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
     };
