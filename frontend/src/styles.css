@@ -66,6 +66,8 @@ h1 { font-size: var(--font-page); line-height: 1.25; margin: .2rem 0; }
 h2 { font-size: var(--font-section); margin: 0 0 var(--space-4); }
 p { margin: .4rem 0 var(--space-4); }
 .meta { font-size: var(--font-small); margin-block: var(--space-6); color: var(--color-ink-muted); }
+.example { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control);
+  background: var(--color-uncertain-surface); font-weight: 650; overflow-wrap: anywhere; }
 
 .ui-panel {
   padding: var(--space-6);

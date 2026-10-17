@@ -385,6 +385,7 @@
   .field { display: grid; gap: var(--space-1); font-weight: 650; min-width: 0; }
   input:not([type="checkbox"]), select { font: inherit; font-weight: 400; min-height: 40px; padding: var(--space-2) var(--space-3); min-width: 0;
     border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
+  input[type="file"] { max-width: 100%; }
   .columns { display: grid; gap: var(--space-3); }
   fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3); margin: 0; min-width: 0; }
   legend { font-weight: 650; padding-inline: var(--space-1); }

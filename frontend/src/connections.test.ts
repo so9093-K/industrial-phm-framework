@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {explainWrite,nextStep,otherActions,parsePreflight} from "./connections.ts";
+import {channelIdFrom,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,type PhaseRole} from "./connections.ts";
+import {sampleReturn} from "./session.ts";
 import {parseSources} from "./operations-status.ts";
 import {errorCode,OutcomeUnknown,WriteRejected} from "./writes.ts";
 
@@ -43,4 +44,31 @@ test("preflight results and refusals are read as the server states them",()=>{
   assert.equal(errorCode({error:"invalid_phm_query"}),"invalid_phm_query");
   assert.match(explainWrite(new WriteRejected(409,"source_id_exists")),/다른 ID/);
   assert.match(explainWrite(new WriteRejected(409,"workspace_writer_busy")),/작업공간/);
+});
+
+test("3-phase roles come as complete R/S/T sets on distinct measured columns, with evidence",()=>{
+  const role=(channel_id:string,quantity:"voltage"|"current",phase:"R"|"S"|"T"):PhaseRole=>
+    ({channel_id,quantity,phase,unit_evidence:"계측기 V",interpretation_evidence:"배선도"});
+  const channels=["a","b","c","d"];
+  assert.equal(phaseRoleProblem([],channels),null);
+  assert.equal(phaseRoleProblem([role("a","voltage","R"),role("b","voltage","S"),role("c","voltage","T")],channels),null);
+  assert.match(phaseRoleProblem([role("a","voltage","R"),role("b","voltage","S"),role("c","current","T")],channels)!,/R\/S\/T/);
+  assert.match(phaseRoleProblem([role("a","voltage","R"),role("a","voltage","S"),role("c","voltage","T")],channels)!,/두 역할/);
+  assert.match(phaseRoleProblem([role("x","voltage","R"),role("b","voltage","S"),role("c","voltage","T")],channels)!,/측정 컬럼에 없습니다/);
+  assert.match(phaseRoleProblem([{...role("a","voltage","R"),unit_evidence:" "},role("b","voltage","S"),role("c","voltage","T")],channels)!,/근거/);
+});
+
+test("OPC UA channel IDs are safe and distinct; the sample opens only a local address",()=>{
+  assert.equal(channelIdFrom("Vibration X (mm/s)",[]),"Vibration_X_mm_s");
+  assert.equal(channelIdFrom("Vibration X (mm/s)",["Vibration_X_mm_s"]),"Vibration_X_mm_s_2");
+  assert.equal(channelIdFrom("진동",[]),"channel");
+  assert.deepEqual(parseSample({synthetic:true,state:"stopped"}),{state:"stopped",url:null});
+  assert.equal(parseSample({synthetic:true,state:"running",separate_workspace:true,url:"http://127.0.0.1:2719/web/"}).url,
+    "http://127.0.0.1:2719/web/");
+  assert.throws(()=>parseSample({synthetic:true,state:"running",separate_workspace:true,url:"http://evil.example/web/"}));
+  assert.throws(()=>parseSample({synthetic:false,state:"stopped"}));
+  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/web-next/?page=system")),
+    "http://127.0.0.1:2718/web-next/?page=system");
+  assert.equal(sampleReturn("?return_to="+encodeURIComponent("https://evil.example/web/")),null);
+  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/other")),null);
 });

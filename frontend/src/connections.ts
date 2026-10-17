@@ -201,3 +201,100 @@ export function otherActions(source:Source,next:Action|null):Action[]{
   }
   return actions.filter(action=>action!==next);
 }
+
+/** A declared 3-phase role of one CSV column, with the evidence a person gave for it. */
+export type PhaseRole={
+  channel_id:string;quantity:"voltage"|"current";phase:"R"|"S"|"T";
+  unit_evidence:string;interpretation_evidence:string;
+};
+export type FileRegistration={
+  source_id:string;name:string;asset_id:string;measurement_point_id:string;
+  channel_columns:string[];timestamp_column:string;phase_channels:PhaseRole[];
+};
+
+/** Roles are optional; when given, each quantity has all of R, S and T on distinct columns. */
+export function phaseRoleProblem(roles:PhaseRole[],channels:string[]):string|null{
+  if(!roles.length)return null;
+  if(roles.length!==3&&roles.length!==6)return "3상 역할은 전압 또는 전류의 R/S/T 세 개를 한 세트로 지정하세요.";
+  const used=new Set<string>(),pairs=new Set<string>();
+  for(const role of roles){
+    if(!channels.includes(role.channel_id))return role.channel_id+" 컬럼이 측정 컬럼에 없습니다.";
+    if(used.has(role.channel_id))return role.channel_id+" 컬럼을 두 역할에 쓸 수 없습니다.";
+    if(!role.unit_evidence.trim()||!role.interpretation_evidence.trim())return "역할마다 단위 근거와 해석 근거를 적으세요.";
+    if(role.unit_evidence.length>128||role.interpretation_evidence.length>128)return "근거는 128자 이내로 적으세요.";
+    used.add(role.channel_id);pairs.add(role.quantity+":"+role.phase);
+  }
+  for(const quantity of ["voltage","current"]){
+    const count=["R","S","T"].filter(phase=>pairs.has(quantity+":"+phase)).length;
+    if(count&&count!==3)return (quantity==="voltage"?"전압":"전류")+"의 R/S/T를 모두 지정하세요.";
+  }
+  return null;
+}
+
+function setupOf(values:FileRegistration):Record<string,unknown>{
+  const {phase_channels,...rest}=values;
+  return phase_channels.length?{...rest,phase_channels}:rest;
+}
+
+/** Checks a CSV already in the workspace (`filePath`) or a chosen file, without saving. */
+export async function preflightCsv(values:FileRegistration,file:Blob|null,filePath:string,signal:AbortSignal):Promise<Preflight>{
+  return parsePreflight(file
+    ?await postWrite("/api/v1/sources/file/upload/preflight",{setup:setupOf(values),csv_base64:await base64(file)},signal)
+    :await postWrite("/api/v1/sources/file/preflight",{...setupOf(values),file_path:filePath},signal));
+}
+
+export async function registerCsv(values:FileRegistration,file:Blob|null,filePath:string,signal:AbortSignal):Promise<void>{
+  const result=file
+    ?await postWrite("/api/v1/sources/file/upload",{setup:setupOf(values),csv_base64:await base64(file)},signal)
+    :await postWrite("/api/v1/sources/file",{...setupOf(values),file_path:filePath},signal);
+  if(result.registration_state!=="registered"||result.source_id!==values.source_id)unexpected();
+}
+
+export type OpcuaNode={name:string;nodeId:string};
+export type OpcuaBrowse={variables:OpcuaNode[];objects:OpcuaNode[];visited:number|null;truncated:boolean};
+
+/** Address space candidates of a local server; nothing is received or registered. */
+export async function browseOpcua(endpoint:string,startNode:string,signal:AbortSignal):Promise<OpcuaBrowse>{
+  const result=await postWrite("/api/v1/sources/opcua/browse",{endpoint_url:endpoint,start_node_id:startNode},signal);
+  if(result.meaning!=="address-space-candidates-not-received-or-registered"||result.start_node_id!==startNode
+    ||!Array.isArray(result.variables)||!Array.isArray(result.objects))unexpected();
+  const nodes=(items:unknown[],key:string):OpcuaNode[]=>items.flatMap(raw=>{
+    const row=object(raw);
+    return row&&typeof row.node_id==="string"?[{name:String(row[key]??row.node_id),nodeId:row.node_id}]:[];
+  });
+  return {variables:nodes(result.variables,"display_name"),objects:nodes(result.objects,"browse_name"),
+    visited:typeof result.visited_node_count==="number"?result.visited_node_count:null,truncated:result.truncated===true};
+}
+
+export type OpcuaRegistration={
+  source_id:string;name:string;asset_id:string;measurement_point_id:string;endpoint_url:string;
+  node_mappings:{channel_id:string;node_id:string}[];
+};
+export async function registerOpcua(values:OpcuaRegistration,signal:AbortSignal):Promise<void>{
+  const result=await postWrite("/api/v1/sources/opcua",values,signal);
+  if(result.registration_state!=="registered"||result.source_id!==values.source_id)unexpected();
+}
+
+/** A channel ID from an OPC UA display name: letters, digits, '_' and '-' only. */
+export function channelIdFrom(name:string,taken:string[]):string{
+  const base=name.trim().replace(/[^A-Za-z0-9_-]+/g,"_").replace(/^_+|_+$/g,"").slice(0,60)||"channel";
+  let candidate=base,index=2;
+  while(taken.includes(candidate))candidate=base+"_"+index++;
+  return candidate;
+}
+
+export type Sample={state:"running"|"stopped";url:string|null};
+const SAMPLE_URL=/^http:\/\/127\.0\.0\.1:(\d{2,5})\/web\/$/;
+
+/** The isolated synthetic sample runs in its own workspace; only its local address is used. */
+export function parseSample(raw:Record<string,unknown>):Sample{
+  if(raw.synthetic!==true||(raw.state!=="running"&&raw.state!=="stopped"))unexpected();
+  if(raw.state==="stopped")return {state:"stopped",url:null};
+  const match=typeof raw.url==="string"?SAMPLE_URL.exec(raw.url):null;
+  if(raw.separate_workspace!==true||!match||Number(match[1])>65535)unexpected();
+  return {state:"running",url:raw.url as string};
+}
+
+export async function sampleCommand(action:"status"|"start"|"stop",signal:AbortSignal):Promise<Sample>{
+  return parseSample(await postWrite("/api/v1/demo/synthetic/"+action,{},signal));
+}

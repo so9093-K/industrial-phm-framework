@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from http.client import HTTPConnection
 from pathlib import Path
-from threading import Event, Thread
+from threading import Thread
 
 import pytest
 
 from industrial_phm.application import JsonSourceRepository, JsonSourceRuntimeRepository
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.opcua import local_opcua_server
 
 
 @contextmanager
@@ -91,48 +90,6 @@ def _registration(endpoint: str, node_id: str = "ns=2;i=1") -> dict[str, object]
     }
 
 
-@contextmanager
-def _opc_server() -> Iterator[tuple[str, str]]:
-    asyncua = pytest.importorskip("asyncua")
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = int(sock.getsockname()[1])
-    endpoint = f"opc.tcp://127.0.0.1:{port}/industrial-phm/"
-    ready, stopped = Event(), Event()
-    captured: dict[str, object] = {}
-
-    async def serve() -> None:
-        server = asyncua.Server()
-        await server.init()
-        server.set_endpoint(endpoint)
-        namespace = await server.register_namespace("urn:industrial-phm:web-opcua")
-        machine = await server.nodes.objects.add_object(namespace, "Machine")
-        vibration = await machine.add_variable(namespace, "VibrationX", 12.5)
-        captured["node_id"] = vibration.nodeid.to_string()
-        async with server:
-            ready.set()
-            while not stopped.is_set():
-                await asyncio.sleep(0.05)
-
-    def runner() -> None:
-        try:
-            asyncio.run(serve())
-        except Exception as error:
-            captured["error"] = error
-            ready.set()
-
-    thread = Thread(target=runner, daemon=True)
-    thread.start()
-    try:
-        assert ready.wait(30), "local OPC UA fixture did not start"
-        assert "error" not in captured, str(captured.get("error"))
-        yield endpoint, str(captured["node_id"])
-    finally:
-        stopped.set()
-        thread.join(timeout=30)
-        assert not thread.is_alive()
-
-
 def test_opcua_web_denies_remote_urls_and_requires_auth(tmp_path: Path) -> None:
     workspace = OperationsWorkspace(tmp_path / "opcua-security")
     initialize_operations_workspace(workspace)
@@ -181,7 +138,7 @@ def test_web_browse_and_diagnostic_persist_real_opcua_receipt(tmp_path: Path) ->
     pytest.importorskip("asyncua")
     workspace = OperationsWorkspace(tmp_path / "opcua-receipt")
     initialize_operations_workspace(workspace)
-    with _opc_server() as (endpoint, node_id), _web(workspace) as port:
+    with local_opcua_server() as (endpoint, node_id), _web(workspace) as port:
         _, session = _http(port, "/api/v1/session")
         token = session["csrf_token"]
         status, browse = _post(
@@ -254,7 +211,7 @@ def test_web_opcua_full_browser_flow(tmp_path: Path) -> None:
     workspace = OperationsWorkspace(tmp_path / "opcua-browser")
     initialize_operations_workspace(workspace)
     with (
-        _opc_server() as (endpoint, node_id),
+        local_opcua_server() as (endpoint, node_id),
         _web(workspace) as port,
         sync_api.sync_playwright() as playwright,
     ):

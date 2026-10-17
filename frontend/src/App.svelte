@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
-  import { readPermission } from "./outlook-briefings";
+  import { readWriteSession, sampleReturn } from "./session";
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
@@ -22,6 +22,8 @@
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
   let writable: boolean | null = $state(null);
+  let example = $state(false);
+  const returnTo = sampleReturn(location.search);
   let controller: AbortController | null = null;
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
@@ -96,8 +98,8 @@
       if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
     };
     const permission = new AbortController();
-    void readPermission(permission.signal).then((allowed) => {
-      if (!permission.signal.aborted) writable = allowed;
+    void readWriteSession(permission.signal).then((session) => {
+      if (!permission.signal.aborted) { writable = session.writable; example = session.example; }
     }).catch(() => {});
     window.addEventListener("popstate", restore);
     document.addEventListener("click", follow);
@@ -135,6 +137,9 @@
 </header>
 
 <main id="main" tabindex="-1">
+  {#if example}
+    <p class="example">합성 예시 데이터 · 별도 작업공간 · 보기 전용{#if returnTo} · <a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
+  {/if}
   {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
       loading={loadState === "loading"} onRefresh={() => void refresh()} />

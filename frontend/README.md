@@ -129,6 +129,9 @@ not install Node dependencies.
   from the server's state and never registers or stores twice.
 - `src/components/ConnectionList.svelte`: each registered connection with its one next step and other
   actions (`src/connections.ts`). Pause and collection stop ask once more.
+- `src/components/ConnectionRegistration.svelte`: a CSV in the workspace or with declared 3-phase roles
+  (checked before registering) and a local OPC UA server's variables. `src/components/SampleWorkspace.svelte`:
+  the isolated synthetic sample; an unknown start or stop is checked again, never resent.
 - `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
   tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.

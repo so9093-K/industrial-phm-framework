@@ -4,7 +4,9 @@
   import {readSources, type Sources} from "../operations-status";
   import {systemUrl, type SystemSection} from "../routes";
   import ConnectionList from "./ConnectionList.svelte";
+  import ConnectionRegistration from "./ConnectionRegistration.svelte";
   import CsvStart from "./CsvStart.svelte";
+  import SampleWorkspace from "./SampleWorkspace.svelte";
   import SystemStatus from "./SystemStatus.svelte";
 
   /** 운영 관리: connect data and move each connection forward, or check that the local
@@ -52,6 +54,8 @@
   <CsvStart {writable} onSaved={reload} />
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
     onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />
+  <ConnectionRegistration {writable} onRegistered={reload} />
+  <SampleWorkspace {writable} />
 {:else}
   <SystemStatus {snapshot} {storeState} {storeError} />
 {/if}
