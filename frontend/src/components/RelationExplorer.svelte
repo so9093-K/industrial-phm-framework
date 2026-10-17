@@ -3,6 +3,9 @@
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type Relation} from "../relation";
   import StatusNotice from "./StatusNotice.svelte";
+  import {num} from "../format";
+  import CautionNote from "./CautionNote.svelte";
+  import {strength} from "../relation";
   import {assetTabUrl} from "../routes";
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
@@ -91,24 +94,24 @@
   onMount(()=>{void sourceList();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 </script>
 <section class="ui-panel relation" aria-labelledby="relation-title">
-  <h2 id="relation-title">두 신호의 같은 시각 관측 짝</h2>
-  <p class="context">설비 <strong>{assetId}</strong> · 저장된 관측 중 원본 출처·측정 지점·시각이 같은 짝만 분석합니다. 상관관계는 원인·고장 여부·확률을 뜻하지 않습니다.</p>
+  <h2 id="relation-title">신호 관계</h2>
+  <p class="context">같은 시각에 함께 기록된 두 신호가 같이 움직이는지 봅니다. 데이터 출처·측정 위치·시각이 같은 측정끼리만 짝짓습니다.</p>
   {#if listState==="loading"}
-    <StatusNotice message="두 신호의 저장 측정 목록을 읽고 있습니다."/>
+    <StatusNotice message="신호 목록을 불러오고 있습니다."/>
   {:else if listState==="failed"}
-    <StatusNotice kind="failure" title="신호 목록 조회 실패" message={error} actionLabel="재조회" onAction={()=>void sourceList()}/>
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error} actionLabel="다시 불러오기" onAction={()=>void sourceList()}/>
   {:else if listState==="empty"||listState==="unavailable"}
-    <StatusNotice kind="uncertain" title="비교할 측정 신호가 부족합니다"
-      message="서로 다른 두 신호에 같은 출처·시각의 관측이 있어야 합니다. 목록이 부족하다는 것은 정상 설비라는 의미가 아닙니다."
-      actionLabel="신호와 품질 확인" actionHref={assetTabUrl(assetId, "signals")}/>
+    <StatusNotice kind="uncertain" title="비교할 신호가 부족합니다"
+      message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
+      actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
     <div class="controls">
-      <label for="relation-x">X 측정
+      <label for="relation-x">신호 X
         <select id="relation-x" value={x} onchange={e=>switchChannel("x",e.currentTarget.value)}>
           {#each available.channels as id(id)}<option value={id}>{id}</option>{/each}
         </select>
       </label>
-      <label for="relation-y">Y 측정
+      <label for="relation-y">신호 Y
         <select id="relation-y" value={y} onchange={e=>switchChannel("y",e.currentTarget.value)}>
           {#each available.channels as id(id)}<option value={id}>{id}</option>{/each}
         </select>
@@ -117,7 +120,7 @@
     <div class="periods">
       {#each ["a","b"] as name(name)}
         {@const n=name as "a"|"b"}
-        <fieldset><legend>구간 {n.toUpperCase()} (KST)</legend>
+        <fieldset><legend>기간 {n.toUpperCase()} (KST)</legend>
           <label>시작 <input type="datetime-local" value={localTime(periods[n].from)}
             onchange={e=>editPeriod(n,"from",e.currentTarget.value)}/></label>
           <label>끝 <input type="datetime-local" value={localTime(periods[n].to)}
@@ -126,48 +129,50 @@
       {/each}
     </div>
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
-      같은 시각의 신호 짝 비교
+      관계 계산하기
     </button>
     {#if resultState==="loading"}
-      <StatusNotice message="동일 원본 출처·시각의 저장 측정 짝을 찾고 있습니다."/>
+      <StatusNotice message="같은 시각에 기록된 측정 짝을 찾고 있습니다."/>
     {:else if resultState==="failed"}
-      <StatusNotice kind="failure" title="관계 분석 조회 실패" message={error}
-        actionLabel="같은 조건 재조회" onAction={()=>void compare()}/>
+      <StatusNotice kind="failure" title="신호 관계를 불러오지 못했습니다" message={error}
+        actionLabel="같은 조건으로 다시 불러오기" onAction={()=>void compare()}/>
     {:else if resultState==="unavailable"}
-      <StatusNotice kind="uncertain" title="저장 근거 없음" message={error}/>
+      <StatusNotice kind="uncertain" title="비교할 기록이 없습니다" message={error}/>
     {:else if resultState==="empty"}
       <StatusNotice title="조건에 맞는 측정 짝이 없습니다"
-        message="서로 다른 시각·출처의 측정값을 임의로 연결하지 않습니다."/>
+        message="시각이나 출처가 다른 측정은 짝짓지 않습니다. 기간이나 신호를 바꿔 보세요."/>
     {:else if relation}
-      <p class="context">구간 A: {periodText("a")} · 구간 B: {periodText("b")}</p>
+      <p class="context">기간 A {periodText("a")} · 기간 B {periodText("b")}</p>
       {#each relation.groups as group(group.id)}
         <section class="group">
-          <h3>구간 {group.period.toUpperCase()} · {group.source} / {group.point??"측정점 미확인"}</h3>
-          <p class="context">측정 의미 {group.meaning} · {x} ({group.xUnit??"단위 미확인"}) / {y} ({group.yUnit??"단위 미확인"})</p>
+          <h3>기간 {group.period.toUpperCase()} · {group.source} / {group.point??"측정 위치 미확인"}</h3>
+          {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
+          <p class="context">{x} ({group.xUnit??"단위 미확인"}) / {y} ({group.yUnit??"단위 미확인"})</p>
           <dl>
-            <div><dt>같은 시각 관측 짝</dt><dd>{group.pairCount}개</dd></div>
-            <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"미산출":group.pearson.toFixed(3)}</dd></div>
-            <div><dt>스피어먼 상관</dt><dd>{group.spearman===null?"미산출":group.spearman.toFixed(3)}</dd></div>
+            <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
+            <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
+            <div><dt>스피어먼 상관</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
           </dl>
           {#if group.sampled}
-            <StatusNotice kind="uncertain" message="서버에서 일부 짝만 샘플링했습니다. 관측의 전체 분포를 단정하지 마세요."/>
+            <StatusNotice kind="uncertain" message="짝이 많아 일부만 골라 계산했습니다. 전체 분포로 단정하지 마세요."/>
           {/if}
           {#if group.pairCount<3||group.pearson===null||group.spearman===null}
-            <StatusNotice kind="uncertain" message="관측 짝이 부족하거나 상수 신호 등으로 관계 계수를 계산할 수 없습니다. 무관계(0)로 간주하지 마세요."/>
+            <StatusNotice kind="uncertain" message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
           {/if}
           <details>
-            <summary>서버가 제공한 관측 짝 보기 ({group.points.length}개)</summary>
+            <summary>같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
             <div class="table-scroll"><table>
-              <caption>각 행은 동일 원본 출처·측정 지점·시각의 실제 저장 관측 짝입니다.</caption>
+              <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다 (측정 의미 {group.meaning})</caption>
               <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
               <tbody>{#each group.points.slice(0,100) as item,i (i)}
-                <tr><td>{asTime(item.at)}</td><td>{item.x}</td><td>{item.y}</td></tr>
+                <tr><td>{asTime(item.at)}</td><td>{num(item.x)}</td><td>{num(item.y)}</td></tr>
               {/each}</tbody>
             </table></div>
             {#if group.points.length>100}<p class="context">표에 최대 100개 짝만 표시합니다.</p>{/if}
           </details>
         </section>
       {/each}
+      <CautionNote message="두 신호가 함께 움직여도 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다. 고장 여부도 판단하지 않습니다."/>
     {/if}
   {/if}
 </section>
@@ -181,4 +186,5 @@
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}dd{margin:0;font-weight:700}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--color-border);padding:var(--space-2)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
+  .headline{font-size:var(--font-section);font-weight:700}
 </style>

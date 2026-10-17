@@ -130,25 +130,27 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                 )
                 expect_place(pw, page, "변화 분석", "신호 관계")
                 pw.expect(
-                    page.get_by_role("heading", name="구간 A · source-a / motor-1")
+                    page.get_by_role("heading", name="기간 A · source-a / motor-1")
                 ).to_be_visible()
                 pw.expect(
-                    page.get_by_role("heading", name="구간 A · source-b / motor-2")
+                    page.get_by_role("heading", name="기간 A · source-b / motor-2")
                 ).to_be_visible()
-                pw.expect(page.get_by_text("미산출", exact=True)).to_have_count(2)
+                pw.expect(page.get_by_text("계산 안 됨", exact=True)).to_have_count(2)
                 assert "relation_x=current" in page.url
                 assert "relation_y=voltage" in page.url
                 page.reload(wait_until="networkidle")
-                pw.expect(page.get_by_label("X 측정")).to_have_value("current")
-                page.get_by_label("X 측정").select_option("temperature")
-                page.get_by_role("button", name="같은 시각의 신호 짝 비교").click()
+                pw.expect(page.get_by_label("신호 X")).to_have_value("current")
+                page.get_by_label("신호 X").select_option("temperature")
+                page.get_by_role("button", name="관계 계산하기").click()
                 pw.expect(
                     page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다")
                 ).to_be_visible()
-                assert page.get_by_role("heading", name="구간 A · source-a / motor-1").count() == 0
+                assert page.get_by_role("heading", name="기간 A · source-a / motor-1").count() == 0
                 failure["enabled"] = True
-                page.get_by_role("button", name="같은 시각의 신호 짝 비교").click()
-                pw.expect(page.get_by_role("heading", name="관계 분석 조회 실패")).to_be_visible()
+                page.get_by_role("button", name="관계 계산하기").click()
+                pw.expect(
+                    page.get_by_role("heading", name="신호 관계를 불러오지 못했습니다")
+                ).to_be_visible()
                 assert (
                     page.get_by_role("heading", name="조건에 맞는 측정 짝이 없습니다").count() == 0
                 )

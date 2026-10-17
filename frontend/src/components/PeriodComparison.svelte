@@ -1,6 +1,8 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {num} from "../format";
+  import CautionNote from "./CautionNote.svelte";
   import {
     defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
     type Periods, type ProfileResult, type SourceHistory,
@@ -108,21 +110,20 @@
 </script>
 
 <section class="ui-panel compare" aria-labelledby="comparison-title">
-  <h2 id="comparison-title">구간 A와 B의 측정 사실 비교</h2>
-  <p class="context">설비 <strong>{assetId}</strong> · 저장된 원본 측정에 기반한 서버 집계입니다.</p>
-  <p class="context">A는 사용자가 고른 비교 기준이며 정상 운전이나 고장 전 기준으로 검증된 기간이 아닙니다. 출처·측정점·단위·측정 의미가 다른 기록은 별도로 표시합니다.</p>
+  <h2 id="comparison-title">두 기간 비교</h2>
+  <p class="context">고른 신호를 두 기간(A·B)으로 나눠 대표값·결측·품질을 비교합니다. 데이터 출처나 측정 위치가 다르면 따로 보여 줍니다.</p>
   {#if sourceState === "loading"}
-    <StatusNotice message="비교 가능한 저장 측정을 확인합니다." />
+    <StatusNotice message="비교할 수 있는 신호를 불러오고 있습니다." />
   {:else if sourceState === "failed"}
-    <StatusNotice kind="failure" title="저장 측정 조회 실패" message={error}
-      actionLabel="다시 조회" onAction={() => void loadSources()} />
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error}
+      actionLabel="다시 불러오기" onAction={() => void loadSources()} />
   {:else if sourceState === "unavailable" || sourceState === "empty"}
-    <StatusNotice kind="uncertain" title="비교할 저장 이력이 없습니다"
-      message="해당 설비의 저장 측정 이력이 조회되지 않습니다. 정상 설비라는 뜻이 아닙니다."
-      actionLabel="데이터 연결 확인" actionHref="/web/#connect" />
+    <StatusNotice kind="uncertain" title="비교할 시계열 기록이 없습니다"
+      message="이 설비에는 저장된 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다."
+      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
   {:else if sources && periods}
     <div class="controls">
-      <label for="compare-channel">비교할 측정 신호
+      <label for="compare-channel">신호
         <select id="compare-channel" value={selected}
           onchange={e => selectChannel(e.currentTarget.value)}>
           {#each sources.channels as id (id)}<option value={id}>{id}</option>{/each}
@@ -133,7 +134,7 @@
       {#each ["a", "b"] as key (key)}
         {@const name = key as "a" | "b"}
         <fieldset>
-          <legend>구간 {name.toUpperCase()} · {name === "a" ? "비교 기준" : "살펴볼 구간"}</legend>
+          <legend>기간 {name.toUpperCase()} · {name === "a" ? "비교 기준" : "살펴볼 기간"}</legend>
           <label>시작 (KST)
             <input type="datetime-local" value={kst(periods[name].from)}
               onchange={e => changePeriod(name, "from", e.currentTarget.value)} />
@@ -146,51 +147,56 @@
       {/each}
     </div>
     <button class="ui-button ui-button-primary" type="button"
-      onclick={() => void compare()}>이 조건으로 비교</button>
+      onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
     {#if compareState === "loading"}
-      <StatusNotice message="두 기간의 저장 측정과 품질을 조회합니다." />
+      <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
     {:else if compareState === "failed"}
-      <StatusNotice kind="failure" title="구간 비교 조회 실패" message={error}
-        actionLabel="같은 조건 재조회" onAction={() => void compare()} />
+      <StatusNotice kind="failure" title="두 기간 비교를 불러오지 못했습니다" message={error}
+        actionLabel="같은 조건으로 다시 불러오기" onAction={() => void compare()} />
     {:else if compareState === "unavailable"}
-      <StatusNotice kind="uncertain" title="비교 자료가 없습니다"
-        message="선택한 설비에 비교 가능한 이력이 없습니다. 조회 실패와 정상 판정이 아닙니다." />
+      <StatusNotice kind="uncertain" title="비교할 기록이 없습니다"
+        message="이 설비에는 비교할 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다." />
     {:else if compareState === "empty"}
-      <StatusNotice title="선택한 구간에 측정이 없습니다"
-        message="두 구간에 해당 신호의 저장 측정이 없습니다. 구간과 신호를 바꿔 확인하세요." />
+      <StatusNotice title="고른 기간에 측정이 없습니다"
+        message="두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요." />
     {:else if result}
-      <p class="context">구간 A: {showTime(result.periods.a.from)} ~ {showTime(result.periods.a.to)}
-        · 구간 B: {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
+      <p class="context">기간 A {showTime(result.periods.a.from)} ~ {showTime(result.periods.a.to)}
+        · 기간 B {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
       {#each result.series as row (row.key)}
-        <section class="series" aria-label={"측정 출처 " + row.source}>
+        <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{row.channel} · {row.source}</h3>
-          <p class="context">측정 지점 {row.point ?? "미확인"} · 의미 ID {row.interpretation}
+          <p class="context">데이터 출처 {row.source} · 측정 위치 {row.point ?? "미확인"}
             · 단위 {row.unit ?? "미확인"}</p>
+          {#if row.medianChange !== null}
+            <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)} {row.unit ?? "(단위 미확인)"}</strong>
+              {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
+            </p>
+          {:else}
+            <StatusNotice kind="uncertain" message="두 기간을 비교할 대표값이 부족합니다. 0으로 채우지 않습니다." />
+          {/if}
           <div class="table-wrap">
             <table>
-              <caption>해당 출처·측정점·의미에 한정된 구간 통계 (원본 개별 측정 아님)</caption>
-              <thead><tr><th scope="col">항목</th><th scope="col">구간 A</th><th scope="col">구간 B</th></tr></thead>
+              <caption>이 출처·측정 위치의 기간별 통계 (개별 측정값 아님)</caption>
+              <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
               <tbody>
-                <tr><th scope="row">관측 수</th><td>{row.periods.a.observations}</td><td>{row.periods.b.observations}</td></tr>
+                <tr><th scope="row">측정 수</th><td>{row.periods.a.observations}</td><td>{row.periods.b.observations}</td></tr>
                 <tr><th scope="row">유효 측정</th><td>{row.periods.a.usable}</td><td>{row.periods.b.usable}</td></tr>
-                <tr><th scope="row">중앙값</th><td>{row.periods.a.median ?? "미산출"}</td><td>{row.periods.b.median ?? "미산출"}</td></tr>
-                <tr><th scope="row">평균</th><td>{row.periods.a.mean ?? "미산출"}</td><td>{row.periods.b.mean ?? "미산출"}</td></tr>
+                <tr><th scope="row">중앙값</th><td>{num(row.periods.a.median)}</td><td>{num(row.periods.b.median)}</td></tr>
+                <tr><th scope="row">평균</th><td>{num(row.periods.a.mean)}</td><td>{num(row.periods.b.mean)}</td></tr>
                 <tr><th scope="row">결측</th><td>{row.periods.a.missing ?? "미확인"}</td><td>{row.periods.b.missing ?? "미확인"}</td></tr>
                 <tr><th scope="row">품질 문제</th><td>{row.periods.a.nonGood ?? "미확인"}</td><td>{row.periods.b.nonGood ?? "미확인"}</td></tr>
-                <tr><th scope="row">충돌</th><td>{row.periods.a.conflict ?? "미확인"}</td><td>{row.periods.b.conflict ?? "미확인"}</td></tr>
+                <tr><th scope="row">값 충돌</th><td>{row.periods.a.conflict ?? "미확인"}</td><td>{row.periods.b.conflict ?? "미확인"}</td></tr>
               </tbody>
             </table>
           </div>
-          {#if row.medianChange !== null}
-            <p class="context">중앙값 변화(B − A): <strong>{row.medianChange} {row.unit ?? "(단위 미확인)"}</strong>.
-              {#if row.outsidePercent !== null} B의 값 중 A 구간 분위수 범위 밖: {row.outsidePercent.toFixed(1)}%{/if}
-            </p>
-          {:else}
-            <StatusNotice kind="uncertain" message="두 구간을 비교할 대표값이 충분하지 않습니다. 0으로 대체하지 않습니다." />
-          {/if}
+          <details>
+            <summary>기술 상세</summary>
+            <p class="context">측정 의미 ID {row.interpretation} · ‘평소 범위 밖’은 기간 A의 분위수 범위를 벗어난 B 값의 비율입니다.</p>
+          </details>
         </section>
       {/each}
+      <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다. 두 기간의 차이는 원인이나 고장을 뜻하지 않습니다." />
     {/if}
   {/if}
 </section>
@@ -208,6 +214,9 @@
   legend { font-weight: 700; }
   .series { border-top: 1px solid var(--color-border); padding-top: var(--space-4); margin-top: var(--space-6); }
   h3 { overflow-wrap: anywhere; }
+  .headline { font-size: var(--font-section); overflow-wrap: anywhere; }
+  .headline span { font-size: var(--font-small); color: var(--color-ink-muted); }
+  summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
   .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-block: var(--space-3); }
   caption { text-align: left; font-size: var(--font-small); color: var(--color-ink-muted); }

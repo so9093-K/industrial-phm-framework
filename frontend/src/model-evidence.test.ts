@@ -26,7 +26,7 @@ test("only the selected asset's explicitly bound model appears",()=>{
   assert.equal(result[0].bindingId,"bind-a");
   assert.equal(result[0].lastAnalyzed,4);
   assert.equal(result[0].task,"anomaly-score");
-  assert.throws(()=>parseModelBindings({...bindings(),bindings:[binding(),binding()]},"bearing-a"),/중복/);
+  assert.throws(()=>parseModelBindings({...bindings(),bindings:[binding(),binding()]},"bearing-a"),/두 번/);
 });
 test("selected immutable run matches binding, trace identity, input ordinal and hash",()=>{
   const model=parseModelBindings(bindings(),"bearing-a")[0];
@@ -40,15 +40,15 @@ test("selected immutable run matches binding, trace identity, input ordinal and 
 test("cross-asset, forged run, source or ordinal evidence cannot render",()=>{
   const model=parseModelBindings(bindings(),"bearing-a")[0];
   const pointer=parseModelTrace(pointers(),model).steps[0];
-  assert.throws(()=>parseModelRun({schema_version:1,binding_id:"other",step:step()},model,pointer),/바인딩/);
+  assert.throws(()=>parseModelRun({schema_version:1,binding_id:"other",step:step()},model,pointer),/적용 모델/);
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:{...step(),
-    analysis_run_id:"other"}},model,pointer),/AnalysisRun/);
+    analysis_run_id:"other"}},model,pointer),/모델 실행 기록/);
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:{...step(),
     input_reference:{...step().input_reference,source_id:"other"}}},model,pointer),/출처/);
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:{...step(),
-    input_reference:{...step().input_reference,ordinal:3}}},model,pointer),/회차/);
+    input_reference:{...step().input_reference,ordinal:3}}},model,pointer),/입력 파일/);
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:{...step(),
-    input_reference:{...step().input_reference,sha256:"unknown"}}},model,pointer),/SHA-256/);
+    input_reference:{...step().input_reference,sha256:"unknown"}}},model,pointer),/입력 파일/);
 });
 test("window evidence requires exactly matching source, point and digest",()=>{
   const raw={...binding(),step_kind:"observation-window",measurement_point_id:"point-a"};
@@ -62,7 +62,7 @@ test("window evidence requires exactly matching source, point and digest",()=>{
     .inputReference.window_id,"window-a");
   const wrong={...state,input_reference:{...state.input_reference,measurement_point_id:"other"}};
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:wrong},
-    model,pointer),/측정 지점/);
+    model,pointer),/측정 위치/);
 });
 test("skipped steps remain explicit and cannot be interpreted as scored runs",()=>{
   const model=parseModelBindings(bindings(),"bearing-a")[0];
@@ -79,7 +79,7 @@ test("skipped steps remain explicit and cannot be interpreted as scored runs",()
 });
 test("trace does not accept duplicated positions, other bindings or too many steps",()=>{
   const model=parseModelBindings(bindings(),"bearing-a")[0];
-  assert.throws(()=>parseModelTrace({...pointers(),binding_id:"other"},model),/바인딩/);
-  assert.throws(()=>parseModelTrace({...pointers(),steps:[step(),step()]},model),/중복/);
+  assert.throws(()=>parseModelTrace({...pointers(),binding_id:"other"},model),/적용 모델/);
+  assert.throws(()=>parseModelTrace({...pointers(),steps:[step(),step()]},model),/두 번/);
   assert.throws(()=>parseModelTrace({...pointers(),steps:Array(65).fill(step())},model),/목록/);
 });

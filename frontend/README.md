@@ -47,6 +47,8 @@ not install Node dependencies.
   measurement and receive state words shared with `/web/`.
 - `src/components/AssetSummary.svelte`: the asset's first screen: record facts and next actions.
 - `src/components/CautionNote.svelte`: the single interpretation caution under a result.
+- `src/format.ts`: display-only number text (6 significant digits); stored values are never rounded.
+- `relation.ts` `strength()`: words for a server-computed correlation shown next to the coefficient.
 - `src/components/PageHeading.svelte`: page title, context and optional reload action.
 - `src/components/StatusNotice.svelte`: information, uncertainty and
   failure with explicit message/action; an unknown or failed read is not empty.

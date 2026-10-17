@@ -12,12 +12,12 @@ function record(value:unknown):Record<string,unknown>|null{
   return value && typeof value==="object" && !Array.isArray(value)?value as Record<string,unknown>:null;
 }
 function id(raw:unknown):string{
-  if(typeof raw!=="string" || !raw)throw new Error("획득 신호 식별자가 올바르지 않습니다.");
+  if(typeof raw!=="string" || !raw)throw new Error("진동 채널 식별 정보가 올바르지 않습니다.");
   return raw;
 }
 function count(raw:unknown):number{
   if(typeof raw!=="number" || !Number.isSafeInteger(raw) || raw<0)
-    throw new Error("획득 회차의 기록 수가 올바르지 않습니다.");
+    throw new Error("진동 측정 수가 올바르지 않습니다.");
   return raw;
 }
 function num(raw:unknown):number{
@@ -28,24 +28,24 @@ function num(raw:unknown):number{
 export function parseAcquisition(payload:unknown,asset:string):Acquisition|null{
   const body=record(payload);
   if(!body || body.schema_version!==1 || body.asset_id!==asset)
-    throw new Error("다른 설비의 획득 데이터 목록이 반환됐습니다.");
+    throw new Error("다른 설비의 진동 측정 목록이 돌아왔습니다.");
   if(body.acquisition===null)return null;
   const acquisition=record(body.acquisition);
-  if(!acquisition)throw new Error("획득 데이터 계약이 올바르지 않습니다.");
+  if(!acquisition)throw new Error("진동 측정 목록의 형식이 올바르지 않습니다.");
   const first=count(acquisition.first),last=count(acquisition.last);
-  if(last<first)throw new Error("획득 회차 순서가 올바르지 않습니다.");
+  if(last<first)throw new Error("측정 순서가 올바르지 않습니다.");
   return {source:id(acquisition.source_id),binding:id(acquisition.binding_id),
     first,last,count:count(acquisition.count)};
 }
 export function defaultSpans(acq:Acquisition):Spans{
-  if(acq.first>=acq.last)throw new SpectrumUnavailable("비교할 획득 회차가 두 개 이상 필요합니다.");
+  if(acq.first>=acq.last)throw new SpectrumUnavailable("비교하려면 진동 측정이 두 번 이상 필요합니다.");
   const mid=Math.floor((acq.first+acq.last)/2);
   return {a:{from:acq.first,to:mid},b:{from:mid+1,to:acq.last}};
 }
 export function validateSpans(spans:Spans):void{
   for(const name of ["a","b"] as const){
     const value=spans[name];
-    if(count(value.from)>count(value.to))throw new Error("획득 회차 범위가 뒤바뀌었습니다.");
+    if(count(value.from)>count(value.to))throw new Error("처음 측정이 마지막 측정보다 뒤에 있습니다.");
   }
 }
 export function parseSpectrum(
@@ -56,7 +56,7 @@ export function parseSpectrum(
   if(!data || data.schema_version!==1 || data.asset_id!==asset || data.kind!=="acquisition"
     || !Array.isArray(data.frequencies) || !Array.isArray(data.channels)||!used
     || !Array.isArray(used.a)||!Array.isArray(used.b))
-    throw new Error("서버 파형 스펙트럼 응답의 자료 형태가 맞지 않습니다.");
+    throw new Error("주파수 분석 결과의 형식이 올바르지 않습니다.");
   const frequency=data.frequencies.map(num);
   if(frequency.length===0 || frequency.some((n,i)=>n<0||(i>0&&n<=frequency[i-1])))
     throw new Error("스펙트럼 주파수 축이 증가하지 않습니다.");
@@ -64,7 +64,7 @@ export function parseSpectrum(
   for(const n of ["a","b"] as const){
     if(usedOrdinal[n].length===0||usedOrdinal[n].length>8
       ||usedOrdinal[n].some(v=>v<spans[n].from||v>spans[n].to))
-      throw new Error("요청하지 않은 획득 회차가 스펙트럼에 포함됐습니다.");
+      throw new Error("고르지 않은 측정이 주파수 분석에 들어 있어 표시하지 않았습니다.");
   }
   const rate=num(data.sampling_rate_hz),segment=count(data.segment);
   if(rate<=0||segment<2)throw new Error("파형의 기록 주파수 또는 분석 구간이 올바르지 않습니다.");
@@ -72,7 +72,7 @@ export function parseSpectrum(
   // frequencies are *averages* of bins, whose last center is below Nyquist.
   const nyquist=rate/2;
   if(frequency[frequency.length-1]>nyquist)
-    throw new Error("서버 표시 주파수가 Nyquist 범위를 초과합니다.");
+    throw new Error("표시 주파수가 측정 가능한 범위(Nyquist)를 넘었습니다.");
   const keys=new Set<string>();
   const channels=data.channels.map((raw:unknown):SpectrumChannel=>{
     const channel=record(raw);
@@ -80,7 +80,7 @@ export function parseSpectrum(
       || !Array.isArray(channel.band_changes))
       throw new Error("파형별 스펙트럼 구조가 올바르지 않습니다.");
     const name=id(channel.channel);
-    if(keys.has(name))throw new Error("획득 신호가 중복됐습니다.");
+    if(keys.has(name))throw new Error("같은 진동 채널이 두 번 들어 있습니다.");
     keys.add(name);
     const a=channel.a.map(num),b=channel.b.map(num);
     if(a.length!==frequency.length||b.length!==frequency.length||a.some(n=>n<0)||b.some(n=>n<0))
@@ -103,7 +103,7 @@ async function json(path:string,signal:AbortSignal):Promise<unknown>{
   if(response.status===404){
     const error:unknown=await response.json().catch(()=>null);
     if(record(error)?.error==="nothing_to_explore")
-      throw new SpectrumUnavailable("선택한 획득 회차에 저장된 원본 파형이 없습니다.");
+      throw new SpectrumUnavailable("고른 측정에는 저장된 원본 파형이 없습니다.");
   }
   if(response.status===409){
     const error:unknown=await response.json().catch(()=>null);

@@ -1,6 +1,9 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {num} from "../format";
+  import CautionNote from "./CautionNote.svelte";
+  import {strength} from "../relation";
   import {loadFeatureSource,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {
@@ -21,7 +24,7 @@
   let y=$state(params.get("acq_relation_y")??"");
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
-  const count=(n:number|null)=>n===null?"미산출":n.toFixed(3);
+  const count=(n:number|null)=>n===null?"계산 안 됨":n.toFixed(3);
 
   function savedSpans(fallback:Spans,src:FeatureSource):Spans {
     const keys=["acq_a_from","acq_a_to","acq_b_from","acq_b_to"];
@@ -116,27 +119,26 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-relation-title">
-  <h2 id="acq-relation-title">획득 회차 두 특징 관계 비교</h2>
-  <p class="context">같은 설비·출처·모델 입력 binding의 동일 획득 회차에 저장된 두 특징값만 비교합니다.
-    획득 번호는 측정 시각이 아니며, 상관관계는 인과관계나 설비 고장 판정이 아닙니다.</p>
+  <h2 id="acq-relation-title">진동 특징 관계</h2>
+  <p class="context">같은 진동 측정에서 뽑은 두 특징값이 같이 움직이는지 봅니다. 같은 측정끼리만 짝짓습니다.</p>
   {#if sourceState==="loading"}
-    <StatusNotice message="획득 특징과 원본 범위를 조회하고 있습니다."/>
+    <StatusNotice message="진동 특징 목록을 불러오고 있습니다."/>
   {:else if sourceState==="failed"}
-    <StatusNotice kind="failure" title="획득 관계 자료 조회 실패" message={error}
-      actionLabel="목록 다시 조회" onAction={()=>void load()}/>
+    <StatusNotice kind="failure" title="진동 특징 목록을 불러오지 못했습니다" message={error}
+      actionLabel="다시 불러오기" onAction={()=>void load()}/>
   {:else if sourceState==="empty"||sourceState==="unavailable"}
-    <StatusNotice kind="uncertain" title="관계 분석에 필요한 획득 특징이 부족합니다"
-      message={error||"같은 바인딩에 서로 다른 두 특징과 회차 자료가 필요합니다. 정상 설비라는 의미가 아닙니다."}/>
+    <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
+      message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다. 이상이 없다는 뜻은 아닙니다."}/>
   {:else if source && spans}
-    <p class="context">설비 <strong>{assetId}</strong> · 원본 출처 <strong>{source.sourceId}</strong>
-      · binding <strong>{source.bindingId}</strong> · 획득 #{source.first} ~ #{source.last}</p>
+    <p class="context">데이터 출처 <strong>{source.sourceId}</strong> · 적용 모델 {source.bindingId}
+      · 측정 #{source.first} ~ #{source.last}</p>
     <div class="controls">
-      <label>X 특징
+      <label>특징 X
         <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>
           {#each source.features as item(item.id)}<option value={item.id}>{item.label} · {item.id}</option>{/each}
         </select>
       </label>
-      <label>Y 특징
+      <label>특징 Y
         <select value={y} onchange={e=>feature("y",e.currentTarget.value)}>
           {#each source.features as item(item.id)}<option value={item.id}>{item.label} · {item.id}</option>{/each}
         </select>
@@ -146,61 +148,62 @@
       {#each ["a","b"] as name(name)}
         {@const period=name as "a"|"b"}
         <fieldset>
-          <legend>구간 {period.toUpperCase()} · 획득 회차</legend>
-          <label>시작 회차 <input type="number" step="1" min={source.first} max={source.last}
+          <legend>기간 {period.toUpperCase()} · 측정 순서</legend>
+          <label>처음 측정 # <input type="number" step="1" min={source.first} max={source.last}
             value={spans[period].from} onchange={e=>changeSpan(period,"from",e.currentTarget.value)}/></label>
-          <label>끝 회차 <input type="number" step="1" min={source.first} max={source.last}
+          <label>마지막 측정 # <input type="number" step="1" min={source.first} max={source.last}
             value={spans[period].to} onchange={e=>changeSpan(period,"to",e.currentTarget.value)}/></label>
         </fieldset>
       {/each}
     </div>
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
-      동일 획득의 특징 짝 비교
+      관계 계산하기
     </button>
     {#if resultState==="loading"}
-      <StatusNotice message="서버가 계산한 획득 관계 근거를 확인하고 있습니다."/>
+      <StatusNotice message="같은 측정의 특징 짝을 불러오고 있습니다."/>
     {:else if resultState==="failed"}
-      <StatusNotice kind="failure" title="획득 특징 관계 확인 실패" message={error}
-        actionLabel="같은 조건 다시 조회" onAction={()=>void compare()}/>
+      <StatusNotice kind="failure" title="진동 특징 관계를 불러오지 못했습니다" message={error}
+        actionLabel="같은 조건으로 다시 불러오기" onAction={()=>void compare()}/>
     {:else if resultState==="unavailable"}
-      <StatusNotice kind="uncertain" title="저장된 획득 근거 없음" message={error}/>
+      <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={error}/>
     {:else if relation}
       {#each relation.groups as group(group.period)}
         <section class="group">
-          <h3>구간 {group.period.toUpperCase()} · 획득 회차 {spans[group.period].from}–{spans[group.period].to}</h3>
+          <h3>기간 {group.period.toUpperCase()} · 측정 #{spans[group.period].from}–#{spans[group.period].to}</h3>
+          {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
           <dl>
-            <div><dt>분석한 회차</dt><dd>{group.analyzed}건</dd></div>
-            <div><dt>유효 특징 짝</dt><dd>{group.pairs}건</dd></div>
+            <div><dt>분석한 측정</dt><dd>{group.analyzed}회</dd></div>
+            <div><dt>쓸 수 있는 특징 짝</dt><dd>{group.pairs}개</dd></div>
             <div><dt>피어슨</dt><dd>{count(group.pearson)}</dd></div>
             <div><dt>스피어먼</dt><dd>{count(group.spearman)}</dd></div>
           </dl>
           {#if group.sampled||group.points.length<group.pairs}
             <StatusNotice kind="uncertain"
-              message={"관계 계산 입력 또는 그래프 표시가 일부만 추출됐습니다. 전체 분석 "+group.analyzed+"회차와 유효 짝 "+group.pairs+"개를 혼동하지 마세요."}/>
+              message={"짝이 많아 계산이나 그래프에 일부만 사용했습니다. 분석한 측정은 전체 "+group.analyzed+"회, 쓸 수 있는 짝은 "+group.pairs+"개입니다."}/>
           {/if}
           {#if group.pairs<3||group.pearson===null||group.spearman===null}
             <StatusNotice kind="uncertain"
-              message="자료가 부족하거나 상수 특징으로 관계 계수를 계산할 수 없습니다. 관계 없음(0)으로 표시하지 않습니다."/>
+              message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
           {/if}
           {#if group.points.length}
             <svg viewBox="0 0 320 180" role="img"
-              aria-label={"구간 "+group.period.toUpperCase()+"의 동일 획득 특징 짝 "+group.points.length+"개 산점도. 인과관계나 시간축이 아닙니다."}>
+              aria-label={"기간 "+group.period.toUpperCase()+"의 같은 측정 특징 짝 "+group.points.length+"개 산점도. 가로축은 시간이 아닙니다."}>
               <path d="M24 16 V156 H304" fill="none" stroke="currentColor" stroke-width="1"/>
               {#each scatter(group) as point(point.ordinal)}
                 <circle cx={point.x} cy={point.y} r="3.5" fill="var(--color-action)">
-                  <title>획득 #{point.ordinal} · {x} / {y}</title>
+                  <title>측정 #{point.ordinal} · {x} / {y}</title>
                 </circle>
               {/each}
             </svg>
           {/if}
           <details>
-            <summary>동일 획득 특징 짝 표 ({group.points.length}개 표시)</summary>
+            <summary>같은 측정의 특징 짝 표 ({group.points.length}개 표시)</summary>
             <div class="table-scroll"><table>
-              <caption>서버가 반환한 회차별 유효 특징 짝, 선택 표본</caption>
-              <thead><tr><th scope="col">획득 회차</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
+              <caption>측정별 특징 짝 (일부만 표시될 수 있음)</caption>
+              <thead><tr><th scope="col">측정 순서</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
               <tbody>
                 {#each group.points.slice(0,100) as point(point.ordinal)}
-                  <tr><td>#{point.ordinal}</td><td>{point.x}</td><td>{point.y}</td></tr>
+                  <tr><td>#{point.ordinal}</td><td>{num(point.x)}</td><td>{num(point.y)}</td></tr>
                 {/each}
               </tbody>
             </table></div>
@@ -208,6 +211,7 @@
           </details>
         </section>
       {/each}
+      <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 측정 순서는 실제 시각이 아닙니다."/>
     {/if}
   {/if}
 </section>
@@ -223,4 +227,5 @@
   svg{max-width:100%;height:auto} .table-scroll{overflow-x:auto}
   table{width:100%;border-collapse:collapse}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}
+  .headline{font-size:var(--font-section);font-weight:700}
 </style>

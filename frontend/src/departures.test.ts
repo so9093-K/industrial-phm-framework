@@ -20,10 +20,10 @@ const result = () => ({
 
 test("server meaning, asset, signal and baseline must match selected task", () => {
   assert.equal(parseDepartures(result(), "motor-1", "R", "first-30").intervalCount, 1);
-  assert.throws(() => parseDepartures(result(), "other", "R", "first-30"), /일치하지/);
-  assert.throws(() => parseDepartures(result(), "motor-1", "S", "first-30"), /일치하지/);
-  assert.throws(() => parseDepartures(result(), "motor-1", "R", "all"), /일치하지/);
-  assert.throws(() => parseDepartures({...result(), meaning: "validated-fault"}, "motor-1", "R", "first-30"), /일치하지/);
+  assert.throws(() => parseDepartures(result(), "other", "R", "first-30"), /맞지 않아/);
+  assert.throws(() => parseDepartures(result(), "motor-1", "S", "first-30"), /맞지 않아/);
+  assert.throws(() => parseDepartures(result(), "motor-1", "R", "all"), /맞지 않아/);
+  assert.throws(() => parseDepartures({...result(), meaning: "validated-fault"}, "motor-1", "R", "first-30"), /맞지 않아/);
 });
 
 test("no departures differs from insufficient baseline and never becomes health", () => {

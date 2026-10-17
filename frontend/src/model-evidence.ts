@@ -30,7 +30,7 @@ function id(v:unknown):string{
 }
 function position(v:unknown):number{
   if(typeof v!=="number"||!Number.isSafeInteger(v)||v<1)
-    throw new Error("모델 입력 회차의 위치가 올바르지 않습니다.");
+    throw new Error("모델 입력의 측정 위치가 올바르지 않습니다.");
   return v;
 }
 function sequence(v:unknown):number{
@@ -71,13 +71,13 @@ function safeRecord(v:unknown):Record<string,unknown>{
 export function parseModelBindings(raw:unknown,assetId:string):ModelBinding[]{
   const root=obj(raw);
   if(!root||root.schema_version!==1||!Array.isArray(root.bindings)||root.bindings.length>1000)
-    throw new Error("PHM 바인딩 목록의 응답 계약이 올바르지 않습니다.");
+    throw new Error("적용 모델 목록의 형식이 올바르지 않습니다.");
   const seen=new Set<string>();
   return root.bindings.map((entry:unknown):ModelBinding=>{
     const row=obj(entry);
-    if(!row)throw new Error("PHM 바인딩의 구조를 확인할 수 없습니다.");
+    if(!row)throw new Error("적용 모델 정보를 확인할 수 없습니다.");
     const bindingId=id(row.binding_id);
-    if(seen.has(bindingId))throw new Error("중복 PHM 바인딩이 반환됐습니다.");
+    if(seen.has(bindingId))throw new Error("같은 적용 모델이 두 번 돌아왔습니다.");
     seen.add(bindingId);
     const packageSummary=row.package===null?null:obj(row.package);
     if(row.package!==null&&!packageSummary)
@@ -94,7 +94,7 @@ export function parseModelBindings(raw:unknown,assetId:string):ModelBinding[]{
     if(typeof row.recorded_replay!=="boolean")throw new Error("재생 자료 여부를 확인할 수 없습니다.");
     const task=obj(packageSummary?.output)?.task;
     if(packageSummary?.package_id!==undefined&&packageSummary?.package_id!==pkg)
-      throw new Error("바인딩과 모델 패키지가 일치하지 않습니다.");
+      throw new Error("적용 모델과 모델 패키지가 맞지 않습니다.");
     return {assetId:asset,sourceId:source,pointId:point,bindingId,packageId:pkg,
       stepKind:kind,recordedReplay:row.recorded_replay,health:id(row.health),
       packageAvailable:packageSummary!==null,
@@ -117,22 +117,22 @@ export function parseModelTrace(raw:unknown,binding:ModelBinding):ModelTrace{
   const root=obj(raw);
   if(!root||root.schema_version!==1||root.binding_id!==binding.bindingId
     ||!Array.isArray(root.steps)||root.limit!==64||root.steps.length>64)
-    throw new Error("다른 PHM 바인딩의 단계 이력 또는 유효하지 않은 목록입니다.");
+    throw new Error("다른 적용 모델의 결과 목록이 돌아왔습니다.");
   const steps=root.steps.map(pointer);
   if(new Set(steps.map(s=>s.position)).size!==steps.length
     ||new Set(steps.map(s=>s.runId)).size!==steps.length)
-    throw new Error("모델 단계의 근거 식별자가 중복 반환됐습니다.");
+    throw new Error("같은 모델 결과가 두 번 돌아왔습니다.");
   return {bindingId:binding.bindingId,steps,limit:64};
 }
 export function parseModelRun(raw:unknown,binding:ModelBinding,expected:StepPointer):ModelRun{
   const root=obj(raw);
   if(!root||root.schema_version!==1||root.binding_id!==binding.bindingId)
-    throw new Error("선택한 바인딩과 다른 결과가 반환됐습니다.");
+    throw new Error("고른 적용 모델과 다른 결과가 돌아왔습니다.");
   const step=pointer(root.step);
   if(step.position!==expected.position||step.runId!==expected.runId
     ||step.stepKey!==expected.stepKey||step.state!==expected.state
     ||step.changeSeq!==expected.changeSeq)
-    throw new Error("선택한 AnalysisRun과 저장된 결과의 근거가 일치하지 않습니다.");
+    throw new Error("고른 측정의 모델 실행 기록과 결과가 맞지 않습니다.");
   const row=obj(root.step);
   if(!row||typeof row.replay!=="boolean")throw new Error("모델 실행 기록의 상태가 올바르지 않습니다.");
   const ref=safeRecord(row.input_reference);
@@ -143,17 +143,17 @@ export function parseModelRun(raw:unknown,binding:ModelBinding,expected:StepPoin
   if(binding.stepKind==="acquisition-snapshot"){
     if(ref.ordinal!==step.position||typeof ref.sha256!=="string"
       ||!/^[a-f0-9]{64}$/i.test(ref.sha256))
-      throw new Error("원본 획득 회차·SHA-256 근거가 일치하지 않습니다.");
+      throw new Error("모델 입력 파일이 고른 측정과 맞지 않아 표시하지 않았습니다.");
   }else{
     if(ref.measurement_point_id!==point||typeof ref.window_id!=="string"
       ||!ref.window_id||typeof ref.input_digest!=="string"
       ||!/^[a-f0-9]{64}$/i.test(ref.input_digest))
-      throw new Error("모델 윈도우·측정 지점·입력 해시 근거가 일치하지 않습니다.");
+      throw new Error("모델 입력 구간이 고른 측정 위치와 맞지 않아 표시하지 않았습니다.");
   }
   if(step.state==="skipped"&&row.features!==null)
     throw new Error("제외된 단계에 계산 특징이 포함됐습니다.");
   const processedAt=time(row.processed_at);
-  if(processedAt===null)throw new Error("모델 처리 시각 근거가 없습니다.");
+  if(processedAt===null)throw new Error("모델 처리 시각이 기록되지 않았습니다.");
   const output=safeRecord(row.output);
   const features=row.features===null?null:safeRecord(row.features);
   return {bindingId:binding.bindingId,assetId:binding.assetId,sourceId:binding.sourceId,
@@ -168,9 +168,9 @@ async function get(url:string,signal:AbortSignal):Promise<unknown>{
   if(response.status===404){
     const body:unknown=await response.json().catch(()=>null);
     if(obj(body)?.error==="unknown_binding"||obj(body)?.error==="invalid_phm_query")
-      throw new NoModelEvidence("요청한 모델 실행·근거가 더 이상 조회되지 않습니다.");
+      throw new NoModelEvidence("고른 모델 결과를 더 이상 찾을 수 없습니다.");
   }
-  if(!response.ok)throw new Error("모델 실행 근거를 읽지 못했습니다. 저장 근거 없음과 다릅니다.");
+  if(!response.ok)throw new Error("모델 결과를 읽지 못했습니다. 결과가 없다는 뜻은 아닙니다.");
   return await response.json() as unknown;
 }
 export async function loadModelBindings(assetId:string,signal:AbortSignal):Promise<ModelBinding[]>{

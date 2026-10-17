@@ -46,7 +46,7 @@ function obj(value: unknown): Record<string, unknown> | null {
 }
 
 function nonEmpty(value: unknown): string {
-  if (typeof value !== "string" || !value) throw new Error("서버 분석의 식별자가 올바르지 않습니다.");
+  if (typeof value !== "string" || !value) throw new Error("기준 이탈 결과의 식별 정보가 올바르지 않습니다.");
   return value;
 }
 
@@ -59,13 +59,13 @@ function instant(value: unknown): string {
 
 function amount(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value))
-    throw new Error("서버 분석값을 확인할 수 없습니다.");
+    throw new Error("기준 이탈 결과의 값을 확인할 수 없습니다.");
   return value;
 }
 
 function total(value: unknown): number {
   const n = amount(value);
-  if (!Number.isSafeInteger(n) || n < 0) throw new Error("서버 분석 건수가 올바르지 않습니다.");
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error("기준 이탈 결과의 건수가 올바르지 않습니다.");
   return n;
 }
 
@@ -81,7 +81,7 @@ export function parseDepartures(
     || !baseline || baseline.name !== baselineName
     || !Array.isArray(data.channels) || !Array.isArray(data.score)
     || !Array.isArray(data.intervals) || !units) {
-    throw new Error("선택한 설비·신호·기준 구간과 서버 분석 결과가 일치하지 않습니다.");
+    throw new Error("받은 결과가 고른 설비·신호·기준 구간과 맞지 않아 표시하지 않았습니다.");
   }
   const rawScored = data.channels.map(obj).find(row => row?.key === selectedChannel);
   if (!rawScored || !["scored", "short-baseline", "constant"].includes(String(rawScored.state)))
@@ -116,7 +116,7 @@ export function parseDepartures(
   });
   const intervalCount = total(data.interval_count);
   if (intervals.length > intervalCount || intervals.length > 50)
-    throw new Error("분석 구간 수가 서버 제한과 맞지 않습니다.");
+    throw new Error("벗어난 구간 수가 허용 범위를 넘었습니다.");
   const from = instant(baseline.from), to = instant(baseline.to);
   if (Date.parse(to) < Date.parse(from)) throw new Error("기준 시각 범위가 올바르지 않습니다.");
   const threshold = amount(data.threshold), bucketSeconds = amount(data.bucket_seconds);
@@ -153,10 +153,10 @@ export async function readDepartures(
   if (response.status === 404) {
     const error = await response.json().catch(() => null) as unknown;
     if (obj(error)?.error === "nothing_to_explore") {
-      throw new NoStoredEvidenceError("해당 설비의 저장된 비교 근거가 없습니다.");
+      throw new NoStoredEvidenceError("이 설비에는 비교할 저장 기록이 없습니다.");
     }
-    throw new Error("조회 경로를 확인할 수 없습니다. 근거가 없다는 뜻은 아닙니다.");
+    throw new Error("결과를 찾을 위치를 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
   }
-  if (!response.ok) throw new Error("기준 이탈 분석 근거를 읽지 못했습니다. 조회 오류를 정상 상태로 해석하지 않습니다.");
+  if (!response.ok) throw new Error("기준 이탈 결과를 읽지 못했습니다. 이상이 없다는 뜻은 아닙니다.");
   return parseDepartures(await response.json() as unknown, assetId, series, baseline);
 }

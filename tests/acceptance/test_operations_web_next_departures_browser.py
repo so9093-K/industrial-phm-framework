@@ -146,7 +146,7 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 )
                 expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("1개")
-                pw.expect(page.locator(".departures svg circle")).to_have_count(1)
+                pw.expect(page.locator(".departures svg[role=img] circle")).to_have_count(1)
                 assert "고장 가능성" in page.locator("main").inner_text()
                 page.get_by_label("비교 기준 구간").select_option("all")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("0개")
@@ -159,18 +159,20 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
 
                 page.get_by_label("비교 기준 구간").select_option("first-50")
                 pw.expect(
-                    page.get_by_role("heading", name="저장된 비교 근거가 없습니다")
+                    page.get_by_role("heading", name="비교할 저장 기록이 없습니다")
                 ).to_be_visible()
                 assert page.get_by_text("0개").count() == 0
                 response_override["error"] = "store"
                 page.get_by_label("비교 기준 구간").select_option("first-30")
                 pw.expect(
-                    page.get_by_role("heading", name="기준 이탈 분석 조회 실패")
+                    page.get_by_role("heading", name="기준 이탈 결과를 불러오지 못했습니다")
                 ).to_be_visible()
-                assert page.get_by_role("heading", name="저장된 비교 근거가 없습니다").count() == 0
+                assert page.get_by_role("heading", name="비교할 저장 기록이 없습니다").count() == 0
                 response_override["error"] = "not_found"
                 page.get_by_label("비교 기준 구간").select_option("all")
-                pw.expect(page.get_by_text("조회 경로를 확인할 수 없습니다")).to_be_visible()
+                pw.expect(
+                    page.get_by_text("결과를 찾을 위치를 확인하지 못했습니다")
+                ).to_be_visible()
                 choose_asset(page, "motor-b")
                 expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(

@@ -1,6 +1,8 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import CautionNote from "./CautionNote.svelte";
+  import {assetTabUrl} from "../routes";
   import {
     loadModelBindings,loadModelTrace,loadModelRun,NoModelEvidence,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
@@ -25,6 +27,15 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
+  const number=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)
+    ?(Number.isInteger(v)?String(v):v.toFixed(3)):null;
+  // Only fields the stored output actually carries are summarized; nothing is recomputed.
+  const scoreOf=(output:Record<string,unknown>)=>({
+    score:number(output.score),threshold:number(output.threshold),
+    exceeds:typeof output.exceeds_threshold==="boolean"?output.exceeds_threshold:null,
+  });
+  const place=(position:number)=>binding?.stepKind==="observation-window"
+    ?"시간 구간 #"+position:"측정 순서 #"+position;
 
   function remember(){
     if(!binding)return;
@@ -102,102 +113,107 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
-  <h2 id="model-evidence-title">저장 모델 실행과 입력 근거</h2>
-  <p class="context">저장된 모델 패키지·binding·AnalysisRun·입력 해시를 확인합니다. 모델 이상 점수는
-    설비 고장 확률이 아니며, 분석 시각은 수집 시각과 다릅니다.
-    이 PHM 모델 저장 형식에는 별도의 운영 Evidence ID가 없으므로 임의로 생성하지 않습니다.</p>
+  <h2 id="model-evidence-title">모델 이상 점수</h2>
+  <p class="context">이 설비에 적용한 이상 탐지 모델이 측정마다 계산한 점수와 기준을 봅니다.</p>
   {#if listState==="loading"}
-    <StatusNotice message="설비에 명시적으로 연결된 모델 목록을 확인하고 있습니다."/>
+    <StatusNotice message="이 설비에 적용한 모델을 확인하고 있습니다."/>
   {:else if listState==="failed"}
-    <StatusNotice kind="failure" title="모델 목록 조회 실패" message={error}
-      actionLabel="목록 다시 조회" onAction={()=>void loadBindings()}/>
+    <StatusNotice kind="failure" title="적용 모델을 불러오지 못했습니다" message={error}
+      actionLabel="다시 불러오기" onAction={()=>void loadBindings()}/>
   {:else if listState==="empty"}
-    <StatusNotice kind="uncertain" title="연결된 모델 실행이 없습니다"
-      message="설비에 연결된 활성 모델 바인딩이 없습니다. 설비가 정상이라는 의미가 아닙니다."/>
+    <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
+      message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
+      actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
   {:else}
-    <label class="selector">저장 모델 바인딩
-      <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
-        {#each bindings as item(item.bindingId)}
-          <option value={item.bindingId}>{item.bindingId} · {item.sourceId} · {item.packageId}</option>
-        {/each}
-      </select>
-    </label>
+    {#if bindings.length>1}
+      <label class="selector">적용 모델
+        <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
+          {#each bindings as item(item.bindingId)}
+            <option value={item.bindingId}>{item.packageId} · 데이터 출처 {item.sourceId}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     {#if binding}
-      <dl>
-        <div><dt>모델 binding</dt><dd>{binding.bindingId}</dd></div>
-        <div><dt>설비</dt><dd>{binding.assetId}</dd></div>
-        <div><dt>원본 출처</dt><dd>{binding.sourceId}</dd></div>
-        <div><dt>측정 지점</dt><dd>{binding.pointId??"별도 지점 없음"}</dd></div>
-        <div><dt>패키지</dt><dd>{binding.packageId}</dd></div>
-        <div><dt>모델 작업</dt><dd>{binding.task??"확인 불가"}</dd></div>
-        <div><dt>입력 축</dt><dd>{binding.stepKind==="acquisition-snapshot"?"획득 순번":"저장 관측 윈도우"}</dd></div>
-        <div><dt>모델 실행 상태</dt><dd>{binding.health} · 설비 건전성 판정 아님</dd></div>
-      </dl>
+      <p class="context">적용 모델 <strong>{binding.packageId}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+        · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       {#if !binding.packageAvailable}
-        <StatusNotice kind="uncertain" message="패키지 manifest를 조회하지 못했습니다. 저장 실행은 볼 수 있어도 모델 적합성이나 검증 범위는 주장할 수 없습니다."/>
+        <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
       {/if}
       {#if binding.lastProcessed!==null&&binding.lastProcessed!==binding.lastAnalyzed}
-        <StatusNotice kind="uncertain" message="가장 최근 처리 단계와 최근 분석 성공 단계가 다릅니다. 제외·대기 입력을 마지막 점수로 대체하지 않습니다."/>
+        <StatusNotice kind="uncertain" message={"가장 최근 "+place(binding.lastProcessed)+"은 모델이 분석하지 않았습니다. 이전 점수를 최신 점수처럼 보여 주지 않습니다."}/>
       {/if}
       {#if traceState==="loading"}
-        <StatusNotice message="최근 모델 실행 단계와 선택 가능한 AnalysisRun을 읽고 있습니다."/>
+        <StatusNotice message="최근 측정의 모델 결과 목록을 불러오고 있습니다."/>
       {:else if traceState==="failed"}
-        <StatusNotice kind="failure" title="모델 이력 조회 실패" message={error}
-          actionLabel="이력 다시 조회" onAction={()=>void chooseBinding(binding!.bindingId)}/>
+        <StatusNotice kind="failure" title="모델 결과 목록을 불러오지 못했습니다" message={error}
+          actionLabel="다시 불러오기" onAction={()=>void chooseBinding(binding!.bindingId)}/>
       {:else if traceState==="unavailable"}
-        <StatusNotice kind="uncertain" title="모델 저장 이력을 찾을 수 없습니다" message={error}/>
+        <StatusNotice kind="uncertain" title="모델 결과 기록을 찾을 수 없습니다" message={error}/>
       {:else if traceState==="empty"}
-        <StatusNotice kind="uncertain" message="조회 가능한 최근 실행 이력이 없습니다. 저장소 오류와 혼동하지 마세요."/>
+        <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
       {:else if trace}
-        <label class="selector">모델 실행 회차 (최근 {trace.limit}개 범위)
+        <label class="selector">측정 선택 (최근 {trace.limit}회)
           <select value={selectedStep?String(selectedStep.position):""}
             onchange={e=>{
               const item=trace!.steps.find(s=>String(s.position)===e.currentTarget.value);
               if(item)void chooseStep(item);
             }}>
             {#each trace.steps as item(item.runId)}
-              <option value={item.position}>{item.position} · {item.state==="analyzed"?"분석":"제외"} · {item.runId}</option>
+              <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":"분석에서 제외"}</option>
             {/each}
           </select>
         </label>
         {#if trace.steps.length===trace.limit}
-          <StatusNotice kind="uncertain" message="이 화면은 최근 64개 저장 단계만 선택할 수 있습니다. 더 오래된 결과가 없다는 뜻이 아닙니다."/>
+          <p class="context">최근 {trace.limit}회만 고를 수 있습니다. 이전 기록이 없다는 뜻은 아닙니다.</p>
         {/if}
         {#if detailState==="loading"}
-          <StatusNotice message="선택한 AnalysisRun과 입력 원본을 대조하고 있습니다."/>
+          <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
         {:else if detailState==="failed"}
-          <StatusNotice kind="failure" title="모델 근거 일치 검증 실패" message={error}
-            actionLabel="해당 실행 재조회" onAction={()=>{if(selectedStep)void chooseStep(selectedStep);}}/>
+          <StatusNotice kind="failure" title="모델 결과를 확인하지 못했습니다" message={error}
+            actionLabel="다시 확인" onAction={()=>{if(selectedStep)void chooseStep(selectedStep);}}/>
         {:else if detailState==="unavailable"}
-          <StatusNotice kind="uncertain" title="선택한 모델 실행을 조회할 수 없습니다" message={error}/>
+          <StatusNotice kind="uncertain" title="선택한 모델 결과를 찾을 수 없습니다" message={error}/>
         {:else if result}
-          <h3>선택한 저장 실행 근거</h3>
-          <dl>
-            <div><dt>AnalysisRun</dt><dd>{result.runId}</dd></div>
-            <div><dt>저장 단계 키</dt><dd>{result.stepKey}</dd></div>
-            <div><dt>입력 위치</dt><dd>{result.position} · {result.evidenceKind==="acquisition-snapshot"?"획득 회차(시간 아님)":"관측 윈도우 정렬 키"}</dd></div>
-            <div><dt>처리 상태</dt><dd>{result.state==="analyzed"?"모델 분석 성공":"입력 제외"}</dd></div>
-            <div><dt>재생 입력</dt><dd>{result.replay?"기록 재생":"재생 아님"}</dd></div>
-            <div><dt>측정 시작</dt><dd>{clock(result.eventStart)}</dd></div>
-            <div><dt>측정 끝</dt><dd>{clock(result.eventEnd)}</dd></div>
-            <div><dt>모델 처리 시각</dt><dd>{clock(result.processedAt)}</dd></div>
-            <div><dt>원본 입력 해시</dt><dd>{String(result.inputReference.sha256??result.inputReference.input_digest??"없음")}</dd></div>
-            <div><dt>윈도우 ID</dt><dd>{String(result.inputReference.window_id??"해당 없음")}</dd></div>
-          </dl>
           {#if result.state==="skipped"}
-            <StatusNotice kind="uncertain" title="이 단계는 모델 분석에서 제외됐습니다"
-              message={result.reason??"제외 사유 없음"}/>
+            <StatusNotice kind="uncertain" title="이 측정은 모델 분석에서 제외됐습니다"
+              message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
           {:else}
-            <p class="context">아래는 서버가 저장한 모델 출력입니다. 프런트엔드에서 점수·임계값·변수 기여도를 새로 계산하지 않습니다.</p>
-            <h4>원본 모델 출력</h4>
-            <pre>{stringify(result.output)}</pre>
-            <h4>저장 입력 특징</h4>
-            {#if result.features===null}
-              <StatusNotice kind="uncertain" message="이 모델 실행에 저장된 특징 근거가 없습니다."/>
-            {:else}
-              <pre>{stringify(result.features)}</pre>
-            {/if}
+            {@const summary=scoreOf(result.output)}
+            <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"}>
+              <div><span>모델 점수</span><strong>{summary.score??"기록 없음"}</strong></div>
+              <div><span>모델 기준</span><strong>{summary.threshold??"기록 없음"}</strong></div>
+              <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
+            </div>
           {/if}
+          <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
+            · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
+          {#if result.state!=="skipped"}
+            <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다."/>
+          {/if}
+          <details>
+            <summary>기술 상세</summary>
+            <dl>
+              <div><dt>적용 모델(binding)</dt><dd>{binding.bindingId}</dd></div>
+              <div><dt>모델 패키지</dt><dd>{binding.packageId}</dd></div>
+              <div><dt>모델 작업</dt><dd>{binding.task??"확인 불가"}</dd></div>
+              <div><dt>모델 상태</dt><dd>{binding.health}</dd></div>
+              <div><dt>모델 실행 기록</dt><dd>{result.runId}</dd></div>
+              <div><dt>저장 단계 키</dt><dd>{result.stepKey}</dd></div>
+              <div><dt>입력 파일 확인값</dt><dd>{String(result.inputReference.sha256??result.inputReference.input_digest??"없음")}</dd></div>
+              <div><dt>시간 구간 ID</dt><dd>{String(result.inputReference.window_id??"해당 없음")}</dd></div>
+            </dl>
+            {#if result.state!=="skipped"}
+              <h4>모델 출력 원본</h4>
+              <pre>{stringify(result.output)}</pre>
+              <h4>입력 특징값</h4>
+              {#if result.features===null}
+                <p class="context">이 실행에는 입력 특징값이 저장되지 않았습니다.</p>
+              {:else}
+                <pre>{stringify(result.features)}</pre>
+              {/if}
+            {/if}
+          </details>
         {/if}
       {/if}
     {/if}
@@ -209,6 +225,11 @@
   select{width:100%;min-width:0;border:1px solid var(--color-border);
     border-radius:var(--radius-control);padding:var(--space-3);
     background:var(--color-surface);color:var(--color-ink)}
+  .score{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:var(--space-3);margin-block:var(--space-4)}
+  .score div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
+  .score span{font-size:var(--font-small);color:var(--color-ink-muted)}
+  .score strong{font-size:var(--font-section)}
+  summary{cursor:pointer;font-weight:700;padding-block:var(--space-3)}
   dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-3)}
   dt{font-size:var(--font-small);color:var(--color-ink-muted)}
   dd{margin:0;font-weight:650;overflow-wrap:anywhere}
