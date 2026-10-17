@@ -41,6 +41,7 @@ tests/acceptance/test_operations_web_next_spectrum_browser.py
 tests/acceptance/test_operations_web_next_acquisition_profile_browser.py
 tests/acceptance/test_operations_web_next_acquisition_relation_browser.py
 tests/acceptance/test_operations_web_next_model_evidence_browser.py
+tests/acceptance/test_operations_web_next_outlook_capture_browser.py
 "
 FORECAST_PYTHON="
 tests/integration/test_operations_web_forecast.py

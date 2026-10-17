@@ -6,6 +6,7 @@
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
+  import ReviewRequest from "./ReviewRequest.svelte";
   import {
     loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
@@ -196,6 +197,12 @@
             projection=null;
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
+          }}/>
+          <ReviewRequest {projection} onEvidenceChanged={message=>{
+            requestProjection?.abort();
+            projection=null;
+            resultState="unverified";
+            error=message;
           }}/>
         {/key}
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 기준은 사용자가 정한 값이며, 고장 시점이나 남은 수명이 아닙니다." />

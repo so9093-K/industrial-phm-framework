@@ -30,7 +30,11 @@ from industrial_phm.runtime.operations_web_forecast import (
     history_points,
     measurement_version,
 )
-from industrial_phm.runtime.operations_web_outlook import condition_outlook, outlook_arguments
+from industrial_phm.runtime.operations_web_outlook import (
+    condition_outlook,
+    outlook_arguments,
+    verify_outlook_provenance,
+)
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -53,6 +57,9 @@ _SELECTION = frozenset(
     }
 )
 _VERSIONS = frozenset({"measurement_version", "data_version"})
+# Optional exact provenance the browser displayed. Checked before saving, but not part
+# of the stored selection or identity, so existing capture IDs stay unchanged.
+_PROVENANCE = frozenset({"source_id", "binding_id", "time_basis", "recorded_period_seconds"})
 _MAX_SNAPSHOT_BYTES = 64 * 1024
 
 
@@ -300,13 +307,14 @@ def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str,
 
 def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Capture only exact current server-calculated facts after an explicit write request."""
-    if set(payload) - (_SELECTION | _VERSIONS) or not (
+    if set(payload) - (_SELECTION | _VERSIONS | _PROVENANCE) or not (
         {"asset_id", "kind", "series"} | _VERSIONS
     ) <= set(payload):
         raise ValueError("unexpected capture fields")
     if any(not isinstance(value, str) or len(value) > 512 for value in payload.values()):
         raise ValueError("invalid capture parameter")
     params = {key: cast(str, value) for key, value in payload.items() if key in _SELECTION}
+    provenance = {key: cast(str, value) for key, value in payload.items() if key in _PROVENANCE}
     for name in _VERSIONS:
         version = payload[name]
         if not isinstance(version, str) or len(version) != 64:
@@ -319,6 +327,7 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
         raise ValueError("selected outlook cannot be computed") from error
     if any(outlook[name] != payload[name] for name in _VERSIONS):
         raise ValueError("outlook changed before capture: refresh required")
+    verify_outlook_provenance(outlook, provenance)
     # Canonical model inputs identify a capture. Hashing the whole forecast would
     # create duplicate records when a numerical solver returns slightly different
     # floats for identical measurements, versions and forecasting settings.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, canonicalUrl, parseRoute, routeUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("pages and asset tabs are user tasks; unknown values are not invented", () => {
@@ -67,4 +67,10 @@ test("links inside an asset carry only the asset, the task and a chosen signal",
     "/web-next/");
   assert.equal(new URL(routeUrl({page: "maintenance", assetId: "x", tab: "summary", method: null,
     data: null}, "R"), "http://local").searchParams.has("monitor_channel"), false);
+});
+
+test("a review subject is only read on the maintenance page", () => {
+  assert.deepEqual(reviewFocus("?page=maintenance&monitor_asset=a&capture_id=c"), {captureId: "c", findingId: null});
+  assert.deepEqual(reviewFocus("?page=maintenance&finding_id=f"), {captureId: null, findingId: "f"});
+  assert.deepEqual(reviewFocus("?page=assets&capture_id=c"), {captureId: null, findingId: null});
 });

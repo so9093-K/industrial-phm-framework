@@ -99,9 +99,17 @@ not install Node dependencies.
   frequency/power axes, missing raw-waveform and storage failures distinguished.
 - `src/spectrum.ts`: acquisition binding/sampling rate/ordinal and PSD channel/
   frequency/band consistency contracts. Ordinal positions are not clock times.
-- `src/components/ReviewInbox.svelte`: the maintenance page's one-snapshot review list for
-  every asset, exact Finding/AnalysisRun/Evidence identities under 기술 상세. Review actions
-  stay in `/web/` until migrated.
+- `src/components/ReviewRequest.svelte`: the outlook's ‘검토 요청’. It names the shown selection,
+  versions and source/binding/time-basis provenance; the supervisor recomputes and stores every
+  number (ADR-0029). A changed recomputation discards the shown result; an unknown outcome is safe to retry.
+- `src/components/ReviewQueue.svelte`: the maintenance queue of analysis reviews and requested
+  outlooks, filtered by status and kind, with exact `capture_id`/`finding_id` links.
+- `src/components/OutlookReviewDetail.svelte`: one requested outlook: the archived result, source
+  re-check, ‘지금 데이터로 다시 계산해 비교’ and append-only note/acknowledge/close (a retried uncertain
+  action reuses its event ID; a 409 re-reads; close asks once more).
+- `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation
+  under the saved conditions and same-axis comparison. `src/session.ts`: supervisor write session and
+  CSRF token shared by AI explanation and review writes.
 - `src/reviews.ts`: exact asset/run/evidence joins; partial/truncated/missing
   read evidence remains explicit and never turns into a missing or closed review.
 - `src/components/RelationExplorer.svelte`: read-only paired signal correlation

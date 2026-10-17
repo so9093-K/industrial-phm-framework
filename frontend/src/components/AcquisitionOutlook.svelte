@@ -6,6 +6,7 @@
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
+  import ReviewRequest from "./ReviewRequest.svelte";
   import {
     loadAcquisitionOptions,loadAcquisitionPair,
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
@@ -196,6 +197,12 @@
             outlook=null;
             resultState="mismatch";
             message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
+          }}/>
+          <ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
+            resultAbort?.abort();
+            outlook=null;
+            resultState="mismatch";
+            message=reason;
           }}/>
         {/key}
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 측정 순서는 실제 날짜가 아니며, 기준 도달은 고장 시점이나 남은 수명이 아닙니다."/>

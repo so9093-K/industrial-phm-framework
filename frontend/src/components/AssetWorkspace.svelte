@@ -23,11 +23,10 @@
     asset: Asset;
     assets: Asset[];
     route: Route;
-    pendingReviews: number | null;
     observed: (at: string | null) => string;
     onSelectAsset: (assetId: string) => void;
   };
-  let {asset, assets, route, pendingReviews, observed, onSelectAsset}: Props = $props();
+  let {asset, assets, route, observed, onSelectAsset}: Props = $props();
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
 
@@ -115,7 +114,7 @@
   {:else}
     {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind}
       {#if route.tab === "summary"}
-        <AssetSummary {asset} {data} {dataState} {pendingReviews} {observed} />
+        <AssetSummary {asset} {data} {dataState} {observed} />
       {:else if route.tab === "signals"}
         <SignalExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly" && method === "baseline"}

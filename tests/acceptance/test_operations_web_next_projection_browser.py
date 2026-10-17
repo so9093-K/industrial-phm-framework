@@ -139,7 +139,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 )
                 expect_place(pw, page, "상태 전망")
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.locator(".tiles")).to_contain_text("관리 기준 12")
                 page.get_by_text("예측값 보기 · 1h").click()
@@ -149,7 +149,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
                 version["outlook"] = "new-history"
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(
                     page.get_by_role("heading", name="데이터가 바뀌어 결과를 다시 계산해야 합니다")
                 ).to_be_visible()

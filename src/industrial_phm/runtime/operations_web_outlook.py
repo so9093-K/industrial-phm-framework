@@ -124,6 +124,22 @@ def _finite(text: str) -> float:
     return value
 
 
+def verify_outlook_provenance(outlook: dict[str, Any], params: dict[str, str]) -> None:
+    """Reject a recomputed outlook whose provenance differs from what the browser showed.
+
+    Selectors are opt-in because the deployed legacy /web/ does not submit them.
+    ``measurement_version`` does not hash a binding or time basis, so a submitted
+    selector must match the supervisor's freshly computed facts before any write.
+    """
+    for selector in ("source_id", "binding_id", "measurement_version", "time_basis"):
+        if selector in params and outlook.get(selector) != params[selector]:
+            raise ValueError(f"outlook evidence changed: {selector}")
+    if "recorded_period_seconds" in params:
+        recorded = outlook.get("recorded_period_seconds")
+        if recorded is None or float(params["recorded_period_seconds"]) != recorded:
+            raise ValueError("outlook evidence changed: recorded acquisition interval")
+
+
 def condition_outlook(
     workspace: OperationsWorkspace,
     asset_id: str,

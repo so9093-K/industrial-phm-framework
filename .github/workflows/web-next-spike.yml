@@ -25,6 +25,10 @@ on:
       - "tests/acceptance/test_operations_web_next_acquisition_profile_browser.py"
       - "tests/acceptance/test_operations_web_next_acquisition_relation_browser.py"
       - "tests/acceptance/test_operations_web_next_model_evidence_browser.py"
+      - "tests/acceptance/test_operations_web_next_outlook_capture_browser.py"
+      - "src/industrial_phm/runtime/operations_web_outlook.py"
+      - "src/industrial_phm/runtime/operations_web_outlook_capture.py"
+      - "tests/unit/test_outlook_capture.py"
       - "tools/verify/**"
       - ".github/workflows/web-next-spike.yml"
   push:
@@ -35,6 +39,7 @@ on:
       - "tests/integration/test_operations_web_next_static.py"
       - "tests/integration/test_operations_web_explore.py"
       - "tests/acceptance/test_operations_web_next_**"
+      - "src/industrial_phm/runtime/operations_web_outlook_capture.py"
       - "tools/verify/**"
       - ".github/workflows/web-next-spike.yml"
 

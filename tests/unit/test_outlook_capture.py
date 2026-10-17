@@ -15,6 +15,7 @@ from industrial_phm.runtime.operations_web_forecast import measurement_version
 from industrial_phm.runtime.operations_web_outlook_capture import (
     OutlookCaptureCorrupted,
     OutlookCaptureStore,
+    capture_outlook,
     handle_outlook_captures_read,
 )
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
@@ -206,3 +207,69 @@ def test_page_rechecks_each_distinct_measurement_projection_once(
         "changed",
     }
     assert requests == [(asset, series)]
+
+
+def test_capture_rejects_changed_acquisition_provenance_before_saving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = OperationsWorkspace(tmp_path)
+    recomputed = {
+        "schema_version": 1,
+        "asset_id": "bearing-a",
+        "kind": "acquisition",
+        "series": "rms",
+        "source_id": "bench",
+        "binding_id": "anomaly-a",
+        "measurement_point_id": None,
+        "axis": "acquisition",
+        "time_basis": "recorded",
+        "period_seconds": 60.0,
+        "recorded_period_seconds": 60.0,
+        "record": {"first": 1, "last": 64, "points": 64},
+        "conditions": {"direction": "upper", "management": 2.4, "end": None},
+        "settings": {
+            "changepoint_prior_scale": 0.05,
+            "changepoint_range": 0.8,
+            "training_points": None,
+            "seasonality": "off",
+        },
+        "measurement_version": "a" * 64,
+        "data_version": "b" * 64,
+    }
+    monkeypatch.setattr(
+        "industrial_phm.runtime.operations_web_outlook_capture.condition_outlook",
+        lambda workspace, **arguments: dict(recomputed),
+    )
+    legacy = {
+        "asset_id": "bearing-a",
+        "kind": "acquisition",
+        "series": "rms",
+        "management_limit": "2.4",
+        "measurement_version": "a" * 64,
+        "data_version": "b" * 64,
+    }
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    for name, displayed in (
+        ("binding_id", "anomaly-b"),
+        ("source_id", "other-bench"),
+        ("time_basis", "ordinal"),
+        ("recorded_period_seconds", "30"),
+    ):
+        with pytest.raises(ValueError, match="evidence changed"):
+            capture_outlook(workspace.root, {**legacy, name: displayed})
+        assert store.list_for("bearing-a") == []
+    exact = {
+        **legacy,
+        "source_id": "bench",
+        "binding_id": "anomaly-a",
+        "time_basis": "recorded",
+        "recorded_period_seconds": "60",
+    }
+    with_provenance = capture_outlook(workspace.root, exact)
+    # Provenance selectors are checks only: the legacy request names the same capture.
+    assert capture_outlook(workspace.root, legacy)["capture_id"] == with_provenance["capture_id"]
+    (saved,) = store.list_for("bearing-a")
+    assert "binding_id" not in saved["snapshot"]["selection"]
+    assert saved["snapshot"]["outlook"]["binding_id"] == "anomaly-a"
+    with pytest.raises(ValueError, match="unexpected capture fields"):
+        capture_outlook(workspace.root, {**exact, "package_id": "model-a"})
