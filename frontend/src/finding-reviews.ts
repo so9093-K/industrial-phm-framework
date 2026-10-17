@@ -96,7 +96,10 @@ export function parseFindingReviews(raw:unknown,assetId:string):FindingReviewPag
 export async function readFindingReviews(assetId:string,signal:AbortSignal):Promise<FindingReviewPage>{
   const response=await fetch("/api/v1/reviews?"+new URLSearchParams({asset_id:assetId}),
     {signal,cache:"no-store",credentials:"same-origin"});
-  if(!response.ok)throw new Error("분석 결과 검토 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  if(!response.ok){
+    await response.body?.cancel().catch(()=>{});
+    throw new Error("분석 결과 검토 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  }
   return parseFindingReviews(await response.json() as unknown,assetId);
 }
 
