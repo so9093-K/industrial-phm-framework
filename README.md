@@ -73,8 +73,10 @@ AI 설명에는 별도 모델 서버 연결이 필요합니다. 사용자는 상
 
 ## 빠른 시작
 
-**준비:** Linux, `make`, [uv](https://docs.astral.sh/uv/).
+**준비:** Linux, `make`, [uv](https://docs.astral.sh/uv/), Node.js 22.12 이상과 npm.
 첫 실행은 Python 3.14와 버전이 고정된 의존성(LSTM 실행용 CPU PyTorch 포함)을 설치하므로 네트워크가 필요합니다.
+`make up`은 잠금 파일 기준으로 Web 화면을 빌드한 뒤 서비스를 시작합니다.
+Node와 npm은 소스에서 화면·배포본을 만들 때만 필요하며, 만들어진 wheel의 설치·실행에는 필요 없습니다.
 
 ```bash
 git clone https://github.com/so9093-K/industrial-phm-framework.git

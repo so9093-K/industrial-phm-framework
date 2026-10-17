@@ -1,6 +1,7 @@
 # 0030. Build the next Operations Web UI with Svelte, TypeScript and a packaged static bundle
 
-Status: Accepted (2026-10-16) — technical foundation only; production UI cutover is not accepted.
+Status: Accepted (2026-10-16); required distribution build added 2026-10-17.
+The default `/web/` cutover remains a separate migration decision and verification step.
 
 Extends: [ADR-0024](0024-separate-operations-web-ui-from-marimo.md). Does not change
 the existing Python Operations API, local supervisor, read/write/CSRF contracts,
@@ -35,20 +36,26 @@ assertion that all dedicated screens, review queues or multi-user workflows exis
    observation and timestamps first, interpretation and conditional assumptions second,
    and a clear next action last. Move from a large static DOM to local reusable
    components and explicit application/route/selection state.
-4. Build static JS/CSS in development/CI with `npm ci` and a committed lockfile.
-   Include generated assets in the Python wheel **only when built**. The Python
+4. Build static JS/CSS with `npm ci` and a committed lockfile. Standard wheel and
+   sdist builds **must** rebuild and include the compiled frontend; fail the build
+   when Node/npm or a complete, safe manifest is unavailable. A leftover local
+   bundle is not sufficient. The sdist includes the frontend sources and lockfile
+   so a wheel built from that archive obeys the same contract. Python editable
+   installation skips this build; repository-local `make up` and `make demo`
+   prepare the frontend before starting services. The Python
    loopback server serves the requested asset only when its path is in the compiled
    manifest and has an allowed extension. Keep CSP, Host/Origin, no-store,
-   anti-frame, same-origin and CSRF contracts. Installing/running the current
-   Operations product must not need Node.
+   anti-frame, same-origin and CSRF contracts. Installing/running a prebuilt
+   wheel must not need Node; building from source does need Node/npm.
 5. First exercise the read-only `GET /api/v1/monitor` path on isolated
    `/web-next/`. Build complete workflow slices against the current API and
    exact asset/source/point/channel/time/version/review identity. Never share a
    second unverified write path with the existing UI. The current `/web/`
    remains the default until meaningful functional equivalence and user
    acceptance, including empty/error and accessibility behavior, are verified.
-6. Require TypeScript/Svelte checks, reproducible static build, Python wheel
-   contents, safe static routing, actual Chromium user interactions at 390,
+6. Require TypeScript/Svelte checks, reproducible static build, sdist-to-wheel
+   reconstruction, exact wheel manifest contents, installed-wheel static serving
+   without Node or checkout imports, safe static routing, actual Chromium user interactions at 390,
    1024 and 1440px, plus existing runtime/Python/forecast tests. Automated
    tests do not substitute for actual user observation or field-model validation.
 
@@ -71,7 +78,7 @@ assertion that all dedicated screens, review queues or multi-user workflows exis
 
 ## Consequences and verification boundary
 
-The first Svelte slice is deliberately **read-only and not feature-complete**.
+The initial Svelte slice was deliberately **read-only and not feature-complete**.
 It proves a compiled client can consume an existing real API, preserve a selected
 asset in the URL and distinguish failed reads from empty observations while
 remaining separately packaged. It does not deliver a new Review queue,
@@ -80,5 +87,6 @@ acceptance or field performance. These require separate workflow migration
 and measured acceptance under the existing product/status owners.
 
 The additional npm/Vite toolchain, locked dependency maintenance and
-cross-language CI are accepted build costs. The normal local node and
-research marimo remain unchanged.
+cross-language CI are accepted build costs. Source-build users now need Node/npm;
+wheel users still run only Python. Packaging completion does not authorize removal
+of legacy-only workflows or substitute for user observation. Research marimo remains unchanged.

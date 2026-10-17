@@ -178,7 +178,14 @@ focus, labels and screen-reader reading order. A status token is not evidence
 of equipment condition. Actual operator usability must be observed
 separately from CI and browser layout tests.
 
-The build must be performed before `uv build` for a wheel that includes this
-preview. Default `make up` and `/web/` work without a Node toolchain.
-This preview is not a capability-complete replacement, does not modify data,
-and must not be called a UX acceptance or field-validation result.
+Standard `uv build` rebuilds the frontend with `npm ci` and includes it in both
+the sdist and wheel. A wheel rebuilt from the sdist uses those same locked sources.
+Missing Node/npm or an incomplete manifest fails the distribution build; an old local
+bundle is never accepted instead. `make up` and `make demo` also prepare these assets.
+Python editable setup (`uv sync`) skips the frontend build, so use `make frontend`
+before opening `/web-next/` directly. Node.js >=22.12 and npm are needed for these
+source builds; installing and serving a prebuilt wheel needs neither.
+`sh tools/verify/gate.sh wheel` checks sdist → wheel, exact manifest contents and
+serving every asset from an installed wheel with no Node on PATH or checkout imports.
+This frontend has supervised writes, but is not yet the default `/web/` replacement.
+Automated checks do not establish UX acceptance or field validation.

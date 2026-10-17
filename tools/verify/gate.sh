@@ -89,11 +89,7 @@ stage() {
     frontend-build) run npm run --prefix frontend build ;;
     manifest) locked python tools/verify/check_web_next_package.py manifest ;;
     web-next-python) locked pytest $WEB_NEXT_PYTHON ;;
-    wheel)
-      rm -f dist/*.whl
-      run uv build --wheel
-      locked python tools/verify/check_web_next_package.py wheel
-      ;;
+    wheel) locked python tools/verify/check_web_next_package.py build ;;
     browser-runtime)
       locked python -c "pass"
       run uv pip install --python .venv/bin/python "playwright==$PLAYWRIGHT_VERSION"

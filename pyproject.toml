@@ -80,15 +80,18 @@ name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/industrial_phm"]
-# Build output is optional for the existing UI; include generated static artifacts
-# when a frontend build preceded wheel creation (no duplicate force-include paths).
-artifacts = [
-  "/src/industrial_phm/apps/web_next/index.html",
-  "/src/industrial_phm/apps/web_next/asset-manifest.json",
-  "/src/industrial_phm/apps/web_next/assets/*",
+
+[tool.hatch.build.targets.sdist]
+# A wheel rebuilt from the sdist must have the same locked frontend inputs.
+include = [
+  "/src", "/frontend", "/hatch_build.py", "/pyproject.toml", "/uv.lock", "/README.md", "/LICENSE",
 ]
+exclude = ["/frontend/node_modules"]
 
 [tool.ruff]
 line-length = 100

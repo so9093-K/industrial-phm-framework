@@ -3,6 +3,9 @@ name: Web-next foundation
 on:
   pull_request:
     paths:
+      - "pyproject.toml"
+      - "hatch_build.py"
+      - "Makefile"
       - "frontend/**"
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
@@ -62,6 +65,9 @@ on:
   push:
     branches: [main]
     paths:
+      - "pyproject.toml"
+      - "hatch_build.py"
+      - "Makefile"
       - "frontend/**"
       - "src/industrial_phm/runtime/operations_web_http.py"
       - "tests/integration/test_operations_web_next_static.py"
@@ -109,7 +115,7 @@ jobs:
         run: sh tools/verify/gate.sh manifest
       - name: Python static route integration
         run: sh tools/verify/gate.sh web-next-python
-      - name: Verify wheel contains compiled assets
+      - name: Verify source archive, wheel and installed runtime without Node
         run: sh tools/verify/gate.sh wheel
       - name: Install Chromium acceptance tools
         run: sh tools/verify/gate.sh browser-runtime
