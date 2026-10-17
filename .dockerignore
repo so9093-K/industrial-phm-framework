@@ -1,0 +1,19 @@
+# Allow only build inputs. Never send workspaces, credentials or host toolchains.
+**
+!pyproject.toml
+!uv.lock
+!hatch_build.py
+!README.md
+!LICENSE
+!frontend/
+!frontend/**
+frontend/node_modules/
+!src/
+!src/**
+src/**/__pycache__/
+src/industrial_phm/apps/web_next/
+!deploy/
+!deploy/container/
+!deploy/container/**
+**/.env*
+**/__pycache__/

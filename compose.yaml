@@ -1,0 +1,44 @@
+name: industrial-phm
+services:
+  operations:
+    image: industrial-phm-operations:local
+    build:
+      context: .
+      dockerfile: deploy/container/Dockerfile
+    init: true
+    stop_grace_period: 60s
+    volumes:
+      - workspace:/var/lib/industrial-phm
+    # The proxy shares this network namespace; the supervisor stays on loopback.
+    ports:
+      - "127.0.0.1:2718:8080"
+      - "127.0.0.1:2719:8081"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2718/web/', timeout=5).close()"]
+      interval: 5s
+      timeout: 10s
+      start_period: 30s
+      retries: 12
+  web:
+    image: nginxinc/nginx-unprivileged:1.28.2-alpine
+    network_mode: service:operations
+    depends_on:
+      operations:
+        condition: service_healthy
+        restart: true
+    volumes:
+      - ./deploy/container/nginx.conf:/etc/nginx/nginx.conf:ro
+    entrypoint: [nginx, -g, "daemon off;"]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "--header=Host: 127.0.0.1:2718", "http://127.0.0.1:8080/web/"]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+volumes:
+  workspace:

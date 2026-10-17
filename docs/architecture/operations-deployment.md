@@ -4,6 +4,8 @@ The supported deployment target is one local Operations workspace owned by one f
 A service manager owns restart and boot lifecycle; the application continues to own collection, analysis
 and UI child coordination.
 
+For macOS or a containerized local Linux node, use the [Docker Compose reference](operations-container.md).
+
 ## Preflight
 
 Run preflight **as the same OS account that will run the service** and use an absolute workspace path.
@@ -90,5 +92,6 @@ the representative archive evidence in #316/#317-B; deployment must not guess th
 ## Non-goals
 
 The reference unit does not provide HA, distributed coordination, leader election, public UI exposure,
-TLS/reverse-proxy authentication, or container orchestration. The current product boundary is one local
+TLS/reverse-proxy authentication, or distributed container orchestration. The local Compose reference
+uses the same single-node contract. The current product boundary is one local
 writer/supervisor per workspace.

@@ -74,10 +74,14 @@ AI 설명에는 별도 모델 서버 연결이 필요합니다. 사용자는 상
 
 ## 빠른 시작
 
-**준비:** Linux, `make`, [uv](https://docs.astral.sh/uv/), Node.js 22.12 이상과 npm.
-첫 실행은 Python 3.14와 버전이 고정된 의존성(LSTM 실행용 CPU PyTorch 포함)을 설치하므로 네트워크가 필요합니다.
-`make up`은 잠금 파일 기준으로 Web 화면을 빌드한 뒤 서비스를 시작합니다.
-Node와 npm은 소스에서 화면·배포본을 만들 때만 필요하며, 만들어진 wheel의 설치·실행에는 필요 없습니다.
+**macOS 준비:** `make`, 실행 중인 Docker Desktop과 Docker Compose.
+`make up`은 Linux 컨테이너 안에서 수집·분석·Web·DuckLake를 함께 실행합니다.
+호스트에 Python·uv·Node를 설치하거나 Docker의 host networking을 켤 필요가 없습니다.
+
+**Linux 네이티브 준비:** `make`, [uv](https://docs.astral.sh/uv/), Node.js 22.12 이상과 npm.
+Linux의 `make up`은 잠금 파일 기준으로 Web 화면을 빌드하고 Python 3.14 의존성을 설치해 실행합니다.
+Linux에서도 `make container-up`으로 같은 컨테이너 구성을 사용할 수 있습니다.
+첫 빌드는 CPU PyTorch를 포함한 의존성과 이미지를 내려받으므로 네트워크와 수 분이 필요합니다.
 
 ```bash
 git clone https://github.com/so9093-K/industrial-phm-framework.git
@@ -89,7 +93,8 @@ make up
 빈 작업공간에서는 **예시 데이터로 둘러보기**로 화면을 확인하거나 **파일에서 시작**으로 CSV를 연결합니다.
 외부 데이터셋이나 AI 서버를 먼저 준비할 필요는 없습니다.
 
-서비스는 실행한 터미널에서 동작합니다. 다른 터미널에서 상태·로그를 확인하거나 종료할 수 있습니다.
+macOS의 컨테이너는 백그라운드에서, Linux 네이티브 서비스는 실행한 터미널에서 동작합니다.
+상태·로그를 확인하거나 종료할 수 있습니다.
 
 ```bash
 make status
@@ -97,13 +102,17 @@ make logs
 make down
 ```
 
-실행한 터미널에서 Ctrl-C로 종료해도 됩니다. 기본 작업공간은 `artifacts/operations`입니다.
-다른 경로를 쓰려면 모든 명령에 같은 `WORKSPACE=/absolute/path`를 지정합니다.
+컨테이너 작업공간은 `industrial-phm_workspace` Docker 볼륨에 보존되며 `make down` 후에도 유지됩니다.
+호스트의 `artifacts/operations`와는 별개입니다. 기존 호스트 데이터를 자동으로 가져오지 않습니다.
+컨테이너 실행·백업·AI 연결의 범위는 [컨테이너 실행 안내](docs/architecture/operations-container.md)를 참고하세요.
+
+Linux 네이티브 서비스는 Ctrl-C로 종료해도 됩니다. 기본 작업공간은 `artifacts/operations`입니다.
+네이티브 실행에 다른 경로를 쓰려면 모든 명령에 같은 `WORKSPACE=/absolute/path`를 지정합니다.
 [작업공간·상세 실행 방법](apps/README.md#operations--supervised-web)
 
 ## 지원 환경 및 제약
 
-- **실행 환경:** Linux·CPython 3.14, 로컬 단일 사용자용입니다. 원격 인증·TLS·다중 사용자 운영은 미지원입니다.
+- **실행 환경:** Linux·CPython 3.14 또는 macOS의 Docker Desktop(Linux 컨테이너), 로컬 단일 사용자용입니다. 원격 인증·TLS·다중 사용자 운영은 미지원입니다.
 - **이상 탐지 해석:** 비교 구간에서 벗어났거나 모델 점수가 기준을 넘었다는 결과만으로 설비 고장을 확정할 수 없습니다.
 - **예측 해석:** 기준선 도달 시점은 선택한 신호·학습 구간·예측 설정에 따른 계산값입니다.
   상태 전망 화면의 `잔여수명`도 사용자가 입력한 종료 기준까지의 계산값이며, 실제 고장 시각을 검증한 결과가 아닙니다.

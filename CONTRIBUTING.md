@@ -31,11 +31,14 @@ uv run --locked --extra operations pytest tests/unit tests/contract
 `wheel` 검증은 sdist의 빌드 입력과 wheel의 전체 manifest를 확인하고, 별도 환경에
 wheel을 설치해 Node 없는 PATH에서 정적 파일을 제공합니다. 기존 `dist/`는 건드리지 않습니다.
 Python editable 설치(`uv sync`)는 Node 없이도 가능하지만, 새 화면을 실행하려면
-`make frontend` 또는 `make up`으로 정적 파일을 준비해야 합니다.
+`make frontend`로 호스트 정적 파일을 준비해야 합니다(Linux 네이티브 `make up`도 빌드합니다).
+macOS의 `make up`은 호스트 개발 환경 대신 [제품 컨테이너](docs/architecture/operations-container.md)를
+실행합니다. 해당 컨테이너는 이미지 빌드 때 Web을 포함하며 `make verify-linux` 검증 이미지와 별개입니다.
 
 ### Linux 재현 검증
 
-Operations는 Linux만 지원합니다. supervisor의 Web 명령 경계는 Linux의 peer credential(`SO_PEERCRED`)과
+Operations supervisor는 Linux에서 실행합니다(macOS 제품 실행은 Docker Desktop).
+supervisor의 Web 명령 경계는 Linux의 peer credential(`SO_PEERCRED`)과
 pidfd를 쓰므로, 이 테스트는 `linux_only`로 표시되어 다른 OS에서는 이유와 함께 건너뜁니다.
 macOS 등에서 CI와 같은 결과를 확인하려면 Docker로 다음을 실행합니다.
 
