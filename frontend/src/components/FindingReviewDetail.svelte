@@ -16,6 +16,7 @@
   let heading: HTMLElement | null = $state(null);
   const STATUS = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
+  const QUALITY: Record<string, string> = {pass: "통과", warning: "주의", error: "오류"};
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const missing = $derived(linked === null ? [] : review.evidenceIds.filter(
     (evidenceId) => !linked.some((item) => item.evidenceId === evidenceId)));
@@ -57,7 +58,7 @@
       <ul class="evidence">
         {#each linked as evidence (evidence.evidenceId)}
           <li>{ANALYSIS[evidence.kind]} · 데이터 출처 {evidence.sourceId} · 측정 위치 {evidence.pointId ?? "미확인"}
-            · 원본 품질 {evidence.quality ?? "미확인"} · 분석 {clock(evidence.completedAt)}</li>
+            · 원본 품질 {QUALITY[evidence.quality ?? ""] ?? evidence.quality ?? "미확인"} · 분석 {clock(evidence.completedAt)}</li>
         {/each}
         {#each missing as evidenceId (evidenceId)}
           <li>분석 근거 {evidenceId}를 이번 목록에서 찾지 못했습니다. 조회 제한이나 오류일 수 있어 다른 근거로 대신하지 않습니다.</li>

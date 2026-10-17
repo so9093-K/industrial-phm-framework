@@ -38,6 +38,7 @@ on:
       - "tests/integration/test_operations_web_phm_explanation.py"
       - "tests/acceptance/test_operations_web_next_finding_review_browser.py"
       - "tests/acceptance/test_operations_web_next_model_explanation_browser.py"
+      - "tests/acceptance/test_operations_web_next_investigations_browser.py"
       - "src/industrial_phm/application/phm_explanation.py"
       - "src/industrial_phm/genai/phm_answer.py"
       - "tests/support/web_next.py"

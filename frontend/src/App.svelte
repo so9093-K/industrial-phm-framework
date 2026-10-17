@@ -8,6 +8,7 @@
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
   import ReviewQueue from "./components/ReviewQueue.svelte";
+  import InvestigationRecords from "./components/InvestigationRecords.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   if (parseRoute(location.search).legacy) {
@@ -129,12 +130,7 @@
 </header>
 
 <main id="main" tabindex="-1">
-  {#if route.page === "investigations"}
-    <PageHeading title={PAGE_INFO.investigations.label} description={PAGE_INFO.investigations.description} />
-    <StatusNotice title="분석 기록 목록은 이전 화면에서 제공합니다"
-      message="설비별 모델 점수와 실행 근거는 설비·신호의 이상 징후 탭에서 볼 수 있습니다. 파일 특징·3상 불평형 분석 기록과 그 검토는 아직 이전 화면에 있습니다."
-      actionLabel="이전 화면의 분석 기록 열기" actionHref="/web/#evidence" />
-  {:else if route.page === "system"}
+  {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description} />
     <StatusNotice title="데이터 연결과 시스템 상태는 이전 화면에서 제공합니다"
       message="새 화면으로 옮기기 전까지 이전 화면에서 데이터를 연결하고 수집·저장·분석 상태를 확인하세요."
@@ -169,6 +165,8 @@
       {#if route.page === "maintenance"}
         <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
           focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
+      {:else if route.page === "investigations"}
+        <InvestigationRecords {snapshot} writable={writable === true} assetId={route.assetId} />
       {:else if loadState === "empty"}
         <StatusNotice
           title="등록된 설비가 없습니다"

@@ -1,3 +1,4 @@
+import {parseAnalysisRecords,type AnalysisRecords} from "./analysis-records.ts";
 import {parseReviewInbox,type ReviewInbox} from "./reviews.ts";
 // The server owns observation values and PHM meaning. This preview only renders
 // validated fields from the existing read-only monitor API.
@@ -14,6 +15,7 @@ export type Snapshot = {
   truncated: boolean;
   systemReadUncertain: boolean;
   reviewInbox: ReviewInbox;
+  analyses: AnalysisRecords;
 };
 
 /** The same receive-state words as the current /web/ monitor; never a health verdict. */
@@ -34,6 +36,15 @@ function object(value: unknown): Record<string, unknown> | null {
 
 function count(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/** A malformed analysis list is reported as unreadable; it never blocks the asset list. */
+function analysesOf(response: Record<string, unknown>): AnalysisRecords {
+  try {
+    return parseAnalysisRecords(response);
+  } catch {
+    return {available: false, records: [], truncated: true, skipped: [], skippedComplete: false};
+  }
 }
 
 export function parseMonitor(value: unknown): Snapshot {
@@ -61,6 +72,7 @@ export function parseMonitor(value: unknown): Snapshot {
     truncated: assetGroup.truncated === true,
     systemReadUncertain: !Array.isArray(response.system_error_scopes) || response.system_error_scopes.length > 0,
     reviewInbox: parseReviewInbox(response),
+    analyses: analysesOf(response),
   };
 }
 

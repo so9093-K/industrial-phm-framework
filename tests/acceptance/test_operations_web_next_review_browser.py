@@ -75,7 +75,8 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                                     "measurement_point_id": "winding-a",
                                     "capability_id": "phase-unbalance",
                                     "completed_at": "2026-10-10T00:00:00Z",
-                                    "data_quality": {"state": "usable"},
+                                    "data_quality": {"state": "pass", "issue_codes": []},
+                                    "quantities": [],
                                 }
                             ],
                             "total": 1,
