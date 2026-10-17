@@ -2,7 +2,10 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
+  import ModelExplanation from "./ModelExplanation.svelte";
+  import ModelReviewRequest from "./ModelReviewRequest.svelte";
   import {num} from "../format";
+  import {readPermission} from "../outlook-briefings";
   import {assetTabUrl} from "../routes";
   import {
     loadModelBindings,loadModelTrace,loadModelRun,NoModelEvidence,scoreSummary,
@@ -20,6 +23,8 @@
   let selectedStep:StepPointer|null=$state(null);
   let result:ModelRun|null=$state(null);
   let error=$state("");
+  let writable=$state(false);
+  let explanationId:string|null=$state(null);
   const params=new URLSearchParams(location.search);
   let selectedBinding=$state(params.get("model_binding")??"");
   let selectedPosition=$state(params.get("model_position")??"");
@@ -30,6 +35,13 @@
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
   const place=(position:number)=>binding?.stepKind==="observation-window"
     ?"시간 구간 #"+position:"측정 순서 #"+position;
+  // Earlier analyzed results of the same model, newest first, to compare against.
+  const earlier=$derived.by(():number[]=>{
+    const current=result;
+    if(!trace||!current)return [];
+    return trace.steps.filter(step=>step.state==="analyzed"&&step.position<current.position)
+      .map(step=>step.position).sort((a,b)=>b-a);
+  });
 
   function remember(){
     if(!binding)return;
@@ -101,9 +113,16 @@
       error=cause instanceof Error?cause.message:"모델 실행 근거 조회 실패";
     }
   }
-  onMount(()=>{void loadBindings();return()=>{
-    listRequest?.abort();traceRequest?.abort();resultRequest?.abort();
-  };});
+  onMount(()=>{
+    const permission=new AbortController();
+    void readPermission(permission.signal).then(allowed=>{
+      if(!permission.signal.aborted)writable=allowed;
+    }).catch(()=>{});
+    void loadBindings();
+    return()=>{
+      permission.abort();listRequest?.abort();traceRequest?.abort();resultRequest?.abort();
+    };
+  });
 </script>
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
@@ -183,7 +202,12 @@
           <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
           {#if result.state!=="skipped"}
-            <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다."/>
+            {#key result.runId}
+              <ModelExplanation {binding} run={result} {earlier} {writable} {place}
+                onExplained={id=>explanationId=id}/>
+              <ModelReviewRequest {binding} run={result} {explanationId} {writable}/>
+            {/key}
+            <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다. AI 해설은 저장된 측정값 비교를 설명할 뿐 원인을 진단하지 않습니다."/>
           {/if}
           <details>
             <summary>기술 상세</summary>

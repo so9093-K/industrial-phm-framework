@@ -97,6 +97,7 @@ class ExplanationManager:
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
         return {
+            "schema_version": 1,
             "explanation_id": identifier,
             "status": "pending",
             "binding_id": binding_id,
@@ -244,6 +245,7 @@ def request_phm_review(root: Path, payload: dict[str, object]) -> dict[str, obje
         finding.finding_id
     )
     return {
+        "schema_version": 1,
         "finding_id": finding.finding_id,
         "explanation_id": identifier,
         "status": status.value,
