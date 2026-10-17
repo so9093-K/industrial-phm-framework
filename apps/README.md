@@ -21,9 +21,16 @@ make logs
 make down
 ```
 
-기본 작업공간은 `artifacts/operations`이며 `WORKSPACE=<path>`로 변경합니다.
+macOS에서는 Docker Desktop의 Linux 컨테이너로 실행하며 호스트 Node·uv는 필요 없습니다.
+작업공간은 `industrial-phm_workspace` Docker 볼륨에 보존됩니다. Linux에서도
+`make container-up/status/logs/down`을 사용할 수 있습니다.
+[컨테이너 실행·데이터 보관 안내](../docs/architecture/operations-container.md).
+
+Linux 네이티브 실행의 기본 작업공간은 `artifacts/operations`이며 `WORKSPACE=<path>`로 변경합니다.
 `make up`은 collection/analysis/Web를 하나의 Supervisor로 시작하므로,
 이미 동일 작업공간에 수동으로 실행한 수집기·분석기와 병행하지 마세요.
+
+아래 직접 Python 명령은 Linux 네이티브 실행용입니다.
 
 ```bash
 uv sync --locked --extra operations
