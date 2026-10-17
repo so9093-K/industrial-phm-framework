@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
-  import {assetTabUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
   import {
     groupHistory, pointsForChart, readChannels, readTrend,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
@@ -120,7 +120,7 @@
   {:else if channelState === "empty"}
     <StatusNotice title="저장된 신호가 없습니다"
       message="이 설비에 저장된 신호가 없습니다. 데이터 연결과 수신 상태를 확인하세요."
-      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
+      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
     <div class="controls">
       <label for="history-channel">신호

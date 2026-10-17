@@ -119,8 +119,8 @@ export async function requestModelExplanation(
   const payload:Record<string,unknown>={binding_id:binding.bindingId,position:run.position,question:asked};
   if(comparePosition!==null)payload.compare_position=comparePosition;
   if(parentId!==null)payload.parent_id=parentId;
-  const result=await postReviewWrite("/api/v1/phm/explanations/request",payload,signal,(response)=>{
-    if(response.status===400)
+  const result=await postReviewWrite("/api/v1/phm/explanations/request",payload,signal,(status)=>{
+    if(status===400)
       throw new Error("해설을 요청하지 못했습니다. 동시에 만들 수 있는 해설 수를 넘었거나 비교 조건이 맞지 않습니다.");
   });
   if(result.binding_id!==binding.bindingId||result.position!==run.position

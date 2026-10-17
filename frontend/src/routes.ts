@@ -106,6 +106,15 @@ export function assetTabUrl(
   return routeUrl({page: "assets", assetId, tab, method, data}, channel);
 }
 
+export type SystemSection = "connections" | "status";
+/** Which part of 운영 관리 an address opens; data connections unless it asks for status. */
+export function systemSection(search: string): SystemSection {
+  return new URLSearchParams(search).get("section") === "status" ? "status" : "connections";
+}
+export function systemUrl(section: SystemSection): string {
+  return "/web-next/?" + new URLSearchParams({page: "system", section});
+}
+
 /** The one review subject a maintenance address names; the server still checks its asset. */
 export function reviewFocus(search: string): {captureId: string | null; findingId: string | null} {
   const params = new URLSearchParams(search);

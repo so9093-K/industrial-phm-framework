@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 from threading import Thread
 from typing import Any
 
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
+from industrial_phm.runtime.operations_web_file_history import FileHistoryJobs
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 
 
@@ -30,14 +32,29 @@ def choose_asset(page: Any, asset_id: str) -> None:
 
 
 class InProcessSupervisor:
-    """Executes authorized actions the way the supervisor broker does, without IPC."""
+    """Executes authorized actions the way the supervisor broker does, without IPC.
+
+    Like the broker it owns a private upload staging directory next to its socket
+    path and runs FILE history writes as background jobs.
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        broker = Path(tempfile.mkdtemp(prefix="web-broker-"))
+        self.socket_path = str(broker / "web.sock")
+        self.upload_directory = broker / "uploads"
+        self.upload_directory.mkdir()
+        self.file_history = FileHistoryJobs(root)
 
     def execute(
         self, route: str, payload: dict[str, object], *, request_id: str | None = None
     ) -> dict[str, object]:
+        if route == "/api/v1/sources/file/backfill/start":
+            return self.file_history.start(payload)
+        if route in {"/api/v1/sources/file/upload", "/api/v1/sources/file/upload/preflight"}:
+            return execute_web_source_action(
+                self.root, route, payload, upload_directory=self.upload_directory
+            )
         return execute_web_source_action(self.root, route, payload)
 
 

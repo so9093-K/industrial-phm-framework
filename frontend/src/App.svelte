@@ -2,14 +2,14 @@
   import { onMount, tick } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readPermission } from "./outlook-briefings";
-  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, type Route } from "./routes";
+  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
   import ReviewQueue from "./components/ReviewQueue.svelte";
   import InvestigationRecords from "./components/InvestigationRecords.svelte";
-  import OperationsStatus from "./components/OperationsStatus.svelte";
+  import OperationsPage from "./components/OperationsPage.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   if (parseRoute(location.search).legacy) {
@@ -17,6 +17,7 @@
   }
   let route: Route = $state(parseRoute(location.search).route);
   let focus = $state(reviewFocus(location.search));
+  let section = $state(systemSection(location.search));
   let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
@@ -34,6 +35,7 @@
     history.pushState(history.state, "", url);
     route = parseRoute(location.search).route;
     focus = reviewFocus(location.search);
+    section = systemSection(location.search);
     // A new page moves focus to its content. A tab switch, or choosing another asset with
     // the keyboard in its select, keeps focus where the user is.
     if (before.page !== route.page) {
@@ -79,7 +81,9 @@
   }
 
   onMount(() => {
-    const restore = () => { route = parseRoute(location.search).route; focus = reviewFocus(location.search); };
+    const restore = () => {
+      route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
+    };
     // Same-document links switch screens without reloading the asset list.
     const follow = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey
@@ -134,7 +138,7 @@
   {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
       loading={loadState === "loading"} onRefresh={() => void refresh()} />
-    <OperationsStatus {snapshot} storeState={loadState} storeError={error} />
+    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} />
   {:else if loadState === "loading"}
     <StatusNotice message="설비 목록을 불러오고 있습니다." />
   {:else if loadState === "failed"}
@@ -172,7 +176,7 @@
           title="등록된 설비가 없습니다"
           message="아직 연결된 데이터가 없거나 일부 저장소를 읽지 못했을 수 있습니다."
           actionLabel="데이터 연결하기"
-          actionHref="/web/#connect"
+          actionHref={systemUrl("connections")}
         />
       {:else}
         {#if route.page === "assets" && route.assetId}

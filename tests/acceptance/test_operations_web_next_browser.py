@@ -142,7 +142,7 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                     )
                 ).to_be_visible()
                 pw.expect(page.get_by_role("link", name="데이터 연결하기")).to_have_attribute(
-                    "href", "/web/#connect"
+                    "href", "/web-next/?page=system&section=connections"
                 )
                 assert page.get_by_role("heading", name="설비 0개").count() == 0
             finally:

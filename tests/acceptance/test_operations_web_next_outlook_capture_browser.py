@@ -195,7 +195,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                         route.fulfill(
                             status=503,
                             content_type="application/json",
-                            body='{"error":"command_outcome_unknown"}',
+                            body='{"error":{"code":"command_outcome_unknown"}}',
                         )
                     else:
                         route.continue_()

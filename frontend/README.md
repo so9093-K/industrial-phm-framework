@@ -119,10 +119,18 @@ not install Node dependencies.
   feature analyses, applied models and analyses that did not run, per asset, each result with its
   review request. `src/analysis-records.ts`: their strict DTOs; a malformed list is reported as
   unreadable without hiding the asset list.
-- `src/components/OperationsStatus.svelte`: the ‘운영 관리’ page. Local service readiness,
-  registered connections with the same receipt words as `/web/` (registration, file read and live
-  receipt kept apart) and store read state; it opens even when the store read fails.
-  `src/operations-status.ts`: their DTOs.
+- `src/components/OperationsPage.svelte`: the ‘운영 관리’ page with two sections, ‘데이터 연결’
+  (`CsvStart`, `ConnectionList`) and ‘시스템 상태’ (`SystemStatus`: local service readiness and store
+  read state; it opens even when the store read fails). `src/operations-status.ts`: their DTOs, with
+  the same receipt words as `/web/` (registration, file read and live receipt kept apart).
+- `src/components/CsvStart.svelte`: one CSV to stored measurements. The browser preview
+  (`src/csv-preview.ts`) shows columns, blocking problems, a summary and a chart; the server checks
+  without saving; then register → use → read once → store history as visible steps. A retry resumes
+  from the server's state and never registers or stores twice.
+- `src/components/ConnectionList.svelte`: each registered connection with its one next step and other
+  actions (`src/connections.ts`). Pause and collection stop ask once more.
+- `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
+  tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.
   `src/finding-reviews.ts`: `GET /api/v1/reviews` DTOs with history replay and `/api/v1/reviews/action`.
 - `src/outlook-captures.ts`: strict capture/identity/review DTOs, status replay, today's recomputation

@@ -8,7 +8,7 @@
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
-  import {assetTabUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
 
   type Props = { assetId: string };
   type LoadState = "loading" | "ready" | "empty" | "unavailable" | "failed";
@@ -129,7 +129,7 @@
   {:else if channelState === "empty"}
     <StatusNotice title="이 설비에 저장된 신호가 없습니다"
       message="데이터 연결과 수신 상태를 먼저 확인하세요."
-      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
+      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
     <div class="controls">
       <label for="departure-channel">신호

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {systemUrl} from "../routes";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -121,7 +122,7 @@
   {:else if listState==="empty" || listState==="unavailable"}
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 없습니다"
       message={message||"이 설비에는 분석된 진동 측정이 없습니다. 이상이 없다는 뜻은 아닙니다."}
-      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
+      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{source.sourceId}</strong> · 적용 모델 {source.bindingId}
       · 분석한 측정 #{source.first} ~ #{source.last} · {source.count}회</p>

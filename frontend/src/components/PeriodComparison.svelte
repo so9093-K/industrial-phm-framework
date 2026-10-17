@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {systemUrl} from "../routes";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -120,7 +121,7 @@
   {:else if sourceState === "unavailable" || sourceState === "empty"}
     <StatusNotice kind="uncertain" title="비교할 시계열 기록이 없습니다"
       message="이 설비에는 저장된 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다."
-      actionLabel="데이터 연결 확인하기" actionHref="/web/#connect" />
+      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
     <div class="controls">
       <label for="compare-channel">신호

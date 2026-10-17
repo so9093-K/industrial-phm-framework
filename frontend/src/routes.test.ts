@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("pages and asset tabs are user tasks; unknown values are not invented", () => {
@@ -73,4 +73,11 @@ test("a review subject is only read on the maintenance page", () => {
   assert.deepEqual(reviewFocus("?page=maintenance&monitor_asset=a&capture_id=c"), {captureId: "c", findingId: null});
   assert.deepEqual(reviewFocus("?page=maintenance&finding_id=f"), {captureId: null, findingId: "f"});
   assert.deepEqual(reviewFocus("?page=assets&capture_id=c"), {captureId: null, findingId: null});
+});
+
+test("운영 관리 opens data connections unless the address asks for system status",()=>{
+  assert.equal(systemSection("?page=system"),"connections");
+  assert.equal(systemSection("?page=system&section=status"),"status");
+  assert.equal(systemSection("?page=system&section=unknown"),"connections");
+  assert.equal(systemUrl("status"),"/web-next/?page=system&section=status");
 });

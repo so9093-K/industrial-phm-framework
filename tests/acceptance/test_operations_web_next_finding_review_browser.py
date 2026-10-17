@@ -83,7 +83,8 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                         route.fulfill(
                             status=503,
                             content_type="application/json",
-                            body=json.dumps({"error": "command_outcome_unknown"}),
+                            # The server's own write error shape.
+                            body=json.dumps({"error": {"code": "command_outcome_unknown"}}),
                         )
                         return
                     route.fulfill(response=response)
@@ -92,6 +93,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 detail.get_by_label("메모 (최대 1000자)").fill("베어링 하우징 진동 확인 예정")
                 detail.get_by_role("button", name="메모 남기기").click()
                 pw.expect(detail.get_by_role("status").last).to_contain_text("다시 시도해도")
+                assert detail.get_by_role("alert").count() == 0
                 detail.get_by_role("button", name="메모 남기기").click()
                 pw.expect(detail.get_by_role("status").last).to_have_text("검토 기록을 남겼습니다.")
                 pw.expect(detail.locator(".events li")).to_have_count(1)

@@ -58,20 +58,16 @@ def test_operations_page_separates_registration_receipt_and_service_state(
                 base = f"http://127.0.0.1:{server.server_port}/web-next/?page=system"
                 page.goto(base)
                 pw.expect(page.get_by_role("heading", name="운영 관리", level=1)).to_be_visible()
-                services = page.get_by_role("region", name="실행 상태")
-                # No supervisor runs in this test; nothing claims that it does.
-                pw.expect(services).to_contain_text("모두 준비됐는지 확인되지 않습니다")
-                pw.expect(services.get_by_role("listitem")).to_have_count(4)
-                connections = page.get_by_role("region", name="데이터 연결")
+                connections = page.get_by_role("region", name="등록한 연결")
                 card = connections.get_by_role("article", name="Three phase file")
                 pw.expect(card.locator(".badge")).to_have_text("파일 확인 대기")
                 pw.expect(card).to_contain_text("CSV 파일 · 설비 pump-01")
                 pw.expect(card.get_by_role("link", name="측정 신호 보기")).to_have_attribute(
                     "href", "/web-next/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
-                pw.expect(page.get_by_role("region", name="저장소 조회")).to_contain_text(
-                    "저장소를 모두 읽었습니다"
-                )
+                # A view-only page shows the next step without offering to take it.
+                pw.expect(card).to_contain_text("이 연결을 사용하면 데이터를 읽을 수 있습니다")
+                assert card.get_by_role("button").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
@@ -90,6 +86,18 @@ def test_operations_page_separates_registration_receipt_and_service_state(
                 pw.expect(card).to_contain_text("사용 중")
                 pw.expect(card).to_contain_text("원래 측정 시각")
 
+                page.goto(base + "&section=status")
+                services = page.get_by_role("region", name="실행 상태")
+                # No supervisor runs in this test; nothing claims that it does.
+                pw.expect(services).to_contain_text("모두 준비됐는지 확인되지 않습니다")
+                pw.expect(services.get_by_role("listitem")).to_have_count(4)
+                pw.expect(page.get_by_role("region", name="저장소 조회")).to_contain_text(
+                    "저장소를 모두 읽었습니다"
+                )
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth + 2"
+                )
+
                 # The page that explains failures still opens when the store read fails.
                 failing: Any = browser.new_page(
                     viewport={"width": width, "height": 900}, locale="ko-KR"
@@ -102,11 +110,12 @@ def test_operations_page_separates_registration_receipt_and_service_state(
                         body='{"error":"history_or_snapshot_unavailable"}',
                     ),
                 )
-                failing.goto(base)
+                failing.goto(base + "&section=status")
                 pw.expect(
                     failing.get_by_role("heading", name="저장소를 읽지 못했습니다")
                 ).to_be_visible()
-                pw.expect(failing.get_by_role("region", name="데이터 연결")).to_contain_text(
+                failing.goto(base)
+                pw.expect(failing.get_by_role("region", name="등록한 연결")).to_contain_text(
                     "Three phase file"
                 )
                 assert not errors, errors
