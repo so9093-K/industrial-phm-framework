@@ -254,7 +254,7 @@ def test_briefing_version_and_supervisor_write_contract(
                     wait_until="networkidle",
                 )
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 ai = page.get_by_role("region", name="AI 해설")
                 pw.expect(ai.get_by_role("heading", name="AI 해설")).to_be_visible()
                 pw.expect(ai).to_contain_text("아직 이 결과에 대한 해설이 없습니다")
@@ -288,7 +288,7 @@ def test_briefing_version_and_supervisor_write_contract(
                 requested["yes"] = False
                 page.reload(wait_until="networkidle")
                 page.get_by_label("관리 기준 (선택)").fill("12")
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 ai = page.get_by_role("region", name="AI 해설")
                 pw.expect(ai).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
                 assert ai.get_by_role("button", name="해설 만들기").count() == 0

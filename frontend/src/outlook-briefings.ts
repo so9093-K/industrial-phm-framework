@@ -1,6 +1,7 @@
 /** Version-bound outlook explanations; the server alone computes facts and authorizes writes. */
 import {parseOutlookSettings,type Projection} from "./projections.ts";
 import type {AcquisitionProjection} from "./acquisition-outlook.ts";
+import {readWriteSession} from "./session.ts";
 export type BriefingProjection=Projection|AcquisitionProjection;
 const isAcquisition=(p:BriefingProjection):p is AcquisitionProjection=>"featureId" in p;
 
@@ -194,10 +195,7 @@ export async function readBriefings(projection:BriefingProjection,signal:AbortSi
     await fetchJson("/api/v1/outlook/briefings?"+selection,signal),selection);
 }
 export async function readPermission(signal:AbortSignal):Promise<boolean>{
-  const response=object(await fetchJson("/api/v1/session",signal));
-  if(!response||response.schema_version!==1)
-    throw new Error("해설 작성 권한을 확인할 수 없습니다.");
-  return response.can_change===true&&response.write_scope==="supervisor-owned-source-control";
+  return (await readWriteSession(signal)).writable;
 }
 export async function requestBriefing(
   projection:BriefingProjection,question:string,signal:AbortSignal,
@@ -206,15 +204,12 @@ export async function requestBriefing(
   const trimmed=question.trim();
   if(!trimmed||trimmed.length>600)throw new Error("질문은 1~600자로 입력하세요.");
   await assertCurrentVersion(projection,signal);
-  const session=object(await fetchJson("/api/v1/session",signal));
-  if(!session||session.schema_version!==1
-    ||session.can_change!==true
-    ||session.write_scope!=="supervisor-owned-source-control"
-    ||typeof session.csrf_token!=="string"||session.csrf_token.length<16)
+  const session=await readWriteSession(signal);
+  if(!session.csrf)
     throw new BriefingUnavailable("보기 전용이라 해설을 만들 수 없습니다.");
   const raw=await fetchJson("/api/v1/outlook/briefings/request",signal,{
     method:"POST",
-    headers:{"Content-Type":"application/json","X-CSRF-Token":session.csrf_token},
+    headers:{"Content-Type":"application/json","X-CSRF-Token":session.csrf},
     body:JSON.stringify({...requestArgs(projection),question:trimmed}),
   });
   const result=object(raw);

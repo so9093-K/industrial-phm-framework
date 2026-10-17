@@ -11,10 +11,9 @@
     asset: Asset;
     data: AssetData | null;
     dataState: "loading" | "ready" | "failed";
-    pendingReviews: number | null;
     observed: (at: string | null) => string;
   };
-  let {asset, data, dataState, pendingReviews, observed}: Props = $props();
+  let {asset, data, dataState, observed}: Props = $props();
   const stored = $derived.by(() => {
     if (dataState === "loading") return "확인하는 중";
     if (dataState === "failed" || !data) return "확인하지 못함";
@@ -87,10 +86,8 @@
     <li><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 보기 →</a></li>
     <li><a href={assetTabUrl(asset.assetId, "change", "compare")}>두 기간 비교하기 →</a></li>
     <li><a href={assetTabUrl(asset.assetId, "outlook")}>기준 도달 전망과 AI 해설 보기 →</a></li>
-    {#if pendingReviews}
-      <li><a href={routeUrl({page: "maintenance", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
-        검토 대기 {pendingReviews}건 보기 →</a></li>
-    {/if}
+    <li><a href={routeUrl({page: "maintenance", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
+      정비 검토함 보기 →</a></li>
   </ul>
 </section>
 

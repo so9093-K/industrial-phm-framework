@@ -105,3 +105,10 @@ export function assetTabUrl(
 ): string {
   return routeUrl({page: "assets", assetId, tab, method, data}, channel);
 }
+
+/** The one review subject a maintenance address names; the server still checks its asset. */
+export function reviewFocus(search: string): {captureId: string | null; findingId: string | null} {
+  const params = new URLSearchParams(search);
+  if (params.get("page") !== "maintenance") return {captureId: null, findingId: null};
+  return {captureId: params.get("capture_id"), findingId: params.get("finding_id")};
+}

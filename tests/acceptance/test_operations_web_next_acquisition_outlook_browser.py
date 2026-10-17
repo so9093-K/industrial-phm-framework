@@ -304,7 +304,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 if spacing == "assumed":
                     page.get_by_label("측정 간격 가정 (선택 · 초, 1~86400)").fill("120")
                 page.get_by_label("관리 기준 (선택)").fill("2.4")
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.get_by_text("추가 측정 4회 후 닿음").first).to_be_visible()
                 # Measurement order is never shown as a clock time.
@@ -343,13 +343,13 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 )
                 pw.expect(changed).to_be_visible()
                 assert page.get_by_text("순번별 저장 근거만 설명합니다.").count() == 0
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(changed).to_be_visible()
                 assert page.get_by_role("heading", name="결과", exact=True).count() == 0
                 selected["binding"] = "binding-a"
                 selected["outlook_version"] = "c" * 64
                 page.get_by_role("button", name="진동 특징 목록 다시 불러오기").click()
-                page.get_by_role("button", name="계산하기").click()
+                page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(changed).to_be_visible()
                 # Read-only mode still shows the numbers but never offers an AI write.
                 if width == 390 and spacing == "ordinal":
@@ -358,7 +358,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     asked["yes"] = False
                     page.reload(wait_until="networkidle")
                     page.get_by_label("관리 기준 (선택)").fill("2.4")
-                    page.get_by_role("button", name="계산하기").click()
+                    page.get_by_role("button", name="계산하기", exact=True).click()
                     ai = page.get_by_role("region", name="AI 해설")
                     pw.expect(ai).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
                     assert ai.get_by_role("button", name="해설 만들기").count() == 0

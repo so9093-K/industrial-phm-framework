@@ -96,32 +96,39 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                     base + "/web-next/?view=reviews&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                # The former review address lands on the maintenance task with every asset.
+                # The former review address lands on the maintenance queue with every asset.
                 pw.expect(page.get_by_role("heading", name="정비 검토", level=1)).to_be_visible()
                 pw.expect(
                     page.get_by_role("navigation", name="업무 메뉴").get_by_role(
                         "link", name="정비 검토"
                     )
                 ).to_have_attribute("aria-current", "page")
-                review = page.locator(".item")
-                pw.expect(review).to_have_count(1)
-                pw.expect(review.get_by_role("heading")).to_contain_text("motor-a · ")
-                pw.expect(review).to_contain_text("검토 대기")
-                pw.expect(review.locator(".evidence li")).to_contain_text("데이터 출처")
-                review.get_by_text("기술 상세").click()
-                pw.expect(review.get_by_text("finding-a", exact=True)).to_be_visible()
-                pw.expect(review.get_by_text("run-a", exact=True)).to_be_visible()
-                pw.expect(review.get_by_text("evidence-a", exact=True)).to_be_visible()
+                queue = page.get_by_role("region", name="검토함")
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                items = queue.get_by_role("listitem")
+                pw.expect(items).to_have_count(1)
+                pw.expect(items.first).to_contain_text("motor-a · ")
+                pw.expect(items.first).to_contain_text("분석 결과 · 검토 대기")
+                pw.expect(detail.get_by_role("heading", level=2)).to_contain_text("motor-a · ")
+                pw.expect(detail.locator(".badge")).to_have_text("검토 대기")
+                pw.expect(detail.locator(".evidence li")).to_contain_text("데이터 출처")
+                detail.get_by_text("기술 상세").click()
+                pw.expect(detail.get_by_text("finding-a", exact=True)).to_be_visible()
+                pw.expect(detail.get_by_text("run-a", exact=True)).to_be_visible()
+                pw.expect(detail.get_by_text("evidence-a", exact=True)).to_be_visible()
                 pw.expect(
-                    page.get_by_role("link", name="이전 화면에서 메모·확인·종료하기")
+                    detail.get_by_role("link", name="이전 화면에서 메모·확인·종료하기")
                 ).to_have_attribute("href", "/web/?monitor_asset=motor-a#evidence")
-                assert page.get_by_role("button", name="검토 완료").count() == 0
+                # Analysis reviews stay read-only here until their write path is migrated.
+                for action in ("메모 남기기", "확인함으로 표시", "검토 종료"):
+                    assert detail.get_by_role("button", name=action).count() == 0
 
                 evidence_asset["value"] = "motor-b"
                 page.get_by_role("button", name="다시 불러오기").click()
-                pw.expect(page.get_by_text("이번 목록에서 찾지 못했습니다")).to_be_visible()
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                pw.expect(detail.get_by_text("이번 목록에서 찾지 못했습니다")).to_be_visible()
                 # The review keeps its own subject; another asset's evidence never fills in.
-                assert page.locator(".evidence li").filter(has_text="데이터 출처").count() == 0
+                assert detail.locator(".evidence li").filter(has_text="데이터 출처").count() == 0
                 assert page.get_by_role("heading", name="motor-b · ").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

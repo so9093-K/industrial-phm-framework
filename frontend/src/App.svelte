@@ -2,18 +2,19 @@
   import { onMount, tick } from "svelte";
   import { readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readPermission } from "./outlook-briefings";
-  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, routeUrl, type Route } from "./routes";
+  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
-  import ReviewInboxView from "./components/ReviewInbox.svelte";
+  import ReviewQueue from "./components/ReviewQueue.svelte";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   if (parseRoute(location.search).legacy) {
     history.replaceState(history.state, "", canonicalUrl(location.search));
   }
   let route: Route = $state(parseRoute(location.search).route);
+  let focus = $state(reviewFocus(location.search));
   let loadState: LoadState = $state("loading");
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
@@ -21,11 +22,6 @@
   let controller: AbortController | null = null;
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
-  const pendingReviews = $derived.by(() => {
-    if (!snapshot?.reviewInbox.available) return null;
-    return snapshot.reviewInbox.reviews.filter((review) =>
-      review.assetId === route.assetId && review.status !== "closed").length;
-  });
   const documentTitle = $derived(
     route.page === "assets" && route.assetId
       ? TAB_INFO[route.tab] + " · " + route.assetId + " · Industrial PHM"
@@ -35,6 +31,7 @@
     const before = route;
     history.pushState(history.state, "", url);
     route = parseRoute(location.search).route;
+    focus = reviewFocus(location.search);
     // A new page moves focus to its content. A tab switch, or choosing another asset with
     // the keyboard in its select, keeps focus where the user is.
     if (before.page !== route.page) {
@@ -80,7 +77,7 @@
   }
 
   onMount(() => {
-    const restore = () => { route = parseRoute(location.search).route; };
+    const restore = () => { route = parseRoute(location.search).route; focus = reviewFocus(location.search); };
     // Same-document links switch screens without reloading the asset list.
     const follow = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey
@@ -120,10 +117,6 @@
       {#each PAGES as page (page)}
         <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
           {PAGE_INFO[page].label}
-          {#if page === "maintenance" && snapshot?.reviewInbox.available}
-            {@const open = snapshot.reviewInbox.reviews.filter((review) => review.status !== "closed").length}
-            {#if open}<span class="count">{open}<span class="visually-hidden">건 검토 대기</span></span>{/if}
-          {/if}
         </a>
       {/each}
     </nav>
@@ -160,7 +153,7 @@
   {:else if snapshot}
     {#if route.page === "assets" && selected}
       {#key selected.assetId}
-        <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {pendingReviews} {observed}
+        <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed}
           onSelectAsset={selectAsset} />
       {/key}
     {:else}
@@ -174,7 +167,8 @@
         <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
       {/if}
       {#if route.page === "maintenance"}
-        <ReviewInboxView inbox={snapshot.reviewInbox} assetId={null} />
+        <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
+          focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
       {:else if loadState === "empty"}
         <StatusNotice
           title="등록된 설비가 없습니다"
