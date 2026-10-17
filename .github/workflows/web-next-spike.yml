@@ -48,6 +48,8 @@ on:
       - "tests/acceptance/test_operations_web_next_electrical_condition_browser.py"
       - "src/industrial_phm/runtime/operations_web_condition.py"
       - "tests/support/electrical_condition.py"
+      - "tests/acceptance/test_operations_web_next_capabilities_browser.py"
+      - "src/industrial_phm/runtime/operations_web_capabilities.py"
       - "src/industrial_phm/runtime/operations_web_phm_models.py"
       - "tests/support/opcua.py"
       - "src/industrial_phm/runtime/operations_web_setup.py"

@@ -478,6 +478,7 @@ Operations Web(Web-next)의 화면 문장·버튼·제목은 아래 표현만 �
 | 원본 재확인 | 원본 데이터: 요청 때와 같음 · 바뀜 · 다른 출처 · 확인할 수 없음 | `source_recheck` |
 | 사람 검토 상태 | 검토 대기 · 확인함 · 검토 종료 | `open` · `acknowledged` · `closed` |
 | 기록 권한 | 운영 중 · 기록 가능 / 보기 전용 | `can_change`, `write_scope` |
+| 저장 데이터가 지원하는 분석 | 이 데이터로 할 수 있는 분석 · 열기 · 모델 연결하기 · 대기 · 지금 할 수 없는 분석 | `/api/v1/explore/capabilities`, `ready`·`needs-connection`·`waiting`·`unavailable` |
 | 3상 운전 상태 비교 | 부하·불평형 (3상 평균 전류 · 전류가 흐른 시간 · 전압·전류 불평형 · 기준 패턴과의 차이) | `/api/v1/condition`, `pattern_score`, `snapshot_id` |
 | 계산 방법 | 추세 예측 · 주파수 분석 | Prophet, Welch PSD와 설정 |
 | 해석 한계 | 화면마다 결과 아래 한 번, `해석 주의` | — |

@@ -144,6 +144,9 @@ not install Node dependencies.
 - `src/components/ElectricalCondition.svelte`, `src/electrical-condition.ts`: 3-phase load, unbalance and
   reference-pattern score of a recent period against an earlier one (`/api/v1/condition`), times to check
   first and per-phase values; KST inputs travel as the same instant and lines never cross missing data.
+- `src/components/AnalysisOptions.svelte`, `src/capabilities.ts`: what an asset's stored data supports
+  (`/api/v1/explore/capabilities`), each analysis opening for that asset and data kind, a fitting model one
+  link away, and what cannot be done listed once with its reason.
 - `src/writes.ts`: the supervisor-session POST every write uses; it reads both error body shapes and
   tells a refused, forbidden or unknown outcome apart.
 - `src/review-writes.ts`: one status policy, note rule and write-failure mapping for every review.

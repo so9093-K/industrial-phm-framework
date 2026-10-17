@@ -12,6 +12,7 @@
   import {readSources} from "../operations-status";
   import {assetTabUrl, routeUrl} from "../routes";
   import {OutcomeUnknown} from "../writes";
+  import AnalysisOptions from "./AnalysisOptions.svelte";
 
   /** One CSV file to stored measurements: see the file's own values, let the server check it
    * without saving, then register, put in use, read once and store history as visible steps.
@@ -361,6 +362,7 @@
           <a class="ui-button ui-button-primary" href={assetTabUrl(progress.setup.asset_id, "signals")}>설비 화면에서 신호 보기 →</a>
           <a href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>설비 요약 보기 →</a>
         </p>
+        <AnalysisOptions assetId={progress.setup.asset_id} level={4} />
         {#if file && file.size > ANALYSIS_MAX_BYTES}
           <p class="context">신호 통계 분석은 1MiB 이하 CSV에서만 할 수 있습니다. 저장된 전체 신호는 신호 탭에서 볼 수 있습니다.</p>
         {:else}

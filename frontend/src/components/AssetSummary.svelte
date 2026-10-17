@@ -7,6 +7,7 @@
   import type {AssetData} from "../asset-data";
   import {assetTabUrl, routeUrl} from "../routes";
   import CautionNote from "./CautionNote.svelte";
+  import AnalysisOptions from "./AnalysisOptions.svelte";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -79,16 +80,10 @@
   <CautionNote message="모델 점수는 학습한 평소 상태와의 차이이고, 수신 상태와 확인할 항목은 기록 현황입니다. 설비의 고장 여부를 판정하지 않습니다." />
 </section>
 
-<section class="ui-panel next" aria-labelledby="next-title">
-  <h2 id="next-title">다음 할 일</h2>
-  <ul>
-    <li><a href={assetTabUrl(asset.assetId, "anomaly")}>이상 징후 보기 →</a></li>
-    <li><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 보기 →</a></li>
-    <li><a href={assetTabUrl(asset.assetId, "change", "compare")}>두 기간 비교하기 →</a></li>
-    <li><a href={assetTabUrl(asset.assetId, "outlook")}>기준 도달 전망과 AI 해설 보기 →</a></li>
-    <li><a href={routeUrl({page: "maintenance", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
-      정비 검토함 보기 →</a></li>
-  </ul>
+<section class="ui-panel next">
+  <AnalysisOptions assetId={asset.assetId} />
+  <p class="context"><a href={routeUrl({page: "maintenance", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
+    정비 검토함 보기 →</a></p>
 </section>
 
 <style>
@@ -102,22 +97,10 @@
   dt { font-size: var(--font-small); color: var(--color-ink-muted); }
   dd { margin: var(--space-2) 0 0; font-weight: 700; overflow-wrap: anywhere; }
   .next, .facts-panel { margin-top: var(--space-4); }
+  .next { display: grid; gap: var(--space-3); }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
-  .scores { flex-direction: column; gap: var(--space-2); }
+  .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
   .scores li { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
   .scores .verdict { font-size: var(--font-section); }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
-  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); }
-  li a {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    padding: var(--space-2) var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    text-decoration: none;
-    color: var(--color-ink);
-    background: var(--color-surface);
-  }
-  li a:hover { background: var(--color-surface-selected); }
 </style>
