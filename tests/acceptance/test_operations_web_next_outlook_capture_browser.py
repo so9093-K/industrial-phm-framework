@@ -518,3 +518,116 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+def test_maintenance_direct_link_requires_matching_asset_and_survives_navigation(
+    tmp_path: Path, width: int
+) -> None:
+    """A cross-asset URL may never pick a capture already loaded in the queue."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "cross-asset-queue")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    ids = {asset: "outlook-capture-" + suffix * 64 for asset, suffix in
+           (("motor-a", "a"), ("motor-b", "b"))}
+
+    def record(asset: str) -> dict[str, Any]:
+        outlook = {**_history_outlook("a" * 64), "asset_id": asset,
+                   "source_id": "source-" + asset}
+        identity = {
+            key: outlook.get(key) for key in (
+                "asset_id", "kind", "series", "source_id", "measurement_point_id",
+                "axis", "time_basis", "record", "conditions", "settings",
+                "measurement_version", "data_version"
+            )
+        }
+        identity["assumed_period_seconds"] = None
+        return {
+            "capture_id": ids[asset], "captured_at": "2026-10-16T00:30:00+00:00",
+            "snapshot": {
+                "schema_version": 1, "identity": identity, "selection": {},
+                "outlook": outlook,
+                "meaning": "captured-condition-outlook-not-actual-failure-or-maintenance"
+            },
+            "source_recheck": "same_measurement_projection",
+            "review": {"status": "open", "events": []},
+        }
+
+    def reply(route: Any, data: dict[str, Any], status: int = 200) -> None:
+        route.fulfill(status=status, content_type="application/json", body=json.dumps(data))
+
+    def captures(route: Any) -> None:
+        params = parse_qs(urlsplit(route.request.url).query)
+        asset = params["asset_id"][0]
+        found = [record(asset)] if asset in ids else []
+        requested = params.get("capture_id", [None])[0]
+        if requested and requested != ids.get(asset):
+            reply(route, {"error": "capture_not_found"}, 404)
+            return
+        reply(route, {"schema_version": 1, "captures": found})
+
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                snapshot = json.loads(_asset_list("motor-a"))
+                snapshot["assets"]["items"].append({
+                    "asset_id": "motor-b", "data_flow_status": "stored-history",
+                    "last_data_at": None, "attention_count": 0
+                })
+                snapshot["assets"]["total"] = 2
+                page.route("**/api/v1/monitor", lambda route: reply(route, snapshot))
+                page.route("**/api/v1/outlook/captures?**", captures)
+
+                def reviews(route: Any) -> None:
+                    params = parse_qs(urlsplit(route.request.url).query)
+                    reply(route, {
+                        "schema_version": 1, "asset_id": params["asset_id"][0],
+                        "meaning": "human-review-records-not-maintenance-or-diagnosis",
+                        "reviews": {"items": [], "total": 0, "truncated": False}
+                    })
+
+                page.route("**/api/v1/reviews?**", reviews)
+                base = f"http://127.0.0.1:{server.server_port}"
+                wrong = (f"/web/?page=maintenance&monitor_asset=motor-a&capture_id="
+                         f"{ids['motor-b']}")
+                page.goto(base + wrong, wait_until="networkidle")
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                pw.expect(detail).to_contain_text("검토 항목을 찾을 수 없습니다")
+                assert detail.locator("[data-capture-id]").count() == 0
+
+                # A same-page link must not keep the old subject or silently pick B.
+                correct = (f"/web/?page=maintenance&monitor_asset=motor-b&capture_id="
+                           f"{ids['motor-b']}")
+                page.evaluate("(path) => history.pushState({}, '', path)", correct)
+                page.evaluate("window.dispatchEvent(new PopStateEvent('popstate'))")
+                pw.expect(detail.locator("[data-capture-id]")).to_have_attribute(
+                    "data-capture-id", ids["motor-b"]
+                )
+                page.go_back()
+                pw.expect(detail).to_contain_text("검토 항목을 찾을 수 없습니다")
+                assert detail.locator("[data-capture-id]").count() == 0
+
+                # The exact correct link and a reload must preserve the same subject.
+                page.goto(base + correct, wait_until="networkidle")
+                pw.expect(detail.locator("[data-capture-id]")).to_have_attribute(
+                    "data-capture-id", ids["motor-b"]
+                )
+                page.reload(wait_until="networkidle")
+                pw.expect(detail.locator("[data-capture-id]")).to_have_attribute(
+                    "data-capture-id", ids["motor-b"]
+                )
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()
