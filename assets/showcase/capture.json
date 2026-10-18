@@ -32,7 +32,7 @@
   "api_backend": false,
   "data_kind": "synthetic",
   "snapshot_sha256": "616ba84afd98af460e31b025250219c2c9d0af334395e31502bca882f4084a5d",
-  "bundle_manifest_sha256": "1195f0434571a5d0bd36e0c0e5b5de95b78eb75fa857f30ef93a85de85ee1ad4",
+  "bundle_manifest_sha256": "b045cec5cca07fabd8da859f3bd2bec5ecc58349cf99a3f36c754f2ab65bab7c",
   "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-5feed534-72ef-4385-aaa0-d24a58b58ae9",
   "browser": "156.0.8078.4"
 }

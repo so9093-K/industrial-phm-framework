@@ -127,7 +127,7 @@
       message={message||"이 설비에는 분석된 진동 측정이 없습니다. 이상이 없다는 뜻은 아닙니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
-    <p class="context">데이터 출처 <strong>{source.sourceId}</strong> · 적용 모델 {source.bindingId}
+    <p class="context">데이터 출처 <strong>{source.sourceId}</strong>
       · 분석한 측정 #{source.first} ~ #{source.last} · {source.count}회</p>
     <label for="acquisition-feature">진동 특징
       <select id="acquisition-feature" value={selected} onchange={e=>selectFeature(e.currentTarget.value)}>
@@ -199,7 +199,7 @@
         <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다. 측정 순서는 일정한 시간 간격이 아니고, 특징값 차이는 결함이나 남은 수명을 뜻하지 않습니다." />
         <details>
           <summary>기술 상세</summary>
-          <p class="context">데이터 출처 {profile.sourceId} · binding {profile.bindingId}
+          <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId}
             · ‘평소 범위 밖’은 기간 A의 5~95% 분위수 범위를 벗어난 B 값의 비율입니다.</p>
         </details>
       </section>

@@ -11,7 +11,7 @@
   import {readPermission} from "../outlook-briefings";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,NoModelEvidence,scoreSummary,
+    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelName,NoModelEvidence,scoreSummary,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
 
@@ -197,13 +197,13 @@
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
           {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{item.packageId} · 데이터 출처 {item.sourceId}</option>
+            <option value={item.bindingId}>{modelName(item)} · 데이터 출처 {item.sourceId}</option>
           {/each}
         </select>
       </label>
     {/if}
     {#if binding}
-      <p class="context">적용 모델 <strong>{binding.packageId}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+      <p class="context">적용 모델 <strong>{modelName(binding)}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
         <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>

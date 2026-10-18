@@ -152,7 +152,7 @@ def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
                 "-c",
                 _BROWSER_SCRIPT,
                 url,
-                "Collection service is not running",
+                "데이터 수집 서비스가 실행되지 않음",
                 str(tmp_path / "harness.png"),
             ],
             capture_output=True,
@@ -174,11 +174,11 @@ def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
                 page = browser.new_page(viewport={"width": 390, "height": 900})
                 page.goto(url)
                 notes = page.get_by_role("region", name="운영 확인 항목")
-                pw.expect(notes).to_contain_text("Collection service is not running")
+                pw.expect(notes).to_contain_text("데이터 수집 서비스가 실행되지 않음")
                 notes.get_by_role("link", name="상세 확인").click()
                 assert "section=status" in page.url
                 page.goto(url)
-                pw.expect(notes).to_contain_text("Collection service is not running")
+                pw.expect(notes).to_contain_text("데이터 수집 서비스가 실행되지 않음")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(status=503, json={"error": "unavailable"}),

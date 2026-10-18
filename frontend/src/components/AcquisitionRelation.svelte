@@ -130,8 +130,9 @@
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다. 이상이 없다는 뜻은 아닙니다."}/>
   {:else if source && spans}
-    <p class="context">데이터 출처 <strong>{source.sourceId}</strong> · 적용 모델 {source.bindingId}
+    <p class="context">데이터 출처 <strong>{source.sourceId}</strong>
       · 측정 #{source.first} ~ #{source.last}</p>
+    <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
     <div class="controls">
       <label>특징 X
         <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>

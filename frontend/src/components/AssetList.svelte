@@ -29,7 +29,7 @@
       <li>
         <a class="row" href={href(asset.assetId)}>
           <strong>{assetOptionLabel(assets, asset.assetId)}</strong>
-          <span>마지막 측정 {observed(asset.lastObservedAt)}</span>
+          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : "측정 시각 기록 없음"}</span>
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {modelName,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
   binding_id:"bind-a",package_id:"model-v1",source_id:"source-a",asset_id:"bearing-a",
@@ -90,4 +90,10 @@ test("a stored score is summarized only from the fields the output carries",()=>
   assert.deepEqual(scoreSummary({score:0.5}),{score:0.5,threshold:null,exceeds:null});
   assert.deepEqual(scoreSummary({score:"high",threshold:Number.NaN,exceeds_threshold:"yes"}),
     {score:null,threshold:null,exceeds:null});
+});
+
+test("a connected model is named by its recipe, or its package without the content hash",()=>{
+  assert.equal(modelName({recipeId:"rms-score-v1",packageId:"rms-score-v1-24d7cd85d97f"}),"rms-score-v1");
+  assert.equal(modelName({recipeId:null,packageId:"synthetic-rms-score-v1-24d7cd85d97f"}),"synthetic-rms-score-v1");
+  assert.equal(modelName({recipeId:null,packageId:"plain-package"}),"plain-package");
 });

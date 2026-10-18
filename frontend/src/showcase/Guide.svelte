@@ -16,8 +16,9 @@
 </script>
 
 <aside class="guide" aria-label="제품 체험 안내">
-  <div class="intro"><div><p class="eyebrow">Industrial PHM · Guided demo</p>
-    <h1>측정의 변화에서 검토할 근거까지</h1></div><span class="badge">합성 기록 · 보기 전용 체험</span></div>
+  <!-- The page under the guide owns the one h1. -->
+  <div class="intro"><div><p class="eyebrow">제품 체험</p>
+    <p class="title">측정의 변화에서 검토할 근거까지</p></div><span class="badge">합성 기록 · 보기 전용 체험</span></div>
   <!-- A prepared link reloads its complete selection, including limits and settings. -->
   <nav aria-label="체험 순서">{#each steps as item,i}<a href={item.href} target="_self" aria-current={i===index?"step":undefined}>{item.label}</a>{/each}</nav>
   <div class="step"><div><h2>{step.title}</h2><p>{step.question}</p></div>
@@ -30,12 +31,14 @@
 <style>
   .guide{max-width:1500px;margin:0 auto 1rem;padding:1rem 1.25rem;background:#e8f2f4;border:1px solid #99bdc7;border-radius:1rem;color:#173544;}
   .intro,.step{display:flex;justify-content:space-between;gap:1.5rem;align-items:center;}
-  .eyebrow{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;margin:0;color:#386777;}
-  h1{font-size:1.25rem;margin:.1rem 0;}h2{font-size:1rem;margin:0;}p{margin:.2rem 0;}
+  .eyebrow{font-size:.8rem;margin:0;color:#386777;}
+  .title{font-size:1.25rem;font-weight:700;margin:.1rem 0;}h2{font-size:1rem;margin:0;}p{margin:.2rem 0;}
   nav{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0;}
   nav a{border-radius:2rem;padding:.4rem .85rem;background:#fff;text-decoration:none;border:1px solid #b4cbd2;}
   nav a[aria-current]{background:#173544;color:#fff;}.badge{font-size:.8rem;white-space:nowrap;}
   .step>.ui-button{flex-shrink:0;}details{font-size:.85rem;color:#365565;margin-top:.5rem;}summary{cursor:pointer;}
   .unavailable{background:#fff8eb;padding:.8rem;}
-  @media(max-width:650px){.guide{margin:.75rem;padding:1rem;}.intro,.step{align-items:flex-start;flex-direction:column;gap:.6rem;}h1{font-size:1.3rem;}}
+  @media(max-width:650px){.guide{margin:.75rem;padding:1rem;}.intro,.step{align-items:flex-start;flex-direction:column;gap:.6rem;}.title{font-size:1.1rem;}
+    /* One scrollable row of steps keeps the product itself in the first screen. */
+    nav{flex-wrap:nowrap;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:.25rem;}nav a{flex:none;scroll-snap-align:start;}}
 </style>

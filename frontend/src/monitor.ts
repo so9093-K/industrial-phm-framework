@@ -66,6 +66,34 @@ function analysesOf(response: Record<string, unknown>): AnalysisRecords {
   }
 }
 
+/** The server's attention titles are fixed English strings; the screen speaks Korean. */
+const ATTENTION_TEXT: Record<string, string> = {
+  "Collection service heartbeat unavailable": "데이터 수집 서비스 상태를 확인하지 못함",
+  "Collection service stopped on an error": "데이터 수집 서비스가 오류로 멈춤",
+  "Collection service stopped": "데이터 수집 서비스 중지됨",
+  "Collection service is not running": "데이터 수집 서비스가 실행되지 않음",
+  "Source connection lost": "데이터 연결 끊김",
+  "No new data": "새 측정이 들어오지 않음",
+  "Collection needs attention": "데이터 수집 확인 필요",
+  "History storage needs attention": "측정 이력 저장 확인 필요",
+  "Analysis input preparation needs attention": "분석 입력 준비 확인 필요",
+  "Analysis service stopped on an error": "분석 실행기가 오류로 멈춤",
+  "Analysis service is not updating": "분석 실행기 응답 지연",
+  "Data is delayed": "데이터 수신 지연",
+  "Review waiting": "검토 대기",
+  "Review in progress": "검토 진행 중",
+  "Data quality needs review": "데이터 품질 확인 필요",
+  "System state is unavailable": "시스템 상태를 확인하지 못함",
+  "Source data flow failed": "데이터 수신 오류",
+  "Source is waiting for data": "첫 데이터 대기",
+};
+const DESTINATION_TEXT: Record<string, string> = {
+  system: "운영 서비스 확인 필요", "asset-signals": "데이터 확인 필요", investigations: "분석 결과 확인 필요",
+};
+export function attentionLabel(item: OperationAttention): string {
+  return ATTENTION_TEXT[item.title] ?? DESTINATION_TEXT[item.destination] ?? "확인 필요";
+}
+
 function attentionOf(raw:unknown):{items:OperationAttention[];complete:boolean} {
   const list=object(raw);
   if(!list||!Array.isArray(list.items)||list.items.length>100)return {items:[],complete:false};
