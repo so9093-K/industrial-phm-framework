@@ -53,9 +53,14 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                     "link", name="이 설비의 확인 사유와 다음 행동 보기"
                 )
                 pw.expect(reason).to_have_attribute("href", "#attention-bearing-a")
-                reason.click()
+                # Keyboard activation must move focus to the named evidence heading,
+                # not merely change the fragment or scroll to a visible element.
+                reason.focus()
+                pw.expect(reason).to_be_focused()
+                reason.press("Enter")
                 assert page.url.endswith("#attention-bearing-a")
                 pw.expect(page.locator("#attention-bearing-a")).to_be_visible()
+                pw.expect(page.locator("#attention-bearing-a")).to_be_focused()
                 trend = asset.get_by_role("link", name="점수 추이 보기")
                 pw.expect(trend).to_have_attribute(
                     "href",
