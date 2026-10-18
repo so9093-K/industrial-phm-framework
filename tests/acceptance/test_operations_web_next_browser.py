@@ -303,3 +303,65 @@ def test_unknown_asset_deep_link_does_not_show_another_asset(
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: Path) -> None:
+    """A supervisor outage cannot masquerade as an ordinary read-only workspace."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "session-feedback")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    status = {"kind": "failed", "requests": 0}
+
+    def session(route):
+        status["requests"] += 1
+        if status["kind"] == "failed":
+            route.fulfill(status=503, content_type="application/json", body="{}")
+            return
+        enabled = status["kind"] == "writer"
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "schema_version": 1,
+                "can_change": enabled,
+                "write_scope": "supervisor-owned-source-control" if enabled else "read-only",
+                "csrf_token": "valid-supervisor-csrf-token" if enabled else None,
+            }),
+        )
+
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route("**/api/v1/session", session)
+                base = f"http://127.0.0.1:{server.server_port}"
+                page.goto(base + "/web/?page=system", wait_until="networkidle")
+                pw.expect(page.get_by_role("status").filter(
+                    has_text="쓰기 권한 확인 실패 · 보기만 가능"
+                )).to_be_visible()
+                assert page.get_by_text("운영 중 · 기록 가능").count() == 0
+                status["kind"] = "readonly"
+                page.get_by_role("button", name="권한 다시 확인").click()
+                pw.expect(page.get_by_role("status").filter(has_text="보기 전용")).to_be_visible()
+                assert page.get_by_role("button", name="권한 다시 확인").count() == 0
+                assert status["requests"] >= 2
+
+                status["kind"] = "writer"
+                page.reload(wait_until="networkidle")
+                pw.expect(page.get_by_role("status").filter(
+                    has_text="운영 중 · 기록 가능"
+                )).to_be_visible()
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()
