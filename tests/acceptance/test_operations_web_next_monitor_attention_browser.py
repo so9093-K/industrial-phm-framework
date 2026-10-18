@@ -55,7 +55,9 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 pw.expect(reason).to_have_attribute("href", "#attention-bearing-a")
                 # Keyboard activation must move focus to the named evidence heading,
                 # not merely change the fragment or scroll to a visible element.
-                reason.focus()
+                listed.focus()
+                pw.expect(listed).to_be_focused()
+                page.keyboard.press("Tab")
                 pw.expect(reason).to_be_focused()
                 reason.press("Enter")
                 assert page.url.endswith("#attention-bearing-a")
