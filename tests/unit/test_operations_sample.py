@@ -62,7 +62,7 @@ def test_first_run_sample_reuses_existing_demo_command_in_isolated_workspace(
     def fake_wait(port, child, *, timeout_seconds):
         assert port == 2719
         assert child is process
-        assert timeout_seconds == 15.0
+        assert timeout_seconds == 60.0
 
     ports = iter((2719, 4842))
 
