@@ -352,6 +352,11 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
                     page.get_by_role("status").filter(has_text="쓰기 권한 확인 실패 · 보기만 가능")
                 ).to_be_visible()
                 assert page.get_by_text("운영 중 · 기록 가능").count() == 0
+                # Long error text plus retry button must wrap on a 390px screen.
+                pw.expect(page.get_by_role("button", name="권한 다시 확인")).to_be_visible()
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth + 2"
+                )
                 status["kind"] = "readonly"
                 page.get_by_role("button", name="권한 다시 확인").click()
                 pw.expect(page.get_by_role("status").filter(has_text="보기 전용")).to_be_visible()
