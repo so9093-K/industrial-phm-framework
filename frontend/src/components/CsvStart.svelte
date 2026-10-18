@@ -159,7 +159,7 @@
       if (token !== revision) return;
       report = result; checkedRevision = token;
       checkMessage = result.status === "ready"
-        ? "점검 통과 · 측정값 " + result.sampleCount + "행 · " + result.channels.join(", ") + " · 원래 측정 " + clock(result.first) + " ~ " + clock(result.last) + " · 아직 저장하지 않았습니다."
+        ? "점검 통과 · 측정값 " + result.sampleCount + "행 · " + result.channels.join(", ") + " · 원래 측정 " + clock(result.first) + " ~ " + clock(result.last)
           + (result.warnings.length ? " 측정 간격 주의: " + result.warnings.join(", ") + " · 원래 간격대로 저장합니다." : "")
           + (result.match === "matching" ? " 같은 파일과 설정이 이미 등록돼 있습니다. 저장하면 남은 단계부터 이어서 진행합니다." : "")
         : (result.status === "blocked" ? "점검 실패 · 파일이나 설정을 고친 뒤 다시 점검하세요." : "추가 확인이 필요합니다 · 아직 저장할 수 없습니다.")
@@ -271,7 +271,7 @@
   {#if table}
     <section aria-labelledby="csv-preview-title">
       <h3 id="csv-preview-title">파일 미리보기</h3>
-      <p class="tag">이 브라우저에서 읽은 값 · 아직 서버 점검·저장 전</p>
+      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "이 브라우저에서 읽은 값 · 서버가 확인함 · 아직 저장 전" : "이 브라우저에서 읽은 값 · 아직 서버 점검·저장 전"}</p>
       <div class="columns">
         <label class="field">시간 컬럼
           <select value={String(timeIndex)} disabled={locked} onchange={(event) => chooseTime(event.currentTarget.value)}>
@@ -359,7 +359,7 @@
           onclick={() => void check()}>서버에서 점검 (저장 안 함)</button>
       {/if}
       {#if checkMessage}
-        <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}</p>
+        <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}{#if report?.status === "ready" && !checking}{stored ? " · 저장했습니다." : " · 아직 저장하지 않았습니다."}{/if}</p>
       {/if}
     </section>
 

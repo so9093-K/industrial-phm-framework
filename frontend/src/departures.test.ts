@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseDepartures, scoreDots } from "./departures.ts";
+import { departureChart, parseDepartures } from "./departures.ts";
 
 const result = () => ({
   schema_version: 1,
@@ -46,8 +46,17 @@ test("intervals reject mixed source evidence and invalid numeric values", () => 
   assert.throws(() => parseDepartures(negative, "motor-1", "R", "first-30"), /조건/);
 });
 
-test("score dots are unconnected and no missing score creates fabricated point", () => {
+test("the chart marks the baseline, the threshold and each interval, and never bridges a gap", () => {
   const data = parseDepartures(result(), "motor-1", "R", "first-30");
-  assert.equal(scoreDots(data).length, 1);
-  assert.equal(scoreDots({...data, score: []}).length, 0);
+  assert.equal(departureChart({...data, score: []}), null);
+  const at = (minute: number) => new Date(Date.UTC(2026, 0, 1, 0, minute)).toISOString();
+  const chart = departureChart({...data,
+    baseline: {...data.baseline, from: at(0), to: at(3)},
+    score: [0, 1, 2, 3, 10, 11].map((minute, i) => ({at: at(minute), distance: i})),
+    intervals: [{...data.intervals[0], start: at(10), end: at(11)}]})!;
+  // A ten-minute hole between minute 3 and 10 starts a new line.
+  assert.equal(chart.path.split("M").length - 1, 2);
+  assert.ok(chart.baseline.x === 0 && chart.baseline.width > 0 && chart.baseline.width < chart.width / 2);
+  assert.ok(chart.intervals[0].x > chart.width / 2);
+  assert.ok(chart.thresholdY > 0 && chart.thresholdY < chart.height);
 });

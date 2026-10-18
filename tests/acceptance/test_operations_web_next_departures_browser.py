@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
@@ -146,7 +147,10 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 )
                 expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("1개")
-                pw.expect(page.locator(".departures svg[role=img] circle")).to_have_count(1)
+                chart = page.locator(".departures svg[role=img]")
+                drawn = re.compile(r"^M\S+ \S+ L")
+                pw.expect(chart.locator("path.line")).to_have_attribute("d", drawn)
+                pw.expect(chart.locator("rect.found")).to_have_count(1)
                 assert "고장 가능성" in page.locator("main").inner_text()
                 page.get_by_label("비교 기준 구간").select_option("all")
                 pw.expect(page.get_by_text("기준에서 크게 벗어난 구간")).to_contain_text("0개")

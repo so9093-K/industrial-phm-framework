@@ -17,6 +17,8 @@ export type Projection = {
   dataVersion: string; sourceId: string; pointId: string | null; unit: string | null;
   record: {first: string; last: string; points: number};
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
+  /** The stored values the forecast was fitted on, for drawing; never edited or filled. */
+  history?: Array<{at:string; value:number}>;
   checks?: Backtest[]; scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
 };
 export class ProjectionUnavailable extends Error {}
@@ -134,6 +136,9 @@ export function parsePairedProjection(
     return {at:date(row[0]), estimate,
       lower:numberOrNull(row[2] ?? null), upper:numberOrNull(row[3] ?? null)};
   });
+  const history = (Array.isArray(forecast.history) ? forecast.history : []).flatMap((row: unknown) =>
+    Array.isArray(row) && typeof row[1] === "number" && Number.isFinite(row[1])
+      ? [{at:date(row[0]), value:row[1]}] : []);
   const scenarios = outlook.scenarios.map((raw: unknown) => {
     const item = object(raw), limits = object(item?.limits);
     if (!item || !limits) throw new Error("계산 방식별 결과의 형식이 올바르지 않습니다.");
@@ -144,7 +149,63 @@ export function parsePairedProjection(
     dataVersion:str(outlook.data_version), sourceId:fs,
     pointId:fp === null ? null : str(fp), unit:typeof forecast.unit === "string" ? forecast.unit : null,
     record: {first:date(record.first),last:date(record.last),points:count(record.points)},
-    future, scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
+    future, history, scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
+}
+
+export const HORIZON_LABEL: Record<Horizon, string> = {"1h":"1시간","24h":"24시간","7d":"7일","30d":"30일"};
+
+export type OutlookChart = {
+  width: number; height: number; low: number; high: number;
+  start: string; lastRecord: string; end: string; lastX: number;
+  history: string; estimate: string; band: string;
+  management: number | null; endLimit: number | null;
+};
+
+/** Recent stored values, the forecast with its range and the user's limits on one plot.
+ * The window shows twice the forecast span of history so the forecast stays readable. */
+export function outlookChart(projection: Projection): OutlookChart | null {
+  const future = projection.future;
+  if (!future.length) return null;
+  const width = 800, height = 220, top = 8, bottom = 212;
+  const futureStart = Date.parse(future[0].at), futureEnd = Date.parse(future[future.length - 1].at);
+  const span = Math.max(futureEnd - futureStart, 1);
+  const shown = (projection.history ?? []).filter((item) => Date.parse(item.at) >= futureStart - 2 * span);
+  const start = Math.min(shown.length ? Date.parse(shown[0].at) : futureStart, futureStart);
+  const end = Math.max(futureEnd, start + 1);
+  const {management, end: endLimit} = projection.conditions;
+  const values = [
+    ...shown.map((item) => item.value),
+    ...future.flatMap((item) => [item.estimate, item.lower ?? item.estimate, item.upper ?? item.estimate]),
+    ...[management, endLimit].filter((limit): limit is number => limit !== null),
+  ];
+  const low = Math.min(...values), high = Math.max(...values);
+  const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.06;
+  const lo = low - padding, hi = high + padding;
+  const x = (at: string) => ((Date.parse(at) - start) / (end - start)) * width;
+  const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
+  const line = (points: Array<[string, number]>) =>
+    points.map(([at, value], i) => (i ? "L" : "M") + x(at).toFixed(1) + " " + y(value).toFixed(1)).join(" ");
+  const ranged = future.filter((item) => item.lower !== null && item.upper !== null);
+  const band = ranged.length
+    ? line(ranged.map((item) => [item.at, item.upper as number]))
+      + " " + ranged.slice().reverse().map((item) => "L" + x(item.at).toFixed(1) + " " + y(item.lower as number).toFixed(1)).join(" ") + " Z"
+    : "";
+  return {
+    width, height, low, high,
+    start: new Date(start).toISOString(), lastRecord: projection.record.last, end: future[future.length - 1].at,
+    lastX: x(projection.record.last),
+    history: line(shown.map((item) => [item.at, item.value])),
+    estimate: line(future.map((item) => [item.at, item.estimate])),
+    band,
+    management: management === null ? null : y(management),
+    endLimit: endLimit === null ? null : y(endLimit),
+  };
+}
+
+/** A few forecast rows spread over the whole horizon, always including its last one. */
+export function spreadRows<T>(rows: T[], count = 8): T[] {
+  if (rows.length <= count) return rows;
+  return Array.from({length: count}, (_, i) => rows[Math.round((i * (rows.length - 1)) / (count - 1))]);
 }
 async function json(url: string, signal: AbortSignal): Promise<unknown> {
   const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});

@@ -108,3 +108,8 @@ main > * + * { margin-top: var(--space-4); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+/* First visit: how to get data in comes before panels about data. */
+.start { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
+.start h2, .start p { margin: 0; }
+.start-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }

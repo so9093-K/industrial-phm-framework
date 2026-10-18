@@ -37,6 +37,19 @@ test("missing an attention value never becomes zero", () => {
   assert.equal(data.assets[0].attentionCount, null);
 });
 
+test("the measurement time is the stored event time, never when a file was read", () => {
+  const data = parseMonitor({
+    ...observed,
+    assets: {
+      ...observed.assets,
+      items: [{ asset_id: "pump-one", data_flow_status: "stored-history",
+        last_data_at: "2026-10-18T06:14:23Z", last_observed_at: "2026-10-12T14:50:00Z" }],
+    },
+  });
+  assert.equal(data.assets[0].lastObservedAt, "2026-10-12T14:50:00Z");
+  assert.equal(data.assets[0].lastReceivedAt, "2026-10-18T06:14:23Z");
+});
+
 test("missing error-scope evidence is not declared healthy", () => {
   const { system_error_scopes: _omitted, ...withoutErrors } = observed;
   const data = parseMonitor(withoutErrors);

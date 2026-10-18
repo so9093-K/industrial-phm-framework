@@ -73,7 +73,8 @@
   <h2 id="summary-title">기록 현황</h2>
   <dl class="facts">
     <div><dt>마지막 측정</dt><dd>{observed(asset.lastObservedAt)}</dd></div>
-    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}</dd></div>
+    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
+      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
     <div><dt>확인할 항목</dt><dd>{attention(asset.attentionCount)}</dd></div>
     <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
   </dl>
@@ -96,6 +97,7 @@
   .facts div { padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); min-width: 0; }
   dt { font-size: var(--font-small); color: var(--color-ink-muted); }
   dd { margin: var(--space-2) 0 0; font-weight: 700; overflow-wrap: anywhere; }
+  dd small { display: block; margin-top: var(--space-1); font-weight: 400; font-size: var(--font-small); color: var(--color-ink-muted); }
   .next, .facts-panel { margin-top: var(--space-4); }
   .next { display: grid; gap: var(--space-3); }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }

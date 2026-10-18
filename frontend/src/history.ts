@@ -18,7 +18,12 @@ export type HistoryBucket = {
   pointId: string | null;
   interpretationId: string;
   bucketStart: string;
+  /** The first stored event inside the bucket; bucket starts are aligned to the window. */
+  firstEventAt?: string | null;
   mean: number | null;
+  /** Smallest and largest stored value inside the bucket; a short spike shows here. */
+  minimum: number | null;
+  maximum: number | null;
   usableCount: number;
   nullCount: number;
   nonGoodCount: number;
@@ -34,6 +39,7 @@ export type HistoryTrend = {
   startAt: string;
   endAt: string;
   assessedAt: string | null;
+  bucketSeconds: number | null;
   buckets: HistoryBucket[];
   latest: {
     channelId: string; sourceId: string; pointId: string | null;
@@ -110,7 +116,10 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
       pointId: b.measurement_point_id === null ? null : nonEmpty(b.measurement_point_id),
       interpretationId: nonEmpty(b.interpretation_id),
       bucketStart: time(b.bucket_start),
+      firstEventAt: typeof b.first_event_at === "string" ? time(b.first_event_at) : null,
       mean: numberOrNull(b.mean),
+      minimum: b.minimum === undefined ? null : numberOrNull(b.minimum),
+      maximum: b.maximum === undefined ? null : numberOrNull(b.maximum),
       usableCount: count(b.usable_count),
       nullCount: count(b.null_count),
       nonGoodCount: count(b.non_good_count),
@@ -135,6 +144,8 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
   return {
     assetId, startAt, endAt,
     assessedAt: typeof response.assessed_at === "string" ? response.assessed_at : null,
+    bucketSeconds: typeof response.bucket_seconds === "number" && response.bucket_seconds > 0
+      ? response.bucket_seconds : null,
     buckets, latest,
   };
 }
@@ -163,24 +174,52 @@ export function groupHistory(trend: HistoryTrend): HistoryGroup[] {
   }));
 }
 
-export function pointsForChart(group: HistoryGroup, startAt: string, endAt: string): {
-  bucket: HistoryBucket; x: number; y: number;
-}[] {
-  // Do not connect points or display non-usable buckets as measured values.
-  const entries = group.buckets.slice(-120).filter(
-    b => b.usableCount > 0 && b.mean !== null,
-  );
-  if (!entries.length) return [];
-  const values = entries.map(b => b.mean!);
-  const low = Math.min(...values), high = Math.max(...values);
-  const padding = low === high ? 1 : (high - low) * 0.16;
+export type SignalChart = {
+  width: number; height: number; low: number; high: number;
+  /** Where the plot starts: the window start, or the first stored bucket if later. */
+  from: string;
+  /** Means joined only between adjacent buckets; a missing bucket breaks the line. */
+  path: string;
+  marks: {bucket: HistoryBucket; x: number; mean: number; min: number; max: number}[];
+};
+
+/** Bucket means as a line with each bucket's min-max range, from the first stored bucket
+ * (or the window start) to the window end. Unusable buckets are never drawn and nothing
+ * is interpolated across them. */
+export function signalChart(
+  group: HistoryGroup, startAt: string, endAt: string, bucketSeconds: number | null,
+): SignalChart | null {
+  const entries = group.buckets.filter(b => b.usableCount > 0 && b.mean !== null);
+  if (!entries.length) return null;
+  const width = 800, height = 200, top = 8, bottom = 192;
+  const lows = entries.map(b => b.minimum ?? b.mean!), highs = entries.map(b => b.maximum ?? b.mean!);
+  const low = Math.min(...lows), high = Math.max(...highs);
+  const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.08;
   const lo = low - padding, hi = high + padding;
-  const start = Date.parse(startAt), end = Date.parse(endAt);
-  return entries.map(bucket => ({
-    bucket,
-    x: Math.max(28, Math.min(628, 28 + (Date.parse(bucket.bucketStart) - start) * 600 / (end - start))),
-    y: 114 - ((bucket.mean! - lo) / (hi - lo)) * 90,
-  }));
+  const start = Math.max(Date.parse(startAt), Date.parse(entries[0].bucketStart));
+  const end = Math.max(Date.parse(endAt), start + 1);
+  const x = (at: string) => ((Date.parse(at) - start) / (end - start)) * width;
+  const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
+  const step = (bucketSeconds ?? 0) * 1000 * 1.5;
+  let path = "", previous: number | null = null;
+  const marks = entries.map(bucket => {
+    const at = Date.parse(bucket.bucketStart);
+    const joined = previous !== null && step > 0 && at - previous <= step;
+    path += (joined ? "L" : "M") + x(bucket.bucketStart).toFixed(1) + " " + y(bucket.mean!).toFixed(1) + " ";
+    previous = at;
+    return {bucket, x: x(bucket.bucketStart), mean: y(bucket.mean!),
+      min: y(bucket.minimum ?? bucket.mean!), max: y(bucket.maximum ?? bucket.mean!)};
+  });
+  return {width, height, low, high, from: new Date(start).toISOString(), path: path.trim(), marks};
+}
+
+/** The shortest window that still holds the whole stored record, so a 3-day file and a
+ * minutes-old live source both fill the chart. */
+export function fittingRange(trend: HistoryTrend): RangePreset {
+  const first = trend.buckets.find(b => b.usableCount > 0);
+  if (!first) return "7d";
+  const span = Date.parse(trend.endAt) - Date.parse(first.firstEventAt ?? first.bucketStart);
+  return span <= 15 * 60_000 ? "15m" : span <= 3_600_000 ? "1h" : span <= 86_400_000 ? "24h" : "7d";
 }
 
 async function json(url: string, signal: AbortSignal): Promise<unknown> {

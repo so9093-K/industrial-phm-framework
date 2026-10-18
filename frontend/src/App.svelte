@@ -49,7 +49,10 @@
     // the keyboard in its select, keeps focus where the user is.
     if (before.page !== route.page) {
       await tick();
-      document.getElementById("main")?.focus();
+      // A link to a part of the new page (e.g. #sample) scrolls there; focus still starts at main.
+      const part = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+      document.getElementById("main")?.focus({preventScroll: part !== null});
+      part?.scrollIntoView({block: "start"});
     }
   }
   function selectAsset(assetId: string) {
@@ -148,7 +151,7 @@
       if (url.origin !== location.origin || url.pathname !== "/web/") return;
       if (url.hash && url.pathname + url.search === location.pathname + location.search) return;
       event.preventDefault();
-      if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
+      if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search + url.hash);
     };
     void checkPermission();
     window.addEventListener("popstate", restore);
@@ -232,6 +235,18 @@
       {#if snapshot.truncated}
         <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
       {/if}
+      {#if route.page === "monitor" && loadState === "empty"}
+        <!-- A first visit starts with how to get data in, not with panels about data that is not there. -->
+        <section class="ui-panel start" aria-labelledby="start-title">
+          <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "아직 연결된 데이터가 없습니다"}</h2>
+          <p>CSV 파일을 올리면 설비별 신호와 변화, 이상 징후, 상태 전망을 볼 수 있습니다.
+            실제 데이터가 없다면 이 작업공간과 분리된 예시로 화면을 먼저 둘러보세요.</p>
+          <div class="start-actions">
+            <a class="ui-link-primary" href={systemUrl("connections")}>CSV 파일로 시작</a>
+            <a class="ui-button" href={systemUrl("connections") + "#sample"}>예시로 둘러보기</a>
+          </div>
+        </section>
+      {/if}
       {#if route.page === "monitor"}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
@@ -242,12 +257,16 @@
         <InvestigationRecords {snapshot} writable={writable === true} assetId={route.assetId} />
 
       {:else if loadState === "empty"}
-        <StatusNotice
-          title="등록된 설비가 없습니다"
-          message="아직 연결된 데이터가 없거나 일부 저장소를 읽지 못했을 수 있습니다."
-          actionLabel="데이터 연결하기"
-          actionHref={systemUrl("connections")}
-        />
+        {#if route.page !== "monitor"}
+          <StatusNotice
+            title="등록된 설비가 없습니다"
+            message={snapshot.systemReadUncertain
+              ? "일부 저장소를 읽지 못해 설비가 빠졌을 수 있습니다."
+              : "아직 연결된 데이터가 없습니다. CSV 파일을 올리거나 예시로 둘러보세요."}
+            actionLabel="데이터 연결하기"
+            actionHref={systemUrl("connections")}
+          />
+        {/if}
       {:else}
         {#if route.page === "assets" && route.assetId}
           <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
