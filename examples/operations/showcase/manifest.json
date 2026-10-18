@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "scenario": "synthetic-pump-change-v1",
+  "kind": "synthetic",
+  "start": "2026-10-01T00:00:00+00:00",
+  "interval_seconds": 60,
+  "sources": [
+    {
+      "asset_id": "demo-pump-stable",
+      "sha256": "3edb745ae5173571189b7c1e23cf94b702c2f34bb638378a6189f51aaa9f4b11",
+      "rows": 240,
+      "stored": {
+        "schema_version": 1,
+        "source_id": "demo-pump-stable-csv",
+        "asset_id": "demo-pump-stable",
+        "event_count": 480,
+        "segment_count": 1,
+        "recovered_segment_count": 0,
+        "history_snapshot_id": 7,
+        "meaning": "persisted-file-history-not-live-collection-or-analysis"
+      },
+      "analysis": {
+        "schema_version": 1,
+        "source_id": "demo-pump-stable-csv",
+        "asset_id": "demo-pump-stable",
+        "analysis_run_id": "analysis-run-36efd186-d65c-444c-81f8-2aa982cca421",
+        "evidence_id": "evidence-fec6e8c2-a23d-4121-bb42-84812ad385b7",
+        "capability_id": "field-vibration-statistical-features-v1",
+        "source_snapshot_sha256": "3edb745ae5173571189b7c1e23cf94b702c2f34bb638378a6189f51aaa9f4b11",
+        "meaning": "persisted-file-statistical-features-not-diagnosis-or-history"
+      }
+    },
+    {
+      "asset_id": "demo-pump-change",
+      "sha256": "23cfd000a15b5338cd99f2e815288f4c4962343585c9092b449c4cb8817189bf",
+      "rows": 240,
+      "stored": {
+        "schema_version": 1,
+        "source_id": "demo-pump-change-csv",
+        "asset_id": "demo-pump-change",
+        "event_count": 480,
+        "segment_count": 1,
+        "recovered_segment_count": 0,
+        "history_snapshot_id": 8,
+        "meaning": "persisted-file-history-not-live-collection-or-analysis"
+      },
+      "analysis": {
+        "schema_version": 1,
+        "source_id": "demo-pump-change-csv",
+        "asset_id": "demo-pump-change",
+        "analysis_run_id": "analysis-run-24be342b-937a-4c93-a1f5-1aa438194649",
+        "evidence_id": "evidence-21fdda9c-22b7-4f15-8ccc-e3c99af1c7e1",
+        "capability_id": "field-vibration-statistical-features-v1",
+        "source_snapshot_sha256": "23cfd000a15b5338cd99f2e815288f4c4962343585c9092b449c4cb8817189bf",
+        "meaning": "persisted-file-statistical-features-not-diagnosis-or-history"
+      }
+    }
+  ],
+  "review": {
+    "schema_version": 1,
+    "finding_id": "finding-review-analysis-run-24be342b-937a-4c93-a1f5-1aa438194649",
+    "analysis_run_id": "analysis-run-24be342b-937a-4c93-a1f5-1aa438194649",
+    "asset_id": "demo-pump-change",
+    "evidence_ids": [
+      "evidence-21fdda9c-22b7-4f15-8ccc-e3c99af1c7e1"
+    ],
+    "status": "open",
+    "meaning": "human-review-request-not-maintenance-completion-or-diagnosis"
+  },
+  "meaning": "product walkthrough, not field performance or failure prediction",
+  "generated_from_commit": "9e89a8e5ae4a4e2ed8047b6477734d0f2ebb0dae",
+  "generator": "tools/showcase/prepare.py",
+  "generator_sha256": "f6d82f0d9d60560bfc3f3f1010e2f5f1b2bfaf10494d404817309fb221ce8167",
+  "revision_is_base_commit": true,
+  "response_count": 71,
+  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-24be342b-937a-4c93-a1f5-1aa438194649"
+}

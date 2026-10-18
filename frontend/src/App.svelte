@@ -12,6 +12,8 @@
   import ReviewQueue from "./components/ReviewQueue.svelte";
   import InvestigationRecords from "./components/InvestigationRecords.svelte";
   import OperationsPage from "./components/OperationsPage.svelte";
+  import Guide from "./showcase/Guide.svelte";
+  const showcase = import.meta.env.MODE === "showcase";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
   if (parseRoute(location.search,location.hash).legacy) {
@@ -199,10 +201,11 @@
 </header>
 
 <main id="main" tabindex="-1">
+  {#if showcase}<Guide search={new URLSearchParams({page:route.page,tab:route.tab,asset:route.assetId,method:route.method??""}).toString()} />{/if}
   {#if previousSeries.length>1&&route.page==="assets"&&route.tab==="change"}
     <p class="meta">이전 주소에 고른 신호: {previousSeries.join(", ")}. 두 기간 비교는 신호별로 확인합니다. 먼저 {previousSeries[0]}을 열었으며 신호 선택에서 나머지를 확인할 수 있습니다.</p>
   {/if}
-  {#if example}
+  {#if example && !showcase}
     <p class="example">합성 예시 데이터 · 별도 작업공간 · 보기 전용{#if returnTo} · <a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
   {/if}
   {#if route.page === "system"}

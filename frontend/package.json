@@ -7,7 +7,9 @@
   "scripts": {
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "node --experimental-strip-types --test src/*.test.ts",
-    "build": "node ./scripts/clean-dist.mjs && vite build"
+    "build": "node ./scripts/clean-dist.mjs && vite build",
+    "build:showcase": "vite build --mode showcase && node scripts/package-showcase.mjs",
+    "showcase": "npm run build:showcase && vite preview --mode showcase --host 127.0.0.1 --port 2720 --strictPort"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",
