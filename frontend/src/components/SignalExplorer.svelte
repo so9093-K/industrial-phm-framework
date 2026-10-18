@@ -243,7 +243,7 @@
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
               <li>{item.sourceId} / {item.pointId ?? "미등록"}
-                · {recorded(item.eventAt)} · {item.usable ? (item.value ?? "값 없음") : "품질 문제로 표시 안 함"}
+                · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {item.quality === "unknown" ? "기록 없음" : item.quality}</li>
             {/each}
           </ul>
