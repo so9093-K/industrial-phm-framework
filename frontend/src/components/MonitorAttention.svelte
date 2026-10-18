@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type {Snapshot,OperationAttention} from "../monitor";
+  import {assetLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
   import {attentionByAsset, readPhmMonitor, type PhmMonitor} from "../monitor-attention";
@@ -79,7 +79,7 @@
       <h3>운영 확인 항목</h3><p class="context">수집·저장·분석 서비스의 처리 상태입니다. 설비의 고장 판정이 아닙니다.</p>
       {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
       {#if snapshot.operationsAttention?.items.length}<ul>{#each snapshot.operationsAttention.items as item(item.id)}
-        <li><strong>{item.title}</strong><span>{item.assetId??"공통 운영 서비스"}{item.sourceId?" · "+item.sourceId:""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
+        <li><strong>{item.title}</strong><span>{item.assetId ? assetLabel(snapshot.assets, item.assetId) : "공통 운영 서비스"}{item.sourceId?" · "+item.sourceId:""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
           {#if destination(item)}<a href={destination(item)!}>상세 확인 →</a>{/if}</li>
       {/each}</ul>{:else if snapshot.operationsAttention?.complete}<p>운영 처리에서 확인할 항목이 없습니다.</p>{/if}
     </section>
@@ -89,7 +89,7 @@
       <ul class="groups">
         {#each groups as group (group.assetId)}
           <li><article aria-labelledby={"attention-" + group.assetId}>
-            <h3 id={"attention-" + group.assetId} tabindex="-1">{group.assetId}</h3>
+            <h3 id={"attention-" + group.assetId} tabindex="-1">{assetLabel(snapshot.assets, group.assetId)}</h3>
             <ul class="notes">
               {#each group.notes as note (note.kind)}
                 <li data-kind={note.kind}><strong>{note.label}</strong><span>{note.detail}</span>

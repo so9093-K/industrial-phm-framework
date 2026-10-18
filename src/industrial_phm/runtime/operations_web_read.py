@@ -12,6 +12,7 @@ from typing import Any
 
 from industrial_phm.application import FileSourceConfig
 from industrial_phm.application.analysis_input import WindowInputReference
+from industrial_phm.application.asset_display import resolve_asset_display_names
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.file_feature_analysis import RegisteredFileFeatureAnalysis
 from industrial_phm.application.phase_unbalance import PhaseUnbalanceAnalysis
@@ -217,6 +218,9 @@ def project_operations_monitor(
                 }
             )
             known_assets.add(asset_id)
+    display_names = resolve_asset_display_names(snapshot.registered_sources)
+    for asset_row in assets:
+        asset_row["asset_display_name"] = display_names.name(str(asset_row["asset_id"]))
     assets.sort(key=lambda item: str(item["asset_id"]))
     asset_list = _bounded(assets)
     if phm is not None and phm["truncated"]:

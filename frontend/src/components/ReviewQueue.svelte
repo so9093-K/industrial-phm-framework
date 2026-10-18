@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount, untrack} from "svelte";
-  import type {Snapshot} from "../monitor";
+  import {assetLabel, type Snapshot} from "../monitor";
   import type {Evidence} from "../reviews";
   import {captureUrl, readCaptures, CaptureNotFound, type Capture} from "../outlook-captures";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
@@ -53,7 +53,7 @@
       return {
         kind: "analysis", key: "finding:" + review.findingId, assetId: review.assetId, status: review.status,
         at: review.events.at(-1)?.recordedAt ?? review.observedAt,
-        title: review.assetId + " · " + (review.subject === "model" ? "이상 탐지 모델 결과" : kinds || "분석 결과"),
+        title: assetLabel(snapshot.assets, review.assetId) + " · " + (review.subject === "model" ? "이상 탐지 모델 결과" : kinds || "분석 결과"),
         label: review.subject === "model" ? "분석 결과 · 이상 탐지 모델" : "분석 결과",
         href: findingUrl(review.assetId, review.findingId), review, linked,
       };
@@ -61,7 +61,7 @@
     const outlooks: Item[] = captures.map((capture) => ({
       kind: "outlook", key: "capture:" + capture.id, assetId: capture.outlook.assetId,
       status: capture.review.status, at: capture.capturedAt,
-      title: capture.outlook.assetId + " · " + capture.outlook.series + " 전망", label: "검토 요청한 전망",
+      title: assetLabel(snapshot.assets, capture.outlook.assetId) + " · " + capture.outlook.series + " 전망", label: "검토 요청한 전망",
       href: captureUrl(capture.outlook.assetId, capture.id), capture,
     }));
     return [...analysis, ...outlooks].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));

@@ -4,6 +4,7 @@ import {parseReviewInbox,type ReviewInbox} from "./reviews.ts";
 // validated fields from the existing read-only monitor API.
 export type Asset = {
   assetId: string;
+  displayName?: string | null;
   flow: string;
   /** Event time of the newest stored measurement. */
   lastObservedAt: string | null;
@@ -33,6 +34,17 @@ const FLOW_LABELS: Record<string, string> = {
 };
 export function flowLabel(flow: string): string {
   return FLOW_LABELS[flow] ?? "수신 상태 미확인";
+}
+
+/** Names are presentation only; links, filters and evidence keep the stable ID. */
+export function assetLabel(assets: readonly Asset[], assetId: string): string {
+  return assets.find(asset => asset.assetId === assetId)?.displayName || assetId;
+}
+
+export function assetOptionLabel(assets: readonly Asset[], assetId: string): string {
+  const label = assetLabel(assets, assetId);
+  return assets.filter(asset => assetLabel(assets, asset.assetId) === label).length > 1
+    ? label + " · " + assetId : label;
 }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -82,6 +94,8 @@ export function parseMonitor(value: unknown): Snapshot {
     }
     assets.push({
       assetId: row.asset_id,
+      displayName: typeof row.asset_display_name === "string" && row.asset_display_name.trim()
+        ? row.asset_display_name : null,
       flow: typeof row.data_flow_status === "string" ? row.data_flow_status : "미확인",
       lastObservedAt: typeof row.last_observed_at === "string" ? row.last_observed_at : null,
       lastReceivedAt: typeof row.last_data_at === "string" ? row.last_data_at : null,

@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount, untrack} from "svelte";
-  import type {Snapshot} from "../monitor";
+  import {assetLabel, assetOptionLabel, type Snapshot} from "../monitor";
   import {requestAnalysisReview, type AnalysisRecord, type QualityState} from "../analysis-records";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {loadModelBindings, type ModelBinding} from "../model-evidence";
@@ -86,7 +86,7 @@
   <select value={chosen} onchange={(event) => choose(event.currentTarget.value)}>
     <option value="">전체 설비</option>
     {#each assetIds as id (id)}
-      <option value={id}>{id}</option>
+      <option value={id}>{assetOptionLabel(snapshot.assets, id)}</option>
     {/each}
   </select>
 </label>
@@ -109,7 +109,7 @@
           {@const current = review(item)}
           <li><article aria-labelledby={"record-" + item.evidenceId}>
             <div class="head">
-              <h3 id={"record-" + item.evidenceId}>{KIND[item.kind]} · {item.assetId}</h3>
+              <h3 id={"record-" + item.evidenceId}>{KIND[item.kind]} · {assetLabel(snapshot.assets, item.assetId)}</h3>
               <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
             </div>
             <p class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 분석 완료 {clock(item.completedAt)}</p>
@@ -201,7 +201,7 @@
         <th scope="col">마지막 분석</th><th scope="col"><span class="visually-hidden">이동</span></th></tr></thead>
       <tbody>
         {#each models as model (model.bindingId)}
-          <tr><th scope="row">{model.assetId}</th><td class="wrap">{model.packageId}</td><td>{model.sourceId}</td>
+          <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{model.packageId}</td><td>{model.sourceId}</td>
             <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + model.lastAnalyzed}</td>
             <td><a href={assetTabUrl(model.assetId, "anomaly", "model")}>모델 점수 보기 →</a></td></tr>
         {/each}
@@ -220,7 +220,7 @@
   {:else}
     <ul class="skipped">
       {#each skipped as item, i (i)}
-        <li><strong>{item.assetId} · {item.capabilityId}</strong> · {item.reason}
+        <li><strong>{assetLabel(snapshot.assets, item.assetId)} · {item.capabilityId}</strong> · {item.reason}
           <span class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 데이터 출처 {item.sourceId}</span></li>
       {/each}
     </ul>
