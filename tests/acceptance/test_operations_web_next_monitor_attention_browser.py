@@ -86,9 +86,10 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 )
                 pw.expect(attention).to_contain_text("다시 읽지 못했습니다", timeout=10_000)
                 assert attention.get_by_role("article").count() == 0
-                assert page.get_by_role(
-                    "link", name="이 설비의 확인 사유와 다음 행동 보기"
-                ).count() == 0
+                assert (
+                    page.get_by_role("link", name="이 설비의 확인 사유와 다음 행동 보기").count()
+                    == 0
+                )
                 page.unroute("**/api/v1/phm/monitor")
                 pw.expect(asset).to_be_visible(timeout=10_000)
                 attention.get_by_role("button", name="자동 갱신 멈추기").click()
