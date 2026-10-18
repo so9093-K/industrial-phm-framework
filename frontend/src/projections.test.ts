@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {parseOptions, parsePairedProjection, MeasurementVersionMismatch,
+import {outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
   type Conditions} from "./projections.ts";
 const conditions:Conditions={direction:"upper",management:12,end:16};
 const forecast=()=>({
@@ -46,4 +46,21 @@ test("changed conditions, asset and meanings fail closed",()=>{
   assert.throws(()=>parsePairedProjection(forecast(),outlook(),"b","R","1h",conditions),/맞지 않아/);
   assert.throws(()=>parsePairedProjection({...forecast(),meaning:"failure-time"},outlook(),
     "a","R","1h",conditions),/맞지 않아/);
+});
+
+test("the outlook chart shows recent records, the forecast range and both limits on one scale",()=>{
+  const data=parsePairedProjection({...forecast(),
+    history:[["2026-10-15T00:00:00Z",9],["2026-10-15T23:30:00Z",11],["2026-10-16T00:00:00Z",11.5],["2026-10-16T00:10:00Z",null]],
+    forecast:[["2026-10-16T00:00:00Z",11.5,11,12],["2026-10-16T00:30:00Z",14,12,16]]},
+  outlook(),"a","R","1h",conditions);
+  // A missing stored value is skipped, never drawn as zero.
+  assert.equal(data.history?.length,3);
+  const chart=outlookChart(data)!;
+  // Only twice the forecast span of history is shown, so the day-old value is left out.
+  assert.equal(chart.low,11);
+  assert.equal(chart.high,16);
+  assert.ok(chart.management!>chart.endLimit!);
+  assert.match(chart.band,/Z$/);
+  assert.ok(chart.lastX>0&&chart.lastX<chart.width);
+  assert.deepEqual(spreadRows([1,2,3,4,5,6,7,8,9,10],4),[1,4,7,10]);
 });

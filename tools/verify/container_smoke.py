@@ -98,7 +98,7 @@ def main() -> None:
                 assert (
                     page.request.post(BASE + "/api/v1/demo/synthetic/start", data={}).status == 403
                 )
-                page.get_by_role("link", name="데이터 연결하기").click()
+                page.get_by_role("link", name="CSV 파일로 시작").click()
                 start = page.get_by_role("region", name="CSV 파일로 시작")
                 at = datetime(2026, 10, 11, tzinfo=UTC)
                 lines = ["timestamp,current_a,voltage_v,label"] + [

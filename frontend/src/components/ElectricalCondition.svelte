@@ -48,7 +48,9 @@
     const high = values.length ? Math.max(...values) : 1, low = values.length ? Math.min(...values) : 0;
     const pad = Math.max((high - low) * 0.1, 0.01);
     const min = Math.max(0, low - pad), max = high + pad;
-    const start = current ? Date.parse(current.targetStart) : 0, end = current ? Date.parse(current.targetEnd) : 1;
+    // The plot spans the observations themselves; a few minutes of a 24-hour window fill it.
+    const first = current?.timeline[0]?.at, last = current?.timeline[current.timeline.length - 1]?.at;
+    const start = first ? Date.parse(first) : 0, end = last && Date.parse(last) > start ? Date.parse(last) : start + 1;
     return {high, low, start, end,
       x: (at: string) => LEFT + ((Date.parse(at) - start) / Math.max(1, end - start)) * (RIGHT - LEFT),
       y: (value: number) => BOTTOM - ((value - min) / (max - min || 1)) * (BOTTOM - TOP)};
@@ -188,7 +190,7 @@
           {#if selected}<line x1={scale.x(selected.at)} x2={scale.x(selected.at)} y1={TOP} y2={BOTTOM} class="chosen" />{/if}
           <rect x={LEFT} y={TOP} width={RIGHT - LEFT} height={BOTTOM - TOP} class="hit" onclick={pick} role="presentation" />
         </svg>
-        <p class="axis-time"><span>{kstTime(analyzed.targetStart)}</span><span>→ {kstTime(analyzed.targetEnd)}</span></p>
+        <p class="axis-time"><span>{kstTime(new Date(scale.start).toISOString())}</span><span>→ {kstTime(new Date(scale.end).toISOString())}</span></p>
         <label class="scrub">시각 고르기
           <input type="range" min="0" max={analyzed.timeline.length - 1} value={Math.max(0, selectedIndex)}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />

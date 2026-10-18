@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { readChannels, type ChannelList } from "../history";
   import {
-    NoStoredEvidenceError, readDepartures, scoreDots,
+    NoStoredEvidenceError, departureChart, readDepartures,
     type Baseline, type Departures,
   } from "../departures";
   import StatusNotice from "./StatusNotice.svelte";
@@ -28,7 +28,7 @@
   );
   let channelsRequest: AbortController | null = null;
   let resultRequest: AbortController | null = null;
-  const dots = $derived(result ? scoreDots(result) : []);
+  const chart = $derived(result ? departureChart(result) : null);
 
   const bases: Array<{ value: Baseline; label: string }> = [
     { value: "first-30", label: "기록 처음 30%" },
@@ -177,25 +177,30 @@
               <li>
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
                 <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
-                  · 기준 중앙값 {num(interval.median)} → 구간 평균 {num(interval.value)}
+                  · 기준 중앙값 {num(interval.median)} → 가장 많이 벗어난 시점 {num(interval.value)}
                   {result.unit ?? "(단위 미확인)"}
-                  · 벗어난 정도 {interval.distance.toFixed(2)}</span>
+                  · 기준 변동 폭의 {num(Number(interval.distance.toFixed(1)))}배</span>
               </li>
             {/each}
           </ol>
           <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
         {/if}
-        <CautionNote message="기준 구간은 고른 기록의 일부이며 정상 상태로 확인된 구간이 아닙니다. 벗어난 정도는 모델 점수나 고장 가능성이 아닙니다." />
-        {#if dots.length}
-          <svg viewBox="0 0 650 150" role="img"
-            aria-label="시간 순서대로 기준에서 벗어난 정도. 기록이 없는 구간은 잇지 않습니다. 정확한 값은 아래 표에 있습니다.">
-            <path d="M36 18 V121 H626" class="axis" />
-            {#each dots as dot (dot.at)}
-              <circle cx={dot.x} cy={dot.y} r="3.5" class="dot">
-                <title>{date(dot.at)} · 벗어난 정도 {dot.distance.toFixed(2)}</title>
-              </circle>
+        {#if chart}
+          <p class="axis-note">세로축: 기준 변동 폭의 몇 배인지 · 최고 {num(Number(chart.max.toFixed(1)))}배
+            <span class="dash">· 점선: 크게 벗어났다고 보는 기준 {result.threshold}배</span></p>
+          <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
+            aria-label={"시간 순서대로 기준에서 벗어난 정도. " + date(chart.first) + "부터 " + date(chart.last) + "까지. 기록이 없는 구간은 잇지 않습니다. 정확한 값은 아래 표에 있습니다."}>
+            <rect x={chart.baseline.x} y="0" width={chart.baseline.width} height={chart.height} class="baseline" />
+            {#each chart.intervals as band, i (i)}
+              <rect x={band.x} y="0" width={band.width} height={chart.height} class="found" />
             {/each}
+            <line x1="0" x2={chart.width} y1={chart.thresholdY} y2={chart.thresholdY} class="threshold" />
+            <path d={chart.path} class="line" />
+            <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
+          <p class="axis-time"><span>{date(chart.first)}</span><span>→ {date(chart.last)}</span></p>
+          <p class="legend"><span class="key baseline"></span>기준 구간
+            {#if chart.intervals.length}<span class="key found"></span>크게 벗어난 구간{/if}</p>
           <details>
             <summary>시간별 벗어난 정도 표 ({result.score.length}개)</summary>
             <div class="table-scroll">
@@ -211,6 +216,7 @@
             </div>
           </details>
         {/if}
+        <CautionNote message="기준 구간은 고른 기록의 일부이며 정상 상태로 확인된 구간이 아닙니다. 벗어난 정도는 모델 점수나 고장 가능성이 아닙니다." />
       {/if}
       <details>
         <summary>기술 상세</summary>
@@ -237,9 +243,21 @@
   .intervals { padding-inline-start: var(--space-5); }
   .intervals li { padding-block: var(--space-3); border-bottom: 1px solid var(--color-border); }
   .intervals span { display: block; color: var(--color-ink-muted); overflow-wrap: anywhere; }
-  svg { width: 100%; height: auto; display: block; margin-block: var(--space-4); }
+  svg { width: 100%; height: 200px; display: block; margin-top: var(--space-2); }
+  svg path, svg line { vector-effect: non-scaling-stroke; }
   .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
-  .dot { fill: var(--color-action); }
+  .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
+  .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
+  .baseline { fill: var(--color-border); opacity: 0.45; }
+  .found { fill: var(--color-failure-ink); opacity: 0.14; }
+  .axis-note, .axis-time, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-2) 0 0; }
+  .axis-note { margin-top: var(--space-4); }
+  .dash { color: var(--color-failure-ink); }
+  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+  .legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+  .key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+  .key.baseline { background: var(--color-border); }
+  .key.found { background: var(--color-failure-ink); opacity: 0.3; margin-inline-start: var(--space-2); }
   summary { color: var(--color-action); font-weight: 650; cursor: pointer; padding-block: var(--space-2); }
   .table-scroll { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-top: var(--space-2); font-size: var(--font-small); }

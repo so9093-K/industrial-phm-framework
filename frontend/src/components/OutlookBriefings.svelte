@@ -89,7 +89,8 @@
   <div class="head">
     <h3 id="briefings-heading">AI 해설</h3>
     {#if latest}
-      <span class="meta">{checkedSource(latest)} · {latest.model??"모델명 없음"} · {clock(latest.requestedAt)}</span>
+      <!-- A computed summary used no model, so naming the configured one would mislead. -->
+      <span class="meta">{checkedSource(latest)}{latest.answer?.source==="computed"?"":" · "+(latest.model??"모델명 없음")} · {clock(latest.requestedAt)}</span>
     {/if}
   </div>
   {#if requesting}

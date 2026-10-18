@@ -142,7 +142,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.locator(".tiles")).to_contain_text("관리 기준 12")
-                page.get_by_text("예측값 보기 · 1h").click()
+                page.get_by_text("예측값 표 · 1시간").click()
                 pw.expect(page.get_by_role("columnheader", name="예측 시각")).to_be_visible()
                 assert "projection_management=12" in page.url
                 assert page.evaluate(

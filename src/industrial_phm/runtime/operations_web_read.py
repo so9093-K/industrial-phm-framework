@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from industrial_phm.application import FileSourceConfig
 from industrial_phm.application.analysis_input import WindowInputReference
 from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.file_feature_analysis import RegisteredFileFeatureAnalysis
@@ -136,12 +137,37 @@ def project_operations_monitor(
     corrupt repository remains distinguishable from an empty but readable one through
     system_error_scopes; those scopes intentionally exclude exception details/paths.
     """
+    # The newest stored event time is a measurement time; last_data_at stays the newest
+    # receipt (a file read or a live arrival), which is a different clock.
+    stored_until = {item.asset_id: item.end_at for item in snapshot.history_assets}
+    file_only = {
+        asset_id
+        for asset_id in {source.asset_id for source in snapshot.registered_sources}
+        if all(
+            isinstance(source.config, FileSourceConfig)
+            for source in snapshot.registered_sources
+            if source.asset_id == asset_id
+        )
+    }
+
+    def flow(asset_id: str, status: str) -> str:
+        # A file has no receive cadence to judge, and pausing it stops nothing that would
+        # arrive; its stored rows are the whole record. File read errors stay visible.
+        if (
+            status in {"unavailable", "stopped"}
+            and asset_id in file_only
+            and asset_id in stored_until
+        ):
+            return "stored-history"
+        return status
+
     assets: list[dict[str, object]] = [
         {
             "asset_id": asset.asset_id,
-            "data_flow_status": asset.status.value,
+            "data_flow_status": flow(asset.asset_id, asset.status.value),
             "source_count": asset.source_count,
             "last_data_at": _utc(asset.last_data_at),
+            "last_observed_at": _utc(stored_until.get(asset.asset_id)),
             "latest_analysis_at": _utc(asset.latest_analysis_at),
             "pending_review_count": asset.pending_review_count,
             "attention_count": asset.attention_count,
@@ -160,6 +186,7 @@ def project_operations_monitor(
                 "data_flow_status": "stored-history",
                 "source_count": 0,
                 "last_data_at": _utc(historical.end_at),
+                "last_observed_at": _utc(historical.end_at),
                 "latest_analysis_at": None,
                 "pending_review_count": 0,
                 "attention_count": 0,
@@ -183,6 +210,7 @@ def project_operations_monitor(
                     else "waiting",
                     "source_count": 0,
                     "last_data_at": None,
+                    "last_observed_at": None,
                     "latest_analysis_at": None,
                     "pending_review_count": None,
                     "attention_count": None,

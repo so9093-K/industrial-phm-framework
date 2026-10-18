@@ -139,13 +139,14 @@ function parseAnswer(raw:unknown):BriefingAnswer{
         throw new Error("해설이 없는 계산 사실을 근거로 들어 숨겼습니다.");
       return key;
     });
-    return {text:value(part.text,"해설 문장",280),evidence:referenced};
+    // Without a model the server shows each computed fact whole, longer than a model sentence.
+    return {text:value(part.text,"해설 문장",1800),evidence:referenced};
   });
   const checks=object(result.checks);
   const source=checks?.source;
   if(source!==undefined&&source!=="model"&&source!=="model-trimmed"&&source!=="computed")
     throw new Error("해설을 만든 방식을 확인할 수 없습니다.");
-  return {summary:value(result.summary,"AI 요약",700),
+  return {summary:value(result.summary,"AI 요약",4000),
     points:parsed,evidence,source:typeof source==="string"?source:"unknown"};
 }
 export function parseBriefings(raw:unknown,expectedSelection:string):Briefing[]{

@@ -133,16 +133,19 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                 )
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(base + "/web/", wait_until="networkidle")
-                pw.expect(
-                    page.get_by_role("heading", name="등록된 설비가 없습니다")
-                ).to_be_visible()
+                # A partial read never claims the workspace is empty.
+                empty = page.get_by_role("heading", name="표시할 설비가 없습니다")
+                pw.expect(empty).to_be_visible()
                 pw.expect(
                     page.get_by_role("status").filter(
                         has_text="일부 저장소나 수집 상태를 확인하지 못했습니다"
                     )
                 ).to_be_visible()
-                pw.expect(page.get_by_role("link", name="데이터 연결하기")).to_have_attribute(
+                pw.expect(page.get_by_role("link", name="CSV 파일로 시작")).to_have_attribute(
                     "href", "/web/?page=system&section=connections"
+                )
+                pw.expect(page.get_by_role("link", name="예시로 둘러보기")).to_have_attribute(
+                    "href", "/web/?page=system&section=connections#sample"
                 )
                 assert page.get_by_role("heading", name="설비 0개").count() == 0
             finally:

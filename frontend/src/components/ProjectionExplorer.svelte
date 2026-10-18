@@ -11,7 +11,7 @@
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
   import {
-    loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable,
+    HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, outlookChart, spreadRows,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
   } from "../projections";
   type Props = {assetId: string};
@@ -142,7 +142,7 @@
         <select id="projection-horizon" value={horizon}
           onchange={e=>{horizon=e.currentTarget.value as Horizon;invalidate();}}>
           {#each horizons as value (value)}
-            <option value={value} disabled={options.horizons[value]!==null}>{value}
+            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
               {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
           {/each}
         </select>
@@ -182,6 +182,7 @@
       {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
       {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
+      {@const chart=outlookChart(projection)}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">결과</h3>
@@ -198,6 +199,29 @@
           </div>
         {:else}
           <p class="intro">관리·종료 기준을 입력하면 기준에 언제 닿는지 함께 계산합니다.</p>
+        {/if}
+        {#if chart}
+          <figure class="chart">
+            <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}{projection.unit ? " " + projection.unit : ""}</p>
+            <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
+              aria-label={"저장된 측정과 앞으로 "+HORIZON_LABEL[projection.horizon]+" 예측. "+clock(chart.start)+"부터 "+clock(chart.end)+"까지."}>
+              {#if chart.band}<path d={chart.band} class="band" />{/if}
+              <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
+              {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
+              {#if chart.endLimit!==null}<line x1="0" x2={chart.width} y1={chart.endLimit} y2={chart.endLimit} class="end" />{/if}
+              <path d={chart.history} class="history" />
+              <path d={chart.estimate} class="estimate" />
+              <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
+            </svg>
+            <p class="axis-time"><span>{clock(chart.start)}</span><span>마지막 기록 {clock(chart.lastRecord)}</span><span>→ {clock(chart.end)}</span></p>
+            <figcaption class="legend">
+              <span><i class="key history"></i>저장된 측정</span>
+              <span><i class="key estimate"></i>예측</span>
+              <span><i class="key band"></i>예측 범위</span>
+              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {num(projection.conditions.management)}</span>{/if}
+              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {num(projection.conditions.end)}</span>{/if}
+            </figcaption>
+          </figure>
         {/if}
         {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
           <OutlookBriefings {projection} onEvidenceChanged={()=>{
@@ -216,14 +240,14 @@
         <ForecastValidation checks={projection.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 기준은 사용자가 정한 값이며, 고장 시점이나 남은 수명이 아닙니다." />
         <details>
-          <summary>예측값 보기 · {projection.horizon}</summary>
+          <summary>예측값 표 · {HORIZON_LABEL[projection.horizon]}</summary>
           {#if projection.future.length}
             <div class="scroll"><table>
-              <caption>앞으로의 신호 예측값 (최대 8개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
+              <caption>예측 기간 전체에서 고르게 고른 8개 · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
               <thead><tr><th scope="col">예측 시각</th><th scope="col">예측값</th>
                 <th scope="col">범위 하한</th><th scope="col">범위 상한</th></tr></thead>
               <tbody>
-                {#each projection.future.slice(0,8) as value, i (value.at+i)}
+                {#each spreadRows(projection.future) as value, i (value.at+i)}
                   <tr><td>{clock(value.at)}</td><td>{num(value.estimate)}</td>
                     <td>{num(value.lower)}</td><td>{num(value.upper)}</td></tr>
                 {/each}
@@ -274,6 +298,25 @@
 
 <style>
   .projection { min-width: 0; }
+  .chart { margin: var(--space-4) 0; min-width: 0; }
+  .chart svg { display: block; width: 100%; height: 220px; margin-top: var(--space-2); }
+  .chart path, .chart line { vector-effect: non-scaling-stroke; }
+  .chart .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
+  .chart .history { fill: none; stroke: var(--color-ink); stroke-width: 1.5; }
+  .chart .estimate { fill: none; stroke: var(--color-action); stroke-width: 2; stroke-dasharray: 6 4; }
+  .chart .band { fill: var(--color-action); opacity: 0.14; stroke: none; }
+  .chart .now { stroke: var(--color-border); stroke-width: 1; }
+  .chart .management { stroke: var(--color-caution-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .chart .end { stroke: var(--color-failure-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .axis-note, .axis-time, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
+  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); margin-top: var(--space-1); }
+  .legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-2); }
+  .key { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-inline-end: var(--space-1); }
+  .key.history { border-color: var(--color-ink); }
+  .key.estimate { border-color: var(--color-action); border-top-style: dashed; }
+  .key.band { height: 10px; border: 0; background: var(--color-action); opacity: 0.2; }
+  .key.management { border-color: var(--color-caution-ink); border-top-style: dashed; }
+  .key.end { border-color: var(--color-failure-ink); border-top-style: dashed; }
   .intro { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
     gap: var(--space-4); margin-block: var(--space-5); }

@@ -126,14 +126,16 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                     base + "/web/?view=signals&monitor_asset=motor-a", wait_until="networkidle"
                 )
                 expect_place(pw, page, "신호")
-                pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
-                pw.expect(page.get_by_role("heading", name="R · source-2")).to_be_visible()
+                first, second = "R · 데이터 출처 source-1", "R · 데이터 출처 source-2"
+                pw.expect(page.get_by_role("heading", name=first)).to_be_visible()
+                pw.expect(page.get_by_role("heading", name=second)).to_be_visible()
                 pw.expect(page.get_by_role("link", name="기준 구간 이탈 →")).to_have_attribute(
                     "href",
                     "/web/?page=assets&tab=anomaly&method=baseline"
                     "&monitor_asset=motor-a&monitor_channel=R",
                 )
-                pw.expect(page.locator("svg circle")).to_have_count(2)
+                # One mean mark per usable bucket; the unusable bucket is not drawn as a value.
+                pw.expect(page.locator("svg line.mean")).to_have_count(2)
                 page.get_by_text("시간별 평균·결측·원본 품질 확인").first.click()
                 pw.expect(page.get_by_role("table").first).to_contain_text("결측")
                 assert page.evaluate(
@@ -143,14 +145,14 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 assert "monitor_range=15m" in page.url
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_label("조회 기간")).to_have_value("15m")
-                pw.expect(page.get_by_role("heading", name="R · source-1")).to_be_visible()
+                pw.expect(page.get_by_role("heading", name=first)).to_be_visible()
 
                 choose_asset(page, "motor-b")
                 expect_place(pw, page, "신호")
                 pw.expect(
                     page.get_by_role("heading", name="저장된 신호가 없습니다")
                 ).to_be_visible()
-                assert page.get_by_role("heading", name="R · source-1").count() == 0
+                assert page.get_by_role("heading", name="R · 데이터 출처 source-1").count() == 0
                 assert "motor-b" in page.url
                 assert not errors, errors
             finally:

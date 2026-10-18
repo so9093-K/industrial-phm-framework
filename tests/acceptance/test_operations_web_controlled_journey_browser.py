@@ -668,7 +668,7 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                     ),
                 )
                 page.goto(address)
-                page.get_by_role("link", name="데이터 연결하기").click()
+                page.get_by_role("link", name="CSV 파일로 시작").click()
                 start = page.get_by_role("region", name="CSV 파일로 시작")
                 chosen = {"name": "pump.csv", "mimeType": "text/csv", "buffer": _csv()}
                 start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(files=[chosen])

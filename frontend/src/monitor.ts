@@ -5,7 +5,10 @@ import {parseReviewInbox,type ReviewInbox} from "./reviews.ts";
 export type Asset = {
   assetId: string;
   flow: string;
+  /** Event time of the newest stored measurement. */
   lastObservedAt: string | null;
+  /** When data last arrived (a file read or a live receipt); a different clock. */
+  lastReceivedAt: string | null;
   attentionCount: number | null;
 };
 
@@ -80,7 +83,8 @@ export function parseMonitor(value: unknown): Snapshot {
     assets.push({
       assetId: row.asset_id,
       flow: typeof row.data_flow_status === "string" ? row.data_flow_status : "미확인",
-      lastObservedAt: typeof row.last_data_at === "string" ? row.last_data_at : null,
+      lastObservedAt: typeof row.last_observed_at === "string" ? row.last_observed_at : null,
+      lastReceivedAt: typeof row.last_data_at === "string" ? row.last_data_at : null,
       attentionCount: count(row.attention_count),
     });
   }

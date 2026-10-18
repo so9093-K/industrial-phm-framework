@@ -58,3 +58,30 @@ def test_condition_http_analyzes_values_and_rejects_cross_source_or_leaking_refe
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+def test_monitor_says_when_a_file_was_measured_not_when_it_was_read(tmp_path: Path) -> None:
+    """A CSV loaded today is a record of 2020; the list must not call today its measurement."""
+    pytest.importorskip("duckdb")
+    workspace = condition_workspace(tmp_path / "file-record")
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+        connection.request(
+            "GET", "/api/v1/monitor", headers={"Host": f"127.0.0.1:{server.server_port}"}
+        )
+        monitor = json.loads(connection.getresponse().read())
+        connection.close()
+        (asset,) = monitor["assets"]["items"]
+        assert asset["asset_id"] == "condition-motor"
+        # Stored observations run 2020-11-13 00:00 to 03:59 UTC.
+        assert asset["last_observed_at"] == "2020-11-13T03:59:00Z"
+        assert asset["last_data_at"] != asset["last_observed_at"]
+        # A file has no receive cadence; its stored rows are the record itself.
+        assert asset["data_flow_status"] == "stored-history"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

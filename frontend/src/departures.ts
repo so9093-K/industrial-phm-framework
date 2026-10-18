@@ -130,17 +130,43 @@ export function parseDepartures(
   };
 }
 
-export function scoreDots(data: Departures): Array<{ at: string; distance: number; x: number; y: number }> {
-  if (!data.score.length) return [];
-  const first = Date.parse(data.score[0].at);
-  const last = Date.parse(data.score[data.score.length - 1].at);
-  const end = last > first ? last : first + 1;
-  const max = Math.max(data.threshold * 1.4, ...data.score.map(x => x.distance));
-  return data.score.map(item => ({
-    ...item,
-    x: 36 + 590 * (Date.parse(item.at) - first) / (end - first),
-    y: 112 - 91 * item.distance / max,
-  }));
+export type Band = { x: number; width: number };
+export type DepartureChart = {
+  width: number; height: number; max: number; first: string; last: string;
+  path: string; thresholdY: number; baseline: Band; intervals: Band[];
+};
+
+/** The departure size over time on a stretchable plot: the chosen baseline span, the
+ * threshold and the intervals found are drawn where they are; a time gap breaks the line. */
+export function departureChart(data: Departures): DepartureChart | null {
+  if (!data.score.length) return null;
+  const width = 800, height = 200, top = 8, bottom = 192;
+  const times = data.score.map((item) => Date.parse(item.at));
+  const first = times[0], last = Math.max(times[times.length - 1], first + 1);
+  const max = Math.max(data.threshold * 1.4, ...data.score.map((item) => item.distance));
+  const x = (at: number) => ((at - first) / (last - first)) * width;
+  const y = (value: number) => bottom - (value / max) * (bottom - top);
+  const steps = times.slice(1).map((at, i) => at - times[i]).sort((a, b) => a - b);
+  const gap = (steps[Math.floor(steps.length / 2)] ?? 0) * 1.5;
+  let path = "";
+  data.score.forEach((item, i) => {
+    const joinedBefore = i > 0 && times[i] - times[i - 1] <= gap;
+    const joinedAfter = i + 1 < times.length && times[i + 1] - times[i] <= gap;
+    const px = x(times[i]), py = y(item.distance).toFixed(1);
+    // A point with no neighbour is drawn as a short tick so it does not vanish.
+    if (!joinedBefore && !joinedAfter) path += "M" + (px - 3).toFixed(1) + " " + py + " L" + (px + 3).toFixed(1) + " " + py + " ";
+    else path += (joinedBefore ? "L" : "M") + px.toFixed(1) + " " + py + " ";
+  });
+  const band = (from: string, to: string): Band => {
+    const start = Math.max(0, x(Date.parse(from))), end = Math.min(width, x(Date.parse(to)));
+    return { x: start, width: Math.max(2, end - start) };
+  };
+  return {
+    width, height, max, first: data.score[0].at, last: data.score[data.score.length - 1].at,
+    path: path.trim(), thresholdY: y(data.threshold),
+    baseline: band(data.baseline.from, data.baseline.to),
+    intervals: data.intervals.map((item) => band(item.start, item.end)),
+  };
 }
 
 export async function readDepartures(

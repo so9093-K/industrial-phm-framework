@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {tick, untrack} from "svelte";
+  import {onMount, tick, untrack} from "svelte";
   import {explainWrite, sampleCommand, type Sample} from "../connections";
   import {OutcomeUnknown} from "../writes";
 
@@ -38,9 +38,12 @@
   $effect(() => {
     if (writable && !asked) { asked = true; untrack(() => void command("status")); }
   });
+  let panel: HTMLElement | null = $state(null);
+  // "예시로 둘러보기" on an empty first screen lands here.
+  onMount(() => { if (location.hash === "#sample") panel?.scrollIntoView({block: "start"}); });
 </script>
 
-<section class="ui-panel" aria-labelledby="sample-title">
+<section class="ui-panel" id="sample" aria-labelledby="sample-title" bind:this={panel}>
   <h2 id="sample-title">예시로 둘러보기</h2>
   <p class="context">가상 3상 모터와 로컬 OPC UA 예시를 이 작업공간과 분리된 작업공간에서 실행합니다. 실제 설비 데이터가 아닙니다.</p>
   {#if !writable}

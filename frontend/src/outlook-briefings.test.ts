@@ -59,6 +59,15 @@ test("the server echoes the exact selection before a stored answer can be displa
   assert.throws(()=>parseBriefings({...response(),briefings:Array(6).fill(response().briefings[0])},
     selection),BriefingEvidenceChanged);
 });
+test("without a model the whole computed fact is shown, however long, as the server wrote it",()=>{
+  // A real computed management fact lists every reading of the limit (about 500 characters).
+  const fact="관리 상한 2까지: "+"현재 설정 32.3분 뒤 도달 예상 (빠르면 0초, 늦으면 3.6시간); ".repeat(12);
+  const long=response();
+  long.briefings[0].answer.points=[{text:fact,evidence:["change"]}];
+  long.briefings[0].answer.summary="요약 ".repeat(300);
+  const [briefing]=parseBriefings(long,selection);
+  assert.equal(briefing.answer?.points[0].text,fact);
+});
 test("an AI point without the cited server fact must not be shown",()=>{
   const changed=response();
   changed.briefings[0].answer.points[0].evidence=["invented"];
