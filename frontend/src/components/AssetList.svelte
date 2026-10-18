@@ -23,7 +23,7 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <h2 id="asset-list-title">설비 <span>{assets.length}개</span></h2>
-  <p class="context">확인할 항목이 있는 설비를 먼저 보여 줍니다.</p>
+  <p class="context">확인할 항목이 있는 설비를 먼저 보여 줍니다. 건수는 확인할 작업량이며 고장 위험도나 정비 우선순위는 아닙니다.</p>
   <ul class="rows">
     {#each ordered as asset (asset.assetId)}
       <li>
@@ -33,6 +33,11 @@
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>
+        {#if (notes[asset.assetId] ?? 0) > 0}
+          <a class="reason-link" href={"#attention-" + encodeURIComponent(asset.assetId)}>
+            이 설비의 확인 사유와 다음 행동 보기 →
+          </a>
+        {/if}
       </li>
     {/each}
   </ul>
@@ -56,6 +61,8 @@
   }
   .row:hover { background: var(--color-surface-selected); }
   .row span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .reason-link { display: inline-block; padding: var(--space-2) var(--space-3); margin-top: var(--space-1);
+    color: var(--color-action); font-weight: 650; text-decoration: underline; }
   .row .attention { color: var(--color-ink); font-weight: 700; }
   @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
 </style>

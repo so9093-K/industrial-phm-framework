@@ -66,7 +66,7 @@
     <button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>
   </div>
   <p class="context">{readAt ? clock(readAt) + " 기준 · " : ""}{paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}
-    모델 기준 초과는 학습한 평소 상태와 다르다는 뜻이며 고장 판정이 아닙니다.</p>
+    모델 기준 초과는 학습한 평소 상태와 다르다는 뜻이며 고장 판정이 아닙니다. 아래 항목에서 확인 이유·근거·다음 행동을 볼 수 있습니다.</p>
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
@@ -89,7 +89,7 @@
       <ul class="groups">
         {#each groups as group (group.assetId)}
           <li><article aria-labelledby={"attention-" + group.assetId}>
-            <h3 id={"attention-" + group.assetId}>{group.assetId}</h3>
+            <h3 id={"attention-" + group.assetId} tabindex="-1">{group.assetId}</h3>
             <ul class="notes">
               {#each group.notes as note (note.kind)}
                 <li data-kind={note.kind}><strong>{note.label}</strong><span>{note.detail}</span>
