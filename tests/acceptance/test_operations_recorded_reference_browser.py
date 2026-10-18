@@ -83,7 +83,7 @@ def test_recorded_reference_observation_analysis_review_and_restart(
                 for label, value in fields.items():
                     form.get_by_label(label, exact=True).fill(value)
                 form.get_by_label("내 컴퓨터의 CSV", exact=False).set_input_files(str(csv_path))
-                roles = form.get_by_role("group", name="3상 역할 (선택 · 3상 불평형 분석에 필요)")
+                roles = form.get_by_role("group", name="3상 역할 (선택 · 부하·불평형 분석에 필요)")
                 for channel, quantity, phase, _unit, _interpretation in csv.reader(
                     bindings.splitlines()
                 ):

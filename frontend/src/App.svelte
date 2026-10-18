@@ -41,12 +41,23 @@
       ? TAB_INFO[route.tab] + " · " + assetLabel(snapshot?.assets ?? [], route.assetId) + " · Industrial PHM"
       : PAGE_INFO[route.page].label + " · Industrial PHM");
 
+  let topnav: HTMLElement | null = $state(null);
+  // The menu row scrolls on a phone; keep the current page's entry in view.
+  $effect(() => {
+    route.page;
+    topnav?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
+  });
+
   async function navigate(url: string) {
     const before = route;
     history.pushState(history.state, "", url);
     route = parseRoute(location.search).route;
     focus = reviewFocus(location.search);
     section = systemSection(location.search);
+    // A save on another page (e.g. a CSV just stored) may not have reached this list yet;
+    // a page change or an asset the list does not know reads it again.
+    if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
+      void quietRefresh();
     // A new page moves focus to its content. A tab switch, or choosing another asset with
     // the keyboard in its select, keeps focus where the user is.
     if (before.page !== route.page) {
@@ -141,7 +152,10 @@
   onMount(() => {
     const restore = () => {
       if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
+      const before = route;
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
+      if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
+        void quietRefresh();
     };
     // Same-document links switch screens without reloading the asset list.
     const follow = (event: MouseEvent) => {
@@ -178,7 +192,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="/web/">Industrial PHM</a>
-    <nav class="topnav" aria-label="업무 메뉴">
+    <nav class="topnav" aria-label="업무 메뉴" bind:this={topnav}>
       {#each PAGES as page (page)}
         <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
           {PAGE_INFO[page].label}

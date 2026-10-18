@@ -1,8 +1,8 @@
 <script lang="ts">
   import {tick} from "svelte";
   import {
-    analyzeFile, explainWrite, preflightUpload, receiveFile, registerUpload, setLifecycle, startHistory,
-    waitForHistory, ANALYSIS_MAX_BYTES, HistoryFailed, type CsvSetup, type Preflight,
+    analyzeFile, declaredRoles, emptyRoles, explainWrite, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
+    setLifecycle, startHistory, waitForHistory, ANALYSIS_MAX_BYTES, HistoryFailed, type CsvSetup, type Preflight,
   } from "../connections";
   import {
     channelChoices, inspectCsv, intervals, parseCsv, previewPoints, previewProblems, readTimes, summarize,
@@ -13,6 +13,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import {OutcomeUnknown} from "../writes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
+  import PhaseRoles from "./PhaseRoles.svelte";
 
   /** One CSV file to stored measurements: see the file's own values, let the server check it
    * without saving, then register, put in use, read once and store history as visible steps.
@@ -43,6 +44,8 @@
   let pointId = $state("");
   let sourceId = $state("");
   let sourceName = $state("");
+  // Optional 3-phase roles let the load/unbalance analysis read this file.
+  let roles = $state(emptyRoles());
   // Every input change makes an earlier server check stale.
   let revision = $state(0);
   let checkedRevision = $state(-1);
@@ -71,6 +74,8 @@
     return current !== null && checkedRevision === revision && current.status === "ready";
   });
   const locked = $derived(progress !== null || saving);
+  const declared = $derived(declaredRoles(roles));
+  const roleProblem = $derived(phaseRoleProblem(declared, channels));
 
   function fresh(): Record<StepId, {state: StepState; detail: string}> {
     return {register: {state: "pending", detail: ""}, activate: {state: "pending", detail: ""},
@@ -86,7 +91,7 @@
     const token = ++fileChoice;
     const chosen = fileInput?.files?.[0] ?? null;
     fileDigest = "";
-    file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; analysis = "";
+    file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; analysis = ""; roles = emptyRoles();
     fileProblem = false; changed();
     if (!chosen) { fileMessage = "아직 파일을 고르지 않았습니다."; return; }
     if (!/\.csv$/i.test(chosen.name) || !chosen.size) { fileProblem = true; fileMessage = "비어 있지 않은 .csv 파일을 고르세요."; return; }
@@ -144,7 +149,8 @@
   function setup(): CsvSetup {
     return {source_id: sourceId.trim(), name: sourceName.trim(), asset_id: assetId.trim(),
       measurement_point_id: pointId.trim(), channel_columns: channels,
-      timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : ""};
+      timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : "",
+      ...(declared.length ? {phase_channels: declared} : {})};
   }
 
   async function check() {
@@ -152,6 +158,7 @@
     const values = setup();
     if (!values.asset_id || !values.source_id || !values.name) { checkMessage = "설비 이름을 입력하세요. 연결 ID와 이름도 비어 있으면 안 됩니다."; return; }
     if (problems.length) { checkMessage = "미리보기에서 찾은 문제를 먼저 고치세요."; return; }
+    if (roleProblem) { checkMessage = roleProblem; return; }
     const token = revision;
     checking = true; checkMessage = "서버의 데이터 검증기로 파일을 점검합니다. 아무것도 저장하지 않습니다.";
     try {
@@ -352,6 +359,11 @@
             value={sourceName} oninput={(event) => { sourceName = event.currentTarget.value; changed(); }} /></label>
         </div>
       </details>
+      <details open={declared.length > 0}>
+        <summary>3상 전압·전류 역할 지정 (선택 · 부하·불평형 분석에 필요)</summary>
+        <PhaseRoles {channels} bind:roles disabled={locked} onchange={changed} />
+        {#if roleProblem}<p class="message failure" role="status">{roleProblem}</p>{/if}
+      </details>
       {#if !writable}
         <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
       {:else}
@@ -387,6 +399,9 @@
         <p class="links">
           <a class="ui-button ui-button-primary" href={assetTabUrl(progress.setup.asset_id, "signals")}>설비 화면에서 신호 보기 →</a>
           <a href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>설비 요약 보기 →</a>
+          {#if progress.setup.phase_channels?.length}
+            <a href={assetTabUrl(progress.setup.asset_id, "change", "electrical")}>부하·불평형 보기 →</a>
+          {/if}
         </p>
         <AnalysisOptions assetId={progress.setup.asset_id} level={4} />
         {#if file && file.size > ANALYSIS_MAX_BYTES}

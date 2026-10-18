@@ -7,6 +7,8 @@ import {object,postWrite,OutcomeUnknown,WriteForbidden,WriteRejected} from "./wr
 export type CsvSetup={
   source_id:string;name:string;asset_id:string;measurement_point_id:string;
   channel_columns:string[];timestamp_column:string;
+  /** Optional 3-phase roles; the upload path accepts the same field as a workspace CSV. */
+  phase_channels?:PhaseRole[];
 };
 export type PreflightIssue={code:string;guidance:string;row:number|null;column:string|null};
 export type Preflight={
@@ -211,6 +213,37 @@ export type FileRegistration={
   source_id:string;name:string;asset_id:string;measurement_point_id:string;
   channel_columns:string[];timestamp_column:string;phase_channels:PhaseRole[];
 };
+
+export const PHASE_ROLES:readonly {quantity:"voltage"|"current";phase:"R"|"S"|"T";label:string}[]=[
+  {quantity:"voltage",phase:"R",label:"전압 R상"},{quantity:"voltage",phase:"S",label:"전압 S상"},
+  {quantity:"voltage",phase:"T",label:"전압 T상"},{quantity:"current",phase:"R",label:"전류 R상"},
+  {quantity:"current",phase:"S",label:"전류 S상"},{quantity:"current",phase:"T",label:"전류 T상"},
+];
+/** What a person enters per role: the column, and how the unit and the phase wiring were confirmed. */
+export type RoleInput={channel:string;unit:string;meaning:string};
+export function emptyRoles():RoleInput[]{return PHASE_ROLES.map(()=>({channel:"",unit:"",meaning:""}));}
+export function declaredRoles(inputs:RoleInput[]):PhaseRole[]{
+  return inputs.flatMap((role,index):PhaseRole[]=>role.channel?[{channel_id:role.channel,
+    quantity:PHASE_ROLES[index].quantity,phase:PHASE_ROLES[index].phase,
+    unit_evidence:role.unit.trim(),interpretation_evidence:role.meaning.trim()}]:[]);
+}
+// The whole name must be a quantity, an optional separator and a phase: vR, iT, voltage_a, Current_L1.
+const ROLE_NAME={voltage:/^(?:v|u|volt|voltage)[ _-]?(?:phase[ _-]?)?(r|s|t|a|b|c|l1|l2|l3|1|2|3)$/i,
+  current:/^(?:i|amp|amps|curr|current)[ _-]?(?:phase[ _-]?)?(r|s|t|a|b|c|l1|l2|l3|1|2|3)$/i};
+const PHASE_TOKEN:Record<string,"R"|"S"|"T">={r:"R",a:"R",l1:"R","1":"R",s:"S",b:"S",l2:"S","2":"S",t:"T",c:"T",l3:"T","3":"T"};
+/** Suggests only the column for each empty role, when exactly one column name fits.
+ * The unit and wiring evidence stays for a person to write. */
+export function suggestRoles(channels:string[],current:RoleInput[]):RoleInput[]{
+  return PHASE_ROLES.map((role,index)=>{
+    const now=current[index]??{channel:"",unit:"",meaning:""};
+    if(now.channel)return now;
+    const fits=channels.filter(name=>{
+      const match=ROLE_NAME[role.quantity].exec(name);
+      return match!==null&&PHASE_TOKEN[match[1].toLowerCase()]===role.phase;
+    });
+    return {...now,channel:fits.length===1?fits[0]:""};
+  });
+}
 
 /** Roles are optional; when given, each quantity has all of R, S and T on distinct columns. */
 export function phaseRoleProblem(roles:PhaseRole[],channels:string[]):string|null{

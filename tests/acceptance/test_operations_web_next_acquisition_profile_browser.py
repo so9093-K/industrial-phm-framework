@@ -153,8 +153,9 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                 assert "acquisition_feature=feature.R.rms" in page.url
                 assert "feature_b_from=11" in page.url
                 page.get_by_role("combobox", name="진동 특징").select_option("feature.R.mean")
+                # The feature's label heads the result; its identifier stays under 기술 상세.
                 pw.expect(
-                    page.get_by_role("heading", name="feature.R.mean · feature.R.mean")
+                    page.get_by_role("heading", name="feature.R.mean", exact=True)
                 ).to_be_visible()
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_role("combobox", name="진동 특징")).to_have_value(

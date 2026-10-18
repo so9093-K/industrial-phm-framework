@@ -13,6 +13,9 @@
     return ()=>{window.removeEventListener("showcase-unavailable",notice);window.removeEventListener("popstate",clear);};
   });
   $effect(()=>{search;unavailable=false;});
+  let chips:HTMLElement|null=$state(null);
+  // On a phone the steps scroll sideways; keep the current one in view.
+  $effect(()=>{index;chips?.querySelector<HTMLElement>('[aria-current="step"]')?.scrollIntoView({block:"nearest",inline:"nearest"});});
 </script>
 
 <aside class="guide" aria-label="제품 체험 안내">
@@ -20,7 +23,7 @@
   <div class="intro"><div><p class="eyebrow">제품 체험</p>
     <p class="title">측정의 변화에서 검토할 근거까지</p></div><span class="badge">합성 기록 · 보기 전용 체험</span></div>
   <!-- A prepared link reloads its complete selection, including limits and settings. -->
-  <nav aria-label="체험 순서">{#each steps as item,i}<a href={item.href} target="_self" aria-current={i===index?"step":undefined}>{item.label}</a>{/each}</nav>
+  <nav aria-label="체험 순서" bind:this={chips}>{#each steps as item,i}<a href={item.href} target="_self" aria-current={i===index?"step":undefined}>{item.label}</a>{/each}</nav>
   <div class="step"><div><h2>{step.title}</h2><p>{step.question}</p></div>
     {#if index<steps.length-1}<a class="ui-button ui-button-primary" href={steps[index+1].href} target="_self">다음: {steps[index+1].label}</a>{:else}<a class="ui-button" href={steps[0].href} target="_self">처음부터 둘러보기</a>{/if}</div>
   {#if unavailable}<p class="unavailable" role="status">이 조건은 체험 스냅샷에 없습니다. 준비된 결과로 돌아가려면 <a href={step.href} target="_self">현재 체험 단계 다시 열기</a>를 누르세요. 다른 조건의 결과로 대신하지 않습니다.</p>{/if}
