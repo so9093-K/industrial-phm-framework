@@ -306,7 +306,11 @@ def test_unknown_asset_deep_link_does_not_show_another_asset(
 
 
 def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: Path) -> None:
-    """A supervisor outage cannot masquerade as an ordinary read-only workspace."""
+    """A supervisor outage cannot masquerade as an ordinary read-only workspace.
+
+    Every retry must read the actual supervisor session; a failed request
+    must never grant the previous writable capability.
+    """
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "session-feedback")
     initialize_operations_workspace(workspace)
