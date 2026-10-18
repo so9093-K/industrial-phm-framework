@@ -44,6 +44,17 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                     "link", name="bearing-a"
                 )
                 pw.expect(listed).to_contain_text("확인할 항목 1건")
+                asset_list = page.get_by_role("region", name="설비 1개")
+                pw.expect(asset_list).to_contain_text(
+                    "건수는 확인할 작업량이며 고장 위험도나 정비 우선순위는 아닙니다"
+                )
+                reason = asset_list.get_by_role(
+                    "link", name="이 설비의 확인 사유와 다음 행동 보기"
+                )
+                pw.expect(reason).to_have_attribute("href", "#attention-bearing-a")
+                reason.click()
+                assert page.url.endswith("#attention-bearing-a")
+                pw.expect(page.locator("#attention-bearing-a")).to_be_visible()
                 trend = asset.get_by_role("link", name="점수 추이 보기")
                 pw.expect(trend).to_have_attribute(
                     "href",
@@ -75,6 +86,9 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 )
                 pw.expect(attention).to_contain_text("다시 읽지 못했습니다", timeout=10_000)
                 assert attention.get_by_role("article").count() == 0
+                assert page.get_by_role(
+                    "link", name="이 설비의 확인 사유와 다음 행동 보기"
+                ).count() == 0
                 page.unroute("**/api/v1/phm/monitor")
                 pw.expect(asset).to_be_visible(timeout=10_000)
                 attention.get_by_role("button", name="자동 갱신 멈추기").click()
