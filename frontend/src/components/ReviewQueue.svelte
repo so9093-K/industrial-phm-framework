@@ -73,9 +73,10 @@
   const shown = $derived(items.filter((item) =>
     (statusFilter === "all" || item.status === statusFilter) && (typeFilter === "all" || item.kind === typeFilter)));
   const selected = $derived.by((): Item | undefined => {
-    if (focusCaptureId) return items.find((item) => item.kind === "outlook" && item.capture.id === focusCaptureId);
+    if (focusCaptureId) return items.find((item) => item.kind === "outlook" && item.capture.id === focusCaptureId
+      && !!focusAssetId && item.assetId === focusAssetId);
     if (focusFindingId) return items.find((item) => item.kind === "analysis" && item.review.findingId === focusFindingId
-      && (!focusAssetId || item.assetId === focusAssetId));
+      && !!focusAssetId && item.assetId === focusAssetId);
     return items.find((item) => item.key === keptKey) ?? shown[0];
   });
 
@@ -94,6 +95,8 @@
       ...snapshot.reviewInbox.reviews.map((review) => review.assetId),
       ...snapshot.analyses.records.map((item) => item.assetId)])].slice(0, ASSET_LIMIT);
     if (focusAssetId && !assets.includes(focusAssetId)) assets.push(focusAssetId);
+    // An identity-bearing bookmark without its owning asset is not a review subject.
+    if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
     const failed = (assetId: string) => {
       if (!request.signal.aborted && !failedAssets.includes(assetId)) failedAssets = [...failedAssets, assetId];
     };
@@ -113,7 +116,8 @@
       if (request.signal.aborted) return;
       const loaded = pages.flatMap((page) => page.outlooks);
       // A direct link to an older request is read by its exact identity.
-      if (focusCaptureId && focusAssetId && !loaded.some((item) => item.id === focusCaptureId)) {
+      if (focusCaptureId && focusAssetId && !loaded.some((item) =>
+        item.id === focusCaptureId && item.outlook.assetId === focusAssetId)) {
         try {
           loaded.push(...(await readCaptures(focusAssetId, {captureId: focusCaptureId}, request.signal)).captures);
         } catch (cause: unknown) {
