@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 import pytest
@@ -55,13 +56,10 @@ def test_legacy_forecast_settings_and_time_horizon_use_real_evidence(
             browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
-                results = {}
 
-                def observed(response):
-                    if response.url.split("?")[0].endswith(("/forecast", "/outlook")):
-                        results[response.url.split("?")[0].split("/")[-1]] = response.json()
+                def endpoint(name: str) -> Any:
+                    return lambda response: response.url.split("?")[0].endswith("/" + name)
 
-                page.on("response", observed)
                 query = {
                     "monitor_asset": "motor-01" if kind == "history" else "bearing-a",
                     "forecast_series": kind + "|" + ("current" if kind == "history" else feature),
@@ -85,7 +83,14 @@ def test_legacy_forecast_settings_and_time_horizon_use_real_evidence(
                 pw.expect(panel.get_by_label("최근 학습 개수")).to_have_value(
                     query["forecast_training"]
                 )
-                panel.get_by_role("button", name="계산하기", exact=True).click()
+                # Wait for the two responses themselves: a response listener can still be reading
+                # a body after the result is already on screen.
+                with (
+                    page.expect_response(endpoint("forecast"), timeout=60_000) as forecast,
+                    page.expect_response(endpoint("outlook"), timeout=60_000) as outlook,
+                ):
+                    panel.get_by_role("button", name="계산하기", exact=True).click()
+                results = {"forecast": forecast.value.json(), "outlook": outlook.value.json()}
                 pw.expect(panel.get_by_role("heading", name="결과", exact=True)).to_be_visible(
                     timeout=60_000
                 )
