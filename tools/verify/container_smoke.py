@@ -186,6 +186,22 @@ def main() -> None:
             "clean stop and volume recovery"
         )
     except BaseException:
+        # The sample child is launched by the supervisor into a file, not
+        # Compose stdout. Surface its real failure before deleting the volume.
+        try:
+            result = compose(
+                "exec",
+                "-T",
+                "operations",
+                "sh",
+                "-c",
+                "tail -n 150 /var/lib/industrial-phm/operations/logs/first-run-sample.log",
+                capture=True,
+            )
+            print("=== Isolated sample child log ===", flush=True)
+            print(result.stdout, flush=True)
+        except (OSError, subprocess.CalledProcessError) as error:
+            print(f"Sample child log unavailable: {error}", flush=True)
         compose("logs", "--tail", "100")
         raise
     finally:
