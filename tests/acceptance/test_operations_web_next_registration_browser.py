@@ -78,7 +78,7 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
                     },
                 )
                 roles = register.get_by_role(
-                    "group", name="3상 역할 (선택 · 3상 불평형 분석에 필요)"
+                    "group", name="3상 역할 (선택 · 부하·불평형 분석에 필요)"
                 )
                 for phase, column in (("R", "leg_a"), ("S", "leg_b"), ("T", "leg_c")):
                     roles.get_by_label(f"전압 {phase}상").select_option(column)

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
@@ -164,7 +165,7 @@
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
     {:else if profile}
       <section class="evidence">
-        <h3>{profile.label} · {profile.featureId}</h3>
+        <h3>{profile.label}</h3>
         <p class="context">기간 A 측정 #{profile.spans.a.from}~#{profile.spans.a.to}
           · 기간 B 측정 #{profile.spans.b.from}~#{profile.spans.b.to}</p>
         {#if profile.medianChange===null}
@@ -176,6 +177,7 @@
             {/if}
           </p>
         {/if}
+        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} unit={null} label={profile.label} />
         <div class="table-scroll"><table>
           <caption>측정 순서로 나눈 두 기간의 집계 (날짜가 아닌 측정 순서)</caption>
           <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
@@ -199,7 +201,7 @@
         <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다. 측정 순서는 일정한 시간 간격이 아니고, 특징값 차이는 결함이나 남은 수명을 뜻하지 않습니다." />
         <details>
           <summary>기술 상세</summary>
-          <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId}
+          <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}
             · ‘평소 범위 밖’은 기간 A의 5~95% 분위수 범위를 벗어난 B 값의 비율입니다.</p>
         </details>
       </section>

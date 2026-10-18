@@ -53,6 +53,12 @@
   function at(tab: Tab, nextMethod: Method | null = null, nextKind: DataKind | null = null): string {
     return routeUrl({page: "assets", assetId: asset.assetId, tab, method: nextMethod, data: nextKind});
   }
+  let tabBar: HTMLElement | null = $state(null);
+  // On a phone the tab row scrolls; keep the current tab in view when it changes.
+  $effect(() => {
+    route.tab;
+    tabBar?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
+  });
   onMount(() => {
     const request = new AbortController();
     void readAssetData(asset.assetId, request.signal).then((value) => {
@@ -84,7 +90,7 @@
 
   <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
-  <nav class="tabs" aria-label="설비 화면">
+  <nav class="tabs" aria-label="설비 화면" bind:this={tabBar}>
     {#each TABS as tab (tab)}
       <a href={at(tab)} aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
     {/each}
@@ -159,6 +165,12 @@
     background: var(--color-surface); color: var(--color-ink);
   }
   .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 1px solid var(--color-border); }
+  /* One row of tabs that scrolls sideways on a phone, so the fifth tab is not on its own line. */
+  @media (max-width: 560px) {
+    .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tabs a { flex: none; }
+  }
   .tabs a {
     padding: var(--space-3) var(--space-4); color: var(--color-ink-muted); text-decoration: none;
     border-bottom: 3px solid transparent; margin-bottom: -1px;

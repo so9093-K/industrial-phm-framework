@@ -1,24 +1,20 @@
 <script lang="ts">
   import {
-    browseOpcua, channelIdFrom, explainWrite, phaseRoleProblem, preflightCsv, registerCsv, registerOpcua,
-    type FileRegistration, type OpcuaBrowse, type PhaseRole, type Preflight,
+    browseOpcua, channelIdFrom, declaredRoles, emptyRoles, explainWrite, phaseRoleProblem, preflightCsv, registerCsv,
+    registerOpcua, type FileRegistration, type OpcuaBrowse, type Preflight,
   } from "../connections";
   import {MAX_CHANNELS, MAX_CSV_BYTES} from "../csv-preview";
+  import PhaseRoles from "./PhaseRoles.svelte";
 
   /** Other ways to register a connection: a CSV already in the workspace or with declared
    * 3-phase roles, and a local OPC UA server. Registration alone receives nothing. */
   type Props = {writable: boolean; onRegistered: () => Promise<void>};
   let {writable, onRegistered}: Props = $props();
-  const ROLES: {quantity: "voltage" | "current"; phase: "R" | "S" | "T"; label: string}[] = [
-    {quantity: "voltage", phase: "R", label: "전압 R상"}, {quantity: "voltage", phase: "S", label: "전압 S상"},
-    {quantity: "voltage", phase: "T", label: "전압 T상"}, {quantity: "current", phase: "R", label: "전류 R상"},
-    {quantity: "current", phase: "S", label: "전류 S상"}, {quantity: "current", phase: "T", label: "전류 T상"},
-  ];
 
   // CSV with a workspace path or 3-phase roles.
   let csv = $state({sourceId: "", name: "", assetId: "", pointId: "", filePath: "", channels: "", time: ""});
   let csvFile: File | null = $state(null);
-  let roles = $state(ROLES.map(() => ({channel: "", unit: "", meaning: ""})));
+  let roles = $state(emptyRoles());
   let csvRevision = $state(0);
   let csvChecked = $state(-1);
   let csvReport: Preflight | null = $state(null);
@@ -26,9 +22,7 @@
   let csvFailed = $state(false);
   let csvBusy = $state(false);
   const channelList = $derived(csv.channels.split(",").map((item) => item.trim()).filter(Boolean));
-  const declared = $derived(roles.flatMap((role, index): PhaseRole[] => role.channel ? [{channel_id: role.channel,
-    quantity: ROLES[index].quantity, phase: ROLES[index].phase, unit_evidence: role.unit.trim(),
-    interpretation_evidence: role.meaning.trim()}] : []));
+  const declared = $derived(declaredRoles(roles));
   const csvProblem = $derived.by((): string | null => {
     if (!csv.sourceId.trim() || !csv.name.trim() || !csv.assetId.trim()) return "연결 ID, 이름, 설비를 입력하세요.";
     if (!csvFile && !csv.filePath.trim()) return "파일을 고르거나 작업공간 안 CSV 경로를 입력하세요.";
@@ -178,23 +172,7 @@
         bind:value={csv.channels} oninput={csvChanged} /></label>
       <label class="field">시간 컬럼<input maxlength="128" autocomplete="off" placeholder="timestamp" bind:value={csv.time} oninput={csvChanged} /></label>
     </div>
-    <fieldset>
-      <legend>3상 역할 (선택 · 3상 불평형 분석에 필요)</legend>
-      <p class="context">전압 또는 전류의 R/S/T 세 개를 한 세트로 지정하고, 단위와 상 배선을 무엇으로 확인했는지 적으세요.</p>
-      {#each ROLES as role, index (role.label)}
-        <div class="role">
-          <label class="field">{role.label}
-            <select bind:value={roles[index].channel} onchange={csvChanged}>
-              <option value="">지정 안 함</option>
-              {#each channelList as channel (channel)}<option value={channel}>{channel}</option>{/each}
-            </select></label>
-          {#if roles[index].channel}
-            <label class="field">단위 근거<input maxlength="128" placeholder="예: 계측기 표시 V 확인" bind:value={roles[index].unit} oninput={csvChanged} /></label>
-            <label class="field">해석 근거<input maxlength="128" placeholder="예: 배선도에서 R상 확인" bind:value={roles[index].meaning} oninput={csvChanged} /></label>
-          {/if}
-        </div>
-      {/each}
-    </fieldset>
+    <PhaseRoles channels={channelList} bind:roles onchange={csvChanged} />
     <div class="actions">
       <button type="button" class="ui-button" disabled={!writable || csvBusy} onclick={() => void checkCsv()}>점검 (저장 안 함)</button>
       <button type="button" class="ui-button ui-button-primary" disabled={!writable || csvBusy || !csvReady} onclick={() => void registerCsvSource()}>연결 등록</button>
@@ -271,15 +249,13 @@
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
   .wide { grid-column: 1 / -1; }
   .field { display: grid; gap: var(--space-1); font-weight: 650; min-width: 0; }
-  input:not([type="file"]), select { font: inherit; font-weight: 400; min-height: 40px; padding: var(--space-2) var(--space-3); min-width: 0;
+  input:not([type="file"]) { font: inherit; font-weight: 400; min-height: 40px; padding: var(--space-2) var(--space-3); min-width: 0;
     border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
   input[type="file"] { max-width: 100%; min-width: 0; font: inherit; font-weight: 400; }
   fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3); margin: 0; min-width: 0; display: grid; gap: var(--space-3); }
   legend { font-weight: 650; padding-inline: var(--space-1); }
-  .role { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); align-items: end; }
   .mapping { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: end; }
   .mapping .field { flex: 1 1 200px; }
-  @media (max-width: 640px) { .role { grid-template-columns: minmax(0, 1fr); } }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
   .label { font-weight: 650; }
   .nodes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }

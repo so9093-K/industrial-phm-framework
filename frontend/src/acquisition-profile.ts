@@ -10,6 +10,8 @@ export type FeaturePeriod = {
   delivered:number;usable:number;analyzed:number;missingAcquisitions:number;
   unanalyzed:number;sampled:boolean;
   median:number|null;mean:number|null;firstOrdinal:number|null;lastOrdinal:number|null;
+  /** Stored 5/25/50/75/95% quantiles, for drawing the two ranges side by side. */
+  quantiles:number[]|null;
 };
 export type FeatureProfile = {
   assetId:string;sourceId:string;bindingId:string;featureId:string;label:string;
@@ -45,13 +47,13 @@ function parsePeriod(raw:unknown):FeaturePeriod {
   const p=obj(raw);
   if(!p||typeof p.sampled!=="boolean")
     throw new Error("측정별 집계가 완전하지 않습니다.");
-  let median:number|null=null;
+  let median:number|null=null,quantiles:number[]|null=null;
   if(p.quantiles!==null){
     if(!Array.isArray(p.quantiles)||p.quantiles.length!==5)
       throw new Error("특징 분포 분위수가 올바르지 않습니다.");
     const q=p.quantiles.map(finiteOrNull);
     if(q.some(v=>v===null))throw new Error("특징 분위수에 결측 값이 있습니다.");
-    median=q[2];
+    median=q[2];quantiles=q as number[];
   }
   const delivered=count(p.observation_count),usable=count(p.usable_count);
   const analyzed=count(p.analyzed_count),missingAcquisitions=count(p.missing_count);
@@ -62,7 +64,7 @@ function parsePeriod(raw:unknown):FeaturePeriod {
     throw new Error("유효한 특징이 없는데 중앙값이 반환됐습니다.");
   return {delivered,usable,analyzed,missingAcquisitions,unanalyzed,
     sampled:p.sampled,median,mean:finiteOrNull(p.mean),
-    firstOrdinal:maybeCount(p.first_position),lastOrdinal:maybeCount(p.last_position)};
+    firstOrdinal:maybeCount(p.first_position),lastOrdinal:maybeCount(p.last_position),quantiles};
 }
 export function parseFeatureSource(raw:unknown,assetId:string):FeatureSource|null {
   const root=obj(raw),acq=obj(root?.acquisition);

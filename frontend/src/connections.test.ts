@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {channelIdFrom,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,type PhaseRole} from "./connections.ts";
+import {channelIdFrom,declaredRoles,emptyRoles,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,suggestRoles,type PhaseRole} from "./connections.ts";
 import {sampleReturn} from "./session.ts";
 import {parseSources} from "./operations-status.ts";
 import {errorCode,OutcomeUnknown,WriteRejected} from "./writes.ts";
@@ -71,4 +71,18 @@ test("OPC UA channel IDs are safe and distinct; the sample opens only a local ad
     "http://127.0.0.1:2718/web/?page=system");
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("https://evil.example/web/")),null);
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/other")),null);
+});
+
+test("roles are suggested from clear column names only, and evidence is never filled in",()=>{
+  const roles=suggestRoles(["timestamp","vR","vS","vT","iR","iS","iT","inlet_temp_a"],emptyRoles());
+  assert.deepEqual(roles.map(role=>role.channel),["vR","vS","vT","iR","iS","iT"]);
+  assert.ok(roles.every(role=>role.unit===""&&role.meaning===""));
+  assert.deepEqual(suggestRoles(["Voltage_L1","Voltage_L2","Voltage_L3"],emptyRoles()).map(role=>role.channel).slice(0,3),
+    ["Voltage_L1","Voltage_L2","Voltage_L3"]);
+  // Two candidates for one role leave it for the person to choose; a chosen column is kept.
+  const ambiguous=suggestRoles(["v_a","voltage_a"],emptyRoles());
+  assert.equal(ambiguous[0].channel,"");
+  const kept=suggestRoles(["vR"],[{channel:"other",unit:"계측기",meaning:"배선도"},...emptyRoles().slice(1)]);
+  assert.equal(kept[0].channel,"other");
+  assert.equal(phaseRoleProblem(declaredRoles(roles),["vR","vS","vT","iR","iS","iT"]),"역할마다 단위 근거와 해석 근거를 적으세요.");
 });

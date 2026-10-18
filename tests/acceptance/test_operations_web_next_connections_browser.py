@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -142,3 +143,76 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
     finally:
         for server, thread in running:
             stop_web(server, thread)
+
+
+def _three_phase_csv() -> bytes:
+    start = datetime(2026, 10, 11, 0, 0, tzinfo=UTC)
+    lines = ["timestamp,vR,vS,vT,iR,iS,iT"]
+    for index in range(240):
+        load = 10 if index < 180 else 40
+        at = (start + timedelta(minutes=index)).isoformat()
+        values = [230, 231, 229, load, load + 1, load + 2]
+        lines.append(at + "," + ",".join(f"{value + (index % 5) * 0.1:.2f}" for value in values))
+    return ("\n".join(lines) + "\n").encode()
+
+
+def test_csv_with_three_phase_roles_reaches_load_and_unbalance(tmp_path: Path) -> None:
+    """The main CSV flow carries R/S/T roles with the person's evidence, so the stored file
+    opens in 부하·불평형 without the separate registration form."""
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = OperationsWorkspace(tmp_path / "plant")
+    initialize_operations_workspace(workspace)
+    root = workspace.root.resolve()
+    server, thread = start_web(root, writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page: Any = browser.new_page(
+                    viewport={"width": 1280, "height": 900}, locale="ko-KR"
+                )
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
+                start = page.get_by_role("region", name="CSV 파일로 시작")
+                start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
+                    files=[
+                        {"name": "motor.csv", "mimeType": "text/csv", "buffer": _three_phase_csv()}
+                    ]
+                )
+                start.get_by_label("설비 이름·번호").fill("motor-01")
+                start.get_by_text("3상 전압·전류 역할 지정", exact=False).click()
+                roles = start.get_by_role("group", name="3상 역할", exact=False)
+                roles.get_by_role("button", name="컬럼 이름으로 역할 채우기").click()
+                pw.expect(roles.get_by_label("전압 R상")).to_have_value("vR")
+                pw.expect(roles.get_by_label("전류 T상")).to_have_value("iT")
+                # Suggested columns still need the person's own evidence.
+                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                pw.expect(start).to_contain_text("역할마다 단위 근거와 해석 근거를 적으세요")
+                for unit, meaning in zip(
+                    roles.get_by_label("단위 근거").all(),
+                    roles.get_by_label("해석 근거").all(),
+                    strict=True,
+                ):
+                    unit.fill("계측기 표시 단위 확인")
+                    meaning.fill("배선도에서 상 확인")
+                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                pw.expect(start.get_by_text("점검 통과")).to_be_visible()
+                start.get_by_role("button", name="등록하고 이력 저장").click()
+                done = start.get_by_role("region", name="다음 할 일")
+                pw.expect(done).to_be_visible(timeout=60_000)
+                (source,) = JsonSourceRepository(workspace.source_registry_path).list_sources()
+                assert len(source.config.semantic_bindings) == 6  # type: ignore[union-attr]
+                # Leaving right after saving still lands on the new asset, not an empty list.
+                done.get_by_role("link", name="부하·불평형 보기").click()
+                pw.expect(page).to_have_url(re.compile(r"method=electrical&monitor_asset=motor-01"))
+                panel = page.get_by_role("region", name="부하·불평형 변화")
+                panel.get_by_label("분석 기간").select_option("1h")
+                cards = panel.get_by_label("기준 기간과 비교한 값")
+                pw.expect(cards).to_contain_text("관측 평균 전류", timeout=30_000)
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
