@@ -75,7 +75,9 @@ def prepare(root: Path) -> dict[str, object]:
                     source_path=str(path),
                     asset_id=asset,
                     channel_columns=tuple(CHANNELS),
-                    asset_display_name="변화가 있는 합성 펌프" if changing else "일정한 합성 펌프",
+                    asset_display_name="순환 펌프 2호기 · 변화 기록"
+                    if changing
+                    else "순환 펌프 1호기 · 일정한 기록",
                     timestamp_column="timestamp",
                     semantic_bindings=bindings,
                 ),

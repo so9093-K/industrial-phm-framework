@@ -57,3 +57,18 @@ def test_scenario_never_adopts_or_changes_an_existing_directory(tmp_path: Path) 
         prepare(tmp_path)
     assert sentinel.read_text() == "existing user data"
     assert list(tmp_path.iterdir()) == [sentinel]
+
+
+def test_walkthrough_exposes_named_assets_and_real_baseline_analysis() -> None:
+    responses = json.loads((FIXTURES / "responses.json").read_text())["responses"]
+    assets = responses["/api/v1/monitor"]["body"]["assets"]["items"]
+    changed = next(asset for asset in assets if asset["asset_id"] == "demo-pump-change")
+    assert changed["asset_display_name"] == "순환 펌프 2호기 · 변화 기록"
+    for asset_id in ("demo-pump-change", "demo-pump-stable"):
+        key = "/api/v1/explore/anomaly?asset_id=" + asset_id + "&baseline=first-30&series=current_a"
+        assert responses[key]["status"] == 200
+        assert responses[key]["body"]["channels"][0]["state"] == "scored"
+        if asset_id == "demo-pump-change":
+            assert responses[key]["body"]["interval_count"] > 0
+        else:
+            assert responses[key]["body"]["interval_count"] == 0

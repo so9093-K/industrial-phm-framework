@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { readMonitor, type Asset, type Snapshot } from "./monitor";
+  import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession, sampleReturn } from "./session";
   import {loadModelBindings} from "./model-evidence";
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
@@ -36,9 +36,9 @@
   let snapshotRead = 0;
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
-  const documentTitle = $derived(
+  const documentTitle = $derived.by(() =>
     route.page === "assets" && route.assetId
-      ? TAB_INFO[route.tab] + " · " + route.assetId + " · Industrial PHM"
+      ? TAB_INFO[route.tab] + " · " + assetLabel(snapshot?.assets ?? [], route.assetId) + " · Industrial PHM"
       : PAGE_INFO[route.page].label + " · Industrial PHM");
 
   async function navigate(url: string) {

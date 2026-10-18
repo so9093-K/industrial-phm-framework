@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {flowLabel, type Asset} from "../monitor";
+  import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -28,7 +28,7 @@
     {#each ordered as asset (asset.assetId)}
       <li>
         <a class="row" href={href(asset.assetId)}>
-          <strong>{asset.assetId}</strong>
+          <strong>{assetOptionLabel(assets, asset.assetId)}</strong>
           <span>마지막 측정 {observed(asset.lastObservedAt)}</span>
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>

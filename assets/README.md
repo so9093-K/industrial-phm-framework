@@ -22,10 +22,11 @@ WebM은 브라우저 세션 녹화입니다. 그래프·숫자·AI 답변을 이
 | --- | --- |
 | [관측](showcase/01-observe.png) | 두 설비의 저장 기록과 다음 확인 대상 |
 | [신호](showcase/02-signals.png) | 전류 변화와 시각·출처·단위 |
-| [기간 비교](showcase/03-compare.png) | 앞뒤 120행의 중앙값·유효 측정 수·결측 |
-| [조건부 전망](showcase/04-outlook.png) | 실제 계산한 1시간 예측과 시연용 임의 기준 13 A·15 A |
-| [검토](showcase/05-review.png) | 실제 저장한 분석 근거와 시연용 사람 검토 메모 |
-| [GIF](showcase/walkthrough.gif) · [WebM](showcase/walkthrough.webm) | 관측→신호→비교→전망→검토의 짧은 흐름 |
+| [이상 탐지](showcase/03-anomaly.png) | 기준 구간 대비 크게 벗어난 구간·시점·정도(MAD 기반, 학습 모델 없음) |
+| [기간 비교](showcase/04-compare.png) | 앞뒤 120행의 중앙값·유효 측정 수·결측 |
+| [추세 예측·조건부 RUL](showcase/05-outlook.png) | 실제 계산한 1시간 예측과 시연용 임의 기준 13 A·15 A |
+| [검토](showcase/06-review.png) | 실제 저장한 분석 근거와 시연용 사람 검토 메모 |
+| [GIF](showcase/walkthrough.gif) · [WebM](showcase/walkthrough.webm) | 관측→신호→이상 탐지→비교→추세 예측·RUL→검토의 짧은 흐름 |
 
 입력은 외부 데이터가 아닌 생성 코드의 합성 기록입니다. 실제 고장·학습 모델 성능·AI 품질을
 보여주는 자료가 아닙니다. 읽기 전용 체험의 쓰기 버튼은 비활성화되어 있으며 캡처에서도 그대로 표시합니다.

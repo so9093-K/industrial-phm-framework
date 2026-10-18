@@ -87,9 +87,10 @@ def capture(media: bool) -> None:
                 if name != "01-observe":
                     panel = {
                         "02-signals": "측정 신호",
-                        "03-compare": "두 기간 비교",
-                        "04-outlook": "기준 도달 전망",
-                        "05-review": "고른 검토 항목",
+                        "03-anomaly": "기준 구간 이탈",
+                        "04-compare": "두 기간 비교",
+                        "05-outlook": "기준 도달 전망",
+                        "06-review": "고른 검토 항목",
                     }[name]
                     page.get_by_role("region", name=panel, exact=True).scroll_into_view_if_needed()
                 page.screenshot(path=str(MEDIA / (name + ".png"))) if media else None
@@ -101,7 +102,9 @@ def capture(media: bool) -> None:
                         page.wait_for_timeout(250)
 
             page.goto(origin + "/web/", wait_until="networkidle")
-            expect(page.locator("a.row").filter(has_text="demo-pump-change")).to_be_visible()
+            expect(
+                page.locator("a.row").filter(has_text="순환 펌프 2호기 · 변화 기록")
+            ).to_be_visible()
             shot("01-observe")
             page.get_by_role("navigation", name="체험 순서").get_by_role(
                 "link", name="2. 신호"
@@ -109,30 +112,43 @@ def capture(media: bool) -> None:
             expect(page.locator(".explorer svg").first).to_be_visible()
             shot("02-signals")
             page.get_by_role("navigation", name="체험 순서").get_by_role(
-                "link", name="3. 비교"
+                "link", name="3. 이상 탐지"
+            ).click()
+            departures = page.get_by_role("region", name="기준 구간 이탈", exact=True)
+            expect(departures.get_by_role("img")).to_be_visible()
+            expect(departures.locator(".intervals li")).not_to_have_count(0)
+            expect(
+                page.get_by_role("heading", name="순환 펌프 2호기 · 변화 기록", exact=True)
+            ).to_be_visible()
+            shot("03-anomaly")
+            page.get_by_role("navigation", name="체험 순서").get_by_role(
+                "link", name="4. 비교"
             ).click()
             expect(
                 page.get_by_role("region", name="두 기간 비교").get_by_role("table").first
             ).to_be_visible()
-            shot("03-compare")
+            shot("04-compare")
             page.get_by_role("navigation", name="체험 순서").get_by_role(
-                "link", name="4. 전망"
+                "link", name="5. 추세 예측·RUL"
             ).click()
             page.get_by_role("button", name="계산하기", exact=True).click()
             expect(
                 page.get_by_role("region", name="기준 도달 전망").get_by_role("img").first
             ).to_be_visible()
-            shot("04-outlook")
+            expect(
+                page.get_by_text("조건부 잔여수명(RUL) · 종료 기준 15", exact=True)
+            ).to_be_visible()
+            shot("05-outlook")
             outlook_url = page.url
             page.get_by_role("navigation", name="체험 순서").get_by_role(
-                "link", name="5. 검토"
+                "link", name="6. 검토"
             ).click()
             queue = page.get_by_role("region", name="검토함")
             queue.get_by_role("link").first.click()
             expect(page.get_by_role("region", name="고른 검토 항목")).to_contain_text(
                 "시연용 검토 메모"
             )
-            shot("05-review")
+            shot("06-review")
             review_url = page.url
             # Finish the demonstration recording before negative and mobile checks.
             recording = page.video

@@ -8,6 +8,7 @@ from industrial_phm.application.asset_history import HistoricalInputReference
 from industrial_phm.application.operational import AnalysisRun
 from industrial_phm.application.operations_monitor import (
     OperationsAttentionDestination,
+    OperationsMonitorAsset,
     OperationsMonitorAttention,
     OperationsMonitorStatus,
 )
@@ -18,6 +19,7 @@ from industrial_phm.application.phase_unbalance import (
     UnbalanceQuantity,
     UnbalanceSeriesResult,
 )
+from industrial_phm.application.source_registration import FileSourceConfig, RegisteredSource
 from industrial_phm.contracts import DataQualityAssessment
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_app_composition import load_operations_app_snapshot
@@ -49,6 +51,42 @@ def test_web_read_empty_workspace_never_invents_observations_or_health(tmp_path:
     assert result["meaning"] == "observations-and-review-evidence-not-asset-health"
     assert "paths" not in result
     assert str(workspace.root) not in str(result)
+
+
+def test_web_asset_names_preserve_identity_and_conflicting_names_fall_back(tmp_path: Path) -> None:
+    _, snapshot = _snapshot(tmp_path)
+    source = RegisteredSource(
+        source_id="file-one",
+        name="전류 기록",
+        registered_at=snapshot.assessed_at,
+        config=FileSourceConfig(
+            source_path="input.csv",
+            asset_id="internal-pump-id",
+            channel_columns=("current",),
+            asset_display_name="순환 펌프 2호기",
+            timestamp_column="timestamp",
+        ),
+    )
+    asset = OperationsMonitorAsset(
+        asset_id=source.asset_id,
+        status=OperationsMonitorStatus.WAITING,
+        source_count=1,
+        last_data_at=None,
+        latest_analysis_at=None,
+        pending_review_count=0,
+        attention_count=0,
+    )
+    snapshot = replace(
+        snapshot, registered_sources=(source,), monitor=replace(snapshot.monitor, assets=(asset,))
+    )
+    row = project_operations_monitor(snapshot)["assets"]["items"][0]
+    assert row["asset_id"] == "internal-pump-id"
+    assert row["asset_display_name"] == "순환 펌프 2호기"
+    conflicting = replace(
+        source, source_id="file-two", config=replace(source.config, asset_display_name="다른 이름")
+    )
+    snapshot = replace(snapshot, registered_sources=(source, conflicting))
+    assert project_operations_monitor(snapshot)["assets"]["items"][0]["asset_display_name"] is None
 
 
 def test_web_read_preserves_exact_phase_analysis_and_exclusions(tmp_path: Path) -> None:

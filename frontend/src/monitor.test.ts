@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { parseMonitor } from "./monitor.ts";
+import { assetLabel, assetOptionLabel, parseMonitor } from "./monitor.ts";
 
 const observed = {
   assets: {
@@ -35,6 +35,20 @@ test("missing an attention value never becomes zero", () => {
     },
   });
   assert.equal(data.assets[0].attentionCount, null);
+});
+
+test("registered names label assets without changing stable IDs, and duplicate names remain selectable", () => {
+  const assets = parseMonitor({...observed, assets: {...observed.assets, items: [
+    {asset_id:"pump-one", asset_display_name:"순환 펌프"},
+    {asset_id:"pump-two", asset_display_name:"순환 펌프"},
+    {asset_id:"pump-three", asset_display_name:"   "},
+  ]}}).assets;
+  assert.equal(assetLabel(assets, "pump-one"), "순환 펌프");
+  assert.equal(assets[0].assetId, "pump-one");
+  assert.equal(assetOptionLabel(assets, "pump-one"), "순환 펌프 · pump-one");
+  assert.equal(assetOptionLabel(assets, "pump-two"), "순환 펌프 · pump-two");
+  assert.equal(assetLabel(assets, "pump-three"), "pump-three");
+  assert.equal(assetLabel(assets, "unknown"), "unknown");
 });
 
 test("the measurement time is the stored event time, never when a file was read", () => {

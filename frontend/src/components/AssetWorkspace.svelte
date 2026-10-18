@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount} from "svelte";
-  import {flowLabel, type Asset} from "../monitor";
+  import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultKind, kindsOf, readAssetData, type AssetData} from "../asset-data";
   import {
     DATA_INFO, METHOD_INFO, TAB_INFO, TABS, methodsOf, routeUrl, usesDataKind,
@@ -66,21 +66,23 @@
 <div class="workspace-asset">
   <nav class="crumbs" aria-label="현재 위치">
     <a href={routeUrl({page: "assets", assetId: "", tab: "summary", method: null, data: null})}>설비·신호</a>
-    <span aria-hidden="true">›</span> <span>{asset.assetId}</span>
+    <span aria-hidden="true">›</span> <span>{assetLabel(assets, asset.assetId)}</span>
   </nav>
   <div class="head">
     <div class="title">
-      <h1>{asset.assetId}</h1>
+      <h1>{assetLabel(assets, asset.assetId)}</h1>
       <p class="meta">마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
     </div>
     {#if assets.length > 1}
       <label class="switch-asset">다른 설비
         <select value={asset.assetId} onchange={(event) => onSelectAsset(event.currentTarget.value)}>
-          {#each assets as option (option.assetId)}<option value={option.assetId}>{option.assetId}</option>{/each}
+          {#each assets as option (option.assetId)}<option value={option.assetId}>{assetOptionLabel(assets, option.assetId)}</option>{/each}
         </select>
       </label>
     {/if}
   </div>
+
+  <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
   <nav class="tabs" aria-label="설비 화면">
     {#each TABS as tab (tab)}

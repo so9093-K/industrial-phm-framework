@@ -15,8 +15,9 @@ test("showcase names the exact query, including duplicate values and numeric set
 });
 
 test("guide stays tied to the asset and task when loading a direct link",()=>{
-  assert.equal(steps.length,5);
-  assert.equal(currentStep(new URL(steps[3].href,"http://local").search),3);
-  assert.equal(currentStep("?page=maintenance"),4);
+  assert.equal(steps.length,6);
+  assert.equal(currentStep(new URL(steps[4].href,"http://local").search),4);
+  assert.equal(currentStep("?page=maintenance"),5);
+  assert.equal(currentStep(new URL(steps[2].href,"http://local").search),2);
   assert.ok(steps.slice(1).every(step=>step.href.includes("monitor_asset=demo-pump-change")));
 });

@@ -120,7 +120,7 @@
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
   <h2 id="projection-title">기준 도달 전망</h2>
-  <p class="intro">고른 신호가 지금까지의 추세대로 이어질 때 사용자가 정한 기준에 언제 닿는지 계산합니다.</p>
+  <p class="intro">고른 신호의 추세를 예측하고 관리·종료 기준까지 남은 시간을 계산합니다. 종료 기준까지의 시간은 조건부 잔여수명(RUL)이며, 기준이 실제 수명 종료를 대표하는지는 별도 근거가 필요합니다.</p>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
   {:else if optionsState === "failed"}
@@ -194,7 +194,7 @@
               <div><span>관리 기준 {num(projection.conditions.management)}{basis}</span><strong>{reachText(current?.management,"time")}</strong></div>
             {/if}
             {#if projection.conditions.end!==null}
-              <div><span>종료 기준 {num(projection.conditions.end)}{basis}</span><strong>{reachText(current?.end,"time")}</strong></div>
+              <div><span>조건부 잔여수명(RUL) · 종료 기준 {num(projection.conditions.end)}{basis}</span><strong>{reachText(current?.end,"time")}</strong></div>
             {/if}
           </div>
         {:else}
@@ -216,7 +216,7 @@
             <p class="axis-time"><span>{clock(chart.start)}</span><span>마지막 기록 {clock(chart.lastRecord)}</span><span>→ {clock(chart.end)}</span></p>
             <figcaption class="legend">
               <span><i class="key history"></i>저장된 측정</span>
-              <span><i class="key estimate"></i>예측</span>
+              <span><i class="key estimate"></i>추세 예측</span>
               <span><i class="key band"></i>예측 범위</span>
               {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {num(projection.conditions.management)}</span>{/if}
               {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {num(projection.conditions.end)}</span>{/if}
