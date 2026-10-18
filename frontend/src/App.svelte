@@ -24,6 +24,8 @@
   let error = $state("");
   let snapshot: Snapshot | null = $state(null);
   let writable: boolean | null = $state(null);
+  let permissionState: "checking" | "ready" | "failed" = $state("checking");
+  let permissionController: AbortController | null = null;
   let example = $state(false);
   let notes: Record<string, number> = $state({});
   const returnTo = sampleReturn(location.search);
@@ -103,6 +105,26 @@
     }
   }
 
+  async function checkPermission() {
+    permissionController?.abort();
+    const pending = new AbortController();
+    permissionController = pending;
+    writable = null;
+    permissionState = "checking";
+    try {
+      const session = await readWriteSession(pending.signal);
+      if (pending.signal.aborted) return;
+      writable = session.writable;
+      example = session.example;
+      permissionState = "ready";
+    } catch {
+      if (pending.signal.aborted) return;
+      // A failed capability read never becomes a writable session.
+      writable = null;
+      permissionState = "failed";
+    }
+  }
+
   function observed(at: string | null): string {
     if (!at) return "기록 없음";
     const date = new Date(at);
@@ -128,17 +150,14 @@
       event.preventDefault();
       if (url.pathname + url.search !== location.pathname + location.search) void navigate(url.pathname + url.search);
     };
-    const permission = new AbortController();
-    void readWriteSession(permission.signal).then((session) => {
-      if (!permission.signal.aborted) { writable = session.writable; example = session.example; }
-    }).catch(() => {});
+    void checkPermission();
     window.addEventListener("popstate", restore);
     window.addEventListener("hashchange", restore);
     document.addEventListener("click", follow);
     void refresh();
     return () => {
       controller?.abort();
-      permission.abort();
+      permissionController?.abort();
       window.removeEventListener("popstate", restore);
       window.removeEventListener("hashchange", restore);
       document.removeEventListener("click", follow);
@@ -162,8 +181,16 @@
       {/each}
     </nav>
     <div class="topbar-side">
-      {#if writable === true}<span class="mode">운영 중 · 기록 가능</span>
-      {:else if writable === false}<span class="mode">보기 전용</span>{/if}
+      {#if permissionState === "checking"}
+        <span class="mode" role="status">쓰기 권한 확인 중 · 기록 잠시 중지</span>
+      {:else if permissionState === "failed"}
+        <span class="mode" role="status">쓰기 권한 확인 실패 · 보기만 가능</span>
+        <button type="button" class="ui-button" onclick={() => void checkPermission()}>권한 다시 확인</button>
+      {:else if writable === true}
+        <span class="mode" role="status">운영 중 · 기록 가능</span>
+      {:else}
+        <span class="mode" role="status">보기 전용</span>
+      {/if}
     </div>
   </div>
 </header>
