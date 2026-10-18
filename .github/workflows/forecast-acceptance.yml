@@ -1,6 +1,7 @@
 name: Forecast acceptance
 
 on:
+  # Forecast data projections also change when the shared monitor read DTO changes.
   pull_request:
     paths:
       - ".github/workflows/forecast-acceptance.yml"
@@ -32,6 +33,9 @@ on:
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
+      - "src/industrial_phm/runtime/operations_web_read.py"
+      - "src/industrial_phm/runtime/operations_web_phm_models.py"
+      - "src/industrial_phm/runtime/operations_web_condition.py"
   push:
     branches: [main]
     paths:
@@ -64,6 +68,9 @@ on:
       - "tests/integration/test_operations_web_explore.py"
       - "tests/integration/test_operations_web_capabilities.py"
       - "tests/support/phm.py"
+      - "src/industrial_phm/runtime/operations_web_read.py"
+      - "src/industrial_phm/runtime/operations_web_phm_models.py"
+      - "src/industrial_phm/runtime/operations_web_condition.py"
 
 permissions:
   contents: read

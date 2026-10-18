@@ -34,9 +34,10 @@ from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 _MAX_MESSAGE_BYTES = 8192
 _MAX_REQUESTS_PER_GENERATION = 512
 _TIMEOUT_SECONDS = 5.0
-# Launching an isolated packaged demo starts its own local supervisor and OPC UA
-# listener; a 5-second timeout would turn a successful spawn into "unknown".
-_DEMO_TIMEOUT_SECONDS = 45.0
+# A packaged cold start can need the full 60 seconds allowed to bring up
+# the synthetic demo's Web. The command reply must remain bounded yet have
+# enough time for that actual readiness probe (no speculative retry).
+_DEMO_TIMEOUT_SECONDS = 90.0
 _PHASE_FILE_TIMEOUT_SECONDS = 30.0
 
 

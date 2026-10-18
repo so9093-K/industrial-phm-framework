@@ -19,7 +19,10 @@ from industrial_phm.runtime.operations_config import load_operations_runtime_con
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _CLI_BOOTSTRAP = "from industrial_phm.cli import main; raise SystemExit(main())"
-_SAMPLE_STARTUP_TIMEOUT_SECONDS = 15.0
+# The nested demo starts a simulator, supervisor, collector and Web Python workers.
+# A packaged Docker cold start can legitimately exceed 15 seconds; still bound
+# the single startup attempt and only return after the real Web listener answers.
+_SAMPLE_STARTUP_TIMEOUT_SECONDS = 60.0
 _SAMPLE_PROCESS: DemoChildProcess | None = None
 _SAMPLE_LAUNCH: FirstRunSampleLaunch | None = None
 _CLEANUP_REGISTERED = False

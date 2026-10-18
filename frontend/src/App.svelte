@@ -234,8 +234,10 @@
       {/if}
       {#if route.page === "monitor"}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
       {#if route.page === "maintenance"}
-        <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
-          focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
+        {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
+          <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
+            focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
+        {/key}
       {:else if route.page === "investigations"}
         <InvestigationRecords {snapshot} writable={writable === true} assetId={route.assetId} />
 
