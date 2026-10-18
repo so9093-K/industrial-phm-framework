@@ -524,7 +524,11 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
 def test_maintenance_direct_link_requires_matching_asset_and_survives_navigation(
     tmp_path: Path, width: int
 ) -> None:
-    """A cross-asset URL may never pick a capture already loaded in the queue."""
+    """A cross-asset URL may never pick a capture already loaded in the queue.
+
+    In particular, navigation may not reuse a previous matching ID from B
+    while the bookmark still declares asset A as the evidence owner.
+    """
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "cross-asset-queue")
     initialize_operations_workspace(workspace)
