@@ -23,7 +23,41 @@ DIST = ROOT / "dist/showcase"
 MEDIA = ROOT / "assets/showcase"
 
 
-def capture(media: bool) -> None:
+def verify_committed_media(evidence: dict[str, object]) -> None:
+    """Fail if published screenshots describe a different bundled UI or selection.
+
+    CI checks this against the versioned snapshot *before* export regenerates data.
+    An export can contain fresh generated review IDs, so comparing after export
+    would incorrectly require those temporary IDs to match committed media.
+    """
+    recorded = json.loads((MEDIA / "capture.json").read_text(encoding="utf-8"))
+    fields = (
+        "screens", "viewport", "api_backend", "data_kind",
+        "snapshot_sha256", "bundle_manifest_sha256",
+    )
+    changed = [field for field in fields if recorded.get(field) != evidence.get(field)]
+    if changed:
+        raise AssertionError(
+            "Published product screenshots are stale (" + ", ".join(changed)
+            + "). Regenerate the snapshot and media with tools.showcase.export, "
+            "build:showcase, then tools.showcase.capture."
+        )
+    names = [screen["name"] for screen in recorded["screens"]]
+    if names != [
+        "01-observe", "02-signals", "03-anomaly", "04-compare",
+        "05-outlook", "06-review",
+    ]:
+        raise AssertionError("Published showcase screen order is incomplete.")
+    for file in [*(MEDIA / (name + ".png") for name in names),
+                 MEDIA / "walkthrough.gif", MEDIA / "walkthrough.webm"]:
+        if not file.is_file() or file.stat().st_size == 0:
+            raise AssertionError("Published showcase media missing or empty: " + file.name)
+
+
+def capture(media: bool, *, verify_committed: bool = False) -> None:
+    if media and verify_committed:
+        raise ValueError("Verify committed media only with --no-media.")
+
     if not (DIST / "web/index.html").is_file():
         raise RuntimeError("Build with npm run --prefix frontend build:showcase first")
     MEDIA.mkdir(parents=True, exist_ok=True)
@@ -212,6 +246,8 @@ def capture(media: bool) -> None:
                     json.dumps(evidence, ensure_ascii=False, indent=2) + "\n"
                 )
             browser.close()
+        if verify_committed:
+            verify_committed_media(evidence)
         print("PASS: static current UI, captured calculations, read-only guards, reload and mobile")
     finally:
         server.shutdown()
@@ -222,4 +258,9 @@ def capture(media: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-media", action="store_true")
-    capture(not parser.parse_args().no_media)
+    parser.add_argument(
+        "--verify-committed-media", action="store_true",
+        help="Reject stale published captures (before rebuilding scenario responses).",
+    )
+    args = parser.parse_args()
+    capture(not args.no_media, verify_committed=args.verify_committed_media)
