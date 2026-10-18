@@ -71,7 +71,7 @@
   <div class="head">
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
-      <p class="meta">마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
+      <p class="meta">{!asset.lastObservedAt && data?.vibration ? "마지막 측정 순서 #" + data.vibration.last : "마지막 측정 " + observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
     </div>
     {#if assets.length > 1}
       <label class="switch-asset">다른 설비

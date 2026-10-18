@@ -142,7 +142,9 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                     wait_until="networkidle",
                 )
                 pw.expect(page.get_by_role("heading", name="진동 특징 관계")).to_be_visible()
-                pw.expect(page.get_by_text("적용 모델 binding-a")).to_be_visible()
+                # The binding identity stays available under 기술 상세, not in the main line.
+                page.get_by_text("기술 상세", exact=True).first.click()
+                pw.expect(page.get_by_text("적용 모델 연결 binding-a")).to_be_visible()
                 pw.expect(page.locator("table")).to_have_count(2)
                 pw.expect(
                     page.get_by_role("status").filter(has_text="관계가 없다는 뜻은 아닙니다")

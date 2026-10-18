@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
-  import {loadLatestScores, scoreSummary, type LatestScore} from "../model-evidence";
+  import {loadLatestScores, modelName, scoreSummary, type LatestScore} from "../model-evidence";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
@@ -37,8 +37,12 @@
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
   }
+  // Vibration deliveries carry an order, not always a clock; say which one is last.
+  const lastMeasured = $derived(!asset.lastObservedAt && data?.vibration
+    ? "측정 순서 #" + data.vibration.last + " · 측정 시각 기록 없음" : observed(asset.lastObservedAt));
   function attention(count: number | null): string {
-    if (count === null) return "확인하지 못함";
+    // Only stored-history assets are counted here; model notes live on 관측 현황 and 이상 징후.
+    if (count === null) return "이 목록에서 집계하지 않음";
     return count ? count + "건" : "없음";
   }
 </script>
@@ -58,7 +62,7 @@
         {@const summary = item.run ? scoreSummary(item.run.output) : null}
         <li>
           <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
-          <span>{item.binding.packageId}
+          <span>{modelName(item.binding)}
             {#if item.run && summary}
               · 측정 순서 #{item.run.position} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
             {/if}</span>
@@ -72,7 +76,7 @@
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
   <h2 id="summary-title">기록 현황</h2>
   <dl class="facts">
-    <div><dt>마지막 측정</dt><dd>{observed(asset.lastObservedAt)}</dd></div>
+    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
     <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
       <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
     <div><dt>확인할 항목</dt><dd>{attention(asset.attentionCount)}</dd></div>

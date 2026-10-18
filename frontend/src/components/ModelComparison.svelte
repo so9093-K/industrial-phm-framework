@@ -17,6 +17,15 @@
     return Object.entries(raw).filter((entry): entry is [string,number] => typeof entry[1]==="number"&&Number.isFinite(entry[1])).sort((a,b)=>b[1]-a[1]);
   });
   const rows=$derived.by(() => { const flow: ModelRange | null = range; return flow ? [{name:"primary",label:"모델 점수",shape:flow.primary},...flow.features] : []; });
+  // Rows with a change point to open come first; the rest are named once instead of repeated.
+  const marked=$derived(rows.filter(row=>row.shape.shift||row.shape.largest));
+  const quiet=$derived(rows.filter(row=>!row.shape.shift&&!row.shape.largest));
+  // The measurements that changed most lead the table.
+  const ordered=$derived.by(()=>{
+    const current: Comparison | null = comparison;
+    const size=(value:number|null)=>value===null?-1:Math.abs(value);
+    return current?[...current.features].sort((a,b)=>size(b.relativePercent)-size(a.relativePercent)):[];
+  });
   function exploration(feature:string):string|null {
     if(compare===null||binding.stepKind!=="acquisition-snapshot")return null;
     const split=Math.floor((compare+run.position)/2);
@@ -55,10 +64,10 @@
     {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
     <div class="scroll"><table>
-      <caption>측정 특징 비교</caption>
+      <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th></tr></thead>
-      <tbody>{#each comparison.features as feature(feature.feature)}
-        <tr><th scope="row"><button class="text-button" onclick={()=>open(run.position,feature.feature)}>{feature.label} · 원본 확인</button></th>
+      <tbody>{#each ordered as feature(feature.feature)}
+        <tr><th scope="row"><button class="text-button" aria-label={feature.label + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{feature.label}</button></th>
           <td>{num(feature.previous,"—")}</td><td>{num(feature.current)}</td><td>{feature.relativePercent===null?"—":num(feature.relativePercent)+"%"}</td></tr>
       {/each}</tbody>
     </table></div>
@@ -68,17 +77,17 @@
     {:else if range && compare !== null}
       <p class="context">구간 흐름 · {place(compare)} → {place(run.position)} · 분석 {range.steps}개{range.sampled?" · 흐름은 "+range.points+"개 표본, 최대 변화는 전체 기록":""}</p>
       <div class="flow" role="table" aria-label="구간 흐름">
-        {#each rows as row(row.name)}
+        {#each marked as row(row.name)}
           <div class="flow-row" role="row"><div role="rowheader"><strong>{row.label}</strong></div>
             <span role="cell">{shapeText(row.shape)}</span>
             <div role="cell">
               {#if row.shape.shift}<button class="ui-button" onclick={()=>open(row.shape.shift!.at,row.name,true)}>수준 변화 {place(row.shape.shift.at)} · 원본 확인</button>{/if}
               {#if row.shape.largest}<button class="ui-button" onclick={()=>open(row.shape.largest!.to,row.name,true)}>가장 큰 변화 {place(row.shape.largest.from)} → {place(row.shape.largest.to)} · 원본 확인</button>{/if}
-              {#if !row.shape.shift&&!row.shape.largest}<span class="context">{row.shape.trend==="insufficient"?"변화 지점을 계산할 기록 부족":"표시할 변화 지점 없음"}</span>{/if}
             </div>
           </div>
         {/each}
       </div>
+      {#if quiet.length}<p class="context">변화 지점이 없거나 계산할 기록이 부족한 값 {quiet.length}개 · {quiet.map(row=>row.label).join(", ")}</p>{/if}
       <p class="context">변화 지점을 누르면 그 지점의 원본을 열고 다음 질문의 기준으로 지정합니다.</p>
     {/if}
   {/if}

@@ -137,9 +137,6 @@
     <p class="context">비교할 이전 분석이 없어 {place(run.position)} 한 시점만 설명합니다.</p>
   {/if}
 
-  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
-  {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
-    <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
 
   {#if requesting}
     <StatusNotice message="해설을 요청하고 있습니다." />
@@ -196,6 +193,8 @@
       <button type="button" class="ui-button ui-button-primary" onclick={() => void ask(DEFAULT_QUESTION)}>해설 만들기</button>
     {/if}
   {/if}
+  {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
+    <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
   {#if !writable}
     <p class="context">보기 전용이라 해설을 만들 수 없습니다. 운영을 시작하면 만들 수 있습니다.</p>
   {:else}
@@ -211,6 +210,12 @@
         onclick={() => void ask(question)}>질문 보내기</button>
     </details>
   {/if}
+  <!-- The explanation comes first; the stored values it rests on stay one click away,
+       open while there is no answer to read. -->
+  <details class="evidence" open={!latest?.answer}>
+    <summary>해설의 근거 · 두 측정의 측정값과 구간 흐름</summary>
+    <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
+  </details>
 </section>
 
 <style>
@@ -223,6 +228,7 @@
   select, input { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
     padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .ask { display: grid; gap: var(--space-3); }
+  .evidence { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
   .ask button { justify-self: start; margin-top: var(--space-3); }
   .scroll { max-width: 100%; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; }

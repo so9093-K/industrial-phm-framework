@@ -370,3 +370,14 @@ def test_live_browser_gate_rejects_false_state_or_source_evidence():
     )["passed"]
     incorrect = {**renders, "recovered": {**fast, "matched": "Source flow · Disconnected"}}
     assert not check_live_browser_journey(incorrect)["passed"]
+
+
+def test_harness_screen_text_is_what_the_web_shows() -> None:
+    """The browser check looks for the Korean label the Web maps each server title to."""
+    from tools.opcua.fault_harness import _SCREEN_TEXT, _UI_ATTENTION
+
+    mapping = (Path(__file__).parents[2] / "frontend/src/monitor.ts").read_text(encoding="utf-8")
+    for english, korean in _SCREEN_TEXT.items():
+        assert f'"{english}": "{korean}"' in mapping
+    for titles in _UI_ATTENTION.values():
+        assert all(title in _SCREEN_TEXT for title in titles)

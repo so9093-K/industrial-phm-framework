@@ -1007,7 +1007,9 @@ class Harness:
                 titles = list(snapshot["attention"])  # type: ignore[call-overload]
                 wanted = [t for t in _UI_ATTENTION[name] if t in titles]
                 expected = (wanted or _UI_ATTENTION[name])[0]
-            render = self.stack.browser_render(name, expected)
+            render = self.stack.browser_render(
+                name, None if expected is None else _SCREEN_TEXT.get(expected, expected)
+            )
             self.renders[name] = render
             print(f"  {name}: browser {render.get('seconds')}s", flush=True)
 
@@ -1259,6 +1261,15 @@ class Harness:
         }
         print(f"  review workflow: {self.workflow}", flush=True)
 
+
+# The screen shows these server titles in Korean (ATTENTION_TEXT in frontend/src/monitor.ts).
+_SCREEN_TEXT = {
+    "No new data": "새 측정이 들어오지 않음",
+    "Collection needs attention": "데이터 수집 확인 필요",
+    "Source connection lost": "데이터 연결 끊김",
+    "Collection service is not running": "데이터 수집 서비스가 실행되지 않음",
+    "Analysis service is not updating": "분석 실행기 응답 지연",
+}
 
 _UI_ATTENTION = {
     "source_stale": ("No new data",),

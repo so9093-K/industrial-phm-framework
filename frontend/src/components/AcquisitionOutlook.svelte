@@ -15,7 +15,7 @@
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
     type AcquisitionOptions,type AcquisitionProjection,type AcquisitionFeature,
   } from "../acquisition-outlook";
-  import type {Conditions,Direction,Horizon} from "../projections";
+  import {HORIZON_LABEL,type Conditions,type Direction,type Horizon} from "../projections";
 
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed"|"mismatch";
@@ -130,7 +130,7 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <p class="context">데이터 출처 <strong>{options.sourceId}</strong> · 적용 모델 {options.bindingId}
+    <p class="context">데이터 출처 <strong>{options.sourceId}</strong>
       · 측정 #{options.first}~#{options.last} · 분석 {options.count}회
       · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+num(options.recordedPeriod)+"초"}</p>
     <div class="inputs">
@@ -138,13 +138,13 @@
         <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();}}>
           {#each options.features as item (item.id)}
             <option value={item.id} disabled={!item.countForecast}>
-              {item.label} · {item.id} · {item.validPoints}회{item.countForecast?"":" (부족)"}
+              {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
             </option>
           {/each}
         </select>
       </label>
       <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
-      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{h}</option>{/each}</select></label>{/if}
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
       <label>앞으로 볼 측정 횟수 (1~2000)
         <input type="number" min="1" max="2000" step="1" value={countText}
           oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>

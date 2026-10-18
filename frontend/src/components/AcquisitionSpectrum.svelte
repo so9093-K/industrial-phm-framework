@@ -18,15 +18,18 @@
   let spectrumRequest:AbortController|null=null;
 
   const fmt=(value:number)=>value.toExponential(3);
+  // Drawn on a stretchable 800x180 plot; every label is page text, not scaled SVG text.
   function trace(values:number[],channel:SpectrumChannel,frequencies:number[]):string {
     const top=Math.max(...channel.a,...channel.b,1e-16);
     const lo=frequencies[0], hi=frequencies[frequencies.length-1];
     return values.map((n,i)=>{
-      const x=24+590*(frequencies[i]-lo)/Math.max(hi-lo,1e-12);
-      const y=113-91*n/top;
+      const x=800*(frequencies[i]-lo)/Math.max(hi-lo,1e-12);
+      const y=176-168*n/top;
       return x.toFixed(1)+","+y.toFixed(1);
     }).join(" ");
   }
+  // A band whose power barely moved is not "크게 달라진"; 1 dB is about a quarter more or less power.
+  const MEANINGFUL_DB=1;
   function remember() {
     if(!spans)return;
     const url=new URL(location.href);
@@ -106,7 +109,7 @@
     <StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
-    <p class="context">데이터 출처 <strong>{acquisition.source}</strong> · 적용 모델 {acquisition.binding}
+    <p class="context">데이터 출처 <strong>{acquisition.source}</strong>
       · 측정 #{acquisition.first} ~ #{acquisition.last}</p>
     <div class="periods">
       {#each ["a","b"] as label(label)}
@@ -137,23 +140,28 @@
     {:else if result}
       <p class="context">기간 A 측정 #{result.used.a.join(", #")} · 기간 B 측정 #{result.used.b.join(", #")}</p>
       {#each result.channels as channel(channel.id)}
+        {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         <section class="series">
           <h3>{channel.label} · {channel.id}</h3>
-          <svg role="img" viewBox="0 0 640 145"
-            aria-label="주파수별 세기. 기간 A는 진한 선, B는 밝은 선입니다. 정확한 값은 표에 있습니다.">
-            <path d="M24 20 V120 H614" class="axis"/>
+          <p class="axis-note">세로축: 주파수별 평균 세기 · 최대 {fmt(Math.max(...channel.a,...channel.b))}</p>
+          <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
+            aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + result.frequencies[0].toFixed(0) + "Hz부터 " + result.frequencies[result.frequencies.length-1].toFixed(0) + "Hz까지. 정확한 값은 표에 있습니다."}>
             <polyline points={trace(channel.a,channel,result.frequencies)} class="line-a"/>
             <polyline points={trace(channel.b,channel,result.frequencies)} class="line-b"/>
-            <text x="34" y="138" class="legend">기간 A: 진한 선 · 기간 B: 밝은 선</text>
+            <path d="M0 0 V180 H800" class="axis"/>
           </svg>
-          {#if channel.bands.length}
+          <p class="axis-x"><span>{result.frequencies[0].toFixed(0)} Hz</span><span>{result.frequencies[result.frequencies.length-1].toFixed(0)} Hz</span></p>
+          <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span></p>
+          {#if changed.length}
             <h4>세기가 크게 달라진 주파수</h4>
             <ol>
-              {#each channel.bands as band,i(i)}
+              {#each changed as band,i(i)}
                 <li>{band.from.toFixed(1)}–{band.to.toFixed(1)}Hz
                   · B/A 세기 변화 {band.changeDb.toFixed(2)}dB</li>
               {/each}
             </ol>
+          {:else if channel.bands.length}
+            <p class="context">두 기간의 세기 차이가 {MEANINGFUL_DB}dB 이상인 주파수는 없습니다.</p>
           {:else}
             <StatusNotice message="두 기간 모두 계산할 수 있는 주파수 대역이 없어 변화량을 보여 줄 수 없습니다."/>
           {/if}
@@ -178,7 +186,8 @@
         <summary>기술 상세</summary>
         <p class="context">Welch PSD · 샘플링 {result.samplingRate}Hz · 세그먼트 {result.segment}개 샘플.
           세기는 PSD를 주파수 구간별로 평균한 값이며, 원본 물리 단위가 확인되지 않아 단위를 붙이지 않습니다.
-          두 기간 그래프는 채널마다 같은 선형 축을 씁니다. 이 응답은 데이터 출처 ID를 따로 돌려주지 않습니다.</p>
+          두 기간 그래프는 채널마다 같은 선형 축을 씁니다. 이 응답은 데이터 출처 ID를 따로 돌려주지 않습니다.
+          · 적용 모델 연결 {acquisition.binding}</p>
       </details>
     {/if}
   {/if}
@@ -192,10 +201,14 @@
     color:var(--color-ink);background:var(--color-surface);padding:var(--space-3)}
   fieldset{min-width:0;border:1px solid var(--color-border);border-radius:var(--radius-panel);display:grid;gap:var(--space-3)}
   .series{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
-  svg{display:block;width:100%;height:auto}.axis{stroke:var(--color-border);fill:none}
+  svg{display:block;width:100%;height:180px}svg polyline,svg path{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
   .line-a{fill:none;stroke:var(--color-action);stroke-width:2}
-  .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:4 3}
-  .legend{font-size:12px;fill:var(--color-ink)}li{overflow-wrap:anywhere}
+  .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:5 4}
+  .axis-note,.axis-x,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
+  .axis-x{display:flex;justify-content:space-between}
+  .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
+  .key{display:inline-block;width:18px;height:0;border-top:2px solid var(--color-action);vertical-align:middle;margin-inline-end:var(--space-1)}
+  .key.b{border-top:2px dashed var(--color-ink-muted)}li{overflow-wrap:anywhere}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}

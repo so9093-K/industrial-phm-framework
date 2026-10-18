@@ -6,6 +6,11 @@ export type ModelBinding={
   task:string|null;recipeId:string|null;packageAvailable:boolean;
   lastAnalyzed:number|null;lastProcessed:number|null;
 };
+/** A connected model as people name it: its recipe, or its package without the content hash.
+ * The package and binding identifiers stay under 기술 상세. */
+export function modelName(binding:{recipeId:string|null;packageId:string}):string{
+  return binding.recipeId ?? binding.packageId.replace(/-[0-9a-f]{12}$/,"");
+}
 export type StepPointer={
   position:number;runId:string;state:"analyzed"|"skipped";stepKey:string;changeSeq:number;
   reason:string|null;

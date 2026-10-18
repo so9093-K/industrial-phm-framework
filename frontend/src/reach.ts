@@ -7,6 +7,8 @@ export type ReachAxis = "time" | "acquisition";
 function offset(value: number, axis: ReachAxis): string {
   if (axis === "acquisition") return "추가 측정 " + value + "회 후";
   const hours = value / 3600;
+  // Under an hour reads in minutes; "약 0.0시간" said nothing.
+  if (hours < 1) return "마지막 기록 후 약 " + Math.max(1, Math.round(value / 60)) + "분";
   return "마지막 기록 후 약 " + (hours < 48 ? hours.toFixed(1) + "시간" : (hours / 24).toFixed(1) + "일");
 }
 
