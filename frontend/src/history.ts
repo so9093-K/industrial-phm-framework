@@ -213,6 +213,15 @@ export function signalChart(
   return {width, height, low, high, from: new Date(start).toISOString(), path: path.trim(), marks};
 }
 
+/** Whether stored data reaches back to the window's start, so the record may be longer
+ * than the window and a wider read is worth making. */
+export function fillsWindow(trend: HistoryTrend): boolean {
+  const first = trend.buckets.find(b => b.usableCount > 0);
+  if (!first) return false;
+  const step = (trend.bucketSeconds ?? 0) * 1000 * 1.5;
+  return Date.parse(first.firstEventAt ?? first.bucketStart) - Date.parse(trend.startAt) <= step;
+}
+
 /** The shortest window that still holds the whole stored record, so a 3-day file and a
  * minutes-old live source both fill the chart. */
 export function fittingRange(trend: HistoryTrend): RangePreset {

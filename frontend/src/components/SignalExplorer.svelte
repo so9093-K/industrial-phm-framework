@@ -4,7 +4,7 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import {num} from "../format";
   import {
-    fittingRange, groupHistory, readChannels, readTrend, signalChart,
+    fillsWindow, fittingRange, groupHistory, readChannels, readTrend, signalChart,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
   } from "../history";
 
@@ -22,8 +22,8 @@
   const chosenAnchor = params.get("monitor_anchor");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
   const explicitRange = chosenRange === "15m" || chosenRange === "1h" || chosenRange === "24h" || chosenRange === "7d";
-  let range: RangePreset = $state(explicitRange ? chosenRange : "7d");
-  // Without a chosen window the first read fits the window to the stored record.
+  let range: RangePreset = $state(explicitRange ? chosenRange : "1h");
+  // Without a chosen window the last hour shows at once; a longer record then widens it.
   let fitRange = !explicitRange;
   let anchor: TimeAnchor = $state(chosenAnchor === "now" ? "now" : "latest");
   let channelAbort: AbortController | null = null;
@@ -90,20 +90,25 @@
     error = "";
     trendState = "loading";
     try {
-      let result = await readTrend(assetId, selectedChannel, range, anchor, request.signal);
+      const result = await readTrend(assetId, selectedChannel, range, anchor, request.signal);
       if (request.signal.aborted) return;
-      if (fitRange) {
-        fitRange = false;
-        const fitting = fittingRange(result);
-        if (fitting !== range) {
-          range = fitting;
-          rememberChannel();
-          result = await readTrend(assetId, selectedChannel, range, anchor, request.signal);
-          if (request.signal.aborted) return;
-        }
-      }
       trend = result;
       trendState = result.buckets.length || result.latest.length ? "ready" : "empty";
+      if (fitRange) {
+        fitRange = false;
+        if (!fillsWindow(result)) return;
+        // Choosing another window or signal meanwhile aborts this request.
+        const wide = await readTrend(assetId, selectedChannel, "7d", anchor, request.signal);
+        if (request.signal.aborted) return;
+        const fitting = fittingRange(wide);
+        if (fitting === range) return;
+        const fitted = fitting === "7d" ? wide : await readTrend(assetId, selectedChannel, fitting, anchor, request.signal);
+        if (request.signal.aborted) return;
+        range = fitting;
+        rememberChannel();
+        trend = fitted;
+        trendState = fitted.buckets.length || fitted.latest.length ? "ready" : "empty";
+      }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
       trendState = "failed";
