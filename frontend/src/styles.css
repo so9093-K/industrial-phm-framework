@@ -5,7 +5,8 @@ html { background: var(--color-canvas); color: var(--color-ink); }
 body { margin: 0; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-button:disabled { opacity: .6; cursor: wait; }
+button:disabled { opacity: .6; cursor: not-allowed; }
+button[aria-busy="true"] { cursor: progress; }
 :focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
 a { color: var(--color-action); }
 
