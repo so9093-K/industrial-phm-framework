@@ -72,3 +72,27 @@ def test_walkthrough_exposes_named_assets_and_real_baseline_analysis() -> None:
             assert responses[key]["body"]["interval_count"] > 0
         else:
             assert responses[key]["body"]["interval_count"] == 0
+
+
+def test_published_capture_has_all_six_screens_and_recorded_media() -> None:
+    """No placeholder image can pass as the current product's published journey."""
+    media = FIXTURES.parents[2] / "assets/showcase"
+    record = json.loads((media / "capture.json").read_text())
+    names = [
+        "01-observe",
+        "02-signals",
+        "03-anomaly",
+        "04-compare",
+        "05-outlook",
+        "06-review",
+    ]
+    assert [item["name"] for item in record["screens"]] == names
+    assert record["viewport"] == [1440, 1100]
+    assert record["api_backend"] is False and record["data_kind"] == "synthetic"
+    assert all(item["path"].startswith("/web/") for item in record["screens"])
+    for name in names:
+        raw = (media / (name + ".png")).read_bytes()
+        assert raw.startswith(bytes.fromhex("89504e470d0a1a0a"))
+        assert len(raw) > 1024
+    assert (media / "walkthrough.gif").read_bytes()[:6] in (b"GIF87a", b"GIF89a")
+    assert (media / "walkthrough.webm").read_bytes().startswith(bytes.fromhex("1a45dfa3"))
