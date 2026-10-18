@@ -38,8 +38,11 @@ def _paths(path: str, event: str) -> tuple[str, ...]:
     assert event_header in lines
     start = lines.index(event_header)
     end = next(
-        (index for index in range(start + 1, len(lines)) if lines[index] and not
-         lines[index].startswith("  ")),
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index] and not lines[index].startswith("  ")
+        ),
         len(lines),
     )
     block = lines[start:end]
