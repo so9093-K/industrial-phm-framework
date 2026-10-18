@@ -13,7 +13,7 @@ VERIFY_STAGE ?= ci
 VERIFY_PLATFORM ?=
 _verify_platform = $(if $(VERIFY_PLATFORM),--platform $(VERIFY_PLATFORM),)
 
-.PHONY: help up down status logs demo verify-linux _require-uv _require-npm frontend _prepare \
+.PHONY: help up down status logs demo showcase verify-linux _require-uv _require-npm frontend _prepare \
 	_require-linux _require-docker container-up container-down container-status container-logs
 
 help:
@@ -25,6 +25,7 @@ help:
 		'  make status   Show local Operations status' \
 		'  make logs     Show component logs' \
 		'  make demo     Start the synthetic Operations demo' \
+		'  make showcase Open the guided read-only product experience (Node/npm only)' \
 		'  make frontend Build the Operations Web static assets (needs Node.js and npm)' \
 		'  make container-up/down/status/logs  Explicit Docker Compose lifecycle' \
 		'  make verify-linux  Run the CI checks in a Linux container (needs Docker)' \
@@ -51,6 +52,10 @@ _require-npm:
 frontend: _require-npm
 	npm ci --prefix frontend --no-audit --no-fund
 	npm run --prefix frontend build
+
+showcase: _require-npm
+	npm ci --prefix frontend --no-audit --no-fund
+	npm run --prefix frontend showcase
 
 _prepare: _require-uv frontend
 	$(UV) python install $(PYTHON_VERSION)

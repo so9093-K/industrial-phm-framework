@@ -1,0 +1,34 @@
+{
+  "screens": [
+    {
+      "name": "01-observe",
+      "path": "/web/"
+    },
+    {
+      "name": "02-signals",
+      "path": "/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=24h&monitor_anchor=latest"
+    },
+    {
+      "name": "03-compare",
+      "path": "/web/?page=assets&tab=change&method=compare&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&compare_a=2026-10-01T00%3A00%3A00.000Z%7E2026-10-01T01%3A59%3A30.500Z&compare_b=2026-10-01T01%3A59%3A30.500Z%7E2026-10-01T03%3A59%3A01.000Z"
+    },
+    {
+      "name": "04-outlook",
+      "path": "/web/?page=assets&tab=outlook&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&projection_horizon=1h&projection_management=13&projection_end=15&forecast_seasonality=off&projection_direction=upper&forecast_prior=0.05&forecast_range=0.9&forecast_backtest=one"
+    },
+    {
+      "name": "05-review",
+      "path": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-24be342b-937a-4c93-a1f5-1aa438194649"
+    }
+  ],
+  "viewport": [
+    1440,
+    1100
+  ],
+  "api_backend": false,
+  "data_kind": "synthetic",
+  "snapshot_sha256": "edde535c34b1fd0688f3a6afcf33099b15ebdf86d503b993e5489e51b06a38ed",
+  "bundle_manifest_sha256": "a4ef382df05ea839b76c9db1cfaf72d7e6cb32082cd6ce151eb328dd95e8e790",
+  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-24be342b-937a-4c93-a1f5-1aa438194649",
+  "browser": "156.0.8078.4"
+}

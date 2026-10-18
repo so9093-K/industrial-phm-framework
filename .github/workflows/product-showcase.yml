@@ -1,0 +1,73 @@
+name: Product showcase
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/product-showcase.yml'
+      - 'frontend/**'
+      - 'src/**'
+      - 'tools/showcase/**'
+      - 'tests/contract/test_product_showcase.py'
+      - 'examples/operations/showcase/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Makefile'
+      - 'tools/verify/versions.env'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/product-showcase.yml'
+      - 'frontend/**'
+      - 'src/**'
+      - 'tools/showcase/**'
+      - 'tests/contract/test_product_showcase.py'
+      - 'examples/operations/showcase/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Makefile'
+      - 'tools/verify/versions.env'
+permissions:
+  contents: read
+concurrency:
+  group: showcase-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  showcase:
+    name: Guided experience without an API backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Load toolchain pins
+        run: grep -v '^#' tools/verify/versions.env >> "$GITHUB_ENV"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+      - name: Prepare export tools
+        run: |
+          uv sync --locked --extra history --extra forecast --extra opcua
+          uv pip install --python .venv/bin/python "playwright==$PLAYWRIGHT_VERSION"
+          uv run --no-sync playwright install --with-deps chromium
+          make frontend
+      - name: Check versioned input hashes and evidence
+        run: uv run --no-sync pytest tests/contract/test_product_showcase.py
+      - name: Verify the versioned experience users get from make showcase
+        run: |
+          npm run --prefix frontend build:showcase
+          uv run --no-sync python -m tools.showcase.capture --no-media
+      - name: Recompute the walkthrough with the current application
+        run: uv run --no-sync python -m tools.showcase.export
+      - name: Build a standalone static artifact
+        run: npm run --prefix frontend build:showcase
+      - name: Verify the UI, direct links, mobile layout and rejected unsupported selections
+        run: uv run --no-sync python -m tools.showcase.capture --no-media
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: industrial-phm-showcase
+          path: dist/showcase/
+          if-no-files-found: error
