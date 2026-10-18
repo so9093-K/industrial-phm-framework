@@ -41,7 +41,7 @@ def _paths(path: str, event: str) -> tuple[str, ...]:
         (
             index
             for index in range(start + 1, len(lines))
-            if lines[index] and not lines[index].startswith("  ")
+            if lines[index] and not lines[index].startswith("    ")
         ),
         len(lines),
     )
