@@ -32,24 +32,36 @@ def verify_committed_media(evidence: dict[str, object]) -> None:
     """
     recorded = json.loads((MEDIA / "capture.json").read_text(encoding="utf-8"))
     fields = (
-        "screens", "viewport", "api_backend", "data_kind",
-        "snapshot_sha256", "bundle_manifest_sha256",
+        "screens",
+        "viewport",
+        "api_backend",
+        "data_kind",
+        "snapshot_sha256",
+        "bundle_manifest_sha256",
     )
     changed = [field for field in fields if recorded.get(field) != evidence.get(field)]
     if changed:
         raise AssertionError(
-            "Published product screenshots are stale (" + ", ".join(changed)
+            "Published product screenshots are stale ("
+            + ", ".join(changed)
             + "). Regenerate the snapshot and media with tools.showcase.export, "
             "build:showcase, then tools.showcase.capture."
         )
     names = [screen["name"] for screen in recorded["screens"]]
     if names != [
-        "01-observe", "02-signals", "03-anomaly", "04-compare",
-        "05-outlook", "06-review",
+        "01-observe",
+        "02-signals",
+        "03-anomaly",
+        "04-compare",
+        "05-outlook",
+        "06-review",
     ]:
         raise AssertionError("Published showcase screen order is incomplete.")
-    for file in [*(MEDIA / (name + ".png") for name in names),
-                 MEDIA / "walkthrough.gif", MEDIA / "walkthrough.webm"]:
+    for file in [
+        *(MEDIA / (name + ".png") for name in names),
+        MEDIA / "walkthrough.gif",
+        MEDIA / "walkthrough.webm",
+    ]:
         if not file.is_file() or file.stat().st_size == 0:
             raise AssertionError("Published showcase media missing or empty: " + file.name)
 
@@ -259,7 +271,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-media", action="store_true")
     parser.add_argument(
-        "--verify-committed-media", action="store_true",
+        "--verify-committed-media",
+        action="store_true",
         help="Reject stale published captures (before rebuilding scenario responses).",
     )
     args = parser.parse_args()

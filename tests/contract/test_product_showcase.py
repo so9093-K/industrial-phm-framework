@@ -79,8 +79,12 @@ def test_published_capture_has_all_six_screens_and_recorded_media() -> None:
     media = FIXTURES.parents[2] / "assets/showcase"
     record = json.loads((media / "capture.json").read_text())
     names = [
-        "01-observe", "02-signals", "03-anomaly", "04-compare",
-        "05-outlook", "06-review",
+        "01-observe",
+        "02-signals",
+        "03-anomaly",
+        "04-compare",
+        "05-outlook",
+        "06-review",
     ]
     assert [item["name"] for item in record["screens"]] == names
     assert record["viewport"] == [1440, 1100]
