@@ -40,6 +40,7 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 pw.expect(asset).to_contain_text("진동 변화 확인 필요")
                 pw.expect(asset).to_contain_text("모델 기준 초과 1개")
                 # The asset list counts the same items, so the two never disagree.
+                # Counts are work items, never an inferred safety or failure ranking.
                 listed = page.get_by_role("region", name="설비 1개").get_by_role(
                     "link", name="bearing-a"
                 )
