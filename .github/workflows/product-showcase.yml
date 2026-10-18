@@ -56,6 +56,10 @@ jobs:
           make frontend
       - name: Check versioned input hashes and evidence
         run: uv run --no-sync pytest tests/contract/test_product_showcase.py
+      - name: Verify the versioned experience users get from make showcase
+        run: |
+          npm run --prefix frontend build:showcase
+          uv run --no-sync python -m tools.showcase.capture --no-media
       - name: Recompute the walkthrough with the current application
         run: uv run --no-sync python -m tools.showcase.export
       - name: Build a standalone static artifact
