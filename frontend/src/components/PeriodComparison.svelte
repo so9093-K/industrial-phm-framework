@@ -77,7 +77,9 @@
   }
   function selectChannel(id: string) {
     if (!sources?.channels.includes(id)) return;
-    selected = id; remember(); void compare();
+    selected = id;
+    remember();
+    if (!formError) void compare();
   }
   function changePeriod(which: "a" | "b", edge: "from" | "to", value: string) {
     if (!periods) return;
@@ -90,11 +92,16 @@
     try {
       periods = {...periods, [which]: {...periods[which], [edge]:isoKst(value)}};
       formError = "";
+      // The URL owns the user's selection, not the last server-calculated result.
+      // A reload must recover the selected interval even before recalculation.
+      remember();
     } catch (cause: unknown) {
       formError = cause instanceof Error ? cause.message : "구간 입력을 확인하세요.";
     }
   }
   async function compare() {
+    // A partly entered datetime has no valid server query; never reuse old periods.
+    if (formError) return;
     profileAbort?.abort();
     const request = new AbortController(); profileAbort = request;
     compareState = "loading"; result = null; error = ""; formError = "";
@@ -145,16 +152,16 @@
           <legend>기간 {name.toUpperCase()} · {name === "a" ? "비교 기준" : "살펴볼 기간"}</legend>
           <label>시작 (KST)
             <input type="datetime-local" value={kst(periods[name].from)}
-              onchange={e => changePeriod(name, "from", e.currentTarget.value)} />
+              oninput={e => changePeriod(name, "from", e.currentTarget.value)} />
           </label>
           <label>종료 (KST)
             <input type="datetime-local" value={kst(periods[name].to)}
-              onchange={e => changePeriod(name, "to", e.currentTarget.value)} />
+              oninput={e => changePeriod(name, "to", e.currentTarget.value)} />
           </label>
         </fieldset>
       {/each}
     </div>
-    <button class="ui-button ui-button-primary" type="button"
+    <button class="ui-button ui-button-primary" type="button" disabled={!!formError}
       onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
     {#if compareState === "loading"}
