@@ -133,15 +133,34 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                 period_a = page.get_by_role("group", name="기간 A · 비교 기준")
                 start = period_a.get_by_label("시작 (KST)")
                 start.fill("2026-10-14T12:00")
-                start.dispatch_event("change")
                 changed = page.get_by_role("status").filter(has_text="비교 조건이 변경되었습니다")
                 pw.expect(changed).to_be_visible()
                 pw.expect(page.get_by_role("table")).to_have_count(0)
-                assert page.url == before  # Only completed comparison is bookmarked.
+                assert page.url != before  # URL stores the selection, not calculated evidence.
+                assert parse_qs(urlsplit(page.url).query)["compare_a"][0].startswith(
+                    "2026-10-14T12:00:00+09:00~"
+                )
+                page.reload(wait_until="networkidle")
+                pw.expect(page.get_by_role("table")).to_have_count(2)
+                start = page.get_by_role("group", name="기간 A · 비교 기준").get_by_label(
+                    "시작 (KST)"
+                )
+                pw.expect(start).to_have_value("2026-10-14T12:00")
+                # Invalid partial input cannot silently recompute the previous interval.
+                start.fill("")
+                pw.expect(page.get_by_role("table")).to_have_count(0)
+                pw.expect(page.get_by_role("button", name="비교하기")).to_be_disabled()
+                pw.expect(page.get_by_role("alert")).to_contain_text("KST 날짜와 시각")
+                # Fixing it updates the selected URL and permits a fresh calculation.
+                start.fill("2026-10-14T13:00")
+                pw.expect(changed).to_be_visible()
+                pw.expect(page.get_by_role("button", name="비교하기")).to_be_enabled()
+                assert parse_qs(urlsplit(page.url).query)["compare_a"][0].startswith(
+                    "2026-10-14T13:00:00+09:00~"
+                )
                 page.get_by_role("button", name="비교하기").click()
                 pw.expect(page.get_by_role("table")).to_have_count(2)
                 pw.expect(changed).to_have_count(0)
-                assert page.url != before
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
