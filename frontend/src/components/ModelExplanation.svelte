@@ -12,12 +12,13 @@
   import StatusNotice from "./StatusNotice.svelte";
 
   /** AI explanation of one stored model result against an earlier analyzed measurement.
-   * The table shows the comparison the server stored and checked the answer against. */
+   * The table shows the comparison the server stored and checked the answer against.
+   * `suggested` is the last measurement before the over-threshold run that holds this one. */
   type Props = {
-    binding: ModelBinding; run: ModelRun; earlier: number[]; writable: boolean;
+    binding: ModelBinding; run: ModelRun; earlier: number[]; suggested?: number | null; writable: boolean;
     place: (position: number) => string; onInteract?: () => void; onExplained: (explanationId: string | null) => void;
   };
-  let {binding, run, earlier, writable, place, onExplained, onInteract}: Props = $props();
+  let {binding, run, earlier, suggested = null, writable, place, onExplained, onInteract}: Props = $props();
   let compare: number | null = $state(null);
   let focus: Focus | null = $state(null);
   let records: ModelExplanation[] = $state([]);
@@ -109,7 +110,7 @@
   }
   onMount(() => {
     const saved = Number(new URLSearchParams(location.search).get("model_compare"));
-    compare = Number.isSafeInteger(saved) && saved > 0 && saved < run.position ? saved : earlier[0] ?? null;
+    compare = Number.isSafeInteger(saved) && saved > 0 && saved < run.position ? saved : suggested ?? earlier[0] ?? null;
     void refresh();
     return cancel;
   });
@@ -127,9 +128,9 @@
     <label class="compare">비교할 이전 측정
       <select value={compare === null ? "" : String(compare)} disabled={requesting}
         onchange={(event) => choose(event.currentTarget.value)}>
-        {#if compare !== null && !earlier.includes(compare)}<option value={String(compare)}>{place(compare)}</option>{/if}
+        {#if compare !== null && !earlier.includes(compare)}<option value={String(compare)}>{place(compare)}{compare === suggested ? " · 기준 초과 직전" : ""}</option>{/if}
         {#each earlier as position (position)}
-          <option value={String(position)}>{place(position)}</option>
+          <option value={String(position)}>{place(position)}{position === suggested ? " · 기준 초과 직전" : position === earlier[0] ? " · 바로 이전" : ""}</option>
         {/each}
       </select>
     </label>

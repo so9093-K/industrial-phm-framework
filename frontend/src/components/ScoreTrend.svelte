@@ -2,13 +2,13 @@
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding, StepPointer} from "../model-evidence";
-  import {readScoreTrend, trendSummary, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** Every stored score of this model in input order, its threshold and the intervals the
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
-    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[]) => void};
+    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void};
   let {binding, selected, place, onSelect, onLoaded}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
@@ -51,7 +51,7 @@
   onMount(() => {
     const request = new AbortController();
     void readScoreTrend(binding, request.signal).then((value) => {
-      if (!request.signal.aborted) { trend = value; loadState = "ready"; onLoaded?.(value.points.map(point=>point.pointer)); }
+      if (!request.signal.aborted) { trend = value; loadState = "ready"; onLoaded?.(value.points.map(point=>point.pointer), value.intervals); }
     }).catch(() => { if (!request.signal.aborted) loadState = "failed"; });
     return () => request.abort();
   });

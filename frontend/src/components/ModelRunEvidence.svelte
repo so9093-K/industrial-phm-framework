@@ -6,14 +6,16 @@
   import ModelExplanation from "./ModelExplanation.svelte";
   import ModelInput from "./ModelInput.svelte";
   import ScoreTrend from "./ScoreTrend.svelte";
+  import ModelScoreOverlay from "./ModelScoreOverlay.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
   import {num} from "../format";
   import {readPermission} from "../outlook-briefings";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelName,NoModelEvidence,scoreSummary,
+    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
+  import {beforeInterval,type Interval} from "../model-trend";
 
   let {assetId}:{assetId:string}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
@@ -24,6 +26,7 @@
   let binding:ModelBinding|null=$state(null);
   let trace:ModelTrace|null=$state(null);
   let trendSteps:StepPointer[]=$state([]);
+  let intervals:Interval[]=$state([]);
   let selectedStep:StepPointer|null=$state(null);
   let result:ModelRun|null=$state(null);
   let error=$state("");
@@ -47,6 +50,18 @@
     const steps=trace?.steps??[];
     const chosen=selectedStep;
     return chosen&&!steps.some(step=>step.position===chosen.position)?[chosen,...steps]:steps;
+  });
+  const names=$derived(modelNames(bindings));
+  // Models on the same measurement stream share positions, so they can be drawn together.
+  const comparable=$derived.by(():ModelBinding[]=>{
+    const current=binding;
+    return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId):[];
+  });
+  // A measurement inside an over-threshold run is compared with the last one before the run.
+  const suggested=$derived.by(():number|null=>{
+    const current=result;
+    if(!current)return null;
+    return beforeInterval(intervals,trendSteps.filter(step=>step.state==="analyzed").map(step=>step.position),current.position);
   });
   // Earlier analyzed results of the same model, newest first, to compare against.
   const earlier=$derived.by(():number[]=>{
@@ -86,12 +101,13 @@
       listState="failed";
     }
   }
-  async function chooseBinding(bindingId:string){
+  // Switching between models of one stream keeps the measurement in view, so it can be read by both.
+  async function chooseBinding(bindingId:string,keepPosition=false){
     traceRequest?.abort();resultRequest?.abort();
     const matched=bindings.find(item=>item.bindingId===bindingId);
     if(!matched)return;
-    if(binding && binding.bindingId!==matched.bindingId){selectedPosition="";followLatest=true;}
-    binding=matched;selectedBinding=bindingId;trace=null;trendSteps=[];selectedStep=null;result=null;
+    if(binding && binding.bindingId!==matched.bindingId&&!(keepPosition&&selectedStep)){selectedPosition="";followLatest=true;}
+    binding=matched;selectedBinding=bindingId;trace=null;trendSteps=[];intervals=[];selectedStep=null;result=null;
     traceState="loading";detailState="empty";error="";
     const request=new AbortController();traceRequest=request;
     try{
@@ -146,7 +162,7 @@
       const data=await loadModelTrace(owner,request.signal);
       if(request.signal.aborted||!followLatest||binding?.bindingId!==current.bindingId)return;
       const changed=owner.lastProcessed!==binding.lastProcessed;
-      binding=owner;trace=data;
+      bindings=models;binding=owner;trace=data;
       if(changed)trendSteps=[];
       traceState=data.steps.length?"ready":"empty";
       const next=data.steps.find(item=>item.position===owner.lastAnalyzed)
@@ -155,6 +171,10 @@
     }catch(cause:unknown){
       if(!request.signal.aborted&&followLatest){result=null;detailState="failed";error="최신 모델 결과를 다시 읽지 못했습니다. 이전 결과로 대신하지 않습니다.";}
     }finally{polling=false;}
+  }
+  function pick(position:number){
+    const step=trendSteps.find(item=>item.position===position)??trace?.steps.find(item=>item.position===position);
+    if(step){followLatest=false;void chooseStep(step);}
   }
   let connectedNotice=$state("");
   function connected(bindingId:string){
@@ -193,17 +213,23 @@
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
-    {#if bindings.length>1}
+    {#if comparable.length>1}
+      {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
+        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} {place}
+          onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
+      {/key}
+    {/if}
+    {#if bindings.length>1&&comparable.length<bindings.length}
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
           {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{modelName(item)} · 데이터 출처 {item.sourceId}</option>
+            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {item.sourceId}</option>
           {/each}
         </select>
       </label>
     {/if}
     {#if binding}
-      <p class="context">적용 모델 <strong>{modelName(binding)}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
         <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>
@@ -224,7 +250,7 @@
         <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
       {:else if trace}
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} selected={selectedStep?.position??null} {place} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={steps=>trendSteps=steps}/>
+          <ScoreTrend {binding} selected={selectedStep?.position??null} {place} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
         <label class="selector">측정 선택 (최근 {trace.limit}회)
           <select value={selectedStep?String(selectedStep.position):""}
@@ -263,8 +289,8 @@
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
           {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
           {#if result.state!=="skipped"}
-            {#key result.runId}
-              <ModelExplanation {binding} run={result} {earlier} {writable} {place}
+            {#key result.runId+":"+suggested}
+              <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
                 onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
               <ModelReviewRequest {binding} run={result} {explanationId} {writable}/>
             {/key}
@@ -274,6 +300,7 @@
             <summary>기술 상세</summary>
             <dl>
               <div><dt>적용 모델(binding)</dt><dd>{binding.bindingId}</dd></div>
+              <div><dt>모델 레시피</dt><dd>{binding.recipeId??"확인 불가"}</dd></div>
               <div><dt>모델 패키지</dt><dd>{binding.packageId}</dd></div>
               <div><dt>모델 작업</dt><dd>{binding.task??"확인 불가"}</dd></div>
               <div><dt>모델 상태</dt><dd>{binding.health}</dd></div>

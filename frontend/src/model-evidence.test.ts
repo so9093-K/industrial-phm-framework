@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {modelName,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import type {ModelBinding} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
   binding_id:"bind-a",package_id:"model-v1",source_id:"source-a",asset_id:"bearing-a",
@@ -96,4 +97,15 @@ test("a connected model is named by its recipe, or its package without the conte
   assert.equal(modelName({recipeId:"rms-score-v1",packageId:"rms-score-v1-24d7cd85d97f"}),"rms-score-v1");
   assert.equal(modelName({recipeId:null,packageId:"synthetic-rms-score-v1-24d7cd85d97f"}),"synthetic-rms-score-v1");
   assert.equal(modelName({recipeId:null,packageId:"plain-package"}),"plain-package");
+});
+
+test("a model of a known method is named by the method; two of one method keep their recipe",()=>{
+  const lstm={recipeId:"xjtu-lstm-autoencoder-fold-1-development-v1",packageId:"p-0268a8265bdf",estimatorKind:"lstm-autoencoder-v1"};
+  assert.equal(modelName(lstm),"LSTM 오토인코더");
+  assert.equal(modelName({...lstm,estimatorKind:"future-kind-v1"}),lstm.recipeId);
+  const one={bindingId:"a",recipeId:"site-a-iforest",packageId:"pa",estimatorKind:"isolation-forest-refit-v1"} as ModelBinding;
+  const two={...one,bindingId:"b",recipeId:"site-b-iforest"};
+  const lone={...one,bindingId:"c",estimatorKind:"lstm-autoencoder-v1"};
+  assert.deepEqual([...modelNames([one,two,lone]).values()],
+    ["Isolation Forest · site-a-iforest","Isolation Forest · site-b-iforest","LSTM 오토인코더"]);
 });

@@ -102,7 +102,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # Where the data arrived: what it supports now, and what it cannot support.
-                options = done.get_by_role("region", name="이 데이터로 할 수 있는 분석")
+                options = done.get_by_role("region", name="분석 바로가기")
                 pw.expect(options.get_by_role("link", name="두 기간 비교 열기")).to_be_visible()
                 pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
 

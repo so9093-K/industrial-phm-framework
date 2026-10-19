@@ -137,6 +137,10 @@ not install Node dependencies.
 - `src/components/ScoreTrend.svelte`, `src/components/ModelInput.svelte`, `src/model-trend.ts`: a model's
   stored scores in input order with its threshold and exceedance intervals (skipped steps stay gaps),
   and the selected measurement's raw waveform envelope or window values.
+- `src/components/ModelScoreOverlay.svelte`: every model on one measurement stream on one axis, each
+  score divided by that model's own stored threshold; a row opens that model (keeping the measurement in
+  view), a point opens that measurement. A measurement inside an over-threshold interval is compared by
+  default with the last analyzed one before the interval (`beforeInterval` in `src/model-trend.ts`).
 - `src/components/MonitorAttention.svelte`, `src/monitor-attention.ts`: what needs a look per asset (model
   over threshold, refused or waiting input, model that cannot run, review in progress, a requested
   collection without recent receipt), each opening the exact place; read again every 3 seconds while

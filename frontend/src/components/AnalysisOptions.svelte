@@ -31,7 +31,7 @@
 </script>
 
 <section class="options" aria-labelledby={"options-" + assetId}>
-  <svelte:element this={"h" + level} id={"options-" + assetId}>이 데이터로 할 수 있는 분석</svelte:element>
+  <svelte:element this={"h" + level} id={"options-" + assetId}>분석 바로가기</svelte:element>
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}

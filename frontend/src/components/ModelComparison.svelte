@@ -74,7 +74,7 @@
     {#if exploration(exploreFeature)}<div class="explore"><label>두 기간으로 탐색할 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a></div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>
-    {:else if range && compare !== null}
+    {:else if range && compare !== null && rows.some(row=>row.shape.trend!=="insufficient")}
       <p class="context">구간 흐름 · {place(compare)} → {place(run.position)} · 분석 {range.steps}개{range.sampled?" · 흐름은 "+range.points+"개 표본, 최대 변화는 전체 기록":""}</p>
       <div class="flow" role="table" aria-label="구간 흐름">
         {#each marked as row(row.name)}

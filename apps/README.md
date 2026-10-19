@@ -63,32 +63,36 @@ CSV 점검·등록·이력 저장과 FILE/OPC UA 소스 제어의 정확한 절�
 
 ### 이상 탐지 모니터링 (XJTU-SY 기록 재생)
 
-기록된 XJTU-SY 측정을 로컬 작업공간에 재생해 모델 점수·측정 근거를 확인할 수 있습니다.
-현재 모델 점수 화면의 표시·조회·선택 동작은
-[Operations Web](../frontend/README.md)의 `ModelRunEvidence`·`ScoreTrend` 설명을 참고하세요.
-재생 기록과 모델 점수는 현장 실시간 수신이나 물리적 고장 진단의 근거가 아닙니다.
+기록된 XJTU-SY 측정을 로컬 작업공간에 재생해 Isolation Forest·LSTM 오토인코더의 점수와 측정 근거를 확인합니다.
+준비된 XJTU-SY 원본([데이터 안내](../data/README.md#xjtu-sy))이 있으면 한 명령으로 실행합니다.
 
-모델을 연결하는 순서는 다음과 같습니다(준비된 XJTU-SY 원본은
-[데이터 안내](../data/README.md#xjtu-sy)를 따릅니다).
+```bash
+uv run industrial-phm demo xjtu                       # 기본: artifacts/demo-xjtu, Bearing1_1, 포트 2718
+uv run industrial-phm demo xjtu --bearing Bearing2_1  # 학습에 쓰지 않은 다른 베어링
+```
+
+- 처음 실행할 때 두 모델을 fold-1 train 베어링으로 맞춰 작업공간 `models/`에 저장합니다(몇 분).
+  다음 실행은 저장된 패키지를 다시 씁니다. 깨끗한 Git checkout이 아니면 `--code-revision`을 지정합니다.
+- 재생 대상은 모델 학습에 쓰지 않은 베어링(`Bearing1_1/2_1/3_1`, `Bearing1_2/2_2/3_2`)만 받습니다.
+- 측정을 모두 넣은 뒤 Operations를 실행하므로, Web을 열면 두 모델의 점수가 채워지고 있습니다. 화면에는 "기록 재생 데이터"로 표시됩니다.
+
+기존 작업공간에 단계별로 연결할 때는 같은 명령을 나눠 실행합니다.
 
 ```bash
 make up                                   # 첫 터미널: 수집·분석·Web Supervisor
 # 다른 터미널
 SRC=data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
 uv run --no-sync industrial-phm operations phm package-xjtu artifacts/operations --source "$SRC"
+uv run --no-sync industrial-phm operations phm package-xjtu-lstm artifacts/operations --source "$SRC"
 uv run --no-sync industrial-phm operations phm bind artifacts/operations \
-  --package <이상 점수 package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1
+  --package <package ID> --source-id xjtu-sy-replay --asset-id Bearing1_1 --recorded-replay   # 모델마다
 uv run --no-sync industrial-phm operations phm replay-xjtu artifacts/operations \
   --source "$SRC" --bearing Bearing1_1 --interval-seconds 1
 ```
 
-- `package-xjtu`는 fold-1 연구 설정을 train 베어링으로 다시 학습해 `models/`에 불변 패키지로 씁니다
-  (약 3–4분). 깨끗한 Git checkout이 아니면 `--code-revision`을 지정합니다.
-- 재생은 기록 데이터를 시간 압축해 공급하는 것이며 화면에 "기록 데이터 재생"으로 표시됩니다. 재생 대상은
-  모델 학습에 쓰지 않은 베어링(`Bearing1_1/2_1/3_1`, `Bearing1_2/2_2/3_2`)을 사용합니다.
-- 분석 runner는 0.5초마다 새 step을 처리하고, 화면은 최신 수신·최신 분석 시각과 분석 대기 수를 함께 보여줍니다.
-- 이상 점수는 고장 확률·진단이 아닙니다. 판정 기준과
-  검증 결과는 [운영 추론 수용 프로토콜](../docs/research/operational-inference-acceptance-protocol.md)을 따릅니다.
+- 분석 runner는 새 측정을 차례로 처리하고, 화면은 최신 수신·최신 분석 시각과 분석 대기 수를 함께 보여줍니다.
+- 이상 점수의 기준은 학습 측정 점수의 99.5% 분위수이며 고장 확률이 아닙니다. 모델 학습 범위와 재현 기록은
+  [운영 추론 수용 프로토콜](../docs/research/operational-inference-acceptance-protocol.md)에 있습니다.
 
 ## 연구 도구
 

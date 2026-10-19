@@ -133,7 +133,7 @@
     <label for="acquisition-feature">진동 특징
       <select id="acquisition-feature" value={selected} onchange={e=>selectFeature(e.currentTarget.value)}>
         {#each source.features as item(item.id)}
-          <option value={item.id}>{item.label} · {item.id}</option>
+          <option value={item.id}>{item.label}</option>
         {/each}
       </select>
     </label>
