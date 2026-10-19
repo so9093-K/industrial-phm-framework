@@ -33,7 +33,7 @@ wheel을 설치해 Node 없는 PATH에서 정적 파일을 제공합니다. 기�
 Python editable 설치(`uv sync`)는 Node 없이도 가능하지만, 새 화면을 실행하려면
 `make frontend`로 호스트 정적 파일을 준비해야 합니다(Linux 네이티브 `make up`도 빌드합니다).
 macOS의 `make up`은 호스트 개발 환경 대신 [제품 컨테이너](docs/architecture/operations-container.md)를
-실행합니다. 해당 컨테이너는 이미지 빌드 때 Web을 포함하며 과 별개입니다.
+실행합니다. 해당 컨테이너는 이미지 빌드 때 Web을 포함합니다.
 
 `make showcase`는 별도의 읽기 전용 정적 체험을 실행합니다. 운영 빌드의 API 전송을 바꾸지 않으며
 합성 입력·실제 계산 결과·미디어의 재생성은 [제품 체험 안내](docs/product/product-showcase.md)를 따릅니다.
