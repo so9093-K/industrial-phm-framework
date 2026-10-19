@@ -42,19 +42,19 @@ jobs:
         run: uv lock --check
 
       - name: Sync locked environment
-        run: uv sync --locked --extra operations
+        run: uv sync --locked --extra operations --extra aihub
 
       - name: Lint
-        run: uv run --locked --extra operations ruff check .
+        run: uv run --locked --extra operations --extra aihub ruff check .
 
       - name: Format check
-        run: uv run --locked --extra operations ruff format --check .
+        run: uv run --locked --extra operations --extra aihub ruff format --check .
 
       - name: Type check
-        run: uv run --locked --extra operations mypy
+        run: uv run --locked --extra operations --extra aihub mypy
 
       - name: Unit and contract tests
-        run: uv run --locked --extra operations pytest tests/unit tests/contract --durations=20
+        run: uv run --locked --extra operations --extra aihub pytest tests/unit tests/contract --durations=20
 
   # Not a second PR gate: product acceptance runs weekly or when explicitly dispatched.
   # Review-only branch condition below is removed after PR #655 product validation.
@@ -82,7 +82,7 @@ jobs:
         run: uv python install 3.14
 
       - name: Sync product dependencies
-        run: uv sync --locked --extra operations
+        run: uv sync --locked --extra operations --extra aihub
 
       - name: Install Node 22
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
