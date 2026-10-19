@@ -12,7 +12,7 @@
 
   type Props = {assetId: string};
   let {assetId}: Props = $props();
-  type State = "loading" | "ready" | "empty" | "failed" | "unavailable";
+  type State = "loading" | "ready" | "edited" | "empty" | "failed" | "unavailable";
   let sourceState: State = $state("loading");
   let compareState: State = $state("loading");
   let sources: SourceHistory | null = $state(null);
@@ -81,6 +81,12 @@
   }
   function changePeriod(which: "a" | "b", edge: "from" | "to", value: string) {
     if (!periods) return;
+    // Once the form differs, a previously computed result is no longer evidence
+    // for the current selection. Abort even a still-running request.
+    profileAbort?.abort();
+    result = null;
+    compareState = "edited";
+    error = "";
     try {
       periods = {...periods, [which]: {...periods[which], [edge]:isoKst(value)}};
       formError = "";
@@ -156,6 +162,9 @@
     {:else if compareState === "failed"}
       <StatusNotice kind="failure" title="두 기간 비교를 불러오지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void compare()} />
+    {:else if compareState === "edited"}
+      <StatusNotice kind="uncertain" title="비교 조건이 변경되었습니다"
+        message="이전 조건의 분석 결과는 숨겼습니다. 새 기간으로 비교하기를 눌러 다시 계산하세요." />
     {:else if compareState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 기록이 없습니다"
         message="이 설비에는 비교할 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다." />
