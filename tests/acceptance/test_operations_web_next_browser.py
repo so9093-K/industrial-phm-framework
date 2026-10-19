@@ -380,6 +380,7 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
         thread.join(timeout=10)
         assert not thread.is_alive()
 
+
 @pytest.mark.parametrize("width", [390, 1024])
 def test_navigation_refresh_failure_exposes_stale_list_and_recovers(
     tmp_path: Path, width: int
@@ -401,15 +402,25 @@ def test_navigation_refresh_failure_exposes_stale_list_and_recovers(
         route.fulfill(
             status=200,
             content_type="application/json",
-            body=json.dumps({
-                "assessed_at": "2026-10-10T03:00:00Z",
-                "assets": {"items": [
-                    {"asset_id": asset, "data_flow_status": "stored-history",
-                     "last_data_at": "2026-10-10T00:00:00Z", "attention_count": 0}
-                    for asset in assets
-                ], "total": len(assets), "truncated": False},
-                "system_error_scopes": [],
-            }),
+            body=json.dumps(
+                {
+                    "assessed_at": "2026-10-10T03:00:00Z",
+                    "assets": {
+                        "items": [
+                            {
+                                "asset_id": asset,
+                                "data_flow_status": "stored-history",
+                                "last_data_at": "2026-10-10T00:00:00Z",
+                                "attention_count": 0,
+                            }
+                            for asset in assets
+                        ],
+                        "total": len(assets),
+                        "truncated": False,
+                    },
+                    "system_error_scopes": [],
+                }
+            ),
         )
 
     try:
@@ -443,4 +454,3 @@ def test_navigation_refresh_failure_exposes_stale_list_and_recovers(
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
-
