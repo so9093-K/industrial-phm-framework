@@ -28,8 +28,9 @@ make showcase
 체험은 실제 애플리케이션으로 저장·분석한 결과를 읽는 **보기 전용 정적 배포물**입니다.
 설비·신호·기록 기간·기준 구간을 바꿔 보고, 준비된 전망을 열거나 저장된 검토 메모를 확인할 수 있습니다.
 임의의 조건을 새로 계산하거나 기록하려면 아래의 전체 Operations 실행을 사용합니다.
-CI의 [Product showcase 배포물](https://github.com/so9093-K/industrial-phm-framework/actions/workflows/product-showcase.yml)은
-일반 정적 HTTP 호스팅에서도 실행할 수 있습니다. 공개 체험 사이트는 아직 배포하지 않았습니다.
+시연 정적 배포물은 [제품 체험 안내](docs/product/product-showcase.md)의 재생성 절차로 만들며,
+일반 정적 HTTP 호스팅에서 제공할 수 있습니다. 자동 CI 배포물은 더 이상 생성하지 않습니다.
+공개 체험 사이트는 아직 배포하지 않았습니다.
 
 ## 주요 화면
 
