@@ -24,6 +24,7 @@
   let section = $state(systemSection(location.search));
   let loadState: LoadState = $state("loading");
   let error = $state("");
+  let quietError = $state("");
   let snapshot: Snapshot | null = $state(null);
   let writable: boolean | null = $state(null);
   let permissionState: "checking" | "ready" | "failed" = $state("checking");
@@ -33,6 +34,7 @@
   const returnTo = sampleReturn(location.search);
   const previousSeries=new URLSearchParams(location.search).get("explore_series")?.split(",")??[];
   let controller: AbortController | null = null;
+  let quietController: AbortController | null = null;
   let snapshotRead = 0;
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
@@ -81,10 +83,12 @@
   async function refresh() {
     const read = ++snapshotRead;
     controller?.abort();
+    quietController?.abort();
     const pending = new AbortController();
     controller = pending;
     loadState = "loading";
     error = "";
+    quietError = "";
     snapshot = null;
     try {
       const requested=new URLSearchParams(location.search).get("model_binding");
@@ -108,16 +112,25 @@
     }
   }
 
-  /** Re-read the asset list in place for a page that refreshes itself. A failed read is
-   * reported by that page and never blanks or replaces what is shown. */
+  /** Retain last verified facts, but never present a failed background read as current.
+   * The generation and abort guard prevent a late response from replacing newer facts. */
   async function quietRefresh() {
     if (loadState !== "ready" && loadState !== "empty") return;
     const read = ++snapshotRead;
-    const result = await readMonitor(new AbortController().signal);
-    if (read !== snapshotRead) return;
-    if (loadState === "ready" || loadState === "empty") {
-      snapshot = result;
-      loadState = result.assets.length ? "ready" : "empty";
+    quietController?.abort();
+    const pending = new AbortController();
+    quietController = pending;
+    try {
+      const result = await readMonitor(pending.signal);
+      if (pending.signal.aborted || read !== snapshotRead) return;
+      if (loadState === "ready" || loadState === "empty") {
+        snapshot = result;
+        loadState = result.assets.length ? "ready" : "empty";
+        quietError = "";
+      }
+    } catch (cause: unknown) {
+      if (pending.signal.aborted || read !== snapshotRead) return;
+      quietError = cause instanceof Error ? cause.message : "설비 목록을 다시 읽지 못했습니다.";
     }
   }
 
@@ -176,6 +189,7 @@
     void refresh();
     return () => {
       controller?.abort();
+      quietController?.abort();
       permissionController?.abort();
       window.removeEventListener("popstate", restore);
       window.removeEventListener("hashchange", restore);
@@ -221,6 +235,11 @@
   {/if}
   {#if example && !showcase}
     <p class="example">합성 예시 데이터 · 별도 작업공간 · 보기 전용{#if returnTo} · <a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
+  {/if}
+  {#if quietError && (loadState === "ready" || loadState === "empty")}
+    <StatusNotice kind="uncertain" title="설비 목록 갱신 실패"
+      message={"이전 조회 시점의 목록만 표시합니다. 새로운 데이터를 확인하지 못했습니다. " + quietError}
+      actionLabel="다시 시도" onAction={() => void quietRefresh()} />
   {/if}
   {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}

@@ -379,3 +379,78 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
         server.server_close()
         thread.join(timeout=10)
         assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("width", [390, 1024])
+def test_navigation_refresh_failure_exposes_stale_list_and_recovers(
+    tmp_path: Path, width: int
+) -> None:
+    """A background list read must not leave a current-looking list or page error."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "background-list-read")
+    initialize_operations_workspace(workspace)
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    mode = {"value": "initial"}
+
+    def monitor(route) -> None:
+        if mode["value"] == "failed":
+            route.fulfill(status=503, content_type="application/json", body="{}")
+            return
+        assets = ["motor-a"] if mode["value"] == "initial" else ["motor-a", "motor-b"]
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "assessed_at": "2026-10-10T03:00:00Z",
+                    "assets": {
+                        "items": [
+                            {
+                                "asset_id": asset,
+                                "data_flow_status": "stored-history",
+                                "last_data_at": "2026-10-10T00:00:00Z",
+                                "attention_count": 0,
+                            }
+                            for asset in assets
+                        ],
+                        "total": len(assets),
+                        "truncated": False,
+                    },
+                    "system_error_scopes": [],
+                }
+            ),
+        )
+
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route("**/api/v1/monitor", monitor)
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/", wait_until="networkidle")
+                pw.expect(page.get_by_role("heading", name="설비 1개")).to_be_visible()
+                mode["value"] = "failed"
+                page.get_by_role("navigation", name="업무 메뉴").get_by_role(
+                    "link", name="설비·신호"
+                ).click()
+                notice = page.get_by_role("status").filter(has_text="설비 목록 갱신 실패")
+                pw.expect(notice).to_be_visible()
+                pw.expect(notice).to_contain_text("이전 조회")
+                pw.expect(page.get_by_role("link", name="motor-a")).to_be_visible()
+                assert not errors, errors
+                mode["value"] = "recovered"
+                notice.get_by_role("button", name="다시 시도").click()
+                pw.expect(page.get_by_role("link", name="motor-b")).to_be_visible()
+                pw.expect(notice).to_have_count(0)
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+        assert not thread.is_alive()

@@ -103,6 +103,9 @@ function parsePeriod(raw: unknown): PeriodProfile {
       }) : null;
   if (p.quantiles !== null && p.quantiles !== undefined && quantiles === null)
     throw new Error("분위수 통계가 올바르지 않습니다.");
+  // The server owns each percentile; sorting here would fabricate new evidence.
+  if (quantiles?.some((value, index) => index > 0 && value < quantiles[index - 1]))
+    throw new Error("분위수 통계가 오름차순이 아닙니다.");
   return { observations: positiveCount(p.observation_count),
     usable: positiveCount(p.usable_count),
     missing: optionalCount(p.missing_count),

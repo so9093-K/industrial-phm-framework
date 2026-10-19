@@ -4,7 +4,7 @@ import {defaultPeriods,parseProfile,parseSources,type Periods} from "./compariso
 const a = "2026-10-01T00:00:00Z", m = "2026-10-02T00:00:00Z", e = "2026-10-03T00:00:00Z";
 const periods: Periods = {a:{from:a,to:m},b:{from:m,to:e}};
 const p=(n:number)=>({observation_count:n,usable_count:n,missing_count:0,non_good_count:0,
-  conflict_count:0,quantiles:[0,1,n,3,4],mean:n});
+  conflict_count:0,quantiles:[n-2,n-1,n,n+1,n+2],mean:n});
 const series=(source:string,point:string,unit:string)=>({
   kind:"history",key:"current",label:"current",source_id:source,source_type:"csv",
   measurement_point_id:point,interpretation_id:unit,unit,
@@ -38,4 +38,12 @@ test("mismatched period, missing quantiles and invalid metrics fail closed",()=>
   const withoutEvidence=series("src-1","motor-1","A");
   withoutEvidence.periods.b.quantiles=null as unknown as number[];
   assert.throws(()=>parseProfile(response([withoutEvidence]),"motor","current",periods),/대표값 없이/);
+});
+test("unordered quantiles are rejected, ties are valid",()=>{
+  const invalid=series("src-1","motor-1","A");
+  invalid.periods.b.quantiles=[0,1,5,3,6];
+  assert.throws(()=>parseProfile(response([invalid]),"motor","current",periods),/분위수/);
+  const tied=series("src-1","motor-1","A");
+  tied.periods.a.quantiles=[0,1,1,3,4];
+  assert.equal(parseProfile(response([tied]),"motor","current",periods).series.length,1);
 });

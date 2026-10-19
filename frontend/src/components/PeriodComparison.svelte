@@ -12,7 +12,7 @@
 
   type Props = {assetId: string};
   let {assetId}: Props = $props();
-  type State = "loading" | "ready" | "empty" | "failed" | "unavailable";
+  type State = "loading" | "ready" | "edited" | "empty" | "failed" | "unavailable";
   let sourceState: State = $state("loading");
   let compareState: State = $state("loading");
   let sources: SourceHistory | null = $state(null);
@@ -20,7 +20,10 @@
   let periods: Periods | null = $state(null);
   let result: ProfileResult | null = $state(null);
   let error = $state("");
-  let formError = $state("");
+  // Keep invalid *draft fields* separate from valid periods used by server queries.
+  // Fixing one field must not clear an error in another.
+  let invalidFields: Record<string, string> = $state({});
+  const formError = $derived(Object.values(invalidFields)[0] ?? "");
   let sourceAbort: AbortController | null = null;
   let profileAbort: AbortController | null = null;
 
@@ -59,6 +62,7 @@
     profileAbort?.abort();
     const request = new AbortController(); sourceAbort = request;
     sourceState = "loading"; compareState = "loading"; sources = null; result = null; error = "";
+    invalidFields = {};
     try {
       const data = await readSources(assetId, request.signal);
       if (request.signal.aborted) return;
@@ -77,21 +81,41 @@
   }
   function selectChannel(id: string) {
     if (!sources?.channels.includes(id)) return;
-    selected = id; remember(); void compare();
+    selected = id;
+    remember();
+    if (!formError) void compare();
   }
   function changePeriod(which: "a" | "b", edge: "from" | "to", value: string) {
     if (!periods) return;
+    // Once the form differs, a previously computed result is no longer evidence
+    // for the current selection. Abort even a still-running request.
+    profileAbort?.abort();
+    result = null;
+    compareState = "edited";
+    error = "";
+    const key = which + "." + edge;
     try {
-      periods = {...periods, [which]: {...periods[which], [edge]:isoKst(value)}};
-      formError = "";
+      const parsed = isoKst(value);
+      periods = {...periods, [which]: {...periods[which], [edge]:parsed}};
+      const remaining = {...invalidFields};
+      delete remaining[key];
+      invalidFields = remaining;
+      // The URL owns the user's selection, not the last server-calculated result.
+      // A reload must recover the selected interval even before recalculation.
+      remember();
     } catch (cause: unknown) {
-      formError = cause instanceof Error ? cause.message : "구간 입력을 확인하세요.";
+      invalidFields = {
+        ...invalidFields,
+        [key]: cause instanceof Error ? cause.message : "구간 입력을 확인하세요.",
+      };
     }
   }
   async function compare() {
+    // A partly entered datetime has no valid server query; never reuse old periods.
+    if (formError) return;
     profileAbort?.abort();
     const request = new AbortController(); profileAbort = request;
-    compareState = "loading"; result = null; error = ""; formError = "";
+    compareState = "loading"; result = null; error = "";
     if (!periods) return;
     try {
       validatePeriods(periods);
@@ -139,16 +163,16 @@
           <legend>기간 {name.toUpperCase()} · {name === "a" ? "비교 기준" : "살펴볼 기간"}</legend>
           <label>시작 (KST)
             <input type="datetime-local" value={kst(periods[name].from)}
-              onchange={e => changePeriod(name, "from", e.currentTarget.value)} />
+              oninput={e => changePeriod(name, "from", e.currentTarget.value)} />
           </label>
           <label>종료 (KST)
             <input type="datetime-local" value={kst(periods[name].to)}
-              onchange={e => changePeriod(name, "to", e.currentTarget.value)} />
+              oninput={e => changePeriod(name, "to", e.currentTarget.value)} />
           </label>
         </fieldset>
       {/each}
     </div>
-    <button class="ui-button ui-button-primary" type="button"
+    <button class="ui-button ui-button-primary" type="button" disabled={!!formError}
       onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
     {#if compareState === "loading"}
@@ -156,6 +180,9 @@
     {:else if compareState === "failed"}
       <StatusNotice kind="failure" title="두 기간 비교를 불러오지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void compare()} />
+    {:else if compareState === "edited"}
+      <StatusNotice kind="uncertain" title="비교 조건이 변경되었습니다"
+        message="이전 조건의 분석 결과는 숨겼습니다. 새 기간으로 비교하기를 눌러 다시 계산하세요." />
     {:else if compareState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 기록이 없습니다"
         message="이 설비에는 비교할 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다." />

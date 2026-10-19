@@ -164,8 +164,12 @@ not install Node dependencies.
 - `src/components/PeriodComparison.svelte`: editable two-period (KST) read-only
   stored-history profile comparison with source/point/interpretation-separated
   evidence rows, missingness and quality. A is a user-chosen period, not a
-  validated normal period; model/acquisition/relation/PSD workflows remain in /web/.
-- `src/comparison.ts`: bounded two-period history API DTO contract.
+  validated normal period. Editing a period immediately invalidates earlier evidence;
+  valid selected times persist in the URL, while incomplete dates block recalculation.
+  A bookmarked selection is not a saved or validated analysis result.
+- `src/comparison.ts`: bounded two-period history API DTO contract. The server
+  owns quantile values; an inverted percentile sequence fails closed instead of
+  being reordered in the client.
 - `src/departures.ts`: strict asset/channel/baseline and server-meaning DTO
   validation; missing evidence, no threshold departures and failed reads differ.
   The endpoint does not expose the underlying source/point/interpretation identity.
