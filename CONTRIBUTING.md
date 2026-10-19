@@ -28,8 +28,7 @@ uv run --locked --extra operations pytest tests/unit tests/contract
 추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는 실제 `uv build`와 설치된 wheel의 Web 제공 동작을 확인합니다.
 `uv build`는 잠금 파일 기준으로
 프런트엔드를 빌드하고 sdist에서 wheel을 다시 만듭니다(Node.js >=22.12와 npm 필요).
-`wheel` 검증은 sdist의 빌드 입력과 wheel의 전체 manifest를 확인하고, 별도 환경에
-wheel을 설치해 Node 없는 PATH에서 정적 파일을 제공합니다. 기존 `dist/`는 건드리지 않습니다.
+배포물의 manifest·Node 없는 wheel 실행·HTTP 정적 자산 제공은 패키징 관련 변경에서 별도로 확인합니다.
 Python editable 설치(`uv sync`)는 Node 없이도 가능하지만, 새 화면을 실행하려면
 `make frontend`로 호스트 정적 파일을 준비해야 합니다(Linux 네이티브 `make up`도 빌드합니다).
 macOS의 `make up`은 호스트 개발 환경 대신 [제품 컨테이너](docs/architecture/operations-container.md)를
