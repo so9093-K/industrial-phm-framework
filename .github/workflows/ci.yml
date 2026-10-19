@@ -60,7 +60,8 @@ jobs:
   product-acceptance:
     if: >-
       github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.head_ref == 'chore/ci-test-declutter')
     name: Product acceptance (browser, wheel, container)
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -117,6 +118,9 @@ jobs:
           assert all((root / n).is_file() and (root / n).stat().st_size > 0 for n in names)
           print(f"Installed wheel Web assets: {len(names)}")
           PY
+
+      - name: Integration regression
+        run: uv run --no-sync pytest tests/integration --maxfail=1 -q -rs --durations=15
 
       - name: Install browser runtime
         run: |
