@@ -20,7 +20,10 @@
   let periods: Periods | null = $state(null);
   let result: ProfileResult | null = $state(null);
   let error = $state("");
-  let formError = $state("");
+  // Keep invalid *draft fields* separate from valid periods used by server queries.
+  // Fixing one field must not clear an error in another.
+  let invalidFields: Record<string, string> = $state({});
+  const formError = $derived(Object.values(invalidFields)[0] ?? "");
   let sourceAbort: AbortController | null = null;
   let profileAbort: AbortController | null = null;
 
@@ -59,6 +62,7 @@
     profileAbort?.abort();
     const request = new AbortController(); sourceAbort = request;
     sourceState = "loading"; compareState = "loading"; sources = null; result = null; error = "";
+    invalidFields = {};
     try {
       const data = await readSources(assetId, request.signal);
       if (request.signal.aborted) return;
@@ -89,14 +93,21 @@
     result = null;
     compareState = "edited";
     error = "";
+    const key = which + "." + edge;
     try {
-      periods = {...periods, [which]: {...periods[which], [edge]:isoKst(value)}};
-      formError = "";
+      const parsed = isoKst(value);
+      periods = {...periods, [which]: {...periods[which], [edge]:parsed}};
+      const remaining = {...invalidFields};
+      delete remaining[key];
+      invalidFields = remaining;
       // The URL owns the user's selection, not the last server-calculated result.
       // A reload must recover the selected interval even before recalculation.
       remember();
     } catch (cause: unknown) {
-      formError = cause instanceof Error ? cause.message : "구간 입력을 확인하세요.";
+      invalidFields = {
+        ...invalidFields,
+        [key]: cause instanceof Error ? cause.message : "구간 입력을 확인하세요.",
+      };
     }
   }
   async function compare() {
@@ -104,7 +115,7 @@
     if (formError) return;
     profileAbort?.abort();
     const request = new AbortController(); profileAbort = request;
-    compareState = "loading"; result = null; error = ""; formError = "";
+    compareState = "loading"; result = null; error = "";
     if (!periods) return;
     try {
       validatePeriods(periods);
