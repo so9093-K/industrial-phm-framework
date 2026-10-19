@@ -6,7 +6,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from industrial_phm.application.exploratory_anomaly import THRESHOLD, find_departures
+from industrial_phm.application.exploratory_anomaly import (
+    THRESHOLD,
+    find_departures,
+    latest_departure,
+)
 
 T0 = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -47,3 +51,15 @@ def test_constant_or_unknown_inputs_are_named_not_scored() -> None:
         find_departures({"x": _points([1.0] * 10)}, baseline="last-10")
     with pytest.raises(LookupError):
         find_departures({"x": []})
+
+
+def test_only_a_record_that_ends_away_from_its_baseline_needs_a_look_now() -> None:
+    steady = [10.0 + 0.1 * (i % 3) for i in range(60)]
+    drifting = steady[:40] + [10.0 + 0.5 * i for i in range(1, 21)]
+    returned = steady[:40] + [20.0] * 10 + steady[:10]
+    now = latest_departure(find_departures({"current": _points(drifting)}))
+    assert now is not None and now["channel"] == "current" and now["direction"] == "up"
+    assert now["distance"] >= THRESHOLD
+    assert now["since"] <= _points(drifting)[-1][0]
+    assert latest_departure(find_departures({"current": _points(returned)})) is None
+    assert latest_departure(find_departures({"current": _points(steady)})) is None

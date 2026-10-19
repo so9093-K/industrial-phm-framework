@@ -1,9 +1,10 @@
-/** What needs a look on each asset right now: a model over its threshold, an input the model
- * refused or has not reached, a model that cannot run, a collection that stopped receiving or
- * a review in progress. Each item opens the exact place to check; none is a fault verdict. */
+/** What needs a look on each asset right now: a model over its threshold, a stored signal that
+ * ends far from its own baseline, an input the model refused or has not reached, a model that
+ * cannot run, a collection that stopped receiving or a review in progress. Each item opens the
+ * exact place to check; none is a fault verdict. */
 import {modelResultUrl} from "./finding-reviews.ts";
 import type {Source} from "./operations-status.ts";
-import {routeUrl,systemUrl} from "./routes.ts";
+import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
@@ -13,12 +14,15 @@ export type MonitoredModel={
   processed:number|null;reviewStatus:"open"|"acknowledged"|"closed"|null;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean;reviewsUnknown:boolean};
-export type NoteKind="threshold"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
+export type NoteKind="threshold"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
+/** A stored signal whose latest values are still far from the first 30% of its own record. */
+export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
+  distance:number;direction:"up"|"down"|null;since:string};
 export type Note={kind:NoteKind;label:string;detail:string;href:string;action:string};
 export type AssetAttention={assetId:string;notes:Note[]};
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
-const PRIORITY:Record<NoteKind,number>={threshold:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4,warmup:3};
+const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4,warmup:3};
 
 function invalid():never{throw new Error("모델 처리 상태의 형식이 올바르지 않습니다.");}
 function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:null;}
@@ -61,7 +65,7 @@ function at(model:MonitoredModel,which:number|null):string{
 }
 
 /** Notes per asset, most urgent first; assets without notes are left out. */
-export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null):AssetAttention[]{
+export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,departures:Departure[]=[]):AssetAttention[]{
   const groups=new Map<string,Note[]>();
   const add=(assetId:string,note:Note)=>{const list=groups.get(assetId)??[];list.push(note);groups.set(assetId,list);};
   const byAsset=new Map<string,MonitoredModel[]>();
@@ -87,6 +91,13 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null):
       add(assetId,{kind:"review",label:"검토 진행 중",detail:"모델 결과의 사람 검토가 끝나지 않았습니다",
         href:routeUrl({page:"maintenance",assetId,tab:"summary",method:null,data:null}),action:"정비 검토함 보기"});
   }
+  for(const item of departures){
+    const name=item.label?item.label+(item.unit?" ("+item.unit+")":""):item.channel;
+    const since=new Date(item.since).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+    add(item.assetId,{kind:"departure",label:"기준 구간에서 크게 벗어남",
+      detail:name+" · 기준 변동 폭의 "+Math.round(item.distance)+"배 "+(item.direction==="down"?"낮음":"높음")+" · "+since+"부터 계속",
+      href:assetTabUrl(item.assetId,"anomaly","baseline",null,item.channel),action:"기준 구간 이탈 보기"});
+  }
   for(const source of sources??[]){
     // A collection someone asked to run that has not received recently; paused or stopped is expected.
     if(source.type==="opcua"&&source.lifecycle==="active"&&source.live?.desired==="running"&&!source.live.fresh)
@@ -104,4 +115,25 @@ export async function readPhmMonitor(signal:AbortSignal):Promise<PhmMonitor>{
     throw new Error("모델 처리 상태를 읽지 못했습니다.");
   }
   return parsePhmMonitor(await response.json() as unknown);
+}
+
+export function parseDepartures(raw:unknown):Departure[]{
+  const root=object(raw);
+  if(!root||root.schema_version!==1||!Array.isArray(root.items))throw new Error("기준 구간 이탈 확인 결과의 형식이 올바르지 않습니다.");
+  return root.items.flatMap((value:unknown):Departure[]=>{
+    const row=object(value);
+    const assetId=text(row?.asset_id),channel=text(row?.channel),since=text(row?.since);
+    if(!row||!assetId||!channel||!since||typeof row.distance!=="number"||!Number.isFinite(row.distance))return [];
+    return [{assetId,channel,label:text(row.label),unit:text(row.unit),distance:row.distance,
+      direction:row.direction==="up"||row.direction==="down"?row.direction:null,since}];
+  });
+}
+
+export async function readDepartures(signal:AbortSignal):Promise<Departure[]>{
+  const response=await fetch("/api/v1/explore/attention",{signal,cache:"no-store",credentials:"same-origin"});
+  if(!response.ok){
+    await response.body?.cancel().catch(()=>{});
+    throw new Error("기준 구간 이탈을 확인하지 못했습니다.");
+  }
+  return parseDepartures(await response.json() as unknown);
 }
