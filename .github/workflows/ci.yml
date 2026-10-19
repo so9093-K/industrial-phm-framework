@@ -24,31 +24,29 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Load verification toolchain pins
-        run: grep -v '^#' tools/verify/versions.env >> "$GITHUB_ENV"
       - name: Install uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          version: ${{ env.UV_VERSION }}
+          version: "0.12.13"
           enable-cache: true
 
       - name: Install Python 3.14
         run: uv python install 3.14
 
       - name: Check dependency lock
-        run: sh tools/verify/gate.sh lock
+        run: uv lock --check
 
       - name: Sync locked environment
         run: uv sync --locked --extra operations
 
       - name: Lint
-        run: sh tools/verify/gate.sh lint
+        run: uv run --locked --extra operations ruff check .
 
       - name: Format check
-        run: sh tools/verify/gate.sh format
+        run: uv run --locked --extra operations ruff format --check .
 
       - name: Type check
-        run: sh tools/verify/gate.sh types
+        run: uv run --locked --extra operations mypy
 
       - name: Unit and contract tests
-        run: sh tools/verify/gate.sh unit
+        run: uv run --locked --extra operations pytest tests/unit tests/contract
