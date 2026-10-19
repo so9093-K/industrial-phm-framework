@@ -86,7 +86,7 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                             "non_good_count": 0,
                             "conflict_count": 0,
                             "mean": float(n),
-                            "quantiles": [1, 2, float(n), 4, 5],
+                            "quantiles": [n - 2, n - 1, float(n), n + 1, n + 2],
                         }
 
                     data = {

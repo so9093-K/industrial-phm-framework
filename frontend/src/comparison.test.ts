@@ -4,7 +4,7 @@ import {defaultPeriods,parseProfile,parseSources,type Periods} from "./compariso
 const a = "2026-10-01T00:00:00Z", m = "2026-10-02T00:00:00Z", e = "2026-10-03T00:00:00Z";
 const periods: Periods = {a:{from:a,to:m},b:{from:m,to:e}};
 const p=(n:number)=>({observation_count:n,usable_count:n,missing_count:0,non_good_count:0,
-  conflict_count:0,quantiles:[0,1,n,3,4],mean:n});
+  conflict_count:0,quantiles:[n-2,n-1,n,n+1,n+2],mean:n});
 const series=(source:string,point:string,unit:string)=>({
   kind:"history",key:"current",label:"current",source_id:source,source_type:"csv",
   measurement_point_id:point,interpretation_id:unit,unit,
