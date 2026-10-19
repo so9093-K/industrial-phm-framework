@@ -36,12 +36,17 @@ usability, production distribution behavior or in-field PHM performance.
    in the integration or acceptance layer, not in a basic contract suite merely
    to force them to run on every change. Profiling tools remain opt-in research
    utilities rather than default functional contracts.
-4. For changes to frontend behavior, packaging, HTTP security, supervisor,
+4. The same CI workflow owns explicit Product acceptance: run it weekly and
+   via `workflow_dispatch` against a selected branch. It checks the current
+   frontend, existing browser/supervised-node acceptance tests, sdist/wheel
+   installation assets and a real Compose boot/restart. No new verification
+   wrappers or path-classifying meta-tests are introduced. An ordinary PR
+   still runs Source checks only.
+5. For changes to frontend behavior, packaging, HTTP security, supervisor,
    storage recovery, forecasting or showcase distribution, the PR must execute
-   the relevant existing checks and record exact results and any unexecuted
-   boundaries. The product requirements of ADR-0030 still apply at these
-   change boundaries; an unrelated PR does not rebuild and browser-test the
-   entire application.
+   relevant product checks and record exact results, skips and any unexecuted
+   boundaries. The requirements of ADR-0030 remain at these change boundaries;
+   an unrelated PR does not rebuild and browser-test the application.
 5. A green Source CI is evidence only for the checks it actually runs. Never
    claim wheel distribution, browser acceptance, container restarts, model
    validity, or field safety from that result.
