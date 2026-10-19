@@ -168,8 +168,8 @@
           <details>
             <summary>같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
             <div class="table-scroll"><table>
-              <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다 (측정 의미 {group.meaning})</caption>
-              <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
+              <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다</caption>
+              <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{signalName(names,x)}</th><th scope="col">{signalName(names,y)}</th></tr></thead>
               <tbody>{#each group.points.slice(0,100) as item,i (i)}
                 <tr><td>{asTime(item.at)}</td><td>{num(item.x)}</td><td>{num(item.y)}</td></tr>
               {/each}</tbody>

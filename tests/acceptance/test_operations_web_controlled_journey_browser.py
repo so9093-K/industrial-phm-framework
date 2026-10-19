@@ -715,8 +715,9 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 pw.expect(detail.get_by_role("button", name="검토 종료")).to_be_visible()
                 detail.get_by_role("button", name="검토 종료").click()
                 detail.get_by_role("button", name="종료하기").click()
-                pw.expect(detail.get_by_role("button", name="검토 종료")).to_have_count(0)
-                pw.expect(detail).to_contain_text("검토 종료")
+                # Wait for the stored close, not for the button the confirmation hides at once.
+                pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
+                pw.expect(detail.get_by_role("button", name="확인함으로 표시")).to_have_count(0)
                 review_url = page.url
                 _no_overflow(page, width)
                 assert not errors and not external, (errors, external)
@@ -907,7 +908,10 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 page.get_by_role("button", name="다시 불러오기", exact=True).click()
                 pw.expect(card.locator(".badge")).to_have_text("수신 확인됨")
                 card.get_by_role("link", name="측정 신호 보기").click()
-                pw.expect(page.get_by_role("region", name="측정 신호")).to_contain_text(source_id)
+                # The signal names its source by the connection name people registered.
+                pw.expect(page.get_by_role("region", name="측정 신호")).to_contain_text(
+                    "데이터 출처 Browser live OPC UA"
+                )
                 simulator_stop(simulator)
                 until_evidence(
                     "collector-observed disconnect",

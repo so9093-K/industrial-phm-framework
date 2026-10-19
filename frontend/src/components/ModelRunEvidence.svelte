@@ -289,7 +289,7 @@
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
           {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
           {#if result.state!=="skipped"}
-            {#key result.runId+":"+suggested}
+            {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
                 onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
               <ModelReviewRequest {binding} run={result} {explanationId} {writable}/>

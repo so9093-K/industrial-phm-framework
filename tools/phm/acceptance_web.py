@@ -52,8 +52,8 @@ def review_explained_result(
     if detail.get_by_role("button", name="검토 종료", exact=True).count():
         detail.get_by_role("button", name="검토 종료", exact=True).click()
         detail.get_by_role("button", name="종료하기", exact=True).click()
-    expect(detail.get_by_role("button", name="검토 종료", exact=True)).to_have_count(0)
-    expect(detail).to_contain_text("검토 종료")
+    # The stored close shows in the status badge; the confirmation hides the button at once.
+    expect(detail.locator(".badge")).to_have_text("검토 종료")
     answer["review_url"] = page.url
     return answer
 

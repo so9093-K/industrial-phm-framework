@@ -191,7 +191,10 @@ async function get(url:string,signal:AbortSignal):Promise<unknown>{
     if(obj(body)?.error==="unknown_binding"||obj(body)?.error==="invalid_phm_query")
       throw new NoModelEvidence("고른 모델 결과를 더 이상 찾을 수 없습니다.");
   }
-  if(!response.ok)throw new Error("모델 결과를 읽지 못했습니다. 결과가 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("모델 결과를 읽지 못했습니다. 결과가 없다는 뜻은 아닙니다.");
+  }
   return await response.json() as unknown;
 }
 export async function loadModelBindings(assetId:string|null,signal:AbortSignal):Promise<ModelBinding[]>{

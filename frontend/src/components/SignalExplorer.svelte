@@ -5,7 +5,7 @@
   import ValueAxis from "./ValueAxis.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
-  import {num} from "../format";
+  import {num, propertyLabel} from "../format";
   import {
     groupHistory, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
@@ -186,7 +186,7 @@
           <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId) : ""}</h3>
           <p class="context">
             데이터 출처 {sourceLabel(sources, group.sourceId)} · 측정 위치 {group.pointId ?? "미등록"}
-            {#if group.observedProperty} · 측정 의미 {group.observedProperty}{/if}
+            {#if group.observedProperty} · 측정 의미 {propertyLabel(group.observedProperty)}{/if}
             · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit ?? "기록 없음"}
           </p>
           {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 의미의 근거</summary><p class="context">단위 근거 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">해석 근거 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}

@@ -145,6 +145,9 @@ export function parseMonitor(value: unknown): Snapshot {
 
 export async function readMonitor(signal: AbortSignal): Promise<Snapshot> {
   const response = await fetch("/api/v1/monitor", { signal, cache: "no-store" });
-  if (!response.ok) throw new Error("서버에서 관측 정보를 확인하지 못했습니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("서버에서 관측 정보를 확인하지 못했습니다.");
+  }
   return parseMonitor(await response.json() as unknown);
 }

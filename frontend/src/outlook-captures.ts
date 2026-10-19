@@ -170,7 +170,10 @@ export async function recomputeForComparison(saved:CapturedOutlook,signal:AbortS
   const response=await fetch("/api/v1/outlook?"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404||response.status===422)
     throw new CompareUnavailable("지금 데이터로는 같은 조건의 전망을 계산할 수 없습니다.");
-  if(!response.ok)throw new Error("지금 데이터로 다시 계산하지 못했습니다. 같은 조건으로 다시 시도할 수 있습니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("지금 데이터로 다시 계산하지 못했습니다. 같은 조건으로 다시 시도할 수 있습니다.");
+  }
   return parseCurrentOutlook(await response.json() as unknown,saved);
 }
 /** A projection the user is looking at, in the same comparable shape. */
@@ -284,7 +287,10 @@ export async function readCaptures(
   const response=await fetch("/api/v1/outlook/captures?"+query,
     {signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
-  if(!response.ok)throw new Error("검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  }
   return parseCapturePage(await response.json() as unknown,assetId,captureId);
 }
 

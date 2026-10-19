@@ -224,7 +224,10 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
       );
     }
   }
-  if (!response.ok) throw new Error("전망을 불러오지 못했습니다. 기록이 없거나 이상이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("전망을 불러오지 못했습니다. 기록이 없거나 이상이 없다는 뜻은 아닙니다.");
+  }
   return await response.json() as unknown;
 }
 export async function loadOptions(assetId: string, signal: AbortSignal): Promise<Options> {

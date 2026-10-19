@@ -6,7 +6,7 @@
     },
     {
       "name": "02-signals",
-      "path": "/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=24h&monitor_anchor=latest"
+      "path": "/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=all&monitor_anchor=latest"
     },
     {
       "name": "03-anomaly",
@@ -22,7 +22,7 @@
     },
     {
       "name": "06-review",
-      "path": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-5feed534-72ef-4385-aaa0-d24a58b58ae9"
+      "path": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-08119e9c-92f9-4543-90da-c31ea5dd1346"
     }
   ],
   "viewport": [
@@ -31,8 +31,8 @@
   ],
   "api_backend": false,
   "data_kind": "synthetic",
-  "snapshot_sha256": "616ba84afd98af460e31b025250219c2c9d0af334395e31502bca882f4084a5d",
-  "bundle_manifest_sha256": "36f3b35b2abf595073fbe2942797f36612a6f758712e92b5fc446989e6c5ae97",
-  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-5feed534-72ef-4385-aaa0-d24a58b58ae9",
+  "snapshot_sha256": "40d864a15a336905fa259cf4eb3aabee80a3364a6564d5df0d98041d549020a4",
+  "bundle_manifest_sha256": "8b3ca9a84e77f2976a7150a28c2978ec14564ccfb687721cd50e8e7b45e6b881",
+  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-08119e9c-92f9-4543-90da-c31ea5dd1346",
   "browser": "156.0.8078.4"
 }

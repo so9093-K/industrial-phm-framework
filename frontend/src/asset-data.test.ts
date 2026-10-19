@@ -30,5 +30,6 @@ test("only the methods an asset's data supports are offered", () => {
   assert.deepEqual(methodsFor("change", vibration), ["compare", "relation", "spectrum"]);
   assert.deepEqual(methodsFor("change", csv), ["compare", "relation", "electrical"]);
   assert.deepEqual(methodsFor("anomaly", null), ["model", "baseline"]);
+  assert.deepEqual(methodsFor("change", {history: null, vibration: null}), ["compare", "relation", "spectrum", "electrical"]);
   assert.deepEqual(methodsFor("signals", csv), []);
 });

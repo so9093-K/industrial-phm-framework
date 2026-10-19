@@ -224,7 +224,11 @@ export function signalChart(
 
 async function json(url: string, signal: AbortSignal): Promise<unknown> {
   const response = await fetch(url, { signal, cache: "no-store" });
-  if (!response.ok) throw new Error("저장된 측정 기록을 불러오지 못했습니다.");
+  if (!response.ok) {
+    // An unread error body keeps the request open; close it before reporting the failure.
+    await response.body?.cancel().catch(() => {});
+    throw new Error("저장된 측정 기록을 불러오지 못했습니다.");
+  }
   return await response.json() as unknown;
 }
 

@@ -98,7 +98,10 @@ export async function readRelation(asset:string,x:string,y:string,periods:Period
     const detail:unknown=await response.json().catch(()=>null);
     if(rec(detail)?.error==="nothing_to_explore")throw new RelationUnavailable("저장된 측정 짝이 없습니다.");
   }
-  if(!response.ok)throw new Error("신호 관계 조회가 실패했습니다. 비교할 짝이 없다는 뜻이 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("신호 관계 조회가 실패했습니다. 비교할 짝이 없다는 뜻이 아닙니다.");
+  }
   return parseRelation(await response.json() as unknown,asset,x,y);
 }
 

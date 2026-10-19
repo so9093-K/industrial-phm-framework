@@ -248,7 +248,10 @@ async function json(url:string,signal:AbortSignal):Promise<unknown>{
       "outlook_unavailable"].includes(String(name)))
       throw new AcquisitionOutlookUnavailable("고른 측정에는 전망할 특징값이 부족합니다.");
   }
-  if(!response.ok)throw new Error("전망을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("전망을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  }
   return await response.json() as unknown;
 }
 export async function loadAcquisitionOptions(
