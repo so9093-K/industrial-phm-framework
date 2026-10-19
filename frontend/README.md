@@ -189,7 +189,7 @@ bundle is never accepted instead. `make up` and `make demo` also prepare these a
 Python editable setup (`uv sync`) skips the frontend build, so use `make frontend`
 before opening `/web/` directly. Node.js >=22.12 and npm are needed for these
 source builds; installing and serving a prebuilt wheel needs neither.
-`sh tools/verify/gate.sh wheel` checks sdist → wheel, exact manifest contents and
-serving every asset from an installed wheel with no Node on PATH or checkout imports.
+패키징을 변경할 때에는 `uv build`의 sdist → wheel 재빌드와 설치된 wheel에서
+Node 없이 정적 자산이 제공되는지 별도로 확인합니다. 일반 PR의 Source CI는 이를 자동 검증하지 않습니다.
 This frontend is the default `/web/` UI; the previous direct-DOM assets are removed.
 Automated checks do not establish UX acceptance or field validation.
