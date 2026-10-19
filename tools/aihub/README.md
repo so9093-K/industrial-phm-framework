@@ -213,15 +213,14 @@ uv run --no-sync python -m tools.aihub.reference \
 `research-boiler-2297`, 신호 `R상전압,S상전압,T상전압`, 시간 컬럼 `timestamp`와 생성된
 `phase-bindings.txt`를 입력하면 기존 명시적 수신·이력 적재·분석·검토 경로를 확인할 수 있습니다.
 
-외부 데이터가 준비된 환경에서만 다음 테스트를 실행합니다. 기본 CI는 데이터를 다운로드하지 않습니다.
-`PHM_RECORDED_EVIDENCE`는 매번 새 경로를 사용합니다.
+이 실측 CSV는 외부 제공 데이터가 있는 환경에서만 위 절차로 별도 작업공간에 등록하고,
+현재 `/web/`의 원본·분석·사람 검토를 확인합니다. 일반 CI 및 주간 Product acceptance는
+AI-Hub 원본을 내려받거나 실측 사례의 합격 여부를 재현하지 않습니다.
 
-```bash
-PHM_RECORDED_REFERENCE="$PWD/artifacts/aihub-239/reference" \
-PHM_RECORDED_EVIDENCE="$PWD/artifacts/aihub-239/browser-run-01" \
-  uv run --locked --extra operations --extra aihub --with playwright pytest \
-    tests/acceptance/test_operations_recorded_reference_browser.py -q
-```
+과거 `tests/acceptance/test_operations_recorded_reference_browser.py`는 외부 자료를
+준비하지 않으면 실행되지 않는 선택형 브라우저 스크립트였으며 PR #655에서 제거했습니다.
+따라서 삭제된 테스트 경로를 실행 명령으로 제시하지 않습니다. 관련 과거 캡처·연구
+결과는 역사적 근거이며, 현재 변경의 자동 수용 PASS로 간주하지 않습니다.
 
 ## Observed macOS vendor-shell issue
 
