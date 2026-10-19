@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -101,11 +101,14 @@ jobs:
         run: |
           uv venv /tmp/phm-installed-wheel --python 3.14
           uv pip install --python /tmp/phm-installed-wheel/bin/python --no-deps dist/*.whl
-          /tmp/phm-installed-wheel/bin/python - <<'PY'
+          # Inspect installed distribution with a PATH that cannot resolve Node/npm.
+          PATH=/tmp/phm-no-node /tmp/phm-installed-wheel/bin/python - <<'PY'
           import json
           from importlib.metadata import distribution
           from pathlib import Path
+          from shutil import which
 
+          assert which('node') is None and which('npm') is None
           wheel = distribution("industrial-phm-framework")
           root = Path(wheel.locate_file("industrial_phm/apps/web_next"))
           names = json.loads((root / "asset-manifest.json").read_text())
