@@ -49,4 +49,4 @@ jobs:
         run: uv run --locked --extra operations mypy
 
       - name: Unit and contract tests
-        run: uv run --locked --extra operations pytest tests/unit tests/contract
+        run: uv run --locked --extra operations pytest tests/unit tests/contract --durations=20
