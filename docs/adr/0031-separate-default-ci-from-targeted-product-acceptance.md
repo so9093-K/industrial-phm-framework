@@ -1,6 +1,6 @@
 # 0031. Separate default source CI from targeted product acceptance
 
-Status: Accepted (2026-10-19; review through PR #655).
+Status: Accepted (2026-10-19).
 
 Supersedes **only the default automated verification scope** of
 [ADR-0030 §6](0030-svelte-typescript-operations-web.md). It does not supersede
