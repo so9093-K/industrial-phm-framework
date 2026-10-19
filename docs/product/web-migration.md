@@ -29,8 +29,8 @@
 이전 direct-DOM HTML/JS/CSS와 그 DOM에만 의존한 브라우저 테스트는 제거했습니다.
 저장소·실제 프로세스·권한 검사는 보존하고 현재 UI 회귀로 옮겼습니다.
 2026-10-19부터 일반 Source CI는 lock·Ruff·mypy·unit/contract 검사만 수행합니다.
-기존 `web-next`·`forecast`·`supervised-browser` 복합 gate와 자동 브라우저/배포
-수용 워크플로는 제거했습니다. 현재 Web 기능·read DTO·빌드/배포를 변경할 때는
+기존 `web-next`·`forecast`·`supervised-browser` 복합 gate와 PR마다 실행하는 개별 브라우저/배포
+수용 워크플로는 제거했습니다. 실제 Web 수용은 단일 CI의 주간·명시적 Product acceptance 실행이 소유합니다. 현재 Web 기능·read DTO·빌드/배포를 변경할 때는
 Svelte/TypeScript 빌드와 관련 통합·Chromium·supervisor 또는 wheel 수용을
 해당 변경에서 별도로 실행하고 결과·미실행 범위를 PR에 기록합니다.
 이전 성공한 자동 수용 결과를 현재 변경의 자동 보증으로 승격하지 않습니다.
