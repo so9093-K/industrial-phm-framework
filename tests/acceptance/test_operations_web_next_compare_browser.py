@@ -129,6 +129,21 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                 pw.expect(page.get_by_role("heading", name="current · src-B")).to_be_visible()
                 pw.expect(page.get_by_role("table")).to_have_count(2)
                 assert "compare_a=" in page.url
+                before = page.url
+                period_a = page.get_by_role("group", name="기간 A · 비교 기준")
+                start = period_a.get_by_label("시작 (KST)")
+                start.fill("2026-10-14T12:00")
+                start.dispatch_event("change")
+                changed = page.get_by_role("status").filter(
+                    has_text="비교 조건이 변경되었습니다"
+                )
+                pw.expect(changed).to_be_visible()
+                pw.expect(page.get_by_role("table")).to_have_count(0)
+                assert page.url == before  # Only completed comparison is bookmarked.
+                page.get_by_role("button", name="비교하기").click()
+                pw.expect(page.get_by_role("table")).to_have_count(2)
+                pw.expect(changed).to_have_count(0)
+                assert page.url != before
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )

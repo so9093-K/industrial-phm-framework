@@ -39,3 +39,11 @@ test("mismatched period, missing quantiles and invalid metrics fail closed",()=>
   withoutEvidence.periods.b.quantiles=null as unknown as number[];
   assert.throws(()=>parseProfile(response([withoutEvidence]),"motor","current",periods),/대표값 없이/);
 });
+test("unordered quantiles are rejected, ties are valid",()=>{
+  const invalid=series("src-1","motor-1","A");
+  invalid.periods.b.quantiles=[0,1,5,3,6];
+  assert.throws(()=>parseProfile(response([invalid]),"motor","current",periods),/분위수/);
+  const tied=series("src-1","motor-1","A");
+  tied.periods.a.quantiles=[0,1,1,3,4];
+  assert.equal(parseProfile(response([tied]),"motor","current",periods).series.length,1);
+});
