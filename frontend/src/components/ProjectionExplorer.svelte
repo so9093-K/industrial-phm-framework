@@ -3,6 +3,7 @@
   import ForecastValidation from "./ForecastValidation.svelte";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
+  import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import {reachText} from "../reach";
@@ -16,6 +17,8 @@
   } from "../projections";
   type Props = {assetId: string};
   let {assetId}: Props = $props();
+  let names: SignalNames = $state(new Map());
+  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names = value; }); });
   type State = "loading" | "ready" | "empty" | "unavailable" | "failed" | "unverified";
   let optionsState: State = $state("loading");
   let resultState: State = $state("empty");
@@ -135,7 +138,7 @@
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
           onchange={e=>{channel=e.currentTarget.value;invalidate();}}>
-          {#each options.channels as id (id)}<option value={id}>{id}</option>{/each}
+          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
       <label for="projection-horizon">예측 기간

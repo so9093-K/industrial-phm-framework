@@ -11,6 +11,7 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 
+from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.asset_history import MeasurementSourceQuality
 from industrial_phm.application.measurement_history import MultiSignalMeasurementHistoryBucket
 from industrial_phm.history import DuckLakeAssetHistory
@@ -104,6 +105,7 @@ def project_history_channels(
 ) -> dict[str, object]:
     """List stored channels for a selected asset, not a live connection roster."""
     channels = list_operations_history_channels(_history(snapshot), asset_id)
+    labels = resolve_channel_labels(snapshot.registered_sources, asset_id)
     return {
         "schema_version": 1,
         "assessed_at": _time(snapshot.assessed_at),
@@ -113,6 +115,12 @@ def project_history_channels(
             "items": list(channels[:100]),
             "total": len(channels),
             "truncated": len(channels) > 100,
+        },
+        # How the person who registered the data named each channel; IDs stay identities.
+        "labels": {
+            channel: {"label": labels[channel][0], "unit": labels[channel][1]}
+            for channel in channels[:100]
+            if channel in labels
         },
     }
 

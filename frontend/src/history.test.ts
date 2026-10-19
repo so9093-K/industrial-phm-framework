@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {fillsWindow, fittingRange, groupHistory, parseChannels, parseTrend, signalChart} from "./history.ts";
+import {fillsWindow, fittingRange, groupHistory, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -79,3 +79,12 @@ test("mixed source, invalid counts and wrong asset cannot render", () => {
   const trend=parseTrend(data([{...bucket("opcua-source","i1",2),measurement_point_id:null}]),"motor","R");
   assert.equal(groupHistory(trend)[0].pointId,null);
  });
+
+test("a channel reads as the name and unit its registration declared, else its ID", () => {
+  const list = parseChannels({asset_id: "pump", channels: {items: ["current_a", "temperature_c"], truncated: false},
+    labels: {current_a: {label: "모터 전류", unit: "A"}, other: {label: "다른 설비", unit: null}, temperature_c: {label: " ", unit: "°C"}}}, "pump");
+  assert.equal(signalName(list.names, "current_a"), "모터 전류 (A)");
+  assert.equal(signalName(list.names, "temperature_c"), "temperature_c");
+  assert.equal(list.names.has("other"), false);
+  assert.equal(signalName(null, "current_a"), "current_a");
+});

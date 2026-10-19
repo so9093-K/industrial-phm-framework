@@ -9,6 +9,8 @@ export type CsvSetup={
   channel_columns:string[];timestamp_column:string;
   /** Optional 3-phase roles; the upload path accepts the same field as a workspace CSV. */
   phase_channels?:PhaseRole[];
+  /** Optional names and units people see for the saved columns; IDs stay the column names. */
+  channel_labels?:{channel_id:string;label:string;unit:string|null}[];
 };
 export type PreflightIssue={code:string;guidance:string;row:number|null;column:string|null};
 export type Preflight={

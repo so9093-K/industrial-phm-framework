@@ -180,3 +180,26 @@ export function suggestedSourceId(fileName:string,suffix:string):string{
   const stem=fileName.replace(/\.csv$/i,"").toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)||"file";
   return "csv-"+stem+"-"+suffix;
 }
+
+const QUANTITY: [RegExp, string][] = [
+  [/^(current|curr|amps?)$/, "전류"], [/^(voltage|volt|volts)$/, "전압"], [/^(temperature|temp)$/, "온도"],
+  [/^(pressure|press)$/, "압력"], [/^(vibration|vib)$/, "진동"], [/^(flow|flowrate)$/, "유량"],
+  [/^humidity$/, "습도"], [/^power$/, "전력"], [/^(frequency|freq)$/, "주파수"], [/^torque$/, "토크"],
+  [/^speed$/, "속도"],
+];
+/** A starting name for each column whose name says what it measures (current_a → 전류).
+ * Only the quantity is suggested; a unit is never read from a suffix, since "a" may be a phase. */
+export function suggestSignalNames(columns: string[]): Map<string, string> {
+  const parsed = columns.map((name) => {
+    const [head, ...rest] = name.toLowerCase().split(/[_\-\s.]+/).filter(Boolean);
+    const word = QUANTITY.find(([pattern]) => pattern.test(head ?? ""))?.[1];
+    return {name, word, rest: rest.length <= 2 && rest.every((token) => /^[a-z0-9]{1,3}$/.test(token)) ? rest : null};
+  });
+  const names = new Map<string, string>();
+  for (const item of parsed) {
+    if (!item.word || item.rest === null) continue;
+    const shared = parsed.filter((other) => other.word === item.word).length > 1;
+    names.set(item.name, shared && item.rest.length ? item.word + " " + item.rest.join(" ").toUpperCase() : item.word);
+  }
+  return names;
+}

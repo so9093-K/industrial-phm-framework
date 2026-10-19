@@ -6,11 +6,8 @@
 export type RangePreset = "15m" | "1h" | "24h" | "7d";
 export type TimeAnchor = "latest" | "now";
 
-export type ChannelList = {
-  assetId: string;
-  ids: string[];
-  truncated: boolean;
-};
+export type SignalNames = Map<string, {label: string; unit: string | null}>;
+export type ChannelList = {assetId: string; ids: string[]; truncated: boolean; names: SignalNames};
 
 export type HistoryBucket = {
   channelId: string;
@@ -95,7 +92,14 @@ export function parseChannels(payload: unknown, assetId: string): ChannelList {
   if (response?.asset_id !== assetId || !list || !Array.isArray(list.items))
     throw new Error("선택한 설비의 신호 목록을 확인할 수 없습니다.");
   const ids = list.items.map(nonEmpty);
-  return { assetId, ids: [...new Set(ids)], truncated: list.truncated === true };
+  // What the person who registered the data called each channel; absent names stay IDs.
+  const names: SignalNames = new Map();
+  for (const [id, raw] of Object.entries(object(response.labels) ?? {})) {
+    const entry = object(raw);
+    if (ids.includes(id) && typeof entry?.label === "string" && entry.label.trim())
+      names.set(id, {label: entry.label, unit: typeof entry.unit === "string" && entry.unit.trim() ? entry.unit : null});
+  }
+  return { assetId, ids: [...new Set(ids)], truncated: list.truncated === true, names };
 }
 
 export function parseTrend(payload: unknown, assetId: string, channelId: string): HistoryTrend {
@@ -246,7 +250,24 @@ export async function readTrend(
   assetId: string, channelId: string, range: RangePreset, anchor: TimeAnchor, signal: AbortSignal,
 ): Promise<HistoryTrend> {
   const params = new URLSearchParams({
-    asset_id: assetId, channel_id: channelId, range, anchor, buckets: "60",
+    asset_id: assetId, channel_id: channelId, range, anchor, buckets: "120",
   });
   return parseTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelId);
+}
+
+/** A channel as people read it: its declared name and unit, else its stored ID. */
+export function signalName(names: SignalNames | null | undefined, id: string): string {
+  const named = names?.get(id);
+  return named ? named.label + (named.unit ? " (" + named.unit + ")" : "") : id;
+}
+
+const known = new Map<string, {at: number; names: Promise<SignalNames>}>();
+/** Signal names for an asset, shared by the screens that list its channels for a short while. */
+export function readSignalNames(assetId: string): Promise<SignalNames> {
+  const cached = known.get(assetId);
+  if (cached && Date.now() - cached.at < 30_000) return cached.names;
+  const names = readChannels(assetId, new AbortController().signal).then((list) => list.names)
+    .catch(() => new Map() as SignalNames);
+  known.set(assetId, {at: Date.now(), names});
+  return names;
 }

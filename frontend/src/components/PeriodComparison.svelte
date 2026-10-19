@@ -2,6 +2,8 @@
   import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
   import {onMount} from "svelte";
+  import {readSourceNames, sourceLabel} from "../operations-status";
+  import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
@@ -12,6 +14,10 @@
 
   type Props = {assetId: string};
   let {assetId}: Props = $props();
+  let sources_: Map<string, string> = $state(new Map());
+  $effect(() => { void readSourceNames().then((value) => sources_ = value); });
+  let names: SignalNames = $state(new Map());
+  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names = value; }); });
   type State = "loading" | "ready" | "edited" | "empty" | "failed" | "unavailable";
   let sourceState: State = $state("loading");
   let compareState: State = $state("loading");
@@ -152,7 +158,7 @@
       <label for="compare-channel">신호
         <select id="compare-channel" value={selected}
           onchange={e => selectChannel(e.currentTarget.value)}>
-          {#each sources.channels as id (id)}<option value={id}>{id}</option>{/each}
+          {#each sources.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
     </div>
@@ -194,8 +200,8 @@
         · 기간 B {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
       {#each result.series as row (row.key)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <h3>{row.channel} · {row.source}</h3>
-          <p class="context">데이터 출처 {row.source} · 측정 위치 {row.point ?? "미확인"}
+          <h3>{signalName(names, row.channel)}</h3>
+          <p class="context">데이터 출처 {sourceLabel(sources_, row.source)} · 측정 위치 {row.point ?? "미확인"}
             · 단위 {row.unit ?? "미확인"}</p>
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)} {row.unit ?? "(단위 미확인)"}</strong>

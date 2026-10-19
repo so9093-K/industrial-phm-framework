@@ -1,16 +1,19 @@
 <script lang="ts">
   import {onMount} from "svelte";
+  import {readSourceNames, sourceLabel} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
   import {num} from "../format";
   import {
-    fillsWindow, fittingRange, groupHistory, readChannels, readTrend, signalChart,
+    fillsWindow, fittingRange, groupHistory, readChannels, readTrend, signalChart, signalName,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
   } from "../history";
 
   type LoadState = "idle" | "loading" | "ready" | "empty" | "failed";
   type Props = {assetId: string};
   let {assetId}: Props = $props();
+  let sources: Map<string, string> = $state(new Map());
+  $effect(() => { void readSourceNames().then((value) => sources = value); });
 
   let channelState: LoadState = $state("loading");
   let trendState: LoadState = $state("idle");
@@ -143,7 +146,7 @@
         <select id="history-channel" value={selectedChannel}
           onchange={(event) => changeChannel(event.currentTarget.value)}>
           {#each channels.ids as id (id)}
-            <option value={id}>{id}</option>
+            <option value={id}>{signalName(channels.names, id)}</option>
           {/each}
         </select>
       </label>
@@ -194,11 +197,11 @@
       {#each groups as group (group.key)}
         {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
         <section class="series" aria-label={"측정 기록 " + group.sourceId}>
-          <h3>{selectedChannel}{groups.length > 1 ? " · 데이터 출처 " + group.sourceId : ""}</h3>
+          <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId) : ""}</h3>
           <p class="context">
-            데이터 출처 {group.sourceId} · 측정 위치 {group.pointId ?? "미등록"}
+            데이터 출처 {sourceLabel(sources, group.sourceId)} · 측정 위치 {group.pointId ?? "미등록"}
             {#if group.observedProperty} · 측정 의미 {group.observedProperty}{/if}
-            · 단위 {group.unit ?? "기록 없음"}
+            · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit ?? "기록 없음"}
           </p>
           {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 의미의 근거</summary><p class="context">단위 근거 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">해석 근거 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
           {#if chart}
@@ -247,7 +250,7 @@
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
-              <li>{item.sourceId} / {item.pointId ?? "미등록"}
+              <li>{sourceLabel(sources, item.sourceId)} / {item.pointId ?? "미등록"}
                 · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {item.quality === "unknown" ? "기록 없음" : item.quality}</li>
             {/each}

@@ -1,5 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
+  import {readSourceNames, sourceLabel} from "../operations-status";
+  import {readSignalNames,signalName,type SignalNames} from "../history";
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type Relation} from "../relation";
   import StatusNotice from "./StatusNotice.svelte";
@@ -8,6 +10,10 @@
   import {strength} from "../relation";
   import {assetTabUrl} from "../routes";
   let {assetId}:{assetId:string}=$props();
+  let sourceNames: Map<string, string> = $state(new Map());
+  $effect(() => { void readSourceNames().then((value) => sourceNames = value); });
+  let names: SignalNames = $state(new Map());
+  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names = value; }); });
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let listState:State=$state("loading");
   let resultState:State=$state("empty");
@@ -108,12 +114,12 @@
     <div class="controls">
       <label for="relation-x">신호 X
         <select id="relation-x" value={x} onchange={e=>switchChannel("x",e.currentTarget.value)}>
-          {#each available.channels as id(id)}<option value={id}>{id}</option>{/each}
+          {#each available.channels as id(id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
       <label for="relation-y">신호 Y
         <select id="relation-y" value={y} onchange={e=>switchChannel("y",e.currentTarget.value)}>
-          {#each available.channels as id(id)}<option value={id}>{id}</option>{/each}
+          {#each available.channels as id(id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
     </div>
@@ -145,9 +151,9 @@
       <p class="context">기간 A {periodText("a")} · 기간 B {periodText("b")}</p>
       {#each relation.groups as group(group.id)}
         <section class="group">
-          <h3>기간 {group.period.toUpperCase()} · {group.source} / {group.point??"측정 위치 미확인"}</h3>
+          <h3>기간 {group.period.toUpperCase()} · {sourceLabel(sourceNames, group.source)} / {group.point??"측정 위치 미확인"}</h3>
           {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
-          <p class="context">{x} ({group.xUnit??"단위 미확인"}) / {y} ({group.yUnit??"단위 미확인"})</p>
+          <p class="context">{signalName(names,x)} ({group.xUnit??names.get(x)?.unit??"단위 미확인"}) / {signalName(names,y)} ({group.yUnit??names.get(y)?.unit??"단위 미확인"})</p>
           <dl>
             <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
             <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>

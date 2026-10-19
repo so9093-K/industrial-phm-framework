@@ -311,6 +311,7 @@ from industrial_phm.application.source_receipt import (
     receive_registered_opcua_source_observation,
 )
 from industrial_phm.application.source_registration import (
+    ChannelLabel,
     FileSourceConfig,
     FileSourceMode,
     InMemorySourceRepository,
@@ -407,6 +408,7 @@ __all__ = [
     "AttentionItem",
     "AttentionKind",
     "ChannelIdentity",
+    "ChannelLabel",
     "ChannelObservation",
     "ChannelSemanticBinding",
     "ChannelSemanticCandidate",

@@ -129,3 +129,18 @@ export async function readRuntimeStatus(signal:AbortSignal):Promise<RuntimeStatu
 export async function readSources(signal:AbortSignal):Promise<Sources>{
   return parseSources(await read("/api/v1/sources",signal));
 }
+
+const named = {at: 0, names: null as Promise<Map<string, string>> | null};
+/** Registered connection names by source ID, shared briefly by the screens that show a source. */
+export function readSourceNames(): Promise<Map<string, string>> {
+  if (named.names && Date.now() - named.at < 30_000) return named.names;
+  named.at = Date.now();
+  named.names = readSources(new AbortController().signal)
+    .then((sources) => new Map(sources.items.map((item) => [item.sourceId, item.name])))
+    .catch(() => new Map<string, string>());
+  return named.names;
+}
+/** A source as people know it: its registered connection name, else its ID. */
+export function sourceLabel(names: Map<string, string> | null | undefined, id: string): string {
+  return names?.get(id) ?? id;
+}

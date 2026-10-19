@@ -6,7 +6,7 @@
   } from "../connections";
   import {
     channelChoices, inspectCsv, intervals, parseCsv, previewPoints, previewProblems, readTimes, summarize,
-    suggestedSourceId, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
+    suggestedSourceId, suggestSignalNames, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
   } from "../csv-preview";
   import {num} from "../format";
   import {readSources} from "../operations-status";
@@ -40,6 +40,9 @@
   let timeIndex = $state(-1);
   let channels: string[] = $state([]);
   let chartChannel = $state("");
+  // How each saved column reads on screens; empty keeps the column name.
+  let labels: Record<string, {label: string; unit: string}> = $state({});
+  const shown = (name: string) => labels[name]?.label.trim() || name;
   let assetId = $state("");
   let pointId = $state("");
   let sourceId = $state("");
@@ -118,6 +121,8 @@
     timeIndex = inspected.times[0]?.index ?? -1;
     channels = channelChoices(inspected, timeIndex).filter((c) => c.usable).slice(0, MAX_CHANNELS).map((c) => c.name);
     chartChannel = channels[0] ?? "";
+    const suggested = suggestSignalNames(channelChoices(inspected, timeIndex).map((c) => c.name));
+    labels = Object.fromEntries(inspected.header.map((name) => [name, {label: suggested.get(name) ?? "", unit: ""}]));
     sourceId = suggestedSourceId(chosen.name, Math.random().toString(16).slice(2, 6));
     sourceName = chosen.name.slice(0, 128);
     let restored = false;
@@ -131,6 +136,10 @@
         sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
         timeIndex = inspected.header.indexOf(prior.timestamp_column); channels = [...prior.channel_columns];
         chartChannel = channels[0] ?? ""; restored = true;
+        if (Array.isArray(prior.channel_labels)) for (const item of prior.channel_labels) {
+          if (typeof item?.channel_id === "string" && item.channel_id in labels && typeof item.label === "string")
+            labels[item.channel_id] = {label: item.label, unit: typeof item.unit === "string" ? item.unit : ""};
+        }
       }
     } catch { /* Blocked browser storage does not prevent a new upload. */ }
     fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
@@ -150,7 +159,18 @@
     return {source_id: sourceId.trim(), name: sourceName.trim(), asset_id: assetId.trim(),
       measurement_point_id: pointId.trim(), channel_columns: channels,
       timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : "",
-      ...(declared.length ? {phase_channels: declared} : {})};
+      ...(declared.length ? {phase_channels: declared} : {}),
+      ...(named().length ? {channel_labels: named()} : {})};
+  }
+  function named(): {channel_id: string; label: string; unit: string | null}[] {
+    return channels.flatMap((name) => {
+      const label = labels[name]?.label.trim() ?? "", unit = labels[name]?.unit.trim() ?? "";
+      return label || unit ? [{channel_id: name, label: label || name, unit: unit || null}] : [];
+    });
+  }
+  function rename(name: string, field: "label" | "unit", value: string) {
+    labels[name] = {...(labels[name] ?? {label: "", unit: ""}), [field]: value};
+    changed();
   }
 
   async function check() {
@@ -311,6 +331,19 @@
         <p class="ok">이 브라우저에서 찾은 구조 문제는 없습니다. 서버 점검으로 최종 확인합니다.</p>
       {/if}
       {#if channels.length}
+        <fieldset class="names">
+          <legend>화면에 보일 이름·단위 (선택)</legend>
+          <p class="context">비워 두면 열 이름이 그대로 보입니다.</p>
+          {#each channels as name (name)}
+            <div class="name-row">
+              <span class="column">{name}</span>
+              <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
+                value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
+              <input maxlength="16" placeholder="단위 예: A" aria-label={name + " 단위"} disabled={locked}
+                value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
+            </div>
+          {/each}
+        </fieldset>
         <div class="scroll"><table>
           <caption>측정값 요약</caption>
           <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
@@ -318,7 +351,7 @@
           <tbody>
             {#each channels as name (name)}
               {@const summary = summarize(table, name)}
-              <tr><th scope="row">{name}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
+              <tr><th scope="row">{shown(name)}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
                 <td>{num(summary.min, "—")}</td><td>{num(summary.median, "—")}</td><td>{num(summary.max, "—")}</td><td>{num(summary.mean, "—")}</td></tr>
             {/each}
           </tbody>
@@ -330,7 +363,7 @@
       {/if}
       {#if channels.length && points.length}
         <label class="field">미리 볼 측정값
-          <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{name}</option>{/each}</select>
+          <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{shown(name)}</option>{/each}</select>
         </label>
         {@const low = Math.min(...points.map((p) => p.min))}
         {@const high = Math.max(...points.map((p) => p.max))}
@@ -435,6 +468,11 @@
     border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
   input[type="file"] { max-width: 100%; }
   .columns { display: grid; gap: var(--space-3); }
+  .names { display: grid; gap: var(--space-2); }
+  .names .context { margin: 0; }
+  .name-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(120px, 2fr) minmax(90px, 1fr); gap: var(--space-2); align-items: center; }
+  .name-row .column { overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--font-small); }
+  @media (max-width: 560px) { .name-row { grid-template-columns: 1fr 1fr; } .name-row .column { grid-column: 1 / -1; } }
   fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3); margin: 0; min-width: 0; }
   legend { font-weight: 650; padding-inline: var(--space-1); }
   .choice { display: flex; gap: var(--space-2); align-items: flex-start; padding-block: var(--space-1); overflow-wrap: anywhere; }
