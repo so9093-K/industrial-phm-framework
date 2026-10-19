@@ -1,6 +1,7 @@
 # 0030. Build the next Operations Web UI with Svelte, TypeScript and a packaged static bundle
 
 Status: Accepted (2026-10-16); required distribution build added 2026-10-17.
+Default automated verification scope in §6 was superseded by [ADR-0031](0031-separate-default-ci-from-targeted-product-acceptance.md) (2026-10-19). The product build and acceptance requirements remain.
 The user explicitly requested the default `/web/` cutover and old-UI removal on
 2026-10-17. The workflow mapping and verification boundary are recorded in
 [Web migration](../product/web-migration.md).
