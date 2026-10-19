@@ -15,9 +15,8 @@ make showcase
 Python·Docker·데이터셋·모델 서버가 필요하지 않습니다. 일반 Operations는 기존 `make up`을 사용하며
 이 안내와 정적 데이터 전송은 `showcase` 빌드 모드에서만 활성화됩니다.
 
-CI의 [Product showcase](https://github.com/so9093-K/industrial-phm-framework/actions/workflows/product-showcase.yml)는
-현재 애플리케이션으로 결과를 다시 계산하고 `industrial-phm-showcase` 정적 배포물을 제공합니다.
-압축을 풀어 그 루트를 일반 HTTP 정적 서버로 제공하면 됩니다(`/web/` 경로 사용).
+시연 정적 배포물을 만들 때는 아래의 재생성 절차를 사용합니다. 일반 PR에서는 CI가 시연 결과를 자동 재계산하거나 정적 배포물을 업로드하지 않습니다.
+생성한 `dist/showcase/`를 일반 HTTP 정적 서버로 제공할 수 있습니다(`/web/` 경로 사용).
 예를 들어 Python이 있다면 `python -m http.server --directory dist/showcase 2720`으로 열 수 있습니다.
 HTML 파일을 더블클릭하는 `file://` 실행은 지원하지 않습니다.
 공개 사이트·계정·도메인에는 아직 배포하지 않았습니다.
@@ -70,8 +69,7 @@ HTML 파일을 더블클릭하는 `file://` 실행은 지원하지 않습니다.
 
 ```sh
 uv sync --locked --extra history --extra forecast --extra opcua
-. tools/verify/versions.env
-uv pip install --python .venv/bin/python "playwright==$PLAYWRIGHT_VERSION"
+uv pip install --python .venv/bin/python "playwright==1.64.0"
 uv run --no-sync playwright install chromium
 make frontend
 uv run --no-sync python -m tools.showcase.export
@@ -84,8 +82,8 @@ PNG는 분석 내용이 보이도록 실제 화면을 스크롤해 촬영합니�
 WebM은 같은 브라우저 세션 녹화입니다. 그래프나 결과를 이미지에 합성하지 않습니다.
 `--no-media`는 파일을 다시 촬영하지 않고 동일한 브라우저 검증을 실행합니다.
 
-입력/근거 계약 테스트와 실제 API 재생성은 CI에 포함됩니다. 저장소에 포함된 체험과 현재 앱으로
-새로 생성한 체험을 각각 검사해 `make showcase`의 결과와 CI 배포물이 함께 유지되게 합니다.
+입력/근거 계약 테스트는 기본 unit/contract 검사에 포함됩니다. 실제 API 재생성, 브라우저 확인과
+캡처 갱신은 체험 기능을 변경하거나 정적 배포물을 제작할 때 별도로 실행합니다.
 읽기 전용·알 수 없는 조건·직접 링크 재조회·390px 화면을 검사합니다.
 자동 검증 통과가 처음 보는 운영자의 사용성 시험을 대신하지는 않습니다.
 공개 체험을 게시하기 전에는 이 배포물을 검토하고 게시할 호스팅 경로를 정해야 합니다.
