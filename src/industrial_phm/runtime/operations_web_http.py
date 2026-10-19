@@ -83,6 +83,7 @@ from industrial_phm.runtime.operations_web_setup import (
 )
 from industrial_phm.runtime.operations_web_signals import (
     RANGE_DURATIONS,
+    WHOLE_RECORD,
     project_history_channels,
     project_signal_history,
 )
@@ -256,7 +257,7 @@ def create_operations_web_read_server(
                 self._validate_id(sources[0])
             presets = params.get("range", ("1h",))
             buckets = params.get("buckets", ("60",))
-            if len(presets) != 1 or presets[0] not in RANGE_DURATIONS:
+            if len(presets) != 1 or presets[0] not in {*RANGE_DURATIONS, WHOLE_RECORD}:
                 raise ValueError("unsupported history range")
             if len(buckets) != 1 or not buckets[0].isascii() or not buckets[0].isdigit():
                 raise ValueError("invalid buckets")

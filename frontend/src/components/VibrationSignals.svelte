@@ -1,5 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
+  import {measure} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
@@ -75,16 +77,19 @@
     {:else if trendState === "failed" || !trend}
       <StatusNotice kind="uncertain" message="고른 특징의 기록을 불러오지 못했습니다. 다른 특징을 고르거나 다시 열어 주세요." />
     {:else}
-      {#if latest}<p class="headline">마지막 측정 #{latest.ordinal} · <strong>{num(latest.value)}</strong></p>{/if}
+      {#if latest}<p class="headline">마지막 측정 #{latest.ordinal} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
       {#if chart}
         <figure class="chart">
-          <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}{trend.sampled ? " · 측정이 많아 고르게 " + trend.points.length + "개를 그림" : ""}</p>
+          <p class="axis-note">최고 {measure(chart.high, trend.unit)} · 최저 {measure(chart.low, trend.unit)}{trend.sampled ? " · 측정이 많아 고르게 " + trend.points.length + "개를 그림" : ""}</p>
+          <ValueAxis ticks={chart.ticks} height={chart.height} unit={trend.unit}>
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
             aria-label={trend.label + " · 측정 #" + chart.first + "부터 #" + chart.last + "까지"}>
+            {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
             <path d={chart.line} class="line" />
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
-          <p class="axis-time"><span>측정 #{chart.first}</span><span>측정 #{chart.last}</span></p>
+          {#snippet footer()}<p class="axis-time"><span>측정 #{chart.first}</span><span>측정 #{chart.last}</span></p>{/snippet}
+          </ValueAxis>
         </figure>
       {/if}
     {/if}
@@ -100,10 +105,11 @@
     color: var(--color-ink-muted); font-size: var(--font-small); }
   .headline { font-size: var(--font-section); margin: var(--space-4) 0 0; }
   .chart { margin: var(--space-3) 0 0; min-width: 0; }
-  .chart svg { display: block; width: 100%; height: 220px; margin-top: var(--space-2); }
+  .chart svg { display: block; width: 100%; height: 220px;  }
   .chart path { vector-effect: non-scaling-stroke; }
   .chart .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
   .chart .line { fill: none; stroke: var(--color-action); stroke-width: 1.75; }
   .axis-note, .axis-time { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
   .axis-time { display: flex; justify-content: space-between; margin-top: var(--space-1); }
+  .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 </style>

@@ -1,7 +1,8 @@
 /** One stored vibration feature per acquisition (GET /api/v1/acquisition/trend); nothing is fitted. */
+import {yTicks, type Tick} from "./chart-axis.ts";
 
 export type AcquisitionTrend = {
-  assetId: string; sourceId: string; feature: string; label: string;
+  assetId: string; sourceId: string; feature: string; label: string; unit: string | null;
   periodSeconds: number | null; analyzed: number; sampled: boolean;
   points: {ordinal: number; value: number}[];
 };
@@ -27,6 +28,7 @@ export function parseAcquisitionTrend(raw: unknown, assetId: string, feature: st
     return {ordinal, value};
   });
   return {assetId, sourceId: root.source_id, feature, label: root.label,
+    unit: typeof root.unit === "string" && root.unit.trim() ? root.unit : null,
     periodSeconds: root.period_seconds as number | null, analyzed: root.analyzed, sampled: root.sampled, points};
 }
 
@@ -40,7 +42,7 @@ export async function readAcquisitionTrend(assetId: string, feature: string, sig
   return parseAcquisitionTrend(await response.json() as unknown, assetId, feature);
 }
 
-export type TrendChart = {width: number; height: number; low: number; high: number; first: number; last: number; line: string};
+export type TrendChart = {width: number; height: number; low: number; high: number; first: number; last: number; line: string; ticks: Tick[]};
 /** The stored values on the acquisition axis. */
 export function trendChart(trend: AcquisitionTrend): TrendChart | null {
   const points = trend.points;
@@ -53,6 +55,6 @@ export function trendChart(trend: AcquisitionTrend): TrendChart | null {
   const first = points[0].ordinal, last = points[points.length - 1].ordinal;
   const x = (at: number) => ((at - first) / Math.max(1, last - first)) * width;
   const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
-  return {width, height, low, high, first, last,
+  return {width, height, low, high, first, last, ticks: yTicks(lo, hi, top, bottom),
     line: points.map((point, i) => (i ? "L" : "M") + x(point.ordinal).toFixed(1) + " " + y(point.value).toFixed(1)).join(" ")};
 }

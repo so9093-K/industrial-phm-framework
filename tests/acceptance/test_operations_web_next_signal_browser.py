@@ -126,6 +126,8 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                     base + "/web/?view=signals&monitor_asset=motor-a", wait_until="networkidle"
                 )
                 expect_place(pw, page, "신호")
+                # Without a chosen window the whole stored record is shown.
+                pw.expect(page.get_by_label("조회 기간")).to_have_value("all")
                 first, second = "R · 데이터 출처 source-1", "R · 데이터 출처 source-2"
                 pw.expect(page.get_by_role("heading", name=first)).to_be_visible()
                 pw.expect(page.get_by_role("heading", name=second)).to_be_visible()

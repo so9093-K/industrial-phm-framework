@@ -1462,6 +1462,33 @@ class DuckLakeAssetHistory:
             raise ValueError("history channel discovery exceeds 1000 channels")
         return tuple(_require_str(row[0], "channel_id") for row in rows)
 
+    def history_channel_extent(
+        self, asset_id: str, channel_ids: Sequence[str]
+    ) -> tuple[datetime, datetime] | None:
+        """First and last stored event of these channels, so a view can span the whole record."""
+        _validate_identifier(asset_id, "asset_id")
+        channels = tuple(channel_ids)
+        if not channels:
+            raise ValueError("channel_ids must not be empty")
+        for channel in channels:
+            _validate_identifier(channel, "channel_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            row = connection.execute(
+                f"""
+                SELECT min(event_at), max(event_at) FROM {_CATALOG_NAME}.history.measurement
+                WHERE asset_id = ? AND event_at IS NOT NULL
+                  AND channel_id IN ({", ".join("?" for _ in channels)})
+            """,
+                [asset_id, *channels],
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None or row[0] is None:
+            return None
+        return _require_datetime(row[0], "start_at"), _require_datetime(row[1], "end_at")
+
     def list_history_sources(self, asset_id: str) -> tuple[str, ...]:
         """Sources that recorded history for one asset, for explicit analysis selection."""
         _validate_identifier(asset_id, "asset_id")

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {fillsWindow, fittingRange, groupHistory, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
+import {groupHistory, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -49,24 +49,6 @@ test("a short spike inside a bucket stays visible and a missing bucket breaks th
   assert.equal(chart.high, 3.2);
   assert.ok(chart.marks[1].max < chart.marks[1].mean - 50);
   assert.equal(chart.path.split("M").length - 1, 2);
-});
-
-test("the default window is the shortest one that holds the whole record", () => {
-  const trend = (first: string) => parseTrend({...data([{...bucket("src1", "i1", 1), bucket_start: first}]),
-    start_at: "2026-09-24T01:00:00Z"}, "motor", "R");
-  assert.equal(fittingRange(trend("2026-10-01T00:50:00Z")), "15m");
-  assert.equal(fittingRange(trend("2026-10-01T00:10:00Z")), "1h");
-  assert.equal(fittingRange(trend("2026-09-30T06:00:00Z")), "24h");
-  assert.equal(fittingRange(trend("2026-09-28T00:00:00Z")), "7d");
-  // A bucket aligned hours before the first event must not stretch a minutes-old record.
-  const aligned = parseTrend({...data([{...bucket("src1", "i1", 1), bucket_start: "2026-09-30T22:00:00Z",
-    first_event_at: "2026-10-01T00:50:00Z"}]), start_at: "2026-09-24T01:00:00Z"}, "motor", "R");
-  assert.equal(fittingRange(aligned), "15m");
-  // Only a record that reaches the window start is worth a wider read.
-  const window = (first: string) => parseTrend({...data([{...bucket("src1", "i1", 1), first_event_at: first}]),
-    bucket_seconds: 60}, "motor", "R");
-  assert.equal(fillsWindow(window("2026-10-01T00:00:30Z")), true);
-  assert.equal(fillsWindow(window("2026-10-01T00:40:00Z")), false);
 });
 
 test("mixed source, invalid counts and wrong asset cannot render", () => {

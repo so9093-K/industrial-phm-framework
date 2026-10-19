@@ -3,7 +3,10 @@
  * Groups MUST retain source + measurement point + semantic interpretation.
  * No chart point is an interpolated measurement or equipment-health diagnosis.
  */
-export type RangePreset = "15m" | "1h" | "24h" | "7d";
+/** "all" spans the stored record of the chosen signal, from its first to its last measurement. */
+import {yTicks, type Tick} from "./chart-axis.ts";
+export type RangePreset = "all" | "15m" | "1h" | "24h" | "7d";
+export const RANGE_PRESETS: readonly RangePreset[] = ["all", "15m", "1h", "24h", "7d"];
 export type TimeAnchor = "latest" | "now";
 
 export type SignalNames = Map<string, {label: string; unit: string | null}>;
@@ -185,6 +188,7 @@ export type SignalChart = {
   /** Means joined only between adjacent buckets; a missing bucket breaks the line. */
   path: string;
   marks: {bucket: HistoryBucket; x: number; mean: number; min: number; max: number}[];
+  ticks: Tick[];
 };
 
 /** Bucket means as a line with each bucket's min-max range, from the first stored bucket
@@ -214,25 +218,8 @@ export function signalChart(
     return {bucket, x: x(bucket.bucketStart), mean: y(bucket.mean!),
       min: y(bucket.minimum ?? bucket.mean!), max: y(bucket.maximum ?? bucket.mean!)};
   });
-  return {width, height, low, high, from: new Date(start).toISOString(), path: path.trim(), marks};
-}
-
-/** Whether stored data reaches back to the window's start, so the record may be longer
- * than the window and a wider read is worth making. */
-export function fillsWindow(trend: HistoryTrend): boolean {
-  const first = trend.buckets.find(b => b.usableCount > 0);
-  if (!first) return false;
-  const step = (trend.bucketSeconds ?? 0) * 1000 * 1.5;
-  return Date.parse(first.firstEventAt ?? first.bucketStart) - Date.parse(trend.startAt) <= step;
-}
-
-/** The shortest window that still holds the whole stored record, so a 3-day file and a
- * minutes-old live source both fill the chart. */
-export function fittingRange(trend: HistoryTrend): RangePreset {
-  const first = trend.buckets.find(b => b.usableCount > 0);
-  if (!first) return "7d";
-  const span = Date.parse(trend.endAt) - Date.parse(first.firstEventAt ?? first.bucketStart);
-  return span <= 15 * 60_000 ? "15m" : span <= 3_600_000 ? "1h" : span <= 86_400_000 ? "24h" : "7d";
+  return {width, height, low, high, from: new Date(start).toISOString(), path: path.trim(), marks,
+    ticks: yTicks(lo, hi, top, bottom)};
 }
 
 async function json(url: string, signal: AbortSignal): Promise<unknown> {

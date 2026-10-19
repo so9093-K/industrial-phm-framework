@@ -9,6 +9,7 @@
     suggestedSourceId, suggestSignalNames, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
   } from "../csv-preview";
   import {num} from "../format";
+  import {measure, yTicks} from "../chart-axis";
   import {readSources} from "../operations-status";
   import {assetTabUrl, routeUrl} from "../routes";
   import {OutcomeUnknown} from "../writes";
@@ -368,15 +369,20 @@
         {@const low = Math.min(...points.map((p) => p.min))}
         {@const high = Math.max(...points.map((p) => p.max))}
         {@const y = (v: number) => 110 - (high === low ? 0.5 : (v - low) / (high - low)) * 92}
-        {@const x = (i: number) => 32 + i * (596 / Math.max(1, points.length - 1))}
-        <svg viewBox="0 0 650 130" role="img" aria-label={chartChannel + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
-          <path d="M28 12 V114 H632" class="axis" />
+        {@const x = (i: number) => 66 + i * (562 / Math.max(1, points.length - 1))}
+        {@const unit = labels[chartChannel]?.unit.trim() || null}
+        <svg viewBox="0 0 650 130" role="img" aria-label={shown(chartChannel) + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
+          {#each high === low ? [] : yTicks(low, high, 18, 110, 3) as tick (tick.value)}
+            <line x1="62" x2="632" y1={tick.y} y2={tick.y} class="grid" />
+            <text x="56" y={tick.y + 3.5} text-anchor="end" class="tick">{measure(tick.value, unit)}</text>
+          {/each}
+          <path d="M62 12 V114 H632" class="axis" />
           {#each points as point, i (point.at)}
             <line x1={x(i)} x2={x(i)} y1={y(point.min)} y2={y(point.max)} class="range" />
             <circle cx={x(i)} cy={y(point.mean)} r="3" class="dot"><title>평균 {num(point.mean)} · 최소 {num(point.min)} · 최대 {num(point.max)}</title></circle>
           {/each}
         </svg>
-        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {num(low)} · 최대 {num(high)}{timing?.naive ? " · 시간대가 없어 한국 시각으로 바꾸지 않았습니다" : ""}</p>
+        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}{timing?.naive ? " · 시간대가 없어 한국 시각으로 바꾸지 않았습니다" : ""}</p>
       {/if}
     </section>
 
@@ -486,6 +492,8 @@
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
   svg { width: 100%; height: auto; max-height: 180px; }
+  .grid { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; }
+  .tick { font-size: 10px; fill: var(--color-ink-muted); }
   .axis { fill: none; stroke: var(--color-border); }
   .range { stroke: var(--color-ink-muted); stroke-width: 1; }
   .dot { fill: var(--color-action); }

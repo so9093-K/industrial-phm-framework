@@ -206,6 +206,25 @@ def handle_forecast_read(
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "forecast_store_unavailable"}
 
 
+# Waveform features measured in the signal's own amplitude unit; the others are ratios.
+_AMPLITUDE_FEATURES = ("mean", "rms", "standard_deviation", "absolute_peak", "peak_to_peak")
+
+
+def feature_unit(
+    workspace: OperationsWorkspace, asset_id: str, source_id: str, feature: str
+) -> str | None:
+    """The unit of one acquisition feature, when the stream declares its amplitude unit."""
+    if feature.rsplit(".", 1)[-1] not in _AMPLITUDE_FEATURES:
+        return None
+    for stream in SqliteAcquisitionSnapshotRepository(
+        workspace.acquisition_snapshot_path
+    ).list_streams():
+        if stream.asset_id == asset_id and stream.source_id == source_id:
+            unit = stream.metadata.get("amplitude_unit")
+            return unit if isinstance(unit, str) and unit.strip() else None
+    return None
+
+
 def _period(workspace: OperationsWorkspace, asset_id: str, source_id: str) -> float | None:
     for stream in SqliteAcquisitionSnapshotRepository(
         workspace.acquisition_snapshot_path
@@ -308,6 +327,7 @@ def acquisition_trend(
         "binding_id": acquisition["binding_id"],
         "feature": feature,
         "label": feature_label(feature),
+        "unit": feature_unit(workspace, asset_id, acquisition["source_id"], feature),
         "period_seconds": _period(workspace, asset_id, acquisition["source_id"]),
         "analyzed": total,
         "sampled": len(results) < total,
@@ -473,7 +493,7 @@ def acquisition_points(
         [value for _, value in points],
         {
             "label": feature_label(feature),
-            "unit": None,
+            "unit": feature_unit(workspace, asset_id, binding.source_id, feature),
             "source_id": binding.source_id,
             "binding_id": binding.binding_id,
             "measurement_point_id": None,
