@@ -7,13 +7,8 @@ WORKSPACE ?= artifacts/operations
 # macOS runs the Linux supervisor in Docker; Linux keeps the native workflow.
 OPERATIONS_BACKEND ?= $(if $(filter Darwin,$(shell uname -s)),container,native)
 COMPOSE = docker compose --env-file /dev/null -f compose.yaml
-include tools/verify/versions.env
-VERIFY_IMAGE ?= industrial-phm-verify
-VERIFY_STAGE ?= ci
-VERIFY_PLATFORM ?=
-_verify_platform = $(if $(VERIFY_PLATFORM),--platform $(VERIFY_PLATFORM),)
 
-.PHONY: help up down status logs demo showcase verify-linux _require-uv _require-npm frontend _prepare \
+.PHONY: help up down status logs demo showcase _require-uv _require-npm frontend _prepare \
 	_require-linux _require-docker container-up container-down container-status container-logs
 
 help:
@@ -28,14 +23,11 @@ help:
 		'  make showcase Open the guided read-only product experience (Node/npm only)' \
 		'  make frontend Build the Operations Web static assets (needs Node.js and npm)' \
 		'  make container-up/down/status/logs  Explicit Docker Compose lifecycle' \
-		'  make verify-linux  Run the CI checks in a Linux container (needs Docker)' \
 		'' \
 		'Variables:' \
 		'  OPERATIONS_BACKEND=container|native  Override the platform default' \
 		'  WORKSPACE=<path>   Local Operations workspace (default: artifacts/operations)' \
 		'  UV=<command>       uv executable (default: uv)' \
-		'  VERIFY_STAGE=<s>   ci (default), source, web-next, forecast, full or one step' \
-		'  VERIFY_PLATFORM=<p>  e.g. linux/amd64 to match the CI architecture'
 
 _require-uv:
 	@command -v "$(UV)" >/dev/null 2>&1 || { \
@@ -111,17 +103,3 @@ container-logs: _require-docker
 demo: _prepare
 	$(UV) run --no-sync industrial-phm demo synthetic
 
-# The working tree (tracked and untracked, not ignored) is verified on Linux, where the
-# supervisor's peer-credential checks run, with the same stages CI calls.
-verify-linux:
-	@command -v docker >/dev/null 2>&1 || { \
-		echo "Docker (or a compatible engine) is required for make verify-linux." >&2; \
-		exit 127; \
-	}
-	docker build $(_verify_platform) --build-arg UV_VERSION=$(UV_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) --build-arg PLAYWRIGHT_VERSION=$(PLAYWRIGHT_VERSION) \
-		-t $(VERIFY_IMAGE) tools/verify
-	sh tools/verify/snapshot.sh | docker run --rm -i $(_verify_platform) --shm-size=1g \
-		-v industrial-phm-verify-uv:/home/verify/.cache/uv \
-		-v industrial-phm-verify-npm:/home/verify/.npm \
-		$(VERIFY_IMAGE) $(VERIFY_STAGE)
