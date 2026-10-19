@@ -8,7 +8,7 @@
 ```bash
 uv python install 3.14
 uv lock --check
-uv sync --locked --extra operations
+uv sync --locked --extra operations --extra aihub
 make frontend  # Node.js >=22.12와 npm으로 Web 정적 파일 생성
 ```
 
@@ -18,10 +18,10 @@ make frontend  # Node.js >=22.12와 npm으로 Web 정적 파일 생성
 기본 소스 검증:
 
 ```bash
-uv run --locked --extra operations ruff check .
-uv run --locked --extra operations ruff format --check .
-uv run --locked --extra operations mypy
-uv run --locked --extra operations pytest tests/unit tests/contract
+uv run --locked --extra operations --extra aihub ruff check .
+uv run --locked --extra operations --extra aihub ruff format --check .
+uv run --locked --extra operations --extra aihub mypy
+uv run --locked --extra operations --extra aihub pytest tests/unit tests/contract
 ```
 
 의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
