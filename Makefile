@@ -27,7 +27,7 @@ help:
 		'Variables:' \
 		'  OPERATIONS_BACKEND=container|native  Override the platform default' \
 		'  WORKSPACE=<path>   Local Operations workspace (default: artifacts/operations)' \
-		'  UV=<command>       uv executable (default: uv)' \
+		'  UV=<command>       uv executable (default: uv)'
 
 _require-uv:
 	@command -v "$(UV)" >/dev/null 2>&1 || { \
