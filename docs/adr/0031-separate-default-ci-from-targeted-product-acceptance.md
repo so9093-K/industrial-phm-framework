@@ -32,10 +32,13 @@ usability, production distribution behavior or in-field PHM performance.
 2. Remove duplicate Web, Forecast, packaged-container and Product showcase
    *automatic workflows* and their exclusive orchestration/test-gate machinery.
    Do not re-home the same gate into Makefile, shell tools or another CI job.
-3. Preserve meaningful product regressions. Place subprocess/full-system scenarios
-   in the integration or acceptance layer, not in a basic contract suite merely
-   to force them to run on every change. Profiling tools remain opt-in research
-   utilities rather than default functional contracts.
+3. Preserve meaningful product regressions. Expensive end-to-end/browser scenarios
+   belong to integration or acceptance and execute in the scheduled/manual gate.
+   **Exception:** two bounded Live collector/window-analysis subprocess contracts remain
+   in the default source suite because they protect real persisted-event identity,
+   loss and restart idempotency across application boundaries; their PR cost and
+   failure ownership are explicit. Profiling tools remain opt-in research utilities,
+   not default functional contracts.
 4. The same CI workflow owns explicit Product acceptance: run it weekly and
    via `workflow_dispatch` against a selected branch. It checks the current
    frontend, existing browser/supervised-node acceptance tests, sdist/wheel
