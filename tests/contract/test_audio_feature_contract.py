@@ -68,7 +68,7 @@ def test_audio_logmel_statistical_v1_has_stable_schema_and_silent_floor() -> Non
     ("sampling_rate_hz", "channels", "sample_count", "match"),
     [
         (8_000.0, ("pcm_amplitude",), 160_000, "sampling_rate_hz=16000"),
-        (16_000.0, ("audio",), 160_000, "channels=\('pcm_amplitude',\)"),
+        (16_000.0, ("audio",), 160_000, r"channels=\('pcm_amplitude',\)"),
         (16_000.0, ("pcm_amplitude",), 159_999, "exactly 160000 samples"),
     ],
 )
