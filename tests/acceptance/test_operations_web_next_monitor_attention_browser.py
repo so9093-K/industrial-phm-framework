@@ -183,6 +183,17 @@ def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(status=503, json={"error": "unavailable"}),
                 )
+                # The asset-list read is independent from the model read.
+                # Retained operational facts must now say they are from an earlier read.
+                pw.expect(
+                    page.get_by_role("status").filter(has_text="설비 목록 갱신 실패")
+                ).to_be_visible(timeout=10_000)
+                pw.expect(notes).to_contain_text("데이터 수집 서비스가 실행되지 않음")
+                page.route(
+                    "**/api/v1/phm/monitor",
+                    lambda route: route.fulfill(status=503, json={"error": "unavailable"}),
+                )
+                # A failed model read, however, must discard prior model/attention facts.
                 pw.expect(
                     page.get_by_text("모델 처리 상태를 다시 읽지 못했습니다", exact=False)
                 ).to_be_visible(timeout=10_000)
