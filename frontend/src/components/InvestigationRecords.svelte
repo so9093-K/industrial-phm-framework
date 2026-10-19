@@ -3,7 +3,7 @@
   import {assetLabel, assetOptionLabel, type Snapshot} from "../monitor";
   import {requestAnalysisReview, type AnalysisRecord, type QualityState} from "../analysis-records";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
-  import {loadModelBindings, type ModelBinding} from "../model-evidence";
+  import {loadModelBindings, modelNames, type ModelBinding} from "../model-evidence";
   import {num} from "../format";
   import {OutcomeUnknown, WriteForbidden, type ReviewStatus} from "../review-writes";
   import {assetTabUrl, systemUrl} from "../routes";
@@ -33,6 +33,7 @@
   const records = $derived(snapshot.analyses.records.filter((item) => matches(item.assetId)));
   const skipped = $derived(snapshot.analyses.skipped.filter((item) => matches(item.assetId)));
   const models = $derived(bindings.filter((item) => matches(item.assetId)));
+  const names = $derived(modelNames(bindings));
   // Analyses may name assets the current asset list does not include.
   const assetIds = $derived([...new Set([...snapshot.assets.map((asset) => asset.assetId),
     ...snapshot.analyses.records.map((item) => item.assetId), ...(chosen ? [chosen] : [])])]);
@@ -201,7 +202,7 @@
         <th scope="col">마지막 분석</th><th scope="col"><span class="visually-hidden">이동</span></th></tr></thead>
       <tbody>
         {#each models as model (model.bindingId)}
-          <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{model.packageId}</td><td>{model.sourceId}</td>
+          <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{names.get(model.bindingId)}</td><td>{model.sourceId}</td>
             <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + model.lastAnalyzed}</td>
             <td><a href={assetTabUrl(model.assetId, "anomaly", "model")}>모델 점수 보기 →</a></td></tr>
         {/each}
@@ -243,7 +244,7 @@
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
   h3 { margin: 0; font-size: var(--font-section); overflow-wrap: anywhere; }
   .badge { font-weight: 700; border: 1px solid var(--color-ink); border-radius: 999px; padding: 2px var(--space-3); font-size: var(--font-small); }
-  .scroll { max-width: 100%; overflow-x: auto; }
+  .scroll { max-width: 100%; overflow-x: auto; position: relative; }
   table { border-collapse: collapse; width: 100%; }
   caption { text-align: left; color: var(--color-ink-muted); font-size: var(--font-small); }
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }

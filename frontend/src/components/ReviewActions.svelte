@@ -5,8 +5,9 @@
     type ReviewAction, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
-  /** The review history of one subject and the next human actions on it. The parent
-   * owns the write and the reload; this keeps a retried action on its first event ID. */
+  /** The review history of one subject and the next human actions on it: confirm, then close.
+   * Notes written earlier stay in the history. The parent owns the write and the reload; this
+   * keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
     closeQuestion: string;
@@ -14,7 +15,6 @@
     reload: (signal: AbortSignal) => Promise<boolean>;
   };
   let {id, status, events, eventsTotal = events.length, writable, closeQuestion, submit, reload}: Props = $props();
-  let note = $state("");
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
@@ -38,12 +38,7 @@
   }
   async function act(action: ReviewAction) {
     if (busy || !writable || status === "closed") return;
-    let text: string;
-    try { text = reviewNote(action, note); }
-    catch (cause: unknown) {
-      messageKind = "failure"; message = cause instanceof Error ? cause.message : "메모를 확인하세요.";
-      return;
-    }
+    const text = reviewNote(action, "");
     const key = action + "\n" + text;
     if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
     controller?.abort();
@@ -53,7 +48,6 @@
       await submit(action, text, pending.eventId, request.signal);
       if (request.signal.aborted) return;
       pending = null; confirmingClose = false;
-      if (action === "note") note = "";
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -94,12 +88,7 @@
   {:else if !writable}
     <p class="context">보기 전용이라 검토 기록을 남길 수 없습니다. 운영을 시작하면 남길 수 있습니다.</p>
   {:else}
-    <label>메모 (최대 1000자)
-      <textarea maxlength="1000" rows="3" value={note} disabled={busy}
-        oninput={(event) => note = event.currentTarget.value}></textarea>
-    </label>
     <div class="actions">
-      <button type="button" class="ui-button" disabled={busy} onclick={() => void act("note")}>메모 남기기</button>
       {#if status === "open"}
         <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
       {:else if !confirmingClose}
@@ -128,9 +117,6 @@
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .events { padding-inline-start: var(--space-5); }
   .events li { overflow-wrap: anywhere; }
-  label { display: grid; gap: var(--space-2); font-weight: 650; }
-  textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
   .confirm { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .message { overflow-wrap: anywhere; }

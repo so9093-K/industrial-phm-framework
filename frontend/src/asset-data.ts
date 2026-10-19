@@ -1,6 +1,6 @@
 /** Which stored data an asset has. It picks a sensible default analysis; it says nothing
  * about the asset's condition. Read from the existing GET /api/v1/forecast/options. */
-import type {DataKind} from "./routes.ts";
+import {methodsOf, type DataKind, type Method, type Tab} from "./routes.ts";
 
 export type AssetData = {
   history: {signals: number} | null;
@@ -53,4 +53,11 @@ export async function readAssetData(assetId: string, signal: AbortSignal): Promi
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) throw new Error("설비의 데이터 종류를 확인하지 못했습니다.");
   return parseAssetData(await response.json() as unknown, assetId);
+}
+
+/** The analysis methods this asset's data supports: frequency analysis needs waveforms, and the
+ * baseline departure and load/unbalance read time series. Unknown data offers them all. */
+export function methodsFor(tab: Tab, data: AssetData | null): Method[] {
+  const needs: Partial<Record<Method, keyof AssetData>> = {baseline: "history", spectrum: "vibration", electrical: "history"};
+  return methodsOf(tab).filter((method) => !data || !needs[method] || data[needs[method]!] !== null);
 }

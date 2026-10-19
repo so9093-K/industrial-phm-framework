@@ -283,7 +283,7 @@
           </div>
         </section>
       {/if}
-      {#if route.page === "monitor"}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
+      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
           <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}

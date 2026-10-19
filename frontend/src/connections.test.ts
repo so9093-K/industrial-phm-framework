@@ -54,7 +54,7 @@ test("3-phase roles come as complete R/S/T sets on distinct measured columns, wi
   assert.equal(phaseRoleProblem([role("a","voltage","R"),role("b","voltage","S"),role("c","voltage","T")],channels),null);
   assert.match(phaseRoleProblem([role("a","voltage","R"),role("b","voltage","S"),role("c","current","T")],channels)!,/R\/S\/T/);
   assert.match(phaseRoleProblem([role("a","voltage","R"),role("a","voltage","S"),role("c","voltage","T")],channels)!,/두 역할/);
-  assert.match(phaseRoleProblem([role("x","voltage","R"),role("b","voltage","S"),role("c","voltage","T")],channels)!,/측정 컬럼에 없습니다/);
+  assert.match(phaseRoleProblem([role("x","voltage","R"),role("b","voltage","S"),role("c","voltage","T")],channels)!,/측정값 열에 없습니다/);
   assert.match(phaseRoleProblem([{...role("a","voltage","R"),unit_evidence:" "},role("b","voltage","S"),role("c","voltage","T")],channels)!,/근거/);
 });
 

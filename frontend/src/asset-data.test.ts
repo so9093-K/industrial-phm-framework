@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {defaultKind, kindsOf, parseAssetData} from "./asset-data.ts";
+import {defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
 
 test("an asset's stored data kinds choose the default analysis, never another asset's", () => {
   const vibrationOnly = parseAssetData({schema_version: 1, asset_id: "bearing-a", history: null,
@@ -21,4 +21,14 @@ test("unknown or empty availability offers both kinds instead of hiding one", ()
   assert.deepEqual(kindsOf(null), ["history", "vibration"]);
   assert.deepEqual(kindsOf({history: null, vibration: null}), ["history", "vibration"]);
   assert.equal(defaultKind(null), "history");
+});
+
+test("only the methods an asset's data supports are offered", () => {
+  const vibration = {history: null, vibration: {measurements: 100, first: 1, last: 100}};
+  const csv = {history: {signals: 2}, vibration: null};
+  assert.deepEqual(methodsFor("anomaly", vibration), ["model"]);
+  assert.deepEqual(methodsFor("change", vibration), ["compare", "relation", "spectrum"]);
+  assert.deepEqual(methodsFor("change", csv), ["compare", "relation", "electrical"]);
+  assert.deepEqual(methodsFor("anomaly", null), ["model", "baseline"]);
+  assert.deepEqual(methodsFor("signals", csv), []);
 });

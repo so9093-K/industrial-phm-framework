@@ -80,8 +80,7 @@
     <h2 id="attention-title">확인이 필요한 설비</h2>
     {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
   </div>
-  <p class="context">{assessed ? clock(assessed) + " 기준 · " : ""}{!live ? "저장된 체험 기록입니다." : paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}
-    모델 기준 초과는 학습한 평소 상태와 다르다는 뜻이며 고장 판정이 아닙니다. 아래 항목에서 확인 이유·근거·다음 행동을 볼 수 있습니다.</p>
+  <p class="context">{assessed ? clock(assessed) + " 기준 · " : ""}{!live ? "저장된 체험 기록입니다." : paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}</p>
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
@@ -90,6 +89,8 @@
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
+    <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
+    {#if serviceItems.length || dataItems.length || !snapshot.operationsAttention?.complete}
     <section aria-label="운영 확인 항목" class="operations-attention">
       <h3>운영 확인 항목</h3>
       {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
@@ -101,11 +102,12 @@
         <h4>데이터·검토</h4><p class="context">설비 데이터의 수신·품질과 사람 검토가 남은 항목입니다.</p>
         <ul>{#each dataItems as item (item.id)}{@render operation(item)}{/each}</ul>
       {/if}
-      {#if !serviceItems.length && !dataItems.length && snapshot.operationsAttention?.complete}<p>운영 처리에서 확인할 항목이 없습니다.</p>{/if}
     </section>
+    {/if}
     {#if !groups.length}
       <p>{snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
     {:else}
+      <p class="context">모델 기준 초과는 학습한 평소 상태와 다르다는 뜻입니다. 항목을 열면 이유·근거·다음 행동을 봅니다.</p>
       <ul class="groups">
         {#each groups as group (group.assetId)}
           <li><article aria-labelledby={"attention-" + group.assetId}>

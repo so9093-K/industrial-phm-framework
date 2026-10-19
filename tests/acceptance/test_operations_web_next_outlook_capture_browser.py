@@ -181,10 +181,10 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                     "보기 전용이라 검토 기록을 남길 수 없습니다", timeout=30000
                 )
                 pw.expect(watched.get_by_role("textbox")).to_have_count(0)
-                pw.expect(watched.get_by_role("button", name="메모 남기기")).to_have_count(0)
+                pw.expect(watched.get_by_role("button", name="확인함으로 표시")).to_have_count(0)
 
-                # The response to a committed note is lost; the retry reuses its event ID.
-                detail.get_by_label("메모").fill("모델 입력과 기준 확인")
+                # The response to a committed confirmation is lost; the retry reuses its event ID.
+                pw.expect(detail.get_by_role("textbox")).to_have_count(0)
                 submitted: list[str] = []
 
                 def lost_response(route: Any) -> None:
@@ -202,31 +202,29 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
 
                 action_route = "**/api/v1/outlook/captures/review/action"
                 page.route(action_route, lost_response)
-                detail.get_by_role("button", name="메모 남기기").click()
+                detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail).to_contain_text("다시 시도해도 기록이 겹치지 않습니다")
-                detail.get_by_role("button", name="메모 남기기").click()
+                detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail.locator(".events li")).to_have_count(1, timeout=30000)
-                pw.expect(detail.locator(".events")).to_contain_text("모델 입력과 기준 확인")
+                pw.expect(detail.locator(".badge")).to_have_text("확인함")
                 assert len(submitted) == 2 and submitted[0] == submitted[1]
                 page.unroute(action_route, lost_response)
 
-                # A second operator acknowledges first; the stale page gets a conflict.
+                # A second operator closes first; the stale page gets a conflict, not an overwrite.
                 other = _open(browser, width)
                 other.goto(f"http://127.0.0.1:{writer.server_port}{deep_link}")
                 other_detail = other.get_by_role("region", name="고른 검토 항목")
-                pw.expect(other_detail).to_contain_text("모델 입력과 기준 확인", timeout=30000)
-                other_detail.get_by_role("button", name="확인함으로 표시").click()
-                pw.expect(other_detail.locator(".badge")).to_have_text("확인함")
-                detail.get_by_role("button", name="확인함으로 표시").click()
-                pw.expect(detail).to_contain_text("다른 사람이 먼저 검토 상태를 바꿨습니다")
-                pw.expect(detail.locator(".badge")).to_have_text("확인함")
-                pw.expect(detail.locator(".events li")).to_have_count(2)
-
+                pw.expect(other_detail.locator(".badge")).to_have_text("확인함", timeout=30000)
+                other_detail.get_by_role("button", name="검토 종료").click()
+                other_detail.get_by_role("button", name="종료하기").click()
+                pw.expect(other_detail.locator(".badge")).to_have_text("검토 종료")
                 detail.get_by_role("button", name="검토 종료").click()
                 confirm = detail.get_by_role("group", name="검토를 종료할까요?")
                 pw.expect(confirm).to_be_focused()
                 detail.get_by_role("button", name="종료하기").click()
+                pw.expect(detail).to_contain_text("다른 사람이 먼저 검토 상태를 바꿨습니다")
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
+                pw.expect(detail.locator(".events li")).to_have_count(2)
                 pw.expect(detail.get_by_role("textbox")).to_have_count(0)
                 if width == 390:
                     assert page.evaluate(
@@ -242,7 +240,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 page.goto(f"http://127.0.0.1:{writer.server_port}{deep_link}")
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료", timeout=30000)
-                pw.expect(detail.locator(".events li")).to_have_count(3)
+                pw.expect(detail.locator(".events li")).to_have_count(2)
 
                 # Later measurements change the projection; the archived result stays as saved.
                 for ordinal in range(65, 71):

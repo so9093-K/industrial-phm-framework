@@ -39,7 +39,9 @@ from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import _history, explore_sources
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-FORECAST_ROUTES = frozenset({"/api/v1/forecast/options", "/api/v1/forecast"})
+FORECAST_ROUTES = frozenset(
+    {"/api/v1/forecast/options", "/api/v1/forecast", "/api/v1/acquisition/trend"}
+)
 _BUCKETS = 1000
 # Acquisitions are placed on a time axis by their recorded interval; the origin is arbitrary
 # and only positions are reported back.
@@ -91,6 +93,8 @@ def handle_forecast_read(
         asset_id = params.get("asset_id", "")
         if not 0 < len(asset_id) <= 512:
             raise ValueError("asset_id is required")
+        if path == "/api/v1/acquisition/trend":
+            return HTTPStatus.OK, acquisition_trend(workspace, asset_id, params.get("feature", ""))
         if path == "/api/v1/forecast/options":
             body = forecast_options(workspace, asset_id)
             if params.get("series"):
@@ -281,6 +285,35 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     else:
         body["acquisition"] = None
     return body
+
+
+def acquisition_trend(
+    workspace: OperationsWorkspace, asset_id: str, feature: str
+) -> dict[str, Any]:
+    """One analyzed vibration feature per acquisition, as stored; nothing is fitted."""
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    acquisition = explore_sources(workspace, store, asset_id)["acquisition"]
+    if acquisition is None:
+        raise LookupError("no analyzed acquisitions")
+    if feature not in {candidate["key"] for candidate in acquisition["features"]}:
+        raise ValueError("unknown acquisition feature")
+    results, total = store.analyzed_between(
+        acquisition["binding_id"], 0, 2**62, max_points=_BUCKETS
+    )
+    points = _finite_acquisition_points(results, feature)
+    return {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "source_id": acquisition["source_id"],
+        "binding_id": acquisition["binding_id"],
+        "feature": feature,
+        "label": feature_label(feature),
+        "period_seconds": _period(workspace, asset_id, acquisition["source_id"]),
+        "analyzed": total,
+        "sampled": len(results) < total,
+        "points": [[position, value] for position, value in points],
+        "meaning": "stored-acquisition-features-not-asset-health",
+    }
 
 
 def forecast_series(

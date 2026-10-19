@@ -133,7 +133,7 @@
         chartChannel = channels[0] ?? ""; restored = true;
       }
     } catch { /* Blocked browser storage does not prevent a new upload. */ }
-    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 컬럼 " + inspected.header.length + "개";
+    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
   }
   function chooseTime(value: string) {
     timeIndex = value === "" ? -1 : Number(value);
@@ -170,7 +170,7 @@
           + (result.warnings.length ? " 측정 간격 주의: " + result.warnings.join(", ") + " · 원래 간격대로 저장합니다." : "")
           + (result.match === "matching" ? " 같은 파일과 설정이 이미 등록돼 있습니다. 저장하면 남은 단계부터 이어서 진행합니다." : "")
         : (result.status === "blocked" ? "점검 실패 · 파일이나 설정을 고친 뒤 다시 점검하세요." : "추가 확인이 필요합니다 · 아직 저장할 수 없습니다.")
-          + (result.issue ? " " + (result.issue.row ? result.issue.row + "행" + (result.issue.column ? " / " + result.issue.column + " 컬럼" : "") + ": " : "") + result.issue.guidance : "");
+          + (result.issue ? " " + (result.issue.row ? result.issue.row + "행" + (result.issue.column ? " / " + result.issue.column + " 열" : "") + ": " : "") + result.issue.guidance : "");
     } catch (cause: unknown) {
       if (token !== revision) return;
       checkMessage = explainWrite(cause);
@@ -267,12 +267,17 @@
   <h2 id="csv-start-title">CSV 파일로 시작</h2>
   <p class="context">파일의 실제 값을 먼저 보고, 서버가 점검한 뒤 저장하면 설비 화면의 신호 탭에서 같은 값을 봅니다.</p>
   <ol class="flow" aria-label="진행 순서">
-    <li>파일 고르기</li><li>측정 컬럼·설비 확인</li><li>서버 점검 (저장 안 함)</li><li>등록하고 이력 저장</li>
+    <li>파일 고르기</li><li>측정값·설비 확인</li><li>서버 점검 (저장 안 함)</li><li>등록하고 이력 저장</li>
   </ol>
 
-  <label class="field">CSV 파일 (UTF-8 · 20MiB 이하)
-    <input type="file" accept=".csv,text/csv" bind:this={fileInput} disabled={locked} onchange={() => void choose()} />
-  </label>
+  <div class="field">
+    <span id="csv-file-label">CSV 파일 (UTF-8 · 20MiB 이하)</span>
+    <span class="file-pick">
+      <label class="ui-button" aria-disabled={locked}>파일 선택
+        <input type="file" class="visually-hidden" aria-labelledby="csv-file-label" accept=".csv,text/csv"
+          bind:this={fileInput} disabled={locked} onchange={() => void choose()} /></label>
+    </span>
+  </div>
   <p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>
 
   {#if table}
@@ -280,14 +285,14 @@
       <h3 id="csv-preview-title">파일 미리보기</h3>
       <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "이 브라우저에서 읽은 값 · 서버가 확인함 · 아직 저장 전" : "이 브라우저에서 읽은 값 · 아직 서버 점검·저장 전"}</p>
       <div class="columns">
-        <label class="field">시간 컬럼
+        <label class="field">시각 열
           <select value={String(timeIndex)} disabled={locked} onchange={(event) => chooseTime(event.currentTarget.value)}>
-            {#if !table.times.length}<option value="-1">시간 컬럼 후보 없음</option>{/if}
+            {#if !table.times.length}<option value="-1">시각 열 후보 없음</option>{/if}
             {#each table.times as column (column.index)}<option value={String(column.index)}>{column.name}</option>{/each}
           </select>
         </label>
         <fieldset>
-          <legend>저장할 측정 컬럼 (숫자 · 최대 {MAX_CHANNELS}개)</legend>
+          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
             <label class="choice">
               <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
@@ -307,8 +312,8 @@
       {/if}
       {#if channels.length}
         <div class="scroll"><table>
-          <caption>측정 컬럼 요약</caption>
-          <thead><tr><th scope="col">컬럼</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
+          <caption>측정값 요약</caption>
+          <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
             <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
           <tbody>
             {#each channels as name (name)}
@@ -324,7 +329,7 @@
           {gaps.longestAfter !== null ? " (" + clock(new Date(gaps.longestAfter).toISOString()) + " 이후)" : ""}</p>
       {/if}
       {#if channels.length && points.length}
-        <label class="field">그래프로 볼 컬럼
+        <label class="field">미리 볼 측정값
           <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{name}</option>{/each}</select>
         </label>
         {@const low = Math.min(...points.map((p) => p.min))}
