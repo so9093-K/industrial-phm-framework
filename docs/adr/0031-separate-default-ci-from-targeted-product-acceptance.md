@@ -47,7 +47,7 @@ usability, production distribution behavior or in-field PHM performance.
    relevant product checks and record exact results, skips and any unexecuted
    boundaries. The requirements of ADR-0030 remain at these change boundaries;
    an unrelated PR does not rebuild and browser-test the application.
-5. A green Source CI is evidence only for the checks it actually runs. Never
+6. A green Source CI is evidence only for the checks it actually runs. Never
    claim wheel distribution, browser acceptance, container restarts, model
    validity, or field safety from that result.
 
