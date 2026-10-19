@@ -57,12 +57,10 @@ jobs:
         run: uv run --locked --extra operations --extra aihub pytest tests/unit tests/contract --durations=20
 
   # Not a second PR gate: product acceptance runs weekly or when explicitly dispatched.
-  # Review-only branch condition below is removed after PR #655 product validation.
   product-acceptance:
     if: >-
       github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.head_ref == 'chore/ci-test-declutter')
+      github.event_name == 'workflow_dispatch'
     name: Product acceptance (browser, wheel, container)
     runs-on: ubuntu-latest
     timeout-minutes: 55
@@ -90,12 +88,11 @@ jobs:
           node-version: "22.23.3"
           package-manager-cache: false
 
-      - name: Build and test the current Web
+      - name: Check current Web and run frontend tests
         run: |
           npm ci --prefix frontend --no-audit --no-fund
           npm run --prefix frontend check
           npm test --prefix frontend
-          npm run --prefix frontend build
 
       - name: Build distributable wheel from source archive
         run: uv build
