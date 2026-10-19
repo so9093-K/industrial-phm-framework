@@ -175,7 +175,7 @@
         <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화</th></tr></thead>
         <tbody>
           {#each mentioned as {change, relation} (change.feature)}
-            <tr><th scope="row">{change.label}</th><td>{num(change.previous, "—")}</td><td>{num(change.current)}</td>
+            <tr><th scope="row">{change.label}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
               <td>{RELATION[relation]} {percent(change.relativePercent)}</td></tr>
           {/each}
         </tbody>
@@ -191,7 +191,7 @@
           <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화율</th></tr></thead>
           <tbody>
             {#each latest.features as row (row.feature)}
-              <tr><th scope="row">{row.label}</th><td>{num(row.previous, "—")}</td><td>{num(row.current)}</td>
+              <tr><th scope="row">{row.label}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
                 <td>{percent(row.relativePercent)}</td></tr>
             {/each}
           </tbody>

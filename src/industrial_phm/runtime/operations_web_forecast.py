@@ -29,7 +29,11 @@ from industrial_phm.application.phm_analysis import (
     SqlitePhmAnalysisStore,
     StepResult,
 )
-from industrial_phm.application.phm_signal_comparison import feature_label
+from industrial_phm.application.phm_signal_comparison import (
+    feature_label,
+    stream_amplitude_unit,
+)
+from industrial_phm.application.phm_signal_comparison import feature_unit as comparison_feature_unit
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
     interpretation_unit,
@@ -206,23 +210,12 @@ def handle_forecast_read(
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "forecast_store_unavailable"}
 
 
-# Waveform features measured in the signal's own amplitude unit; the others are ratios.
-_AMPLITUDE_FEATURES = ("mean", "rms", "standard_deviation", "absolute_peak", "peak_to_peak")
-
-
 def feature_unit(
     workspace: OperationsWorkspace, asset_id: str, source_id: str, feature: str
 ) -> str | None:
     """The unit of one acquisition feature, when the stream declares its amplitude unit."""
-    if feature.rsplit(".", 1)[-1] not in _AMPLITUDE_FEATURES:
-        return None
-    for stream in SqliteAcquisitionSnapshotRepository(
-        workspace.acquisition_snapshot_path
-    ).list_streams():
-        if stream.asset_id == asset_id and stream.source_id == source_id:
-            unit = stream.metadata.get("amplitude_unit")
-            return unit if isinstance(unit, str) and unit.strip() else None
-    return None
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    return comparison_feature_unit(feature, stream_amplitude_unit(snapshots, source_id, asset_id))
 
 
 def _period(workspace: OperationsWorkspace, asset_id: str, source_id: str) -> float | None:

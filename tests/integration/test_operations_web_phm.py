@@ -384,7 +384,7 @@ def test_web_lists_fitting_models_and_connects_one_to_the_asset(tmp_path: Path) 
 def test_range_route_reads_the_shape_between_two_stored_results(tmp_path: Path) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal, scale in enumerate((0.5, 0.5, 0.55, 0.5, 3.0, 3.1, 3.0, 3.2), start=1):
-        deliver(workspace, tmp_path / "waves", ordinal, scale)
+        deliver(workspace, tmp_path / "waves", ordinal, scale, amplitude_unit="g")
     analyze(workspace)
     server = create_operations_web_read_server(workspace.root)
     thread = Thread(target=server.serve_forever, daemon=True)
@@ -417,6 +417,10 @@ def test_range_route_reads_the_shape_between_two_stored_results(tmp_path: Path) 
             .analysis_run_id
         )
         assert compared["features"][0]["current"] > compared["features"][0]["previous"]
+        # Amplitude features read in the stream's amplitude unit; ratios have none.
+        units = {row["feature"].rsplit(".", 1)[-1]: row["unit"] for row in compared["features"]}
+        assert units["rms"] == "g" and units["peak_to_peak"] == "g"
+        assert units["crest_factor"] is None and units["excess_kurtosis"] is None
         assert not workspace.phm_explanation_path.exists(), (
             "reading a comparison must never request AI"
         )
