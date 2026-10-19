@@ -151,7 +151,11 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                 pw.expect(page.get_by_role("table")).to_have_count(0)
                 pw.expect(page.get_by_role("button", name="비교하기")).to_be_disabled()
                 pw.expect(page.get_by_role("alert")).to_contain_text("KST 날짜와 시각")
-                # Fixing it updates the selected URL and permits a fresh calculation.
+                # Updating another valid field cannot clear the unfinished start.
+                period_a.get_by_label("종료 (KST)").fill("2026-10-15T08:00")
+                pw.expect(page.get_by_role("button", name="비교하기")).to_be_disabled()
+                pw.expect(page.get_by_role("alert")).to_contain_text("KST 날짜와 시각")
+                # Fixing the unfinished field updates the URL and permits a fresh calculation.
                 start.fill("2026-10-14T13:00")
                 pw.expect(changed).to_be_visible()
                 pw.expect(page.get_by_role("button", name="비교하기")).to_be_enabled()
