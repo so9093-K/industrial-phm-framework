@@ -25,40 +25,38 @@ uv run --locked --extra operations pytest tests/unit tests/contract
 ```
 
 의도적으로 제품 lifecycle·Web·데이터 계약·패키징을 변경했다면 관련 integration/acceptance 테스트를
-추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는
-`sh tools/verify/gate.sh wheel`도 확인합니다. `uv build`는 잠금 파일 기준으로
+추가로 실행하고 결과를 PR에 기록합니다. 패키징을 수정했을 때는 실제 `uv build`와 설치된 wheel의 Web 제공 동작을 확인합니다.
+`uv build`는 잠금 파일 기준으로
 프런트엔드를 빌드하고 sdist에서 wheel을 다시 만듭니다(Node.js >=22.12와 npm 필요).
 `wheel` 검증은 sdist의 빌드 입력과 wheel의 전체 manifest를 확인하고, 별도 환경에
 wheel을 설치해 Node 없는 PATH에서 정적 파일을 제공합니다. 기존 `dist/`는 건드리지 않습니다.
 Python editable 설치(`uv sync`)는 Node 없이도 가능하지만, 새 화면을 실행하려면
 `make frontend`로 호스트 정적 파일을 준비해야 합니다(Linux 네이티브 `make up`도 빌드합니다).
 macOS의 `make up`은 호스트 개발 환경 대신 [제품 컨테이너](docs/architecture/operations-container.md)를
-실행합니다. 해당 컨테이너는 이미지 빌드 때 Web을 포함하며 `make verify-linux` 검증 이미지와 별개입니다.
+실행합니다. 해당 컨테이너는 이미지 빌드 때 Web을 포함하며 과 별개입니다.
 
 `make showcase`는 별도의 읽기 전용 정적 체험을 실행합니다. 운영 빌드의 API 전송을 바꾸지 않으며
 합성 입력·실제 계산 결과·미디어의 재생성은 [제품 체험 안내](docs/product/product-showcase.md)를 따릅니다.
-`Product showcase` CI는 현재 앱으로 결과를 다시 계산한 뒤 API 서버 없이 브라우저를 검사하고 정적 배포물을 남깁니다.
+시연 데이터의 재생성과 브라우저 확인은 시연 배포 또는 관련 기능 변경을 검토할 때 수행합니다. 일반 PR의 자동 CI 항목은 아닙니다.
 
-### Linux 재현 검증
+### 검증의 범위
 
-Operations supervisor는 Linux에서 실행합니다(macOS 제품 실행은 Docker Desktop).
-supervisor의 Web 명령 경계는 Linux의 peer credential(`SO_PEERCRED`)과
-pidfd를 쓰므로, 이 테스트는 `linux_only`로 표시되어 다른 OS에서는 이유와 함께 건너뜁니다.
-macOS 등에서 CI와 같은 결과를 확인하려면 Docker로 다음을 실행합니다.
+일반 PR 자동 CI는 잠금 파일, Ruff, mypy와 기본 unit/contract 테스트만 실행합니다.
+제품 기능에 직접 영향을 주는 변경에는 해당 integration/acceptance를 **별도로 실행하고**
+실제 결과와 미실행 사유를 PR에 기록합니다. 기본 CI 성공을 전체 Web/배포/현장 수용으로 해석하지 않습니다.
 
-```bash
-make verify-linux                      # Python·Web·예측 CI 검사
-make verify-linux VERIFY_STAGE=source  # lock·lint·format·mypy·unit/contract만
-make verify-linux VERIFY_STAGE=full    # 워크플로가 고르지 않은 테스트까지 전부 (CI 게이트 아님)
+프런트엔드 변경은 다음 명령으로 Svelte/TypeScript, 회귀 테스트와 빌드를 확인합니다.
+
+```sh
+npm ci --prefix frontend --no-audit --no-fund
+npm run --prefix frontend check
+npm test --prefix frontend
+npm run --prefix frontend build
 ```
 
-배포 이미지·localhost 프록시·영속 볼륨 재생성은 별도 `Operations container` CI가 검사합니다.
-같은 검사는 [컨테이너 실행 안내](docs/architecture/operations-container.md#verification)의
-`container_smoke.py`로 실행합니다. `make verify-linux`는 이 Docker 호스트 검사를 중첩 실행하지 않습니다.
-
-git이 보는 작업 트리(추적·미추적, 무시 제외)만 컨테이너로 보내므로 호스트의 `.venv`·`node_modules`·빌드
-결과는 섞이지 않습니다. CI 각 단계와 이 명령은 같은 `tools/verify/gate.sh` 단계를 호출하고, 도구 버전은
-`tools/verify/versions.env` 한 곳에서 고정합니다. CI의 테스트 목록을 바꿀 때는 `gate.sh`를 고칩니다.
+실제 Linux supervisor, 컨테이너 재시작, 브라우저 사용 흐름 또는 배포 wheel이 변경의 대상이면
+해당 제품 경계를 추가로 검증합니다. Python 소스 검사만으로 브라우저와 실제 프로세스 동작을
+입증했다고 주장하지 않습니다. 이러한 수용 검사를 새 상시 gate로 이식하지 않습니다.
 
 의존성을 추가·제거·변경할 때는 `pyproject.toml`을 수정한 뒤 `uv lock`으로 `uv.lock`을 갱신하고
 두 파일을 같은 변경 단위로 commit합니다. 일반 개발과 CI에서는 lockfile을 암묵적으로 갱신하지 않습니다.
