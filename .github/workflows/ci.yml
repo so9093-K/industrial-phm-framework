@@ -60,8 +60,7 @@ jobs:
   product-acceptance:
     if: >-
       github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.head_ref == 'chore/ci-test-declutter')
+      github.event_name == 'workflow_dispatch'
     name: Product acceptance (integration, browser, wheel, container)
     runs-on: ubuntu-latest
     timeout-minutes: 55
