@@ -40,9 +40,10 @@ usability, production distribution behavior or in-field PHM performance.
    failure ownership are explicit. Profiling tools remain opt-in research utilities,
    not default functional contracts.
 4. The same CI workflow owns explicit Product acceptance: run it weekly and
-   via `workflow_dispatch` against a selected branch. It checks the current
-   frontend, existing browser/supervised-node acceptance tests, sdist/wheel
-   installation assets and a real Compose boot/restart. No new verification
+   via `workflow_dispatch` against a selected branch. It executes existing
+   integration tests with the required browser runtime present, the current
+   frontend, browser/supervised-node acceptance tests, sdist/wheel installed
+   assets and a real Compose boot/restart. No new verification
    wrappers or path-classifying meta-tests are introduced. An ordinary PR
    still runs Source checks only.
 5. For changes to frontend behavior, packaging, HTTP security, supervisor,

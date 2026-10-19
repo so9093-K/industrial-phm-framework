@@ -43,7 +43,7 @@ macOS의 `make up`은 호스트 개발 환경 대신 [제품 컨테이너](docs/
 일반 PR 자동 CI는 잠금 파일, Ruff, mypy와 기본 unit/contract 테스트만 실행합니다.
 제품 기능에 직접 영향을 주는 변경에는 해당 integration/acceptance를 **실제로 실행하고**
 결과·skip·미실행 사유를 PR에 기록합니다. 기본 CI 성공을 전체 Web/배포/현장 수용으로 해석하지 않습니다.
-브라우저·배포·컨테이너의 실행 책임은 같은 GitHub Actions `CI` 안의 **Product acceptance** job입니다.
+통합·브라우저·배포·컨테이너의 실행 책임은 같은 GitHub Actions `CI` 안의 **Product acceptance** job입니다.
 이 job은 매주 1회 자동 실행하며, 필요한 PR·배포에서는 GitHub Actions의 `Run workflow`로 해당
 브랜치를 지정해 실행합니다. 일반 PR에서 무조건 실행하거나 무기한 미실행 상태로 방치하지 않습니다.
 정확한 실행 범위는 [`Testing Policy`](docs/testing-policy.md)를 따릅니다.

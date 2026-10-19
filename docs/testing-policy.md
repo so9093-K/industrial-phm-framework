@@ -112,7 +112,7 @@ Operations 의존성·Chromium·실제 데이터가 필요한 테스트는 해�
 
 ## 10. 자동화 비용과 검증 자산 삭제
 
-일반 PR은 Source 검사 한 job만 자동 실행합니다. 보호할 가치가 있는 브라우저·실제 노드·wheel·컨테이너 검증은
+일반 PR은 Source 검사 한 job만 자동 실행합니다. 보호할 가치가 있는 통합·브라우저·실제 노드·wheel·컨테이너 검증은
 같은 `.github/workflows/ci.yml`의 **Product acceptance**에서 매주 1회와 명시적 `workflow_dispatch` 시
 실제 실행합니다. 배포 또는 관련 기능 변경 시에는 제품 수용을 해당 PR에서도 실행해 결과·skip·미실행 범위를
 기록해야 합니다. Product acceptance가 실패하면 영향받는 배포·기능의 검증은 완료되지 않은 것입니다.

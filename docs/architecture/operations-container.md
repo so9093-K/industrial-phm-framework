@@ -89,6 +89,7 @@ remain rejected by the provider. This deployment does not download an AI model o
 ## 제품 검증 경계
 
 일반 소스 CI는 전체 컨테이너 기동과 재시작을 자동 실행하지 않습니다.
+주간·명시 실행 Product acceptance는 기동·HTTP 응답·재시작 smoke를 검사하지만 작업공간 데이터 복구 전체를 인증하지 않습니다.
 컨테이너 이미지·Compose 구성·영속 볼륨 또는 실제 수집/쓰기 경계를 변경할 때
 별도 Linux 환경에서 `make container-up`으로 시작한 뒤 등록·이력 저장·Review·
 재시작 후 복원을 검증하고 실제 실행 결과를 해당 변경 PR에 기록합니다.

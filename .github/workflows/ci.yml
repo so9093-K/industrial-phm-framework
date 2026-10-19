@@ -62,7 +62,7 @@ jobs:
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && github.head_ref == 'chore/ci-test-declutter')
-    name: Product acceptance (browser, wheel, container)
+    name: Product acceptance (integration, browser, wheel, container)
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
@@ -119,13 +119,13 @@ jobs:
           print(f"Installed wheel Web assets: {len(names)}")
           PY
 
-      - name: Integration regression
-        run: uv run --no-sync pytest tests/integration --maxfail=1 -q -rs --durations=15
-
       - name: Install browser runtime
         run: |
           uv pip install --python .venv/bin/python "playwright==1.64.0"
           uv run --no-sync playwright install --with-deps chromium
+
+      - name: Integration regression
+        run: uv run --no-sync pytest tests/integration --maxfail=1 -q -rs --durations=15
 
       - name: Browser and supervised-node acceptance
         run: uv run --no-sync pytest tests/acceptance --maxfail=1 -q -rs --durations=15
