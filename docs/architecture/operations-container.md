@@ -86,18 +86,11 @@ optional API key). Supply these to `operations` using a local Compose override; 
 into the image. Arbitrary plain HTTP remote endpoints, including `http://host.docker.internal:9400`,
 remain rejected by the provider. This deployment does not download an AI model or claim AI validation.
 
-## Verification
+## 제품 검증 경계
 
-With host ports 2718/2719 free:
-
-```sh
-. tools/verify/versions.env
-uvx --from "playwright==$PLAYWRIGHT_VERSION" playwright install chromium
-uvx --from "playwright==$PLAYWRIGHT_VERSION" python tools/verify/container_smoke.py
-```
-
-The test creates a unique temporary Compose project, builds the runtime, performs browser CSV upload,
-history storage, statistical analysis, review and sample browsing, checks hostile headers and missing
-CSRF rejection, and stops/recreates containers to read the same measurements and review note. It checks
-clean supervisor exit and Node-free runtime, then removes only its own project and volume. CI repeats
-this path on Linux amd64; local Docker Desktop verification covers Apple Silicon arm64.
+일반 소스 CI는 전체 컨테이너 기동과 재시작을 자동 실행하지 않습니다.
+주간·명시 실행 Product acceptance는 기동·HTTP 응답·재시작 smoke를 검사하지만 작업공간 데이터 복구 전체를 인증하지 않습니다.
+컨테이너 이미지·Compose 구성·영속 볼륨 또는 실제 수집/쓰기 경계를 변경할 때
+별도 Linux 환경에서 `make container-up`으로 시작한 뒤 등록·이력 저장·Review·
+재시작 후 복원을 검증하고 실제 실행 결과를 해당 변경 PR에 기록합니다.
+검증하지 않은 운영 동작을 CI 성공만으로 보증하지 않습니다.

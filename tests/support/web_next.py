@@ -1,4 +1,4 @@
-"""Shared Web-next navigation checks for Chromium acceptance tests."""
+"""Shared current Operations Web helpers for Chromium acceptance tests."""
 
 from __future__ import annotations
 

@@ -116,6 +116,6 @@ packages = ["industrial_phm"]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
 markers = [
-  "linux_only: needs Linux kernel features (SO_PEERCRED peer credentials, pidfd); skipped elsewhere, run make verify-linux",
+  "linux_only: needs Linux kernel features (SO_PEERCRED peer credentials, pidfd); skipped on other platforms; run on Linux",
 ]
 

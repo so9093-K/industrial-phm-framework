@@ -213,15 +213,10 @@ uv run --no-sync python -m tools.aihub.reference \
 `research-boiler-2297`, 신호 `R상전압,S상전압,T상전압`, 시간 컬럼 `timestamp`와 생성된
 `phase-bindings.txt`를 입력하면 기존 명시적 수신·이력 적재·분석·검토 경로를 확인할 수 있습니다.
 
-외부 데이터가 준비된 환경에서만 다음 테스트를 실행합니다. 기본 CI는 데이터를 다운로드하지 않습니다.
-`PHM_RECORDED_EVIDENCE`는 매번 새 경로를 사용합니다.
-
-```bash
-PHM_RECORDED_REFERENCE="$PWD/artifacts/aihub-239/reference" \
-PHM_RECORDED_EVIDENCE="$PWD/artifacts/aihub-239/browser-run-01" \
-  uv run --locked --extra operations --extra aihub --with playwright pytest \
-    tests/acceptance/test_operations_recorded_reference_browser.py -q
-```
+외부 기록 데이터가 준비된 경우에만 위의 별도 작업공간에 CSV를 등록한 뒤 현재
+`/web/`에서 원본·분석·사람 검토 흐름을 확인하고 실행 결과를 해당 실측 기록의 근거로 보관합니다.
+일반 Source CI와 주간 Product acceptance는 AI-Hub 원본을 다운로드하거나 실측 사례를 재현하지
+않습니다. 과거 캡처·연구 결과는 당시 코드의 역사적 근거이며, 현재 Web 수용 결과를 대신하지 않습니다.
 
 ## Observed macOS vendor-shell issue
 
