@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {reachText} from "./reach.ts";
+import {reachDuration,reachText} from "./reach.ts";
 
 const reach = (state: string, expected: number | null = null, earliest: number | null = null) =>
   ({state, expected, earliest, latest: null});
@@ -18,4 +18,11 @@ test("limit reach reads the same everywhere and keeps its own axis", () => {
   assert.equal(reachText(null, "time"), "계산 안 됨");
   // A count is never shown as hours.
   assert.doesNotMatch(reachText(reach("expected", 3600), "acquisition"), /시간/);
+});
+
+test("a count becomes a duration only with a recorded or assumed interval", () => {
+  assert.equal(reachDuration(reach("expected", 26), 60), "약 26분");
+  assert.equal(reachDuration(reach("possible", null, 90), 60), "약 1.5시간");
+  assert.equal(reachDuration(reach("expected", 26), null), "");
+  assert.equal(reachDuration(reach("already"), 60), "");
 });

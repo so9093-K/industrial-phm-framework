@@ -21,6 +21,13 @@ def test_a_bearing_the_models_were_fitted_on_is_refused(tmp_path: Path) -> None:
     assert not (tmp_path / "ws").exists()
 
 
+def test_a_run_cut_too_short_for_an_outlook_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="at least 20"):
+        prepare_xjtu_model_demo(
+            XjtuModelDemoConfig(source=tmp_path, workspace=tmp_path / "ws", until=10)
+        )
+
+
 def test_packages_already_in_the_workspace_are_reused_newest_first(tmp_path: Path) -> None:
     def package(name: str, recipe: str, created: str) -> None:
         (tmp_path / name).mkdir()

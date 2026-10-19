@@ -127,7 +127,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 def forecast(route):
                     query = matched_query(route)
                     assert query["horizon"] == ["count"]
-                    assert query["horizon_count"] == ["5"]
+                    assert query["horizon_count"] == ["30"]
                     route.fulfill(
                         status=200,
                         content_type="application/json",
@@ -135,11 +135,11 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                             {
                                 **base_body(selected["forecast_version"]),
                                 "horizon": "count",
-                                "horizon_count": 5,
+                                "horizon_count": 30,
                                 "meaning": (
                                     "stored-flow-continued-not-failure-time-or-remaining-life"
                                 ),
-                                "forecast": [[64, 2.2, 2.0, 2.4], [69, 3.4, 3.2, 3.8]],
+                                "forecast": [[64, 2.2, 2.0, 2.4], [94, 3.4, 3.2, 3.8]],
                             }
                         ),
                     )
@@ -308,7 +308,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.get_by_text("추가 측정 4회 후 닿음").first).to_be_visible()
                 # Measurement order is never shown as a clock time.
-                page.get_by_text("앞으로 5회 측정의 예측값").click()
+                page.get_by_text("앞으로 30회 측정의 예측값").click()
                 assert page.get_by_role("columnheader", name="측정 #").count() == 1
                 assert page.get_by_role("columnheader", name="예측 시각").count() == 0
                 page.get_by_text("기술 상세").click()
@@ -325,7 +325,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                     pw.expect(
                         page.get_by_text("기록된 측정 간격", exact=False).first
                     ).to_be_visible()
-                assert "acq_forecast_count=5" in page.url
+                assert "acq_forecast_count=30" in page.url
                 ai = page.get_by_role("region", name="AI 해설")
                 pw.expect(ai.get_by_role("heading", name="AI 해설")).to_be_visible()
                 pw.expect(ai.get_by_role("button", name="해설 만들기")).to_be_enabled()

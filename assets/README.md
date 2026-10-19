@@ -11,19 +11,21 @@
 실행·저장 책임은 [아키텍처](../docs/architecture/overview.md), 기능별 지원 조건은
 [현재 지원 상태](../docs/status.md)가 기준입니다. 입력·저장·분석 경계가 바뀌면 대표 구성도와 설명을 함께 갱신합니다.
 
-## 모델 이상 탐지 (XJTU-SY 기록)
+## 이상 탐지에서 RUL까지 (XJTU-SY 기록)
 
-README의 대표 화면입니다. `industrial-phm demo xjtu`와 같은 구성(두 모델을 fold-1 학습 베어링으로 맞추고
-학습에 쓰지 않은 Bearing1_1의 측정 #1–#123을 재생)의 작업공간에서 실행 중인 Web을 ko-KR Chromium, 1440×1000으로 촬영했습니다.
-2026-10-19, 기준 커밋 `811ee69`에 이 변경을 더한 Web입니다. 그래프·숫자·해설을 이미지에 합성하지 않았습니다.
+README의 대표 화면입니다. `industrial-phm demo xjtu --until 100`과 같은 구성(두 모델을 fold-1 학습 베어링으로 맞추고
+학습에 쓰지 않은 Bearing1_1의 측정 #1–#100을 재생)의 작업공간에서 실행 중인 Web을 ko-KR Chromium, 1440×1000으로 촬영했습니다.
+2026-10-19, 기준 커밋 `811ee69`에 이 변경을 더한 Web이며, 해설은 같은 날 로컬 `local-main`의 실제 응답입니다.
+그래프·숫자·해설을 이미지에 합성하지 않았습니다.
 
 | 파일 | 확인할 사용자 가치 |
 | --- | --- |
-| [모델별 점수 비교](models/01-models.png) | Isolation Forest·LSTM 오토인코더의 점수를 각 모델 기준 대비로 겹쳐 보고 측정 #94의 값을 읽음 |
-| [측정 상세](models/02-measurement.png) | 측정 #123의 점수·기준·원본 파형, 기준 초과 직전 측정 #75와의 기본 비교 |
-| [무엇이 변했나](models/03-changes.png) | #75와 #123의 진동 특징 비교 |
-| [AI 해설](models/04-explanation.png) | 같은 비교를 근거로 `local-main`이 만든 해설(근거 없는 문장 제외)과 해설이 짚은 측정값 |
-| [GIF](models/walkthrough.gif) | 모델 비교 → 측정 선택 → 다른 모델로 같은 측정 → 특징 변화 → 해설의 흐름 |
+| [모델별 점수 비교](models/01-models.png) | Isolation Forest·LSTM 오토인코더의 점수를 각 모델 기준 대비로 겹쳐 보고 측정 #99의 값을 읽음 |
+| [측정 상세](models/02-measurement.png) | 측정 #100의 점수·기준·원본 파형, 기준 초과 직전 측정 #75와의 기본 비교 |
+| [무엇이 변했나](models/03-changes.png) | #75와 #100의 진동 특징 비교와 구간 흐름 |
+| [AI 해설](models/04-explanation.png) | 같은 비교를 근거로 `local-main`이 만든 해설과 해설이 짚은 측정값 |
+| [상태 전망·RUL](models/05-outlook.png) | 수평 진동 RMS의 Prophet 예측, 입력한 관리 기준 4·종료 기준 6까지 남은 측정·시간과 해설 |
+| [GIF](models/walkthrough.gif) | 모델 비교 → 측정 선택 → 다른 모델로 같은 측정 → 특징 변화 → 해설 → 상태 전망의 흐름 |
 
 XJTU-SY 원본 파형과 모델 패키지는 저장소에 포함하지 않습니다. 화면은 기록 데이터를 시간 압축해 재생한 결과입니다.
 

@@ -34,6 +34,13 @@
       feature_a_from:String(compare),feature_a_to:String(split),feature_b_from:String(split+1),feature_b_to:String(run.position)}))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }
+  // Where this feature is heading: the condition outlook of the same feature.
+  function outlook(feature:string):string|null {
+    if(binding.stepKind!=="acquisition-snapshot")return null;
+    const url=new URL(assetTabUrl(binding.assetId,"outlook",null,"vibration"),location.origin);
+    url.searchParams.set("acq_forecast_feature",feature);
+    return url.pathname+url.search;
+  }
   function open(position:number,feature:string|null,question=false){
     preview={position,feature};
     if(question)onFocus({position,series:feature});
@@ -46,7 +53,10 @@
       try{
         const values=await readComparison(model,current,prior,request.signal);
         if(request.signal.aborted)return;
-        comparison=values;exploreFeature=values.features[0]?.feature??"";loading=false;
+        // Start from the measurement that changed most, the one worth following further.
+        const size=(value:number|null)=>value===null?-1:Math.abs(value);
+        comparison=values;loading=false;
+        exploreFeature=[...values.features].sort((x,y)=>size(y.relativePercent)-size(x.relativePercent))[0]?.feature??"";
         if(prior===null)return;
         try{const flow=await readRange(model,current,prior,values,request.signal);if(!request.signal.aborted)range=flow;}
         catch{if(!request.signal.aborted)rangeFailed=true;}
@@ -71,7 +81,7 @@
           <td>{num(feature.previous,"—")}</td><td>{num(feature.current)}</td><td>{feature.relativePercent===null?"—":num(feature.relativePercent)+"%"}</td></tr>
       {/each}</tbody>
     </table></div>
-    {#if exploration(exploreFeature)}<div class="explore"><label>두 기간으로 탐색할 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a></div>{/if}
+    {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>
     {:else if range && compare !== null && rows.some(row=>row.shape.trend!=="insufficient")}

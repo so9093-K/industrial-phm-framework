@@ -69,12 +69,14 @@ CSV 점검·등록·이력 저장과 FILE/OPC UA 소스 제어의 정확한 절�
 ```bash
 uv run industrial-phm demo xjtu                       # 기본: artifacts/demo-xjtu, Bearing1_1, 포트 2718
 uv run industrial-phm demo xjtu --bearing Bearing2_1  # 학습에 쓰지 않은 다른 베어링
+uv run industrial-phm demo xjtu --until 100           # 측정 #100까지만: 진행 중인 설비로 상태 전망·RUL 보기
 ```
 
 - 처음 실행할 때 두 모델을 fold-1 train 베어링으로 맞춰 작업공간 `models/`에 저장합니다(몇 분).
   다음 실행은 저장된 패키지를 다시 씁니다. 깨끗한 Git checkout이 아니면 `--code-revision`을 지정합니다.
 - 재생 대상은 모델 학습에 쓰지 않은 베어링(`Bearing1_1/2_1/3_1`, `Bearing1_2/2_2/3_2`)만 받습니다.
-- 측정을 모두 넣은 뒤 Operations를 실행하므로, Web을 열면 두 모델의 점수가 채워지고 있습니다. 화면에는 "기록 재생 데이터"로 표시됩니다.
+- 측정을 넣은 뒤 Operations를 실행하므로, Web을 열면 두 모델의 점수가 채워지고 있습니다. 화면에는 "기록 재생 데이터"로 표시됩니다.
+  `--until`로 멈춘 뒤 `operations phm replay-xjtu ... --start N+1`로 나머지를 이어서 넣을 수 있습니다.
 
 기존 작업공간에 단계별로 연결할 때는 같은 명령을 나눠 실행합니다.
 

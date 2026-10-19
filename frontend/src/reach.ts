@@ -12,6 +12,13 @@ function offset(value: number, axis: ReachAxis): string {
   return "마지막 기록 후 약 " + (hours < 48 ? hours.toFixed(1) + "시간" : (hours / 24).toFixed(1) + "일");
 }
 
+/** The same reach as a duration when the measurement interval is recorded or assumed. */
+export function reachDuration(value: Reach | null | undefined, period: number | null): string {
+  const steps = value?.state === "expected" ? value.expected : value?.state === "possible" ? value.earliest : null;
+  if (steps === null || steps === undefined || period === null) return "";
+  return offset(steps * period, "time").replace("마지막 기록 후 ", "");
+}
+
 export function reachText(value: Reach | null | undefined, axis: ReachAxis): string {
   if (!value) return "계산 안 됨";
   if (value.state === "already") return "이미 넘음";

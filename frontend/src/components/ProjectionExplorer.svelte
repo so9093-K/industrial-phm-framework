@@ -238,7 +238,7 @@
           }}/>
         {/key}
         <ForecastValidation checks={projection.checks}/>
-        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 기준은 사용자가 정한 값이며, 고장 시점이나 남은 수명이 아닙니다." />
+        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다." />
         <details>
           <summary>예측값 표 · {HORIZON_LABEL[projection.horizon]}</summary>
           {#if projection.future.length}

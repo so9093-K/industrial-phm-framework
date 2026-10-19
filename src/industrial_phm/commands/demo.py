@@ -55,6 +55,7 @@ def _run_demo_xjtu(args: argparse.Namespace) -> int:
         source=args.source,
         workspace=args.workspace,
         bearing=args.bearing,
+        until=args.until,
         ui_port=args.ui_port,
         code_revision=args.code_revision,
     )

@@ -2,9 +2,10 @@
 
 ``industrial-phm demo xjtu`` prepares a dedicated workspace: it fits the fold-1 Isolation Forest
 and LSTM autoencoder on the train bearings (or reuses the packages already there), connects both
-to the replay stream and delivers the chosen held-out bearing's acquisitions. Operations then
+to the replay stream and delivers the chosen held-out bearing's acquisitions (all of them, or the
+first ``until`` so the bearing is mid-run and its outlook still looks ahead). Operations then
 scores them, and the anomaly screen opens with both models, the raw waveforms, AI questions and
-review on recorded data.
+review on recorded data; the condition outlook forecasts the same features toward the user's limits.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ class XjtuModelDemoConfig:
     source: Path = XJTU_DEMO_DEFAULT_SOURCE
     workspace: Path = Path("artifacts/demo-xjtu")
     bearing: str = "Bearing1_1"
+    until: int | None = None
     ui_port: int = 2718
     evidence_root: Path = Path("docs/research/results")
     code_revision: str | None = None
@@ -81,6 +83,8 @@ def prepare_xjtu_model_demo(
     """Create or reopen the demo workspace with both models connected and the bearing delivered."""
     from industrial_phm.runtime.operations_web_phm_models import create_phm_binding
 
+    if preset.until is not None and preset.until < 20:
+        raise ValueError("until must be at least 20 so the outlook has enough measurements")
     held_out = held_out_bearings()
     if preset.bearing not in held_out:
         raise ValueError(
@@ -115,6 +119,7 @@ def prepare_xjtu_model_demo(
         asset_id=preset.bearing,
         source_id=XJTU_DEMO_SOURCE_ID,
         interval_seconds=0.0,
+        count=preset.until,
     )
     return XjtuModelDemoPreparation(
         workspace, config, (packages[IFOREST_RECIPE], packages[LSTM_RECIPE]), replay

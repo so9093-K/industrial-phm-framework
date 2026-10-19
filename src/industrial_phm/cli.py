@@ -313,6 +313,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="held-out bearing run the models were not trained on (default: Bearing1_1)",
     )
     demo_xjtu.add_argument(
+        "--until",
+        type=int,
+        help="deliver acquisitions 1..N only, so the bearing is mid-run (default: all)",
+    )
+    demo_xjtu.add_argument(
         "--ui-port",
         type=int,
         default=2718,
