@@ -145,6 +145,7 @@ def deliver(
     scale: float,
     *,
     period_seconds: float | None = 60.0,
+    amplitude_unit: str | None = None,
 ) -> None:
     waveforms.mkdir(parents=True, exist_ok=True)
     path = waveforms / f"{ordinal}.csv"
@@ -163,7 +164,8 @@ def deliver(
             delivered_at=T0 + timedelta(minutes=ordinal),
             replay=True,
             acquisition_period_seconds=period_seconds,
-            metadata={"operating_condition": "c1"},
+            metadata={"operating_condition": "c1"}
+            | ({"amplitude_unit": amplitude_unit} if amplitude_unit else {}),
         )
     )
 

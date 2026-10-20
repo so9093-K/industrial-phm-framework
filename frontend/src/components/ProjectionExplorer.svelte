@@ -3,6 +3,9 @@
   import ForecastValidation from "./ForecastValidation.svelte";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
+  import {measure} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
+  import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import {reachText} from "../reach";
@@ -16,6 +19,8 @@
   } from "../projections";
   type Props = {assetId: string};
   let {assetId}: Props = $props();
+  let names: SignalNames = $state(new Map());
+  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names = value; }); });
   type State = "loading" | "ready" | "empty" | "unavailable" | "failed" | "unverified";
   let optionsState: State = $state("loading");
   let resultState: State = $state("empty");
@@ -135,7 +140,7 @@
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
           onchange={e=>{channel=e.currentTarget.value;invalidate();}}>
-          {#each options.channels as id (id)}<option value={id}>{id}</option>{/each}
+          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
       <label for="projection-horizon">예측 기간
@@ -191,10 +196,10 @@
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
-              <div><span>관리 기준 {num(projection.conditions.management)}{basis}</span><strong>{reachText(current?.management,"time")}</strong></div>
+              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong></div>
             {/if}
             {#if projection.conditions.end!==null}
-              <div><span>조건부 잔여수명(RUL) · 종료 기준 {num(projection.conditions.end)}{basis}</span><strong>{reachText(current?.end,"time")}</strong></div>
+              <div><span>조건부 잔여수명(RUL) · 종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.end,"time")}</strong></div>
             {/if}
           </div>
         {:else}
@@ -202,9 +207,11 @@
         {/if}
         {#if chart}
           <figure class="chart">
-            <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}{projection.unit ? " " + projection.unit : ""}</p>
+            <p class="axis-note">최고 {measure(chart.high, (projection.unit ?? names.get(projection.channel)?.unit ?? null))} · 최저 {measure(chart.low, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</p>
+            <ValueAxis ticks={chart.ticks} height={chart.height} unit={(projection.unit ?? names.get(projection.channel)?.unit ?? null)}>
             <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
               aria-label={"저장된 측정과 앞으로 "+HORIZON_LABEL[projection.horizon]+" 예측. "+clock(chart.start)+"부터 "+clock(chart.end)+"까지."}>
+              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
               {#if chart.band}<path d={chart.band} class="band" />{/if}
               <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
               {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
@@ -213,13 +220,14 @@
               <path d={chart.estimate} class="estimate" />
               <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
             </svg>
-            <p class="axis-time"><span>{clock(chart.start)}</span><span>마지막 기록 {clock(chart.lastRecord)}</span><span>→ {clock(chart.end)}</span></p>
+            {#snippet footer()}<p class="axis-time"><span>{clock(chart.start)}</span><span>마지막 기록 {clock(chart.lastRecord)}</span><span>→ {clock(chart.end)}</span></p>{/snippet}
+            </ValueAxis>
             <figcaption class="legend">
               <span><i class="key history"></i>저장된 측정</span>
               <span><i class="key estimate"></i>추세 예측</span>
               <span><i class="key band"></i>예측 범위</span>
-              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {num(projection.conditions.management)}</span>{/if}
-              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {num(projection.conditions.end)}</span>{/if}
+              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
+              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
             </figcaption>
           </figure>
         {/if}
@@ -299,7 +307,7 @@
 <style>
   .projection { min-width: 0; }
   .chart { margin: var(--space-4) 0; min-width: 0; }
-  .chart svg { display: block; width: 100%; height: 220px; margin-top: var(--space-2); }
+  .chart svg { display: block; width: 100%; height: 220px;  }
   .chart path, .chart line { vector-effect: non-scaling-stroke; }
   .chart .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
   .chart .history { fill: none; stroke: var(--color-ink); stroke-width: 1.5; }
@@ -339,4 +347,5 @@
   dl { overflow-wrap: anywhere; }
   dt { font-weight: 700; }
   dd { margin: var(--space-1) 0 var(--space-3); }
+  .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 </style>

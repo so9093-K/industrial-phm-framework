@@ -1,14 +1,15 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
-  import {defaultKind, kindsOf, readAssetData, type AssetData} from "../asset-data";
+  import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {
-    DATA_INFO, METHOD_INFO, TAB_INFO, TABS, methodsOf, routeUrl, usesDataKind,
+    DATA_INFO, METHOD_INFO, TAB_INFO, TABS, routeUrl, usesDataKind,
     type DataKind, type Method, type Route, type Tab,
   } from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
   import AssetSummary from "./AssetSummary.svelte";
   import SignalExplorer from "./SignalExplorer.svelte";
+  import VibrationSignals from "./VibrationSignals.svelte";
   import DepartureExplorer from "./DepartureExplorer.svelte";
   import ModelRunEvidence from "./ModelRunEvidence.svelte";
   import PeriodComparison from "./PeriodComparison.svelte";
@@ -40,7 +41,8 @@
   });
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
-  const waitingForDefault = $derived(dataState === "loading" && (
+  const methods = $derived(methodsFor(route.tab, data));
+  const waitingForDefault = $derived(dataState === "loading" && (route.tab === "signals" ||
     (route.tab === "anomaly" && !route.method) || (usesDataKind(route.tab, method) && !route.data)));
   const facts = $derived.by(() => {
     if (!data) return "";
@@ -69,7 +71,7 @@
   });
 </script>
 
-<div class="workspace-asset">
+<div class="workspace-asset" aria-busy={dataState === "loading"}>
   <nav class="crumbs" aria-label="현재 위치">
     <a href={routeUrl({page: "assets", assetId: "", tab: "summary", method: null, data: null})}>설비·신호</a>
     <span aria-hidden="true">›</span> <span>{assetLabel(assets, asset.assetId)}</span>
@@ -96,11 +98,12 @@
     {/each}
   </nav>
 
-  {#if methodsOf(route.tab).length || kind}
+  {#if methods.length || kind}
     <div class="choices">
-      {#if methodsOf(route.tab).length}
+      <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
+      {#if methods.length > 1 && dataState !== "loading"}
         <nav class="segmented" aria-label="분석 방법">
-          {#each methodsOf(route.tab) as option (option)}
+          {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
               aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}</a>
           {/each}
@@ -125,7 +128,8 @@
       {#if route.tab === "summary"}
         <AssetSummary {asset} {data} {dataState} {observed} />
       {:else if route.tab === "signals"}
-        <SignalExplorer assetId={asset.assetId} />
+        {#if data?.history || !data?.vibration}<SignalExplorer assetId={asset.assetId} />{/if}
+        {#if data?.vibration}<VibrationSignals assetId={asset.assetId} />{/if}
       {:else if route.tab === "anomaly" && method === "baseline"}
         <DepartureExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly"}

@@ -93,7 +93,7 @@ def export(output: Path) -> None:
                     visit(base)
                     for channel in ("current_a", "temperature_c"):
                         chosen = base + f"&monitor_channel={channel}"
-                        for span in ("15m", "1h", "24h", "7d"):
+                        for span in ("all", "15m", "1h", "24h", "7d"):
                             visit(
                                 chosen + f"&tab=signals&monitor_range={span}&monitor_anchor=latest"
                             )

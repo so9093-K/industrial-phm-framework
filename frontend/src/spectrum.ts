@@ -110,7 +110,10 @@ async function json(path:string,signal:AbortSignal):Promise<unknown>{
     if(record(error)?.error==="original_waveform_unavailable")
       throw new WaveformUnavailable("검증된 원본 파형 파일에 접근할 수 없습니다.");
   }
-  if(!response.ok)throw new Error("파형 스펙트럼 조회 오류입니다. 스펙트럼 없음과 다릅니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("파형 스펙트럼 조회 오류입니다. 스펙트럼 없음과 다릅니다.");
+  }
   return await response.json() as unknown;
 }
 export async function readAcquisition(asset:string,signal:AbortSignal):Promise<Acquisition|null>{

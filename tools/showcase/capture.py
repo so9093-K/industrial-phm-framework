@@ -136,7 +136,7 @@ def capture(media: bool) -> None:
                 page.get_by_role("region", name="기준 도달 전망").get_by_role("img").first
             ).to_be_visible()
             expect(
-                page.get_by_text("조건부 잔여수명(RUL) · 종료 기준 15", exact=True)
+                page.get_by_text("조건부 잔여수명(RUL) · 종료 기준 15 A", exact=True)
             ).to_be_visible()
             shot("05-outlook")
             outlook_url = page.url

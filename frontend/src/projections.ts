@@ -1,4 +1,5 @@
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
+import {yTicks, type Tick} from "./chart-axis.ts";
 /** Read-only version-coupled history forecast and conditional outlook. */
 export type Horizon = "1h" | "24h" | "7d" | "30d";
 export type Direction = "upper" | "lower";
@@ -159,6 +160,7 @@ export type OutlookChart = {
   start: string; lastRecord: string; end: string; lastX: number;
   history: string; estimate: string; band: string;
   management: number | null; endLimit: number | null;
+  ticks: Tick[];
 };
 
 /** Recent stored values, the forecast with its range and the user's limits on one plot.
@@ -199,6 +201,7 @@ export function outlookChart(projection: Projection): OutlookChart | null {
     band,
     management: management === null ? null : y(management),
     endLimit: endLimit === null ? null : y(endLimit),
+    ticks: yTicks(lo, hi, top, bottom),
   };
 }
 
@@ -221,7 +224,10 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
       );
     }
   }
-  if (!response.ok) throw new Error("전망을 불러오지 못했습니다. 기록이 없거나 이상이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("전망을 불러오지 못했습니다. 기록이 없거나 이상이 없다는 뜻은 아닙니다.");
+  }
   return await response.json() as unknown;
 }
 export async function loadOptions(assetId: string, signal: AbortSignal): Promise<Options> {

@@ -7,6 +7,8 @@ import {object,postReviewWrite,OutcomeUnknown,type ReviewStatus} from "./review-
 
 export type FeatureChange={
   feature:string;label:string;current:number;previous:number|null;relativePercent:number|null;
+  /** The feature's unit when the stream declares one (an RMS in g); ratios have none. */
+  unit?:string|null;
 };
 export type Relation="increased"|"decreased"|"unchanged";
 export type AnswerSource="model"|"model-trimmed"|"verified-comparison";
@@ -45,7 +47,8 @@ function feature(raw:unknown):FeatureChange{
   const current=finite(row?.current);
   if(!row||current===null)invalid("측정값 비교");
   return {feature:text(row.feature,"측정값 이름",256),label:text(row.label,"측정값 이름",256),
-    current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent)};
+    current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent),
+    unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null};
 }
 function answer(raw:unknown,features:FeatureChange[]):ModelAnswer|null{
   if(raw===null||raw===undefined)return null;

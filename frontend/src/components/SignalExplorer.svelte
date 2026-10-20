@@ -1,16 +1,21 @@
 <script lang="ts">
   import {onMount} from "svelte";
+  import {readSourceNames, sourceLabel} from "../operations-status";
+  import {measure} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
-  import {num} from "../format";
+  import {num, propertyLabel} from "../format";
   import {
-    fillsWindow, fittingRange, groupHistory, readChannels, readTrend, signalChart,
+    groupHistory, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
   } from "../history";
 
   type LoadState = "idle" | "loading" | "ready" | "empty" | "failed";
   type Props = {assetId: string};
   let {assetId}: Props = $props();
+  let sources: Map<string, string> = $state(new Map());
+  $effect(() => { void readSourceNames().then((value) => sources = value); });
 
   let channelState: LoadState = $state("loading");
   let trendState: LoadState = $state("idle");
@@ -21,10 +26,8 @@
   const chosenRange = params.get("monitor_range");
   const chosenAnchor = params.get("monitor_anchor");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
-  const explicitRange = chosenRange === "15m" || chosenRange === "1h" || chosenRange === "24h" || chosenRange === "7d";
-  let range: RangePreset = $state(explicitRange ? chosenRange : "1h");
-  // Without a chosen window the last hour shows at once; a longer record then widens it.
-  let fitRange = !explicitRange;
+  // Without a chosen window the whole stored record shows, so a 4-hour file fills the chart.
+  let range: RangePreset = $state(RANGE_PRESETS.find((item) => item === chosenRange) ?? "all");
   let anchor: TimeAnchor = $state(chosenAnchor === "now" ? "now" : "latest");
   let channelAbort: AbortController | null = null;
   let trendAbort: AbortController | null = null;
@@ -94,21 +97,6 @@
       if (request.signal.aborted) return;
       trend = result;
       trendState = result.buckets.length || result.latest.length ? "ready" : "empty";
-      if (fitRange) {
-        fitRange = false;
-        if (!fillsWindow(result)) return;
-        // Choosing another window or signal meanwhile aborts this request.
-        const wide = await readTrend(assetId, selectedChannel, "7d", anchor, request.signal);
-        if (request.signal.aborted) return;
-        const fitting = fittingRange(wide);
-        if (fitting === range) return;
-        const fitted = fitting === "7d" ? wide : await readTrend(assetId, selectedChannel, fitting, anchor, request.signal);
-        if (request.signal.aborted) return;
-        range = fitting;
-        rememberChannel();
-        trend = fitted;
-        trendState = fitted.buckets.length || fitted.latest.length ? "ready" : "empty";
-      }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
       trendState = "failed";
@@ -143,24 +131,25 @@
         <select id="history-channel" value={selectedChannel}
           onchange={(event) => changeChannel(event.currentTarget.value)}>
           {#each channels.ids as id (id)}
-            <option value={id}>{id}</option>
+            <option value={id}>{signalName(channels.names, id)}</option>
           {/each}
         </select>
       </label>
       <label for="history-range">조회 기간
         <select id="history-range" value={range}
-          onchange={(event) => { range = event.currentTarget.value as RangePreset; fitRange = false; rememberChannel(); void loadTrend(); }}>
-          <option value="15m">15분</option><option value="1h">1시간</option>
-          <option value="24h">24시간</option><option value="7d">7일</option>
+          onchange={(event) => { range = event.currentTarget.value as RangePreset; rememberChannel(); void loadTrend(); }}>
+          <option value="all">저장된 전체 기록</option>
+          <option value="15m">최근 15분</option><option value="1h">최근 1시간</option>
+          <option value="24h">최근 24시간</option><option value="7d">최근 7일</option>
         </select>
       </label>
-      <label for="history-anchor">기간 기준
+      {#if range !== "all"}<label for="history-anchor">기간 기준
         <select id="history-anchor" value={anchor}
           onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
           <option value="latest">마지막 저장 기록</option>
           <option value="now">지금</option>
         </select>
-      </label>
+      </label>{/if}
     </div>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
@@ -182,7 +171,7 @@
     {:else if trend}
       <p class="context">
         {recorded(trend.startAt)} ~ {recorded(trend.endAt)}
-        · {anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
+        · {range === "all" ? "저장된 전체 기록" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
       <p class="explain">
         선은 시간 구간별 평균, 옅은 막대는 그 구간 안의 최소~최대입니다. 빠진 값이나 품질 불량은
@@ -194,17 +183,20 @@
       {#each groups as group (group.key)}
         {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
         <section class="series" aria-label={"측정 기록 " + group.sourceId}>
-          <h3>{selectedChannel}{groups.length > 1 ? " · 데이터 출처 " + group.sourceId : ""}</h3>
+          <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId) : ""}</h3>
           <p class="context">
-            데이터 출처 {group.sourceId} · 측정 위치 {group.pointId ?? "미등록"}
-            {#if group.observedProperty} · 측정 의미 {group.observedProperty}{/if}
-            · 단위 {group.unit ?? "기록 없음"}
+            데이터 출처 {sourceLabel(sources, group.sourceId)} · 측정 위치 {group.pointId ?? "미등록"}
+            {#if group.observedProperty} · 측정 의미 {propertyLabel(group.observedProperty)}{/if}
+            · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit ?? "기록 없음"}
           </p>
           {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 의미의 근거</summary><p class="context">단위 근거 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">해석 근거 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
           {#if chart}
-            <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}{group.unit ? " " + group.unit : ""}</p>
+            {@const unit = group.unit ?? channels?.names.get(selectedChannel)?.unit ?? null}
+            <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
+            <ValueAxis ticks={chart.ticks} height={chart.height} {unit}>
             <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
-              aria-label={selectedChannel + "의 시간 구간별 평균과 최소~최대. " + recorded(trend.startAt) + "부터 " + recorded(trend.endAt) + "까지. 빈 곳은 기록이 없는 구간입니다."}>
+              aria-label={signalName(channels?.names, selectedChannel) + "의 시간 구간별 평균과 최소~최대. " + recorded(trend.startAt) + "부터 " + recorded(trend.endAt) + "까지. 빈 곳은 기록이 없는 구간입니다."}>
+              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
               {#each chart.marks as mark (mark.bucket.bucketStart)}
                 <line x1={mark.x} x2={mark.x} y1={mark.min} y2={mark.max} class="range" />
                 <line x1={mark.x - 3} x2={mark.x + 3} y1={mark.mean} y2={mark.mean} class="mean" />
@@ -212,7 +204,8 @@
               <path d={chart.path} class="line" />
               <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
             </svg>
-            <p class="axis-time"><span>{recorded(chart.from)}</span><span>→ {recorded(trend.endAt)}</span></p>
+            {#snippet footer()}<p class="axis-time"><span>{recorded(chart.from)}</span><span>→ {recorded(trend?.endAt ?? null)}</span></p>{/snippet}
+            </ValueAxis>
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
           {/if}
@@ -247,7 +240,7 @@
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
-              <li>{item.sourceId} / {item.pointId ?? "미등록"}
+              <li>{sourceLabel(sources, item.sourceId)} / {item.pointId ?? "미등록"}
                 · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {item.quality === "unknown" ? "기록 없음" : item.quality}</li>
             {/each}
@@ -277,7 +270,8 @@
   }
   .series { margin-block: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
   h3 { font-size: var(--font-body); overflow-wrap: anywhere; }
-  svg { display: block; width: 100%; height: 200px; margin-top: var(--space-2); }
+  svg { display: block; width: 100%; height: 200px; }
+  .grid { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; vector-effect: non-scaling-stroke; }
   svg path, svg line { vector-effect: non-scaling-stroke; }
   .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }

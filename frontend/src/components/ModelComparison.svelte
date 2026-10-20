@@ -78,7 +78,7 @@
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th></tr></thead>
       <tbody>{#each ordered as feature(feature.feature)}
         <tr><th scope="row"><button class="text-button" aria-label={feature.label + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{feature.label}</button></th>
-          <td>{num(feature.previous,"—")}</td><td>{num(feature.current)}</td><td>{feature.relativePercent===null?"—":num(feature.relativePercent)+"%"}</td></tr>
+          <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td></tr>
       {/each}</tbody>
     </table></div>
     {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}

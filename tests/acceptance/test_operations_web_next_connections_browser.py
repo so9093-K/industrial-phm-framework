@@ -54,12 +54,12 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     files=[{"name": "pump.csv", "mimeType": "text/csv", "buffer": _csv()}]
                 )
                 preview = start.get_by_role("region", name="파일 미리보기")
-                pw.expect(preview.get_by_label("시간 컬럼")).to_have_value("0")
+                pw.expect(preview.get_by_label("시각 열")).to_have_value("0")
                 current = preview.get_by_role("checkbox", name="current_a", exact=True)
                 pw.expect(current).to_be_checked()
                 text_column = preview.get_by_role("checkbox", name="label · 숫자가 아닌 값 40개")
                 pw.expect(text_column).to_be_disabled()
-                summary = preview.get_by_role("table", name="측정 컬럼 요약")
+                summary = preview.get_by_role("table", name="측정값 요약")
                 pw.expect(summary).to_contain_text("1.5")
                 pw.expect(preview.get_by_role("img")).to_be_visible()
                 pw.expect(preview).to_contain_text("측정 간격 · 보통 1초")
@@ -184,7 +184,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(tmp_path: Path) -
                 start.get_by_label("설비 이름·번호").fill("motor-01")
                 start.get_by_text("3상 전압·전류 역할 지정", exact=False).click()
                 roles = start.get_by_role("group", name="3상 역할", exact=False)
-                roles.get_by_role("button", name="컬럼 이름으로 역할 채우기").click()
+                roles.get_by_role("button", name="열 이름으로 역할 채우기").click()
                 pw.expect(roles.get_by_label("전압 R상")).to_have_value("vR")
                 pw.expect(roles.get_by_label("전류 T상")).to_have_value("iT")
                 # Suggested columns still need the person's own evidence.

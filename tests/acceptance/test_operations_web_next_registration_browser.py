@@ -73,8 +73,8 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
                         "연결 이름": "3상 전압",
                         "설비": "motor-01",
                         "작업공간 안 CSV 경로 (파일을 고르지 않을 때)": "inputs/phases.csv",
-                        "측정 컬럼 (쉼표로 구분)": "leg_a,leg_b,leg_c",
-                        "시간 컬럼": "timestamp",
+                        "측정값 열 (쉼표로 구분)": "leg_a,leg_b,leg_c",
+                        "시각 열": "timestamp",
                     },
                 )
                 roles = register.get_by_role(

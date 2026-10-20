@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {attentionByAsset,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
+import {attentionByAsset,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
 import {parseSources} from "./operations-status.ts";
 
 function model(extra:Record<string,unknown>){
@@ -36,8 +36,26 @@ test("only a collection someone asked to run is flagged when it stops receiving"
         last_live_receive_fresh:false},
       {source_id:"s3",name:"Stopped",source_type:"opcua",asset_id:"pump-3",lifecycle_state:"active",collection_desired_state:"stopped",
         last_live_receive_fresh:false},
-    ],total:3,truncated:false},read_error_scopes:[],live_evidence_error_scopes:[]}).items;
+      {source_id:"s4",name:"Live 2",source_type:"opcua",asset_id:"pump-1",lifecycle_state:"active",collection_desired_state:"running",
+        last_live_receive_fresh:false},
+    ],total:4,truncated:false},read_error_scopes:[],live_evidence_error_scopes:[]}).items;
   const groups=attentionByAsset([],sources);
   assert.deepEqual(groups.map(group=>[group.assetId,group.notes[0].kind]),[["pump-1","receipt"]]);
+  // Two silent connections of one asset are two notes, each with its own key in the list.
+  assert.deepEqual(groups[0].notes.map(note=>[note.id,note.detail.split(" · ")[0]]),[["receipt:s1","Live"],["receipt:s4","Live 2"]]);
   assert.throws(()=>parsePhmMonitor({schema_version:1,items:[model({processing_state:"healthy"})]}),/형식/);
+});
+
+test("a stored signal that ends far from its baseline asks for a look and opens that signal", () => {
+  const departures=parseDepartures({schema_version:1,items:[
+    {asset_id:"pump-2",channel:"current_a",label:"전류",unit:"A",distance:96.4,direction:"up",since:"2026-10-01T02:05:57Z"},
+    {asset_id:"pump-3",channel:"x"},
+  ]});
+  assert.equal(departures.length,1);
+  const [group]=attentionByAsset([],null,departures);
+  assert.equal(group.assetId,"pump-2");
+  assert.equal(group.notes[0].kind,"departure");
+  assert.match(group.notes[0].detail,/^전류 \(A\) · 기준 변동 폭의 96배 높음 · /);
+  assert.match(group.notes[0].href,/tab=anomaly&method=baseline/);
+  assert.match(group.notes[0].href,/monitor_channel=current_a/);
 });

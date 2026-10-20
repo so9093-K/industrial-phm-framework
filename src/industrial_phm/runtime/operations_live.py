@@ -62,6 +62,15 @@ def list_operations_history_channels(
     return _history_read(lambda: history.list_history_channels(asset_id))
 
 
+def query_operations_history_extent(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    channel_ids: Sequence[str],
+) -> tuple[datetime, datetime] | None:
+    return _history_read(lambda: history.history_channel_extent(asset_id, channel_ids))
+
+
 def query_operations_latest_measurements(
     history: DuckLakeAssetHistory,
     asset_id: str,

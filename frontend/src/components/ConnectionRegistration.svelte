@@ -27,8 +27,8 @@
     if (!csv.sourceId.trim() || !csv.name.trim() || !csv.assetId.trim()) return "연결 ID, 이름, 설비를 입력하세요.";
     if (!csvFile && !csv.filePath.trim()) return "파일을 고르거나 작업공간 안 CSV 경로를 입력하세요.";
     if (!channelList.length || channelList.length > MAX_CHANNELS || new Set(channelList).size !== channelList.length)
-      return "겹치지 않는 측정 컬럼 1~" + MAX_CHANNELS + "개를 쉼표로 입력하세요.";
-    if (!csv.time.trim()) return "시간 컬럼을 입력하세요.";
+      return "겹치지 않는 측정값 열 1~" + MAX_CHANNELS + "개를 쉼표로 입력하세요.";
+    if (!csv.time.trim()) return "시각 열을 입력하세요.";
     return phaseRoleProblem(declared, channelList);
   });
   const csvReady = $derived.by((): boolean => {
@@ -57,9 +57,9 @@
       if (time && !csv.time) csv.time = time;
       const rest = columns.filter((column) => column && column !== time);
       if (rest.length && rest.length <= MAX_CHANNELS && !csv.channels) csv.channels = rest.join(",");
-      csvMessage = chosen.name + " · 첫 줄의 컬럼: " + columns.join(", ") + " · 실제 검사는 서버 점검에서 합니다.";
+      csvMessage = chosen.name + " · 첫 줄의 열: " + columns.join(", ") + " · 실제 검사는 서버 점검에서 합니다.";
     } catch {
-      csvMessage = "첫 줄을 읽지 못했습니다. 측정·시간 컬럼을 직접 입력하세요.";
+      csvMessage = "첫 줄을 읽지 못했습니다. 측정값·시각 열을 직접 입력하세요.";
     }
   }
   async function checkCsv() {
@@ -163,14 +163,21 @@
       <label class="field">연결 이름<input maxlength="128" autocomplete="off" bind:value={csv.name} oninput={csvChanged} /></label>
       <label class="field">설비<input maxlength="128" autocomplete="off" bind:value={csv.assetId} oninput={csvChanged} /></label>
       <label class="field">측정 위치 (선택)<input maxlength="128" autocomplete="off" bind:value={csv.pointId} oninput={csvChanged} /></label>
-      <label class="field wide">내 컴퓨터의 CSV (선택 · 20MiB 이하)
-        <input type="file" accept=".csv,text/csv" onchange={(event) => void chooseCsv(event.currentTarget)} /></label>
+      <div class="field wide">
+        <span id="workspace-csv-file-label">내 컴퓨터의 CSV (선택 · 20MiB 이하)</span>
+        <span class="file-pick">
+          <label class="ui-button">파일 선택
+            <input type="file" class="visually-hidden" aria-labelledby="workspace-csv-file-label" accept=".csv,text/csv"
+              onchange={(event) => void chooseCsv(event.currentTarget)} /></label>
+          <span class="file-name">{csvFile?.name ?? "선택한 파일 없음"}</span>
+        </span>
+      </div>
       <label class="field wide">작업공간 안 CSV 경로 (파일을 고르지 않을 때)
         <input maxlength="128" autocomplete="off" placeholder="inputs/phase-voltage.csv" disabled={csvFile !== null}
           bind:value={csv.filePath} oninput={csvChanged} /></label>
-      <label class="field">측정 컬럼 (쉼표로 구분)<input maxlength="700" autocomplete="off" placeholder="voltage_a,voltage_b,voltage_c"
+      <label class="field">측정값 열 (쉼표로 구분)<input maxlength="700" autocomplete="off" placeholder="voltage_a,voltage_b,voltage_c"
         bind:value={csv.channels} oninput={csvChanged} /></label>
-      <label class="field">시간 컬럼<input maxlength="128" autocomplete="off" placeholder="timestamp" bind:value={csv.time} oninput={csvChanged} /></label>
+      <label class="field">시각 열<input maxlength="128" autocomplete="off" placeholder="timestamp" bind:value={csv.time} oninput={csvChanged} /></label>
     </div>
     <PhaseRoles channels={channelList} bind:roles onchange={csvChanged} />
     <div class="actions">

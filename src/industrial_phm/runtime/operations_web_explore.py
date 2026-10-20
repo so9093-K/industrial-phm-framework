@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs
@@ -13,7 +13,8 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
-from industrial_phm.application.exploratory_anomaly import find_departures
+from industrial_phm.application.asset_display import resolve_channel_labels
+from industrial_phm.application.exploratory_anomaly import find_departures, latest_departure
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.signal_exploration import (
     MAX_SERIES,
@@ -27,6 +28,7 @@ from industrial_phm.application.signal_exploration import (
     interpretation_unit,
     strongest_identity,
 )
+from industrial_phm.application.source_registry import JsonSourceRepository
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
 from industrial_phm.models.package import RETIRED_TASKS
@@ -40,8 +42,15 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/relation",
         "/api/v1/explore/spectrum",
         "/api/v1/explore/anomaly",
+        "/api/v1/explore/attention",
     }
 )
+# Assets checked for a record that ends away from its baseline, and the coarse buckets each
+# signal is read in for that check; a result is reused until the asset's record changes.
+MAX_ATTENTION_ASSETS = 50
+_ATTENTION_BUCKETS = 240
+_ATTENTION_CHANNELS = 6
+_attention_cache: dict[tuple[str, str, str, int], dict[str, Any] | None] = {}
 _MAX_ID_LENGTH = 512
 
 
@@ -79,6 +88,8 @@ def handle_explore_read(
 ) -> tuple[HTTPStatus, dict[str, Any]]:
     try:
         query = _query(raw_query)
+        if path == "/api/v1/explore/attention":
+            return HTTPStatus.OK, departure_attention(workspace)
         asset_id = _one(query, "asset_id")
         store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
         if path == "/api/v1/explore/sources":
@@ -298,6 +309,83 @@ def _departures(
         "interval_count": len(found["intervals"]),
         "meaning": "departures-from-a-chosen-baseline-not-fault-diagnosis",
     }
+
+
+def departure_attention(workspace: OperationsWorkspace) -> dict[str, Any]:
+    """Assets whose stored signals end far from the first 30% of their own record.
+
+    A light check for assets no model watches: the same median ± MAD comparison as the
+    baseline departure screen, read in coarse buckets and kept until the record changes.
+    """
+    body: dict[str, Any] = {
+        "schema_version": 1,
+        "baseline": "first-30",
+        "items": [],
+        "truncated": False,
+        "meaning": "stored-signal-ends-outside-own-baseline-not-a-fault-verdict",
+    }
+    history = _history(workspace)
+    if history is None:
+        return body
+    assets = history.list_history_assets()
+    body["truncated"] = len(assets) > MAX_ATTENTION_ASSETS
+    registry = workspace.source_registry_path
+    sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
+    if len(_attention_cache) > 4 * MAX_ATTENTION_ASSETS:
+        _attention_cache.clear()
+    for summary in assets[:MAX_ATTENTION_ASSETS]:
+        key = (
+            str(workspace.root),
+            summary.asset_id,
+            summary.end_at.isoformat(),
+            summary.measurement_count,
+        )
+        if key not in _attention_cache:
+            _attention_cache[key] = _ends_departed(history, summary)
+        found = _attention_cache[key]
+        if found is None:
+            continue
+        label, unit = resolve_channel_labels(sources, summary.asset_id).get(
+            found["channel"], (None, found["unit"])
+        )
+        body["items"].append(
+            {
+                "asset_id": summary.asset_id,
+                "channel": found["channel"],
+                "label": label,
+                "unit": unit or found["unit"],
+                "distance": found["distance"],
+                "direction": found["direction"],
+                "since": found["since"].astimezone(UTC).isoformat(),
+                "last_at": summary.end_at.astimezone(UTC).isoformat(),
+            }
+        )
+    return body
+
+
+def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:
+    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
+    units: dict[str, str | None] = {}
+    for channel in history.list_history_channels(summary.asset_id)[:_ATTENTION_CHANNELS]:
+        aggregation = history.query_measurement_aggregation(
+            summary.asset_id,
+            channel_id=channel,
+            start_at=summary.start_at,
+            end_at=summary.end_at + timedelta(seconds=1),
+            bucket_count=_ATTENTION_BUCKETS,
+        )
+        if not aggregation.buckets:
+            continue
+        key, buckets = strongest_identity(aggregation.buckets)
+        units[channel] = interpretation_unit(key[2])
+        points[channel] = [
+            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
+        ]
+    try:
+        found = latest_departure(find_departures(points, baseline="first-30"))
+    except LookupError, ValueError:
+        return None
+    return None if found is None else {**found, "unit": units.get(found["channel"])}
 
 
 def iso(value: datetime) -> str:

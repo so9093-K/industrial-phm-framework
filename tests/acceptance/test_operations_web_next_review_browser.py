@@ -153,7 +153,7 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 # Without the supervisor this screen shows the history but changes nothing.
                 read_only = detail.get_by_text("보기 전용이라 검토 기록을 남길 수 없습니다")
                 pw.expect(read_only).to_be_visible()
-                for action in ("메모 남기기", "확인함으로 표시", "검토 종료"):
+                for action in ("확인함으로 표시", "검토 종료"):
                     assert detail.get_by_role("button", name=action).count() == 0
 
                 evidence_asset["value"] = "motor-b"

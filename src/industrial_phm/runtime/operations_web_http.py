@@ -83,6 +83,7 @@ from industrial_phm.runtime.operations_web_setup import (
 )
 from industrial_phm.runtime.operations_web_signals import (
     RANGE_DURATIONS,
+    WHOLE_RECORD,
     project_history_channels,
     project_signal_history,
 )
@@ -105,7 +106,7 @@ _UPLOAD_SETUP_FIELDS = frozenset(
         "timestamp_column",
     }
 )
-_UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {"phase_channels"}
+_UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {"phase_channels", "channel_labels"}
 
 
 def create_operations_web_read_server(
@@ -256,7 +257,7 @@ def create_operations_web_read_server(
                 self._validate_id(sources[0])
             presets = params.get("range", ("1h",))
             buckets = params.get("buckets", ("60",))
-            if len(presets) != 1 or presets[0] not in RANGE_DURATIONS:
+            if len(presets) != 1 or presets[0] not in {*RANGE_DURATIONS, WHOLE_RECORD}:
                 raise ValueError("unsupported history range")
             if len(buckets) != 1 or not buckets[0].isascii() or not buckets[0].isdigit():
                 raise ValueError("invalid buckets")
@@ -552,8 +553,9 @@ def create_operations_web_read_server(
                         setup, encoded = body["setup"], body["csv_base64"]
                         if (
                             not isinstance(setup, dict)
-                            or set(setup)
-                            not in {_UPLOAD_SETUP_FIELDS, _UPLOAD_SETUP_OPTIONAL_FIELDS}
+                            or not _UPLOAD_SETUP_FIELDS
+                            <= set(setup)
+                            <= _UPLOAD_SETUP_OPTIONAL_FIELDS
                             or not isinstance(encoded, str)
                             or len(encoded) > 4 * ((_MAX_WEB_CSV_UPLOAD + 2) // 3)
                         ):

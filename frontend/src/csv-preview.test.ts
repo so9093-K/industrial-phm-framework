@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  channelChoices,inspectCsv,intervals,numberOf,parseCsv,previewPoints,previewProblems,readTimes,summarize,suggestedSourceId,
+  channelChoices,inspectCsv,intervals,numberOf,parseCsv,previewPoints,previewProblems,readTimes,summarize,suggestedSourceId,suggestSignalNames,
 } from "./csv-preview.ts";
 
 const csv=[
@@ -48,4 +48,12 @@ test("summary, intervals and preview come from the file's own values",()=>{
   assert.equal(points.length,2);
   assert.deepEqual([points[0].min,points[0].max],[1.5,3.5]);
   assert.equal(suggestedSourceId("Pump Log #1.csv","ab12"),"csv-pump-log-1-ab12");
+});
+
+test("a column that says what it measures gets a Korean name to start from, never a unit", () => {
+  const names = suggestSignalNames(["current_a", "temperature_c", "valve_state", "x1"]);
+  assert.deepEqual([...names], [["current_a", "전류"], ["temperature_c", "온도"]]);
+  // Three phases of one quantity keep their suffix so the names stay distinct.
+  assert.deepEqual([...suggestSignalNames(["voltage_a", "voltage_b", "voltage_c"]).values()], ["전압 A", "전압 B", "전압 C"]);
+  assert.equal(suggestSignalNames(["current_motor_inlet_side"]).size, 0);
 });

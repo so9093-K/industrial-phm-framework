@@ -5,8 +5,9 @@
     type ReviewAction, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
-  /** The review history of one subject and the next human actions on it. The parent
-   * owns the write and the reload; this keeps a retried action on its first event ID. */
+  /** The review history of one subject and the next human actions on it: confirm, then close,
+   * each with an optional reason that stays in the history. The parent owns the write and the
+   * reload; this keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
     closeQuestion: string;
@@ -14,7 +15,7 @@
     reload: (signal: AbortSignal) => Promise<boolean>;
   };
   let {id, status, events, eventsTotal = events.length, writable, closeQuestion, submit, reload}: Props = $props();
-  let note = $state("");
+  let reason = $state("");
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
@@ -39,9 +40,9 @@
   async function act(action: ReviewAction) {
     if (busy || !writable || status === "closed") return;
     let text: string;
-    try { text = reviewNote(action, note); }
+    try { text = reviewNote(action, reason); }
     catch (cause: unknown) {
-      messageKind = "failure"; message = cause instanceof Error ? cause.message : "메모를 확인하세요.";
+      messageKind = "failure"; message = cause instanceof Error ? cause.message : "판단 이유를 확인하세요.";
       return;
     }
     const key = action + "\n" + text;
@@ -52,8 +53,7 @@
     try {
       await submit(action, text, pending.eventId, request.signal);
       if (request.signal.aborted) return;
-      pending = null; confirmingClose = false;
-      if (action === "note") note = "";
+      pending = null; confirmingClose = false; reason = "";
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -75,6 +75,13 @@
   onMount(() => () => controller?.abort());
 </script>
 
+{#snippet reasonField()}
+  <label class="field">판단 이유 (선택)
+    <textarea maxlength="1000" rows="2" value={reason} disabled={busy}
+      oninput={(event) => reason = event.currentTarget.value}></textarea>
+  </label>
+{/snippet}
+
 <section aria-labelledby={"review-" + id}>
   <h3 id={"review-" + id} tabindex="-1" bind:this={historyHeading}>검토 기록</h3>
   {#if events.length}
@@ -94,22 +101,24 @@
   {:else if !writable}
     <p class="context">보기 전용이라 검토 기록을 남길 수 없습니다. 운영을 시작하면 남길 수 있습니다.</p>
   {:else}
-    <label>메모 (최대 1000자)
-      <textarea maxlength="1000" rows="3" value={note} disabled={busy}
-        oninput={(event) => note = event.currentTarget.value}></textarea>
-    </label>
-    <div class="actions">
-      <button type="button" class="ui-button" disabled={busy} onclick={() => void act("note")}>메모 남기기</button>
-      {#if status === "open"}
+    {#if status === "open"}
+      <details class="reason">
+        <summary>판단 이유 함께 남기기 (선택)</summary>
+        {@render reasonField()}
+      </details>
+      <div class="actions">
         <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
-      {:else if !confirmingClose}
+      </div>
+      <p class="context">확인한 뒤에 검토를 종료할 수 있습니다.</p>
+    {:else if !confirmingClose}
+      <div class="actions">
         <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void askClose()}>검토 종료</button>
-      {/if}
-    </div>
-    {#if status === "open"}<p class="context">확인한 뒤에 검토를 종료할 수 있습니다.</p>{/if}
+      </div>
+    {/if}
     {#if confirmingClose}
       <div class="confirm" role="group" aria-labelledby={"close-" + id} tabindex="-1" bind:this={confirmBox}>
         <p id={"close-" + id}>{closeQuestion}</p>
+        {@render reasonField()}
         <div class="actions">
           <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("close")}>종료하기</button>
           <button type="button" class="ui-button" disabled={busy} onclick={() => void cancelClose()}>취소</button>
@@ -128,10 +137,12 @@
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .events { padding-inline-start: var(--space-5); }
   .events li { overflow-wrap: anywhere; }
-  label { display: grid; gap: var(--space-2); font-weight: 650; }
-  textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+  .reason { margin-top: var(--space-3); }
+  .reason summary { cursor: pointer; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .field { display: grid; gap: var(--space-2); margin-top: var(--space-2); font-weight: 650; font-size: var(--font-small); }
+  textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
+    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .confirm { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .message { overflow-wrap: anywhere; }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }

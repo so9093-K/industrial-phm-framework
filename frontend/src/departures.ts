@@ -183,6 +183,9 @@ export async function readDepartures(
     }
     throw new Error("결과를 찾을 위치를 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
   }
-  if (!response.ok) throw new Error("기준 이탈 결과를 읽지 못했습니다. 이상이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("기준 이탈 결과를 읽지 못했습니다. 이상이 없다는 뜻은 아닙니다.");
+  }
   return parseDepartures(await response.json() as unknown, assetId, series, baseline);
 }

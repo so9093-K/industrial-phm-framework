@@ -164,7 +164,10 @@ async function body(url: string, signal: AbortSignal): Promise<unknown> {
     if (rec(error)?.error === "nothing_to_explore") throw new NoHistoryError("비교할 저장 이력이 없습니다.");
     throw new Error("결과를 찾을 위치를 확인하지 못했습니다.");
   }
-  if (!response.ok) throw new Error("이력 통계를 조회하지 못했습니다. 데이터 없음과는 다른 상태입니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("이력 통계를 조회하지 못했습니다. 데이터 없음과는 다른 상태입니다.");
+  }
   return await response.json() as unknown;
 }
 export async function readSources(assetId: string, signal: AbortSignal): Promise<SourceHistory> {

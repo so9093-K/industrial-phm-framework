@@ -50,6 +50,16 @@
   });
 
   $effect(() => { if (compare === null && earlier.length) compare = earlier[0]; });
+  // The measurement before the over-threshold run may arrive after this panel opened; it
+  // becomes the comparison only while the person has not chosen or asked anything yet.
+  let chosen = false;
+  $effect(() => {
+    const before = suggested;
+    if (before === null || chosen || compare === before) return;
+    compare = before;
+    remaining = 40;
+    void refresh();
+  });
   $effect(() => { onExplained(latest?.id ?? null); });
 
   function cancel() {
@@ -77,6 +87,7 @@
   }
   async function ask(text: string) {
     if (!writable || requesting || !text.trim()) return;
+    chosen = true;
     onInteract?.();
     cancel();
     const pending = new AbortController(); request = pending;
@@ -98,6 +109,7 @@
     }
   }
   function choose(value: string) {
+    chosen = true;
     onInteract?.();
     compare = value === "" ? null : Number(value);
     focus = null;
@@ -110,7 +122,8 @@
   }
   onMount(() => {
     const saved = Number(new URLSearchParams(location.search).get("model_compare"));
-    compare = Number.isSafeInteger(saved) && saved > 0 && saved < run.position ? saved : suggested ?? earlier[0] ?? null;
+    chosen = Number.isSafeInteger(saved) && saved > 0 && saved < run.position;
+    compare = chosen ? saved : suggested ?? earlier[0] ?? null;
     void refresh();
     return cancel;
   });
@@ -162,7 +175,7 @@
         <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화</th></tr></thead>
         <tbody>
           {#each mentioned as {change, relation} (change.feature)}
-            <tr><th scope="row">{change.label}</th><td>{num(change.previous, "—")}</td><td>{num(change.current)}</td>
+            <tr><th scope="row">{change.label}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
               <td>{RELATION[relation]} {percent(change.relativePercent)}</td></tr>
           {/each}
         </tbody>
@@ -178,7 +191,7 @@
           <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화율</th></tr></thead>
           <tbody>
             {#each latest.features as row (row.feature)}
-              <tr><th scope="row">{row.label}</th><td>{num(row.previous, "—")}</td><td>{num(row.current)}</td>
+              <tr><th scope="row">{row.label}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
                 <td>{percent(row.relativePercent)}</td></tr>
             {/each}
           </tbody>
@@ -205,7 +218,7 @@
       {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체에서 어떤 흐름을 보였어?")}>구간 전체에서 어떤 흐름을 보였어?</button>{/if}
       <label>AI에게 물을 질문 (최대 600자)
         <input maxlength="600" value={question} disabled={requesting} placeholder={DEFAULT_QUESTION}
-          oninput={(event) => question = event.currentTarget.value} />
+          oninput={(event) => { chosen = true; question = event.currentTarget.value; }} />
       </label>
       <button type="button" class="ui-button ui-button-primary" disabled={requesting || waiting || !question.trim()}
         onclick={() => void ask(question)}>질문 보내기</button>
@@ -215,7 +228,7 @@
        open while there is no answer to read. -->
   <details class="evidence" open={!latest?.answer}>
     <summary>해설의 근거 · 두 측정의 측정값과 구간 흐름</summary>
-    <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
+    <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
   </details>
 </section>
 

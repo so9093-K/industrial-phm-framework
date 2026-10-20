@@ -1,9 +1,10 @@
 <script lang="ts">
   import {onMount, untrack} from "svelte";
+  import {readSourceNames, sourceLabel} from "../operations-status";
   import {assetLabel, assetOptionLabel, type Snapshot} from "../monitor";
   import {requestAnalysisReview, type AnalysisRecord, type QualityState} from "../analysis-records";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
-  import {loadModelBindings, type ModelBinding} from "../model-evidence";
+  import {loadModelBindings, modelNames, type ModelBinding} from "../model-evidence";
   import {num} from "../format";
   import {OutcomeUnknown, WriteForbidden, type ReviewStatus} from "../review-writes";
   import {assetTabUrl, systemUrl} from "../routes";
@@ -14,6 +15,8 @@
    * run. Each result can be handed to human review; nothing here is recomputed. */
   type Props = {snapshot: Snapshot; writable: boolean; assetId: string};
   let {snapshot, writable, assetId}: Props = $props();
+  let sourceNames: Map<string, string> = $state(new Map());
+  $effect(() => { void readSourceNames().then((value) => sourceNames = value); });
   let chosen = $state(untrack(() => assetId));
   let bindings: ModelBinding[] = $state([]);
   let bindingState: "loading" | "ready" | "failed" = $state("loading");
@@ -33,6 +36,7 @@
   const records = $derived(snapshot.analyses.records.filter((item) => matches(item.assetId)));
   const skipped = $derived(snapshot.analyses.skipped.filter((item) => matches(item.assetId)));
   const models = $derived(bindings.filter((item) => matches(item.assetId)));
+  const names = $derived(modelNames(bindings));
   // Analyses may name assets the current asset list does not include.
   const assetIds = $derived([...new Set([...snapshot.assets.map((asset) => asset.assetId),
     ...snapshot.analyses.records.map((item) => item.assetId), ...(chosen ? [chosen] : [])])]);
@@ -113,7 +117,7 @@
               <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
             </div>
             <p class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 분석 완료 {clock(item.completedAt)}</p>
-            <p class="context">데이터 출처 {item.sourceId} · 측정 위치 {item.pointId ?? "미확인"}
+            <p class="context">데이터 출처 {sourceLabel(sourceNames, item.sourceId)} · 측정 위치 {item.pointId ?? "미확인"}
               · 원본 품질 {item.quality ? QUALITY[item.quality] : "미확인"}{item.issues.length ? " (" + item.issues.join(", ") + ")" : ""}</p>
             {#if item.kind === "phase"}
               <div class="scroll"><table>
@@ -201,7 +205,7 @@
         <th scope="col">마지막 분석</th><th scope="col"><span class="visually-hidden">이동</span></th></tr></thead>
       <tbody>
         {#each models as model (model.bindingId)}
-          <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{model.packageId}</td><td>{model.sourceId}</td>
+          <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{names.get(model.bindingId)}</td><td>{sourceLabel(sourceNames, model.sourceId)}</td>
             <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + model.lastAnalyzed}</td>
             <td><a href={assetTabUrl(model.assetId, "anomaly", "model")}>모델 점수 보기 →</a></td></tr>
         {/each}
@@ -221,7 +225,7 @@
     <ul class="skipped">
       {#each skipped as item, i (i)}
         <li><strong>{assetLabel(snapshot.assets, item.assetId)} · {item.capabilityId}</strong> · {item.reason}
-          <span class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 데이터 출처 {item.sourceId}</span></li>
+          <span class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 데이터 출처 {sourceLabel(sourceNames, item.sourceId)}</span></li>
       {/each}
     </ul>
   {/if}
@@ -243,7 +247,7 @@
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
   h3 { margin: 0; font-size: var(--font-section); overflow-wrap: anywhere; }
   .badge { font-weight: 700; border: 1px solid var(--color-ink); border-radius: 999px; padding: 2px var(--space-3); font-size: var(--font-small); }
-  .scroll { max-width: 100%; overflow-x: auto; }
+  .scroll { max-width: 100%; overflow-x: auto; position: relative; }
   table { border-collapse: collapse; width: 100%; }
   caption { text-align: left; color: var(--color-ink-muted); font-size: var(--font-small); }
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }

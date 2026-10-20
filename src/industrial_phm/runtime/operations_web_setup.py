@@ -22,6 +22,7 @@ from industrial_phm.adapters.csv_sensor import (
     validate_csv_sensor_source,
 )
 from industrial_phm.application import (
+    ChannelLabel,
     ChannelSemanticBinding,
     CollectionDesiredState,
     FileSourceConfig,
@@ -69,6 +70,8 @@ _FIELDS = frozenset(
     }
 )
 _PHASE_FILE_FIELD = "phase_channels"
+_LABEL_FILE_FIELD = "channel_labels"
+_OPTIONAL_FILE_FIELDS = frozenset({_PHASE_FILE_FIELD, _LABEL_FILE_FIELD})
 _PHASE_CHANNEL_FIELDS = frozenset(
     {"channel_id", "quantity", "phase", "unit_evidence", "interpretation_evidence"}
 )
@@ -234,6 +237,22 @@ def _text(payload: dict[str, object], key: str, *, optional: bool = False) -> st
     return value
 
 
+def _file_channel_labels(payload: dict[str, object]) -> tuple[ChannelLabel, ...]:
+    """What the person called each saved column and its unit; presentation only."""
+    raw = payload.get(_LABEL_FILE_FIELD, [])
+    if not isinstance(raw, list) or len(raw) > 12:
+        raise ValueError("invalid channel labels")
+    labels = []
+    for item in raw:
+        if not isinstance(item, dict) or set(item) != {"channel_id", "label", "unit"}:
+            raise ValueError("invalid channel label fields")
+        channel, label = _text(item, "channel_id"), _text(item, "label")
+        unit = _text(item, "unit", optional=True)
+        assert isinstance(channel, str) and isinstance(label, str)
+        labels.append(ChannelLabel(channel_id=channel, label=label, unit=unit))
+    return tuple(labels)
+
+
 def _file_phase_bindings(
     payload: dict[str, object], source_id: str, channels: tuple[str, ...]
 ) -> tuple[ChannelSemanticBinding, ...]:
@@ -286,7 +305,7 @@ def _file_phase_bindings(
 
 def _prepare_workspace_csv_source(root: Path, payload: dict[str, object]) -> RegisteredSource:
     """Build the exact registered FILE candidate without persisting it."""
-    if set(payload) not in {_FIELDS, _FIELDS | {_PHASE_FILE_FIELD}}:
+    if not _FIELDS <= set(payload) <= _FIELDS | _OPTIONAL_FILE_FIELDS:
         raise ValueError("unexpected registration fields")
     source_id = _text(payload, "source_id")
     name = _text(payload, "name")
@@ -326,6 +345,7 @@ def _prepare_workspace_csv_source(root: Path, payload: dict[str, object]) -> Reg
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
             semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
+            channel_labels=_file_channel_labels(payload),
         ),
         registered_at=datetime.now(UTC),
     )
@@ -352,7 +372,7 @@ def register_workspace_csv_source(root: Path, payload: dict[str, object]) -> dic
 _MAX_WEB_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_WEB_BACKGROUND_HISTORY_BYTES = 20 * 1024 * 1024
 _UPLOAD_FIELDS = (_FIELDS - {"file_path"}) | {"staged_name"}
-_UPLOAD_OPTIONAL_FIELDS = _UPLOAD_FIELDS | {_PHASE_FILE_FIELD}
+_UPLOAD_OPTIONAL_FIELDS = _UPLOAD_FIELDS | _OPTIONAL_FILE_FIELDS
 _STAGED_CSV_NAME = re.compile(r"[0-9a-f]{32}\.csv\Z")
 
 
@@ -365,7 +385,7 @@ def register_uploaded_csv_source(
     single-writer action may copy it into the persistent workspace and register
     its source. Never trust a browser-controlled absolute path.
     """
-    if set(payload) not in {_UPLOAD_FIELDS, _UPLOAD_OPTIONAL_FIELDS}:
+    if not _UPLOAD_FIELDS <= set(payload) <= _UPLOAD_OPTIONAL_FIELDS:
         raise ValueError("unexpected CSV upload fields")
     staged_name = payload["staged_name"]
     if not isinstance(staged_name, str) or _STAGED_CSV_NAME.fullmatch(staged_name) is None:
@@ -596,7 +616,7 @@ def preflight_uploaded_csv_source(
     root: Path, payload: dict[str, object], *, upload_directory: Path
 ) -> dict[str, object]:
     """Validate an ephemeral upload, without copying into the workspace."""
-    if set(payload) not in {_UPLOAD_FIELDS, _UPLOAD_OPTIONAL_FIELDS}:
+    if not _UPLOAD_FIELDS <= set(payload) <= _UPLOAD_OPTIONAL_FIELDS:
         raise ValueError("unexpected CSV preflight fields")
     staged_name = payload["staged_name"]
     if not isinstance(staged_name, str) or _STAGED_CSV_NAME.fullmatch(staged_name) is None:
@@ -639,6 +659,7 @@ def preflight_uploaded_csv_source(
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
             semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
+            channel_labels=_file_channel_labels(payload),
         )
         source = RegisteredSource(
             source_id=source_id, name=name, config=config, registered_at=datetime.now(UTC)

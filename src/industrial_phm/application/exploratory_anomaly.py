@@ -140,3 +140,26 @@ def find_departures(
             for item in intervals
         ],
     }
+
+
+def latest_departure(found: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The departure the record ends in, if its last values are still outside the baseline.
+
+    A record that left its baseline and came back needs no look now; one whose latest value is
+    still far away does. Returns the signal furthest away at the end, how far, and since when.
+    """
+    score = found["score"]
+    if not score:
+        return None
+    at, distance, channel = score[-1]
+    if distance < found["threshold"]:
+        return None
+    holding = next(
+        (item for item in found["intervals"] if item["start"] <= at <= item["end"]), None
+    )
+    return {
+        "channel": channel,
+        "distance": float(distance),
+        "since": holding["start"] if holding else at,
+        "direction": holding["direction"] if holding else None,
+    }

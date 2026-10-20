@@ -1,6 +1,7 @@
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Two server-owned acquisition projections, never an invented observation clock. */
 import {parseOutlookSettings,type Conditions,type OutlookSettings,type Horizon,type Reach,type Scenario} from "./projections.ts";
+import {yTicks,type Tick} from "./chart-axis.ts";
 
 export type TimeBasis="recorded"|"assumed"|"ordinal";
 export type AcquisitionFeature={
@@ -17,7 +18,7 @@ export type AcquisitionProjection={
   horizonCount:number;searchCount:number;searchUntil:number;outlookSettings:OutlookSettings;
   conditions:Conditions;record:{first:number;last:number;points:number};
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
-  history:Array<{ordinal:number;value:number}>;
+  history:Array<{ordinal:number;value:number}>;unit:string|null;
   scenarios:Scenario[];checks?:Backtest[];
 };
 export class AcquisitionOutlookUnavailable extends Error {}
@@ -204,11 +205,12 @@ export function parseAcquisitionPair(
     featureId,measurementVersion:fVersion,dataVersion:version(outlook.data_version),
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
     horizonCount:forecastCount,searchCount,searchUntil,outlookSettings,
-    conditions,record:{first,last,points},forecast:future,history,scenarios};
+    conditions,record:{first,last,points},forecast:future,history,scenarios,
+    unit:typeof forecast.unit==="string"&&forecast.unit.trim()?forecast.unit:null};
 }
 
 export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;
-  lastX:number;history:string;estimate:string;band:string;management:number|null;endLimit:number|null};
+  lastX:number;history:string;estimate:string;band:string;management:number|null;endLimit:number|null;ticks:Tick[]};
 /** Stored values and the forecast on one measurement axis, with the user's limits. */
 export function acquisitionChart(projection:AcquisitionProjection):AcquisitionChart|null{
   const future=projection.forecast;
@@ -234,7 +236,8 @@ export function acquisitionChart(projection:AcquisitionProjection):AcquisitionCh
   return {width,height,low,high,first,last:projection.record.last,end,lastX:x(projection.record.last),
     history:line(shown.map(item=>[item.ordinal,item.value])),
     estimate:line(future.map(item=>[item.ordinal,item.estimate])),band,
-    management:management===null?null:y(management),endLimit:endLimit===null?null:y(endLimit)};
+    management:management===null?null:y(management),endLimit:endLimit===null?null:y(endLimit),
+    ticks:yTicks(lo,hi,top,bottom)};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});
@@ -245,7 +248,10 @@ async function json(url:string,signal:AbortSignal):Promise<unknown>{
       "outlook_unavailable"].includes(String(name)))
       throw new AcquisitionOutlookUnavailable("고른 측정에는 전망할 특징값이 부족합니다.");
   }
-  if(!response.ok)throw new Error("전망을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("전망을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+  }
   return await response.json() as unknown;
 }
 export async function loadAcquisitionOptions(

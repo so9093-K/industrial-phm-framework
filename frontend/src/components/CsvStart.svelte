@@ -6,9 +6,10 @@
   } from "../connections";
   import {
     channelChoices, inspectCsv, intervals, parseCsv, previewPoints, previewProblems, readTimes, summarize,
-    suggestedSourceId, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
+    suggestedSourceId, suggestSignalNames, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
   } from "../csv-preview";
   import {num} from "../format";
+  import {measure, yTicks} from "../chart-axis";
   import {readSources} from "../operations-status";
   import {assetTabUrl, routeUrl} from "../routes";
   import {OutcomeUnknown} from "../writes";
@@ -40,6 +41,9 @@
   let timeIndex = $state(-1);
   let channels: string[] = $state([]);
   let chartChannel = $state("");
+  // How each saved column reads on screens; empty keeps the column name.
+  let labels: Record<string, {label: string; unit: string}> = $state({});
+  const shown = (name: string) => labels[name]?.label.trim() || name;
   let assetId = $state("");
   let pointId = $state("");
   let sourceId = $state("");
@@ -118,6 +122,8 @@
     timeIndex = inspected.times[0]?.index ?? -1;
     channels = channelChoices(inspected, timeIndex).filter((c) => c.usable).slice(0, MAX_CHANNELS).map((c) => c.name);
     chartChannel = channels[0] ?? "";
+    const suggested = suggestSignalNames(channelChoices(inspected, timeIndex).map((c) => c.name));
+    labels = Object.fromEntries(inspected.header.map((name) => [name, {label: suggested.get(name) ?? "", unit: ""}]));
     sourceId = suggestedSourceId(chosen.name, Math.random().toString(16).slice(2, 6));
     sourceName = chosen.name.slice(0, 128);
     let restored = false;
@@ -131,9 +137,13 @@
         sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
         timeIndex = inspected.header.indexOf(prior.timestamp_column); channels = [...prior.channel_columns];
         chartChannel = channels[0] ?? ""; restored = true;
+        if (Array.isArray(prior.channel_labels)) for (const item of prior.channel_labels) {
+          if (typeof item?.channel_id === "string" && item.channel_id in labels && typeof item.label === "string")
+            labels[item.channel_id] = {label: item.label, unit: typeof item.unit === "string" ? item.unit : ""};
+        }
       }
     } catch { /* Blocked browser storage does not prevent a new upload. */ }
-    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 컬럼 " + inspected.header.length + "개";
+    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
   }
   function chooseTime(value: string) {
     timeIndex = value === "" ? -1 : Number(value);
@@ -150,7 +160,18 @@
     return {source_id: sourceId.trim(), name: sourceName.trim(), asset_id: assetId.trim(),
       measurement_point_id: pointId.trim(), channel_columns: channels,
       timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : "",
-      ...(declared.length ? {phase_channels: declared} : {})};
+      ...(declared.length ? {phase_channels: declared} : {}),
+      ...(named().length ? {channel_labels: named()} : {})};
+  }
+  function named(): {channel_id: string; label: string; unit: string | null}[] {
+    return channels.flatMap((name) => {
+      const label = labels[name]?.label.trim() ?? "", unit = labels[name]?.unit.trim() ?? "";
+      return label || unit ? [{channel_id: name, label: label || name, unit: unit || null}] : [];
+    });
+  }
+  function rename(name: string, field: "label" | "unit", value: string) {
+    labels[name] = {...(labels[name] ?? {label: "", unit: ""}), [field]: value};
+    changed();
   }
 
   async function check() {
@@ -170,7 +191,7 @@
           + (result.warnings.length ? " 측정 간격 주의: " + result.warnings.join(", ") + " · 원래 간격대로 저장합니다." : "")
           + (result.match === "matching" ? " 같은 파일과 설정이 이미 등록돼 있습니다. 저장하면 남은 단계부터 이어서 진행합니다." : "")
         : (result.status === "blocked" ? "점검 실패 · 파일이나 설정을 고친 뒤 다시 점검하세요." : "추가 확인이 필요합니다 · 아직 저장할 수 없습니다.")
-          + (result.issue ? " " + (result.issue.row ? result.issue.row + "행" + (result.issue.column ? " / " + result.issue.column + " 컬럼" : "") + ": " : "") + result.issue.guidance : "");
+          + (result.issue ? " " + (result.issue.row ? result.issue.row + "행" + (result.issue.column ? " / " + result.issue.column + " 열" : "") + ": " : "") + result.issue.guidance : "");
     } catch (cause: unknown) {
       if (token !== revision) return;
       checkMessage = explainWrite(cause);
@@ -267,12 +288,17 @@
   <h2 id="csv-start-title">CSV 파일로 시작</h2>
   <p class="context">파일의 실제 값을 먼저 보고, 서버가 점검한 뒤 저장하면 설비 화면의 신호 탭에서 같은 값을 봅니다.</p>
   <ol class="flow" aria-label="진행 순서">
-    <li>파일 고르기</li><li>측정 컬럼·설비 확인</li><li>서버 점검 (저장 안 함)</li><li>등록하고 이력 저장</li>
+    <li>파일 고르기</li><li>측정값·설비 확인</li><li>서버 점검 (저장 안 함)</li><li>등록하고 이력 저장</li>
   </ol>
 
-  <label class="field">CSV 파일 (UTF-8 · 20MiB 이하)
-    <input type="file" accept=".csv,text/csv" bind:this={fileInput} disabled={locked} onchange={() => void choose()} />
-  </label>
+  <div class="field">
+    <span id="csv-file-label">CSV 파일 (UTF-8 · 20MiB 이하)</span>
+    <span class="file-pick">
+      <label class="ui-button" aria-disabled={locked}>파일 선택
+        <input type="file" class="visually-hidden" aria-labelledby="csv-file-label" accept=".csv,text/csv"
+          bind:this={fileInput} disabled={locked} onchange={() => void choose()} /></label>
+    </span>
+  </div>
   <p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>
 
   {#if table}
@@ -280,14 +306,14 @@
       <h3 id="csv-preview-title">파일 미리보기</h3>
       <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "이 브라우저에서 읽은 값 · 서버가 확인함 · 아직 저장 전" : "이 브라우저에서 읽은 값 · 아직 서버 점검·저장 전"}</p>
       <div class="columns">
-        <label class="field">시간 컬럼
+        <label class="field">시각 열
           <select value={String(timeIndex)} disabled={locked} onchange={(event) => chooseTime(event.currentTarget.value)}>
-            {#if !table.times.length}<option value="-1">시간 컬럼 후보 없음</option>{/if}
+            {#if !table.times.length}<option value="-1">시각 열 후보 없음</option>{/if}
             {#each table.times as column (column.index)}<option value={String(column.index)}>{column.name}</option>{/each}
           </select>
         </label>
         <fieldset>
-          <legend>저장할 측정 컬럼 (숫자 · 최대 {MAX_CHANNELS}개)</legend>
+          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
             <label class="choice">
               <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
@@ -306,14 +332,27 @@
         <p class="ok">이 브라우저에서 찾은 구조 문제는 없습니다. 서버 점검으로 최종 확인합니다.</p>
       {/if}
       {#if channels.length}
+        <fieldset class="names">
+          <legend>화면에 보일 이름·단위 (선택)</legend>
+          <p class="context">비워 두면 열 이름이 그대로 보입니다.</p>
+          {#each channels as name (name)}
+            <div class="name-row">
+              <span class="column">{name}</span>
+              <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
+                value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
+              <input maxlength="16" placeholder="단위 예: A" aria-label={name + " 단위"} disabled={locked}
+                value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
+            </div>
+          {/each}
+        </fieldset>
         <div class="scroll"><table>
-          <caption>측정 컬럼 요약</caption>
-          <thead><tr><th scope="col">컬럼</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
+          <caption>측정값 요약</caption>
+          <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
             <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
           <tbody>
             {#each channels as name (name)}
               {@const summary = summarize(table, name)}
-              <tr><th scope="row">{name}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
+              <tr><th scope="row">{shown(name)}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
                 <td>{num(summary.min, "—")}</td><td>{num(summary.median, "—")}</td><td>{num(summary.max, "—")}</td><td>{num(summary.mean, "—")}</td></tr>
             {/each}
           </tbody>
@@ -324,21 +363,26 @@
           {gaps.longestAfter !== null ? " (" + clock(new Date(gaps.longestAfter).toISOString()) + " 이후)" : ""}</p>
       {/if}
       {#if channels.length && points.length}
-        <label class="field">그래프로 볼 컬럼
-          <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{name}</option>{/each}</select>
+        <label class="field">미리 볼 측정값
+          <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{shown(name)}</option>{/each}</select>
         </label>
         {@const low = Math.min(...points.map((p) => p.min))}
         {@const high = Math.max(...points.map((p) => p.max))}
         {@const y = (v: number) => 110 - (high === low ? 0.5 : (v - low) / (high - low)) * 92}
-        {@const x = (i: number) => 32 + i * (596 / Math.max(1, points.length - 1))}
-        <svg viewBox="0 0 650 130" role="img" aria-label={chartChannel + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
-          <path d="M28 12 V114 H632" class="axis" />
+        {@const x = (i: number) => 66 + i * (562 / Math.max(1, points.length - 1))}
+        {@const unit = labels[chartChannel]?.unit.trim() || null}
+        <svg viewBox="0 0 650 130" role="img" aria-label={shown(chartChannel) + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
+          {#each high === low ? [] : yTicks(low, high, 18, 110, 3) as tick (tick.value)}
+            <line x1="62" x2="632" y1={tick.y} y2={tick.y} class="grid" />
+            <text x="56" y={tick.y + 3.5} text-anchor="end" class="tick">{measure(tick.value, unit)}</text>
+          {/each}
+          <path d="M62 12 V114 H632" class="axis" />
           {#each points as point, i (point.at)}
             <line x1={x(i)} x2={x(i)} y1={y(point.min)} y2={y(point.max)} class="range" />
             <circle cx={x(i)} cy={y(point.mean)} r="3" class="dot"><title>평균 {num(point.mean)} · 최소 {num(point.min)} · 최대 {num(point.max)}</title></circle>
           {/each}
         </svg>
-        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {num(low)} · 최대 {num(high)}{timing?.naive ? " · 시간대가 없어 한국 시각으로 바꾸지 않았습니다" : ""}</p>
+        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}{timing?.naive ? " · 시간대가 없어 한국 시각으로 바꾸지 않았습니다" : ""}</p>
       {/if}
     </section>
 
@@ -430,6 +474,11 @@
     border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
   input[type="file"] { max-width: 100%; }
   .columns { display: grid; gap: var(--space-3); }
+  .names { display: grid; gap: var(--space-2); }
+  .names .context { margin: 0; }
+  .name-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(120px, 2fr) minmax(90px, 1fr); gap: var(--space-2); align-items: center; }
+  .name-row .column { overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--font-small); }
+  @media (max-width: 560px) { .name-row { grid-template-columns: 1fr 1fr; } .name-row .column { grid-column: 1 / -1; } }
   fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3); margin: 0; min-width: 0; }
   legend { font-weight: 650; padding-inline: var(--space-1); }
   .choice { display: flex; gap: var(--space-2); align-items: flex-start; padding-block: var(--space-1); overflow-wrap: anywhere; }
@@ -443,6 +492,8 @@
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
   svg { width: 100%; height: auto; max-height: 180px; }
+  .grid { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; }
+  .tick { font-size: 10px; fill: var(--color-ink-muted); }
   .axis { fill: none; stroke: var(--color-border); }
   .range { stroke: var(--color-ink-muted); stroke-width: 1; }
   .dot { fill: var(--color-action); }

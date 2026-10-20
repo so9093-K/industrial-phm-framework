@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -583,3 +583,34 @@ def test_v5_admits_display_name_as_a_backward_readable_optional_key(tmp_path: Pa
     path.write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(SourceRegistryFormatError, match="asset_display_name must be a string"):
         JsonSourceRepository(path).list_sources()
+
+
+def test_channel_labels_are_an_optional_key_written_only_when_declared(tmp_path: Path) -> None:
+    from industrial_phm.application import ChannelLabel, FileSourceConfig, RegisteredSource
+
+    path = tmp_path / "sources.json"
+    repository = JsonSourceRepository(path)
+
+    def csv(source_id: str, labels: tuple[ChannelLabel, ...]) -> RegisteredSource:
+        return RegisteredSource(
+            source_id=source_id,
+            name=source_id,
+            config=FileSourceConfig(
+                source_path=str(tmp_path / "pump.csv"),
+                asset_id="pump-7",
+                channel_columns=("current_a",),
+                timestamp_column="timestamp",
+                channel_labels=labels,
+            ),
+            registered_at=datetime(2026, 10, 19, tzinfo=UTC),
+        )
+
+    repository.register(csv("plain", ()))
+    stored = json.loads(path.read_text(encoding="utf-8"))["sources"][0]["config"]
+    assert "channel_labels" not in stored
+    repository.register(csv("labelled", (ChannelLabel("current_a", "모터 전류", "A"),)))
+    reopened = {source.source_id: source for source in JsonSourceRepository(path).list_sources()}
+    assert reopened["labelled"].config.channel_labels == (
+        ChannelLabel("current_a", "모터 전류", "A"),
+    )
+    assert reopened["plain"].config.channel_labels == ()

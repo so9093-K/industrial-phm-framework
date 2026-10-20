@@ -9,6 +9,8 @@ export type CsvSetup={
   channel_columns:string[];timestamp_column:string;
   /** Optional 3-phase roles; the upload path accepts the same field as a workspace CSV. */
   phase_channels?:PhaseRole[];
+  /** Optional names and units people see for the saved columns; IDs stay the column names. */
+  channel_labels?:{channel_id:string;label:string;unit:string|null}[];
 };
 export type PreflightIssue={code:string;guidance:string;row:number|null;column:string|null};
 export type Preflight={
@@ -34,7 +36,7 @@ export function explainWrite(cause:unknown):string{
       source_id_exists:"이미 등록된 데이터 연결 ID입니다. 다른 ID를 쓰세요.",
       source_control_conflict:"지금 연결 상태에서는 이 작업을 할 수 없습니다. 연결 목록에서 상태를 확인하세요.",
       source_not_found:"등록되지 않은 연결입니다. 목록을 다시 읽으세요.",
-      invalid_source_action:"서버가 입력을 받아들이지 않았습니다. 설비·컬럼·파일 형식을 확인하세요.",
+      invalid_source_action:"서버가 입력을 받아들이지 않았습니다. 설비·열·파일 형식을 확인하세요.",
       command_capacity_exceeded:"요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
       source_state_unavailable:"저장소에 쓰지 못했습니다. 시스템 상태를 확인한 뒤 다시 시도하세요.",
       supervisor_required:"보기 전용이라 바꿀 수 없습니다. 운영을 시작하면 바꿀 수 있습니다.",
@@ -136,7 +138,7 @@ export async function waitForHistory(
     if(job?.state==="succeeded"&&job.eventCount!==null&&job.snapshotId!==null)
       return {eventCount:job.eventCount,snapshotId:job.snapshotId};
     if(job?.state==="failed")throw new HistoryFailed(job.failure==="source_control_conflict"
-      ?"이력을 저장할 수 없는 상태입니다. 파일 읽기 확인과 시각 컬럼을 확인하세요."
+      ?"이력을 저장할 수 없는 상태입니다. 파일 읽기 확인과 시각 열을 확인하세요."
       :"이력 저장에 실패했습니다. 시간대가 있는 시각과 원본 파일을 확인한 뒤 다시 시도하세요.");
     if(job?.state==="interrupted")throw new HistoryFailed("서비스 재시작으로 이력 저장이 중단됐습니다. 다시 시도하면 이어서 저장합니다.");
     if(Date.now()-began>limit)throw new OutcomeUnknown("이력 저장 결과를 확인하지 못했습니다. 연결 목록에서 저장 상태를 확인하세요.");
@@ -251,8 +253,8 @@ export function phaseRoleProblem(roles:PhaseRole[],channels:string[]):string|nul
   if(roles.length!==3&&roles.length!==6)return "3상 역할은 전압 또는 전류의 R/S/T 세 개를 한 세트로 지정하세요.";
   const used=new Set<string>(),pairs=new Set<string>();
   for(const role of roles){
-    if(!channels.includes(role.channel_id))return role.channel_id+" 컬럼이 측정 컬럼에 없습니다.";
-    if(used.has(role.channel_id))return role.channel_id+" 컬럼을 두 역할에 쓸 수 없습니다.";
+    if(!channels.includes(role.channel_id))return role.channel_id+" 열이 측정값 열에 없습니다.";
+    if(used.has(role.channel_id))return role.channel_id+" 열을 두 역할에 쓸 수 없습니다.";
     if(!role.unit_evidence.trim()||!role.interpretation_evidence.trim())return "역할마다 단위 근거와 해석 근거를 적으세요.";
     if(role.unit_evidence.length>128||role.interpretation_evidence.length>128)return "근거는 128자 이내로 적으세요.";
     used.add(role.channel_id);pairs.add(role.quantity+":"+role.phase);

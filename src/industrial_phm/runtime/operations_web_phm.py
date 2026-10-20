@@ -29,8 +29,13 @@ from industrial_phm.application.phm_read import (
     project_phm_trace,
     project_snapshot_preview,
 )
-from industrial_phm.application.phm_signal_comparison import feature_comparison
+from industrial_phm.application.phm_signal_comparison import (
+    feature_comparison,
+    stream_amplitude_unit,
+    with_units,
+)
 from industrial_phm.application.phm_window_read import project_monitor_window, project_phm_window
+from industrial_phm.models.package import StepKind
 from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -100,6 +105,13 @@ def handle_phm_read(
         if path == "/api/v1/phm/models":
             return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
         binding_id = _required_id(params, "binding_id")
+        if path in {"/api/v1/phm/comparison", "/api/v1/phm/explanations"}:
+            owner = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)
+            amplitude = (
+                stream_amplitude_unit(snapshots, owner.source_id, owner.asset_id)
+                if owner is not None and owner.step_kind == StepKind.ACQUISITION_SNAPSHOT
+                else None
+            )
         if path == "/api/v1/phm/comparison":
             position = _int(params, "position", default=None, minimum=1)
             previous_position = (
@@ -131,7 +143,7 @@ def handle_phm_read(
                 "compare_position": previous_position,
                 "previous_analysis_run_id": previous.analysis_run_id if previous else None,
                 "previous_score": previous.output.get("score") if previous else None,
-                "features": feature_comparison(current, previous),
+                "features": with_units(feature_comparison(current, previous), amplitude),
             }
         if path == "/api/v1/phm/trace":
             return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)
@@ -199,6 +211,9 @@ def handle_phm_read(
             explanations = PhmExplanationStore(workspace.phm_explanation_path).list_for(
                 binding_id, _int(params, "position", default=None, minimum=1)
             )
+            for record in explanations:
+                if isinstance(record.get("features"), list):
+                    record["features"] = with_units(record["features"], amplitude)
             return HTTPStatus.OK, {"schema_version": 1, "explanations": explanations}
         if path == "/api/v1/phm/series":
             return HTTPStatus.OK, project_phm_series(

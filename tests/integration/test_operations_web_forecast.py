@@ -420,3 +420,30 @@ def test_acquisition_readiness_uses_finite_points_in_selected_feature(
             assert result["model"]["points"] == 35
     finally:
         stop()
+
+
+def test_a_vibration_only_asset_shows_its_stored_feature_per_acquisition(tmp_path: Path) -> None:
+    # A bearing with waveforms and no time series must still have signals to look at.
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 6):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + 0.1 * ordinal, amplitude_unit="g")
+    analyze(workspace)
+    get, stop = _serve(workspace.root)
+    try:
+        feature = "feature.Horizontal_vibration_signals.rms"
+        status, body = get("/api/v1/acquisition/trend", asset_id="bearing-a", feature=feature)
+        assert status == 200
+        assert body["label"] == "수평 진동 RMS" and body["analyzed"] == 5
+        # Amplitude features carry the declared unit; ratios such as the crest factor do not.
+        assert body["unit"] == "g"
+        ratio = "feature.Horizontal_vibration_signals.crest_factor"
+        assert (
+            get("/api/v1/acquisition/trend", asset_id="bearing-a", feature=ratio)[1]["unit"] is None
+        )
+        assert [position for position, _ in body["points"]] == [1, 2, 3, 4, 5]
+        values = [value for _, value in body["points"]]
+        assert values == sorted(values)
+        assert get("/api/v1/acquisition/trend", asset_id="bearing-a", feature="x")[0] == 400
+        assert get("/api/v1/acquisition/trend", asset_id="other", feature=feature)[0] == 404
+    finally:
+        stop()

@@ -50,3 +50,16 @@ def resolve_asset_display_names(sources: Sequence[RegisteredSource]) -> AssetDis
             if len(names) > 1
         },
     )
+
+
+def resolve_channel_labels(
+    sources: Sequence[RegisteredSource], asset_id: str
+) -> dict[str, tuple[str, str | None]]:
+    """Channel label and unit declared for an asset, kept only where its sources agree."""
+    declared: dict[str, set[tuple[str, str | None]]] = {}
+    for source in sources:
+        if source.asset_id != asset_id:
+            continue
+        for item in getattr(source.config, "channel_labels", ()):
+            declared.setdefault(item.channel_id, set()).add((item.label, item.unit))
+    return {channel: next(iter(values)) for channel, values in declared.items() if len(values) == 1}

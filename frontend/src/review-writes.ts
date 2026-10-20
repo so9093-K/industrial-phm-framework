@@ -20,12 +20,14 @@ export function nextReviewStatus(status:ReviewStatus,action:ReviewAction):Review
   throw new Error("검토 상태 전이가 올바르지 않습니다.");
 }
 
+/** A note is required for a note event and optional with a confirm or close, where it
+ * records why the person decided so. */
 export function reviewNote(action:ReviewAction,raw:string):string{
-  const note=action==="note"?raw.trim():"";
+  const note=raw.trim();
   if(action==="note"&&!note)throw new Error("메모를 입력하세요.");
   if(note.length>1000||new TextEncoder().encode(note).length>2048)
-    throw new Error("메모는 1000자(UTF-8 2048바이트) 이내로 입력하세요.");
-  if(/[\u0000-\u0008\u000b-\u001f]/.test(note))throw new Error("메모에 제어 문자를 사용할 수 없습니다.");
+    throw new Error("판단 이유는 1000자(한글은 약 680자) 이내로 입력하세요.");
+  if(/[\u0000-\u0008\u000b-\u001f]/.test(note))throw new Error("판단 이유에 제어 문자를 사용할 수 없습니다.");
   return note;
 }
 

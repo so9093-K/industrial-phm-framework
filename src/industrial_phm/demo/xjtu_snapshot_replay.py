@@ -76,6 +76,8 @@ def replay_xjtu_bearing(
                 "operating_condition": item.operating_condition,
                 "rotational_speed_hz": item.rotational_speed_hz,
                 "radial_load_kn": item.radial_load_kn,
+                # The dataset documents both accelerometer channels' amplitude in g.
+                "amplitude_unit": "g",
             },
         )
         if snapshots.record(snapshot):

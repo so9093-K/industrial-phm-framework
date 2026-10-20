@@ -16,6 +16,32 @@ from industrial_phm.application.phm_read import PhmReadError
 from industrial_phm.application.phm_window_read import project_phm_window
 from industrial_phm.models.package import StepKind
 
+# Waveform features measured in the signal's own amplitude unit; the others are ratios.
+AMPLITUDE_FEATURES = ("mean", "rms", "standard_deviation", "absolute_peak", "peak_to_peak")
+
+
+def stream_amplitude_unit(
+    snapshots: SqliteAcquisitionSnapshotRepository, source_id: str, asset_id: str
+) -> str | None:
+    """The amplitude unit an acquisition stream declares for its waveforms, if any."""
+    for stream in snapshots.list_streams():
+        if stream.asset_id == asset_id and stream.source_id == source_id:
+            unit = stream.metadata.get("amplitude_unit")
+            return unit if isinstance(unit, str) and unit.strip() else None
+    return None
+
+
+def feature_unit(feature: str, amplitude_unit: str | None) -> str | None:
+    """A waveform feature's unit: the amplitude unit for amplitude features, none for ratios."""
+    return amplitude_unit if feature.rsplit(".", 1)[-1] in AMPLITUDE_FEATURES else None
+
+
+def with_units(rows: list[dict[str, Any]], amplitude_unit: str | None) -> list[dict[str, Any]]:
+    """Comparison rows with each feature's unit, for screens that print the values."""
+    return [
+        {**row, "unit": feature_unit(str(row.get("feature", "")), amplitude_unit)} for row in rows
+    ]
+
 
 def feature_comparison(current: StepResult, previous: StepResult | None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []

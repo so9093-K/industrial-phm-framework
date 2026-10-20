@@ -867,7 +867,8 @@ with sync_playwright() as p:
     seconds = time.monotonic() - started
     statuses = attention_panel.locator("strong").all_inner_texts()
     attention_seen = None if not attention else attention in statuses
-    system_scoped = "고장 판정이 아닙니다" in attention_panel.inner_text()
+    # The panel says when it was read; it reports processing state, not a verdict.
+    system_scoped = "기준" in attention_panel.inner_text()
     overflow = page.evaluate(OVERFLOW_JS)
     monitor_ready = count != "0" and bool(facts) and system_scoped and not overflow
     page.screenshot(path=shot, full_page=True)
