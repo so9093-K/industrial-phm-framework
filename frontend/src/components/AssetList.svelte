@@ -4,10 +4,12 @@
     assets: Asset[];
     observed: (at: string | null) => string;
     href: (assetId: string) => string;
-    /** Model attention items per asset from 관측 현황, added to the monitor's own count. */
+    /** Model, receipt and baseline notes per asset, added to the monitor's own count. */
     notes?: Record<string, number>;
+    /** On 관측 현황 the reasons are on the same page, above the list. */
+    reasons?: boolean;
   };
-  let {assets, observed, href, notes = {}}: Props = $props();
+  let {assets, observed, href, notes = {}, reasons = false}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
   // Assets with something to check come first; the server order is kept otherwise.
@@ -23,17 +25,17 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <h2 id="asset-list-title">설비 <span>{assets.length}개</span></h2>
-  <p class="context">확인할 항목이 있는 설비를 먼저 보여 줍니다. 건수는 확인할 작업량이며 고장 위험도나 정비 우선순위는 아닙니다.</p>
+  <p class="context">확인할 항목이 있는 설비를 먼저 보여 줍니다.</p>
   <ul class="rows">
     {#each ordered as asset (asset.assetId)}
       <li>
         <a class="row" href={href(asset.assetId)}>
           <strong>{assetOptionLabel(assets, asset.assetId)}</strong>
-          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : "측정 시각 기록 없음"}</span>
+          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : asset.lastPosition != null ? "마지막 측정 순서 #" + asset.lastPosition : "측정 시각 기록 없음"}</span>
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>
-        {#if (notes[asset.assetId] ?? 0) > 0}
+        {#if reasons && (notes[asset.assetId] ?? 0) > 0}
           <a class="reason-link" href={"#attention-" + encodeURIComponent(asset.assetId)}>
             이 설비의 확인 사유와 다음 행동 보기 →
           </a>

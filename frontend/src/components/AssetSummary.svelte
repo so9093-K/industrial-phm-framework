@@ -6,8 +6,8 @@
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
   import {assetTabUrl, routeUrl} from "../routes";
-  import CautionNote from "./CautionNote.svelte";
   import AnalysisOptions from "./AnalysisOptions.svelte";
+  import {readAttention, type Note} from "../monitor-attention";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -26,12 +26,21 @@
   });
   let scores: LatestScore[] = $state([]);
   let scoreState: "loading" | "ready" | "failed" = $state("loading");
+  // The same items 관측 현황 lists for this asset; null while unread or unreadable.
+  let notes: Note[] | null = $state(null);
+  let notesFailed = $state(false);
+  const departures = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind === "departure"); });
+  // Model notes are the scores above; departures sit with them; the rest are listed with the count.
+  const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure" && note.kind !== "threshold"); });
   onMount(() => {
     const request = new AbortController();
     void loadLatestScores(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       scores = value; scoreState = "ready";
     }).catch(() => { if (!request.signal.aborted) scoreState = "failed"; });
+    void readAttention(request.signal).then((groups) => {
+      if (!request.signal.aborted) notes = groups.find((group) => group.assetId === asset.assetId)?.notes ?? [];
+    }).catch(() => { if (!request.signal.aborted) notesFailed = true; });
     return () => request.abort();
   });
   function verdict(exceeds: boolean | null): string {
@@ -40,9 +49,13 @@
   // Vibration deliveries carry an order, not always a clock; say which one is last.
   const lastMeasured = $derived(!asset.lastObservedAt && data?.vibration
     ? "측정 순서 #" + data.vibration.last + " · 측정 시각 기록 없음" : observed(asset.lastObservedAt));
+  // The same count as the asset list: the monitor's own items plus model, receipt and baseline notes.
+  const attentionCount = $derived.by((): number | null => {
+    const read: Note[] | null = notes;
+    return asset.attentionCount === null && read === null ? null : (asset.attentionCount ?? 0) + (read?.length ?? 0);
+  });
   function attention(count: number | null): string {
-    // Only stored-history assets are counted here; model notes live on 관측 현황 and 이상 징후.
-    if (count === null) return "이 목록에서 집계하지 않음";
+    if (count === null) return notesFailed ? "확인하지 못함" : "확인하는 중";
     return count ? count + "건" : "없음";
   }
 </script>
@@ -54,8 +67,11 @@
   {:else if scoreState === "failed"}
     <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다. 이상이 없다는 뜻은 아닙니다." />
   {:else if !scores.length}
+    {#each departures as note (note.id)}
+      <p class="departure"><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></p>
+    {/each}
     <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
-      <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a></p>
+      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}</p>
   {:else}
     <ul class="scores">
       {#each scores as item (item.binding.bindingId)}
@@ -79,10 +95,14 @@
     <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
     <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
       <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
-    <div><dt>확인할 항목</dt><dd>{attention(asset.attentionCount)}</dd></div>
+    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
     <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
   </dl>
-  <CautionNote message="모델 점수는 학습한 평소 상태와의 차이이고, 수신 상태와 확인할 항목은 기록 현황입니다. 설비의 고장 여부를 판정하지 않습니다." />
+  {#if others.length}
+    <ul class="others">
+      {#each others as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
+    </ul>
+  {/if}
 </section>
 
 <section class="ui-panel next">
@@ -109,4 +129,7 @@
   .scores li { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
   .scores .verdict { font-size: var(--font-section); }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
+  .departure, .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
+  .departure span, .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .others { list-style: none; margin: var(--space-4) 0 0; padding: 0; }
 </style>

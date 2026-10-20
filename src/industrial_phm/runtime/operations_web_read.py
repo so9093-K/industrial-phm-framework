@@ -201,7 +201,12 @@ def project_operations_monitor(
     if phm is not None:
         for item in [*phm["items"], *phm["unbound_streams"]]:
             asset_id = item["asset_id"]
+            position = _delivered_position(item)
             if asset_id in known_assets:
+                row = next(row for row in assets if row["asset_id"] == asset_id)
+                last = row.get("last_position")
+                if position is not None and (not isinstance(last, int) or position > last):
+                    row["last_position"] = position
                 continue
             assets.append(
                 {
@@ -215,6 +220,8 @@ def project_operations_monitor(
                     "latest_analysis_at": None,
                     "pending_review_count": None,
                     "attention_count": None,
+                    # The delivery order of the newest waveform; it has no measurement clock.
+                    "last_position": position,
                 }
             )
             known_assets.add(asset_id)
@@ -292,6 +299,13 @@ def project_operations_monitor(
         "review_requests": _bounded(reviews),
         "system_error_scopes": sorted({item.scope for item in snapshot.system_errors}),
     }
+
+
+def _delivered_position(item: dict[str, Any]) -> int | None:
+    delivered = item.get("latest_delivered")
+    position = delivered.get("position") if isinstance(delivered, dict) else None
+    position = position if position is not None else item.get("last_ordinal")
+    return position if isinstance(position, int) and not isinstance(position, bool) else None
 
 
 def project_operations_runtime_status(status: OperationsRuntimeStatus) -> dict[str, object]:

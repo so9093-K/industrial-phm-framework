@@ -10,6 +10,7 @@
     groupHistory, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
   } from "../history";
+  import { defaultChannel } from "../monitor-attention";
 
   type LoadState = "idle" | "loading" | "ready" | "empty" | "failed";
   type Props = {assetId: string};
@@ -58,8 +59,9 @@
         channelState = "empty";
         return;
       }
+      if (!result.ids.includes(selectedChannel)) selectedChannel = await defaultChannel(assetId, result.ids, request.signal);
+      if (request.signal.aborted) return;
       channelState = "ready";
-      if (!result.ids.includes(selectedChannel)) selectedChannel = result.ids[0];
       rememberChannel();
       await loadTrend();
     } catch (cause: unknown) {

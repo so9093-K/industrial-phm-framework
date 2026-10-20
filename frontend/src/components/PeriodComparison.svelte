@@ -1,6 +1,7 @@
 <script lang="ts">
   import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
+  import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
@@ -74,7 +75,8 @@
       if (request.signal.aborted) return;
       sources = data;
       if (!data.channels.length) {sourceState = "empty"; return;}
-      if (!data.channels.includes(selected)) selected = data.channels[0];
+      if (!data.channels.includes(selected)) selected = await defaultChannel(assetId, data.channels, request.signal);
+      if (request.signal.aborted) return;
       sourceState = "ready";
       periods = loadPeriodUrl(defaultPeriods(data.from, data.to));
       remember();

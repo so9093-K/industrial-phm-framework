@@ -6,6 +6,7 @@
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
+  import { readAttention } from "./monitor-attention";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
@@ -31,6 +32,16 @@
   let permissionController: AbortController | null = null;
   let example = $state(false);
   let notes: Record<string, number> = $state({});
+  // The asset list counts the same items as 관측 현황, read once when the list is shown.
+  let listNotes: Record<string, number> = $state({});
+  $effect(() => {
+    if (route.page !== "assets" || route.assetId) return;
+    const request = new AbortController();
+    void readAttention(request.signal).then((groups) => {
+      if (!request.signal.aborted) listNotes = Object.fromEntries(groups.map((group) => [group.assetId, group.notes.length]));
+    }).catch(() => {});
+    return () => request.abort();
+  });
   const returnTo = sampleReturn(location.search);
   const previousSeries=new URLSearchParams(location.search).get("explore_series")?.split(",")??[];
   let controller: AbortController | null = null;
@@ -309,7 +320,8 @@
             message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
         {/if}
 
-        <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : {}} />
+        <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : listNotes}
+          reasons={route.page === "monitor"} />
       {/if}
     {/if}
   {/if}

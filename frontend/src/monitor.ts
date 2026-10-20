@@ -11,6 +11,8 @@ export type Asset = {
   /** When data last arrived (a file read or a live receipt); a different clock. */
   lastReceivedAt: string | null;
   attentionCount: number | null;
+  /** Delivery order of the newest waveform, for streams that carry no measurement clock. */
+  lastPosition?: number | null;
 };
 
 export type OperationAttention={id:string;title:string;status:string;destination:string;assetId:string|null;sourceId:string|null;findingId:string|null;at:string|null};
@@ -128,6 +130,7 @@ export function parseMonitor(value: unknown): Snapshot {
       lastObservedAt: typeof row.last_observed_at === "string" ? row.last_observed_at : null,
       lastReceivedAt: typeof row.last_data_at === "string" ? row.last_data_at : null,
       attentionCount: count(row.attention_count),
+      lastPosition: typeof row.last_position === "number" && Number.isSafeInteger(row.last_position) ? row.last_position : null,
     });
   }
   return {

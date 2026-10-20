@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { readChannels, signalName, type ChannelList } from "../history";
+  import { defaultChannel } from "../monitor-attention";
   import {
     NoStoredEvidenceError, departureChart, readDepartures,
     type Baseline, type Departures,
@@ -79,8 +80,9 @@
         channelState = "empty";
         return;
       }
+      if (!response.ids.includes(selectedChannel)) selectedChannel = await defaultChannel(assetId, response.ids, request.signal);
+      if (request.signal.aborted) return;
       channelState = "ready";
-      if (!response.ids.includes(selectedChannel)) selectedChannel = response.ids[0];
       rememberSelection();
       await analyze();
     } catch (cause: unknown) {
@@ -186,7 +188,7 @@
           <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
         {/if}
         {#if chart}
-          <p class="axis-note">세로축: 기준 변동 폭의 몇 배인지 · 최고 {num(Number(chart.max.toFixed(1)))}배
+          <p class="axis-note">세로축: 기준 변동 폭의 몇 배인지 · 최고 {num(Number(chart.peak.toFixed(1)))}배
             <span class="dash">· 점선: 크게 벗어났다고 보는 기준 {result.threshold}배</span></p>
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
             aria-label={"시간 순서대로 기준에서 벗어난 정도. " + date(chart.first) + "부터 " + date(chart.last) + "까지. 기록이 없는 구간은 잇지 않습니다. 정확한 값은 아래 표에 있습니다."}>
