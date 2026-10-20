@@ -105,6 +105,13 @@ API의 `offset_unit=acquisition` 수치는 측정 횟수로 유지하고 표시�
 
 ## AI 브리핑 (`POST /api/v1/outlook/briefings/request`, `GET /api/v1/outlook/briefings`)
 
+인증이 필요한 AI 서버의 키는 `INDUSTRIAL_PHM_GENAI_API_KEY`로 설정합니다. 기본 서버는
+`http://127.0.0.1:9400/v1`, 모델은 `local-main`이며 각각 `INDUSTRIAL_PHM_GENAI_BASE_URL`,
+`INDUSTRIAL_PHM_GENAI_MODEL`로 바꿉니다. Linux 네이티브 실행에서 저장소의 `.env`를 쓰려면
+`uv run --no-project --env-file .env make up`으로 환경을 전달합니다. 일반 `make up`은 `.env`를 자동으로
+읽지 않으며, 이미 실행 중인 프로세스의 환경은 파일을 수정해도 바뀌지 않습니다. 설정을 바꾼 경우
+`make down` 후 같은 작업공간으로 다시 실행합니다. 컨테이너는 [별도 환경 전달 안내](../architecture/operations-container.md)를 따릅니다.
+
 - 요청은 위 선택값과 `question`(600자 이하, 비우면 기본 질문)입니다. 운영 프로세스(supervisor)만 받습니다. 운영
   프로세스가 상태 전망을 **다시 계산**하고, 브라우저가 보낸 숫자는 쓰지 않습니다. 설정된 모델
   (`INDUSTRIAL_PHM_GENAI_*`, 기본 `local-main` @ 127.0.0.1:9400)에 사실 목록과 질문만 보냅니다.
