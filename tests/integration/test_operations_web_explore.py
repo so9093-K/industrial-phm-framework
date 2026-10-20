@@ -239,7 +239,9 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
     )
 
-    def events(asset: str, step: float) -> tuple[FileBackfillEvent, ...]:
+    def events(
+        asset: str, step: float, count: int = 60, at: int = 40
+    ) -> tuple[FileBackfillEvent, ...]:
         return tuple(
             FileBackfillEvent(
                 raw_evidence_id=f"file:{asset}:{'c' * 64}:{index}",
@@ -251,26 +253,40 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
                 source_size_bytes=10,
                 sample_index=index,
                 event_at=BASE + timedelta(minutes=index),
-                value=10.0 + (step if index >= 40 else 0.0) + (index % 3) * 0.1,
+                value=10.0 + (step if index >= at else 0.0) + (index % 3) * 0.1,
                 source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
             )
-            for index in range(60)
+            for index in range(count)
         )
 
     # One pump's current steps up and stays there; the other never moves.
     history.append_file_batch(events("pump-moved", 5.0), batch_id="moved")
     history.append_file_batch(events("pump-steady", 0.0), batch_id="steady")
+    # A record long enough that coarser buckets would average it differently from the screen.
+    history.append_file_batch(events("pump-long", 0.4, 2400, 1800), batch_id="long")
     get, stop = _serve(workspace.root)
     try:
         status, body = get("/api/v1/explore/attention")
         assert status == 200 and body["baseline"] == "first-30"
-        (item,) = body["items"]
+        long_item, item = body["items"]
+        assert long_item["asset_id"] == "pump-long"
+        _, long_screen = get(
+            "/api/v1/explore/anomaly", asset_id="pump-long", series="current", baseline="first-30"
+        )
+        assert long_screen["score"][-1][1] == long_item["distance"]
         assert item["asset_id"] == "pump-moved" and item["channel"] == "current"
         assert item["unit"] == "A" and item["direction"] == "up" and item["distance"] >= 3.5
-        # "Since" is the start of the coarse bucket the step falls in, in UTC.
+        # "Since" is the start of the bucket the step falls in, in UTC.
         since = datetime.fromisoformat(item["since"])
         assert since.utcoffset() == timedelta(0)
         assert BASE + timedelta(minutes=39) <= since <= BASE + timedelta(minutes=40)
+        # The 기준 구간 이탈 screen for that signal names the same distance and the same start.
+        _, screen = get(
+            "/api/v1/explore/anomaly", asset_id="pump-moved", series="current", baseline="first-30"
+        )
+        assert screen["score"][-1][1] == item["distance"]
+        latest = max(screen["intervals"], key=lambda interval: interval["end"])
+        assert datetime.fromisoformat(latest["start"]) == since
         # The same record asked again is answered from the stored check.
         assert get("/api/v1/explore/attention")[1] == body
     finally:

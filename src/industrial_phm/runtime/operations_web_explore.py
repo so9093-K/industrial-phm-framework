@@ -45,10 +45,12 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/attention",
     }
 )
-# Assets checked for a record that ends away from its baseline, and the coarse buckets each
-# signal is read in for that check; a result is reused until the asset's record changes.
+# The buckets a stored record is read in for baseline departures. 관측 현황's check and the
+# 기준 구간 이탈 screen use the same, so both name the same distance and the same start.
+_DEPARTURE_BUCKETS = 1000
+# Assets checked for a record that ends away from its baseline; a result is reused until the
+# asset's record changes.
 MAX_ATTENTION_ASSETS = 50
-_ATTENTION_BUCKETS = 240
 _ATTENTION_CHANNELS = 6
 _attention_cache: dict[tuple[str, str, str, int], dict[str, Any] | None] = {}
 _MAX_ID_LENGTH = 512
@@ -278,7 +280,7 @@ def _departures(
             channel_id=channel,
             start_at=summary.start_at,
             end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=1000,
+            bucket_count=_DEPARTURE_BUCKETS,
         )
         width = aggregation.bucket_seconds
         key, buckets = strongest_identity(aggregation.buckets)
@@ -364,28 +366,30 @@ def departure_attention(workspace: OperationsWorkspace) -> dict[str, Any]:
 
 
 def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:
-    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
-    units: dict[str, str | None] = {}
+    """The signal whose record ends farthest outside its own baseline, judged one signal at a
+    time exactly as the 기준 구간 이탈 screen judges the signal it shows."""
+    farthest: dict[str, Any] | None = None
     for channel in history.list_history_channels(summary.asset_id)[:_ATTENTION_CHANNELS]:
         aggregation = history.query_measurement_aggregation(
             summary.asset_id,
             channel_id=channel,
             start_at=summary.start_at,
             end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=_ATTENTION_BUCKETS,
+            bucket_count=_DEPARTURE_BUCKETS,
         )
         if not aggregation.buckets:
             continue
         key, buckets = strongest_identity(aggregation.buckets)
-        units[channel] = interpretation_unit(key[2])
-        points[channel] = [
+        points = [
             (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
         ]
-    try:
-        found = latest_departure(find_departures(points, baseline="first-30"))
-    except LookupError, ValueError:
-        return None
-    return None if found is None else {**found, "unit": units.get(found["channel"])}
+        try:
+            found = latest_departure(find_departures({channel: points}, baseline="first-30"))
+        except LookupError, ValueError:
+            continue
+        if found is not None and (farthest is None or found["distance"] > farthest["distance"]):
+            farthest = {**found, "unit": interpretation_unit(key[2])}
+    return farthest
 
 
 def iso(value: datetime) -> str:
