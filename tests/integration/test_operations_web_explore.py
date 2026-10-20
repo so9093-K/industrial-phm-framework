@@ -289,5 +289,17 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         assert datetime.fromisoformat(latest["start"]) == since
         # The same record asked again is answered from the stored check.
         assert get("/api/v1/explore/attention")[1] == body
+        # A screen asks for one asset only; an asset that stays put has nothing to name.
+        assert [
+            row["asset_id"]
+            for row in get("/api/v1/explore/attention", asset_id="pump-moved")[1]["items"]
+        ] == ["pump-moved"]
+        assert get("/api/v1/explore/attention", asset_id="pump-steady")[1]["items"] == []
+        # A record that keeps growing (a live source) is not checked again on every read.
+        history.append_file_batch(events("pump-moved", 5.0, 61, 40)[60:], batch_id="moved-one-more")
+        assert (
+            get("/api/v1/explore/attention", asset_id="pump-moved")[1]["items"][0]["distance"]
+            == item["distance"]
+        )
     finally:
         stop()

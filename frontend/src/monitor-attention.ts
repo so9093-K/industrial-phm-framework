@@ -130,8 +130,9 @@ export function parseDepartures(raw:unknown):Departure[]{
   });
 }
 
-export async function readDepartures(signal:AbortSignal):Promise<Departure[]>{
-  const response=await fetch("/api/v1/explore/attention",{signal,cache:"no-store",credentials:"same-origin"});
+export async function readDepartures(signal:AbortSignal,assetId?:string):Promise<Departure[]>{
+  const query=assetId?"?"+new URLSearchParams({asset_id:assetId}):"";
+  const response=await fetch("/api/v1/explore/attention"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
     throw new Error("기준 구간 이탈을 확인하지 못했습니다.");
@@ -148,8 +149,11 @@ export async function readAttention(signal:AbortSignal):Promise<AssetAttention[]
 }
 
 /** The signal a screen opens on when none is chosen: the one this asset's baseline check flagged,
- * else the first. A failed check only means the first signal is shown. */
-export async function defaultChannel(assetId:string,ids:string[],signal:AbortSignal):Promise<string>{
-  const flagged=await readDepartures(signal).then(found=>found.find(item=>item.assetId===assetId)?.channel).catch(()=>undefined);
+ * else the first. The screen waits for the check only briefly; a slow or failed check only means
+ * the first signal is shown. */
+export async function defaultChannel(assetId:string,ids:string[],signal:AbortSignal,waitMs=1200):Promise<string>{
+  if(ids.length<2)return ids[0];
+  const flagged=await readDepartures(AbortSignal.any([signal,AbortSignal.timeout(waitMs)]),assetId)
+    .then(found=>found.find(item=>item.assetId===assetId)?.channel).catch(()=>undefined);
   return flagged&&ids.includes(flagged)?flagged:ids[0];
 }
