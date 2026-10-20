@@ -5,6 +5,8 @@
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
+  import {measurementScale} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import {reachDuration,reachText} from "../reach";
@@ -210,6 +212,7 @@
           <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
         {/if}
         {#if chart}
+          {@const axisNote=(period===null?"측정 순서":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+num(period)+"초")+" · 세로선 · 마지막 측정 #"+chart.last}
           <figure class="chart">
             <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
@@ -224,7 +227,8 @@
               <path d={chart.estimate} class="estimate" />
               <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
             </svg>
-            {#snippet footer()}<p class="axis-time"><span>측정 #{chart.first}</span><span>마지막 측정 #{chart.last}</span><span>→ #{formatOffset(chart.end)}</span></p>{/snippet}
+            {#snippet footer()}<XAxis lo={chart.first} hi={chart.end} scale={measurementScale(period)}
+              note={axisNote} />{/snippet}
             </ValueAxis>
             <figcaption class="legend">
               <span><i class="key history"></i>저장된 측정</span>
@@ -322,8 +326,7 @@
   .chart .now{stroke:var(--color-border);stroke-width:1}
   .chart .management{stroke:var(--color-caution-ink);stroke-width:1.5;stroke-dasharray:3 3}
   .chart .end{stroke:var(--color-failure-ink);stroke-width:1.5;stroke-dasharray:3 3}
-  .axis-note,.axis-time,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:0}
-  .axis-time{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-1) var(--space-3);margin-top:var(--space-1)}
+  .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:0}
   .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);margin-top:var(--space-2)}
   .key{display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-inline-end:var(--space-1)}
   .key.history{border-color:var(--color-ink)}

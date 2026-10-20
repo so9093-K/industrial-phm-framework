@@ -138,6 +138,8 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 )
                 # One mean mark per usable bucket; the unusable bucket is not drawn as a value.
                 pw.expect(page.locator("svg line.mean")).to_have_count(2)
+                assert page.locator(".x-axis .ticks").count() == 2
+                assert page.locator(".x-axis .ticks").first.locator("span").count() >= 2
                 page.get_by_text("시간별 평균·결측·원본 품질 확인").first.click()
                 pw.expect(page.get_by_role("table").first).to_contain_text("결측")
                 assert page.evaluate(

@@ -23,4 +23,6 @@ test("a trend for another asset, feature or out-of-order acquisitions is refused
   assert.throws(() => parseAcquisitionTrend(body([[1, 0.5]]), "bearing-a", "feature.peak"), /형식/);
   assert.throws(() => parseAcquisitionTrend(body([[2, 0.5], [1, 0.6]]), "bearing-a", "feature.rms"), /형식/);
   assert.throws(() => parseAcquisitionTrend(body([[1, null]]), "bearing-a", "feature.rms"), /형식/);
+  for (const period_seconds of [0, -60, NaN, Infinity])
+    assert.throws(() => parseAcquisitionTrend({...body([[1, 0.5]]), period_seconds}, "bearing-a", "feature.rms"), /형식/);
 });

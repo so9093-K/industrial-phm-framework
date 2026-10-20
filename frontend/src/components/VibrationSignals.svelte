@@ -2,6 +2,8 @@
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
+  import {measurementScale, sinceStart} from "../time-axis";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
@@ -79,6 +81,8 @@
     {:else}
       {#if latest}<p class="headline">마지막 측정 #{latest.ordinal} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
       {#if chart}
+        {@const period = trend.periodSeconds}
+        {@const axisNote = "측정 #" + chart.first + "~#" + chart.last + (period ? " · 기록 시작 후 경과 시간 · 측정 간격 " + num(period) + "초" : "")}
         <figure class="chart">
           <p class="axis-note">최고 {measure(chart.high, trend.unit)} · 최저 {measure(chart.low, trend.unit)}{trend.sampled ? " · 측정이 많아 고르게 " + trend.points.length + "개를 그림" : ""}</p>
           <ValueAxis ticks={chart.ticks} height={chart.height} unit={trend.unit}>
@@ -86,9 +90,14 @@
             aria-label={trend.label + " · 측정 #" + chart.first + "부터 #" + chart.last + "까지"}>
             {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
             <path d={chart.line} class="line" />
+            {#each chart.marks as mark (mark.ordinal)}
+              <circle cx={mark.x} cy={mark.y} r="3" class="point">
+                <title>측정 #{mark.ordinal}{period ? " · " + sinceStart(mark.ordinal, period) : ""} · {measure(mark.value, trend.unit)}</title>
+              </circle>
+            {/each}
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
-          {#snippet footer()}<p class="axis-time"><span>측정 #{chart.first}</span><span>측정 #{chart.last}</span></p>{/snippet}
+          {#snippet footer()}<XAxis lo={chart.first} hi={chart.last} scale={measurementScale(period)} note={axisNote} />{/snippet}
           </ValueAxis>
         </figure>
       {/if}
@@ -109,7 +118,7 @@
   .chart path { vector-effect: non-scaling-stroke; }
   .chart .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
   .chart .line { fill: none; stroke: var(--color-action); stroke-width: 1.75; }
-  .axis-note, .axis-time { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
-  .axis-time { display: flex; justify-content: space-between; margin-top: var(--space-1); }
+  .point { fill: var(--color-action); }
+  .axis-note { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
   .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 </style>

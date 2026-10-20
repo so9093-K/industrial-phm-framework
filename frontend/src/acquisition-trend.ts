@@ -17,7 +17,8 @@ export function parseAcquisitionTrend(raw: unknown, assetId: string, feature: st
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId || root.feature !== feature
     || typeof root.source_id !== "string" || typeof root.label !== "string" || !Array.isArray(root.points)
     || typeof root.analyzed !== "number" || typeof root.sampled !== "boolean"
-    || (root.period_seconds !== null && typeof root.period_seconds !== "number")) invalid();
+    || (root.period_seconds !== null && (typeof root.period_seconds !== "number"
+      || !Number.isFinite(root.period_seconds) || root.period_seconds <= 0))) invalid();
   let before = 0;
   const points = root.points.map((item: unknown) => {
     if (!Array.isArray(item) || item.length !== 2) invalid();
@@ -42,7 +43,8 @@ export async function readAcquisitionTrend(assetId: string, feature: string, sig
   return parseAcquisitionTrend(await response.json() as unknown, assetId, feature);
 }
 
-export type TrendChart = {width: number; height: number; low: number; high: number; first: number; last: number; line: string; ticks: Tick[]};
+export type TrendChart = {width: number; height: number; low: number; high: number; first: number; last: number;
+  line: string; ticks: Tick[]; marks: {ordinal: number; value: number; x: number; y: number}[]};
 /** The stored values on the acquisition axis. */
 export function trendChart(trend: AcquisitionTrend): TrendChart | null {
   const points = trend.points;
@@ -56,5 +58,6 @@ export function trendChart(trend: AcquisitionTrend): TrendChart | null {
   const x = (at: number) => ((at - first) / Math.max(1, last - first)) * width;
   const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
   return {width, height, low, high, first, last, ticks: yTicks(lo, hi, top, bottom),
+    marks: points.map(point => ({...point, x: x(point.ordinal), y: y(point.value)})),
     line: points.map((point, i) => (i ? "L" : "M") + x(point.ordinal).toFixed(1) + " " + y(point.value).toFixed(1)).join(" ")};
 }

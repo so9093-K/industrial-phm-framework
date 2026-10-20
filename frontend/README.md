@@ -181,6 +181,11 @@ not install Node dependencies.
 - `src/history.ts`: typed boundary for existing stored-history APIs; source,
   measurement-point and interpretation identities are never merged.
 
+- `src/time-axis.ts`, `src/components/XAxis.svelte`: responsive time ticks. Timestamped records use KST;
+  acquisitions use elapsed time from #1 only with a recorded or explicitly assumed interval, otherwise
+  measurement order. Receipt/replay speed never supplies an interval. `src/reach.ts` also names past
+  expected reach times relative to the last timestamped record without asserting an observed crossing.
+
 New workflow components must reuse these meanings and preserve keyboard
 focus, labels and screen-reader reading order. A status token is not evidence
 of equipment condition. Actual operator usability must be observed
