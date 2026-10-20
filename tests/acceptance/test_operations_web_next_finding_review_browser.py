@@ -70,7 +70,9 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 pw.expect(detail.get_by_role("heading", level=2)).to_have_text(
                     "bearing-a · 이상 탐지 모델 결과"
                 )
-                pw.expect(detail.get_by_text("모델 입력 #3에서 계산한 점수")).to_be_visible()
+                # Which model and what it scored, read from the stored result.
+                pw.expect(detail).to_contain_text("측정 순서 #3 · 점수")
+                pw.expect(detail).to_contain_text("/ 기준 2")
 
                 # The first response is lost after the server recorded the note; the same
                 # click again is answered from that record instead of adding a second one.

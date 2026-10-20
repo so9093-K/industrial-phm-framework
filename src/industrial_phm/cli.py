@@ -20,7 +20,11 @@ from industrial_phm.commands.data import (
     _run_data_validate_csv,
     _run_data_verify,
 )
-from industrial_phm.commands.demo import _run_demo_aihub_boiler, _run_demo_synthetic
+from industrial_phm.commands.demo import (
+    _run_demo_aihub_boiler,
+    _run_demo_synthetic,
+    _run_demo_xjtu,
+)
 from industrial_phm.commands.experiment import (
     _run_experiment_cross_fold,
     _run_experiment_cross_test,
@@ -200,7 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo = subcommands.add_parser(
         "demo",
-        help="run packaged local product demos without external datasets",
+        help="run packaged local product demos (synthetic, or with local recorded datasets)",
     )
     demo_commands = demo.add_subparsers(dest="demo_command", required=True)
     demo_aihub_boiler = demo_commands.add_parser(
@@ -283,6 +287,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum wait for synthetic OPC UA listener readiness (default: 10)",
     )
     demo_synthetic.set_defaults(handler=_run_demo_synthetic)
+
+    demo_xjtu = demo_commands.add_parser(
+        "xjtu",
+        help=(
+            "score one recorded XJTU-SY bearing with the Isolation Forest and LSTM autoencoder "
+            "and open Operations"
+        ),
+    )
+    demo_xjtu.add_argument(
+        "--source",
+        type=Path,
+        default=Path("data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets"),
+        help="prepared XJTU-SY root (default: data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets)",
+    )
+    demo_xjtu.add_argument(
+        "--workspace",
+        type=Path,
+        default=Path("artifacts/demo-xjtu"),
+        help="dedicated demo workspace root (default: artifacts/demo-xjtu)",
+    )
+    demo_xjtu.add_argument(
+        "--bearing",
+        default="Bearing1_1",
+        help="held-out bearing run the models were not trained on (default: Bearing1_1)",
+    )
+    demo_xjtu.add_argument(
+        "--until",
+        type=int,
+        help="deliver acquisitions 1..N only, so the bearing is mid-run (default: all)",
+    )
+    demo_xjtu.add_argument(
+        "--ui-port",
+        type=int,
+        default=2718,
+        help="loopback Operations UI port (default: 2718)",
+    )
+    demo_xjtu.add_argument(
+        "--code-revision",
+        help="full Git SHA recorded in fitted packages; default reads a clean checkout HEAD",
+    )
+    demo_xjtu.set_defaults(handler=_run_demo_xjtu)
 
     add_operational_command_groups(subcommands)
 

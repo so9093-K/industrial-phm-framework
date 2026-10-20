@@ -3,13 +3,27 @@ export type StepKind="acquisition-snapshot"|"observation-window";
 export type ModelBinding={
   assetId:string;sourceId:string;pointId:string|null;bindingId:string;packageId:string;
   stepKind:StepKind;recordedReplay:boolean;health:string;
-  task:string|null;recipeId:string|null;packageAvailable:boolean;
+  task:string|null;recipeId:string|null;estimatorKind?:string|null;packageAvailable:boolean;
   lastAnalyzed:number|null;lastProcessed:number|null;
 };
-/** A connected model as people name it: its recipe, or its package without the content hash.
- * The package and binding identifiers stay under 기술 상세. */
-export function modelName(binding:{recipeId:string|null;packageId:string}):string{
-  return binding.recipeId ?? binding.packageId.replace(/-[0-9a-f]{12}$/,"");
+const METHOD:Record<string,string>={
+  "lstm-autoencoder-v1":"LSTM 오토인코더","isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
+};
+/** A connected model as people name it: its method, else its recipe, else its package without
+ * the content hash. The recipe, package and binding identifiers stay under 기술 상세. */
+export function modelName(binding:{recipeId:string|null;packageId:string;estimatorKind?:string|null}):string{
+  return (binding.estimatorKind?METHOD[binding.estimatorKind]:undefined)
+    ?? binding.recipeId ?? binding.packageId.replace(/-[0-9a-f]{12}$/,"");
+}
+/** Names for a list of models on one screen; two models of the same method keep their recipe. */
+export function modelNames(bindings:ModelBinding[]):Map<string,string>{
+  const names=new Map(bindings.map(binding=>[binding.bindingId,modelName(binding)]));
+  for(const binding of bindings){
+    const name=names.get(binding.bindingId)!;
+    if(bindings.some(other=>other.bindingId!==binding.bindingId&&modelName(other)===name)&&binding.recipeId&&binding.recipeId!==name)
+      names.set(binding.bindingId,name+" · "+binding.recipeId);
+  }
+  return names;
 }
 export type StepPointer={
   position:number;runId:string;state:"analyzed"|"skipped";stepKey:string;changeSeq:number;
@@ -106,6 +120,7 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
       packageAvailable:packageSummary!==null,
       task:typeof task==="string"?task:null,
       recipeId:typeof packageSummary?.recipe_id==="string"?packageSummary.recipe_id:null,
+      estimatorKind:typeof packageSummary?.estimator_kind==="string"?packageSummary.estimator_kind:null,
       lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed")};
   }).filter(binding=>assetId===null||binding.assetId===assetId);
 }

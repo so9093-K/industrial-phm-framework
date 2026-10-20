@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
   parseAcquisitionOptions,parseAcquisitionPair,AcquisitionVersionMismatch,
-  validateAcquisitionChoice,
+  validateAcquisitionChoice,acquisitionChart,
 } from "./acquisition-outlook.ts";
 const version="a".repeat(64),data="b".repeat(64);
 const features=[{key:"feature.rms",label:"RMS",valid_points:64,count_forecast:true,
@@ -111,4 +111,17 @@ test("invalid acquisition count, scope and future ordinates never render",()=>{
     AcquisitionVersionMismatch);
   assert.throws(()=>paired(forecast(),{...outlook(),search:{acquisitions:30,until:95}}),
     AcquisitionVersionMismatch);
+});
+
+test("the stored values the forecast continues are drawn with it, and must lie in the computed record",()=>{
+  const result=paired({...forecast(),history:[[1,1.0],[2,1.1],[64,2.0]]});
+  assert.deepEqual(result.history.map(item=>item.ordinal),[1,2,64]);
+  const chart=acquisitionChart(result);
+  assert.ok(chart);
+  assert.equal(chart.first,1);
+  assert.equal(chart.high,3.2);
+  assert.ok(chart.endLimit!==null&&chart.management!==null&&chart.endLimit<chart.management);
+  assert.deepEqual(paired().history,[]);
+  assert.throws(()=>paired({...forecast(),history:[[65,2.0]]}),/계산 범위/);
+  assert.throws(()=>paired({...forecast(),history:[[2,1],[1,1]]}),/계산 범위/);
 });

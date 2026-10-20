@@ -17,6 +17,7 @@ export type AcquisitionProjection={
   horizonCount:number;searchCount:number;searchUntil:number;outlookSettings:OutlookSettings;
   conditions:Conditions;record:{first:number;last:number;points:number};
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
+  history:Array<{ordinal:number;value:number}>;
   scenarios:Scenario[];checks?:Backtest[];
 };
 export class AcquisitionOutlookUnavailable extends Error {}
@@ -180,6 +181,16 @@ export function parseAcquisitionPair(
       lower:numberOrNull(raw[2]??null),upper:numberOrNull(raw[3]??null)};
   });
   if(!future.length)throw new Error("예측값이 없습니다.");
+  // The stored feature values the forecast continues; older servers send none.
+  let before=0;
+  const history=(Array.isArray(forecast.history)?forecast.history:[]).map((raw:unknown)=>{
+    if(!Array.isArray(raw)||raw.length!==2)throw new Error("저장된 특징값의 형식이 올바르지 않습니다.");
+    const position=finite(raw[0]);
+    if(position<first||position>last||position<=before)
+      throw new Error("저장된 특징값의 측정 순서가 계산 범위와 맞지 않습니다.");
+    before=position;
+    return {ordinal:position,value:finite(raw[1])};
+  });
   const seen=new Set<string>();
   const scenarios=outlook.scenarios.map((raw:unknown):Scenario=>{
     const row=obj(raw),limits=obj(row?.limits);
@@ -193,7 +204,37 @@ export function parseAcquisitionPair(
     featureId,measurementVersion:fVersion,dataVersion:version(outlook.data_version),
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
     horizonCount:forecastCount,searchCount,searchUntil,outlookSettings,
-    conditions,record:{first,last,points},forecast:future,scenarios};
+    conditions,record:{first,last,points},forecast:future,history,scenarios};
+}
+
+export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;
+  lastX:number;history:string;estimate:string;band:string;management:number|null;endLimit:number|null};
+/** Stored values and the forecast on one measurement axis, with the user's limits. */
+export function acquisitionChart(projection:AcquisitionProjection):AcquisitionChart|null{
+  const future=projection.forecast;
+  if(!future.length)return null;
+  const width=800,height=220,top=8,bottom=212;
+  const shown=projection.history;
+  const first=shown.length?shown[0].ordinal:future[0].ordinal,end=Math.max(future[future.length-1].ordinal,first+1);
+  const {management,end:endLimit}=projection.conditions;
+  const values=[...shown.map(item=>item.value),
+    ...future.flatMap(item=>[item.estimate,item.lower??item.estimate,item.upper??item.estimate]),
+    ...[management,endLimit].filter((limit):limit is number=>limit!==null)];
+  const low=Math.min(...values),high=Math.max(...values);
+  const padding=low===high?Math.max(Math.abs(low)*0.05,1):(high-low)*0.06;
+  const lo=low-padding,hi=high+padding;
+  const x=(at:number)=>((at-first)/(end-first))*width;
+  const y=(value:number)=>bottom-((value-lo)/(hi-lo))*(bottom-top);
+  const line=(points:Array<[number,number]>)=>points.map(([at,value],i)=>(i?"L":"M")+x(at).toFixed(1)+" "+y(value).toFixed(1)).join(" ");
+  const ranged=future.filter(item=>item.lower!==null&&item.upper!==null);
+  const band=ranged.length
+    ?line(ranged.map(item=>[item.ordinal,item.upper as number]))
+      +" "+ranged.slice().reverse().map(item=>"L"+x(item.ordinal).toFixed(1)+" "+y(item.lower as number).toFixed(1)).join(" ")+" Z"
+    :"";
+  return {width,height,low,high,first,last:projection.record.last,end,lastX:x(projection.record.last),
+    history:line(shown.map(item=>[item.ordinal,item.value])),
+    estimate:line(future.map(item=>[item.ordinal,item.estimate])),band,
+    management:management===null?null:y(management),endLimit:endLimit===null?null:y(endLimit)};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});

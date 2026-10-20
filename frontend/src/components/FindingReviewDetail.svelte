@@ -3,6 +3,8 @@
   import type {Evidence} from "../reviews";
   import {modelResultUrl, readFindingReviews, recordFindingAction, type FindingReview} from "../finding-reviews";
   import {assetTabUrl} from "../routes";
+  import {num} from "../format";
+  import {loadModelBindings, loadModelPosition, modelName, scoreSummary} from "../model-evidence";
   import CautionNote from "./CautionNote.svelte";
   import ReviewActions from "./ReviewActions.svelte";
 
@@ -20,6 +22,23 @@
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const missing = $derived(linked === null ? [] : review.evidenceIds.filter(
     (evidenceId) => !linked.some((item) => item.evidenceId === evidenceId)));
+  // Which model and what it scored, read from the stored result the review points to.
+  let scored: {name: string; place: string; score: number | null; threshold: number | null; exceeds: boolean | null} | null = $state(null);
+  $effect(() => {
+    const location = review.model, assetId = review.assetId;
+    scored = null;
+    if (!location) return;
+    const request = new AbortController();
+    void (async () => {
+      const binding = (await loadModelBindings(assetId, request.signal)).find((item) => item.bindingId === location.bindingId);
+      if (!binding) return;
+      const run = await loadModelPosition(binding, location.position, request.signal);
+      if (request.signal.aborted) return;
+      scored = {name: modelName(binding), ...scoreSummary(run.output),
+        place: (binding.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + location.position};
+    })().catch(() => {});
+    return () => request.abort();
+  });
 
   async function refresh(signal: AbortSignal): Promise<boolean> {
     try {
@@ -47,7 +66,11 @@
     <h3 id={"subject-" + review.findingId}>검토 대상</h3>
     {#if review.subject === "model"}
       {#if review.model}
-        <p>이상 탐지 모델이 모델 입력 #{review.model.position}에서 계산한 점수입니다.</p>
+        {#if scored}
+          <p><strong>{scored.name}</strong> · {scored.place} · 점수 {num(scored.score, "기록 없음")} / 기준 {num(scored.threshold, "기록 없음")}{scored.exceeds === null ? "" : scored.exceeds ? " · 기준 초과" : " · 기준 이하"}</p>
+        {:else}
+          <p>이상 탐지 모델이 모델 입력 #{review.model.position}에서 계산한 점수입니다.</p>
+        {/if}
         <p class="links"><a href={modelResultUrl(review.assetId, review.model)}>설비 화면에서 이 모델 결과 보기 →</a></p>
       {:else}
         <p class="context">저장된 모델 결과의 위치를 찾지 못했습니다. 다른 결과로 대신 보여 주지 않습니다.</p>

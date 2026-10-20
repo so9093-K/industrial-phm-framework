@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {mergeSeries,parseWaveform,parseWindow,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -31,4 +31,38 @@ test("raw input previews keep unreadable and unusable values apart from data",()
     channels:[{channel_id:"current_r",unit:"A",points:[{at:"2026-10-17T00:00:01Z",value:5,quality:"good"},
       {at:"2026-10-17T00:00:02Z",value:9,quality:"conflict"}]}]},7);
   assert.deepEqual(window.available&&window.channels[0].points.map(p=>p.value),[5,null]);
+});
+
+test("scores of models with different scales share one axis as a ratio to each model's own threshold",()=>{
+  const known=new Map<number,TrendPoint>();
+  const page=mergeSeries({schema_version:1,binding:{binding_id:"anomaly-a"},change_seq:4,has_more:false,
+    steps:[step(1,"skipped"),step(2,"analyzed",1),step(3,"analyzed",3),step(4,"analyzed",4)],
+    intervals:[{start_position:3,end_position:4,step_count:2,peak_score:4,open:true}]},binding,known);
+  const line=thresholdRatios({points:[...known.values()],intervals:page.intervals,truncated:false});
+  assert.deepEqual(line.points.map(p=>p.ratio),[0.5,1.5,2]);
+  assert.deepEqual(line.latest,{position:4,ratio:2});
+  assert.equal(line.sustainedFrom,3);
+  assert.equal(line.exceeded,2);
+  const noThreshold=thresholdRatios({points:[{...known.get(2)!,threshold:0}],intervals:[],truncated:false});
+  assert.deepEqual(noThreshold.points,[]);
+});
+
+test("a flagged measurement is compared with the last analyzed one before its interval",()=>{
+  const intervals=[{start:34,end:38,steps:5,peak:2,open:false},{start:76,end:123,steps:48,peak:12,open:true}];
+  const analyzed=[8,9,70,75,76,100,123];
+  assert.equal(beforeInterval(intervals,analyzed,123),75);
+  // The first flagged measurement is compared with the last one before it, as the rest are.
+  assert.equal(beforeInterval(intervals,analyzed,76),75);
+  assert.equal(beforeInterval(intervals,analyzed,34),9);
+  assert.equal(beforeInterval(intervals,analyzed,50),null);
+  assert.equal(beforeInterval(intervals,[],100),null);
+});
+
+test("every model on a stream can be chosen; the chosen one is always drawn",()=>{
+  const models=["a","b","c","d","e","f"].map(bindingId=>({bindingId}));
+  const drawn=(selected:string)=>overlayModels(models,selected,4).map(item=>item.bindingId);
+  assert.deepEqual(drawn("b"),["a","b","c","d"]);
+  assert.deepEqual(drawn("f"),["a","b","c","f"]);
+  assert.deepEqual(drawn("missing"),["a","b","c","d"]);
+  assert.deepEqual(overlayModels(models.slice(0,2),"b",4).map(item=>item.bindingId),["a","b"]);
 });

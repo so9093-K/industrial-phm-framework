@@ -136,12 +136,12 @@
     <div class="controls">
       <label>특징 X
         <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>
-          {#each source.features as item(item.id)}<option value={item.id}>{item.label} · {item.id}</option>{/each}
+          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
         </select>
       </label>
       <label>특징 Y
         <select value={y} onchange={e=>feature("y",e.currentTarget.value)}>
-          {#each source.features as item(item.id)}<option value={item.id}>{item.label} · {item.id}</option>{/each}
+          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
         </select>
       </label>
     </div>

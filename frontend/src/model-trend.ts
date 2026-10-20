@@ -133,3 +133,32 @@ export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;e
   }
   return {analyzed,skipped,exceeded,open:trend.intervals.filter(item=>item.open).length};
 }
+
+export type RatioLine={points:{position:number;ratio:number;score:number}[];exceeded:number;analyzed:number;
+  latest:{position:number;ratio:number}|null;sustainedFrom:number|null};
+/** Each score divided by the threshold stored with it, so models with different score scales share
+ * one axis where 1 is "this model's own threshold". A step without a positive threshold is left out. */
+export function thresholdRatios(trend:ScoreTrend):RatioLine{
+  const points=trend.points.flatMap(point=>point.score!==null&&point.threshold!==null&&point.threshold>0
+    ?[{position:point.pointer.position,ratio:point.score/point.threshold,score:point.score}]:[]);
+  const {analyzed,exceeded}=trendSummary(trend);
+  const open=trend.intervals.find(item=>item.open);
+  const last=points.at(-1);
+  return {points,analyzed,exceeded,latest:last?{position:last.position,ratio:last.ratio}:null,sustainedFrom:open?.start??null};
+}
+
+/** The models drawn on one graph: the first `limit` in list order, with the chosen model always
+ * among them, in the last slot when it is further down the list. */
+export function overlayModels<T extends {bindingId:string}>(bindings:T[],selected:string,limit:number):T[]{
+  const first=bindings.slice(0,limit);
+  const chosen=bindings.find(item=>item.bindingId===selected);
+  return !chosen||first.some(item=>item.bindingId===selected)?first:[...first.slice(0,limit-1),chosen];
+}
+
+/** The last analyzed measurement before the over-threshold interval that holds `position`,
+ * its first measurement included: the natural "before" to compare a flagged measurement against. */
+export function beforeInterval(intervals:Interval[],analyzed:number[],position:number):number|null{
+  const holding=intervals.find(item=>item.start<=position&&position<=item.end);
+  if(!holding)return null;
+  return analyzed.filter(at=>at<holding.start).reduce<number|null>((best,at)=>best===null||at>best?at:best,null);
+}

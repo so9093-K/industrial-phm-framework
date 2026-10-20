@@ -5,13 +5,13 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
-  import {reachText} from "../reach";
+  import {reachDuration,reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
   import {
-    loadAcquisitionOptions,loadAcquisitionPair,
+    loadAcquisitionOptions,loadAcquisitionPair,acquisitionChart,
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
     type AcquisitionOptions,type AcquisitionProjection,type AcquisitionFeature,
   } from "../acquisition-outlook";
@@ -29,7 +29,7 @@
   let customSettings=$state([...params.keys()].some(key=>/^forecast_(prior|range|training|seasonality|backtest)$/.test(key)));
   let featureId=$state(params.get("acq_forecast_feature")??"");
   let timeHorizon:Horizon|null=$state(params.get("acq_forecast_unit")==="time" ? (params.get("acq_forecast_horizon")??"1h") as Horizon : null);
-  let countText=$state(params.get("acq_forecast_count")??"5");
+  let countText=$state(params.get("acq_forecast_count")??"30");
   let assumedText=$state(params.get("acq_assumed_period")??"");
   let managementText=$state(params.get("acq_management")??"");
   let endText=$state(params.get("acq_end")??"");
@@ -119,7 +119,7 @@
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
   <h2 id="acq-outlook-title">기준 도달 전망</h2>
-  <p class="context">진동 측정이 이어질 때 특징값이 사용자가 정한 기준에 몇 번째 측정에서 닿는지 계산합니다.</p>
+  <p class="context">진동 특징의 추세를 Prophet으로 예측하고, 사용자가 정한 관리·종료 기준에 몇 번째 측정에서 닿는지 계산합니다. 종료 기준까지 남은 측정은 조건부 잔여수명(RUL)입니다.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -186,6 +186,8 @@
       {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
       {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
+      {@const chart=acquisitionChart(outlook)}
+      {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
           <h3 id="acq-result-title">결과</h3>
@@ -194,14 +196,39 @@
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
-              <div><span>관리 기준 {num(outlook.conditions.management)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong></div>
+              <div><span>관리 기준 {num(outlook.conditions.management)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
+                {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
             {/if}
             {#if outlook.conditions.end!==null}
-              <div><span>종료 기준 {num(outlook.conditions.end)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong></div>
+              <div><span>조건부 잔여수명(RUL) · 종료 기준 {num(outlook.conditions.end)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
+                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}</div>
             {/if}
           </div>
         {:else}
           <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
+        {/if}
+        {#if chart}
+          <figure class="chart">
+            <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}</p>
+            <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
+              aria-label={"저장된 측정 #"+chart.first+"~#"+chart.last+"과 #"+formatOffset(chart.end)+"까지의 예측"}>
+              {#if chart.band}<path d={chart.band} class="band" />{/if}
+              <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
+              {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
+              {#if chart.endLimit!==null}<line x1="0" x2={chart.width} y1={chart.endLimit} y2={chart.endLimit} class="end" />{/if}
+              <path d={chart.history} class="history" />
+              <path d={chart.estimate} class="estimate" />
+              <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
+            </svg>
+            <p class="axis-time"><span>측정 #{chart.first}</span><span>마지막 측정 #{chart.last}</span><span>→ #{formatOffset(chart.end)}</span></p>
+            <figcaption class="legend">
+              <span><i class="key history"></i>저장된 측정</span>
+              <span><i class="key estimate"></i>추세 예측</span>
+              <span><i class="key band"></i>예측 범위</span>
+              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {num(outlook.conditions.management)}</span>{/if}
+              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {num(outlook.conditions.end)}</span>{/if}
+            </figcaption>
+          </figure>
         {/if}
         {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
           <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
@@ -218,7 +245,7 @@
           }}/>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
-        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산입니다. 측정 순서는 실제 날짜가 아니며, 기준 도달은 고장 시점이나 남은 수명이 아닙니다."/>
+        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 측정 순서는 실제 날짜가 아닙니다."/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>
@@ -280,6 +307,25 @@
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-top:var(--space-4)}
   .tiles div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
   .tiles span{color:var(--color-ink-muted);font-size:var(--font-small)}.tiles strong{font-size:var(--font-section)}
+  .chart{margin:var(--space-4) 0;min-width:0}
+  .chart svg{display:block;width:100%;height:220px;margin-top:var(--space-2)}
+  .chart path,.chart line{vector-effect:non-scaling-stroke}
+  .chart .axis{fill:none;stroke:var(--color-border);stroke-width:2}
+  .chart .history{fill:none;stroke:var(--color-ink);stroke-width:1.5}
+  .chart .estimate{fill:none;stroke:var(--color-action);stroke-width:2;stroke-dasharray:6 4}
+  .chart .band{fill:var(--color-action);opacity:.14;stroke:none}
+  .chart .now{stroke:var(--color-border);stroke-width:1}
+  .chart .management{stroke:var(--color-caution-ink);stroke-width:1.5;stroke-dasharray:3 3}
+  .chart .end{stroke:var(--color-failure-ink);stroke-width:1.5;stroke-dasharray:3 3}
+  .axis-note,.axis-time,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:0}
+  .axis-time{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-1) var(--space-3);margin-top:var(--space-1)}
+  .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);margin-top:var(--space-2)}
+  .key{display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-inline-end:var(--space-1)}
+  .key.history{border-color:var(--color-ink)}
+  .key.estimate{border-color:var(--color-action);border-top-style:dashed}
+  .key.band{height:10px;border:0;background:var(--color-action);opacity:.2}
+  .key.management{border-color:var(--color-caution-ink);border-top-style:dashed}
+  .key.end{border-color:var(--color-failure-ink);border-top-style:dashed}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-3)}
   dl{overflow-wrap:anywhere}dt{font-weight:700}dd{margin:var(--space-1) 0 var(--space-3)}
   .scroll{max-width:100%;overflow-x:auto}

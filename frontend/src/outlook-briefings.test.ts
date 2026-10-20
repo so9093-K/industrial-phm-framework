@@ -90,7 +90,7 @@ const acquired:AcquisitionProjection={
   horizonCount:5,searchCount:31,searchUntil:95,
   record:{first:1,last:64,points:64},
   conditions:{direction:"upper",management:2.4,end:null},
-  forecast:[{ordinal:65,estimate:2.1,lower:1.9,upper:2.3}],scenarios:[],
+  forecast:[{ordinal:65,estimate:2.1,lower:1.9,upper:2.3}],history:[],scenarios:[],
   outlookSettings:{changepointPriorScale:0.05,changepointRange:0.9,
     trainingPoints:null,seasonality:"off"},
 };
