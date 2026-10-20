@@ -10,9 +10,11 @@ test("one review status policy for every review subject",()=>{
   assert.throws(()=>nextReviewStatus("closed","note"),/완료/);
 });
 
-test("a note is trimmed, bounded and only sent with a note action",()=>{
+test("a note is trimmed, bounded and optional with a confirm or close",()=>{
   assert.equal(reviewNote("note","  확인함 \n"),"확인함");
-  assert.equal(reviewNote("acknowledge","무시되는 입력"),"");
+  assert.equal(reviewNote("acknowledge"," 베어링 소음 확인 \n"),"베어링 소음 확인");
+  assert.equal(reviewNote("close",""),"");
+  assert.throws(()=>reviewNote("close","가".repeat(700)),/1000자/);
   assert.throws(()=>reviewNote("note","   "),/메모를 입력/);
   assert.throws(()=>reviewNote("note","가".repeat(1001)),/1000자/);
   assert.throws(()=>reviewNote("note","bell\u0007"),/제어 문자/);
