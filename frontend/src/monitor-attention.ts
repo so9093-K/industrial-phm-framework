@@ -18,7 +18,8 @@ export type NoteKind="threshold"|"departure"|"refusal"|"unavailable"|"receipt"|"
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
   distance:number;direction:"up"|"down"|null;since:string};
-export type Note={kind:NoteKind;label:string;detail:string;href:string;action:string};
+/** `id` is unique within one asset: two connections or two signals of one asset each keep their own note. */
+export type Note={id:string;kind:NoteKind;label:string;detail:string;href:string;action:string};
 export type AssetAttention={assetId:string;notes:Note[]};
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
@@ -73,35 +74,35 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
   for(const [assetId,list] of byAsset){
     const vibration=list.some(model=>model.stepKind==="acquisition-snapshot");
     const exceeded=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds===true);
-    if(exceeded.length)add(assetId,{kind:"threshold",label:(vibration?"진동":"전기 신호")+" 변화 확인 필요",
+    if(exceeded.length)add(assetId,{id:"threshold",kind:"threshold",label:(vibration?"진동":"전기 신호")+" 변화 확인 필요",
       detail:"모델 기준 초과 "+exceeded.length+"개 · 점수 추이와 원본을 확인하세요",href:at(exceeded[0],exceeded[0].analyzed!.position),action:"점수 추이 보기"});
     const refused=list.filter(model=>model.state==="rejected");
-    if(refused.length)add(assetId,{kind:"refusal",label:vibration?"최근 진동 파형을 분석하지 못함":"최근 측정 입력을 분석하지 못함",
+    if(refused.length)add(assetId,{id:"refusal",kind:"refusal",label:vibration?"최근 진동 파형을 분석하지 못함":"최근 측정 입력을 분석하지 못함",
       detail:[...new Set(refused.map(model=>refusalReason(model.reason)))].join(" · ")+" · "+refused.length+"개 모델",
       href:at(refused[0],refused[0].processed),action:"입력·모델 확인"});
     const down=list.filter(model=>model.state==="unavailable");
-    if(down.length)add(assetId,{kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 실행기 상태를 확인하세요",
+    if(down.length)add(assetId,{id:"unavailable",kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 실행기 상태를 확인하세요",
       href:at(down[0],null),action:"모델 확인"});
     const warmups=list.filter(model=>model.state==="warmup");
-    if(warmups.length)add(assetId,{kind:"warmup",label:"모델 입력을 모으는 중",detail:warmups.length+"개 모델 · "+(warmups[0].reason??"준비할 입력이 더 필요합니다"),href:at(warmups[0],warmups[0].processed),action:"입력 준비 상태 보기"});
+    if(warmups.length)add(assetId,{id:"warmup",kind:"warmup",label:"모델 입력을 모으는 중",detail:warmups.length+"개 모델 · "+(warmups[0].reason??"준비할 입력이 더 필요합니다"),href:at(warmups[0],warmups[0].processed),action:"입력 준비 상태 보기"});
     const waiting=list.filter(model=>model.state==="pending");
-    if(waiting.length)add(assetId,{kind:"pending",label:"새 입력 분석 대기",detail:waiting.length+"개 모델이 아직 처리하지 않았습니다",
+    if(waiting.length)add(assetId,{id:"pending",kind:"pending",label:"새 입력 분석 대기",detail:waiting.length+"개 모델이 아직 처리하지 않았습니다",
       href:at(waiting[0],null),action:"분석 진행 보기"});
     if(list.some(model=>model.reviewStatus==="open"||model.reviewStatus==="acknowledged"))
-      add(assetId,{kind:"review",label:"검토 진행 중",detail:"모델 결과의 사람 검토가 끝나지 않았습니다",
+      add(assetId,{id:"review",kind:"review",label:"검토 진행 중",detail:"모델 결과의 사람 검토가 끝나지 않았습니다",
         href:routeUrl({page:"maintenance",assetId,tab:"summary",method:null,data:null}),action:"정비 검토함 보기"});
   }
   for(const item of departures){
     const name=item.label?item.label+(item.unit?" ("+item.unit+")":""):item.channel;
     const since=new Date(item.since).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
-    add(item.assetId,{kind:"departure",label:"기준 구간에서 크게 벗어남",
+    add(item.assetId,{id:"departure:"+item.channel,kind:"departure",label:"기준 구간에서 크게 벗어남",
       detail:name+" · 기준 변동 폭의 "+Math.round(item.distance)+"배 "+(item.direction==="down"?"낮음":"높음")+" · "+since+"부터 계속",
       href:assetTabUrl(item.assetId,"anomaly","baseline",null,item.channel),action:"기준 구간 이탈 보기"});
   }
   for(const source of sources??[]){
     // A collection someone asked to run that has not received recently; paused or stopped is expected.
     if(source.type==="opcua"&&source.lifecycle==="active"&&source.live?.desired==="running"&&!source.live.fresh)
-      add(source.assetId,{kind:"receipt",label:"최근 30초 수신 없음",detail:source.name+" · 연결·수집 상태를 확인하세요",
+      add(source.assetId,{id:"receipt:"+source.sourceId,kind:"receipt",label:"최근 30초 수신 없음",detail:source.name+" · 연결·수집 상태를 확인하세요",
         href:systemUrl("connections"),action:"데이터 연결 보기"});
   }
   return [...groups].map(([assetId,notes])=>({assetId,notes:notes.sort((a,b)=>PRIORITY[a.kind]-PRIORITY[b.kind])}))

@@ -36,9 +36,13 @@ test("only a collection someone asked to run is flagged when it stops receiving"
         last_live_receive_fresh:false},
       {source_id:"s3",name:"Stopped",source_type:"opcua",asset_id:"pump-3",lifecycle_state:"active",collection_desired_state:"stopped",
         last_live_receive_fresh:false},
-    ],total:3,truncated:false},read_error_scopes:[],live_evidence_error_scopes:[]}).items;
+      {source_id:"s4",name:"Live 2",source_type:"opcua",asset_id:"pump-1",lifecycle_state:"active",collection_desired_state:"running",
+        last_live_receive_fresh:false},
+    ],total:4,truncated:false},read_error_scopes:[],live_evidence_error_scopes:[]}).items;
   const groups=attentionByAsset([],sources);
   assert.deepEqual(groups.map(group=>[group.assetId,group.notes[0].kind]),[["pump-1","receipt"]]);
+  // Two silent connections of one asset are two notes, each with its own key in the list.
+  assert.deepEqual(groups[0].notes.map(note=>[note.id,note.detail.split(" · ")[0]]),[["receipt:s1","Live"],["receipt:s4","Live 2"]]);
   assert.throws(()=>parsePhmMonitor({schema_version:1,items:[model({processing_state:"healthy"})]}),/형식/);
 });
 

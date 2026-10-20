@@ -15,8 +15,10 @@
   const live = import.meta.env.MODE !== "showcase";
   let phm: PhmMonitor | null = $state(null);
   let sources: Sources | null = $state(null);
-  // The baseline check reads stored history, so it is asked again only every 30 seconds.
+  // The baseline check reads stored history, so it is asked again only every 30 seconds; a
+  // failed check drops its earlier items and is asked again on the next read.
   let departures: Departure[] = $state([]);
+  let departuresFailed = $state(false);
   let departuresAt = 0;
   const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
@@ -58,10 +60,13 @@
       const due = Date.now() - departuresAt >= DEPARTURE_INTERVAL;
       const [model, connections, found] = await Promise.all([
         readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null),
-        due ? readDepartures(pending.signal).catch(() => null) : Promise.resolve(null), onTick()]);
+        due ? readDepartures(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
       if (pending.signal.aborted) return;
       phm = model; sources = connections; loadState = "ready"; readAt = new Date();
-      if (due) { departuresAt = Date.now(); if (found) departures = found; }
+      if (found !== undefined) {
+        departures = found ?? []; departuresFailed = found === null;
+        departuresAt = found === null ? 0 : Date.now();
+      }
     } catch {
       if (pending.signal.aborted) return;
       phm = null; loadState = "failed";
@@ -94,6 +99,7 @@
     <StatusNotice kind="uncertain" message="모델 처리 상태를 다시 읽지 못했습니다. 이전 결과를 지금 상태로 보여 주지 않습니다." />
   {:else}
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
+    {#if departuresFailed}<StatusNotice kind="uncertain" message="기준 구간 이탈을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
     <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
@@ -122,7 +128,7 @@
           <li><article aria-labelledby={"attention-" + group.assetId}>
             <h3 id={"attention-" + group.assetId} tabindex="-1">{assetLabel(snapshot.assets, group.assetId)}</h3>
             <ul class="notes">
-              {#each group.notes as note (note.kind)}
+              {#each group.notes as note (note.id)}
                 <li data-kind={note.kind}><strong>{note.label}</strong><span>{note.detail}</span>
                   <a href={note.href}>{note.action} →</a></li>
               {/each}
