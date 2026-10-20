@@ -2,14 +2,15 @@
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding, StepPointer} from "../model-evidence";
-  import {readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {firstExceedance, measurementTime, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** Every stored score of this model in input order, its threshold and the intervals the
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
-    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void};
-  let {binding, selected, place, onSelect, onLoaded}: Props = $props();
+    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void;
+    period?: number | null};
+  let {binding, selected, place, onSelect, onLoaded, period = null}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   const W = 640, H = 170, LEFT = 44, RIGHT = 628, TOP = 14, BOTTOM = 142;
@@ -23,6 +24,7 @@
     return current ? trendSummary(current) : null;
   });
   const threshold = $derived(scored.find((point) => point.threshold !== null)?.threshold ?? null);
+  const first = $derived(firstExceedance(scored));
   const scale = $derived.by(() => {
     const values = scored.map((point) => point.score as number);
     if (threshold !== null) values.push(threshold);
@@ -67,6 +69,13 @@
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
+    {#if first}
+      <div class="onset" aria-label="첫 기준 초과 확인">
+        <strong>첫 기준 초과 확인</strong>
+        <span>{measurementTime(first, period) ?? ""}{measurementTime(first, period) ? " · " : ""}{place(first.pointer.position)}</span>
+        <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>측정 보기 →</button>
+      </div>
+    {/if}
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
       {#each trend.intervals as interval (interval.start)}
@@ -78,6 +87,12 @@
         <text x={LEFT + 4} y={scale.y(threshold) - 4} class="label">모델 기준 {num(threshold)}</text>
       {/if}
       <path d={path} class="line" />
+      {#if first}
+        <line x1={scale.x(first.pointer.position)} x2={scale.x(first.pointer.position)} y1={TOP} y2={BOTTOM} class="onset-line">
+          <title>첫 기준 초과 확인 · {measurementTime(first, period) ?? place(first.pointer.position)}</title>
+        </line>
+        <circle cx={scale.x(first.pointer.position)} cy={scale.y(first.score)} r="5" class="onset-dot" />
+      {/if}
       {#each scored as point (point.pointer.position)}
         <circle cx={scale.x(point.pointer.position)} cy={scale.y(point.score as number)} r={point.pointer.position === selected ? 5 : 2.5}
           class:over={point.exceeds} class:chosen={point.pointer.position === selected}
@@ -89,7 +104,7 @@
       <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
       <text x={LEFT + 4} y={TOP + 10} class="label">최고 {num(scale.high)}</text>
     </svg>
-    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.</p>
+    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? " 세로 점선은 조회된 기록에서 처음 기준 초과를 확인한 측정입니다." : ""}</p>
     {#if trend.intervals.length}
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}
@@ -111,6 +126,9 @@
   .band { fill: var(--color-uncertain-surface); }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
+  .onset { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); font-size: var(--font-small); }
+  .onset-line { stroke: var(--color-caution-ink); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+  circle.onset-dot { fill: var(--color-caution-ink); stroke: var(--color-surface); stroke-width: 2; }
   circle { fill: var(--color-action); cursor: pointer; }
   circle.over { fill: var(--color-failure-ink); }
   circle.chosen { stroke: var(--color-ink); stroke-width: 2; }

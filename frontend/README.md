@@ -136,7 +136,9 @@ not install Node dependencies.
   declared input fits this asset's streams, and connecting one; why nothing fits is said plainly.
 - `src/components/ScoreTrend.svelte`, `src/components/ModelInput.svelte`, `src/model-trend.ts`: a model's
   stored scores in input order with its threshold and exceedance intervals (skipped steps stay gaps),
-  and the selected measurement's raw waveform envelope or window values.
+  and the selected measurement's raw waveform envelope or window values. The first stored exceedance
+  is marked by a vertical line and a link to its measurement, including isolated exceedances outside
+  sustained intervals. Its label uses measured time or the same source's recorded acquisition interval.
 - `src/components/ModelScoreOverlay.svelte`: every model on one measurement stream on one axis, each
   score divided by that model's own stored threshold; a row opens that model (keeping the measurement in
   view), a point opens that measurement. A measurement inside an over-threshold interval is compared by

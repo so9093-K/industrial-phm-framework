@@ -135,6 +135,7 @@ export type DepartureChart = {
   /** `max` is the top of the axis; `peak` is the largest departure in the data. */
   width: number; height: number; max: number; peak: number; first: string; last: string;
   path: string; thresholdY: number; baseline: Band; intervals: Band[];
+  firstExceedance: {at: string; distance: number; x: number; y: number} | null;
 };
 
 /** The departure size over time on a stretchable plot: the chosen baseline span, the
@@ -148,6 +149,7 @@ export function departureChart(data: Departures): DepartureChart | null {
   const max = Math.max(data.threshold * 1.4, peak);
   const x = (at: number) => ((at - first) / (last - first)) * width;
   const y = (value: number) => bottom - (value / max) * (bottom - top);
+  const firstExceedance = data.score.find(point => point.distance > data.threshold);
   const steps = times.slice(1).map((at, i) => at - times[i]).sort((a, b) => a - b);
   const gap = (steps[Math.floor(steps.length / 2)] ?? 0) * 1.5;
   let path = "";
@@ -166,6 +168,8 @@ export function departureChart(data: Departures): DepartureChart | null {
   return {
     width, height, max, peak, first: data.score[0].at, last: data.score[data.score.length - 1].at,
     path: path.trim(), thresholdY: y(data.threshold),
+    firstExceedance: firstExceedance ? {...firstExceedance,
+      x: x(Date.parse(firstExceedance.at)), y: y(firstExceedance.distance)} : null,
     baseline: band(data.baseline.from, data.baseline.to),
     intervals: data.intervals.map((item) => band(item.start, item.end)),
   };

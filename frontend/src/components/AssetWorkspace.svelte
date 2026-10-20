@@ -133,7 +133,7 @@
       {:else if route.tab === "anomaly" && method === "baseline"}
         <DepartureExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly"}
-        <ModelRunEvidence assetId={asset.assetId} />
+        <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change" && method === "spectrum"}
         <AcquisitionSpectrum assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "electrical"}

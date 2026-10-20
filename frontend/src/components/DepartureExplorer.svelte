@@ -10,6 +10,12 @@
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
   import XAxis from "./XAxis.svelte";
+  let scoreTable: HTMLDetailsElement | null = $state(null);
+  function showFirstExceedance() {
+    if (!scoreTable) return;
+    scoreTable.open = true;
+    scoreTable.querySelector<HTMLElement>('[data-onset="true"]')?.focus();
+  }
   import {assetTabUrl, systemUrl} from "../routes";
 
   type Props = { assetId: string };
@@ -189,6 +195,13 @@
           <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
         {/if}
         {#if chart}
+          {#if chart.firstExceedance}
+            <div class="onset" aria-label="첫 기준 초과 확인">
+              <strong>첫 기준 초과 확인</strong>
+              <span>{date(chart.firstExceedance.at)} (KST)</span>
+              <button type="button" class="ui-button" onclick={showFirstExceedance}>시간별 값 보기 →</button>
+            </div>
+          {/if}
           <p class="axis-note">세로축: 기준 변동 폭의 몇 배인지 · 최고 {num(Number(chart.peak.toFixed(1)))}배
             <span class="dash">· 점선: 크게 벗어났다고 보는 기준 {result.threshold}배</span></p>
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
@@ -199,12 +212,19 @@
             {/each}
             <line x1="0" x2={chart.width} y1={chart.thresholdY} y2={chart.thresholdY} class="threshold" />
             <path d={chart.path} class="line" />
+            {#if chart.firstExceedance}
+              <line x1={chart.firstExceedance.x} x2={chart.firstExceedance.x} y1="0" y2={chart.height} class="onset-line">
+                <title>첫 기준 초과 확인 · {date(chart.firstExceedance.at)} (KST)</title>
+              </line>
+              <circle cx={chart.firstExceedance.x} cy={chart.firstExceedance.y} r="4" class="onset-dot" />
+            {/if}
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
           <XAxis lo={Date.parse(chart.first)} hi={Math.max(Date.parse(chart.last), Date.parse(chart.first) + 1)} scale={{kind: "clock"}} />
           <p class="legend"><span class="key baseline"></span>기준 구간
             {#if chart.intervals.length}<span class="key found"></span>크게 벗어난 구간{/if}</p>
-          <details>
+          {#if chart.firstExceedance}<p class="context">세로 점선은 표시된 집계 구간에서 처음 기준 초과를 확인한 시각입니다.</p>{/if}
+          <details bind:this={scoreTable}>
             <summary>시간별 벗어난 정도 표 ({result.score.length}개)</summary>
             <div class="table-scroll">
               <table>
@@ -212,7 +232,7 @@
                 <thead><tr><th scope="col">구간 시각</th><th scope="col">벗어난 정도</th></tr></thead>
                 <tbody>
                   {#each result.score as point, i (point.at + i)}
-                    <tr><td>{date(point.at)}</td><td>{point.distance.toFixed(2)}</td></tr>
+                    <tr tabindex={point.at === chart.firstExceedance?.at ? -1 : undefined} data-onset={point.at === chart.firstExceedance?.at}><td>{date(point.at)}</td><td>{point.distance.toFixed(2)}</td></tr>
                   {/each}
                 </tbody>
               </table>
@@ -253,6 +273,10 @@
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .baseline { fill: var(--color-border); opacity: 0.45; }
   .found { fill: var(--color-failure-ink); opacity: 0.14; }
+  .onset { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-top: var(--space-4); padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); font-size: var(--font-small); }
+  .onset-line { stroke: var(--color-caution-ink); stroke-width: 2; stroke-dasharray: 3 3; }
+  .onset-dot { fill: var(--color-caution-ink); stroke: var(--color-surface); stroke-width: 2; }
+  tr[data-onset="true"]:focus { outline: 2px solid var(--color-focus); outline-offset: -2px; }
   .axis-note, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-2) 0 0; }
   .axis-note { margin-top: var(--space-4); }
   .dash { color: var(--color-failure-ink); }

@@ -63,4 +63,10 @@ test("the chart marks the baseline, the threshold and each interval, and never b
   const calm = departureChart({...data, score: [0.4, 1.1, 0.7].map((distance, i) => ({at: at(i), distance}))})!;
   assert.equal(calm.peak, 1.1);
   assert.ok(calm.max > calm.peak);
+  assert.equal(calm.firstExceedance, null);
+  const onset = departureChart({...data,
+    score:[3.5,2,4.1,5].map((distance,i)=>({at:at(i),distance}))})!;
+  assert.equal(onset.firstExceedance?.at, at(2));
+  assert.equal(onset.firstExceedance?.distance, 4.1);
+  assert.ok(onset.firstExceedance!.x > 0 && onset.firstExceedance!.x < onset.width);
 });

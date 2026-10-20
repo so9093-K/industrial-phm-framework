@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,firstExceedance,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -65,4 +65,20 @@ test("every model on a stream can be chosen; the chosen one is always drawn",()=
   assert.deepEqual(drawn("f"),["a","b","c","f"]);
   assert.deepEqual(drawn("missing"),["a","b","c","d"]);
   assert.deepEqual(overlayModels(models.slice(0,2),"b",4).map(item=>item.bindingId),["a","b"]);
+});
+
+test("the first exceeded measurement is visible even without a sustained interval", () => {
+  const known = new Map<number, TrendPoint>();
+  mergeSeries({schema_version:1,binding:{binding_id:"anomaly-a"},change_seq:5,has_more:false,
+    steps:[step(1,"skipped"),step(2,"analyzed",2),step(3,"analyzed",3),step(4,"analyzed",1),step(5,"analyzed",4)],
+    intervals:[]}, binding, known);
+  const points = [...known.values()];
+  assert.equal(firstExceedance(points)?.pointer.position, 3);
+  assert.equal(thresholdRatios({points,intervals:[],truncated:false}).firstExceedance?.pointer.position, 3);
+  assert.equal(firstExceedance(points.slice(0,2)), null); // Equal to the threshold is not exceeded.
+  assert.equal(firstExceedance([{...points[2], exceeds: false}]), null); // Respect the stored flag.
+  assert.equal(measurementTime(points[2], 60), "기록 시작 후 2분");
+  assert.equal(measurementTime(points[2], null), null); // No receipt-time clock is invented.
+  assert.match(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00Z"}, null)!, /09:00:00.*KST/);
+  assert.equal(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00"}, null), null);
 });

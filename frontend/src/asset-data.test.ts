@@ -33,3 +33,11 @@ test("only the methods an asset's data supports are offered", () => {
   assert.deepEqual(methodsFor("change", {history: null, vibration: null}), ["compare", "relation", "spectrum", "electrical"]);
   assert.deepEqual(methodsFor("signals", csv), []);
 });
+
+test("elapsed measurement time carries its source and requires a valid recorded interval", () => {
+  const read = (period_seconds: unknown) => parseAssetData({schema_version:1, asset_id:"m", history:null,
+    acquisition:{count:10,first:1,last:10,source_id:"bench",period_seconds}}, "m");
+  assert.deepEqual(read(60).vibration?.timing, {sourceId:"bench",periodSeconds:60});
+  for (const period of [null, undefined, 0, -1, NaN, Infinity, "60"])
+    assert.equal(read(period).vibration?.timing, undefined);
+});

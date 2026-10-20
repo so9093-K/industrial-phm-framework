@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -12,11 +13,14 @@ from tests.support.web_next import asset_list, start_web, stop_web
 
 
 @pytest.mark.parametrize("width", [390, 1280])
-def test_score_trend_intervals_and_raw_waveform(tmp_path: Path, width: int) -> None:
+@pytest.mark.parametrize("period", [60, None])
+def test_score_trend_intervals_and_raw_waveform(
+    tmp_path: Path, width: int, period: int | None
+) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal, scale in enumerate((0.5, 0.6, 0.55, 3.0, 3.2, 0.6), start=1):
-        deliver(workspace, tmp_path / "waves", ordinal, scale)
+        deliver(workspace, tmp_path / "waves", ordinal, scale, period_seconds=period)
     analyze(workspace)
     # A waveform changed after its result was stored cannot be shown as that input.
     (tmp_path / "waves" / "2.csv").write_text("changed after delivery", encoding="utf-8")
@@ -46,6 +50,13 @@ def test_score_trend_intervals_and_raw_waveform(tmp_path: Path, width: int) -> N
                     "분석 6회 · 모델 기준 초과 2회 · 기준 초과 구간 1개"
                 )
                 pw.expect(trend.get_by_role("img")).to_be_visible()
+                onset = trend.get_by_label("첫 기준 초과 확인", exact=True)
+                pw.expect(onset).to_contain_text("측정 순서 #4")
+                pw.expect(trend.locator("line.onset-line")).to_have_count(1)
+                if period:
+                    pw.expect(onset).to_contain_text("기록 시작 후 3분")
+                else:
+                    assert "기록 시작 후" not in onset.inner_text()
                 intervals = trend.get_by_role("list", name="기준 초과 구간")
                 pw.expect(intervals).to_contain_text("측정 순서 #4 ~ 측정 순서 #5 · 2회")
 
@@ -64,6 +75,35 @@ def test_score_trend_intervals_and_raw_waveform(tmp_path: Path, width: int) -> N
                 changed = page.get_by_role("region", name="측정 순서 #2 원본 파형")
                 pw.expect(changed).to_contain_text("원본을 보여 줄 수 없습니다")
                 assert changed.get_by_role("img").count() == 0
+                overlay = page.get_by_role("region", name="모델별 점수 비교", exact=True)
+                pw.expect(overlay.locator("line.onset-line")).to_have_count(1)
+                overlay.locator(".onset").get_by_role("button", name="측정 보기 →").click()
+                pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("4")
+                overlay.get_by_role(
+                    "button", name=re.compile("synthetic-vertical-score-v1")
+                ).click()
+                pw.expect(overlay).to_contain_text(
+                    "고른 모델은 조회된 기록에서 기준 초과가 확인되지 않았습니다"
+                )
+                pw.expect(overlay.locator("line.onset-line")).to_have_count(0)
+                overlay.get_by_role("button", name=re.compile("synthetic-rms-score-v1")).click()
+                pw.expect(overlay.locator("line.onset-line")).to_have_count(1)
+                pw.expect(page).to_have_url(re.compile("model_binding=anomaly-a"))
+                if period:
+
+                    def foreign_timing(route):
+                        response = route.fetch()
+                        body = response.json()
+                        body["acquisition"]["source_id"] = "another-stream"
+                        route.fulfill(response=response, json=body)
+
+                    page.route("**/api/v1/forecast/options?**", foreign_timing)
+                    page.reload()
+                    onset = page.get_by_role("region", name="점수 추이").get_by_label(
+                        "첫 기준 초과 확인", exact=True
+                    )
+                    pw.expect(onset).to_contain_text("측정 순서 #4")
+                    assert "기록 시작 후" not in onset.inner_text()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
