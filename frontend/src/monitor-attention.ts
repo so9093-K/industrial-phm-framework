@@ -21,6 +21,18 @@ export type Departure={assetId:string;channel:string;label:string|null;unit:stri
 /** `id` is unique within one asset: two connections or two signals of one asset each keep their own note. */
 export type Note={id:string;kind:NoteKind;label:string;detail:string;href:string;action:string};
 export type AssetAttention={assetId:string;notes:Note[]};
+export type AttentionState = "loading" | "ready" | "partial" | "failed";
+export function attentionText(count: number | null, state: AttentionState): string {
+  if (state === "loading") return count ? count + "건 · 확인 중" : "확인 중";
+  if (state !== "ready") return count ? "최소 " + count + "건 · 일부 미확인" : "일부 미확인";
+  return count === null ? "미확인" : count ? count + "건" : "없음";
+}
+export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<typeof readSources>> | null,
+  departuresComplete: boolean): boolean {
+  return !phm.truncated && !phm.reviewsUnknown && sources !== null && !sources.truncated
+    && !sources.readErrors.length && !sources.liveErrors.length && !sources.items.some(item=>item.readError)
+    && departuresComplete;
+}
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
 const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4,warmup:3};
@@ -130,22 +142,32 @@ export function parseDepartures(raw:unknown):Departure[]{
   });
 }
 
-export async function readDepartures(signal:AbortSignal,assetId?:string):Promise<Departure[]>{
+export async function readDepartureStatus(signal:AbortSignal,assetId?:string):Promise<{items:Departure[];complete:boolean}>{
   const query=assetId?"?"+new URLSearchParams({asset_id:assetId}):"";
   const response=await fetch("/api/v1/explore/attention"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
     throw new Error("기준 구간 이탈을 확인하지 못했습니다.");
   }
-  return parseDepartures(await response.json() as unknown);
+  const raw = await response.json() as unknown;
+  const items = parseDepartures(raw), root = object(raw)!;
+  return {items, complete: root.truncated !== true && items.length === (root.items as unknown[]).length};
+}
+export async function readDepartures(signal:AbortSignal,assetId?:string):Promise<Departure[]>{
+  return (await readDepartureStatus(signal,assetId)).items;
 }
 
 /** Every asset's notes, read once from what 관측 현황 polls, so the asset list and an asset's
  * summary count the same items. A part that cannot be read is left out, not guessed. */
-export async function readAttention(signal:AbortSignal):Promise<AssetAttention[]>{
+export async function readAttention(signal:AbortSignal):Promise<{
+  groups:AssetAttention[];counts:Record<string,number>;state:"ready"|"partial";
+}>{
   const [phm,sources,departures]=await Promise.all([readPhmMonitor(signal),
-    readSources(signal).catch(()=>null),readDepartures(signal).catch(()=>[])]);
-  return attentionByAsset(phm.models,sources?.items??null,departures);
+    readSources(signal).catch(()=>null),readDepartureStatus(signal).catch(()=>null)]);
+  const groups = attentionByAsset(phm.models,sources?.items??null,departures?.items??[]);
+  return {groups, counts:Object.fromEntries([...phm.models.map(item=>[item.assetId,0]),
+    ...groups.map(group=>[group.assetId,group.notes.length])]),
+    state:attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial"};
 }
 
 /** The signal a screen opens on when none is chosen: the one this asset's baseline check flagged,

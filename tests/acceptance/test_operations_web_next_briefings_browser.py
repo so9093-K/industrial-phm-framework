@@ -106,6 +106,7 @@ def test_briefing_version_and_supervisor_write_contract(
                 versions = {"data": "a" * 64, "prior": 0.05}
                 writable = {"yes": True}
                 requested = {"yes": False}
+                pending = {"yes": False}
 
                 def outlook(route):
                     query = parse_qs(urlsplit(route.request.url).query)
@@ -203,6 +204,19 @@ def test_briefing_version_and_supervisor_write_contract(
                                 },
                             }
                         ]
+                    if pending["yes"]:
+                        response["briefings"].insert(
+                            0,
+                            {
+                                "id": "briefing-b",
+                                "question": "종료 기준까지는 얼마나 남았나요?",
+                                "model": "local",
+                                "status": "pending",
+                                "requested_at": "2026-10-16T00:03:00Z",
+                                "finished_at": None,
+                                "answer": None,
+                            },
+                        )
                     route.fulfill(
                         status=200,
                         content_type="application/json",
@@ -266,6 +280,21 @@ def test_briefing_version_and_supervisor_write_contract(
                 pw.expect(page.get_by_text("저장된 측정과 비교 결과")).to_be_hidden()
                 ai.get_by_text("해설에 쓴 계산 사실").click()
                 pw.expect(page.get_by_text("저장된 측정과 비교 결과")).to_be_visible()
+                pw.expect(ai).to_contain_text("마지막 기록 2026. 10. 16. 오전 9:00:00 (KST)")
+                pw.expect(ai).to_contain_text("질문 · 이 측정이 어떻게 변했나요?")
+                # An earlier completed answer is not the answer to the pending question.
+                pending["yes"] = True
+                ai.get_by_role("button", name="해설 다시 확인").click()
+                pw.expect(ai).to_contain_text(
+                    "새 질문의 해설을 만들고 있습니다. 아래는 앞서 완료한 해설입니다."
+                )
+                pw.expect(ai.locator("p.summary")).to_have_text("저장된 근거를 설명합니다.")
+                pending["yes"] = False
+                ai.get_by_role("button", name="해설 다시 확인").click()
+                pw.expect(
+                    ai.get_by_text("새 질문의 해설을 만들고 있습니다.", exact=False)
+                ).to_have_count(0)
+                pw.expect(ai.locator("p.summary")).to_be_visible()
 
                 # A new anomaly input can change data_version without moving
                 # the recorded measurement version or last sample timestamp.

@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
+
+test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
+  const origin="http://127.0.0.1:2770";
+  const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m";
+  const next=tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=pump",current);
+  assert.equal(new URL(next,origin).searchParams.get("monitor_channel"),"temperature");
+  assert.equal(new URL(next,origin).searchParams.has("monitor_range"),false);
+  assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=other",current),origin).searchParams.has("monitor_channel"),false);
+  const wave=origin+"/web/?page=assets&tab=signals&monitor_asset=bearing&vibration_feature=vertical.rms";
+  assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",wave),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
+  const summary=tabSelectionUrl("/web/?page=assets&monitor_asset=bearing",wave);
+  assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",origin+summary),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
+});
 
 test("pages and asset tabs are user tasks; unknown values are not invented", () => {
   assert.deepEqual(parseRoute("?page=unknown&tab=nope&monitor_asset=pump%2F1").route,

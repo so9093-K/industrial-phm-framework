@@ -1,5 +1,6 @@
 <script lang="ts">
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
+  import {attentionText, type AttentionState} from "../monitor-attention";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -8,8 +9,9 @@
     notes?: Record<string, number>;
     /** On 관측 현황 the reasons are on the same page, above the list. */
     reasons?: boolean;
+    notesState?: AttentionState;
   };
-  let {assets, observed, href, notes = {}, reasons = false}: Props = $props();
+  let {assets, observed, href, notes = {}, reasons = false, notesState = "ready"}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
   // Assets with something to check come first; the server order is kept otherwise.
@@ -18,8 +20,7 @@
     .sort((a, b) => (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
   function attention(count: number | null): string {
-    if (count === null) return "확인할 항목 미확인";
-    return count ? "확인할 항목 " + count + "건" : "확인할 항목 없음";
+    return "확인할 항목 " + attentionText(count, notesState);
   }
 </script>
 

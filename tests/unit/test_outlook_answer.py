@@ -95,6 +95,30 @@ def _outlook() -> dict[str, Any]:
 PROVIDER = ExplanationProvider()
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "현재 설비의 상태는 기준 구간 중앙값 대비 크게 증가했습니다.",
+        "지금 설비는 기준 구간에서 크게 벗어났습니다.",
+        "현재 장비의 측정값은 크게 증가했습니다.",
+    ],
+)
+def test_recorded_outlook_cannot_claim_the_equipment_state_now(text: str) -> None:
+    assert any("마지막 기록 시점" in issue for issue in outlook_answer.text_issues(text, {}))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "마지막 기록 시점의 측정값은 기준 구간 중앙값 대비 크게 증가했습니다.",
+        "현재 설정에서 도달하지 않습니다.",
+        "현재 설비의 상태를 뜻하지 않습니다.",
+    ],
+)
+def test_record_anchor_and_current_configuration_remain_valid(text: str) -> None:
+    assert not outlook_answer.text_issues(text, {})
+
+
 @pytest.mark.parametrize("direction,edge", [("upper", "상단"), ("lower", "하단")])
 def test_possible_and_beyond_do_not_become_definite_no_reach(direction: str, edge: str) -> None:
     outlook = _outlook()

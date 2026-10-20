@@ -44,8 +44,10 @@ _INSTRUCTIONS = (
     "한 문장, evidence는 그 문장이 기대는 facts의 키입니다. 규칙: 숫자와 시점은 facts에 쓰인 "
     "표기를 그대로 옮기고, 새로 계산하거나 반올림하거나 단위를 바꾸지 마세요. "
     "시간 환산 조건을 함께 밝히고, 측정 횟수와 기록 번호·파형 샘플 수를 혼동하지 마세요. "
-    "기준 도달은 "
-    "예측이므로 '56분 후 도달할 것으로 계산됩니다'처럼 미래로 쓰고, '도달했습니다'는 "
+    "설명은 마지막 기록 시점의 상태와 전망입니다. 기록이 지금 수집됐다고 가정하거나 "
+    "'현재 설비의 상태'라고 쓰지 마세요. 첫 문장에서 마지막 기록이 기준임을 밝히세요. "
+    "기준 도달은 마지막 기록 이후의 예측이므로 '마지막 기록에서 56분 후 도달할 것으로 "
+    "계산했습니다'처럼 기준을 밝히고, '도달했습니다'는 "
     "마지막 측정이 이미 넘은 경우에만 쓰세요. 'possible'인 경우는 예측 범위 상단 또는 하단에서만 "
     "도달 가능하다고 표현하고 중심 예측의 도달과 구별하세요. "
     "'잔여수명'과 '수명'은 반드시 '종료 기준 "
@@ -66,6 +68,9 @@ _FAULT = re.compile(r"고장")
 _STATUS = re.compile(r"위험|심각|안전(?:합니다|한|하다)|양호|임박|시급|긴급")
 # A forecast reach written as if it already happened.
 _PAST_REACH = re.compile(r"(?:뒤|후)\s*(?:에\s*)?(?:이미\s*)?도달했")
+_PRESENT_STATE = re.compile(
+    r"(?:현재|지금)\s*(?:이\s*)?(?:설비|장비|기계)(?:의)?\s*(?:상태|측정값|는|은|이|가)"
+)
 _NEGATION = re.compile(r"아닙니다|아니며|아니고|않습니다|없습니다")
 _LIFE = re.compile(r"수명")
 _MARKUP = re.compile(r"[$*`]|(?:^|\n)\s*(?:#+|-|\d+\.)\s")
@@ -220,6 +225,10 @@ def text_issues(
             issues.append(f"'{token}'은 facts에 없는 숫자입니다. facts의 표기를 그대로 쓰세요.")
     issues += [f"'{phrase}'처럼 상태를 판정하지 마세요." for phrase in verdict_phrases(text)]
     for sentence in sentences(text):
+        if _PRESENT_STATE.search(sentence) and not _NEGATION.search(sentence):
+            issues.append(
+                "지금 설비 상태로 단정하지 말고 마지막 기록 시점의 상태로 설명하세요: " + sentence
+            )
         if _CAUSE.search(sentence) and not _NEGATION.search(sentence):
             issues.append("고장 원인이나 부품 상태를 추정하지 마세요: " + sentence)
         if _ORDER.search(sentence):

@@ -12,6 +12,65 @@ from tests.support.web_next import asset_list, start_web, stop_web
 
 
 @pytest.mark.parametrize("width", [390, 1280])
+@pytest.mark.parametrize("view", ["monitor", "assets", "summary"])
+def test_unread_attention_never_becomes_no_items_and_can_recover(
+    tmp_path: Path, width: int, view: str
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "partial-attention")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    analyze(workspace)
+    server, thread = start_web(workspace.root.resolve(), writer=False)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        status=200, content_type="application/json", body=asset_list("bearing-a")
+                    ),
+                )
+                failed = {"yes": True}
+
+                def attention(route):
+                    if failed["yes"]:
+                        route.fulfill(status=503, json={"error": "unavailable"})
+                    else:
+                        route.continue_()
+
+                page.route("**/api/v1/explore/attention**", attention)
+                address = "/web/" if view == "monitor" else "/web/?page=assets"
+                if view == "summary":
+                    address += "&monitor_asset=bearing-a"
+                page.goto(f"http://127.0.0.1:{server.server_port}{address}")
+                if view == "summary":
+                    counter = (
+                        page.locator(".facts div")
+                        .filter(has=page.locator("dt", has_text="확인할 항목"))
+                        .locator("dd")
+                    )
+                else:
+                    counter = page.locator("a.row")
+                pw.expect(counter).to_contain_text("일부 미확인")
+                assert "확인할 항목 없음" not in counter.inner_text()
+                assert page.get_by_text("지금 확인할 항목이 없습니다.", exact=True).count() == 0
+                failed["yes"] = False
+                if view == "monitor":
+                    page.reload()
+                else:
+                    page.get_by_role("button", name="확인 항목 다시 읽기").click()
+                pw.expect(counter).to_contain_text("없음")
+                pw.expect(counter).not_to_contain_text("미확인")
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
 def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "ws")

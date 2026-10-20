@@ -71,3 +71,14 @@ test("the offsets offered for wall times start with Korea and add this computer'
   assert.deepEqual(offsetChoices(-330).at(-1),{value:"+05:30",label:"이 컴퓨터의 시간대 (UTC+05:30)"});
   assert.equal(offsetChoices(300).at(-1)!.value,"-05:00");
 });
+
+test("mixed written offsets and local timestamps share the same preview and storage clock", () => {
+  const table=inspectCsv(parseCsv("timestamp,value\n2026-10-15 09:00:00,1\n2026-10-15T09:01:00+09:00,2\n2026-10-15 09:10:00,3\n"));
+  const time=readTimes(table,0,"+09:00");
+  assert.equal(time.firstBackwards,null);
+  assert.deepEqual(previewProblems(table,0,["value"],"+09:00"),[]);
+  assert.deepEqual(time.points.map(point=>new Date(point.at).toISOString()),
+    ["2026-10-15T00:00:00.000Z","2026-10-15T00:01:00.000Z","2026-10-15T00:10:00.000Z"]);
+  assert.equal(intervals(time)!.longestAfter,Date.parse("2026-10-15T00:01:00Z"));
+  assert.equal(readTimes(table,0,"+00:00").points[1].at,time.points[1].at);
+});

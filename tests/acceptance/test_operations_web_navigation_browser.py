@@ -43,6 +43,16 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
                         else page.get_by_text("모델 결과를 읽지 못했습니다", exact=False)
                     ).to_be_visible()
                     assert page.get_by_role("group", name="측정 순서 #70 모델 결과").count() == 0
+                page.goto(base + "/web/?page=assets&tab=signals&monitor_asset=bearing-a")
+                feature = page.get_by_label("진동 특징", exact=False)
+                pw.expect(feature).to_be_visible()
+                feature.select_option("feature.Vertical_vibration_signals.rms")
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="상태 요약", exact=True).click()
+                tabs.get_by_role("link", name="상태 전망", exact=True).click()
+                pw.expect(page.get_by_label("진동 특징", exact=False)).to_have_value(
+                    "feature.Vertical_vibration_signals.rms"
+                )
                 page.goto(base + "/web/#connect")
                 pw.expect(page.get_by_role("heading", name="CSV 파일로 시작")).to_be_visible()
                 assert "section=connections" in page.url

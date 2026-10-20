@@ -13,7 +13,7 @@ export type CsvColumn={
   firstMissing:number|null;firstInvalid:number|null;firstNonIso:number|null;
 };
 export type CsvTable={header:string[];rows:string[][];columns:CsvColumn[];problems:string[];times:CsvColumn[];sampleCount:number};
-export type TimeReading={points:{at:number;row:string[]}[];naive:boolean;firstBackwards:number|null;firstInvalidDate:number|null};
+export type TimeReading={points:{at:number;row:string[]}[];naive:boolean;resolved?:boolean;firstBackwards:number|null;firstInvalidDate:number|null};
 export type ColumnSummary={count:number;missing:number;min:number|null;median:number|null;max:number|null;mean:number|null};
 export type IntervalSummary={usualSeconds:number;uneven:number;longestSeconds:number;longestAfter:number|null};
 export type PreviewPoint={at:number;mean:number;min:number;max:number};
@@ -72,7 +72,7 @@ export function inspectCsv(rows:string[][]):CsvTable{
   return {header,rows:data,columns,problems,times,sampleCount};
 }
 
-export function readTimes(table:CsvTable,columnIndex:number):TimeReading{
+export function readTimes(table:CsvTable,columnIndex:number,utcOffset:string|null=null):TimeReading{
   const points:{at:number;row:string[]}[]=[];
   let previous:number|null=null,firstBackwards:number|null=null,firstInvalidDate:number|null=null,naive=false;
   table.rows.forEach((row,offset)=>{
@@ -80,15 +80,17 @@ export function readTimes(table:CsvTable,columnIndex:number):TimeReading{
     const text=row[columnIndex].trim(),match=ISO.exec(text);
     if(!match)return;
     if(!match[1])naive=true;
-    // Without an offset the wall time is placed on UTC only to order and space the preview.
-    const at=Date.parse(match[1]?text.replace(" ","T"):text.replace(" ","T")+"Z");
+    // The chosen offset applies only to wall times; written offsets keep their own instant.
+    const normalized=text.replace(" ","T");
+    const at=Date.parse(match[1]?normalized:text.length===10
+      ?normalized+"T00:00:00"+(utcOffset??"Z"):normalized+(utcOffset??"Z"));
     const day=Date.parse(text.slice(0,10)+"T00:00:00Z");
     if(!Number.isFinite(at)||!Number.isFinite(day)||new Date(day).toISOString().slice(0,10)!==text.slice(0,10)
       ||Number(text.slice(11,13))>23){firstInvalidDate??=offset+2;return;}
     if(previous!==null&&!(at>previous))firstBackwards??=offset+2;
     previous=at;points.push({at,row});
   });
-  return {points,naive,firstBackwards,firstInvalidDate};
+  return {points,naive,resolved:!naive||utcOffset!==null,firstBackwards,firstInvalidDate};
 }
 
 /** The offsets offered for wall times written without one: Korea first, then UTC and this
@@ -106,7 +108,7 @@ export function previewProblems(table:CsvTable,timeIndex:number,channels:string[
   const list=[...table.problems];
   if(timeIndex<0)list.push("시각 열을 찾지 못했습니다. 예: 2026-10-11T09:00:00+09:00 형식의 시각이 있어야 저장할 수 있습니다.");
   else{
-    const timing=readTimes(table,timeIndex);
+    const timing=readTimes(table,timeIndex,offset);
     const column=table.columns.find(c=>c.index===timeIndex)!;
     if(timing.naive&&!offset)list.push("시각에 시간대(+09:00, Z 등)가 없습니다. 어느 시간대의 시각인지 고르세요.");
     if(column.missing)list.push(column.firstMissing+"행의 시각이 비어 있습니다 (빈 시각 "+column.missing+"개).");
@@ -163,7 +165,7 @@ export function intervals(timing:TimeReading):IntervalSummary|null{
   let longest=0;
   for(let i=1;i<gaps.length;i++)if(gaps[i]>gaps[longest])longest=i;
   return {usualSeconds:usual,uneven,longestSeconds:gaps[longest],
-    longestAfter:gaps[longest]>usual*1.5&&!timing.naive?timing.points[longest].at:null};
+    longestAfter:gaps[longest]>usual*1.5&&(!timing.naive||timing.resolved)?timing.points[longest].at:null};
 }
 
 /** Mean, minimum and maximum per equal time slice; never spreads a large file into arguments. */

@@ -71,7 +71,7 @@
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
   const problems = $derived(table ? previewProblems(table, timeIndex, channels, offset) : []);
-  const timing = $derived(table && timeIndex >= 0 ? readTimes(table, timeIndex) : null);
+  const timing = $derived(table && timeIndex >= 0 ? readTimes(table, timeIndex, offset) : null);
   const gaps = $derived(timing ? intervals(timing) : null);
   const points = $derived(table && timing && chartChannel ? previewPoints(table, timing, chartChannel) : []);
   const checked = $derived.by((): boolean => {
@@ -366,7 +366,9 @@
         {@const low = Math.min(...points.map((p) => p.min))}
         {@const high = Math.max(...points.map((p) => p.max))}
         {@const y = (v: number) => 110 - (high === low ? 0.5 : (v - low) / (high - low)) * 92}
-        {@const x = (i: number) => 66 + i * (562 / Math.max(1, points.length - 1))}
+        {@const start = timing!.points[0].at}
+        {@const end = timing!.points.at(-1)!.at}
+        {@const x = (at: number) => 66 + ((at - start) / Math.max(1, end - start)) * 562}
         {@const unit = labels[chartChannel]?.unit.trim() || null}
         <svg viewBox="0 0 650 130" role="img" aria-label={shown(chartChannel) + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
           {#each high === low ? [] : yTicks(low, high, 18, 110, 3) as tick (tick.value)}
@@ -374,11 +376,12 @@
             <text x="56" y={tick.y + 3.5} text-anchor="end" class="tick">{measure(tick.value, unit)}</text>
           {/each}
           <path d="M62 12 V114 H632" class="axis" />
-          {#each points as point, i (point.at)}
-            <line x1={x(i)} x2={x(i)} y1={y(point.min)} y2={y(point.max)} class="range" />
-            <circle cx={x(i)} cy={y(point.mean)} r="3" class="dot"><title>평균 {num(point.mean)} · 최소 {num(point.min)} · 최대 {num(point.max)}</title></circle>
+          {#each points as point (point.at)}
+            <line x1={x(point.at)} x2={x(point.at)} y1={y(point.min)} y2={y(point.max)} class="range" />
+            <circle cx={x(point.at)} cy={y(point.mean)} r="3" class="dot"><title>{clock(new Date(point.at).toISOString())} · 평균 {num(point.mean)} · 최소 {num(point.min)} · 최대 {num(point.max)}</title></circle>
           {/each}
         </svg>
+        <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
     </section>
