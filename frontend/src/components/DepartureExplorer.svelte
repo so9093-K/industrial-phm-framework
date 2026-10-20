@@ -180,7 +180,7 @@
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
                 <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
                   · 기준 중앙값 {num(interval.median)} → 가장 많이 벗어난 시점 {num(interval.value)}
-                  {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? "(단위 미확인)"}
+                  {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? ""}
                   · 기준 변동 폭의 {num(Number(interval.distance.toFixed(1)))}배</span>
               </li>
             {/each}

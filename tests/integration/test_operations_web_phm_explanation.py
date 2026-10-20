@@ -23,7 +23,7 @@ def test_explanation_and_review_lifecycle_are_readable_without_touching_model_ou
 ) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
-        deliver(workspace, tmp_path / "waves", ordinal, scale)
+        deliver(workspace, tmp_path / "waves", ordinal, scale, amplitude_unit="g")
     analyze(workspace)
     model = ScriptedModel(
         {
@@ -72,6 +72,12 @@ def test_explanation_and_review_lifecycle_are_readable_without_touching_model_ou
             {"feature": "feature.Horizontal_vibration_signals.rms", "relation": "increased"}
         ]
         assert record["text"].startswith(record["answer"]["summary"])
+        # The table the screen draws is the stored comparison; its amplitude features read in g.
+        units = {
+            row["feature"].rsplit(".", 1)[-1]: row.get("unit")
+            for row in record["context"]["signal_comparison"]["features"]
+        }
+        assert units["rms"] == "g" and None in units.values(), units
         sent = json.loads(model.requests[0][1]["content"])
         assert sent["primary"]["name"] == "이상 점수" and sent["question"]
         assert "owner" not in record and str(tmp_path) not in json.dumps(body)

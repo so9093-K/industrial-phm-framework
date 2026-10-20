@@ -25,7 +25,7 @@
     message = action === "status" ? "예시 상태를 확인하고 있습니다." : action === "start" ? "예시를 시작하고 있습니다." : "예시를 종료하고 있습니다.";
     try {
       sample = await sampleCommand(action, new AbortController().signal);
-      message = sample.state === "running" ? "예시가 별도 작업공간에서 실행 중입니다." : "예시가 실행 중이지 않습니다. 이 작업공간은 바뀌지 않았습니다.";
+      message = sample.state === "running" ? "예시가 별도 작업공간에서 실행 중입니다." : "예시가 실행 중이지 않습니다.";
     } catch (cause: unknown) {
       uncertain = true;
       message = cause instanceof OutcomeUnknown ? "결과를 확인하지 못했습니다. 다시 시작·종료하지 말고 상태만 다시 확인하세요." : explainWrite(cause);

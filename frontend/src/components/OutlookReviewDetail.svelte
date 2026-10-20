@@ -5,6 +5,7 @@
     reobservationUrl, CompareUnavailable, type Capture, type Reobservation, type SourceRecheck,
   } from "../outlook-captures";
   import {reachText} from "../reach";
+  import {seriesName} from "../series-names";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
   import ReviewActions from "./ReviewActions.svelte";
@@ -13,6 +14,12 @@
   type Props = {capture: Capture; writable: boolean; onUpdated: (capture: Capture) => void};
   let {capture, writable, onUpdated}: Props = $props();
   const saved = $derived(capture.outlook);
+  let shownSeries = $state("");
+  $effect(() => {
+    const {assetId, kind, series} = saved;
+    shownSeries = series;
+    void seriesName(assetId, kind, series).then((name) => { if (saved.series === series) shownSeries = name; });
+  });
   const axis = $derived(saved.kind === "acquisition" ? "acquisition" as const : "time" as const);
   const status = $derived(capture.review.status);
   const main = $derived(saved.scenarios.find((item) => item.id === "current") ?? saved.scenarios[0]);
@@ -68,7 +75,7 @@
 
 <article class="detail" data-capture-id={capture.id} aria-labelledby={"capture-" + capture.id}>
   <div class="head">
-    <h2 id={"capture-" + capture.id} tabindex="-1" bind:this={heading}>{saved.assetId} · {saved.series} 전망</h2>
+    <h2 id={"capture-" + capture.id} tabindex="-1" bind:this={heading}>{saved.assetId} · {shownSeries} 전망</h2>
     <span class="badge">{STATUS[status]}</span>
   </div>
   <p class="context">{clock(capture.capturedAt)} 요청 · {positionText(saved.record.last)}까지의 데이터

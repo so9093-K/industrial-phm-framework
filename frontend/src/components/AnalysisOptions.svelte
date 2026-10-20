@@ -62,7 +62,6 @@
       <p class="refused"><strong>지금 할 수 없는 분석</strong>
         {#each refused as item (item.id)}<span>{NAME[item.id]} — {fact(item, capabilities)}</span>{/each}</p>
     {/if}
-    <p class="context">저장된 데이터가 어떤 분석을 지원하는지이며, 설비 상태를 뜻하지 않습니다.</p>
   {/if}
 </section>
 

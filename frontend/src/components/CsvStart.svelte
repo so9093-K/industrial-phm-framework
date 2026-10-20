@@ -1,8 +1,8 @@
 <script lang="ts">
   import {tick} from "svelte";
   import {
-    analyzeFile, declaredRoles, emptyRoles, explainWrite, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
-    setLifecycle, startHistory, waitForHistory, ANALYSIS_MAX_BYTES, HistoryFailed, type CsvSetup, type Preflight,
+    declaredRoles, emptyRoles, explainWrite, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
+    setLifecycle, startHistory, waitForHistory, HistoryFailed, type CsvSetup, type Preflight,
   } from "../connections";
   import {
     channelChoices, inspectCsv, intervals, offsetChoices, parseCsv, unitExample, previewPoints, previewProblems, readTimes, summarize,
@@ -65,8 +65,6 @@
   let saveMessage = $state("");
   let saveFailed = $state(false);
   let stored: {eventCount: number} | null = $state(null);
-  let analysis = $state("");
-  let analyzing = $state(false);
   let fileInput: HTMLInputElement | null = $state(null);
   let doneHeading: HTMLElement | null = $state(null);
 
@@ -98,7 +96,7 @@
     const token = ++fileChoice;
     const chosen = fileInput?.files?.[0] ?? null;
     fileDigest = "";
-    file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; analysis = ""; roles = emptyRoles();
+    file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; roles = emptyRoles();
     fileProblem = false; changed();
     if (!chosen) { fileMessage = "아직 파일을 고르지 않았습니다."; return; }
     if (!/\.csv$/i.test(chosen.name) || !chosen.size) { fileProblem = true; fileMessage = "비어 있지 않은 .csv 파일을 고르세요."; return; }
@@ -232,7 +230,7 @@
       const values = progress.setup;
       if (!progress.done.register) {
         setStep(step, "running"); await registerUpload(values, current, signal);
-        progress.done.register = true; setStep(step, "done", "연결 " + values.source_id);
+        progress.done.register = true; setStep(step, "done", "연결 " + values.name);
       }
       step = "activate";
       if (!progress.done.activate) {
@@ -269,19 +267,6 @@
     }
   }
 
-  async function analyze() {
-    if (!progress || analyzing) return;
-    analyzing = true; analysis = "신호 통계를 분석하고 있습니다.";
-    try {
-      await analyzeFile(progress.setup.source_id, new AbortController().signal);
-      analysis = "신호 통계 분석을 저장했습니다.";
-    } catch (cause: unknown) {
-      analysis = explainWrite(cause);
-    } finally {
-      analyzing = false;
-      await onSaved();
-    }
-  }
 
   async function restart() {
     if (fileInput) fileInput.value = "";
@@ -437,7 +422,7 @@
       <ol class="steps">
         {#each STEPS as item (item.id)}
           <li data-state={steps[item.id].state}><strong>{item.title}</strong><span>{item.text}</span>
-            <em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em></li>
+            {#if progress || steps[item.id].state !== "pending"}<em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em>{/if}</li>
         {/each}
       </ol>
       {#if !stored}
@@ -460,12 +445,6 @@
           {/if}
         </p>
         <AnalysisOptions assetId={progress.setup.asset_id} level={4} />
-        {#if file && file.size > ANALYSIS_MAX_BYTES}
-          <p class="context">신호 통계 분석은 1MiB 이하 CSV에서만 할 수 있습니다. 저장된 전체 신호는 신호 탭에서 볼 수 있습니다.</p>
-        {:else}
-          <button type="button" class="ui-button" disabled={analyzing} onclick={() => void analyze()}>신호 통계 분석</button>
-          {#if analysis}<p class="message" role="status">{analysis}</p>{/if}
-        {/if}
         <button type="button" class="ui-button" onclick={() => void restart()}>다른 파일로 시작</button>
       </section>
     {/if}

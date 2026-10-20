@@ -46,9 +46,6 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 )
                 pw.expect(listed).to_contain_text("확인할 항목 1건")
                 asset_panel = page.get_by_role("region", name="설비 1개")
-                pw.expect(asset_panel).to_contain_text(
-                    "건수는 확인할 작업량이며 고장 위험도나 정비 우선순위는 아닙니다"
-                )
                 reason = asset_panel.get_by_role(
                     "link", name="이 설비의 확인 사유와 다음 행동 보기"
                 )

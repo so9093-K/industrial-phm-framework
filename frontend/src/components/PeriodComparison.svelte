@@ -201,12 +201,12 @@
       <p class="context">기간 A {showTime(result.periods.a.from)} ~ {showTime(result.periods.a.to)}
         · 기간 B {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
       {#each result.series as row (row.key)}
+        {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)} · {sourceLabel(sources_, row.source)}</h3>
-          <p class="context">데이터 출처 {sourceLabel(sources_, row.source)} · 측정 위치 {row.point ?? "미확인"}
-            · 단위 {row.unit ?? "미확인"}</p>
+          <p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
           {#if row.medianChange !== null}
-            <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)} {row.unit ?? "(단위 미확인)"}</strong>
+            <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
               {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
             </p>
           {:else}

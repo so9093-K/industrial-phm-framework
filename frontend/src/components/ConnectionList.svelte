@@ -88,7 +88,7 @@
 
 <section class="ui-panel" aria-labelledby="connections-title">
   <h2 id="connections-title">등록한 연결</h2>
-  <p class="context">등록한 데이터 출처와 마지막으로 받은 시각입니다. 등록됐다고 데이터를 받은 것은 아닙니다.</p>
+  <p class="context">등록한 데이터 출처와 마지막으로 받은 시각입니다.</p>
   {#if !writable}
     <p class="context">보기 전용이라 연결 상태를 바꾸거나 분석을 실행할 수 없습니다. 운영을 시작하면 할 수 있습니다.</p>
   {/if}
@@ -120,9 +120,6 @@
               {source.pointId ? " · 측정 위치 " + source.pointId : ""} · {source.lifecycle ? LIFECYCLE[source.lifecycle] ?? source.lifecycle : "관리 상태 미확인"}</p>
             <p>마지막 수신 {clock(source.live ? source.live.receivedAt : source.lastAcceptedAt)}
               {#if source.lastObservedAt} · 원래 측정 시각 {clock(source.lastObservedAt)}{/if}</p>
-            {#if source.type === "file" && source.lastObservedAt}
-              <p class="context">파일을 읽은 시각과 원래 측정한 시각은 다를 수 있습니다. 과거 측정 기록이 지금 설비 상태를 뜻하지는 않습니다.</p>
-            {/if}
             {#if source.job}
               <p class="context">{JOB[source.job.state] ?? source.job.state}{source.job.eventCount !== null ? " · 측정값 " + source.job.eventCount.toLocaleString("ko-KR") + "개" : ""}</p>
             {/if}
