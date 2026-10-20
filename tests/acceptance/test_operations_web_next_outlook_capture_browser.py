@@ -164,8 +164,9 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 pw.expect(
                     queue.get_by_role("link").filter(has_text="검토 요청한 전망")
                 ).to_have_count(1, timeout=30000)
+                # The saved review keeps the feature ID; people read the feature's name.
                 pw.expect(detail.get_by_role("heading", level=2)).to_have_text(
-                    f"bearing-a · {FEATURE} 전망"
+                    "bearing-a · 수평 진동 RMS 전망"
                 )
                 pw.expect(detail).to_contain_text("추가 측정 4회 후 닿음")
                 pw.expect(detail).to_contain_text("원본 데이터: 요청 때와 같음")
