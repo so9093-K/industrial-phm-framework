@@ -55,7 +55,7 @@ HTML 파일을 더블클릭하는 `file://` 실행은 지원하지 않습니다.
   RUL 표시는 사용자 지정 종료 기준까지의 조건부 전망이며, 고장 시각·검증된 잔여수명·고장 확률이 아닙니다.
   별도 학습 RUL 모델은 복원하지 않습니다([ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md)).
 - 이 체험의 이상 탐지 단계는 모델이 없는 설비에 쓰는 기준 구간 이탈입니다. 학습 모델(Isolation Forest·LSTM 오토인코더)의
-  점수·모델 간 비교·AI 해설은 실제 기록으로 실행하는 `industrial-phm demo xjtu`에서 봅니다([README](../../README.md#이상-탐지에서-rul까지)).
+  점수·모델 간 비교·AI 해설은 실제 기록으로 실행하는 `industrial-phm demo xjtu`에서 봅니다([README](../../README.md#이상-탐지와-rul)).
 
 `manifest.json`은 입력 SHA-256, 실제 분석/검토 ID, 생성 코드 해시와 생성 시 기준 커밋을 기록합니다.
 개발 중 생성할 수 있으므로 기준 커밋만으로 미커밋 코드를 식별했다고 주장하지 않습니다.

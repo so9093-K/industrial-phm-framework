@@ -11,7 +11,7 @@
 실행·저장 책임은 [아키텍처](../docs/architecture/overview.md), 기능별 지원 조건은
 [현재 지원 상태](../docs/status.md)가 기준입니다. 입력·저장·분석 경계가 바뀌면 대표 구성도와 설명을 함께 갱신합니다.
 
-## 이상 탐지에서 RUL까지 (XJTU-SY 기록)
+## 이상 탐지와 RUL (XJTU-SY 기록)
 
 README의 대표 화면입니다. `industrial-phm demo xjtu --until 100`과 같은 구성(두 모델을 fold-1 학습 베어링으로 맞추고
 학습에 쓰지 않은 Bearing1_1의 측정 #1–#100을 재생)의 작업공간에서 실행 중인 Web을 ko-KR Chromium, 1440×1000으로 촬영했습니다.

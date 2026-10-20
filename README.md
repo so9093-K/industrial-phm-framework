@@ -6,9 +6,9 @@ CSV 파일·OPC UA 수신 데이터·베어링 진동 기록을 설비별 웹 �
 원본으로 확인하고, AI에게 무엇이 변했는지 묻고, 사용자가 정한 기준까지 남은 시간을 계산해 검토 기록으로 남기는
 Python 기반 PHM(Prognostics and Health Management) 애플리케이션입니다.
 
-[이상 탐지에서 RUL까지](#이상-탐지에서-rul까지) · [설치 없이 둘러보기](#설치-없이-둘러보기) · [빠른 시작](#빠른-시작) · [데이터 연결](#데이터-연결) · [사용법](apps/README.md) · [지원 범위](docs/status.md)
+[이상 탐지와 RUL](#이상-탐지와-rul) · [설치 없는 체험](#설치-없는-체험) · [빠른 시작](#빠른-시작) · [데이터 연결](#데이터-연결) · [사용법](apps/README.md) · [지원 범위](docs/status.md)
 
-## 이상 탐지에서 RUL까지
+## 이상 탐지와 RUL
 
 XJTU-SY 베어링 수명 시험 기록 중 모델 학습에 쓰지 않은 Bearing1_1을 측정 #100까지 재생한 화면입니다.
 
@@ -64,7 +64,7 @@ uv run industrial-phm operations phm replay-xjtu artifacts/demo-xjtu \
 XJTU-SY 원본은 이 저장소에서 재배포하지 않습니다(Wang et al., IEEE Trans. Reliability, 2020,
 [doi:10.1109/TR.2018.2882682](https://doi.org/10.1109/TR.2018.2882682)).
 
-## 설치 없이 둘러보기
+## 설치 없는 체험
 
 데이터셋·Python 없이 합성 펌프 기록으로 **관측 → 신호 → 기준 구간 이탈 → 두 기간 비교 → 추세 예측·RUL → 검토 기록**을 따라갑니다.
 학습 모델이 없는 설비에 쓰는 분석입니다. 기준 구간 이탈은 기준 구간의 중앙값과 변동 폭(MAD)으로 벗어난 시점을 찾습니다.
