@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,mergeSeries,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -51,7 +51,18 @@ test("a flagged measurement is compared with the last analyzed one before its in
   const intervals=[{start:34,end:38,steps:5,peak:2,open:false},{start:76,end:123,steps:48,peak:12,open:true}];
   const analyzed=[8,9,70,75,76,100,123];
   assert.equal(beforeInterval(intervals,analyzed,123),75);
-  assert.equal(beforeInterval(intervals,analyzed,76),null);
+  // The first flagged measurement is compared with the last one before it, as the rest are.
+  assert.equal(beforeInterval(intervals,analyzed,76),75);
+  assert.equal(beforeInterval(intervals,analyzed,34),9);
   assert.equal(beforeInterval(intervals,analyzed,50),null);
   assert.equal(beforeInterval(intervals,[],100),null);
+});
+
+test("every model on a stream can be chosen; the chosen one is always drawn",()=>{
+  const models=["a","b","c","d","e","f"].map(bindingId=>({bindingId}));
+  const drawn=(selected:string)=>overlayModels(models,selected,4).map(item=>item.bindingId);
+  assert.deepEqual(drawn("b"),["a","b","c","d"]);
+  assert.deepEqual(drawn("f"),["a","b","c","f"]);
+  assert.deepEqual(drawn("missing"),["a","b","c","d"]);
+  assert.deepEqual(overlayModels(models.slice(0,2),"b",4).map(item=>item.bindingId),["a","b"]);
 });

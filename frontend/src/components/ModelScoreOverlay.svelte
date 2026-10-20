@@ -1,19 +1,23 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import type {ModelBinding} from "../model-evidence";
-  import {readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
+  import {overlayModels, readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** The models of one measurement stream on one axis: each score divided by that model's own
-   * threshold, so whether the models agree, and since when, is one look. A row opens that model
-   * below; a point in the graph opens that measurement. */
+   * threshold, so whether the models agree, and since when, is one look. Every model has a row
+   * that opens it below; a point in the graph opens that measurement. */
   type Props = {bindings: ModelBinding[]; names: Map<string, string>; selected: string;
     place: (position: number) => string; onChoose: (bindingId: string) => void; onPick: (position: number) => void};
   let {bindings, names, selected, place, onChoose, onPick}: Props = $props();
-  // Fixed categorical order (validated for colour-vision deficiency); a model keeps its colour.
+  // Fixed categorical order (validated for colour-vision deficiency). Up to four lines share the
+  // graph and the chosen model is always one of them: the first three keep their colour, the
+  // fourth is the chosen model when it is further down the list.
   const COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"];
-  const shown = $derived(bindings.slice(0, COLORS.length));
-  let lines: (RatioLine | null)[] = $state([]);
+  const shown = $derived(overlayModels(bindings, selected, COLORS.length));
+  let lines: Map<string, RatioLine | null> = $state(new Map());
+  const line = (binding: ModelBinding) => lines.get(binding.bindingId) ?? null;
+  const colour = (binding: ModelBinding) => COLORS[shown.findIndex((item) => item.bindingId === binding.bindingId)] ?? null;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let hover: number | null = $state(null);
   // Drawn in real pixels so text stays readable on a phone; end labels only where there is room.
@@ -24,7 +28,7 @@
   const RIGHT = $derived(W - (labelled ? 124 : 12));
 
   const scale = $derived.by(() => {
-    const all = lines.flatMap((line) => line?.points ?? []);
+    const all = shown.flatMap((binding) => line(binding)?.points ?? []);
     const first = all.length ? Math.min(...all.map((p) => p.position)) : 0;
     const last = all.length ? Math.max(...all.map((p) => p.position)) : 1;
     const high = Math.max(1.25, ...all.map((p) => p.ratio));
@@ -34,10 +38,10 @@
       y: (ratio: number) => BOTTOM - (Math.max(0, ratio) / high) * (BOTTOM - TOP)};
   });
   // Consecutive positions are joined; a skipped or missing step leaves a gap.
-  function path(line: RatioLine): string {
+  function path(drawn: RatioLine): string {
     let d = "", previous: number | null = null;
     const index = new Map(scale.positions.map((at, i) => [at, i]));
-    for (const point of line.points) {
+    for (const point of drawn.points) {
       const joined = previous !== null && index.get(point.position)! - index.get(previous)! === 1;
       d += (joined ? "L" : "M") + scale.x(point.position).toFixed(1) + " " + scale.y(point.ratio).toFixed(1) + " ";
       previous = point.position;
@@ -46,23 +50,23 @@
   }
   // End labels in ink, nudged apart so two lines that end together stay readable.
   const ends = $derived.by(() => {
-    const rows = shown.flatMap((binding, i) => {
-      const latest = lines[i]?.latest;
+    const rows = shown.flatMap((binding) => {
+      const latest = line(binding)?.latest;
       return latest ? [{id: binding.bindingId, name: names.get(binding.bindingId) ?? "", y: scale.y(latest.ratio)}] : [];
     }).sort((a, b) => a.y - b.y);
     for (let i = 1; i < rows.length; i++) rows[i].y = Math.max(rows[i].y, rows[i - 1].y + 13);
     return rows;
   });
   const ratio = (value: number) => value.toLocaleString("ko-KR", {maximumFractionDigits: value < 10 ? 2 : 1});
-  function at(line: RatioLine | null, position: number) {
-    return line?.points.find((point) => point.position === position) ?? null;
+  function at(drawn: RatioLine | null, position: number) {
+    return drawn?.points.find((point) => point.position === position) ?? null;
   }
-  function summary(line: RatioLine | null): string {
-    if (!line) return "점수 기록을 읽지 못했습니다";
-    if (!line.points.length) return "기준과 함께 저장된 점수가 없습니다";
-    const parts = ["기준 초과 " + line.exceeded + "회 / 분석 " + line.analyzed + "회"];
-    if (line.sustainedFrom !== null) parts.push(place(line.sustainedFrom) + "부터 계속 초과");
-    if (line.latest) parts.push(place(line.latest.position) + "에서 기준의 " + ratio(line.latest.ratio) + "배");
+  function summary(read: RatioLine | null): string {
+    if (!read) return "점수 기록을 읽지 못했습니다";
+    if (!read.points.length) return "기준과 함께 저장된 점수가 없습니다";
+    const parts = ["기준 초과 " + read.exceeded + "회 / 분석 " + read.analyzed + "회"];
+    if (read.sustainedFrom !== null) parts.push(place(read.sustainedFrom) + "부터 계속 초과");
+    if (read.latest) parts.push(place(read.latest.position) + "에서 기준의 " + ratio(read.latest.ratio) + "배");
     return parts.join(" · ");
   }
   function locate(event: PointerEvent) {
@@ -86,11 +90,11 @@
   }
   onMount(() => {
     const request = new AbortController();
-    void Promise.all(shown.map((binding) => readScoreTrend(binding, request.signal)
+    void Promise.all(bindings.map((binding) => readScoreTrend(binding, request.signal)
       .then(thresholdRatios).catch(() => null))).then((values) => {
       if (request.signal.aborted) return;
-      lines = values;
-      loadState = values.some((line) => line?.points.length) ? "ready" : "failed";
+      lines = new Map(bindings.map((binding, i) => [binding.bindingId, values[i]]));
+      loadState = values.some((read) => read?.points.length) ? "ready" : "failed";
     });
     return () => request.abort();
   });
@@ -106,8 +110,8 @@
       <p class="readout" aria-live="polite">
         {#if hover !== null}
           <strong>{place(hover)}</strong>
-          {#each shown as binding, i (binding.bindingId)}
-            {@const point = at(lines[i], hover)}
+          {#each shown as binding (binding.bindingId)}
+            {@const point = at(line(binding), hover)}
             <span>{names.get(binding.bindingId)} {point ? "기준의 " + ratio(point.ratio) + "배" : "점수 없음"}</span>
           {/each}
         {:else}
@@ -127,16 +131,17 @@
         <text x={LEFT - 6} y={TOP + 4} text-anchor="end" class="label">{ratio(scale.high)}</text>
         <text x={LEFT - 6} y={BOTTOM + 4} text-anchor="end" class="label">0</text>
         <text x={LEFT + 4} y={scale.y(1) - 5} class="label">각 모델 기준</text>
-        {#each shown as binding, i (binding.bindingId)}
-          {#if lines[i]?.points.length}
-            <path d={path(lines[i]!)} class="line" class:chosen={binding.bindingId === selected} style={"stroke:" + COLORS[i]} />
+        {#each shown as binding (binding.bindingId)}
+          {@const drawn = line(binding)}
+          {#if drawn?.points.length}
+            <path d={path(drawn)} class="line" class:chosen={binding.bindingId === selected} style={"stroke:" + colour(binding)} />
           {/if}
         {/each}
         {#if hover !== null}
           <line x1={scale.x(hover)} x2={scale.x(hover)} y1={TOP} y2={BOTTOM} class="cross" />
-          {#each shown as binding, i (binding.bindingId)}
-            {@const point = at(lines[i], hover)}
-            {#if point}<circle cx={scale.x(hover)} cy={scale.y(point.ratio)} r="5" style={"fill:" + COLORS[i]} class="dot" />{/if}
+          {#each shown as binding (binding.bindingId)}
+            {@const point = at(line(binding), hover)}
+            {#if point}<circle cx={scale.x(hover)} cy={scale.y(point.ratio)} r="5" style={"fill:" + colour(binding)} class="dot" />{/if}
           {/each}
         {/if}
         {#each labelled ? ends : [] as end (end.id)}
@@ -150,18 +155,19 @@
       <StatusNotice kind="uncertain" message="모델별 점수를 함께 그리지 못했습니다. 아래에서 모델을 하나씩 볼 수 있습니다." />
     {/if}
     <ul class="models" aria-label="모델 선택">
-      {#each shown as binding, i (binding.bindingId)}
+      {#each bindings as binding (binding.bindingId)}
+        {@const drawn = colour(binding)}
         <li>
           <button type="button" aria-pressed={binding.bindingId === selected} onclick={() => onChoose(binding.bindingId)}>
-            <span class="swatch" style={"background:" + COLORS[i]} aria-hidden="true"></span>
+            <span class="swatch" class:off={drawn === null} style={drawn ? "background:" + drawn : ""} aria-hidden="true"></span>
             <strong>{names.get(binding.bindingId)}</strong>
-            <span class="facts">{summary(lines[i] ?? null)}</span>
+            <span class="facts">{summary(line(binding))}</span>
           </button>
         </li>
       {/each}
     </ul>
     {#if bindings.length > shown.length}
-      <p class="context">모델이 많아 앞의 {shown.length}개만 함께 그렸습니다. 나머지는 위의 목록에서 고릅니다.</p>
+      <p class="context">그래프에는 고른 모델을 포함해 {shown.length}개까지 그립니다. 다른 모델을 고르면 그 모델의 선을 그립니다.</p>
     {/if}
   {/if}
 </section>
@@ -192,5 +198,6 @@
   }
   .models button[aria-pressed="true"] { border-color: var(--color-action); background: var(--color-surface-selected); }
   .swatch { width: 14px; height: 4px; border-radius: 2px; flex: none; }
+  .swatch.off { box-shadow: inset 0 0 0 1px var(--color-border); }
   .facts { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
 </style>
