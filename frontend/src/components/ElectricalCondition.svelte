@@ -7,6 +7,7 @@
   } from "../electrical-condition";
   import CautionNote from "./CautionNote.svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import XAxis from "./XAxis.svelte";
 
   /** 3-phase load, unbalance and the reference-pattern score of a recent period against an
    * earlier one. A failed or mismatched read clears the earlier result instead of keeping it. */
@@ -190,7 +191,7 @@
           {#if selected}<line x1={scale.x(selected.at)} x2={scale.x(selected.at)} y1={TOP} y2={BOTTOM} class="chosen" />{/if}
           <rect x={LEFT} y={TOP} width={RIGHT - LEFT} height={BOTTOM - TOP} class="hit" onclick={pick} role="presentation" />
         </svg>
-        <p class="axis-time"><span>{kstTime(new Date(scale.start).toISOString())}</span><span>→ {kstTime(new Date(scale.end).toISOString())}</span></p>
+        <XAxis lo={scale.start} hi={scale.end} scale={{kind: "clock"}} />
         <label class="scrub">시각 고르기
           <input type="range" min="0" max={analyzed.timeline.length - 1} value={Math.max(0, selectedIndex)}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />
@@ -281,9 +282,8 @@
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .chosen { stroke: var(--color-ink); stroke-width: 1.5; }
   .hit { fill: transparent; cursor: crosshair; }
-  .axis-note, .axis-time { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .axis-note { color: var(--color-ink-muted); font-size: var(--font-small); }
   .dash { color: var(--color-failure-ink); }
-  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); }
   .scrub { font-weight: 400; font-size: var(--font-small); }
   .scrub input { width: 100%; }
   .block ul.checks { list-style: none; padding: 0; }

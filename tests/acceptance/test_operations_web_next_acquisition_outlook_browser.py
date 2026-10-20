@@ -307,6 +307,16 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.get_by_text("추가 측정 4회 후 닿음").first).to_be_visible()
+                ticks = page.locator(".chart .x-axis .ticks span")
+                assert ticks.count() >= 2
+                labels = ticks.all_text_contents()
+                if spacing == "ordinal":
+                    assert all(label.startswith("#") for label in labels)
+                else:
+                    assert all(not label.startswith("#") for label in labels)
+                    pw.expect(page.locator(".chart .x-axis")).to_contain_text(
+                        "기록 시작 후 경과 시간"
+                    )
                 # Measurement order is never shown as a clock time.
                 page.get_by_text("앞으로 30회 측정의 예측값").click()
                 assert page.get_by_role("columnheader", name="측정 #").count() == 1

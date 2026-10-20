@@ -6,10 +6,11 @@
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
-  import {reachText} from "../reach";
+  import {reachText, recordAgeText, reachCalendarText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
@@ -28,6 +29,7 @@
   let options: Options | null = $state(null);
   let projection: Projection | null = $state(null);
   let error = $state("");
+  let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
   let settings=$state(savedSettings(params));
   let customSettings=$state([...params.keys()].some(key=>/^forecast_(prior|range|training|seasonality|backtest)$/.test(key)));
@@ -122,7 +124,11 @@
       error=cause instanceof Error?cause.message:"계산 근거를 확인할 수 없습니다.";
     }
   }
-  onMount(()=>{void loadSourceOptions();return ()=>{requestOptions?.abort();requestProjection?.abort();};});
+  onMount(()=>{
+    void loadSourceOptions();
+    const timer = setInterval(() => { now = Date.now(); }, 60_000);
+    return ()=>{clearInterval(timer);requestOptions?.abort();requestProjection?.abort();};
+  });
 </script>
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
@@ -190,18 +196,22 @@
       {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
       {@const chart=outlookChart(projection)}
+      {@const age=recordAgeText(projection.record.last, now)}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">결과</h3>
           <span class="intro">{clock(projection.record.last)}까지의 기록으로 계산</span>
         </div>
+        {#if age}<p class="intro">{age}</p>{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
-              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong></div>
+              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong>
+                <span>{reachCalendarText(current?.management, projection.record.last, now)}</span></div>
             {/if}
             {#if projection.conditions.end!==null}
-              <div><span>조건부 잔여수명(RUL) · 종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.end,"time")}</strong></div>
+              <div><span>조건부 잔여수명(RUL) · 종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.end,"time")}</strong>
+                <span>{reachCalendarText(current?.end, projection.record.last, now)}</span></div>
             {/if}
           </div>
         {:else}
@@ -222,7 +232,8 @@
               <path d={chart.estimate} class="estimate" />
               <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
             </svg>
-            {#snippet footer()}<p class="axis-time"><span>{clock(chart.start)}</span><span>마지막 기록 {clock(chart.lastRecord)}</span><span>→ {clock(chart.end)}</span></p>{/snippet}
+            {#snippet footer()}<XAxis lo={Date.parse(chart.start)} hi={Math.max(Date.parse(chart.end), Date.parse(chart.start) + 1)} scale={{kind: "clock"}}
+              note={"세로선 · 마지막 기록 " + clock(chart.lastRecord)} />{/snippet}
             </ValueAxis>
             <figcaption class="legend">
               <span><i class="key history"></i>저장된 측정</span>
@@ -318,8 +329,7 @@
   .chart .now { stroke: var(--color-border); stroke-width: 1; }
   .chart .management { stroke: var(--color-caution-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
   .chart .end { stroke: var(--color-failure-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
-  .axis-note, .axis-time, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
-  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); margin-top: var(--space-1); }
+  .axis-note, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
   .legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-2); }
   .key { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-inline-end: var(--space-1); }
   .key.history { border-color: var(--color-ink); }

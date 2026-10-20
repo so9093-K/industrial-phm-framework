@@ -9,6 +9,7 @@
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
+  import XAxis from "./XAxis.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
 
   type Props = { assetId: string };
@@ -200,7 +201,7 @@
             <path d={chart.path} class="line" />
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
-          <p class="axis-time"><span>{date(chart.first)}</span><span>→ {date(chart.last)}</span></p>
+          <XAxis lo={Date.parse(chart.first)} hi={Math.max(Date.parse(chart.last), Date.parse(chart.first) + 1)} scale={{kind: "clock"}} />
           <p class="legend"><span class="key baseline"></span>기준 구간
             {#if chart.intervals.length}<span class="key found"></span>크게 벗어난 구간{/if}</p>
           <details>
@@ -252,10 +253,9 @@
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .baseline { fill: var(--color-border); opacity: 0.45; }
   .found { fill: var(--color-failure-ink); opacity: 0.14; }
-  .axis-note, .axis-time, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-2) 0 0; }
+  .axis-note, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-2) 0 0; }
   .axis-note { margin-top: var(--space-4); }
   .dash { color: var(--color-failure-ink); }
-  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); }
   .legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
   .key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
   .key.baseline { background: var(--color-border); }

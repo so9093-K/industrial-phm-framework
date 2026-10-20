@@ -1,6 +1,7 @@
 /** One wording for a server-computed limit reach, kept on its own axis: acquisition
  * counts are never turned into durations, and time offsets count from the last record. */
 import type {Reach} from "./projections.ts";
+import {elapsedText} from "./time-axis.ts";
 
 export type ReachAxis = "time" | "acquisition";
 
@@ -17,6 +18,26 @@ export function reachDuration(value: Reach | null | undefined, period: number | 
   const steps = value?.state === "expected" ? value.expected : value?.state === "possible" ? value.earliest : null;
   if (steps === null || steps === undefined || period === null) return "";
   return offset(steps * period, "time").replace("마지막 기록 후 ", "");
+}
+
+/** Calendar context applies only to timestamped records, never to acquisition/receipt order. */
+export function recordAgeText(last: string, now: number): string {
+  const age = (now - Date.parse(last)) / 1000;
+  return Number.isFinite(age) && age >= 60
+    ? "기록이 " + elapsedText(age) + " 전에 끝났습니다. 전망은 마지막 기록 시점 기준입니다." : "";
+}
+
+export function reachCalendarText(value: Reach | null | undefined, last: string, now: number): string {
+  const seconds = value?.state === "expected" ? value.expected : value?.state === "possible" ? value.earliest : null;
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return "";
+  const at = Date.parse(last) + seconds * 1000;
+  if (!Number.isFinite(at) || !Number.isFinite(now)) return "";
+  const clock = new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+  if (value?.state === "possible")
+    return "예측 범위의 가장 이른 도달 시각 " + clock + " (KST)" + (at <= now ? " · 지난 시점" : "");
+  return at <= now
+    ? "도달 예상 시점이 지났습니다 (" + clock + " KST). 실제 도달 여부는 이후 측정으로 확인하세요."
+    : "도달 예상 시각 " + clock + " (KST)";
 }
 
 export function reachText(value: Reach | null | undefined, axis: ReachAxis): string {

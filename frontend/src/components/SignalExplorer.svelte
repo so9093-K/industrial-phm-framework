@@ -3,6 +3,7 @@
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
   import {num, propertyLabel} from "../format";
@@ -206,7 +207,7 @@
               <path d={chart.path} class="line" />
               <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
             </svg>
-            {#snippet footer()}<p class="axis-time"><span>{recorded(chart.from)}</span><span>→ {recorded(trend?.endAt ?? null)}</span></p>{/snippet}
+            {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />{/snippet}
             </ValueAxis>
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
@@ -279,8 +280,7 @@
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .range { stroke: var(--color-action); stroke-width: 4; opacity: 0.22; }
   .mean { stroke: var(--color-action); stroke-width: 2; }
-  .axis-note, .axis-time { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-3) 0 0; }
-  .axis-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-3); margin-top: var(--space-1); }
+  .axis-note { color: var(--color-ink-muted); font-size: var(--font-small); margin: var(--space-3) 0 0; }
   details { margin-top: var(--space-3); }
   summary { cursor: pointer; color: var(--color-action); font-weight: 650; }
   .table-scroll { overflow-x: auto; }

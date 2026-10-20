@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Thread
 
@@ -26,6 +27,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
             browser = runtime.chromium.launch(headless=True)
             try:
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                page.clock.set_fixed_time(datetime(2026, 10, 20, tzinfo=UTC))
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 monitor = {
@@ -142,6 +144,9 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 pw.expect(page.get_by_role("heading", name="결과", exact=True)).to_be_visible()
                 pw.expect(page.locator(".tiles")).to_contain_text("관리 기준 12")
+                pw.expect(page.locator(".tiles")).to_contain_text("도달 예상 시점이 지났습니다")
+                pw.expect(page.locator(".result")).to_contain_text("기록이 4일 전에 끝났습니다")
+                assert page.locator(".chart .x-axis .ticks span").count() >= 2
                 page.get_by_text("예측값 표 · 1시간").click()
                 pw.expect(page.get_by_role("columnheader", name="예측 시각")).to_be_visible()
                 assert "projection_management=12" in page.url
