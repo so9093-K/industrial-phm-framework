@@ -16,14 +16,20 @@
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
+  import type {AcquisitionTiming} from "../asset-data";
 
-  let {assetId}:{assetId:string}=$props();
+  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let listState:State=$state("loading");
   let traceState:State=$state("empty");
   let detailState:State=$state("empty");
   let bindings:ModelBinding[]=$state([]);
   let binding:ModelBinding|null=$state(null);
+  const period = $derived.by(() => {
+    const current: ModelBinding | null = binding;
+    return current && timing && current.stepKind === "acquisition-snapshot"
+      && current.pointId === null && current.sourceId === timing.sourceId ? timing.periodSeconds : null;
+  });
   let trace:ModelTrace|null=$state(null);
   let trendSteps:StepPointer[]=$state([]);
   let intervals:Interval[]=$state([]);
@@ -215,7 +221,7 @@
   {:else}
     {#if comparable.length>1}
       {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
-        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} {place}
+        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} {place} {period}
           onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
       {/key}
     {/if}
@@ -250,7 +256,7 @@
         <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
       {:else if trace}
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} selected={selectedStep?.position??null} {place} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
+          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} {place} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
         <label class="selector">측정 선택 (최근 {trace.limit}회)
           <select value={selectedStep?String(selectedStep.position):""}

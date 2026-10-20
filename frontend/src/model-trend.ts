@@ -2,10 +2,28 @@
  * the raw input of one measurement. Nothing is rescored; a skipped step stays a gap. */
 import type {ModelBinding,StepPointer} from "./model-evidence.ts";
 import {object} from "./writes.ts";
+import {sinceStart} from "./time-axis.ts";
 
 export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null};
 export type Interval={start:number;end:number;steps:number;peak:number|null;open:boolean};
 export type ScoreTrend={points:TrendPoint[];intervals:Interval[];truncated:boolean};
+export type ThresholdExceedance = TrendPoint & {score: number; threshold: number; exceeds: true};
+
+/** The first stored exceedance in the displayed measurements, including isolated ones that
+ * do not meet the model's sustained-interval rule. Never interpolate between measurements. */
+export function firstExceedance(points: TrendPoint[]): ThresholdExceedance | null {
+  return points.find((point): point is ThresholdExceedance =>
+    point.score !== null && point.threshold !== null && point.exceeds === true) ?? null;
+}
+
+export function measurementTime(point: TrendPoint, period: number | null): string | null {
+  if (point.eventStart && /(?:Z|[+-]\d{2}:\d{2})$/i.test(point.eventStart)
+    && Number.isFinite(Date.parse(point.eventStart)))
+    return new Date(point.eventStart).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", hourCycle: "h23",
+      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit"}) + " (KST)";
+  return period !== null && Number.isFinite(period) && period > 0
+    ? sinceStart(point.pointer.position, period) : null;
+}
 export type Envelope={channel:string;bands:[number,number][]};
 export type Waveform=
   |{available:false;reason:string}
@@ -135,7 +153,7 @@ export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;e
 }
 
 export type RatioLine={points:{position:number;ratio:number;score:number}[];exceeded:number;analyzed:number;
-  latest:{position:number;ratio:number}|null;sustainedFrom:number|null};
+  latest:{position:number;ratio:number}|null;sustainedFrom:number|null;firstExceedance:ThresholdExceedance|null};
 /** Each score divided by the threshold stored with it, so models with different score scales share
  * one axis where 1 is "this model's own threshold". A step without a positive threshold is left out. */
 export function thresholdRatios(trend:ScoreTrend):RatioLine{
@@ -144,7 +162,8 @@ export function thresholdRatios(trend:ScoreTrend):RatioLine{
   const {analyzed,exceeded}=trendSummary(trend);
   const open=trend.intervals.find(item=>item.open);
   const last=points.at(-1);
-  return {points,analyzed,exceeded,latest:last?{position:last.position,ratio:last.ratio}:null,sustainedFrom:open?.start??null};
+  return {points,analyzed,exceeded,latest:last?{position:last.position,ratio:last.ratio}:null,sustainedFrom:open?.start??null,
+    firstExceedance:firstExceedance(trend.points.filter(point=>point.threshold!==null&&point.threshold>0))};
 }
 
 /** The models drawn on one graph: the first `limit` in list order, with the chosen model always

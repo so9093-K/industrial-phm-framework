@@ -2,9 +2,10 @@
  * about the asset's condition. Read from the existing GET /api/v1/forecast/options. */
 import {methodsOf, type DataKind, type Method, type Tab} from "./routes.ts";
 
+export type AcquisitionTiming = {sourceId: string; periodSeconds: number};
 export type AssetData = {
   history: {signals: number} | null;
-  vibration: {measurements: number; first: number; last: number} | null;
+  vibration: {measurements: number; first: number; last: number; timing?: AcquisitionTiming} | null;
 };
 
 function object(raw: unknown): Record<string, unknown> | null {
@@ -27,10 +28,15 @@ export function parseAssetData(raw: unknown, assetId: string): AssetData {
   if ((root.history !== null && (!history || !Array.isArray(history.series)))
     || (root.acquisition !== null && root.acquisition !== undefined && !vibration))
     throw new Error("설비 데이터 목록의 형식이 올바르지 않습니다.");
+  const timing = vibration && typeof vibration.source_id === "string" && vibration.source_id.trim()
+    && typeof vibration.period_seconds === "number" && Number.isFinite(vibration.period_seconds)
+    && vibration.period_seconds > 0
+    ? {sourceId: vibration.source_id, periodSeconds: vibration.period_seconds} : null;
   return {
     history: history ? {signals: (history.series as unknown[]).length} : null,
     vibration: vibration
-      ? {measurements: count(vibration.count), first: count(vibration.first), last: count(vibration.last)}
+      ? {measurements: count(vibration.count), first: count(vibration.first), last: count(vibration.last),
+        ...(timing ? {timing} : {})}
       : null,
   };
 }
