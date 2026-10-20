@@ -19,6 +19,7 @@ from pathlib import Path
 
 from industrial_phm.adapters.csv_sensor import (
     CsvSensorSourceError,
+    parse_utc_offset,
     validate_csv_sensor_source,
 )
 from industrial_phm.application import (
@@ -71,7 +72,8 @@ _FIELDS = frozenset(
 )
 _PHASE_FILE_FIELD = "phase_channels"
 _LABEL_FILE_FIELD = "channel_labels"
-_OPTIONAL_FILE_FIELDS = frozenset({_PHASE_FILE_FIELD, _LABEL_FILE_FIELD})
+_OFFSET_FILE_FIELD = "timestamp_utc_offset"
+_OPTIONAL_FILE_FIELDS = frozenset({_PHASE_FILE_FIELD, _LABEL_FILE_FIELD, _OFFSET_FILE_FIELD})
 _PHASE_CHANNEL_FIELDS = frozenset(
     {"channel_id", "quantity", "phase", "unit_evidence", "interpretation_evidence"}
 )
@@ -253,6 +255,17 @@ def _file_channel_labels(payload: dict[str, object]) -> tuple[ChannelLabel, ...]
     return tuple(labels)
 
 
+def _file_utc_offset(payload: dict[str, object]) -> str | None:
+    """The offset the person chose for timestamps the file wrote without one."""
+    raw = payload.get(_OFFSET_FILE_FIELD)
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValueError("invalid timestamp offset")
+    parse_utc_offset(raw)
+    return raw
+
+
 def _file_phase_bindings(
     payload: dict[str, object], source_id: str, channels: tuple[str, ...]
 ) -> tuple[ChannelSemanticBinding, ...]:
@@ -346,6 +359,7 @@ def _prepare_workspace_csv_source(root: Path, payload: dict[str, object]) -> Reg
             timestamp_column=timestamp,
             semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
             channel_labels=_file_channel_labels(payload),
+            timestamp_utc_offset=_file_utc_offset(payload),
         ),
         registered_at=datetime.now(UTC),
     )
@@ -660,6 +674,7 @@ def preflight_uploaded_csv_source(
             timestamp_column=timestamp,
             semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
             channel_labels=_file_channel_labels(payload),
+            timestamp_utc_offset=_file_utc_offset(payload),
         )
         source = RegisteredSource(
             source_id=source_id, name=name, config=config, registered_at=datetime.now(UTC)

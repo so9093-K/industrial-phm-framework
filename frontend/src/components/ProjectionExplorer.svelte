@@ -2,6 +2,7 @@
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import {savedSettings,rememberSettings} from "../forecast-settings";
+  import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
@@ -86,7 +87,8 @@
       options=data;
       if (!data.channels.length){optionsState="empty";return;}
       if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다. 다른 신호로 대신하지 않습니다.");
-      if(!channel)channel=data.channels[0];
+      if(!channel)channel=await defaultChannel(assetId,data.channels,abort.signal);
+      if (abort.signal.aborted) return;
       if (!savedHorizon && data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
         if (allowed) horizon=allowed;

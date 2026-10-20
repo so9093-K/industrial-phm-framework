@@ -59,4 +59,8 @@ test("the chart marks the baseline, the threshold and each interval, and never b
   assert.ok(chart.baseline.x === 0 && chart.baseline.width > 0 && chart.baseline.width < chart.width / 2);
   assert.ok(chart.intervals[0].x > chart.width / 2);
   assert.ok(chart.thresholdY > 0 && chart.thresholdY < chart.height);
+  // The label reads the data's own peak, not the top of the axis that leaves room above the threshold.
+  const calm = departureChart({...data, score: [0.4, 1.1, 0.7].map((distance, i) => ({at: at(i), distance}))})!;
+  assert.equal(calm.peak, 1.1);
+  assert.ok(calm.max > calm.peak);
 });

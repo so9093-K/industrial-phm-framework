@@ -73,6 +73,7 @@ class FileSourceConfig:
     asset_display_name: str | None = None
     semantic_bindings: Sequence[ChannelSemanticBinding] = ()
     channel_labels: Sequence[ChannelLabel] = ()
+    timestamp_utc_offset: str | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_path, "source_path")
@@ -115,6 +116,7 @@ class FileSourceConfig:
             sampling_rate_tolerance_ratio=self.sampling_rate_tolerance_ratio,
             minimum_sample_count=self.minimum_sample_count,
             delimiter=self.delimiter,
+            timestamp_utc_offset=self.timestamp_utc_offset,
         )
 
 

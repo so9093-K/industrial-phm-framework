@@ -138,6 +138,16 @@ def test_csv_preflight_reports_recoverable_input_and_never_persists(tmp_path: Pa
     assert naive["history_ready"] is False
     assert naive["phase_mapping_ready"] is False
     assert naive["issue"]["code"] == "timezone-required"
+    # The person says which offset the file's wall times were written in.
+    placed = preflight_workspace_csv_source(
+        workspace.root, {**setup, "timestamp_utc_offset": "+09:00"}
+    )
+    assert placed["status"] == "ready" and placed["history_ready"] is True
+    assert placed["first_timestamp"] == "2026-10-11T09:00:00+09:00"
+    refused = preflight_workspace_csv_source(
+        workspace.root, {**setup, "timestamp_utc_offset": "Asia/Seoul"}
+    )
+    assert refused["status"] == "blocked"
 
     incomplete = preflight_workspace_csv_source(
         workspace.root, {**setup, "phase_channels": mapping[:2]}

@@ -614,3 +614,23 @@ def test_channel_labels_are_an_optional_key_written_only_when_declared(tmp_path:
         ChannelLabel("current_a", "모터 전류", "A"),
     )
     assert reopened["plain"].config.channel_labels == ()
+    assert "timestamp_utc_offset" not in stored
+    plain = csv("offset", ()).config
+    assert isinstance(plain, FileSourceConfig)
+    repository.register(
+        RegisteredSource(
+            source_id="offset",
+            name="offset",
+            config=FileSourceConfig(
+                source_path=plain.source_path,
+                asset_id=plain.asset_id,
+                channel_columns=plain.channel_columns,
+                timestamp_column="timestamp",
+                timestamp_utc_offset="+09:00",
+            ),
+            registered_at=datetime(2026, 10, 20, tzinfo=UTC),
+        )
+    )
+    offset = JsonSourceRepository(path).get("offset").config
+    assert isinstance(offset, FileSourceConfig) and offset.timestamp_utc_offset == "+09:00"
+    assert offset.to_csv_sensor_layout().timestamp_utc_offset == "+09:00"

@@ -91,14 +91,24 @@ export function readTimes(table:CsvTable,columnIndex:number):TimeReading{
   return {points,naive,firstBackwards,firstInvalidDate};
 }
 
-/** Problems that would stop this file from being stored, in the words a person can act on. */
-export function previewProblems(table:CsvTable,timeIndex:number,channels:string[]):string[]{
+/** The offsets offered for wall times written without one: Korea first, then UTC and this
+ * computer's own offset when it differs. */
+export function offsetChoices(minutesWestOfUtc=new Date().getTimezoneOffset()):{value:string;label:string}[]{
+  const choices=[{value:"+09:00",label:"한국 표준시 (UTC+09:00)"},{value:"+00:00",label:"UTC (UTC+00:00)"}];
+  const east=-minutesWestOfUtc,hours=Math.floor(Math.abs(east)/60),minutes=Math.abs(east)%60;
+  const local=(east<0?"-":"+")+String(hours).padStart(2,"0")+":"+String(minutes).padStart(2,"0");
+  return choices.some(choice=>choice.value===local)?choices:[...choices,{value:local,label:"이 컴퓨터의 시간대 (UTC"+local+")"}];
+}
+
+/** Problems that would stop this file from being stored, in the words a person can act on.
+ * Wall times without an offset are fine once the person says which offset they were written in. */
+export function previewProblems(table:CsvTable,timeIndex:number,channels:string[],offset:string|null=null):string[]{
   const list=[...table.problems];
   if(timeIndex<0)list.push("시각 열을 찾지 못했습니다. 예: 2026-10-11T09:00:00+09:00 형식의 시각이 있어야 저장할 수 있습니다.");
   else{
     const timing=readTimes(table,timeIndex);
     const column=table.columns.find(c=>c.index===timeIndex)!;
-    if(timing.naive)list.push("시각에 시간대(+09:00, Z 등)가 없습니다. 원래 측정한 순간으로 저장하려면 시간대가 필요합니다.");
+    if(timing.naive&&!offset)list.push("시각에 시간대(+09:00, Z 등)가 없습니다. 어느 시간대의 시각인지 고르세요.");
     if(column.missing)list.push(column.firstMissing+"행의 시각이 비어 있습니다 (빈 시각 "+column.missing+"개).");
     if(column.firstNonIso)list.push(column.firstNonIso+"행의 시각을 읽을 수 없습니다. 예: 2026-10-11T09:00:00+09:00");
     if(timing.firstBackwards)list.push(timing.firstBackwards+"행의 시각이 앞 행보다 늦지 않습니다. 시간 순서로 정렬하고 중복 시각을 확인하세요.");
@@ -185,21 +195,44 @@ const QUANTITY: [RegExp, string][] = [
   [/^(current|curr|amps?)$/, "전류"], [/^(voltage|volt|volts)$/, "전압"], [/^(temperature|temp)$/, "온도"],
   [/^(pressure|press)$/, "압력"], [/^(vibration|vib)$/, "진동"], [/^(flow|flowrate)$/, "유량"],
   [/^humidity$/, "습도"], [/^power$/, "전력"], [/^(frequency|freq)$/, "주파수"], [/^torque$/, "토크"],
-  [/^speed$/, "속도"],
+  [/^(speed|rpm)$/, "회전 속도"],
 ];
-/** A starting name for each column whose name says what it measures (current_a → 전류).
- * Only the quantity is suggested; a unit is never read from a suffix, since "a" may be a phase. */
+// What a column measures on, when its name says so before the quantity (motor_temp_c → 모터 온도).
+const SUBJECT: Record<string, string> = {
+  motor: "모터", bearing: "베어링", pump: "펌프", oil: "오일", inlet: "입구", outlet: "출구",
+  ambient: "주변", winding: "권선", gear: "기어", fan: "팬", casing: "케이싱",
+};
+// An example unit per quantity for the unit field's placeholder; the field itself stays empty.
+const UNIT_EXAMPLE: Record<string, string> = {
+  전류: "A", 전압: "V", 온도: "°C", 압력: "bar", 진동: "mm/s", 유량: "m³/h", 습도: "%", 전력: "kW",
+  주파수: "Hz", 토크: "N·m", "회전 속도": "rpm",
+};
+function readName(name: string): {quantity: string; subject: string | null; rest: string[] | null} | null {
+  const tokens = name.toLowerCase().split(/[_\-\s.]+/).filter(Boolean);
+  const at = tokens.findIndex((token) => QUANTITY.some(([pattern]) => pattern.test(token)));
+  if (at < 0 || at > 1) return null;
+  const subject = at === 1 ? SUBJECT[tokens[0]] ?? null : null;
+  if (at === 1 && !subject) return null;
+  const rest = tokens.slice(at + 1);
+  return {quantity: QUANTITY.find(([pattern]) => pattern.test(tokens[at]))![1], subject,
+    rest: rest.length <= 2 && rest.every((token) => /^[a-z0-9]{1,3}$/.test(token)) ? rest : null};
+}
+/** A starting name for each column whose name says what it measures (current_a → 전류,
+ * motor_temp_c → 모터 온도). Only the quantity is suggested; a unit is never read from a
+ * suffix, since "a" may be a phase. */
 export function suggestSignalNames(columns: string[]): Map<string, string> {
-  const parsed = columns.map((name) => {
-    const [head, ...rest] = name.toLowerCase().split(/[_\-\s.]+/).filter(Boolean);
-    const word = QUANTITY.find(([pattern]) => pattern.test(head ?? ""))?.[1];
-    return {name, word, rest: rest.length <= 2 && rest.every((token) => /^[a-z0-9]{1,3}$/.test(token)) ? rest : null};
-  });
+  const parsed = columns.map((name) => ({name, read: readName(name)}));
   const names = new Map<string, string>();
-  for (const item of parsed) {
-    if (!item.word || item.rest === null) continue;
-    const shared = parsed.filter((other) => other.word === item.word).length > 1;
-    names.set(item.name, shared && item.rest.length ? item.word + " " + item.rest.join(" ").toUpperCase() : item.word);
+  for (const {name, read} of parsed) {
+    if (!read || read.rest === null) continue;
+    const word = (read.subject ? read.subject + " " : "") + read.quantity;
+    const shared = parsed.filter((other) => other.read && (other.read.subject ? other.read.subject + " " : "") + other.read.quantity === word).length > 1;
+    names.set(name, shared && read.rest.length ? word + " " + read.rest.join(" ").toUpperCase() : word);
   }
   return names;
+}
+/** An example unit for a column's quantity, shown as a hint only. */
+export function unitExample(column: string): string | null {
+  const read = readName(column);
+  return read ? UNIT_EXAMPLE[read.quantity] ?? null : null;
 }

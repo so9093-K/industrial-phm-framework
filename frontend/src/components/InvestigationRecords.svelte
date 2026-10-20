@@ -214,6 +214,8 @@
   {/if}
 </section>
 
+<!-- Shown only when something was skipped or the record could not be read in full. -->
+{#if skipped.length || !snapshot.analyses.skippedComplete}
 <section class="ui-panel" aria-labelledby="skipped-title">
   <h2 id="skipped-title">실행되지 않은 분석</h2>
   {#if !snapshot.analyses.skippedComplete}
@@ -230,6 +232,7 @@
     </ul>
   {/if}
 </section>
+{/if}
 
 <style>
   .asset { display: grid; gap: var(--space-1); max-width: 360px; margin-block: var(--space-4); font-size: var(--font-small); font-weight: 700; }

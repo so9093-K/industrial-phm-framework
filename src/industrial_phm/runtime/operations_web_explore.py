@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from typing import Any
@@ -45,12 +46,17 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/attention",
     }
 )
-# Assets checked for a record that ends away from its baseline, and the coarse buckets each
-# signal is read in for that check; a result is reused until the asset's record changes.
+# The buckets a stored record is read in for baseline departures. 관측 현황's check and the
+# 기준 구간 이탈 screen use the same, so both name the same distance and the same start.
+_DEPARTURE_BUCKETS = 1000
+# Assets checked for a record that ends away from its baseline. A result is reused while the
+# asset's record is unchanged, and for a short while when it keeps growing (a live source),
+# so screens that ask often do not recompute it on every read.
 MAX_ATTENTION_ASSETS = 50
-_ATTENTION_BUCKETS = 240
 _ATTENTION_CHANNELS = 6
-_attention_cache: dict[tuple[str, str, str, int], dict[str, Any] | None] = {}
+_ATTENTION_REUSE_SECONDS = 30.0
+# (root, asset) → (record end, record count, computed at, result)
+_attention_cache: dict[tuple[str, str], tuple[str, int, float, dict[str, Any] | None]] = {}
 _MAX_ID_LENGTH = 512
 
 
@@ -89,7 +95,8 @@ def handle_explore_read(
     try:
         query = _query(raw_query)
         if path == "/api/v1/explore/attention":
-            return HTTPStatus.OK, departure_attention(workspace)
+            only = _one(query, "asset_id") if "asset_id" in query else None
+            return HTTPStatus.OK, departure_attention(workspace, only)
         asset_id = _one(query, "asset_id")
         store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
         if path == "/api/v1/explore/sources":
@@ -278,7 +285,7 @@ def _departures(
             channel_id=channel,
             start_at=summary.start_at,
             end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=1000,
+            bucket_count=_DEPARTURE_BUCKETS,
         )
         width = aggregation.bucket_seconds
         key, buckets = strongest_identity(aggregation.buckets)
@@ -311,11 +318,14 @@ def _departures(
     }
 
 
-def departure_attention(workspace: OperationsWorkspace) -> dict[str, Any]:
+def departure_attention(
+    workspace: OperationsWorkspace, asset_id: str | None = None
+) -> dict[str, Any]:
     """Assets whose stored signals end far from the first 30% of their own record.
 
     A light check for assets no model watches: the same median ± MAD comparison as the
-    baseline departure screen, read in coarse buckets and kept until the record changes.
+    baseline departure screen, kept while the record is unchanged. ``asset_id`` checks one
+    asset, for a screen that only needs that asset's flagged signal.
     """
     body: dict[str, Any] = {
         "schema_version": 1,
@@ -327,22 +337,22 @@ def departure_attention(workspace: OperationsWorkspace) -> dict[str, Any]:
     history = _history(workspace)
     if history is None:
         return body
-    assets = history.list_history_assets()
+    assets = [item for item in history.list_history_assets() if asset_id in {None, item.asset_id}]
     body["truncated"] = len(assets) > MAX_ATTENTION_ASSETS
     registry = workspace.source_registry_path
     sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
     if len(_attention_cache) > 4 * MAX_ATTENTION_ASSETS:
         _attention_cache.clear()
     for summary in assets[:MAX_ATTENTION_ASSETS]:
-        key = (
-            str(workspace.root),
-            summary.asset_id,
-            summary.end_at.isoformat(),
-            summary.measurement_count,
-        )
-        if key not in _attention_cache:
-            _attention_cache[key] = _ends_departed(history, summary)
-        found = _attention_cache[key]
+        key = (str(workspace.root), summary.asset_id)
+        end, count, now = summary.end_at.isoformat(), summary.measurement_count, time.monotonic()
+        held = _attention_cache.get(key)
+        if held is None or (
+            (held[0], held[1]) != (end, count) and now - held[2] >= _ATTENTION_REUSE_SECONDS
+        ):
+            held = (end, count, now, _ends_departed(history, summary))
+            _attention_cache[key] = held
+        found = held[3]
         if found is None:
             continue
         label, unit = resolve_channel_labels(sources, summary.asset_id).get(
@@ -364,28 +374,30 @@ def departure_attention(workspace: OperationsWorkspace) -> dict[str, Any]:
 
 
 def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:
-    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
-    units: dict[str, str | None] = {}
+    """The signal whose record ends farthest outside its own baseline, judged one signal at a
+    time exactly as the 기준 구간 이탈 screen judges the signal it shows."""
+    farthest: dict[str, Any] | None = None
     for channel in history.list_history_channels(summary.asset_id)[:_ATTENTION_CHANNELS]:
         aggregation = history.query_measurement_aggregation(
             summary.asset_id,
             channel_id=channel,
             start_at=summary.start_at,
             end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=_ATTENTION_BUCKETS,
+            bucket_count=_DEPARTURE_BUCKETS,
         )
         if not aggregation.buckets:
             continue
         key, buckets = strongest_identity(aggregation.buckets)
-        units[channel] = interpretation_unit(key[2])
-        points[channel] = [
+        points = [
             (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
         ]
-    try:
-        found = latest_departure(find_departures(points, baseline="first-30"))
-    except LookupError, ValueError:
-        return None
-    return None if found is None else {**found, "unit": units.get(found["channel"])}
+        try:
+            found = latest_departure(find_departures({channel: points}, baseline="first-30"))
+        except LookupError, ValueError:
+            continue
+        if found is not None and (farthest is None or found["distance"] > farthest["distance"]):
+            farthest = {**found, "unit": interpretation_unit(key[2])}
+    return farthest
 
 
 def iso(value: datetime) -> str:

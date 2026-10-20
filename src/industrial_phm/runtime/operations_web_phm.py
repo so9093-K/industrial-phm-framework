@@ -211,9 +211,12 @@ def handle_phm_read(
             explanations = PhmExplanationStore(workspace.phm_explanation_path).list_for(
                 binding_id, _int(params, "position", default=None, minimum=1)
             )
+            # Units are added on read, so explanations stored before units existed show them too.
             for record in explanations:
-                if isinstance(record.get("features"), list):
-                    record["features"] = with_units(record["features"], amplitude)
+                context = record.get("context")
+                comparison = context.get("signal_comparison") if isinstance(context, dict) else None
+                if isinstance(comparison, dict) and isinstance(comparison.get("features"), list):
+                    comparison["features"] = with_units(comparison["features"], amplitude)
             return HTTPStatus.OK, {"schema_version": 1, "explanations": explanations}
         if path == "/api/v1/phm/series":
             return HTTPStatus.OK, project_phm_series(

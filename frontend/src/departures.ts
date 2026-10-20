@@ -132,7 +132,8 @@ export function parseDepartures(
 
 export type Band = { x: number; width: number };
 export type DepartureChart = {
-  width: number; height: number; max: number; first: string; last: string;
+  /** `max` is the top of the axis; `peak` is the largest departure in the data. */
+  width: number; height: number; max: number; peak: number; first: string; last: string;
   path: string; thresholdY: number; baseline: Band; intervals: Band[];
 };
 
@@ -143,7 +144,8 @@ export function departureChart(data: Departures): DepartureChart | null {
   const width = 800, height = 200, top = 8, bottom = 192;
   const times = data.score.map((item) => Date.parse(item.at));
   const first = times[0], last = Math.max(times[times.length - 1], first + 1);
-  const max = Math.max(data.threshold * 1.4, ...data.score.map((item) => item.distance));
+  const peak = Math.max(...data.score.map((item) => item.distance));
+  const max = Math.max(data.threshold * 1.4, peak);
   const x = (at: number) => ((at - first) / (last - first)) * width;
   const y = (value: number) => bottom - (value / max) * (bottom - top);
   const steps = times.slice(1).map((at, i) => at - times[i]).sort((a, b) => a - b);
@@ -162,7 +164,7 @@ export function departureChart(data: Departures): DepartureChart | null {
     return { x: start, width: Math.max(2, end - start) };
   };
   return {
-    width, height, max, first: data.score[0].at, last: data.score[data.score.length - 1].at,
+    width, height, max, peak, first: data.score[0].at, last: data.score[data.score.length - 1].at,
     path: path.trim(), thresholdY: y(data.threshold),
     baseline: band(data.baseline.from, data.baseline.to),
     intervals: data.intervals.map((item) => band(item.start, item.end)),

@@ -3,6 +3,7 @@
   import {assetLabel, type Snapshot} from "../monitor";
   import type {Evidence} from "../reviews";
   import {captureUrl, readCaptures, CaptureNotFound, type Capture} from "../outlook-captures";
+  import {seriesName} from "../series-names";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
@@ -22,6 +23,15 @@
   const STATUS: Record<Status, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
   let captures: Capture[] = $state([]);
+  // Display names of the captured series, looked up once each; the ID shows until then.
+  let seriesNames: Record<string, string> = $state({});
+  $effect(() => {
+    for (const capture of captures) {
+      const {assetId, kind, series} = capture.outlook, key = assetId + "\n" + kind + "\n" + series;
+      if (key in untrack(() => seriesNames)) continue;
+      void seriesName(assetId, kind, series).then((name) => { seriesNames = {...seriesNames, [key]: name}; });
+    }
+  });
   let findings: FindingReview[] = $state([]);
   let loadState: "loading" | "ready" = $state("loading");
   let failedAssets: string[] = $state([]);
@@ -61,7 +71,9 @@
     const outlooks: Item[] = captures.map((capture) => ({
       kind: "outlook", key: "capture:" + capture.id, assetId: capture.outlook.assetId,
       status: capture.review.status, at: capture.capturedAt,
-      title: assetLabel(snapshot.assets, capture.outlook.assetId) + " · " + capture.outlook.series + " 전망", label: "검토 요청한 전망",
+      title: assetLabel(snapshot.assets, capture.outlook.assetId) + " · "
+        + (seriesNames[capture.outlook.assetId + "\n" + capture.outlook.kind + "\n" + capture.outlook.series] ?? capture.outlook.series) + " 전망",
+      label: "검토 요청한 전망",
       href: captureUrl(capture.outlook.assetId, capture.id), capture,
     }));
     return [...analysis, ...outlooks].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));

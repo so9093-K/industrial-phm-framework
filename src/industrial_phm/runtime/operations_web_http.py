@@ -106,7 +106,11 @@ _UPLOAD_SETUP_FIELDS = frozenset(
         "timestamp_column",
     }
 )
-_UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {"phase_channels", "channel_labels"}
+_UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {
+    "phase_channels",
+    "channel_labels",
+    "timestamp_utc_offset",
+}
 
 
 def create_operations_web_read_server(

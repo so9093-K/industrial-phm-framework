@@ -3,7 +3,7 @@
  * cannot run, a collection that stopped receiving or a review in progress. Each item opens the
  * exact place to check; none is a fault verdict. */
 import {modelResultUrl} from "./finding-reviews.ts";
-import type {Source} from "./operations-status.ts";
+import {readSources,type Source} from "./operations-status.ts";
 import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
@@ -130,11 +130,30 @@ export function parseDepartures(raw:unknown):Departure[]{
   });
 }
 
-export async function readDepartures(signal:AbortSignal):Promise<Departure[]>{
-  const response=await fetch("/api/v1/explore/attention",{signal,cache:"no-store",credentials:"same-origin"});
+export async function readDepartures(signal:AbortSignal,assetId?:string):Promise<Departure[]>{
+  const query=assetId?"?"+new URLSearchParams({asset_id:assetId}):"";
+  const response=await fetch("/api/v1/explore/attention"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
     throw new Error("기준 구간 이탈을 확인하지 못했습니다.");
   }
   return parseDepartures(await response.json() as unknown);
+}
+
+/** Every asset's notes, read once from what 관측 현황 polls, so the asset list and an asset's
+ * summary count the same items. A part that cannot be read is left out, not guessed. */
+export async function readAttention(signal:AbortSignal):Promise<AssetAttention[]>{
+  const [phm,sources,departures]=await Promise.all([readPhmMonitor(signal),
+    readSources(signal).catch(()=>null),readDepartures(signal).catch(()=>[])]);
+  return attentionByAsset(phm.models,sources?.items??null,departures);
+}
+
+/** The signal a screen opens on when none is chosen: the one this asset's baseline check flagged,
+ * else the first. The screen waits for the check only briefly; a slow or failed check only means
+ * the first signal is shown. */
+export async function defaultChannel(assetId:string,ids:string[],signal:AbortSignal,waitMs=1200):Promise<string>{
+  if(ids.length<2)return ids[0];
+  const flagged=await readDepartures(AbortSignal.any([signal,AbortSignal.timeout(waitMs)]),assetId)
+    .then(found=>found.find(item=>item.assetId===assetId)?.channel).catch(()=>undefined);
+  return flagged&&ids.includes(flagged)?flagged:ids[0];
 }

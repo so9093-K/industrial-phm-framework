@@ -152,6 +152,42 @@ def test_csv_adapter_rejects_mixed_timestamp_awareness(tmp_path: Path) -> None:
         validate_csv_sensor_source(source, layout)
 
 
+def test_timestamps_without_offset_take_the_declared_offset_and_written_offsets_win(
+    tmp_path: Path,
+) -> None:
+    source = _write_csv(
+        tmp_path,
+        "timestamp,vibration\n2026-09-22 10:00:00,1.0\n2026-09-22T01:00:01Z,2.0\n",
+    )
+    layout = CsvSensorLayout(
+        asset_id="pump-01",
+        timestamp_column="timestamp",
+        channel_columns=("vibration",),
+        timestamp_utc_offset="+09:00",
+    )
+
+    report = validate_csv_sensor_source(source, layout)
+
+    assert report.first_timestamp == datetime.fromisoformat("2026-09-22T10:00:00+09:00")
+    assert report.last_timestamp == datetime.fromisoformat("2026-09-22T01:00:01+00:00")
+    assert report.minimum_interval_seconds == 1.0
+    for wrong in ("+9:00", "09:00", "+15:00", "+09:60", "KST"):
+        with pytest.raises(ValueError, match="timestamp_utc_offset"):
+            CsvSensorLayout(
+                asset_id="pump-01",
+                timestamp_column="timestamp",
+                channel_columns=("vibration",),
+                timestamp_utc_offset=wrong,
+            )
+    with pytest.raises(ValueError, match="requires timestamp_column"):
+        CsvSensorLayout(
+            asset_id="pump-01",
+            channel_columns=("vibration",),
+            sampling_rate_hz=1.0,
+            timestamp_utc_offset="+09:00",
+        )
+
+
 def test_csv_adapter_enforces_declared_minimum_sample_count(tmp_path: Path) -> None:
     source = _write_csv(tmp_path, "vibration\n1.0\n2.0\n")
     layout = CsvSensorLayout(
