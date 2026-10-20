@@ -145,6 +145,60 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
             stop_web(server, thread)
 
 
+@pytest.mark.parametrize("width", [390, 1280])
+def test_local_and_offset_times_preview_and_preflight_use_the_same_instants(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = OperationsWorkspace(tmp_path / "mixed-times")
+    initialize_operations_workspace(workspace)
+    server, thread = start_web(workspace.root.resolve(), writer=True)
+    csv = (
+        b"timestamp,current_a\n2026-10-15 09:00:00,1\n"
+        b"2026-10-15T09:01:00+09:00,2\n2026-10-15 09:10:00,3\n"
+    )
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(
+                    viewport={"width": width, "height": 900},
+                    locale="ko-KR",
+                    timezone_id="America/New_York",
+                )
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
+                panel = page.get_by_role("region", name="CSV 파일로 시작")
+                panel.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
+                    {"name": "mixed.csv", "mimeType": "text/csv", "buffer": csv}
+                )
+                pw.expect(panel.locator(".problems")).to_have_count(0)
+                positions = panel.locator("svg circle.dot").evaluate_all(
+                    "nodes => nodes.map(node => Number(node.getAttribute('cx')))"
+                )
+                assert len(positions) == 3
+                # One minute occupies about one tenth of this ten-minute record.
+                # The preview represents each of its 120 time buckets by the bucket start.
+                assert (positions[1] - positions[0]) / (
+                    positions[2] - positions[0]
+                ) == pytest.approx(0.1, abs=1 / 120)
+                panel.get_by_label("설비 이름·번호").fill("mixed-time-pump")
+                with page.expect_response("**/api/v1/sources/file/upload/preflight") as checked:
+                    panel.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                payload = checked.value.json()
+                assert payload["status"] == "ready"
+                assert datetime.fromisoformat(payload["first_timestamp"]) == datetime(
+                    2026, 10, 15, tzinfo=UTC
+                )
+                assert datetime.fromisoformat(payload["last_timestamp"]) == datetime(
+                    2026, 10, 15, 0, 10, tzinfo=UTC
+                )
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
 def _three_phase_csv() -> bytes:
     start = datetime(2026, 10, 11, 0, 0, tzinfo=UTC)
     lines = ["timestamp,vR,vS,vT,iR,iS,iT"]

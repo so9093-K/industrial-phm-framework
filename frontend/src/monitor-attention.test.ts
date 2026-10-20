@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {attentionByAsset,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
+import {attentionByAsset,attentionComplete,attentionText,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
 import {parseSources} from "./operations-status.ts";
 
 function model(extra:Record<string,unknown>){
@@ -58,4 +58,17 @@ test("a stored signal that ends far from its baseline asks for a look and opens 
   assert.match(group.notes[0].detail,/^전류 \(A\) · 기준 변동 폭의 96배 높음 · /);
   assert.match(group.notes[0].href,/tab=anomaly&method=baseline/);
   assert.match(group.notes[0].href,/monitor_channel=current_a/);
+});
+
+test("a partial or failed attention read never turns an unverified zero into no items", () => {
+  assert.equal(attentionText(0,"ready"),"없음");
+  for (const state of ["partial","failed","loading"] as const)
+    assert.doesNotMatch(attentionText(0,state),/없음/);
+  assert.equal(attentionText(2,"partial"),"최소 2건 · 일부 미확인");
+  const sources={assessedAt:null,items:[],truncated:false,readErrors:[],liveErrors:[]};
+  assert.equal(attentionComplete(monitor(),sources,true),true);
+  assert.equal(attentionComplete(monitor(),null,true),false);
+  assert.equal(attentionComplete(monitor(),sources,false),false);
+  assert.equal(attentionComplete({...monitor(),truncated:true},sources,true),false);
+  assert.equal(attentionComplete(monitor(),{...sources,readErrors:["registry"]},true),false);
 });

@@ -14,6 +14,41 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 from tests.support.web_next import choose_asset, expect_place
 
 
+@pytest.mark.parametrize("width", [390, 1280])
+def test_tab_navigation_keeps_the_signal_chosen_after_the_page_opened(
+    tmp_path: Path, width: int
+) -> None:
+    from tests.support.electrical_condition import condition_workspace
+    from tests.support.web_next import start_web, stop_web
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = condition_workspace(tmp_path / "signal-navigation")
+    server, thread = start_web(workspace.root.resolve(), writer=False)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}"
+                    "/web/?page=assets&tab=signals&monitor_asset=condition-motor"
+                )
+                pw.expect(page.locator("#history-channel")).to_be_visible()
+                page.locator("#history-channel").select_option("vR")
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="상태 전망", exact=True).click()
+                pw.expect(page.locator("#projection-channel")).to_have_value("vR")
+                tabs.get_by_role("link", name="이상 징후", exact=True).click()
+                pw.expect(page.get_by_label("신호", exact=False)).to_have_value("vR")
+                page.go_back()
+                pw.expect(page.locator("#projection-channel")).to_have_value("vR")
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
 @pytest.mark.parametrize("width", [390, 1024])
 def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, width: int) -> None:
     pw = pytest.importorskip("playwright.sync_api")

@@ -6,7 +6,7 @@
   import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
-  import { readAttention } from "./monitor-attention";
+  import { readAttention, type AttentionState } from "./monitor-attention";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
@@ -32,14 +32,19 @@
   let permissionController: AbortController | null = null;
   let example = $state(false);
   let notes: Record<string, number> = $state({});
+  let notesState: AttentionState = $state("loading");
   // The asset list counts the same items as 관측 현황, read once when the list is shown.
   let listNotes: Record<string, number> = $state({});
+  let listNotesState: AttentionState = $state("loading");
+  let listNotesRevision = $state(0);
   $effect(() => {
+    listNotesRevision;
     if (route.page !== "assets" || route.assetId) return;
     const request = new AbortController();
-    void readAttention(request.signal).then((groups) => {
-      if (!request.signal.aborted) listNotes = Object.fromEntries(groups.map((group) => [group.assetId, group.notes.length]));
-    }).catch(() => {});
+    listNotes = {}; listNotesState = "loading";
+    void readAttention(request.signal).then((read) => {
+      if (!request.signal.aborted) {listNotes = read.counts; listNotesState = read.state;}
+    }).catch(() => {if (!request.signal.aborted) {listNotes = {}; listNotesState = "failed";}});
     return () => request.abort();
   });
   const returnTo = sampleReturn(location.search);
@@ -294,7 +299,7 @@
           </div>
         </section>
       {/if}
-      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts) => notes = counts} />{/if}
+      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state) => {notes = counts; notesState = state;}} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
           <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
@@ -320,7 +325,12 @@
             message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
         {/if}
 
+        {#if route.page === "assets" && (listNotesState === "partial" || listNotesState === "failed")}
+          <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
+            actionLabel="확인 항목 다시 읽기" onAction={() => listNotesRevision++} />
+        {/if}
         <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : listNotes}
+          notesState={route.page === "monitor" ? notesState : listNotesState}
           reasons={route.page === "monitor"} />
       {/if}
     {/if}

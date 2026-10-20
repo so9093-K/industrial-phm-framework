@@ -2,13 +2,13 @@
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
-  import {attentionByAsset, readDepartures, readPhmMonitor, type Departure, type PhmMonitor} from "../monitor-attention";
+  import {attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AttentionState, type Departure, type PhmMonitor} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** What needs a look, read again every few seconds while this page is visible. A failed
    * read hides the earlier items rather than showing them as current. */
-  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>) => void};
+  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>,state:AttentionState) => void};
   let {snapshot,onTick, onNotes}: Props = $props();
   const INTERVAL = 3000;
   // The guided demo replays a stored snapshot; reading it again would change nothing.
@@ -19,6 +19,7 @@
   // failed check drops its earlier items and is asked again on the next read.
   let departures: Departure[] = $state([]);
   let departuresFailed = $state(false);
+  let departuresComplete = $state(false);
   let departuresAt = 0;
   const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
@@ -30,8 +31,13 @@
     const current: PhmMonitor | null = phm, connections: Sources | null = sources;
     return current ? attentionByAsset(current.models, connections?.items ?? null, departures) : [];
   });
-  // The asset list counts these too, so the two never disagree; a failed read counts nothing.
-  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])])); });
+  const notesState = $derived.by((): AttentionState => {
+    const current: PhmMonitor | null = phm, connections: Sources | null = sources;
+    if (loadState === "loading") return "loading";
+    if (!current || loadState === "failed") return "failed";
+    return attentionComplete(current,connections,departuresComplete) ? "ready" : "partial";
+  });
+  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])]),notesState); });
   const clock = (at: Date) => at.toLocaleTimeString("ko-KR", {timeZone: "Asia/Seoul"});
   // The server's assessment time, so this panel and the page header name the same moment.
   const assessed = $derived.by((): Date | null => {
@@ -60,11 +66,12 @@
       const due = Date.now() - departuresAt >= DEPARTURE_INTERVAL;
       const [model, connections, found] = await Promise.all([
         readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null),
-        due ? readDepartures(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
+        due ? readDepartureStatus(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
       if (pending.signal.aborted) return;
       phm = model; sources = connections; loadState = "ready"; readAt = new Date();
       if (found !== undefined) {
-        departures = found ?? []; departuresFailed = found === null;
+        departures = found?.items ?? []; departuresFailed = found === null;
+        departuresComplete = found?.complete ?? false;
         departuresAt = found === null ? 0 : Date.now();
       }
     } catch {
@@ -100,6 +107,7 @@
   {:else}
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
     {#if departuresFailed}<StatusNotice kind="uncertain" message="기준 구간 이탈을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
+    {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="기준 구간 이탈을 일부만 확인했습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
     <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
@@ -118,7 +126,7 @@
     </section>
     {/if}
     {#if !groups.length}
-      <p>{snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
+      <p>{notesState !== "ready" ? "확인 항목을 일부만 읽었습니다. 미확인 항목이 남아 있습니다." : snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
     {:else}
       {#if groups.some((group) => group.notes.some((note) => note.kind === "threshold"))}
         <p class="context">모델 기준 초과는 학습한 평소 상태와 다르다는 뜻입니다. 항목을 열면 이유·근거·다음 행동을 봅니다.</p>

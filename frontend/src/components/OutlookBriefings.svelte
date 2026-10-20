@@ -93,6 +93,7 @@
       <span class="meta">{checkedSource(latest)}{latest.answer?.source==="computed"?"":" · "+(latest.model??"모델명 없음")} · {clock(latest.requestedAt)}</span>
     {/if}
   </div>
+  <p class="context">마지막 기록 {typeof projection.record.last === "number" ? "#"+projection.record.last : clock(projection.record.last)+" (KST)"} 시점의 상태와 전망에 대한 해설입니다. 기준까지의 여유는 이 기록 이후로 계산합니다.</p>
   {#if requesting}
     <StatusNotice message="해설을 요청하고 있습니다. 계산 결과가 그사이 바뀌지 않았는지 다시 확인합니다."/>
   {:else if briefingState==="loading"}
@@ -103,6 +104,10 @@
   {:else if briefingState==="changed"}
     <StatusNotice kind="uncertain" title="결과가 바뀌어 이전 해설을 숨겼습니다" message={error}/>
   {:else if latest&&latest.answer}
+    {#if waiting}
+      <StatusNotice message="새 질문의 해설을 만들고 있습니다. 아래는 앞서 완료한 해설입니다."/>
+    {/if}
+    <p class="context">질문 · {latest.question}</p>
     <p class="summary">{latest.answer.summary}</p>
     {#if latest.answer.points.length}
       <ul>

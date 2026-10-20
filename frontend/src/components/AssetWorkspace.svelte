@@ -3,7 +3,7 @@
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {
-    DATA_INFO, METHOD_INFO, TAB_INFO, TABS, routeUrl, usesDataKind,
+    DATA_INFO, METHOD_INFO, TAB_INFO, TABS, routeUrl, tabSelectionUrl, usesDataKind,
     type DataKind, type Method, type Route, type Tab,
   } from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
@@ -55,6 +55,10 @@
   function at(tab: Tab, nextMethod: Method | null = null, nextKind: DataKind | null = null): string {
     return routeUrl({page: "assets", assetId: asset.assetId, tab, method: nextMethod, data: nextKind});
   }
+  function retainSelection(event: MouseEvent) {
+    const link = event.currentTarget as HTMLAnchorElement;
+    link.href = tabSelectionUrl(link.href, location.href);
+  }
   let tabBar: HTMLElement | null = $state(null);
   // On a phone the tab row scrolls; keep the current tab in view when it changes.
   $effect(() => {
@@ -94,7 +98,8 @@
 
   <nav class="tabs" aria-label="설비 화면" bind:this={tabBar}>
     {#each TABS as tab (tab)}
-      <a href={at(tab)} aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
+      <a href={at(tab)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
+        aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
     {/each}
   </nav>
 
@@ -105,6 +110,7 @@
         <nav class="segmented" aria-label="분석 방법">
           {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
+              onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
               aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}</a>
           {/each}
         </nav>
@@ -112,7 +118,8 @@
       {#if kind && kindsOf(data).length > 1}
         <nav class="segmented" aria-label="데이터 종류">
           {#each kindsOf(data) as option (option)}
-            <a href={at(route.tab, method, option)} aria-current={kind === option ? "true" : undefined}>{DATA_INFO[option]}</a>
+            <a href={at(route.tab, method, option)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
+              aria-current={kind === option ? "true" : undefined}>{DATA_INFO[option]}</a>
           {/each}
         </nav>
       {:else if kind}

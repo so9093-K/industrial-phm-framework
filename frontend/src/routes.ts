@@ -95,6 +95,24 @@ export function routeUrl(route: Route, channel: string | null = null): string {
   return "/web/" + (params.size ? "?" + params.toString() : "");
 }
 
+/** Resolve tab links when activated, after the child may have changed its URL selection.
+ * Only the selected signal/feature follows; forecast settings and comparison ranges do not. */
+export function tabSelectionUrl(href: string, currentHref: string): string {
+  const current = new URL(currentHref), next = new URL(href, current);
+  const from = parseRoute(current.search).route, to = parseRoute(next.search).route;
+  if (next.origin !== current.origin) return next.href;
+  if (to.page !== "assets" || from.page !== "assets"
+    || !from.assetId || from.assetId !== to.assetId) return next.pathname + next.search + next.hash;
+  const channel = current.searchParams.get("monitor_channel");
+  if (channel) next.searchParams.set("monitor_channel", channel);
+  const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
+  const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];
+  const feature = (sourceKey ? current.searchParams.get(sourceKey) : null)
+    ?? Object.values(keys).map(key => current.searchParams.get(key)).find(value => value);
+  if (feature) next.searchParams.set(targetKey ?? "vibration_feature", feature);
+  return next.pathname + next.search + next.hash;
+}
+
 /** The canonical address of a legacy link keeps the workflow's own parameters. */
 export function canonicalUrl(search: string, hash = ""): string {
   const {route} = parseRoute(search,hash);

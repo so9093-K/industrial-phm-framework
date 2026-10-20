@@ -7,7 +7,7 @@
   import type {AssetData} from "../asset-data";
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
-  import {readAttention, type Note} from "../monitor-attention";
+  import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -28,7 +28,17 @@
   let scoreState: "loading" | "ready" | "failed" = $state("loading");
   // The same items 관측 현황 lists for this asset; null while unread or unreadable.
   let notes: Note[] | null = $state(null);
-  let notesFailed = $state(false);
+  let notesState: AttentionState = $state("loading");
+  let noteRequest: AbortController | null = null;
+  async function readNotes() {
+    noteRequest?.abort();
+    const request = new AbortController(); noteRequest = request;
+    notes = null; notesState = "loading";
+    try {
+      const read = await readAttention(request.signal);
+      if (!request.signal.aborted) {notes = read.groups.find(group=>group.assetId===asset.assetId)?.notes??[]; notesState = read.state;}
+    } catch {if (!request.signal.aborted) {notes = null; notesState = "failed";}}
+  }
   const departures = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind === "departure"); });
   // Model notes are the scores above; departures sit with them; the rest are listed with the count.
   const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure" && note.kind !== "threshold"); });
@@ -38,10 +48,8 @@
       if (request.signal.aborted) return;
       scores = value; scoreState = "ready";
     }).catch(() => { if (!request.signal.aborted) scoreState = "failed"; });
-    void readAttention(request.signal).then((groups) => {
-      if (!request.signal.aborted) notes = groups.find((group) => group.assetId === asset.assetId)?.notes ?? [];
-    }).catch(() => { if (!request.signal.aborted) notesFailed = true; });
-    return () => request.abort();
+    void readNotes();
+    return () => {request.abort();noteRequest?.abort();};
   });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
@@ -55,8 +63,7 @@
     return asset.attentionCount === null && read === null ? null : (asset.attentionCount ?? 0) + (read?.length ?? 0);
   });
   function attention(count: number | null): string {
-    if (count === null) return notesFailed ? "확인하지 못함" : "확인하는 중";
-    return count ? count + "건" : "없음";
+    return attentionText(count,notesState);
   }
 </script>
 
@@ -91,6 +98,10 @@
 
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
   <h2 id="summary-title">기록 현황</h2>
+  {#if notesState === "partial" || notesState === "failed"}
+    <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
+      actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
+  {/if}
   <dl class="facts">
     <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
     <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}

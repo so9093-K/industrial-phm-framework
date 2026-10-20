@@ -68,7 +68,8 @@ not install Node dependencies.
   validation. Read-only GET /forecast/options, /forecast and /outlook.
 - `src/components/OutlookBriefings.svelte`: the result's AI explanation, placed right after the
   limit tiles. Shows the latest checked answer with its cited facts, or a single ‘해설 만들기’
-  request; custom questions are folded. `data_version`, settings and recalculated
+  request; custom questions are folded. The last record anchors every explanation; its question
+  stays visible, and a pending question labels an earlier answer as such. `data_version`, settings and recalculated
   `measurement_version` are verified before and after reading; a change clears the joined result.
 - `src/outlook-briefings.ts`: strict server echo, answer/evidence citation and
   read/write capability boundaries without client-side calculations.
@@ -124,7 +125,9 @@ not install Node dependencies.
   read state; it opens even when the store read fails). `src/operations-status.ts`: their DTOs, with
   the same receipt words as `/web/` (registration, file read and live receipt kept apart).
 - `src/components/CsvStart.svelte`: one CSV to stored measurements. The browser preview
-  (`src/csv-preview.ts`) shows columns, blocking problems, a summary and a chart; the server checks
+  (`src/csv-preview.ts`) applies the selected time zone only to naive timestamps, including mixed
+  files; the chart keeps elapsed time gaps and shows the record period in KST.
+  It shows columns, blocking problems, a summary and a chart; the server checks
   without saving; then register → use → read once → store history as visible steps. A retry resumes
   from the server's state and never registers or stores twice.
 - `src/components/ConnectionList.svelte`: each registered connection with its one next step and other
@@ -146,7 +149,8 @@ not install Node dependencies.
 - `src/components/MonitorAttention.svelte`, `src/monitor-attention.ts`: what needs a look per asset (model
   over threshold, refused or waiting input, model that cannot run, review in progress, a requested
   collection without recent receipt), each opening the exact place; read again every 3 seconds while
-  visible, and a failed read hides earlier items.
+  visible, and a failed read hides earlier items. The monitor, asset list and summary distinguish
+  complete counts from loading, partial and failed reads; an unread part never means zero items.
 - `src/components/ElectricalCondition.svelte`, `src/electrical-condition.ts`: 3-phase load, unbalance and
   reference-pattern score of a recent period against an earlier one (`/api/v1/condition`), times to check
   first and per-phase values; KST inputs travel as the same instant and lines never cross missing data.
