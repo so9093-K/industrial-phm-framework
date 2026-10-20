@@ -11,6 +11,8 @@ export type CsvSetup={
   phase_channels?:PhaseRole[];
   /** Optional names and units people see for the saved columns; IDs stay the column names. */
   channel_labels?:{channel_id:string;label:string;unit:string|null}[];
+  /** The offset for timestamps the file wrote without one, such as +09:00. */
+  timestamp_utc_offset?:string;
 };
 export type PreflightIssue={code:string;guidance:string;row:number|null;column:string|null};
 export type Preflight={

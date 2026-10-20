@@ -5,9 +5,10 @@ from __future__ import annotations
 import csv
 import hashlib
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from io import StringIO
 from itertools import pairwise
 from pathlib import Path
@@ -25,6 +26,20 @@ class CsvSensorSourceError(ValueError):
     """Raised when a prepared CSV sensor export violates its declared layout."""
 
 
+_UTC_OFFSET = re.compile(r"([+-])(\d{2}):(\d{2})")
+
+
+def parse_utc_offset(text: str) -> timezone:
+    """The fixed offset, such as ``+09:00``, given to timestamps written without one."""
+    match = _UTC_OFFSET.fullmatch(text)
+    if match is None or int(match.group(3)) >= 60:
+        raise ValueError("timestamp_utc_offset must look like +09:00")
+    minutes = int(match.group(2)) * 60 + int(match.group(3))
+    if minutes > 14 * 60:
+        raise ValueError("timestamp_utc_offset must be within ±14:00")
+    return timezone(timedelta(minutes=-minutes if match.group(1) == "-" else minutes))
+
+
 @dataclass(frozen=True, slots=True)
 class CsvSensorLayout:
     """Explicit mapping from one CSV export into one canonical sensor segment."""
@@ -37,6 +52,8 @@ class CsvSensorLayout:
     minimum_sample_count: int = 1
     delimiter: str = ","
     metadata: Mapping[str, _METADATA_VALUE] = field(default_factory=dict)
+    # Timestamps written without an offset are read at this offset; written offsets win.
+    timestamp_utc_offset: str | None = None
 
     def __post_init__(self) -> None:
         channels = tuple(self.channel_columns)
@@ -55,6 +72,10 @@ class CsvSensorLayout:
                 raise ValueError("timestamp_column must be non-empty when provided")
             if self.timestamp_column in channels:
                 raise ValueError("timestamp_column must not also be a channel column")
+        if self.timestamp_utc_offset is not None:
+            if self.timestamp_column is None:
+                raise ValueError("timestamp_utc_offset requires timestamp_column")
+            parse_utc_offset(self.timestamp_utc_offset)
         if self.sampling_rate_hz is not None and (
             not math.isfinite(self.sampling_rate_hz) or self.sampling_rate_hz <= 0
         ):
@@ -199,6 +220,11 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
 
         values: list[tuple[float, ...]] = []
         timestamps: list[datetime] | None = [] if timestamp_index is not None else None
+        assumed = (
+            None
+            if layout.timestamp_utc_offset is None
+            else parse_utc_offset(layout.timestamp_utc_offset)
+        )
 
         for row_number, row in enumerate(reader, start=2):
             if len(row) != len(header):
@@ -221,6 +247,7 @@ def _parse_csv_sensor_source(source: Path, layout: CsvSensorLayout) -> _ParsedCs
                         row[timestamp_index],
                         layout.timestamp_column or "timestamp",
                         row_number,
+                        assumed,
                     )
                 )
     except csv.Error as error:
@@ -302,17 +329,20 @@ def _parse_numeric_cell(value: str, column: str, row_number: int) -> float:
     return result
 
 
-def _parse_timestamp_cell(value: str, column: str, row_number: int) -> datetime:
+def _parse_timestamp_cell(
+    value: str, column: str, row_number: int, assumed: timezone | None = None
+) -> datetime:
     if not value.strip():
         raise CsvSensorSourceError(
             f"CSV row {row_number} column {column!r} contains a missing timestamp"
         )
     try:
-        return datetime.fromisoformat(value.strip())
+        parsed = datetime.fromisoformat(value.strip())
     except ValueError as error:
         raise CsvSensorSourceError(
             f"CSV row {row_number} column {column!r} must be an ISO 8601 timestamp"
         ) from error
+    return parsed.replace(tzinfo=assumed) if parsed.tzinfo is None and assumed else parsed
 
 
 def _validate_timestamp_order(

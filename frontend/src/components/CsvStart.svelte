@@ -5,7 +5,7 @@
     setLifecycle, startHistory, waitForHistory, ANALYSIS_MAX_BYTES, HistoryFailed, type CsvSetup, type Preflight,
   } from "../connections";
   import {
-    channelChoices, inspectCsv, intervals, parseCsv, previewPoints, previewProblems, readTimes, summarize,
+    channelChoices, inspectCsv, intervals, offsetChoices, parseCsv, unitExample, previewPoints, previewProblems, readTimes, summarize,
     suggestedSourceId, suggestSignalNames, MAX_CHANNELS, MAX_CSV_BYTES, type CsvTable,
   } from "../csv-preview";
   import {num} from "../format";
@@ -39,6 +39,9 @@
   let fileMessage = $state("아직 파일을 고르지 않았습니다. 저장하기 전까지 파일은 이 브라우저에서만 읽습니다.");
   let fileProblem = $state(false);
   let timeIndex = $state(-1);
+  // Timestamps written without an offset are read at this one; most field exports are local time.
+  let offset = $state("+09:00");
+  const offsets = offsetChoices();
   let channels: string[] = $state([]);
   let chartChannel = $state("");
   // How each saved column reads on screens; empty keeps the column name.
@@ -69,7 +72,7 @@
 
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
-  const problems = $derived(table ? previewProblems(table, timeIndex, channels) : []);
+  const problems = $derived(table ? previewProblems(table, timeIndex, channels, offset) : []);
   const timing = $derived(table && timeIndex >= 0 ? readTimes(table, timeIndex) : null);
   const gaps = $derived(timing ? intervals(timing) : null);
   const points = $derived(table && timing && chartChannel ? previewPoints(table, timing, chartChannel) : []);
@@ -137,6 +140,7 @@
         sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
         timeIndex = inspected.header.indexOf(prior.timestamp_column); channels = [...prior.channel_columns];
         chartChannel = channels[0] ?? ""; restored = true;
+        if (offsets.some((choice) => choice.value === prior.timestamp_utc_offset)) offset = prior.timestamp_utc_offset;
         if (Array.isArray(prior.channel_labels)) for (const item of prior.channel_labels) {
           if (typeof item?.channel_id === "string" && item.channel_id in labels && typeof item.label === "string")
             labels[item.channel_id] = {label: item.label, unit: typeof item.unit === "string" ? item.unit : ""};
@@ -161,7 +165,8 @@
       measurement_point_id: pointId.trim(), channel_columns: channels,
       timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : "",
       ...(declared.length ? {phase_channels: declared} : {}),
-      ...(named().length ? {channel_labels: named()} : {})};
+      ...(named().length ? {channel_labels: named()} : {}),
+      ...(timing?.naive ? {timestamp_utc_offset: offset} : {})};
   }
   function named(): {channel_id: string; label: string; unit: string | null}[] {
     return channels.flatMap((name) => {
@@ -312,6 +317,13 @@
             {#each table.times as column (column.index)}<option value={String(column.index)}>{column.name}</option>{/each}
           </select>
         </label>
+        {#if timing?.naive}
+          <label class="field">시각의 시간대 (파일에 시간대가 없음)
+            <select value={offset} disabled={locked} onchange={(event) => { offset = event.currentTarget.value; changed(); }}>
+              {#each offsets as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
+            </select>
+          </label>
+        {/if}
         <fieldset>
           <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
@@ -340,7 +352,7 @@
               <span class="column">{name}</span>
               <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
                 value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
-              <input maxlength="16" placeholder="단위 예: A" aria-label={name + " 단위"} disabled={locked}
+              <input maxlength="16" placeholder={unitExample(name) ? "단위 예: " + unitExample(name) : "단위"} aria-label={name + " 단위"} disabled={locked}
                 value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
             </div>
           {/each}
@@ -382,7 +394,7 @@
             <circle cx={x(i)} cy={y(point.mean)} r="3" class="dot"><title>평균 {num(point.mean)} · 최소 {num(point.min)} · 최대 {num(point.max)}</title></circle>
           {/each}
         </svg>
-        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}{timing?.naive ? " · 시간대가 없어 한국 시각으로 바꾸지 않았습니다" : ""}</p>
+        <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
     </section>
 

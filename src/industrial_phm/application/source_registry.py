@@ -66,7 +66,9 @@ _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
 # byte-for-byte the original v5 shape and stays readable. Older v5 readers reject a
 # registry that uses them; pre-release builds do not promise downgrade reads. A
 # required key, a renamed key or a changed meaning still needs a new schema version.
-_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name", "semantic_bindings", "channel_labels"})
+_CONFIG_OPTIONAL_KEYS = frozenset(
+    {"asset_display_name", "semantic_bindings", "channel_labels", "timestamp_utc_offset"}
+)
 
 
 class SourceRegistryFormatError(ValueError):
@@ -354,6 +356,8 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
                 {"channel_id": item.channel_id, "label": item.label, "unit": item.unit}
                 for item in config.channel_labels
             ]
+        if config.timestamp_utc_offset is not None:
+            config_payload["timestamp_utc_offset"] = config.timestamp_utc_offset
     elif isinstance(config, OpcUaSourceConfig):
         config_payload = {
             "endpoint_url": config.endpoint_url,
@@ -481,6 +485,9 @@ def _parse_file_source_config(
         asset_display_name=_optional_display_name(config, label),
         semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
         channel_labels=_channel_labels(config, label),
+        timestamp_utc_offset=_optional_string(
+            config.get("timestamp_utc_offset"), f"{label}.timestamp_utc_offset"
+        ),
     )
 
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  channelChoices,inspectCsv,intervals,numberOf,parseCsv,previewPoints,previewProblems,readTimes,summarize,suggestedSourceId,suggestSignalNames,
+  channelChoices,inspectCsv,intervals,numberOf,offsetChoices,parseCsv,previewPoints,previewProblems,readTimes,summarize,suggestedSourceId,suggestSignalNames,unitExample,
 } from "./csv-preview.ts";
 
 const csv=[
@@ -31,6 +31,8 @@ test("what would stop the file from being stored is named with its row",()=>{
   const problems=previewProblems(naive,0,["v"]).join(" ");
   assert.match(problems,/시간대/);
   assert.match(problems,/3행의 시각이 앞 행보다 늦지 않습니다/);
+  // Wall times without an offset are storable once the person picks the offset they were written in.
+  assert.doesNotMatch(previewProblems(naive,0,["v"],"+09:00").join(" "),/시간대/);
   const ragged=inspectCsv(parseCsv("t,v\n2026-10-11T09:00:00Z,1,9\n"));
   assert.match(ragged.problems.join(),/2행의 값 개수/);
 });
@@ -56,4 +58,16 @@ test("a column that says what it measures gets a Korean name to start from, neve
   // Three phases of one quantity keep their suffix so the names stay distinct.
   assert.deepEqual([...suggestSignalNames(["voltage_a", "voltage_b", "voltage_c"]).values()], ["전압 A", "전압 B", "전압 C"]);
   assert.equal(suggestSignalNames(["current_motor_inlet_side"]).size, 0);
+  // A known subject before the quantity is part of the name; an unknown one gives no guess.
+  assert.deepEqual([...suggestSignalNames(["motor_temp_c", "vibration_mm_s", "pressure_bar", "valve_temp"])],
+    [["motor_temp_c", "모터 온도"], ["vibration_mm_s", "진동"], ["pressure_bar", "압력"]]);
+  // The unit field only shows an example for the quantity; nothing is filled in.
+  assert.deepEqual(["motor_temp_c", "pressure_bar", "valve_state"].map(unitExample), ["°C", "bar", null]);
+});
+
+test("the offsets offered for wall times start with Korea and add this computer's own",()=>{
+  assert.deepEqual(offsetChoices(-540).map(choice=>choice.value),["+09:00","+00:00"]);
+  assert.deepEqual(offsetChoices(0).map(choice=>choice.value),["+09:00","+00:00"]);
+  assert.deepEqual(offsetChoices(-330).at(-1),{value:"+05:30",label:"이 컴퓨터의 시간대 (UTC+05:30)"});
+  assert.equal(offsetChoices(300).at(-1)!.value,"-05:00");
 });
