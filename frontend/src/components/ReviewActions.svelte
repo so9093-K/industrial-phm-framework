@@ -142,7 +142,7 @@
   .reason summary { cursor: pointer; color: var(--color-ink-muted); font-size: var(--font-small); }
   .field { display: grid; gap: var(--space-2); margin-top: var(--space-2); font-weight: 650; font-size: var(--font-small); }
   textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; }
+    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .confirm { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .message { overflow-wrap: anywhere; }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }
