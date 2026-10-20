@@ -20,7 +20,9 @@ def expect_place(pw: Any, page: Any, tab: str, method: str | None = None) -> Non
         "aria-current", "page"
     )
     if method is not None:
-        # The choice of methods is shown only when the asset's data supports more than one.
+        # The choice of methods is shown once the asset's data is known, and only when that
+        # data supports more than one.
+        pw.expect(page.locator(".workspace-asset[aria-busy='true']")).to_have_count(0)
         methods = page.get_by_role("navigation", name="분석 방법")
         if methods.count():
             pw.expect(methods.get_by_role("link", name=method, exact=True)).to_have_attribute(

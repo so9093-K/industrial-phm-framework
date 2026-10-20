@@ -71,7 +71,7 @@
   });
 </script>
 
-<div class="workspace-asset">
+<div class="workspace-asset" aria-busy={dataState === "loading"}>
   <nav class="crumbs" aria-label="현재 위치">
     <a href={routeUrl({page: "assets", assetId: "", tab: "summary", method: null, data: null})}>설비·신호</a>
     <span aria-hidden="true">›</span> <span>{assetLabel(assets, asset.assetId)}</span>
@@ -100,7 +100,8 @@
 
   {#if methods.length || kind}
     <div class="choices">
-      {#if methods.length > 1}
+      <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
+      {#if methods.length > 1 && dataState !== "loading"}
         <nav class="segmented" aria-label="분석 방법">
           {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
