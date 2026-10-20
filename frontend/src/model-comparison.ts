@@ -24,7 +24,8 @@ export function parseComparison(raw:unknown,binding:ModelBinding,run:ModelRun,pr
     seen.add(row.feature);
     const current=finite(row.current);
     if(current===null)invalid();
-    return {feature:row.feature,label:row.label,current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent)};
+    return {feature:row.feature,label:row.label,current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent),
+      unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null};
   });
   return {features,previousScore:finite(root.previous_score),previousRunId:root.previous_analysis_run_id as string|null};
 }

@@ -4,7 +4,7 @@ export const steps = [
     question:"일정한 기록과 변화가 있는 기록을 구분해 보세요.",
     evidence:"두 합성 펌프의 4시간 기록입니다. 순환 펌프 2호기의 변화 기록을 골라 신호를 확인할 수 있습니다."},
   {id:"signals", title:"어떤 값이 변했나요?", label:"2. 신호",
-    href:"/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=24h&monitor_anchor=latest",
+    href:"/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a",
     question:"전반부와 후반부의 전류 흐름은 어떻게 다른가요?",
     evidence:"처음 120분은 약 8 A, 이후에는 의도적으로 증가시킨 입력입니다. 온도 신호(temperature_c)도 함께 증가하도록 생성했습니다."},
   {id:"anomaly", title:"기준에서 벗어나기 시작한 때는?", label:"3. 이상 탐지",

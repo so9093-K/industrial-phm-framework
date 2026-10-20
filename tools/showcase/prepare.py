@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from industrial_phm.application import (
+    ChannelLabel,
     ChannelSemanticBinding,
     FileSourceConfig,
     JsonSourceRepository,
@@ -24,6 +25,7 @@ from industrial_phm.runtime.operations_web_actions import execute_web_source_act
 
 START = datetime(2026, 10, 1, tzinfo=UTC)
 CHANNELS = {"current_a": ("electric current", "A"), "temperature_c": ("temperature", "°C")}
+NAMES = {"current_a": "전류", "temperature_c": "온도"}
 
 
 def csv_bytes(changing: bool) -> bytes:
@@ -80,6 +82,10 @@ def prepare(root: Path) -> dict[str, object]:
                     else "순환 펌프 1호기 · 일정한 기록",
                     timestamp_column="timestamp",
                     semantic_bindings=bindings,
+                    channel_labels=tuple(
+                        ChannelLabel(channel, NAMES[channel], unit)
+                        for channel, (_, unit) in CHANNELS.items()
+                    ),
                 ),
             )
         )

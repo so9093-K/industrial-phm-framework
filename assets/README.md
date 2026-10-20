@@ -24,7 +24,7 @@ README의 대표 화면입니다. `industrial-phm demo xjtu --until 100`과 같�
 | [측정 상세](models/02-measurement.png) | 측정 #100의 점수·기준·원본 파형, 기준 초과 직전 측정 #75와의 기본 비교 |
 | [무엇이 변했나](models/03-changes.png) | #75와 #100의 진동 특징 비교와 구간 흐름 |
 | [AI 해설](models/04-explanation.png) | 같은 비교를 근거로 `local-main`이 만든 해설과 해설이 짚은 측정값 |
-| [상태 전망·RUL](models/05-outlook.png) | 수평 진동 RMS의 Prophet 예측, 입력한 관리 기준 4·종료 기준 6까지 남은 측정·시간과 해설 |
+| [상태 전망·RUL](models/05-outlook.png) | 수평 진동 RMS(g)의 Prophet 예측, 입력한 관리 기준 4 g·종료 기준 6 g까지 남은 측정·시간과 남은 시간을 물은 해설 |
 | [GIF](models/walkthrough.gif) | 모델 비교 → 측정 선택 → 다른 모델로 같은 측정 → 특징 변화 → 해설 → 상태 전망의 흐름 |
 
 XJTU-SY 원본 파형과 모델 패키지는 저장소에 포함하지 않습니다. 화면은 기록 데이터를 시간 압축해 재생한 결과입니다.

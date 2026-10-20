@@ -1075,3 +1075,105 @@ def test_supervised_browser_csv_upload_registers_file_without_workspace_path_inp
             server.shutdown()
             server.server_close()
             thread.join(timeout=5)
+
+
+def test_signal_names_and_units_declared_at_registration_label_the_stored_channels(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "labelled")
+    initialize_operations_workspace(workspace)
+    (workspace.root / "inputs").mkdir()
+    observed = datetime.now(UTC) - timedelta(minutes=2)
+    (workspace.root / "inputs" / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n"
+        f"{observed.isoformat()},220.5,219.0,221.0\n"
+        f"{(observed + timedelta(seconds=1)).isoformat()},220.7,219.2,221.1\n",
+        encoding="utf-8",
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+
+        def action(route: str, payload: dict[str, object]) -> int:
+            return _request(
+                port,
+                "POST",
+                "/api/v1/sources/" + route,
+                body=json.dumps(payload).encode(),
+                origin=origin,
+                fetch_site="same-origin",
+                csrf=str(session["csrf_token"]),
+            )[0]
+
+        label = {"channel_id": "phase-R", "label": "R상 전압", "unit": "V"}
+        bad = {**_payload(), "channel_labels": [{**label, "channel_id": "missing"}]}
+        assert action("file", bad) == 400
+        assert action("file", {**_payload(), "channel_labels": [label]}) == 201
+        identity = {"source_id": "registered-file-01"}
+        assert action("lifecycle", {**identity, "target_state": "active"}) == 200
+        assert action("file/receive", identity) == 200
+        assert action("file/backfill", identity) == 200
+        status, channels = _request(port, "GET", "/api/v1/history/channels?asset_id=pump-01")
+        assert status == 200
+        assert channels["channels"]["items"] == ["phase-R", "phase-S", "phase-T"]
+        assert channels["labels"] == {"phase-R": {"label": "R상 전압", "unit": "V"}}
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)
+
+
+def test_the_whole_stored_record_fills_the_signal_view_whatever_its_age(tmp_path: Path) -> None:
+    # A four-hour file recorded days ago is empty in any window counted back from now.
+    pytest.importorskip("duckdb")
+    pytest.importorskip("filelock")
+    workspace = OperationsWorkspace(tmp_path / "record")
+    initialize_operations_workspace(workspace)
+    (workspace.root / "inputs").mkdir()
+    first = datetime(2026, 10, 1, tzinfo=UTC)
+    rows = [f"{(first + timedelta(minutes=m)).isoformat()},{8 + m / 60},1,1" for m in range(240)]
+    (workspace.root / "inputs" / "phases.csv").write_text(
+        "timestamp,phase-R,phase-S,phase-T\n" + "\n".join(rows) + "\n", encoding="utf-8"
+    )
+    server = create_operations_web_read_server(workspace.root)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = server.server_port
+        origin = f"http://127.0.0.1:{port}"
+        _, session = _request(port, "GET", "/api/v1/session")
+
+        def action(route: str, payload: dict[str, object]) -> int:
+            return _request(
+                port,
+                "POST",
+                "/api/v1/sources/" + route,
+                body=json.dumps(payload).encode(),
+                origin=origin,
+                fetch_site="same-origin",
+                csrf=str(session["csrf_token"]),
+            )[0]
+
+        identity = {"source_id": "registered-file-01"}
+        assert action("file", _payload()) == 201
+        assert action("lifecycle", {**identity, "target_state": "active"}) == 200
+        assert action("file/receive", identity) == 200
+        assert action("file/backfill", identity) == 200
+        query = "/api/v1/history/trend?asset_id=pump-01&channel_id=phase-R&buckets=120"
+        status, recent = _request(port, "GET", query + "&range=1h&anchor=now")
+        assert status == 200 and recent["buckets"] == []
+        status, whole = _request(port, "GET", query + "&range=all")
+        assert status == 200 and whole["range"] == "all"
+        assert datetime.fromisoformat(whole["start_at"]) == first
+        assert datetime.fromisoformat(whole["end_at"]) == first + timedelta(minutes=239, seconds=1)
+        assert len(whole["buckets"]) == 120
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=10)

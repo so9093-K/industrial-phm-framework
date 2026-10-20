@@ -2,7 +2,7 @@
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
-  import {attentionByAsset, readPhmMonitor, type PhmMonitor} from "../monitor-attention";
+  import {attentionByAsset, readDepartures, readPhmMonitor, type Departure, type PhmMonitor} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
@@ -15,6 +15,12 @@
   const live = import.meta.env.MODE !== "showcase";
   let phm: PhmMonitor | null = $state(null);
   let sources: Sources | null = $state(null);
+  // The baseline check reads stored history, so it is asked again only every 30 seconds; a
+  // failed check drops its earlier items and is asked again on the next read.
+  let departures: Departure[] = $state([]);
+  let departuresFailed = $state(false);
+  let departuresAt = 0;
+  const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let readAt: Date | null = $state(null);
   let paused = $state(false);
@@ -22,7 +28,7 @@
   let request: AbortController | null = null;
   const groups = $derived.by(() => {
     const current: PhmMonitor | null = phm, connections: Sources | null = sources;
-    return current ? attentionByAsset(current.models, connections?.items ?? null) : [];
+    return current ? attentionByAsset(current.models, connections?.items ?? null, departures) : [];
   });
   // The asset list counts these too, so the two never disagree; a failed read counts nothing.
   $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])])); });
@@ -51,10 +57,16 @@
     request?.abort();
     const pending = new AbortController(); request = pending;
     try {
-      const [model, connections] = await Promise.all([
-        readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null), onTick()]);
+      const due = Date.now() - departuresAt >= DEPARTURE_INTERVAL;
+      const [model, connections, found] = await Promise.all([
+        readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null),
+        due ? readDepartures(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
       if (pending.signal.aborted) return;
       phm = model; sources = connections; loadState = "ready"; readAt = new Date();
+      if (found !== undefined) {
+        departures = found ?? []; departuresFailed = found === null;
+        departuresAt = found === null ? 0 : Date.now();
+      }
     } catch {
       if (pending.signal.aborted) return;
       phm = null; loadState = "failed";
@@ -80,16 +92,18 @@
     <h2 id="attention-title">확인이 필요한 설비</h2>
     {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
   </div>
-  <p class="context">{assessed ? clock(assessed) + " 기준 · " : ""}{!live ? "저장된 체험 기록입니다." : paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}
-    모델 기준 초과는 학습한 평소 상태와 다르다는 뜻이며 고장 판정이 아닙니다. 아래 항목에서 확인 이유·근거·다음 행동을 볼 수 있습니다.</p>
+  <p class="context">{assessed ? clock(assessed) + " 기준 · " : ""}{!live ? "저장된 체험 기록입니다." : paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}</p>
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
     <StatusNotice kind="uncertain" message="모델 처리 상태를 다시 읽지 못했습니다. 이전 결과를 지금 상태로 보여 주지 않습니다." />
   {:else}
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
+    {#if departuresFailed}<StatusNotice kind="uncertain" message="기준 구간 이탈을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
+    <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
+    {#if serviceItems.length || dataItems.length || !snapshot.operationsAttention?.complete}
     <section aria-label="운영 확인 항목" class="operations-attention">
       <h3>운영 확인 항목</h3>
       {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
@@ -101,17 +115,20 @@
         <h4>데이터·검토</h4><p class="context">설비 데이터의 수신·품질과 사람 검토가 남은 항목입니다.</p>
         <ul>{#each dataItems as item (item.id)}{@render operation(item)}{/each}</ul>
       {/if}
-      {#if !serviceItems.length && !dataItems.length && snapshot.operationsAttention?.complete}<p>운영 처리에서 확인할 항목이 없습니다.</p>{/if}
     </section>
+    {/if}
     {#if !groups.length}
       <p>{snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
     {:else}
+      {#if groups.some((group) => group.notes.some((note) => note.kind === "threshold"))}
+        <p class="context">모델 기준 초과는 학습한 평소 상태와 다르다는 뜻입니다. 항목을 열면 이유·근거·다음 행동을 봅니다.</p>
+      {/if}
       <ul class="groups">
         {#each groups as group (group.assetId)}
           <li><article aria-labelledby={"attention-" + group.assetId}>
             <h3 id={"attention-" + group.assetId} tabindex="-1">{assetLabel(snapshot.assets, group.assetId)}</h3>
             <ul class="notes">
-              {#each group.notes as note (note.kind)}
+              {#each group.notes as note (note.id)}
                 <li data-kind={note.kind}><strong>{note.label}</strong><span>{note.detail}</span>
                   <a href={note.href}>{note.action} →</a></li>
               {/each}

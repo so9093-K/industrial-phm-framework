@@ -27,7 +27,7 @@ const acquisition:AcquisitionProjection={
   measurementVersion:measured,dataVersion:evidence,timeBasis:"recorded",
   recordedPeriod:60,assumedPeriod:null,effectivePeriod:60,horizonCount:5,searchCount:31,searchUntil:95,
   outlookSettings:settings,conditions:{direction:"upper",management:2.4,end:3},
-  record:{first:1,last:64,points:64},forecast:[],history:[],
+  record:{first:1,last:64,points:64},forecast:[],history:[],unit:null,
   scenarios:[{id:"current",management:reach("expected",4),end:reach("possible",null,9)}],
 };
 

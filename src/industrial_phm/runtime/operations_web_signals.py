@@ -11,6 +11,7 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 
+from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.asset_history import MeasurementSourceQuality
 from industrial_phm.application.measurement_history import MultiSignalMeasurementHistoryBucket
 from industrial_phm.history import DuckLakeAssetHistory
@@ -18,6 +19,7 @@ from industrial_phm.runtime.operations_app_composition import OperationsAppSnaps
 from industrial_phm.runtime.operations_live import (
     OperationsReadError,
     list_operations_history_channels,
+    query_operations_history_extent,
     query_operations_latest_measurements,
     query_operations_multi_signal_measurement_aggregation,
 )
@@ -32,6 +34,8 @@ RANGE_DURATIONS = {
     "24h": timedelta(hours=24),
     "7d": timedelta(days=7),
 }
+# The whole stored record of the chosen signals, from its first to its last measurement.
+WHOLE_RECORD = "all"
 
 
 def _time(value: datetime | None) -> str | None:
@@ -104,6 +108,7 @@ def project_history_channels(
 ) -> dict[str, object]:
     """List stored channels for a selected asset, not a live connection roster."""
     channels = list_operations_history_channels(_history(snapshot), asset_id)
+    labels = resolve_channel_labels(snapshot.registered_sources, asset_id)
     return {
         "schema_version": 1,
         "assessed_at": _time(snapshot.assessed_at),
@@ -113,6 +118,12 @@ def project_history_channels(
             "items": list(channels[:100]),
             "total": len(channels),
             "truncated": len(channels) > 100,
+        },
+        # How the person who registered the data named each channel; IDs stay identities.
+        "labels": {
+            channel: {"label": labels[channel][0], "unit": labels[channel][1]}
+            for channel in channels[:100]
+            if channel in labels
         },
     }
 
@@ -134,7 +145,7 @@ def project_signal_history(
         or len(set(channel_ids)) != len(channel_ids)
     ):
         raise ValueError("channel_ids must be 1 to 6 distinct identifiers")
-    if range_preset not in RANGE_DURATIONS:
+    if range_preset not in RANGE_DURATIONS and range_preset != WHOLE_RECORD:
         raise ValueError("unsupported range")
     if isinstance(bucket_count, bool) or not 1 <= bucket_count <= MAX_BUCKETS:
         raise ValueError("bucket_count must be between 1 and 120")
@@ -175,7 +186,14 @@ def project_signal_history(
         end = max(datetime.fromisoformat(str(point["event_at"])) for point in latest) + timedelta(
             seconds=1
         )
-    start = end - RANGE_DURATIONS[range_preset]
+    if range_preset == WHOLE_RECORD:
+        extent = query_operations_history_extent(reader, asset_id, channel_ids=channel_ids)
+        if extent is None:
+            start = end - RANGE_DURATIONS["1h"]
+        else:
+            start, end = extent[0], max(extent[1], extent[0]) + timedelta(seconds=1)
+    else:
+        start = end - RANGE_DURATIONS[range_preset]
     agg = query_operations_multi_signal_measurement_aggregation(
         reader,
         asset_id,

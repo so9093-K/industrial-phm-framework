@@ -29,7 +29,11 @@ from industrial_phm.application.phm_analysis import (
     SqlitePhmAnalysisStore,
     StepResult,
 )
-from industrial_phm.application.phm_signal_comparison import feature_label
+from industrial_phm.application.phm_signal_comparison import (
+    feature_label,
+    stream_amplitude_unit,
+)
+from industrial_phm.application.phm_signal_comparison import feature_unit as comparison_feature_unit
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
     interpretation_unit,
@@ -39,7 +43,9 @@ from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import _history, explore_sources
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-FORECAST_ROUTES = frozenset({"/api/v1/forecast/options", "/api/v1/forecast"})
+FORECAST_ROUTES = frozenset(
+    {"/api/v1/forecast/options", "/api/v1/forecast", "/api/v1/acquisition/trend"}
+)
 _BUCKETS = 1000
 # Acquisitions are placed on a time axis by their recorded interval; the origin is arbitrary
 # and only positions are reported back.
@@ -91,6 +97,8 @@ def handle_forecast_read(
         asset_id = params.get("asset_id", "")
         if not 0 < len(asset_id) <= 512:
             raise ValueError("asset_id is required")
+        if path == "/api/v1/acquisition/trend":
+            return HTTPStatus.OK, acquisition_trend(workspace, asset_id, params.get("feature", ""))
         if path == "/api/v1/forecast/options":
             body = forecast_options(workspace, asset_id)
             if params.get("series"):
@@ -202,6 +210,14 @@ def handle_forecast_read(
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "forecast_store_unavailable"}
 
 
+def feature_unit(
+    workspace: OperationsWorkspace, asset_id: str, source_id: str, feature: str
+) -> str | None:
+    """The unit of one acquisition feature, when the stream declares its amplitude unit."""
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    return comparison_feature_unit(feature, stream_amplitude_unit(snapshots, source_id, asset_id))
+
+
 def _period(workspace: OperationsWorkspace, asset_id: str, source_id: str) -> float | None:
     for stream in SqliteAcquisitionSnapshotRepository(
         workspace.acquisition_snapshot_path
@@ -281,6 +297,36 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     else:
         body["acquisition"] = None
     return body
+
+
+def acquisition_trend(
+    workspace: OperationsWorkspace, asset_id: str, feature: str
+) -> dict[str, Any]:
+    """One analyzed vibration feature per acquisition, as stored; nothing is fitted."""
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    acquisition = explore_sources(workspace, store, asset_id)["acquisition"]
+    if acquisition is None:
+        raise LookupError("no analyzed acquisitions")
+    if feature not in {candidate["key"] for candidate in acquisition["features"]}:
+        raise ValueError("unknown acquisition feature")
+    results, total = store.analyzed_between(
+        acquisition["binding_id"], 0, 2**62, max_points=_BUCKETS
+    )
+    points = _finite_acquisition_points(results, feature)
+    return {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "source_id": acquisition["source_id"],
+        "binding_id": acquisition["binding_id"],
+        "feature": feature,
+        "label": feature_label(feature),
+        "unit": feature_unit(workspace, asset_id, acquisition["source_id"], feature),
+        "period_seconds": _period(workspace, asset_id, acquisition["source_id"]),
+        "analyzed": total,
+        "sampled": len(results) < total,
+        "points": [[position, value] for position, value in points],
+        "meaning": "stored-acquisition-features-not-asset-health",
+    }
 
 
 def forecast_series(
@@ -440,7 +486,7 @@ def acquisition_points(
         [value for _, value in points],
         {
             "label": feature_label(feature),
-            "unit": None,
+            "unit": feature_unit(workspace, asset_id, binding.source_id, feature),
             "source_id": binding.source_id,
             "binding_id": binding.binding_id,
             "measurement_point_id": None,

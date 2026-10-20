@@ -33,6 +33,25 @@ class FileSourceMode(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ChannelLabel:
+    """How people call one registered channel and in what unit, for screens only.
+
+    ``channel_id`` stays the identity in history, analysis and provenance; the label and
+    unit are what the user declared at registration, never inferred from the column name.
+    """
+
+    channel_id: str
+    label: str
+    unit: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_identifier(self.channel_id, "channel_id")
+        _validate_label(self.label, "channel label", CHANNEL_LABEL_MAX_LENGTH)
+        if self.unit is not None:
+            _validate_label(self.unit, "channel unit", CHANNEL_UNIT_MAX_LENGTH)
+
+
+@dataclass(frozen=True, slots=True)
 class FileSourceConfig:
     """Registration-time configuration for the existing prepared CSV boundary.
 
@@ -53,6 +72,7 @@ class FileSourceConfig:
     delimiter: str = ","
     asset_display_name: str | None = None
     semantic_bindings: Sequence[ChannelSemanticBinding] = ()
+    channel_labels: Sequence[ChannelLabel] = ()
 
     def __post_init__(self) -> None:
         _validate_identifier(self.source_path, "source_path")
@@ -75,8 +95,15 @@ class FileSourceConfig:
             raise ValueError("FILE semantic_bindings must not repeat channels")
         if not set(bound_channels).issubset(channels):
             raise ValueError("FILE semantic bindings must reference registered channels")
+        labels = tuple(self.channel_labels)
+        if any(not isinstance(label, ChannelLabel) for label in labels):
+            raise ValueError("FILE channel_labels must contain ChannelLabel values")
+        labelled = tuple(label.channel_id for label in labels)
+        if len(set(labelled)) != len(labelled) or not set(labelled).issubset(channels):
+            raise ValueError("FILE channel labels must name registered channels once")
         object.__setattr__(self, "channel_columns", channels)
         object.__setattr__(self, "semantic_bindings", bindings)
+        object.__setattr__(self, "channel_labels", labels)
 
     def to_csv_sensor_layout(self) -> CsvSensorLayout:
         """Build the existing CSV adapter layout without changing its semantics."""
@@ -286,6 +313,16 @@ class InMemorySourceRepository:
 
 
 ASSET_DISPLAY_NAME_MAX_LENGTH = 120
+CHANNEL_LABEL_MAX_LENGTH = 60
+CHANNEL_UNIT_MAX_LENGTH = 16
+
+
+def _validate_label(value: str, field_name: str, limit: int) -> None:
+    _validate_identifier(value, field_name)
+    if len(value) > limit:
+        raise ValueError(f"{field_name} must be at most {limit} characters")
+    if any(not character.isprintable() for character in value):
+        raise ValueError(f"{field_name} must not contain control characters")
 
 
 def validate_asset_display_name(value: str | None) -> None:

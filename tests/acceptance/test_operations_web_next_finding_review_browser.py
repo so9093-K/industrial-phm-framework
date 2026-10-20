@@ -74,7 +74,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 pw.expect(detail).to_contain_text("측정 순서 #3 · 점수")
                 pw.expect(detail).to_contain_text("/ 기준 2")
 
-                # The first response is lost after the server recorded the note; the same
+                # The first response is lost after the server recorded the confirmation; the same
                 # click again is answered from that record instead of adding a second one.
                 lost = {"pending": True}
 
@@ -92,25 +92,29 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                     route.fulfill(response=response)
 
                 page.route("**/api/v1/reviews/action", lose_once)
-                detail.get_by_label("메모 (최대 1000자)").fill("베어링 하우징 진동 확인 예정")
-                detail.get_by_role("button", name="메모 남기기").click()
+                # Reviewing is confirm, then close; a reason is optional and goes with the decision.
+                assert detail.get_by_role("textbox").count() == 0
+                detail.get_by_text("판단 이유 함께 남기기 (선택)").click()
+                detail.get_by_label("판단 이유 (선택)").fill(" 베어링 소음 현장 확인 ")
+                detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail.get_by_role("status").last).to_contain_text("다시 시도해도")
                 assert detail.get_by_role("alert").count() == 0
-                detail.get_by_role("button", name="메모 남기기").click()
+                detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail.get_by_role("status").last).to_have_text("검토 기록을 남겼습니다.")
                 pw.expect(detail.locator(".events li")).to_have_count(1)
                 pw.expect(detail.locator(".events li").first).to_contain_text(
-                    "메모 · 베어링 하우징 진동 확인 예정"
+                    "확인 · 베어링 소음 현장 확인"
                 )
                 assert len(writes) == 2 and writes[0] == writes[1]
                 assert set(writes[0]) == {"finding_id", "action", "note", "event_id"}
                 assert writes[0]["finding_id"] == finding
+                assert writes[0]["note"] == "베어링 소음 현장 확인"
                 events = JsonFindingReviewRepository(
                     workspace.maintenance_review_state_path
                 ).list_events()
-                assert [event.action.value for event in events] == ["note"]
-
-                detail.get_by_role("button", name="확인함으로 표시").click()
+                assert [(event.action.value, event.note) for event in events] == [
+                    ("acknowledge", "베어링 소음 현장 확인")
+                ]
                 pw.expect(detail.locator(".badge")).to_have_text("확인함")
                 # Someone else closes it first; this screen reloads instead of overwriting.
                 execute_web_source_action(
@@ -126,7 +130,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                     "다른 사람이 먼저 검토 상태를 바꿨습니다"
                 )
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
-                assert detail.get_by_role("button", name="메모 남기기").count() == 0
+                assert detail.get_by_role("button", name="검토 종료").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
@@ -146,8 +150,8 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 )
                 view = read_only.get_by_role("region", name="고른 검토 항목")
                 pw.expect(view.locator(".badge")).to_have_text("검토 종료")
-                pw.expect(view.locator(".events li")).to_have_count(3)
-                assert view.get_by_role("button", name="메모 남기기").count() == 0
+                pw.expect(view.locator(".events li")).to_have_count(2)
+                assert view.get_by_role("button", name="확인함으로 표시").count() == 0
                 missing = _open(browser, width)
                 missing.goto(
                     f"http://127.0.0.1:{viewer.server_port}/web/?page=maintenance"

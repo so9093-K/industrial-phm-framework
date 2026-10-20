@@ -3,6 +3,8 @@
   import ForecastValidation from "./ForecastValidation.svelte";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
+  import {measure} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import {reachDuration,reachText} from "../reach";
@@ -196,11 +198,11 @@
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
-              <div><span>관리 기준 {num(outlook.conditions.management)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
+              <div><span>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
                 {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
             {/if}
             {#if outlook.conditions.end!==null}
-              <div><span>조건부 잔여수명(RUL) · 종료 기준 {num(outlook.conditions.end)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
+              <div><span>조건부 잔여수명(RUL) · 종료 기준 {measure(outlook.conditions.end!, outlook.unit)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
                 {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}</div>
             {/if}
           </div>
@@ -209,9 +211,11 @@
         {/if}
         {#if chart}
           <figure class="chart">
-            <p class="axis-note">최고 {num(chart.high)} · 최저 {num(chart.low)}</p>
+            <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
+            <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
             <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
               aria-label={"저장된 측정 #"+chart.first+"~#"+chart.last+"과 #"+formatOffset(chart.end)+"까지의 예측"}>
+              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
               {#if chart.band}<path d={chart.band} class="band" />{/if}
               <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
               {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
@@ -220,13 +224,14 @@
               <path d={chart.estimate} class="estimate" />
               <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
             </svg>
-            <p class="axis-time"><span>측정 #{chart.first}</span><span>마지막 측정 #{chart.last}</span><span>→ #{formatOffset(chart.end)}</span></p>
+            {#snippet footer()}<p class="axis-time"><span>측정 #{chart.first}</span><span>마지막 측정 #{chart.last}</span><span>→ #{formatOffset(chart.end)}</span></p>{/snippet}
+            </ValueAxis>
             <figcaption class="legend">
               <span><i class="key history"></i>저장된 측정</span>
               <span><i class="key estimate"></i>추세 예측</span>
               <span><i class="key band"></i>예측 범위</span>
-              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {num(outlook.conditions.management)}</span>{/if}
-              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {num(outlook.conditions.end)}</span>{/if}
+              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}</span>{/if}
+              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}</span>{/if}
             </figcaption>
           </figure>
         {/if}
@@ -308,7 +313,7 @@
   .tiles div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
   .tiles span{color:var(--color-ink-muted);font-size:var(--font-small)}.tiles strong{font-size:var(--font-section)}
   .chart{margin:var(--space-4) 0;min-width:0}
-  .chart svg{display:block;width:100%;height:220px;margin-top:var(--space-2)}
+  .chart svg{display:block;width:100%;height:220px;}
   .chart path,.chart line{vector-effect:non-scaling-stroke}
   .chart .axis{fill:none;stroke:var(--color-border);stroke-width:2}
   .chart .history{fill:none;stroke:var(--color-ink);stroke-width:1.5}
@@ -331,4 +336,5 @@
   .scroll{max-width:100%;overflow-x:auto}
   table{border-collapse:collapse;width:100%}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}dd{overflow-wrap:anywhere}
+  .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 </style>

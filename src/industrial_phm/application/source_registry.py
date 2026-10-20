@@ -20,6 +20,7 @@ from industrial_phm.application.source_lifecycle import (
     SourceLifecycleState,
 )
 from industrial_phm.application.source_registration import (
+    ChannelLabel,
     FileSourceConfig,
     FileSourceMode,
     OpcUaSourceConfig,
@@ -65,7 +66,7 @@ _OPCUA_NODE_MAPPING_KEYS = frozenset({"channel_id", "node_id"})
 # byte-for-byte the original v5 shape and stays readable. Older v5 readers reject a
 # registry that uses them; pre-release builds do not promise downgrade reads. A
 # required key, a renamed key or a changed meaning still needs a new schema version.
-_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name", "semantic_bindings"})
+_CONFIG_OPTIONAL_KEYS = frozenset({"asset_display_name", "semantic_bindings", "channel_labels"})
 
 
 class SourceRegistryFormatError(ValueError):
@@ -348,6 +349,11 @@ def _serialize_registered_source(source: RegisteredSource) -> dict[str, object]:
             config_payload["semantic_bindings"] = [
                 serialize_channel_semantic_binding(binding) for binding in config.semantic_bindings
             ]
+        if config.channel_labels:
+            config_payload["channel_labels"] = [
+                {"channel_id": item.channel_id, "label": item.label, "unit": item.unit}
+                for item in config.channel_labels
+            ]
     elif isinstance(config, OpcUaSourceConfig):
         config_payload = {
             "endpoint_url": config.endpoint_url,
@@ -474,7 +480,27 @@ def _parse_file_source_config(
         delimiter=_require_string(config["delimiter"], f"{label}.delimiter"),
         asset_display_name=_optional_display_name(config, label),
         semantic_bindings=tuple(parse_channel_semantic_binding(value) for value in bindings_raw),
+        channel_labels=_channel_labels(config, label),
     )
+
+
+def _channel_labels(config: Mapping[str, object], label: str) -> tuple[ChannelLabel, ...]:
+    raw = config.get("channel_labels", [])
+    if not isinstance(raw, list):
+        raise SourceRegistryFormatError(f"{label}.channel_labels must be a JSON array")
+    labels = []
+    for index, value in enumerate(raw):
+        where = f"{label}.channel_labels[{index}]"
+        item = _require_mapping(value, where)
+        _require_exact_keys(item, frozenset({"channel_id", "label", "unit"}), where)
+        labels.append(
+            ChannelLabel(
+                channel_id=_require_string(item["channel_id"], f"{where}.channel_id"),
+                label=_require_string(item["label"], f"{where}.label"),
+                unit=_optional_string(item["unit"], f"{where}.unit"),
+            )
+        )
+    return tuple(labels)
 
 
 def _parse_opcua_source_config(

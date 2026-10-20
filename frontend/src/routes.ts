@@ -13,7 +13,7 @@ export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
   monitor: {label: "관측 현황", description: "어느 설비에서 무엇이 언제 들어왔고, 먼저 확인할 설비가 어디인지 봅니다."},
   assets: {label: "설비·신호", description: "설비를 고르면 상태 요약부터 이상 징후·신호·변화·전망을 차례로 봅니다."},
   investigations: {label: "분석 기록", description: "어떤 입력과 모델로 언제 분석 결과가 나왔는지 확인합니다."},
-  maintenance: {label: "정비 검토", description: "분석 결과와 검토 요청한 전망을 사람이 확인하고 메모·종료를 남깁니다. 검토 종료는 정비 완료를 뜻하지 않습니다."},
+  maintenance: {label: "정비 검토", description: "검토 요청한 분석 결과와 전망을 사람이 확인하고 종료합니다."},
   system: {label: "운영 관리", description: "로컬 서비스 실행 상태, 데이터 연결과 저장소 조회 상태를 확인합니다."},
 };
 export const TAB_INFO: Record<Tab, string> = {

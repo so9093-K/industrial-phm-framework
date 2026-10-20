@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { readChannels, type ChannelList } from "../history";
+  import { readChannels, signalName, type ChannelList } from "../history";
   import {
     NoStoredEvidenceError, departureChart, readDepartures,
     type Baseline, type Departures,
@@ -135,7 +135,7 @@
       <label for="departure-channel">신호
         <select id="departure-channel" value={selectedChannel}
           onchange={(event) => changeChannel(event.currentTarget.value)}>
-          {#each channels.ids as id (id)}<option value={id}>{id}</option>{/each}
+          {#each channels.ids as id (id)}<option value={id}>{signalName(channels.names, id)}</option>{/each}
         </select>
       </label>
       <label for="departure-baseline">비교 기준 구간
@@ -178,7 +178,7 @@
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
                 <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
                   · 기준 중앙값 {num(interval.median)} → 가장 많이 벗어난 시점 {num(interval.value)}
-                  {result.unit ?? "(단위 미확인)"}
+                  {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? "(단위 미확인)"}
                   · 기준 변동 폭의 {num(Number(interval.distance.toFixed(1)))}배</span>
               </li>
             {/each}
@@ -220,7 +220,7 @@
       {/if}
       <details>
         <summary>기술 상세</summary>
-        <p class="context">신호 {result.selectedChannel} · 단위 {result.unit ?? "미확인"}
+        <p class="context">신호 {signalName(channels?.names, result.selectedChannel)} · 단위 {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? "미확인"}
           · 기준 구간 {date(result.baseline.from)} ~ {date(result.baseline.to)}
           · 기준값 {result.threshold} · 구간 폭 약 {result.bucketSeconds}초</p>
         <p class="context">벗어난 정도 = 기준 중앙값과의 차이 ÷ 기준 구간 변동 폭(MAD 기반).

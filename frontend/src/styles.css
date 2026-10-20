@@ -119,3 +119,10 @@ main > * + * { margin-top: var(--space-4); }
 .start { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
 .start h2, .start p { margin: 0; }
 .start-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+/* A file chooser in Korean: the native input stays for keyboard and screen readers, out of sight. */
+.file-pick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); font-weight: 400; }
+.file-pick > label { cursor: pointer; font-weight: 650; }
+.file-pick:focus-within > label { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+.file-pick > label[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.file-pick .file-name { color: var(--color-ink-muted); overflow-wrap: anywhere; }

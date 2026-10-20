@@ -20,7 +20,10 @@ export function parseWriteSession(raw:unknown):WriteSession{
 
 export async function readWriteSession(signal:AbortSignal):Promise<WriteSession>{
   const response=await fetch("/api/v1/session",{signal,cache:"no-store",credentials:"same-origin"});
-  if(!response.ok)throw new Error("쓰기 권한 세션을 확인할 수 없습니다.");
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error("쓰기 권한 세션을 확인할 수 없습니다.");
+  }
   return parseWriteSession(await response.json() as unknown);
 }
 

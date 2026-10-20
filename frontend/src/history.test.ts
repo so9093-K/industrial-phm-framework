@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {fillsWindow, fittingRange, groupHistory, parseChannels, parseTrend, signalChart} from "./history.ts";
+import {groupHistory, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -51,24 +51,6 @@ test("a short spike inside a bucket stays visible and a missing bucket breaks th
   assert.equal(chart.path.split("M").length - 1, 2);
 });
 
-test("the default window is the shortest one that holds the whole record", () => {
-  const trend = (first: string) => parseTrend({...data([{...bucket("src1", "i1", 1), bucket_start: first}]),
-    start_at: "2026-09-24T01:00:00Z"}, "motor", "R");
-  assert.equal(fittingRange(trend("2026-10-01T00:50:00Z")), "15m");
-  assert.equal(fittingRange(trend("2026-10-01T00:10:00Z")), "1h");
-  assert.equal(fittingRange(trend("2026-09-30T06:00:00Z")), "24h");
-  assert.equal(fittingRange(trend("2026-09-28T00:00:00Z")), "7d");
-  // A bucket aligned hours before the first event must not stretch a minutes-old record.
-  const aligned = parseTrend({...data([{...bucket("src1", "i1", 1), bucket_start: "2026-09-30T22:00:00Z",
-    first_event_at: "2026-10-01T00:50:00Z"}]), start_at: "2026-09-24T01:00:00Z"}, "motor", "R");
-  assert.equal(fittingRange(aligned), "15m");
-  // Only a record that reaches the window start is worth a wider read.
-  const window = (first: string) => parseTrend({...data([{...bucket("src1", "i1", 1), first_event_at: first}]),
-    bucket_seconds: 60}, "motor", "R");
-  assert.equal(fillsWindow(window("2026-10-01T00:00:30Z")), true);
-  assert.equal(fillsWindow(window("2026-10-01T00:40:00Z")), false);
-});
-
 test("mixed source, invalid counts and wrong asset cannot render", () => {
   assert.throws(() => parseTrend(data([bucket("src1", "i1", 2)]), "different", "R"), /선택한 설비/);
   assert.throws(() => parseTrend(data([{...bucket("src1", "i1", 1), null_count: -1}]), "motor", "R"),
@@ -79,3 +61,12 @@ test("mixed source, invalid counts and wrong asset cannot render", () => {
   const trend=parseTrend(data([{...bucket("opcua-source","i1",2),measurement_point_id:null}]),"motor","R");
   assert.equal(groupHistory(trend)[0].pointId,null);
  });
+
+test("a channel reads as the name and unit its registration declared, else its ID", () => {
+  const list = parseChannels({asset_id: "pump", channels: {items: ["current_a", "temperature_c"], truncated: false},
+    labels: {current_a: {label: "모터 전류", unit: "A"}, other: {label: "다른 설비", unit: null}, temperature_c: {label: " ", unit: "°C"}}}, "pump");
+  assert.equal(signalName(list.names, "current_a"), "모터 전류 (A)");
+  assert.equal(signalName(list.names, "temperature_c"), "temperature_c");
+  assert.equal(list.names.has("other"), false);
+  assert.equal(signalName(null, "current_a"), "current_a");
+});

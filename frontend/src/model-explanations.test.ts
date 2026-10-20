@@ -21,7 +21,7 @@ test("an explanation shows the comparison the server stored and checked",()=>{
   const [item]=parseModelExplanations({schema_version:1,explanations:[record()]},binding,run);
   assert.equal(item.comparePosition,2);
   assert.equal(item.previousScore,0.4);
-  assert.deepEqual(item.features[0],{feature:RMS,label:"수평 진동 RMS",current:3,previous:0.6,relativePercent:400});
+  assert.deepEqual(item.features[0],{feature:RMS,label:"수평 진동 RMS",current:3,previous:0.6,relativePercent:400,unit:null});
   assert.equal(item.answer?.source,"model");
   assert.equal(item.answer?.modelUnavailable,false);
 });

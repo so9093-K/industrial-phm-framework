@@ -710,17 +710,14 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 record.get_by_role("link", name="정비 검토함에서 보기").click()
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(detail).to_contain_text("journey-pump")
-                detail.get_by_label("메모 (최대 1000자)").fill(
-                    "실제 supervisor IPC와 재시작 후 이력 확인"
-                )
-                detail.get_by_role("button", name="메모 남기기").click()
-                pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
                 detail.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
                 pw.expect(detail.get_by_role("button", name="검토 종료")).to_be_visible()
                 detail.get_by_role("button", name="검토 종료").click()
                 detail.get_by_role("button", name="종료하기").click()
-                pw.expect(detail.get_by_role("button", name="메모 남기기")).to_have_count(0)
-                pw.expect(detail).to_contain_text("검토 종료")
+                # Wait for the stored close, not for the button the confirmation hides at once.
+                pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
+                pw.expect(detail.get_by_role("button", name="확인함으로 표시")).to_have_count(0)
                 review_url = page.url
                 _no_overflow(page, width)
                 assert not errors and not external, (errors, external)
@@ -731,7 +728,7 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
     assert proc.returncode == 0, log.read_text()[-4000:]
     (finding,) = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()
     events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
-    assert [event.action.value for event in events] == ["note", "acknowledge", "close"]
+    assert [event.action.value for event in events] == ["acknowledge", "close"]
     assert all(event.finding_id == finding.finding_id for event in events)
     proc = _start(workspace.root, port, log)
     try:
@@ -741,9 +738,9 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 page = browser.new_page(viewport={"width": width, "height": 900})
                 page.goto(review_url)
                 detail = page.get_by_role("region", name="고른 검토 항목")
-                pw.expect(detail).to_contain_text("실제 supervisor IPC와 재시작 후 이력 확인")
+                pw.expect(detail.locator(".events li")).to_have_count(2)
                 pw.expect(detail).to_contain_text("검토 종료")
-                assert detail.get_by_role("button", name="메모 남기기").count() == 0
+                assert detail.get_by_role("button", name="확인함으로 표시").count() == 0
             finally:
                 browser.close()
     finally:
@@ -911,7 +908,10 @@ def test_supervised_web_opcua_browse_live_history_disconnect_and_reconnect(
                 page.get_by_role("button", name="다시 불러오기", exact=True).click()
                 pw.expect(card.locator(".badge")).to_have_text("수신 확인됨")
                 card.get_by_role("link", name="측정 신호 보기").click()
-                pw.expect(page.get_by_role("region", name="측정 신호")).to_contain_text(source_id)
+                # The signal names its source by the connection name people registered.
+                pw.expect(page.get_by_role("region", name="측정 신호")).to_contain_text(
+                    "데이터 출처 Browser live OPC UA"
+                )
                 simulator_stop(simulator)
                 until_evidence(
                     "collector-observed disconnect",

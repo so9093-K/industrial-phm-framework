@@ -227,3 +227,51 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         assert missing_status == 404 and missing["error"] == "nothing_to_explore"
     finally:
         stop()
+
+
+def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
+    tmp_path: Path,
+) -> None:
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def events(asset: str, step: float) -> tuple[FileBackfillEvent, ...]:
+        return tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:{asset}:{'c' * 64}:{index}",
+                source_id=f"{asset}-file",
+                asset_id=asset,
+                channel_id="current",
+                source_file=f"{asset}.csv",
+                source_sha256="c" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=BASE + timedelta(minutes=index),
+                value=10.0 + (step if index >= 40 else 0.0) + (index % 3) * 0.1,
+                source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
+            )
+            for index in range(60)
+        )
+
+    # One pump's current steps up and stays there; the other never moves.
+    history.append_file_batch(events("pump-moved", 5.0), batch_id="moved")
+    history.append_file_batch(events("pump-steady", 0.0), batch_id="steady")
+    get, stop = _serve(workspace.root)
+    try:
+        status, body = get("/api/v1/explore/attention")
+        assert status == 200 and body["baseline"] == "first-30"
+        (item,) = body["items"]
+        assert item["asset_id"] == "pump-moved" and item["channel"] == "current"
+        assert item["unit"] == "A" and item["direction"] == "up" and item["distance"] >= 3.5
+        # "Since" is the start of the coarse bucket the step falls in, in UTC.
+        since = datetime.fromisoformat(item["since"])
+        assert since.utcoffset() == timedelta(0)
+        assert BASE + timedelta(minutes=39) <= since <= BASE + timedelta(minutes=40)
+        # The same record asked again is answered from the stored check.
+        assert get("/api/v1/explore/attention")[1] == body
+    finally:
+        stop()

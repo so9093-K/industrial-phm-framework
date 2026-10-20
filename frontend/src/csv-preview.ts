@@ -61,8 +61,8 @@ export function inspectCsv(rows:string[][]):CsvTable{
       else{column.invalid++;column.firstInvalid??=line;}
     }
   });
-  if(!header.length||header.some(name=>!name.trim()))problems.push("헤더에 빈 컬럼 이름이 있습니다. 첫 줄의 컬럼 이름을 확인하세요.");
-  if(new Set(header).size!==header.length)problems.push("헤더에 같은 컬럼 이름이 두 번 이상 있습니다.");
+  if(!header.length||header.some(name=>!name.trim()))problems.push("첫 줄에 이름이 빈 열이 있습니다. 첫 줄의 열 이름을 확인하세요.");
+  if(new Set(header).size!==header.length)problems.push("첫 줄에 같은 열 이름이 두 번 이상 있습니다.");
   if(blank)problems.push(blank+"행이 빈 줄입니다. 빈 줄을 지우세요.");
   if(width)problems.push(width+"행의 값 개수가 헤더와 다릅니다. 쉼표와 따옴표를 확인하세요.");
   const sampleCount=data.filter(row=>row.length===header.length&&!(row.length===1&&row[0]==="")).length;
@@ -94,7 +94,7 @@ export function readTimes(table:CsvTable,columnIndex:number):TimeReading{
 /** Problems that would stop this file from being stored, in the words a person can act on. */
 export function previewProblems(table:CsvTable,timeIndex:number,channels:string[]):string[]{
   const list=[...table.problems];
-  if(timeIndex<0)list.push("시간 컬럼을 찾지 못했습니다. 예: 2026-10-11T09:00:00+09:00 형식의 시각이 있어야 저장할 수 있습니다.");
+  if(timeIndex<0)list.push("시각 열을 찾지 못했습니다. 예: 2026-10-11T09:00:00+09:00 형식의 시각이 있어야 저장할 수 있습니다.");
   else{
     const timing=readTimes(table,timeIndex);
     const column=table.columns.find(c=>c.index===timeIndex)!;
@@ -106,9 +106,9 @@ export function previewProblems(table:CsvTable,timeIndex:number,channels:string[
   }
   for(const name of channels){
     const column=table.columns.find(c=>c.name===name);
-    if(column?.missing)list.push(name+" 컬럼의 "+column.firstMissing+"행이 비어 있습니다 (빈 값 "+column.missing+"개). 빈 측정값은 저장할 수 없습니다.");
+    if(column?.missing)list.push(name+" 열의 "+column.firstMissing+"행이 비어 있습니다 (빈 값 "+column.missing+"개). 빈 측정값은 저장할 수 없습니다.");
   }
-  if(!channels.length)list.push("저장할 숫자 측정 컬럼을 하나 이상 고르세요.");
+  if(!channels.length)list.push("저장할 측정값 열을 하나 이상 고르세요.");
   return list;
 }
 
@@ -179,4 +179,27 @@ export function previewPoints(table:CsvTable,timing:TimeReading,name:string,slic
 export function suggestedSourceId(fileName:string,suffix:string):string{
   const stem=fileName.replace(/\.csv$/i,"").toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,80)||"file";
   return "csv-"+stem+"-"+suffix;
+}
+
+const QUANTITY: [RegExp, string][] = [
+  [/^(current|curr|amps?)$/, "전류"], [/^(voltage|volt|volts)$/, "전압"], [/^(temperature|temp)$/, "온도"],
+  [/^(pressure|press)$/, "압력"], [/^(vibration|vib)$/, "진동"], [/^(flow|flowrate)$/, "유량"],
+  [/^humidity$/, "습도"], [/^power$/, "전력"], [/^(frequency|freq)$/, "주파수"], [/^torque$/, "토크"],
+  [/^speed$/, "속도"],
+];
+/** A starting name for each column whose name says what it measures (current_a → 전류).
+ * Only the quantity is suggested; a unit is never read from a suffix, since "a" may be a phase. */
+export function suggestSignalNames(columns: string[]): Map<string, string> {
+  const parsed = columns.map((name) => {
+    const [head, ...rest] = name.toLowerCase().split(/[_\-\s.]+/).filter(Boolean);
+    const word = QUANTITY.find(([pattern]) => pattern.test(head ?? ""))?.[1];
+    return {name, word, rest: rest.length <= 2 && rest.every((token) => /^[a-z0-9]{1,3}$/.test(token)) ? rest : null};
+  });
+  const names = new Map<string, string>();
+  for (const item of parsed) {
+    if (!item.word || item.rest === null) continue;
+    const shared = parsed.filter((other) => other.word === item.word).length > 1;
+    names.set(item.name, shared && item.rest.length ? item.word + " " + item.rest.join(" ").toUpperCase() : item.word);
+  }
+  return names;
 }
