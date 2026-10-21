@@ -41,7 +41,7 @@
   }
   const departures = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind === "departure"); });
   // Model notes are the scores above; departures sit with them; the rest are listed with the count.
-  const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure" && note.kind !== "threshold"); });
+  const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure" && note.kind !== "threshold" && note.kind !== "crossing"); });
   onMount(() => {
     const request = new AbortController();
     void loadLatestScores(asset.assetId, request.signal).then((value) => {

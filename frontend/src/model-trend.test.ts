@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,firstExceedance,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,exceedanceStory,exceedanceText,firstExceedance,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -81,4 +81,31 @@ test("the first exceeded measurement is visible even without a sustained interva
   assert.equal(measurementTime(points[2], null), null); // No receipt-time clock is invented.
   assert.match(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00Z"}, null)!, /09:00:00.*KST/);
   assert.equal(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00"}, null), null);
+});
+
+test("a run still going on is read first; one-off and ended crossings are counted, not led with", () => {
+  const point = (position: number, exceeds: boolean): TrendPoint => ({
+    pointer: {position, runId: "run-" + position, state: "analyzed", stepKey: "k" + position, changeSeq: position, reason: null},
+    score: exceeds ? 2 : 0.5, threshold: 1, exceeds, eventStart: null});
+  const over = (positions: number[]) => Array.from({length: 12}, (_, i) => point(i + 1, positions.includes(i + 1)));
+  const place = (position: number) => "#" + position;
+  // One crossing at #2, a run #4–#5 that ended, and a run from #9 still going on.
+  const sustained = {points: over([2, 4, 5, 9, 10, 11, 12]), truncated: false,
+    intervals: [{start: 4, end: 5, steps: 2, peak: 2, open: false}, {start: 9, end: 12, steps: 4, peak: 2, open: true}]};
+  const story = exceedanceStory(sustained);
+  assert.equal(story.state, "ongoing");
+  assert.equal(story.anchor?.pointer.position, 9);
+  assert.deepEqual(exceedanceText(story, place), {headline: "#9부터 계속 기준 초과 · 4회",
+    earlier: "그 전 · 끝난 기준 초과 구간 1개 · 한 번만 넘은 측정 1번 · 처음 넘은 측정 #2"});
+  // The latest measurement crosses alone: said as such, never as "since".
+  const lone = exceedanceStory({points: over([7, 12]), intervals: [], truncated: false});
+  assert.equal(lone.state, "latest");
+  assert.deepEqual(exceedanceText(lone, place), {headline: "#12에서 기준 초과 · 연속 초과는 아님",
+    earlier: "그 전 · 한 번만 넘은 측정 1번 · 처음 넘은 측정 #7"});
+  // Crossed earlier, below now.
+  const below = exceedanceStory({points: over([3, 6, 7]), truncated: false,
+    intervals: [{start: 6, end: 7, steps: 2, peak: 2, open: false}]});
+  assert.equal(below.state, "below");
+  assert.equal(exceedanceText(below, place)?.headline, "지금은 기준 이하 · 마지막 기준 초과 #7");
+  assert.equal(exceedanceText(exceedanceStory({points: over([]), intervals: [], truncated: false}), place), null);
 });

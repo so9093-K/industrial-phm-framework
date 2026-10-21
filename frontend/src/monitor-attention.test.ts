@@ -12,7 +12,8 @@ const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,trun
 
 test("threshold, refusal, waiting and review notes open the exact place, most urgent first",()=>{
   const phm=monitor(
-    model({binding_id:"a",latest_analyzed:{position:7,output:{exceeds_threshold:true}}}),
+    model({binding_id:"a",latest_analyzed:{position:7,output:{exceeds_threshold:true}},
+      open_interval:{start_position:5,end_position:7,step_count:3,start_event_at:null}}),
     model({binding_id:"b",processing_state:"rejected",processing_reason:"snapshot sha256 mismatch",latest_processed:{position:8}}),
     model({binding_id:"c",processing_state:"pending",latest_review_status:"open"}),
     model({binding_id:"d",asset_id:"motor-1",step_kind:"observation-window"}),
@@ -25,6 +26,24 @@ test("threshold, refusal, waiting and review notes open the exact place, most ur
   assert.match(groups[0].notes[1].detail,/전달 뒤 원본이 바뀜/);
   assert.match(groups[0].notes[3].href,/page=maintenance/);
   assert.equal(refusalReason("package expects 2 channels"),"모델이 받는 입력 규격과 다름");
+});
+
+test("a run of crossings still going on is a change; a latest crossing on its own is said as such",()=>{
+  const lstm={package_id:"lstm-pkg",estimator_kind:"lstm-autoencoder-v1"};
+  const iforest={package_id:"if-pkg",estimator_kind:"isolation-forest-refit-v1"};
+  const both=attentionByAsset(monitor(
+    model({binding_id:"a",...lstm,latest_analyzed:{position:123,output:{exceeds_threshold:true}},
+      open_interval:{start_position:76,end_position:123,step_count:48,start_event_at:null}}),
+    model({binding_id:"b",...iforest,latest_analyzed:{position:123,output:{exceeds_threshold:true}},open_interval:null}),
+  ).models,null);
+  assert.equal(both[0].notes[0].kind,"threshold");
+  assert.equal(both[0].notes[0].detail,"LSTM 오토인코더 측정 순서 #76부터 계속 기준 초과 · 48회 · Isolation Forest는 최근 측정만 기준 초과");
+  assert.match(both[0].notes[0].href,/model_binding=a/);
+  const lone=attentionByAsset(monitor(
+    model({binding_id:"b",...iforest,latest_analyzed:{position:119,output:{exceeds_threshold:true}}}),
+  ).models,null);
+  assert.deepEqual([lone[0].notes[0].kind,lone[0].notes[0].label,lone[0].notes[0].detail],
+    ["crossing","최근 측정에서 모델 기준 초과","Isolation Forest · 연속 초과는 아님"]);
 });
 
 test("only a collection someone asked to run is flagged when it stops receiving",()=>{

@@ -171,3 +171,23 @@ def test_many_bindings_use_a_bounded_summary_without_reading_series(
     )
     assert body["total"] == 103 and len(body["items"]) == 100 and body["truncated"] is True
     assert all(i["processing_state"] == "waiting" for i in body["items"])
+
+
+def test_monitor_names_the_run_of_crossings_still_going_on(tmp_path: Path) -> None:
+    """관측 현황 leads with a sustained run, so it must know where that run started."""
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    _, body = handle_phm_read(workspace, "/api/v1/phm/monitor", "")
+    item = next(i for i in body["items"] if i["binding_id"] == "anomaly-a")
+    assert item["estimator_kind"]
+    assert item["latest_analyzed"]["output"]["exceeds_threshold"] is True
+    assert (item["open_interval"]["start_position"], item["open_interval"]["step_count"]) == (3, 2)
+    # Back below the threshold for longer than the model's allowed gap: the run has ended.
+    for ordinal in (5, 6):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5)
+    analyze(workspace)
+    _, body = handle_phm_read(workspace, "/api/v1/phm/monitor", "")
+    item = next(i for i in body["items"] if i["binding_id"] == "anomaly-a")
+    assert item["open_interval"] is None

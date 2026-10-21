@@ -70,6 +70,11 @@ def project_phm_monitor(
         processed = store.latest_result(binding.binding_id)
         delivered = _latest_delivered(binding, snapshots, windows)
         progress = store.progress(binding.binding_id)
+        # The run of consecutive exceedances still going on, if any: what 관측 현황 leads with,
+        # so a sustained change and a one-off crossing do not read alike.
+        ongoing = next(
+            (item for item in store.list_intervals(binding.binding_id) if item.open), None
+        )
         pending = bool(delivered and (not processed or delivered["position"] > processed.position))
         reason: str | None
         if progress.health == "unavailable" or package is None:
@@ -90,6 +95,7 @@ def project_phm_monitor(
                 **_binding_json(binding),
                 "task": None if not package else (package.get("output") or {}).get("task"),
                 "recipe_id": None if not package else package.get("recipe_id"),
+                "estimator_kind": None if not package else package.get("estimator_kind"),
                 "validation": None if not package else package.get("validation"),
                 "processing_state": state,
                 "processing_reason": reason,
@@ -99,6 +105,16 @@ def project_phm_monitor(
                 else {**_step_brief(processed), "reason": processed.reason},
                 "latest_analyzed": None if not analyzed else _model_brief(analyzed),
                 "previous_analyzed": None if previous is None else _model_brief(previous),
+                "open_interval": None
+                if ongoing is None
+                else {
+                    "start_position": ongoing.start_position,
+                    "end_position": ongoing.end_position,
+                    "step_count": ongoing.step_count,
+                    "start_event_at": None
+                    if ongoing.start_event_at is None
+                    else ongoing.start_event_at.isoformat(),
+                },
             }
         )
     # Delivered waveforms that no running model reads still belong to an asset worth listing.

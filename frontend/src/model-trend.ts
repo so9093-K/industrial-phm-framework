@@ -16,6 +16,51 @@ export function firstExceedance(points: TrendPoint[]): ThresholdExceedance | nul
     point.score !== null && point.threshold !== null && point.exceeds === true) ?? null;
 }
 
+/** What a person reads first about a model's crossings. A run still going on comes first, then
+ * a latest crossing that is not part of a run, then "below now" after earlier crossings. Earlier
+ * runs and one-off crossings are counted, and the first crossing is kept for reference, so a
+ * one-off crossing never reads like a sustained change. */
+export type ExceedanceStory = {
+  state: "ongoing" | "latest" | "below" | "none";
+  /** The measurement the headline names, and where the graph's dotted line goes. */
+  anchor: ThresholdExceedance | null;
+  ongoing: Interval | null;
+  /** Before the anchor: runs that ended, measurements over the threshold outside any run. */
+  earlierRuns: number; earlierSingles: number;
+  first: ThresholdExceedance | null;
+};
+export function exceedanceStory(trend: ScoreTrend): ExceedanceStory {
+  const over = trend.points.filter((point): point is ThresholdExceedance =>
+    point.score !== null && point.threshold !== null && point.threshold > 0 && point.exceeds === true);
+  const at = (position: number) => over.find((point) => point.pointer.position === position) ?? null;
+  const inRun = (position: number) => trend.intervals.some((run) => run.start <= position && position <= run.end);
+  const ongoing = trend.intervals.find((run) => run.open) ?? null;
+  const last = trend.points.filter((point) => point.score !== null).at(-1);
+  const state = ongoing ? "ongoing" : last && last.exceeds === true ? "latest" : over.length ? "below" : "none";
+  const anchor = state === "ongoing" ? at(ongoing!.start) : state === "latest" ? at(last!.pointer.position)
+    : over.at(-1) ?? null;
+  const before = anchor?.pointer.position ?? Infinity;
+  return {state, anchor, ongoing,
+    earlierRuns: trend.intervals.filter((run) => !run.open && run.end < before).length,
+    earlierSingles: over.filter((point) => point.pointer.position < before && !inRun(point.pointer.position)).length,
+    first: over[0] ?? null};
+}
+/** The headline and the line under it for a story, in the words of the screen. */
+export function exceedanceText(story: ExceedanceStory, place: (position: number) => string):
+  {headline: string; earlier: string | null} | null {
+  if (story.state === "none" || !story.anchor) return null;
+  const at = place(story.anchor.pointer.position);
+  const headline = story.state === "ongoing" ? at + "부터 계속 기준 초과 · " + story.ongoing!.steps + "회"
+    : story.state === "latest" ? at + "에서 기준 초과 · 연속 초과는 아님"
+    : "지금은 기준 이하 · 마지막 기준 초과 " + at;
+  const parts: string[] = [];
+  if (story.earlierRuns) parts.push("끝난 기준 초과 구간 " + story.earlierRuns + "개");
+  if (story.earlierSingles) parts.push("한 번만 넘은 측정 " + story.earlierSingles + "번");
+  if (story.first && story.first.pointer.position < story.anchor.pointer.position)
+    parts.push("처음 넘은 측정 " + place(story.first.pointer.position));
+  return {headline, earlier: parts.length ? "그 전 · " + parts.join(" · ") : null};
+}
+
 export function measurementTime(point: TrendPoint, period: number | null): string | null {
   if (point.eventStart && /(?:Z|[+-]\d{2}:\d{2})$/i.test(point.eventStart)
     && Number.isFinite(Date.parse(point.eventStart)))
@@ -153,7 +198,8 @@ export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;e
 }
 
 export type RatioLine={points:{position:number;ratio:number;score:number}[];exceeded:number;analyzed:number;
-  latest:{position:number;ratio:number}|null;sustainedFrom:number|null;firstExceedance:ThresholdExceedance|null};
+  latest:{position:number;ratio:number}|null;sustainedFrom:number|null;firstExceedance:ThresholdExceedance|null;
+  story:ExceedanceStory};
 /** Each score divided by the threshold stored with it, so models with different score scales share
  * one axis where 1 is "this model's own threshold". A step without a positive threshold is left out. */
 export function thresholdRatios(trend:ScoreTrend):RatioLine{
@@ -163,7 +209,8 @@ export function thresholdRatios(trend:ScoreTrend):RatioLine{
   const open=trend.intervals.find(item=>item.open);
   const last=points.at(-1);
   return {points,analyzed,exceeded,latest:last?{position:last.position,ratio:last.ratio}:null,sustainedFrom:open?.start??null,
-    firstExceedance:firstExceedance(trend.points.filter(point=>point.threshold!==null&&point.threshold>0))};
+    firstExceedance:firstExceedance(trend.points.filter(point=>point.threshold!==null&&point.threshold>0)),
+    story:exceedanceStory(trend)};
 }
 
 /** The models drawn on one graph: the first `limit` in list order, with the chosen model always

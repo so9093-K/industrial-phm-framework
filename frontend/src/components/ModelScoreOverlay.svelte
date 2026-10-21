@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import type {ModelBinding} from "../model-evidence";
-  import {measurementTime, overlayModels, readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
+  import {exceedanceText, measurementTime, overlayModels, readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** The models of one measurement stream on one axis: each score divided by that model's own
@@ -20,7 +20,9 @@
   const line = (binding: ModelBinding) => lines.get(binding.bindingId) ?? null;
   const colour = (binding: ModelBinding) => COLORS[shown.findIndex((item) => item.bindingId === binding.bindingId)] ?? null;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
-  const first = $derived(lines.get(selected)?.firstExceedance ?? null);
+  // Where the chosen model's state starts: its run still going on, else its latest crossing.
+  const first = $derived(lines.get(selected)?.story.anchor ?? null);
+  const told = $derived.by(() => { const read = lines.get(selected); return read ? exceedanceText(read.story, place) : null; });
   let hover: number | null = $state(null);
   // Drawn in real pixels so text stays readable on a phone; end labels only where there is room.
   let width = $state(720);
@@ -67,7 +69,8 @@
     if (!read) return "점수 기록을 읽지 못했습니다";
     if (!read.points.length) return "기준과 함께 저장된 점수가 없습니다";
     const parts = ["기준 초과 " + read.exceeded + "회 / 분석 " + read.analyzed + "회"];
-    if (read.sustainedFrom !== null) parts.push(place(read.sustainedFrom) + "부터 계속 초과");
+    const told = exceedanceText(read.story, place);
+    if (told) parts.push(told.headline);
     if (read.latest) parts.push(place(read.latest.position) + "에서 기준의 " + ratio(read.latest.ratio) + "배");
     return parts.join(" · ");
   }
@@ -109,15 +112,7 @@
     <StatusNotice message="모델별 점수 기록을 불러오고 있습니다." />
   {:else}
     {#if loadState === "ready"}
-      {#if first}
-        <div class="onset" aria-label="고른 모델의 첫 기준 초과 확인">
-          <strong>{names.get(selected)} · 첫 기준 초과 확인</strong>
-          <span>{measurementTime(first, period) ?? ""}{measurementTime(first, period) ? " · " : ""}{place(first.pointer.position)}</span>
-          <button type="button" class="ui-button" onclick={() => {if (first) onPick(first.pointer.position);}}>측정 보기 →</button>
-        </div>
-      {:else if lines.get(selected)?.points.length}
-        <p class="context">고른 모델은 조회된 기록에서 기준 초과가 확인되지 않았습니다.</p>
-      {/if}
+
       <p class="readout" aria-live="polite">
         {#if hover !== null}
           <strong>{place(hover)}</strong>
@@ -150,7 +145,7 @@
         {/each}
         {#if first}
           <line x1={scale.x(first.pointer.position)} x2={scale.x(first.pointer.position)} y1={TOP} y2={BOTTOM} class="onset-line">
-            <title>{names.get(selected)} · 첫 기준 초과 확인 · {measurementTime(first, period) ?? place(first.pointer.position)}</title>
+            <title>{names.get(selected)} · {told?.headline ?? place(first.pointer.position)}{measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
           </line>
           <circle cx={scale.x(first.pointer.position)} cy={scale.y(first.score / first.threshold)} r="5" class="onset-dot" />
         {/if}
@@ -204,7 +199,6 @@
   .line { fill: none; stroke-width: 2; stroke-linejoin: round; opacity: 0.85; }
   .line.chosen { stroke-width: 2.75; opacity: 1; }
   .cross { stroke: var(--color-ink-muted); stroke-width: 1; }
-  .onset { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); font-size: var(--font-small); }
   .onset-line { stroke: var(--color-caution-ink); stroke-width: 2; stroke-dasharray: 3 3; }
   .onset-dot { fill: var(--color-caution-ink); stroke: var(--color-surface); stroke-width: 2; }
   .dot { stroke: var(--color-surface); stroke-width: 2; }

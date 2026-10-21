@@ -3,6 +3,7 @@
  * cannot run, a collection that stopped receiving or a review in progress. Each item opens the
  * exact place to check; none is a fault verdict. */
 import {modelResultUrl} from "./finding-reviews.ts";
+import {modelName} from "./model-evidence.ts";
 import {readSources,type Source} from "./operations-status.ts";
 import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
@@ -10,11 +11,14 @@ import {object} from "./writes.ts";
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
   bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window";recipeId:string|null;
+  packageId:string;estimatorKind:string|null;
   state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null}|null;
+  /** The run of consecutive crossings still going on, if any. */
+  ongoing:{start:number;steps:number;startAt:string|null}|null;
   processed:number|null;reviewStatus:"open"|"acknowledged"|"closed"|null;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean;reviewsUnknown:boolean};
-export type NoteKind="threshold"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
+export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
   distance:number;direction:"up"|"down"|null;since:string};
@@ -35,7 +39,7 @@ export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<t
 }
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
-const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,receipt:2,pending:3,review:4,warmup:3};
+const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3,review:4,warmup:3};
 
 function invalid():never{throw new Error("모델 처리 상태의 형식이 올바르지 않습니다.");}
 function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:null;}
@@ -55,7 +59,13 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
     const analyzed=object(row.latest_analyzed),output=object(analyzed?.output);
     const at=position(analyzed);
     const review=row.latest_review_status;
-    return {bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),state:row.processing_state as ModelState,
+    const run=object(row.open_interval);
+    const start=run?.start_position,steps=run?.step_count;
+    return {bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),
+      packageId:text(row.package_id)??"",estimatorKind:text(row.estimator_kind),
+      ongoing:typeof start==="number"&&Number.isSafeInteger(start)&&typeof steps==="number"&&Number.isSafeInteger(steps)
+        ?{start,steps,startAt:text(run?.start_event_at)}:null,
+      state:row.processing_state as ModelState,
       reason:text(row.processing_reason),
       analyzed:at===null?null:{position:at,exceeds:typeof output?.exceeds_threshold==="boolean"?output.exceeds_threshold:null},
       processed:position(row.latest_processed),
@@ -72,6 +82,14 @@ export function refusalReason(reason:string|null):string{
   return "입력 조건이 맞지 않음";
 }
 
+/** Where a run started, as the model's input is counted: an acquisition number or a window's time. */
+function since(model:MonitoredModel):string{
+  const run=model.ongoing!;
+  if(model.stepKind==="observation-window"&&run.startAt)
+    return new Date(run.startAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+  return (model.stepKind==="acquisition-snapshot"?"측정 순서 #":"시간 구간 #")+run.start;
+}
+
 function at(model:MonitoredModel,which:number|null):string{
   return which===null?routeUrl({page:"assets",assetId:model.assetId,tab:"anomaly",method:"model",data:null})
     :modelResultUrl(model.assetId,{bindingId:model.bindingId,position:which});
@@ -85,9 +103,17 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
   for(const model of models)byAsset.set(model.assetId,[...(byAsset.get(model.assetId)??[]),model]);
   for(const [assetId,list] of byAsset){
     const vibration=list.some(model=>model.stepKind==="acquisition-snapshot");
+    // A run of crossings still going on is a change to look at; a latest crossing on its own is
+    // said as such, lower down, so the two never read alike.
     const exceeded=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds===true);
-    if(exceeded.length)add(assetId,{id:"threshold",kind:"threshold",label:(vibration?"진동":"전기 신호")+" 변화 확인 필요",
-      detail:"모델 기준 초과 "+exceeded.length+"개 · 점수 추이와 원본을 확인하세요",href:at(exceeded[0],exceeded[0].analyzed!.position),action:"점수 추이 보기"});
+    const sustained=exceeded.filter(model=>model.ongoing),lone=exceeded.filter(model=>!model.ongoing);
+    if(sustained.length)add(assetId,{id:"threshold",kind:"threshold",label:(vibration?"진동":"전기 신호")+" 변화 확인 필요",
+      detail:sustained.map(model=>modelName(model)+" "+since(model)+"부터 계속 기준 초과 · "+model.ongoing!.steps+"회").join(" · ")
+        +(lone.length?" · "+lone.map(model=>modelName(model)).join("·")+"는 최근 측정만 기준 초과":""),
+      href:at(sustained[0],sustained[0].analyzed!.position),action:"점수 추이 보기"});
+    else if(lone.length)add(assetId,{id:"crossing",kind:"crossing",label:"최근 측정에서 모델 기준 초과",
+      detail:lone.map(model=>modelName(model)).join("·")+" · 연속 초과는 아님",
+      href:at(lone[0],lone[0].analyzed!.position),action:"점수 추이 보기"});
     const refused=list.filter(model=>model.state==="rejected");
     if(refused.length)add(assetId,{id:"refusal",kind:"refusal",label:vibration?"최근 진동 파형을 분석하지 못함":"최근 측정 입력을 분석하지 못함",
       detail:[...new Set(refused.map(model=>refusalReason(model.reason)))].join(" · ")+" · "+refused.length+"개 모델",
