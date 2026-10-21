@@ -142,7 +142,7 @@
 
   <ReviewActions id={capture.id} {status} events={capture.review.events} {writable}
     closeQuestion="검토를 종료할까요? 종료하면 이 요청에 기록을 더 남길 수 없습니다."
-    submit={(action, text, eventId, signal) => recordReview(capture, action, text, eventId, signal)}
+    submit={(action, text, eventId, signal, decision) => recordReview(capture, action, text, eventId, signal, decision)}
     reload={refresh} />
 
   <CautionNote message="검토 종료는 정비 완료나 고장 판정이 아닙니다. 요청 당시 결과는 그때의 계산이며, 원본 측정 전체를 보관하지는 않습니다." />

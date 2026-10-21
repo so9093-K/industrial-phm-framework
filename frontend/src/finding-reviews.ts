@@ -4,7 +4,7 @@
 import {assetTabUrl} from "./routes.ts";
 import {
   nextReviewStatus,object,postReviewWrite,reviewNote,OutcomeUnknown,REQUEST_ID,
-  type ReviewAction,type ReviewEvent,type ReviewStatus,
+  readDecision,type ReviewAction,type ReviewDecision,type ReviewEvent,type ReviewStatus,
 } from "./review-writes.ts";
 
 export type ModelLocation={bindingId:string;position:number};
@@ -43,7 +43,8 @@ function event(raw:unknown):ReviewEvent{
   const eventId=id(row.event_id,"검토 기록 식별자");
   if(!eventId.startsWith(EVENT_PREFIX)||!REQUEST_ID.test(eventId.slice(EVENT_PREFIX.length)))
     invalid("검토 기록 식별자");
-  return {eventId,action:row.action as ReviewAction,note:row.note,recordedAt:instant(row.recorded_at,"검토 시각")};
+  return {eventId,action:row.action as ReviewAction,note:row.note,recordedAt:instant(row.recorded_at,"검토 시각"),
+    decision:readDecision(row.decision)};
 }
 function review(raw:unknown,assetId:string):FindingReview{
   const row=object(raw);
@@ -107,10 +108,12 @@ export async function readFindingReviews(assetId:string,signal:AbortSignal):Prom
  * append a second note or status change. */
 export async function recordFindingAction(
   item:FindingReview,action:ReviewAction,note:string,eventId:string,signal:AbortSignal,
+  decision:ReviewDecision|null=null,
 ):Promise<ReviewStatus>{
   if(!REQUEST_ID.test(eventId))throw new Error("검토 기록 식별자가 올바르지 않습니다.");
   const result=await postReviewWrite("/api/v1/reviews/action",{
     finding_id:item.findingId,action,note:reviewNote(action,note),event_id:eventId,
+    ...(decision?{decision}:{}),
   },signal);
   if(result.finding_id!==item.findingId||result.event_id!==EVENT_PREFIX+eventId
     ||result.action!==action||!STATUSES.includes(result.status as ReviewStatus)

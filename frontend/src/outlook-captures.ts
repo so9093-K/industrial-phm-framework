@@ -6,7 +6,7 @@ import {parseOutlookSettings,type Conditions,type OutlookSettings,type Reach,typ
 import type {AcquisitionProjection,TimeBasis} from "./acquisition-outlook.ts";
 import {
   nextReviewStatus,object,postReviewWrite,reviewNote,OutcomeUnknown,ReviewNotFound,
-  REQUEST_ID,type ReviewAction,type ReviewEvent,type ReviewStatus,
+  REQUEST_ID,readDecision,type ReviewAction,type ReviewDecision,type ReviewEvent,type ReviewStatus,
 } from "./review-writes.ts";
 
 export type SourceRecheck="same_measurement_projection"|"changed"|"different_source"|"unavailable";
@@ -204,7 +204,7 @@ function parseReview(raw:unknown):Capture["review"]{
     seen.add(eventId);
     const action=row.action as ReviewAction;
     replayed=nextReviewStatus(replayed,action);
-    return {eventId,action,note:row.note,recordedAt:instant(row.recorded_at,"검토 시각")};
+    return {eventId,action,note:row.note,recordedAt:instant(row.recorded_at,"검토 시각"),decision:readDecision(row.decision)};
   });
   if(review.status!==replayed)throw new Error("검토 상태와 저장된 검토 기록이 일치하지 않습니다.");
   return {status:replayed,events};
@@ -309,11 +309,12 @@ export async function confirmCapture(projection:BriefingProjection,signal:AbortS
  * append a second note or status change. */
 export async function recordReview(
   capture:Capture,action:ReviewAction,note:string,eventId:string,signal:AbortSignal,
+  decision:ReviewDecision|null=null,
 ):Promise<ReviewStatus>{
   if(!REQUEST_ID.test(eventId))throw new Error("검토 기록 식별자가 올바르지 않습니다.");
   const result=await postReviewWrite("/api/v1/outlook/captures/review/action",{
     asset_id:capture.outlook.assetId,capture_id:capture.id,event_id:eventId,
-    action,note:reviewNote(action,note),
+    action,note:reviewNote(action,note),...(decision?{decision}:{}),
   },signal,refuseReview);
   if(result.capture_id!==capture.id||result.asset_id!==capture.outlook.assetId
     ||result.event_id!==eventId||!["open","acknowledged","closed"].includes(String(result.status))

@@ -130,6 +130,7 @@ from industrial_phm.application.maintenance_review import (
     FindingReviewHistoryFormatError,
     FindingReviewStatus,
     JsonFindingReviewRepository,
+    ReviewDecision,
     create_finding_review_event,
     finding_review_status,
 )
@@ -521,6 +522,7 @@ __all__ = [
     "RegisteredOpcUaSubscriptionCoverage",
     "RegisteredOpcUaSubscriptionCycleResult",
     "RegisteredSource",
+    "ReviewDecision",
     "SetupSignalView",
     "SetupSourceView",
     "SetupWorkspaceView",

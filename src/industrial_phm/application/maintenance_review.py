@@ -18,6 +18,8 @@ from industrial_phm.application.operational import OperationalFinding
 _FINDING_REVIEW_SCHEMA_V1 = "industrial-phm-finding-review-v1"
 _ROOT_KEYS = frozenset({"schema", "events"})
 _EVENT_KEYS = frozenset({"event_id", "finding_id", "action", "recorded_at", "note"})
+# Events written before decisions existed have no decision key; it is optional, never invented.
+_DECISION_KEY = "decision"
 
 
 class FindingReviewAction(StrEnum):
@@ -26,6 +28,27 @@ class FindingReviewAction(StrEnum):
     NOTE = "note"
     ACKNOWLEDGE = "acknowledge"
     CLOSE = "close"
+
+
+class ReviewDecision(StrEnum):
+    """What the person concluded when confirming or closing: the follow-up they judged needed.
+
+    A recorded judgement, not a fault verdict or a maintenance order.
+    """
+
+    INSPECT = "inspect"
+    OBSERVE = "observe"
+    NO_ACTION = "no-action"
+
+
+def check_review_decision(action: FindingReviewAction, decision: object) -> None:
+    """A decision belongs to a confirm or a close; a plain note carries none."""
+    if decision is None:
+        return
+    if not isinstance(decision, ReviewDecision):
+        raise ValueError("decision must be a ReviewDecision")
+    if action not in {FindingReviewAction.ACKNOWLEDGE, FindingReviewAction.CLOSE}:
+        raise ValueError("only a confirm or a close carries a decision")
 
 
 class FindingReviewStatus(StrEnum):
@@ -45,6 +68,7 @@ class FindingReviewEvent:
     action: FindingReviewAction
     recorded_at: datetime
     note: str = ""
+    decision: ReviewDecision | None = None
 
     def __post_init__(self) -> None:
         _validate_identifier(self.event_id, "event_id")
@@ -59,6 +83,7 @@ class FindingReviewEvent:
             raise ValueError("note must not contain surrounding whitespace")
         if self.action == FindingReviewAction.NOTE and not self.note:
             raise ValueError("note action requires non-empty note text")
+        check_review_decision(self.action, self.decision)
 
 
 class FindingReviewHistoryFormatError(ValueError):
@@ -72,6 +97,7 @@ def create_finding_review_event(
     note: str = "",
     clock: Callable[[], datetime] | None = None,
     request_id: UUID | None = None,
+    decision: ReviewDecision | None = None,
 ) -> FindingReviewEvent:
     """Create one explicit human review event for an existing finding.
 
@@ -91,6 +117,7 @@ def create_finding_review_event(
         action=action,
         recorded_at=now,
         note=note.strip(),
+        decision=decision,
     )
 
 
@@ -248,13 +275,16 @@ def _serialize_event(event: FindingReviewEvent) -> dict[str, object]:
         "action": event.action.value,
         "recorded_at": event.recorded_at.isoformat(),
         "note": event.note,
+        **({} if event.decision is None else {_DECISION_KEY: event.decision.value}),
     }
 
 
 def _parse_event(value: object, *, index: int) -> FindingReviewEvent:
     label = f"finding review events[{index}]"
     raw = _require_mapping(value, label)
-    _require_exact_keys(raw, _EVENT_KEYS, label)
+    _require_exact_keys(
+        raw, _EVENT_KEYS | {_DECISION_KEY} if _DECISION_KEY in raw else _EVENT_KEYS, label
+    )
     try:
         return FindingReviewEvent(
             event_id=_require_string(raw["event_id"], f"{label}.event_id"),
@@ -262,6 +292,9 @@ def _parse_event(value: object, *, index: int) -> FindingReviewEvent:
             action=FindingReviewAction(_require_string(raw["action"], f"{label}.action")),
             recorded_at=_require_datetime(raw["recorded_at"], f"{label}.recorded_at"),
             note=_require_string(raw["note"], f"{label}.note"),
+            decision=None
+            if _DECISION_KEY not in raw
+            else ReviewDecision(_require_string(raw[_DECISION_KEY], f"{label}.decision")),
         )
     except ValueError as error:
         if isinstance(error, FindingReviewHistoryFormatError):

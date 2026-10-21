@@ -96,8 +96,9 @@ def test_attention_follows_new_results_without_reload(tmp_path: Path, width: int
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/")
                 attention = page.get_by_role("region", name="확인이 필요한 설비")
                 asset = attention.get_by_role("article", name="bearing-a")
-                pw.expect(asset).to_contain_text("진동 변화 확인 필요")
-                pw.expect(asset).to_contain_text("모델 기준 초과 1개")
+                # One crossing that is not (yet) a run is said as such, not as a change.
+                pw.expect(asset).to_contain_text("최근 측정에서 모델 기준 초과")
+                pw.expect(asset).to_contain_text("연속 초과는 아님")
                 # The asset list counts the same items, so the two never disagree.
                 # Counts are work items, never an inferred safety or failure ranking.
                 listed = page.get_by_role("region", name="설비 1개").get_by_role(

@@ -710,6 +710,7 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 record.get_by_role("link", name="정비 검토함에서 보기").click()
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(detail).to_contain_text("journey-pump")
+                detail.get_by_role("radio", name="계속 관찰").check()
                 detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
                 pw.expect(detail.get_by_role("button", name="검토 종료")).to_be_visible()

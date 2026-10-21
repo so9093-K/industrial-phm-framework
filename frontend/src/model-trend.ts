@@ -25,6 +25,9 @@ export type ExceedanceStory = {
   /** The measurement the headline names, and where the graph's dotted line goes. */
   anchor: ThresholdExceedance | null;
   ongoing: Interval | null;
+  /** Whether the latest analyzed measurement is over the threshold; a run stays open for the
+   * model's allowed gap, so it can still be open while the latest one is below. */
+  lastExceeds: boolean | null;
   /** Before the anchor: runs that ended, measurements over the threshold outside any run. */
   earlierRuns: number; earlierSingles: number;
   first: ThresholdExceedance | null;
@@ -40,7 +43,7 @@ export function exceedanceStory(trend: ScoreTrend): ExceedanceStory {
   const anchor = state === "ongoing" ? at(ongoing!.start) : state === "latest" ? at(last!.pointer.position)
     : over.at(-1) ?? null;
   const before = anchor?.pointer.position ?? Infinity;
-  return {state, anchor, ongoing,
+  return {state, anchor, ongoing, lastExceeds: last?.exceeds ?? null,
     earlierRuns: trend.intervals.filter((run) => !run.open && run.end < before).length,
     earlierSingles: over.filter((point) => point.pointer.position < before && !inRun(point.pointer.position)).length,
     first: over[0] ?? null};
@@ -50,7 +53,9 @@ export function exceedanceText(story: ExceedanceStory, place: (position: number)
   {headline: string; earlier: string | null} | null {
   if (story.state === "none" || !story.anchor) return null;
   const at = place(story.anchor.pointer.position);
-  const headline = story.state === "ongoing" ? at + "부터 계속 기준 초과 · " + story.ongoing!.steps + "회"
+  const headline = story.state === "ongoing"
+    ? story.lastExceeds === false ? at + "부터 기준 초과 구간 · " + story.ongoing!.steps + "회 · 최근 측정은 기준 이하"
+      : at + "부터 계속 기준 초과 · " + story.ongoing!.steps + "회"
     : story.state === "latest" ? at + "에서 기준 초과 · 연속 초과는 아님"
     : "지금은 기준 이하 · 마지막 기준 초과 " + at;
   const parts: string[] = [];

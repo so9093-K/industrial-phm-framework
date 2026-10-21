@@ -201,6 +201,7 @@ def handle_phm_read(
                     {
                         "action": e.action.value,
                         "note": e.note,
+                        "decision": None if e.decision is None else e.decision.value,
                         "recorded_at": e.recorded_at.isoformat(),
                     }
                     for e in reviews.list_events()

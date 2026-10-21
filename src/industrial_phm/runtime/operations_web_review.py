@@ -26,6 +26,8 @@ from industrial_phm.application.finding_review import (
 )
 from industrial_phm.application.maintenance_review import (
     FindingReviewEvent,
+    ReviewDecision,
+    check_review_decision,
     finding_review_status,
 )
 from industrial_phm.application.operational import OperationalAnalysisResult
@@ -99,7 +101,17 @@ def record_web_review_action(root: Path, payload: dict[str, object]) -> dict[str
     identity with the same action is answered from the saved event, and with
     a different action it is a conflict rather than a second record.
     """
-    if set(payload) - {"event_id"} != {"finding_id", "action", "note"}:
+    if (
+        not {"finding_id", "action", "note"}
+        <= set(payload)
+        <= {
+            "finding_id",
+            "action",
+            "note",
+            "event_id",
+            "decision",
+        }
+    ):
         raise ValueError("unexpected review action fields")
     finding_id = _id(payload, "finding_id")
     action = payload["action"]
@@ -117,6 +129,7 @@ def record_web_review_action(root: Path, payload: dict[str, object]) -> dict[str
         raise ValueError("invalid review note")
     if action == "note" and not note:
         raise ValueError("note action requires a note")
+    decision = review_decision(payload.get("decision"), FindingReviewAction(action))
     paths = OperationsAppPaths(OperationsWorkspace(root))
     finding = next(
         (
@@ -139,7 +152,12 @@ def record_web_review_action(root: Path, payload: dict[str, object]) -> dict[str
             None,
         )
         if saved is not None:
-            if (saved.finding_id, saved.action.value, saved.note) != (finding_id, action, note):
+            if (saved.finding_id, saved.action.value, saved.note, saved.decision) != (
+                finding_id,
+                action,
+                note,
+                decision,
+            ):
                 raise WebReviewConflict("review event identity conflicts with saved action")
             return _action_outcome(finding_id, saved, reviews)
     status = reviews.status_for(finding_id)
@@ -150,9 +168,24 @@ def record_web_review_action(root: Path, payload: dict[str, object]) -> dict[str
     ):
         raise WebReviewConflict("review transition forbidden")
     event, _ = OperationsAppActions(paths).record_review_action(
-        finding, action=FindingReviewAction(action), note=note, request_id=request_id
+        finding,
+        action=FindingReviewAction(action),
+        note=note,
+        request_id=request_id,
+        decision=decision,
     )
     return _action_outcome(finding_id, event, reviews)
+
+
+def review_decision(raw: object, action: FindingReviewAction) -> ReviewDecision | None:
+    """The person's judgement on a confirm or close, checked the same way for every subject."""
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValueError("invalid review decision")
+    decision = ReviewDecision(raw)
+    check_review_decision(action, decision)
+    return decision
 
 
 def _request_id(raw: object) -> UUID | None:
@@ -263,6 +296,7 @@ def handle_reviews_read(
                         "event_id": event.event_id,
                         "action": event.action.value,
                         "note": event.note,
+                        "decision": None if event.decision is None else event.decision.value,
                         "recorded_at": event.recorded_at.isoformat(),
                     }
                     for event in own[-_EVENT_LIMIT:]

@@ -50,8 +50,11 @@ def test_score_trend_intervals_and_raw_waveform(
                     "분석 6회 · 모델 기준 초과 2회 · 기준 초과 구간 1개"
                 )
                 pw.expect(trend.get_by_role("img")).to_be_visible()
-                onset = trend.get_by_label("첫 기준 초과 확인", exact=True)
-                pw.expect(onset).to_contain_text("측정 순서 #4")
+                # The run of crossings is read first; #6 is below but within the allowed gap.
+                onset = trend.get_by_label("기준 초과 상태", exact=True)
+                pw.expect(onset).to_contain_text(
+                    "측정 순서 #4부터 기준 초과 구간 · 2회 · 최근 측정은 기준 이하"
+                )
                 pw.expect(trend.locator("line.onset-line")).to_have_count(1)
                 if period:
                     pw.expect(onset).to_contain_text("기록 시작 후 3분")
@@ -77,14 +80,13 @@ def test_score_trend_intervals_and_raw_waveform(
                 assert changed.get_by_role("img").count() == 0
                 overlay = page.get_by_role("region", name="모델별 점수 비교", exact=True)
                 pw.expect(overlay.locator("line.onset-line")).to_have_count(1)
-                overlay.locator(".onset").get_by_role("button", name="측정 보기 →").click()
-                pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("4")
+                # Each model's row says its state in the same words; the graph marks its start.
+                pw.expect(
+                    overlay.get_by_role("button", name=re.compile("synthetic-rms-score-v1"))
+                ).to_contain_text("측정 순서 #4부터 기준 초과 구간 · 2회")
                 overlay.get_by_role(
                     "button", name=re.compile("synthetic-vertical-score-v1")
                 ).click()
-                pw.expect(overlay).to_contain_text(
-                    "고른 모델은 조회된 기록에서 기준 초과가 확인되지 않았습니다"
-                )
                 pw.expect(overlay.locator("line.onset-line")).to_have_count(0)
                 overlay.get_by_role("button", name=re.compile("synthetic-rms-score-v1")).click()
                 pw.expect(overlay.locator("line.onset-line")).to_have_count(1)
@@ -100,7 +102,7 @@ def test_score_trend_intervals_and_raw_waveform(
                     page.route("**/api/v1/forecast/options?**", foreign_timing)
                     page.reload()
                     onset = page.get_by_role("region", name="점수 추이").get_by_label(
-                        "첫 기준 초과 확인", exact=True
+                        "기준 초과 상태", exact=True
                     )
                     pw.expect(onset).to_contain_text("측정 순서 #4")
                     assert "기록 시작 후" not in onset.inner_text()

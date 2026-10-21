@@ -47,6 +47,7 @@ def review_explained_result(
     detail = page.get_by_role("region", name="고른 검토 항목")
     expect(detail.locator(".badge")).to_be_visible()
     if detail.get_by_role("button", name="확인함으로 표시").count():
+        detail.get_by_role("radio", name="계속 관찰").check()
         detail.get_by_role("button", name="확인함으로 표시").click()
         expect(detail.locator(".badge")).to_have_text("확인함")
     if detail.get_by_role("button", name="검토 종료", exact=True).count():
