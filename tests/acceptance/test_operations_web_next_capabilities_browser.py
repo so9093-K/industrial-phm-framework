@@ -114,7 +114,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 pw.expect(options).to_contain_text(
                     "상태 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
-                pw.expect(row("period-compare")).to_contain_text("측정 순서 #1~#8")
+                pw.expect(row("period-compare")).to_contain_text("1~8번째 측정")
                 options.get_by_role("link", name="주파수 분석 열기").click()
                 pw.expect(page).to_have_url(
                     base + "&tab=change&method=spectrum&monitor_asset=bearing-a"

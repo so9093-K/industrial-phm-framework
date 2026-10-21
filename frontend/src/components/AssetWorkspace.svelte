@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {measurementLabel,elapsedText} from "../time-axis";
   import {onMount} from "svelte";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
@@ -83,7 +84,8 @@
   <div class="head">
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
-      <p class="meta">{!asset.lastObservedAt && data?.vibration ? "마지막 측정 순서 #" + data.vibration.last : "마지막 측정 " + observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
+      <p class="meta">{!asset.lastObservedAt && data?.vibration ? "최근 " + measurementLabel(data.vibration.last,data.vibration.timing?.periodSeconds) : "마지막 측정 " + observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
+      {#if !asset.lastObservedAt && data?.vibration}<p class="meta">{data.vibration.timing ? "시간 기준 · 기록된 측정 간격 " + elapsedText(data.vibration.timing.periodSeconds) : "측정 간격 기록 없음 · 측정 회차로 표시"} · 실제 측정 시각 기록 없음</p>{/if}
     </div>
     {#if assets.length > 1}
       <label class="switch-asset">다른 설비
@@ -142,15 +144,15 @@
       {:else if route.tab === "anomaly"}
         <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change" && method === "spectrum"}
-        <AcquisitionSpectrum assetId={asset.assetId} />
+        <AcquisitionSpectrum assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change" && method === "electrical"}
         <ElectricalCondition assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "relation" && kind === "vibration"}
-        <AcquisitionRelation assetId={asset.assetId} />
+        <AcquisitionRelation assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change" && method === "relation"}
         <RelationExplorer assetId={asset.assetId} />
       {:else if route.tab === "change" && kind === "vibration"}
-        <AcquisitionFeatureProfile assetId={asset.assetId} />
+        <AcquisitionFeatureProfile assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change"}
         <PeriodComparison assetId={asset.assetId} />
       {:else if route.tab === "outlook" && kind === "vibration"}

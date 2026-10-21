@@ -143,7 +143,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                     "bearing-a · 이상 탐지 모델 결과"
                 )
                 # Which model and what it scored, read from the stored result.
-                pw.expect(detail).to_contain_text("측정 순서 #3 · 점수")
+                pw.expect(detail).to_contain_text("3번째 측정 · 점수")
                 pw.expect(detail).to_contain_text("/ 기준 2")
 
                 # The first response is lost after the server recorded the confirmation; the same

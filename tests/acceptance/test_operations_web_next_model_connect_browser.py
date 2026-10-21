@@ -54,7 +54,7 @@ def test_model_is_connected_to_the_assets_own_stream(tmp_path: Path, width: int)
                 analyze(workspace)
                 page.reload()
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("3")
-                pw.expect(page.get_by_role("group", name="측정 순서 #3 모델 결과")).to_contain_text(
+                pw.expect(page.get_by_role("group", name="3번째 측정 모델 결과")).to_contain_text(
                     "기준 초과"
                 )
                 assert page.evaluate(

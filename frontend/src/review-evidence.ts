@@ -9,6 +9,8 @@ import {
 import {beforeInterval, exceedanceStory, exceedanceText, readScoreTrend, type ScoreTrend} from "./model-trend.ts";
 import {readComparison} from "./model-comparison.ts";
 import {readModelExplanations, type FeatureChange} from "./model-explanations.ts";
+import {readAssetData} from "./asset-data.ts";
+import {measurementLabel} from "./time-axis.ts";
 
 export type ReviewEvidence = {
   unread: ("flow" | "changes" | "ai" | "others")[];
@@ -60,7 +62,12 @@ export async function readReviewEvidence(
   const binding = bindings.find((item) => item.bindingId === location.bindingId);
   if (!binding) return null;
   const names = modelNames(bindings);
-  const place = (position: number) => (binding.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + position;
+  // Timing is optional display context; failure must not hide the stored result under review.
+  const timing = binding.stepKind === "acquisition-snapshot"
+    ? (await readAssetData(assetId, signal).catch(() => null))?.vibration?.timing : null;
+  const period = timing?.sourceId === binding.sourceId ? timing.periodSeconds : null;
+  const place = (position: number) => binding.stepKind === "observation-window"
+    ? "시간 구간 #" + position : measurementLabel(position);
   const run = await loadModelPosition(binding, location.position, signal);
   const unread: ReviewEvidence["unread"] = [];
   const quiet = <T,>(part: ReviewEvidence["unread"][number], read: Promise<T>): Promise<T | null> =>
@@ -92,7 +99,7 @@ export async function readReviewEvidence(
     unread,
     name: names.get(binding.bindingId) ?? binding.bindingId, at: place(location.position), eventStart: run.eventStart,
     score: scoreSummary(run.output),
-    flow: story ? exceedanceText(story, place) : null,
+    flow: story ? exceedanceText(story, position => binding.stepKind === "observation-window" ? place(position) : measurementLabel(position, period)) : null,
     changes: against !== null && features?.length ? {against: place(against), rows: largestChanges(features)} : null,
     ai: explained?.answer ? {summary: explained.answer.summary,
       byAi: !explained.answer.modelUnavailable && explained.answer.source !== "verified-comparison"} : null,

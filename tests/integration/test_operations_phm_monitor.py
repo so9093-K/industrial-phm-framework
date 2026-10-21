@@ -91,6 +91,7 @@ def test_monitor_distinguishes_new_input_refusal_and_an_exact_saved_result(tmp_p
     item = next(i for i in body["items"] if i["binding_id"] == "anomaly-a")
     assert item["processing_state"] == "pending"
     assert item["latest_delivered"]["position"] == 2
+    assert item["latest_delivered"]["period_seconds"] == 60.0
     assert item["latest_analyzed"]["position"] == 1
     assert item["previous_analyzed"] is None
     (tmp_path / "waves/2.csv").write_text("corrupted after delivery")

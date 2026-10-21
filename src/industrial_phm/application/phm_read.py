@@ -368,6 +368,7 @@ def _latest_delivered(
         "delivered_at": snapshot.delivered_at.isoformat(),
         "event_at": _iso(snapshot.event_at),
         "replay": snapshot.replay,
+        "period_seconds": snapshot.acquisition_period_seconds,
     }
 
 

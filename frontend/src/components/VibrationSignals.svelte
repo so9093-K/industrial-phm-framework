@@ -3,7 +3,7 @@
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import {measurementScale, sinceStart} from "../time-axis";
+  import {measurementScale, measurementLabel} from "../time-axis";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
@@ -56,7 +56,7 @@
 
 <section class="ui-panel" aria-labelledby="vibration-signals-title">
   <h2 id="vibration-signals-title">진동 측정</h2>
-  <p class="context">측정마다 저장된 파형에서 뽑은 진동 특징을 측정 순서대로 봅니다.</p>
+  <p class="context">측정마다 저장된 파형에서 뽑은 진동 특징을 확인합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
   {#if listState === "loading"}
     <StatusNotice message="진동 측정 기록을 확인하고 있습니다." />
   {:else if listState === "failed"}
@@ -79,7 +79,7 @@
     {:else if trendState === "failed" || !trend}
       <StatusNotice kind="uncertain" message="고른 특징의 기록을 불러오지 못했습니다. 다른 특징을 고르거나 다시 열어 주세요." />
     {:else}
-      {#if latest}<p class="headline">마지막 측정 #{latest.ordinal} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
+      {#if latest}<p class="headline">최근 {measurementLabel(latest.ordinal,trend.periodSeconds)} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
       {#if chart}
         {@const period = trend.periodSeconds}
         {@const axisNote = "측정 #" + chart.first + "~#" + chart.last + (period ? " · 기록 시작 후 경과 시간 · 측정 간격 " + num(period) + "초" : "")}
@@ -92,7 +92,7 @@
             <path d={chart.line} class="line" />
             {#each chart.marks as mark (mark.ordinal)}
               <circle cx={mark.x} cy={mark.y} r="3" class="point">
-                <title>측정 #{mark.ordinal}{period ? " · " + sinceStart(mark.ordinal, period) : ""} · {measure(mark.value, trend.unit)}</title>
+                <title>{measurementLabel(mark.ordinal, period)} · {measure(mark.value, trend.unit)}</title>
               </circle>
             {/each}
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />

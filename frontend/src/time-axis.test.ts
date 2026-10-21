@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {elapsedText, measurementScale, sinceStart, xTicks} from "./time-axis.ts";
+import {elapsedText, measurementLabel, measurementScale, sinceStart, xTicks} from "./time-axis.ts";
 
 test("durations read as people say them", () => {
   assert.deepEqual([0, 45, 90, 1800, 4500, 7200, 93600, 2 * 86400].map(elapsedText),
@@ -64,4 +64,11 @@ test("long records keep a bounded number of ticks and invalid intervals cannot b
   assert.deepEqual(xTicks(NaN, 100, measurementScale(60)), []);
   // A sliced record keeps its original elapsed position; it never starts at zero again.
   assert.equal(xTicks(61, 100, measurementScale(60))[0].label, "1시간");
+});
+
+test("measurement labels prioritize interval-derived time and keep their exact address", () => {
+  assert.equal(measurementLabel(76, 60), "기록 시작 후 1시간 15분 (76번째 측정)");
+  for (const period of [undefined, null, 0, -1, NaN, Infinity])
+    assert.equal(measurementLabel(76, period), "76번째 측정");
+  assert.equal(measurementLabel(1, 60), "기록 시작 후 0초 (1번째 측정)");
 });

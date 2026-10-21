@@ -161,7 +161,7 @@ def test_model_result_explanation_and_review_request(
                 table = explanation.get_by_role("table", name="해설이 짚은 측정값")
                 row = table.get_by_role("row", name="수평 진동 RMS")
                 pw.expect(row).to_contain_text("증가")
-                pw.expect(explanation).to_contain_text("측정 순서 #2 → 측정 순서 #3")
+                pw.expect(explanation).to_contain_text("2번째 측정 → 3번째 측정")
                 assert asked == [
                     {
                         "binding_id": "anomaly-a",
@@ -262,17 +262,17 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                     "button", name="가장 큰 변화", exact=False
                 ).click()
                 explanation = page.get_by_role("region", name="AI 해설")
-                pw.expect(explanation).to_contain_text("질문 기준 지점 · 측정 순서 #4 · 모델 점수")
+                pw.expect(explanation).to_contain_text("질문 기준 지점 · 4번째 측정 · 모델 점수")
                 pw.expect(
                     explanation.get_by_role("region", name="측정값 비교").get_by_role(
-                        "heading", name="측정 순서 #4 원본 파형"
+                        "heading", name="4번째 측정 원본 파형"
                     )
                 ).to_be_visible()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
                 explanation.get_by_role(
                     "button", name="이 지점 전후로 무엇이 달라졌어?", exact=True
                 ).click()
-                pw.expect(explanation.get_by_text("답변 기준 지점 · 측정 순서 #4")).to_be_visible(
+                pw.expect(explanation.get_by_text("답변 기준 지점 · 4번째 측정")).to_be_visible(
                     timeout=20_000
                 )
                 (record,) = PhmExplanationStore(workspace.phm_explanation_path).list_for(
@@ -282,7 +282,7 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                 assert record["context"]["focus"]["series"] == "primary"
                 assert record["context"]["signal_comparison"]["previous_position"] == 1
                 explanation.get_by_role("button", name="질문 기준 지점 해제").click()
-                assert explanation.get_by_text("답변 기준 지점 · 측정 순서 #4").count() == 0
+                assert explanation.get_by_text("답변 기준 지점 · 4번째 측정").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
             finally:
                 browser.close()

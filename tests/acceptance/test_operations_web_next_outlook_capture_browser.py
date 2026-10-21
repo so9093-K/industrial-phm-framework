@@ -258,7 +258,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 pw.expect(detail).to_contain_text("원본 데이터: 요청 뒤 바뀜", timeout=30000)
                 detail.get_by_role("button", name="지금 데이터로 다시 계산해 비교").click()
                 pw.expect(detail).to_contain_text(
-                    "새 측정이 들어옴 (측정 순서 #64 → 측정 순서 #70)", timeout=60000
+                    "새 측정이 들어옴 (64번째 측정 → 70번째 측정)", timeout=60000
                 )
                 comparison = detail.get_by_role("table").first
                 pw.expect(comparison).to_contain_text("관리 기준")

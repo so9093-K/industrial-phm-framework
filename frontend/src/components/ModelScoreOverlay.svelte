@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {elapsedText, xTicks, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import type {ModelBinding} from "../model-evidence";
   import {exceedanceText, measurementTime, overlayModels, readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
@@ -124,6 +125,7 @@
           그래프 위에 올리거나 화살표 키로 측정별 값을 보고, 누르면 그 측정의 상세를 엽니다.
         {/if}
       </p>
+    {#if period}<p class="context">가로축 · 기록 시작 후 경과 시간 · 기록된 측정 간격 {elapsedText(period)}</p>{/if}
       <div class="plot" bind:clientWidth={width} role="slider" tabindex="0" aria-label="모델별 기준 대비 점수 · 측정 선택"
         aria-valuemin={scale.first} aria-valuemax={scale.last} aria-valuenow={hover ?? scale.last}
         aria-valuetext={place(hover ?? scale.last)}
@@ -145,7 +147,7 @@
         {/each}
         {#if first}
           <line x1={scale.x(first.pointer.position)} x2={scale.x(first.pointer.position)} y1={TOP} y2={BOTTOM} class="onset-line">
-            <title>{names.get(selected)} · {told?.headline ?? place(first.pointer.position)}{measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
+            <title>{names.get(selected)} · {told?.headline ?? place(first.pointer.position)}{first.eventStart && measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
           </line>
           <circle cx={scale.x(first.pointer.position)} cy={scale.y(first.score / first.threshold)} r="5" class="onset-dot" />
         {/if}
@@ -159,8 +161,14 @@
         {#each labelled ? ends : [] as end (end.id)}
           <text x={RIGHT + 8} y={end.y + 4} class="end">{end.name}</text>
         {/each}
+      {#if period}
+        {#each xTicks(scale.first, scale.last, measurementScale(period), 3) as tick (tick.value)}
+          <text x={scale.x(tick.value)} y={H - 8} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
+        {/each}
+      {:else}
         <text x={LEFT} y={H - 8} class="label">{place(scale.first)}</text>
         <text x={RIGHT} y={H - 8} text-anchor="end" class="label">{place(scale.last)}</text>
+      {/if}
       </svg>
       </div>
     {:else}

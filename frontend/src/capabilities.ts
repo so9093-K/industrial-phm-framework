@@ -64,10 +64,10 @@ export function fact(item:Capability,capabilities:Capabilities):string{
       if(item.id==="measurements")return "진동 측정 "+n("count")+"회 · 원본 파형";
       if(item.id==="relation")return "같은 진동 측정의 두 특징값";
       if(item.id==="spectrum")return "원본 파형"+(acquisition?.samplingRate?" · "+acquisition.samplingRate/1000+" kHz":"");
-      return acquisition?.first!==null&&acquisition?.first!==undefined?"측정 순서 #"+acquisition.first+"~#"+acquisition.last:"진동 측정";
+      return acquisition?.first!==null&&acquisition?.first!==undefined?acquisition.first+"~"+acquisition.last+"번째 측정":"진동 측정";
     case "explore":return "모델 없이 기준 구간에서 벗어난 값 찾기"+(n("packages")?" · 맞는 모델 "+n("packages")+"개 연결 가능":"");
     case "stored-flow":return "기준까지 남은 여유 · 최대 "+(HORIZON[String(facts.horizon)]??String(facts.horizon))+" 앞까지 예측";
-    case "stored-flow-count":return "기준까지 남은 여유 · 측정 순서 기준";
+    case "stored-flow-count":return "기준까지 남은 여유 · 측정 횟수 기준";
     case "outlook-only":return "기준까지 남은 여유 · 기록이 짧아 예측 그래프는 없음";
     case "short-history":return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected":return "모델 결과 "+n("results")+"건"+(facts.recorded_replay===true?" · 기록 재생":"");

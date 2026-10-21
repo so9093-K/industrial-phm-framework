@@ -212,7 +212,7 @@
           <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
         {/if}
         {#if chart}
-          {@const axisNote=(period===null?"측정 순서":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+num(period)+"초")+" · 세로선 · 마지막 측정 #"+chart.last}
+          {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+num(period)+"초")+" · 세로선 · 마지막 측정 #"+chart.last}
           <figure class="chart">
             <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
@@ -254,11 +254,11 @@
           }}/>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
-        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 측정 순서는 실제 날짜가 아닙니다."/>
+        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>
-            <caption>측정 순서별 특징 예측값 (최대 12개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
+            <caption>측정별 특징 예측값 (최대 12개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
             <thead><tr><th scope="col">측정 #</th><th scope="col">예측값</th>
               <th scope="col">범위 하한</th><th scope="col">범위 상한</th></tr></thead>
             <tbody>

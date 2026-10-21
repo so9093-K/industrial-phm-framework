@@ -360,7 +360,7 @@ export function compareReobservation(saved:CapturedOutlook,current:OutlookFacts)
 }
 
 export function positionText(value:Position):string{
-  return typeof value==="number"?"측정 순서 #"+value
+  return typeof value==="number"?value+"번째 측정"
     :new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
 }
 

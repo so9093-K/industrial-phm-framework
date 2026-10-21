@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AcquisitionRange from "./AcquisitionRange.svelte";
+  import type {AcquisitionTiming} from "../asset-data";
+  import {measurementLabel} from "../time-axis";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
@@ -6,13 +9,18 @@
     SpectrumUnavailable,WaveformUnavailable,
     type Acquisition,type Spans,type Spectrum,type SpectrumChannel} from "../spectrum";
 
-  let {assetId}:{assetId:string}=$props();
+  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
   type State="loading"|"ready"|"empty"|"failed"|"unavailable"|"missing-waveform";
   let sourceState:State=$state("loading");
   let resultState:State=$state("empty");
   let acquisition:Acquisition|null=$state(null);
   let spans:Spans|null=$state(null);
   let result:Spectrum|null=$state(null);
+  const period = $derived.by(() => {
+    const current: Acquisition | null = acquisition;
+    return current && timing && timing.sourceId === current.source ? timing.periodSeconds : null;
+  });
+  const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
   let sourceRequest:AbortController|null=null;
   let spectrumRequest:AbortController|null=null;
@@ -110,17 +118,12 @@
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
     <p class="context">데이터 출처 <strong>{acquisition.source}</strong>
-      · 측정 #{acquisition.first} ~ #{acquisition.last}</p>
+      · {place(acquisition.first)} ~ {place(acquisition.last)}</p>
     <div class="periods">
       {#each ["a","b"] as label(label)}
         {@const name=label as "a"|"b"}
-        <fieldset>
-          <legend>기간 {name.toUpperCase()} · 측정 순서</legend>
-          <label>처음 측정 # <input type="number" min={acquisition.first} max={acquisition.last} step="1"
-            value={spans[name].from} onchange={e=>change(name,"from",e.currentTarget.value)}/></label>
-          <label>마지막 측정 # <input type="number" min={acquisition.first} max={acquisition.last} step="1"
-            value={spans[name].to} onchange={e=>change(name,"to",e.currentTarget.value)}/></label>
-        </fieldset>
+        <AcquisitionRange name={name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period}
+          onChange={(edge, ordinal) => change(name, edge, String(ordinal))} />
       {/each}
     </div>
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void analyze()}>
@@ -138,7 +141,7 @@
     {:else if resultState==="empty"}
       <StatusNotice message="두 기간을 고르고 주파수 비교하기를 누르세요."/>
     {:else if result}
-      <p class="context">기간 A 측정 #{result.used.a.join(", #")} · 기간 B 측정 #{result.used.b.join(", #")}</p>
+      <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         <section class="series">
@@ -181,7 +184,7 @@
           </details>
         </section>
       {/each}
-      <CautionNote message="세기가 달라진 주파수는 결함 주파수나 고장 진단이 아닙니다. 측정 순서는 실제 날짜나 일정한 시간 간격이 아닙니다."/>
+      <CautionNote message="세기가 달라진 주파수는 결함 주파수나 고장 진단이 아닙니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
       <details>
         <summary>기술 상세</summary>
         <p class="context">Welch PSD · 샘플링 {result.samplingRate}Hz · 세그먼트 {result.segment}개 샘플.
@@ -196,10 +199,6 @@
   .spectra{min-width:0}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
-  label{display:grid;gap:var(--space-2);font-weight:650}
-  input{width:100%;min-width:0;border:1px solid var(--color-border);border-radius:var(--radius-control);
-    color:var(--color-ink);background:var(--color-surface);padding:var(--space-3)}
-  fieldset{min-width:0;border:1px solid var(--color-border);border-radius:var(--radius-panel);display:grid;gap:var(--space-3)}
   .series{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
   svg{display:block;width:100%;height:180px}svg polyline,svg path{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
   .line-a{fill:none;stroke:var(--color-action);stroke-width:2}

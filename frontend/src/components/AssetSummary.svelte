@@ -2,6 +2,7 @@
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {loadLatestScores, modelName, scoreSummary, type LatestScore} from "../model-evidence";
+  import {measurementLabel} from "../time-axis";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
@@ -20,8 +21,8 @@
     if (dataState === "failed" || !data) return "확인하지 못함";
     const parts: string[] = [];
     if (data.history) parts.push("시계열 신호 " + data.history.signals + "개");
-    if (data.vibration) parts.push("진동 측정 " + data.vibration.measurements + "회 (측정 순서 #"
-      + data.vibration.first + "~#" + data.vibration.last + ")");
+    if (data.vibration) parts.push("진동 측정 " + data.vibration.measurements + "회 ("
+      + data.vibration.first + "~" + data.vibration.last + "번째)");
     return parts.length ? parts.join(" · ") : "분석할 저장 데이터 없음";
   });
   let scores: LatestScore[] = $state([]);
@@ -56,7 +57,7 @@
   }
   // Vibration deliveries carry an order, not always a clock; say which one is last.
   const lastMeasured = $derived(!asset.lastObservedAt && data?.vibration
-    ? "측정 순서 #" + data.vibration.last + " · 측정 시각 기록 없음" : observed(asset.lastObservedAt));
+    ? measurementLabel(data.vibration.last,data.vibration.timing?.periodSeconds) + " · 측정 시각 기록 없음" : observed(asset.lastObservedAt));
   // The same count as the asset list: the monitor's own items plus model, receipt and baseline notes.
   const attentionCount = $derived.by((): number | null => {
     const read: Note[] | null = notes;
@@ -87,7 +88,7 @@
           <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
           <span>{modelName(item.binding)}
             {#if item.run && summary}
-              · 측정 순서 #{item.run.position} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
+              · {item.binding.stepKind === "observation-window" ? "시간 구간 #" + item.run.position : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
             {/if}</span>
         </li>
       {/each}

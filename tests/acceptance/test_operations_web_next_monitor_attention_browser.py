@@ -29,7 +29,7 @@ def test_open_interval_and_quiet_latest_measurement_agree_across_views(
     )
     running = start_web(workspace.root.resolve(), writer=False)
     base = f"http://127.0.0.1:{running[0].server_port}"
-    expected = "측정 순서 #1부터 기준 초과 구간 · 2회 · 최근 측정은 기준 이하"
+    expected = "기록 시작 후 0초 (1번째 측정)부터 기준 초과 구간 · 2회 · 최근 측정은 기준 이하"
     try:
         with pw.sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)

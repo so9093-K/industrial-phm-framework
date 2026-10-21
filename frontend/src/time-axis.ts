@@ -51,6 +51,13 @@ export function sinceStart(position: number, period: number): string {
   return "기록 시작 후 " + elapsedText((position - 1) * period);
 }
 
+/** Keep the original measurement address beside the interval-derived display time. */
+export function measurementLabel(position: number, period?: number | null): string {
+  const ordinal = position + "번째 측정";
+  return period !== null && period !== undefined && Number.isFinite(period) && period > 0
+    ? sinceStart(position, period) + " (" + ordinal + ")" : ordinal;
+}
+
 function zeroLabel(unit: number): string {
   return unit < MINUTE ? "0초" : unit < HOUR ? "0분" : unit < DAY ? "0시간" : "0일";
 }

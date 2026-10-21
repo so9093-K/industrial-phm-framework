@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
@@ -14,8 +15,9 @@ from industrial_phm.runtime.operations_web_http import create_operations_web_rea
 
 
 @pytest.mark.parametrize("width", [390, 1024])
+@pytest.mark.parametrize("period", [60, None])
 def test_acquisition_feature_profile_preserves_quality_and_binding(
-    tmp_path: Path, width: int
+    tmp_path: Path, width: int, period: int | None
 ) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = OperationsWorkspace(tmp_path / "feature-profile")
@@ -74,7 +76,17 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                         status=200, content_type="application/json", body=json.dumps(sources)
                     ),
                 )
+                page.route(
+                    "**/api/v1/forecast/options?**",
+                    lambda route: route.fulfill(
+                        json={
+                            **sources,
+                            "acquisition": {**sources["acquisition"], "period_seconds": period},
+                        }
+                    ),
+                )
                 error = {"enabled": False}
+                selected = {"b_from": "11"}
 
                 def profile(route):
                     query = parse_qs(urlsplit(route.request.url).query)
@@ -82,7 +94,7 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                     assert query["kind"] == ["acquisition"]
                     assert query["a_from"] == ["1"]
                     assert query["a_to"] == ["10"]
-                    assert query["b_from"] == ["11"]
+                    assert query["b_from"] == [selected["b_from"]]
                     assert query["b_to"] == ["20"]
                     if error["enabled"]:
                         route.fulfill(
@@ -161,6 +173,14 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                 pw.expect(page.get_by_role("combobox", name="진동 특징")).to_have_value(
                     "feature.R.mean"
                 )
+                group_b = page.get_by_role("group", name=re.compile("기간 B ·"))
+                pw.expect(group_b.get_by_label("시작")).to_have_value("10" if period else "11")
+                pw.expect(group_b).to_contain_text(
+                    "기록 시작 후 10분 (11번째 측정)" if period else "11번째 측정"
+                )
+                # Display minutes convert back to the original exact acquisition address.
+                group_b.get_by_label("시작").fill("12" if period else "13")
+                selected["b_from"] = "13"
                 error["enabled"] = True
                 page.get_by_role("button", name="비교하기").click()
                 pw.expect(

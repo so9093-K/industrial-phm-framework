@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {elapsedText, xTicks, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding, StepPointer} from "../model-evidence";
@@ -75,12 +76,13 @@
     {#if first && told}
       <div class="onset" aria-label="기준 초과 상태">
         <strong>{told.headline}</strong>
-        {#if measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
+        {#if first.eventStart && measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
         <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
         {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
           <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
       </div>
     {/if}
+    {#if period}<p class="context">가로축 · 기록 시작 후 경과 시간 · 기록된 측정 간격 {elapsedText(period)}</p>{/if}
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
       {#each trend.intervals as interval (interval.start)}
@@ -94,7 +96,7 @@
       <path d={path} class="line" />
       {#if first}
         <line x1={scale.x(first.pointer.position)} x2={scale.x(first.pointer.position)} y1={TOP} y2={BOTTOM} class="onset-line">
-          <title>{told?.headline ?? place(first.pointer.position)}{measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
+          <title>{told?.headline ?? place(first.pointer.position)}{first.eventStart && measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
         </line>
         <circle cx={scale.x(first.pointer.position)} cy={scale.y(first.score)} r="5" class="onset-dot" />
       {/if}
@@ -105,8 +107,14 @@
           <title>{place(point.pointer.position)} · 점수 {num(point.score)}</title>
         </circle>
       {/each}
-      <text x={LEFT} y={H - 6} class="label">{place(scale.first)}</text>
-      <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
+      {#if period}
+        {#each xTicks(scale.first, scale.last, measurementScale(period), 3) as tick (tick.value)}
+          <text x={scale.x(tick.value)} y={H - 6} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
+        {/each}
+      {:else}
+        <text x={LEFT} y={H - 6} class="label">{place(scale.first)}</text>
+        <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
+      {/if}
       <text x={LEFT + 4} y={TOP + 10} class="label">최고 {num(scale.high)}</text>
     </svg>
     <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? (story?.state === "ongoing" ? " 세로 점선은 지금 이어지는 기준 초과가 시작된 측정입니다." : " 세로 점선은 위에 적은 측정입니다.") : ""}</p>

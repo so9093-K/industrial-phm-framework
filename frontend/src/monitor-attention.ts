@@ -7,11 +7,13 @@ import {modelName} from "./model-evidence.ts";
 import {readSources,type Source} from "./operations-status.ts";
 import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
+import {measurementLabel} from "./time-axis.ts";
 
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
   bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window";recipeId:string|null;
   packageId:string;estimatorKind:string|null;
+  periodSeconds?:number|null;
   state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null}|null;
   /** The run of consecutive crossings still going on, if any. */
   ongoing:{start:number;steps:number;startAt:string|null}|null;
@@ -61,8 +63,10 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
     const review=row.latest_review_status;
     const run=object(row.open_interval);
     const start=run?.start_position,steps=run?.step_count;
+    const period=object(row.latest_delivered)?.period_seconds;
     return {bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),
       packageId:text(row.package_id)??"",estimatorKind:text(row.estimator_kind),
+      periodSeconds:typeof period==="number"&&Number.isFinite(period)&&period>0?period:null,
       ongoing:typeof start==="number"&&Number.isSafeInteger(start)&&typeof steps==="number"&&Number.isSafeInteger(steps)
         ?{start,steps,startAt:text(run?.start_event_at)}:null,
       state:row.processing_state as ModelState,
@@ -87,7 +91,7 @@ function since(model:MonitoredModel):string{
   const run=model.ongoing!;
   if(model.stepKind==="observation-window"&&run.startAt)
     return new Date(run.startAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
-  return (model.stepKind==="acquisition-snapshot"?"측정 순서 #":"시간 구간 #")+run.start;
+  return model.stepKind==="acquisition-snapshot"?measurementLabel(run.start,model.periodSeconds):"시간 구간 #"+run.start;
 }
 
 function at(model:MonitoredModel,which:number|null):string{

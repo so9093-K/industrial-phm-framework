@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AcquisitionRange from "./AcquisitionRange.svelte";
+  import type {AcquisitionTiming} from "../asset-data";
+  import {measurementLabel} from "../time-axis";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -11,13 +14,18 @@
     type AcquisitionRelation,type AcquisitionPairGroup,
   } from "../acquisition-relation";
 
-  let {assetId}:{assetId:string}=$props();
+  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let sourceState:State=$state("loading");
   let resultState:State=$state("empty");
   let source:FeatureSource|null=$state(null);
   let relation:AcquisitionRelation|null=$state(null);
   let spans:Spans|null=$state(null);
+  const period = $derived.by(() => {
+    const current: FeatureSource | null = source;
+    return current && timing && timing.sourceId === current.sourceId ? timing.periodSeconds : null;
+  });
+  const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
   const params=new URLSearchParams(location.search);
   let x=$state(params.get("acq_relation_x")??"");
@@ -131,7 +139,7 @@
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다. 이상이 없다는 뜻은 아닙니다."}/>
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{source.sourceId}</strong>
-      · 측정 #{source.first} ~ #{source.last}</p>
+      · {place(source.first)} ~ {place(source.last)}</p>
     <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
     <div class="controls">
       <label>특징 X
@@ -147,14 +155,9 @@
     </div>
     <div class="controls">
       {#each ["a","b"] as name(name)}
-        {@const period=name as "a"|"b"}
-        <fieldset>
-          <legend>기간 {period.toUpperCase()} · 측정 순서</legend>
-          <label>처음 측정 # <input type="number" step="1" min={source.first} max={source.last}
-            value={spans[period].from} onchange={e=>changeSpan(period,"from",e.currentTarget.value)}/></label>
-          <label>마지막 측정 # <input type="number" step="1" min={source.first} max={source.last}
-            value={spans[period].to} onchange={e=>changeSpan(period,"to",e.currentTarget.value)}/></label>
-        </fieldset>
+        {@const key=name as "a"|"b"}
+        <AcquisitionRange name={key} span={spans[key]} first={source.first} last={source.last} {period}
+          onChange={(edge, ordinal) => changeSpan(key, edge, String(ordinal))} />
       {/each}
     </div>
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
@@ -170,7 +173,7 @@
     {:else if relation}
       {#each relation.groups as group(group.period)}
         <section class="group">
-          <h3>기간 {group.period.toUpperCase()} · 측정 #{spans[group.period].from}–#{spans[group.period].to}</h3>
+          <h3>기간 {group.period.toUpperCase()} · {place(spans[group.period].from)} ~ {place(spans[group.period].to)}</h3>
           {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
           <dl>
             <div><dt>분석한 측정</dt><dd>{group.analyzed}회</dd></div>
@@ -192,7 +195,7 @@
               <path d="M24 16 V156 H304" fill="none" stroke="currentColor" stroke-width="1"/>
               {#each scatter(group) as point(point.ordinal)}
                 <circle cx={point.x} cy={point.y} r="3.5" fill="var(--color-action)">
-                  <title>측정 #{point.ordinal} · {x} / {y}</title>
+                  <title>{place(point.ordinal)} · {x} / {y}</title>
                 </circle>
               {/each}
             </svg>
@@ -201,10 +204,10 @@
             <summary>같은 측정의 특징 짝 표 ({group.points.length}개 표시)</summary>
             <div class="table-scroll"><table>
               <caption>측정별 특징 짝 (일부만 표시될 수 있음)</caption>
-              <thead><tr><th scope="col">측정 순서</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
+              <thead><tr><th scope="col">측정</th><th scope="col">{x}</th><th scope="col">{y}</th></tr></thead>
               <tbody>
                 {#each group.points.slice(0,100) as point(point.ordinal)}
-                  <tr><td>#{point.ordinal}</td><td>{num(point.x)}</td><td>{num(point.y)}</td></tr>
+                  <tr><td>{place(point.ordinal)}</td><td>{num(point.x)}</td><td>{num(point.y)}</td></tr>
                 {/each}
               </tbody>
             </table></div>
@@ -212,7 +215,7 @@
           </details>
         </section>
       {/each}
-      <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 측정 순서는 실제 시각이 아닙니다."/>
+      <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
     {/if}
   {/if}
 </section>
@@ -220,9 +223,8 @@
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .controls{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-block:var(--space-4)}
   label{display:grid;gap:var(--space-2);font-weight:650}
-  select,input{min-width:0;width:100%;padding:var(--space-3);border:1px solid var(--color-border);
+  select{min-width:0;width:100%;padding:var(--space-3);border:1px solid var(--color-border);
     color:var(--color-ink);background:var(--color-surface);border-radius:var(--radius-control)}
-  fieldset{display:grid;gap:var(--space-2);min-width:0;border:1px solid var(--color-border);border-radius:var(--radius-panel)}
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}
   dd{margin:0;font-weight:650}.group{border-top:1px solid var(--color-border);padding-block:var(--space-4)}
   svg{max-width:100%;height:auto} .table-scroll{overflow-x:auto}
