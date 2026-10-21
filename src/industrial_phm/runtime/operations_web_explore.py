@@ -17,6 +17,7 @@ from industrial_phm.application.acquisition_snapshot import (
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import find_departures, latest_departure
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
+from industrial_phm.application.phm_signal_comparison import feature_unit, stream_amplitude_unit
 from industrial_phm.application.signal_exploration import (
     MAX_SERIES,
     acquisition_binding,
@@ -208,9 +209,16 @@ def _relation_or_spectrum(
         snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
         return body | acquisition_spectrum(snapshots, binding, periods)
     x, y = _one(query, "x"), _one(query, "y")
+    amplitude_unit = stream_amplitude_unit(
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+        binding.source_id,
+        binding.asset_id,
+    )
     return body | {
         "x": x,
         "y": y,
+        "x_unit": feature_unit(x, amplitude_unit),
+        "y_unit": feature_unit(y, amplitude_unit),
         "groups": acquisition_relation(store, binding, x, y, periods),
         "pairing": "same-acquisition",
     }

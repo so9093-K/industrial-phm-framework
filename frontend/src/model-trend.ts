@@ -16,6 +16,56 @@ export function firstExceedance(points: TrendPoint[]): ThresholdExceedance | nul
     point.score !== null && point.threshold !== null && point.exceeds === true) ?? null;
 }
 
+/** What a person reads first about a model's crossings. A run still going on comes first, then
+ * a latest crossing that is not part of a run, then "below now" after earlier crossings. Earlier
+ * runs and one-off crossings are counted, and the first crossing is kept for reference, so a
+ * one-off crossing never reads like a sustained change. */
+export type ExceedanceStory = {
+  state: "ongoing" | "latest" | "below" | "none";
+  /** The measurement the headline names, and where the graph's dotted line goes. */
+  anchor: ThresholdExceedance | null;
+  ongoing: Interval | null;
+  /** Whether the latest analyzed measurement is over the threshold; a run stays open for the
+   * model's allowed gap, so it can still be open while the latest one is below. */
+  lastExceeds: boolean | null;
+  /** Before the anchor: runs that ended, measurements over the threshold outside any run. */
+  earlierRuns: number; earlierSingles: number;
+  first: ThresholdExceedance | null;
+};
+export function exceedanceStory(trend: ScoreTrend): ExceedanceStory {
+  const over = trend.points.filter((point): point is ThresholdExceedance =>
+    point.score !== null && point.threshold !== null && point.threshold > 0 && point.exceeds === true);
+  const at = (position: number) => over.find((point) => point.pointer.position === position) ?? null;
+  const inRun = (position: number) => trend.intervals.some((run) => run.start <= position && position <= run.end);
+  const ongoing = trend.intervals.find((run) => run.open) ?? null;
+  const last = trend.points.filter((point) => point.score !== null).at(-1);
+  const state = ongoing ? "ongoing" : last && last.exceeds === true ? "latest" : over.length ? "below" : "none";
+  const anchor = state === "ongoing" ? at(ongoing!.start) : state === "latest" ? at(last!.pointer.position)
+    : over.at(-1) ?? null;
+  const before = anchor?.pointer.position ?? Infinity;
+  return {state, anchor, ongoing, lastExceeds: last?.exceeds ?? null,
+    earlierRuns: trend.intervals.filter((run) => !run.open && run.end < before).length,
+    earlierSingles: over.filter((point) => point.pointer.position < before && !inRun(point.pointer.position)).length,
+    first: over[0] ?? null};
+}
+/** The headline and the line under it for a story, in the words of the screen. */
+export function exceedanceText(story: ExceedanceStory, place: (position: number) => string):
+  {headline: string; earlier: string | null} | null {
+  if (story.state === "none" || !story.anchor) return null;
+  const at = place(story.anchor.pointer.position);
+  const headline = story.state === "ongoing"
+    ? story.lastExceeds === false ? at + "부터 기준 초과 구간 · " + story.ongoing!.steps + "회 · 최근 측정은 기준 이하"
+      : at + "부터 계속 기준 초과 · " + story.ongoing!.steps + "회"
+    : story.state === "latest" ? at + "에서 기준 초과 · 연속 초과는 아님"
+    : "지금은 기준 이하 · 마지막 기준 초과 " + at;
+  const parts: string[] = [];
+  if (story.earlierRuns) parts.push("끝난 기준 초과 구간 " + story.earlierRuns + "개");
+  if (story.earlierSingles) parts.push("한 번만 넘은 측정 " + story.earlierSingles + "번");
+  if (story.first && story.first.pointer.position < story.anchor.pointer.position)
+    parts.push("처음 기준을 넘은 때 " + place(story.first.pointer.position));
+  return {headline, earlier: parts.length ? "그 전 · " + parts.join(" · ") : null};
+}
+
 export function measurementTime(point: TrendPoint, period: number | null): string | null {
   if (point.eventStart && /(?:Z|[+-]\d{2}:\d{2})$/i.test(point.eventStart)
     && Number.isFinite(Date.parse(point.eventStart)))
@@ -27,11 +77,14 @@ export function measurementTime(point: TrendPoint, period: number | null): strin
 export type Envelope={channel:string;bands:[number,number][]};
 export type Waveform=
   |{available:false;reason:string}
-  |{available:true;fileName:string;rateHz:number;samples:number;perBin:number;channels:Envelope[]};
+  |{available:true;fileName:string;rateHz:number;samples:number;perBin:number;channels:Envelope[];
+    /** Values that are not finite numbers, when the server counted them. */
+    nonFinite:number|null};
 export type WindowChannel={channel:string;unit:string|null;property?:string|null;scope?:string|null;points:{at:string;value:number|null}[]};
 export type WindowInput=
   |{available:false;reason:string}
-  |{available:true;start:string;end:string;channels:WindowChannel[]};
+  |{available:true;start:string;end:string;channels:WindowChannel[];
+    quality:{good:number;unusable:number;conflict:number}};
 
 const MAX_PAGES=4;
 
@@ -110,8 +163,11 @@ export function parseWaveform(raw:unknown,position:number):Waveform{
       return [band[0] as number,band[1] as number];
     })};
   });
+  const checks=object(root.checks);
+  const nonFinite=checks?.sha256_matches===true&&typeof checks.non_finite_values==="number"
+    &&Number.isSafeInteger(checks.non_finite_values)?checks.non_finite_values:null;
   return {available:true,fileName:root.file_name,rateHz:finite(root.sampling_rate_hz)??0,
-    samples:whole(root.sample_count,"표본 수"),perBin:whole(root.samples_per_bin,"묶음 크기"),channels};
+    samples:whole(root.sample_count,"표본 수"),perBin:whole(root.samples_per_bin,"묶음 크기"),channels,nonFinite};
 }
 
 export function parseWindow(raw:unknown,position:number):WindowInput{
@@ -120,7 +176,8 @@ export function parseWindow(raw:unknown,position:number):WindowInput{
   if(root.available===false)return {available:false,reason:typeof root.reason==="string"?root.reason:"관측을 읽을 수 없습니다"};
   if(root.available!==true||root.position!==position||!Array.isArray(root.channels)
     ||typeof root.start!=="string"||typeof root.end!=="string")invalid("관측 구간");
-  return {available:true,start:root.start,end:root.end,channels:root.channels.map((item:unknown):WindowChannel=>{
+  const quality={good:0,unusable:0,conflict:0};
+  return {available:true,start:root.start,end:root.end,quality,channels:root.channels.map((item:unknown):WindowChannel=>{
     const row=object(item);
     if(!row||typeof row.channel_id!=="string"||!Array.isArray(row.points))invalid("관측 구간");
     return {channel:row.channel_id,unit:typeof row.unit==="string"?row.unit:null,
@@ -128,9 +185,23 @@ export function parseWindow(raw:unknown,position:number):WindowInput{
       points:row.points.map((point:unknown)=>{
         const value=object(point);
         if(!value||typeof value.at!=="string")invalid("관측 구간");
+        quality[value.quality==="good"?"good":value.quality==="conflict"?"conflict":"unusable"]++;
         return {at:value.at,value:value.quality==="good"?finite(value.value):null};
       })};
   })};
+}
+
+/** One line on what was checked about the raw input before it is drawn. */
+export function inputCheck(input:Waveform|WindowInput):string|null{
+  if(!input.available)return null;
+  if("fileName" in input){
+    if(input.nonFinite===null)return null;
+    return "원본 확인 · 전달 당시 확인값(SHA-256)과 일치 · 표본 "+input.samples.toLocaleString("ko-KR")+"개 × "
+      +input.channels.length+"채널 · "+(input.nonFinite?"숫자가 아닌 값 "+input.nonFinite.toLocaleString("ko-KR")+"개":"결측 없음");
+  }
+  const {good,unusable,conflict}=input.quality;
+  return "원본 확인 · 측정값 "+(good+unusable+conflict).toLocaleString("ko-KR")+"개 · "
+    +(unusable||conflict?[unusable?"쓸 수 없는 값 "+unusable+"개":"",conflict?"값 충돌 "+conflict+"개":""].filter(Boolean).join(" · "):"표시된 값에 사용 불가·충돌 없음");
 }
 
 export async function readInput(binding:ModelBinding,position:number,signal:AbortSignal):Promise<Waveform|WindowInput>{
@@ -153,7 +224,8 @@ export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;e
 }
 
 export type RatioLine={points:{position:number;ratio:number;score:number}[];exceeded:number;analyzed:number;
-  latest:{position:number;ratio:number}|null;sustainedFrom:number|null;firstExceedance:ThresholdExceedance|null};
+  latest:{position:number;ratio:number}|null;sustainedFrom:number|null;firstExceedance:ThresholdExceedance|null;
+  story:ExceedanceStory};
 /** Each score divided by the threshold stored with it, so models with different score scales share
  * one axis where 1 is "this model's own threshold". A step without a positive threshold is left out. */
 export function thresholdRatios(trend:ScoreTrend):RatioLine{
@@ -163,7 +235,8 @@ export function thresholdRatios(trend:ScoreTrend):RatioLine{
   const open=trend.intervals.find(item=>item.open);
   const last=points.at(-1);
   return {points,analyzed,exceeded,latest:last?{position:last.position,ratio:last.ratio}:null,sustainedFrom:open?.start??null,
-    firstExceedance:firstExceedance(trend.points.filter(point=>point.threshold!==null&&point.threshold>0))};
+    firstExceedance:firstExceedance(trend.points.filter(point=>point.threshold!==null&&point.threshold>0)),
+    story:exceedanceStory(trend)};
 }
 
 /** The models drawn on one graph: the first `limit` in list order, with the chosen model always

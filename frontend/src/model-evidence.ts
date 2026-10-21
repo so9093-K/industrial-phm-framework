@@ -5,6 +5,7 @@ export type ModelBinding={
   stepKind:StepKind;recordedReplay:boolean;health:string;
   task:string|null;recipeId:string|null;estimatorKind?:string|null;packageAvailable:boolean;
   lastAnalyzed:number|null;lastProcessed:number|null;
+  minimumIntervalSteps?:number;
 };
 const METHOD:Record<string,string>={
   "lstm-autoencoder-v1":"LSTM 오토인코더","isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
@@ -113,6 +114,7 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
     const kind=axis(row.step_kind);
     if(typeof row.recorded_replay!=="boolean")throw new Error("재생 자료 여부를 확인할 수 없습니다.");
     const task=obj(packageSummary?.output)?.task;
+    const minimum=obj(obj(packageSummary?.output)?.review_interval)?.min_consecutive_steps;
     if(packageSummary?.package_id!==undefined&&packageSummary?.package_id!==pkg)
       throw new Error("적용 모델과 모델 패키지가 맞지 않습니다.");
     return {assetId:asset,sourceId:source,pointId:point,bindingId,packageId:pkg,
@@ -121,7 +123,8 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
       task:typeof task==="string"?task:null,
       recipeId:typeof packageSummary?.recipe_id==="string"?packageSummary.recipe_id:null,
       estimatorKind:typeof packageSummary?.estimator_kind==="string"?packageSummary.estimator_kind:null,
-      lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed")};
+      lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed"),
+      ...(typeof minimum==="number"&&Number.isSafeInteger(minimum)&&minimum>0?{minimumIntervalSteps:minimum}:{})};
   }).filter(binding=>assetId===null||binding.assetId===assetId);
 }
 function pointer(raw:unknown):StepPointer{

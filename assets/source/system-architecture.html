@@ -1,0 +1,137 @@
+<!doctype html>
+<!-- Source of assets/system-architecture.png. Render with tools/assets/render_architecture.py.
+     Labels name what the product does today; see docs/status.md for support boundaries. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Industrial PHM Framework 구성도</title>
+<style>
+  * { box-sizing: border-box; word-break: keep-all; }
+  body { margin: 0; width: 1672px; height: 941px; background: #faf8f4; color: #1d2733;
+    font-family: "Noto Sans KR", "Noto Sans CJK KR", "Apple SD Gothic Neo", sans-serif; }
+  header { text-align: center; padding-top: 40px; }
+  h1 { margin: 0; font-size: 64px; font-weight: 800; letter-spacing: -1px; color: #14202c; }
+  .sub { margin: 6px 0 0; font-size: 34px; font-weight: 500; color: #5d6670; }
+  .flow { display: flex; align-items: stretch; gap: 0; margin: 34px 22px 0; height: 568px; }
+  .col { flex: 1 1 0; background: #f2ede6; border-radius: 18px; padding: 18px 14px 14px; display: flex; flex-direction: column; }
+  .col.store { background: #e6efe7; }
+  .arrow { width: 30px; display: flex; align-items: center; justify-content: center; color: #8a8f96; font-size: 30px; }
+  .col h2 { margin: 0; text-align: center; font-size: 25px; white-space: nowrap; font-weight: 800; color: #14202c; }
+  .col .lead { margin: 6px 0 10px; text-align: center; font-size: 17px; color: #5d6670; }
+  .item { background: #fdfbf8; border-radius: 14px; padding: 10px 10px; display: flex; gap: 10px; align-items: center; margin-top: 12px; flex: 1 1 0; }
+  .item svg { flex: none; width: 44px; height: 44px; }
+  .item b { display: block; font-size: 19px; font-weight: 800; }
+  .item span { display: block; font-size: 14.5px; color: #5d6670; margin-top: 3px; line-height: 1.3; }
+  .ink { stroke: #1d2733; } .warm { stroke: #e2662f; } .green { stroke: #4d7a55; }
+  svg * { fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .db { display: flex; flex-direction: column; align-items: center; background: #f3f8f3; border-radius: 14px; padding: 16px 10px 10px; margin-top: 4px; }
+  .db svg { width: 84px; height: 84px; }
+  .db b { font-size: 32px; font-weight: 800; color: #2f5537; margin-top: 4px; }
+  .db.records { margin-top: 12px; flex: 1 1 0; }
+  .db b.small { font-size: 22px; margin-top: 0; }
+  .db ul { list-style: none; margin: 14px 0 0; padding: 0; width: 100%; }
+  .db li { display: flex; gap: 10px; align-items: center; font-size: 16.5px; padding: 6px 6px; }
+  .db li svg { width: 26px; height: 26px; }
+  .screen { background: #fdfbf8; border-radius: 14px; padding: 14px 10px; text-align: center; margin-top: 4px; }
+  .screen svg { width: 116px; height: 80px; }
+  .screen b { display: block; font-size: 19px; font-weight: 800; margin-top: 4px; }
+  .screen span { font-size: 14.5px; color: #5d6670; }
+  .bottom { display: flex; justify-content: center; gap: 90px; margin-top: 30px; }
+  .pill { display: flex; align-items: center; gap: 18px; background: #f2ede6; border-radius: 16px; padding: 14px 34px; min-width: 420px; }
+  .pill svg { width: 48px; height: 48px; }
+  .pill b { display: block; font-size: 24px; font-weight: 800; }
+  .pill span { font-size: 18px; color: #5d6670; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Industrial PHM Framework</h1>
+  <p class="sub">운영 데이터 흐름과 분석 구조</p>
+</header>
+
+<div class="flow">
+  <section class="col">
+    <h2>현장 데이터 소스</h2>
+    <p class="lead">OPC UA · CSV · 진동 파형</p>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M5 42V22l10 6v-6l10 6v-6l10 6V10h7v32z M5 42h38"/></svg>
+      <div><b>설비 신호</b><span>OPC UA 실시간 수신</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M12 5h17l9 9v29H12z M29 5v9h9 M18 24h14 M18 31h14 M18 38h9"/></svg>
+      <div><b>파일 기록</b><span>CSV · 시간대·이름·단위 지정</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M4 24h6l4-12 6 24 6-30 6 30 5-18 3 6h4"/></svg>
+      <div><b>진동 파형</b><span>측정마다 저장 · 기록 재생</span></div></div>
+  </section>
+  <div class="arrow">→</div>
+  <section class="col">
+    <h2>데이터 파이프라인</h2>
+    <p class="lead">수집 · 정규화 · 검증</p>
+    <div class="item"><svg viewBox="0 0 48 48"><circle class="ink" cx="12" cy="24" r="5"/><circle class="ink" cx="36" cy="11" r="5"/><circle class="ink" cx="36" cy="37" r="5"/><path class="ink" d="M16.5 21.5l15-8 M16.5 26.5l15 8"/></svg>
+      <div><b>데이터 수집</b><span>실시간 · 파일 · 재생</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><circle class="ink" cx="24" cy="24" r="7"/><path class="ink" d="M24 4v6 M24 38v6 M4 24h6 M38 24h6 M9.9 9.9l4.2 4.2 M33.9 33.9l4.2 4.2 M9.9 38.1l4.2-4.2 M33.9 14.1l4.2-4.2"/></svg>
+      <div><b>시각·신호 정보</b><span>시간대 정규화 · 이름·단위 선언</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><circle class="ink" cx="24" cy="24" r="18"/><path class="ink" d="M15 24l6 6 12-13"/></svg>
+      <div><b>정합성 검증</b><span>원본 확인값·품질·결측</span></div></div>
+  </section>
+  <div class="arrow">→</div>
+  <section class="col store">
+    <h2>운영 저장소</h2>
+    <p class="lead">측정 이력 · 분석 기록</p>
+    <div class="db"><svg viewBox="0 0 48 48"><ellipse class="green" cx="24" cy="11" rx="15" ry="5"/><path class="green" d="M9 11v26c0 2.8 6.7 5 15 5s15-2.2 15-5V11 M9 20c0 2.8 6.7 5 15 5s15-2.2 15-5 M9 29c0 2.8 6.7 5 15 5s15-2.2 15-5"/></svg>
+      <b>DuckLake</b>
+      <ul>
+        <li><svg viewBox="0 0 48 48"><path class="green" d="M6 36l10-12 9 7 17-19"/></svg>시계열 측정 이력</li>
+      </ul>
+    </div>
+    <div class="db records">
+      <b class="small">작업공간 기록</b>
+      <ul>
+        <li><svg viewBox="0 0 48 48"><path class="green" d="M4 24h6l4-12 6 24 6-30 6 30 5-18 3 6h4"/></svg>진동 측정 · 파형</li>
+        <li><svg viewBox="0 0 48 48"><path class="green" d="M10 40V26 M20 40V16 M30 40V22 M40 40V10"/></svg>모델 결과 · 해설</li>
+        <li><svg viewBox="0 0 48 48"><path class="green" d="M12 5h24v38H12z M18 15h12 M18 23h12 M18 31h8"/></svg>검토 · 판단 기록</li>
+      </ul>
+    </div>
+  </section>
+  <div class="arrow">→</div>
+  <section class="col">
+    <h2>분석 · 근거 생성</h2>
+    <p class="lead">이상 탐지 · 변화 · 전망</p>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="warm" d="M24 6L44 41H4z M24 19v10 M24 35v1"/></svg>
+      <div><b>이상 탐지</b><span>모델 점수 · 기준 구간 이탈</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="warm" d="M6 36l10-12 9 7 17-19 M32 12h10v10"/></svg>
+      <div><b>변화 분석</b><span>두 기간 · 신호 관계 · 주파수</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="warm" d="M8 40V28 M18 40V20 M28 40V24 M38 40V12 M6 10h36" stroke-dasharray="0"/></svg>
+      <div><b>상태 전망</b><span>기준 도달 · 조건부 RUL</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="warm" d="M12 5h17l9 9v29H12z M29 5v9h9 M18 28l5 5 9-10"/></svg>
+      <div><b>근거</b><span>원본 확인 · 비교 · 차트</span></div></div>
+  </section>
+  <div class="arrow">→</div>
+  <section class="col">
+    <h2>Operations Web</h2>
+    <p class="lead">관측 · 분석 · 검토</p>
+    <div class="screen"><svg viewBox="0 0 120 84"><rect class="ink" x="4" y="4" width="112" height="66" rx="5"/><path class="ink" d="M44 80h32 M60 70v10 M14 16h14 M14 26h14 M14 36h14"/><path class="warm" d="M38 52l14-12 12 8 16-16 14 6"/></svg>
+      <b>관측 현황</b><span>확인이 필요한 설비</span></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M10 40V26 M20 40V16 M30 40V22 M40 40V10"/></svg>
+      <div><b>설비 화면</b><span>이상 징후 · 신호 · 변화 · 전망</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M12 5h24v38H12z M18 15h12 M18 23h12 M17 32l4 4 9-9"/></svg>
+      <div><b>정비 검토</b><span>판단 근거 · 판단 기록</span></div></div>
+  </section>
+  <div class="arrow">→</div>
+  <section class="col">
+    <h2>운영자 / 엔지니어</h2>
+    <p class="lead">확인 · 판단 · 기록</p>
+    <div class="item"><svg viewBox="0 0 48 48"><circle class="green" cx="24" cy="16" r="8"/><path class="green" d="M8 43c1-9 8-14 16-14s15 5 16 14"/></svg>
+      <div><b>결과 확인</b><span>언제부터 · 얼마나 · 원본</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><circle class="ink" cx="24" cy="24" r="18"/><path class="ink" d="M15 24l6 6 12-13"/></svg>
+      <div><b>판단</b><span>추가 점검 필요 · 계속 관찰 · 점검 불필요</span></div></div>
+    <div class="item"><svg viewBox="0 0 48 48"><path class="ink" d="M12 5h24v38H12z M18 15h12 M18 23h12 M18 31h8"/></svg>
+      <div><b>검토 이력</b><span>판단 이유 · 확인 · 종료</span></div></div>
+  </section>
+</div>
+
+<div class="bottom">
+  <div class="pill"><svg viewBox="0 0 48 48"><path class="ink" d="M8 10h32v22H22l-9 8v-8H8z M17 21h1 M24 21h1 M31 21h1"/></svg>
+    <div><b>AI 해설</b><span>저장된 근거 설명 · 질문 · 근거 없는 문장 제외</span></div></div>
+  <div class="pill"><svg viewBox="0 0 48 48"><rect class="ink" x="6" y="8" width="36" height="24" rx="3"/><path class="ink" d="M18 40h12 M24 32v8"/></svg>
+    <div><b>운영 관리</b><span>데이터 연결 · 서비스 상태 · 로그</span></div></div>
+</div>
+</body>
+</html>

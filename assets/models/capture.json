@@ -1,0 +1,29 @@
+{
+  "use_case": "models",
+  "captured_at": "2026-10-21T14:08:45+00:00",
+  "code_revision": "791165f36be6fb8eb877fd39684c2355a5422875",
+  "browser": "Chromium (Playwright), ko-KR",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "base": "127.0.0.1 (local)",
+  "capture_tool_sha256": "06bde0ca21f58539524e4ff6aeecf5cc80496eb35680d1b123a08b8828936a36",
+  "screens": {
+    "01-attention.png": "521fd8be570ed245fd11eb5778a91ae24b9d94eeb5d5119d0aacd326c026d519",
+    "02-models.png": "a11d1cb9763d8d83c147d183845338a079d7e30bfaf8c30ca31d704a1f1f1fca",
+    "03-measurement.png": "89bf77333c1e2574e61eadeb994de056f98c4bf1530d2eb8c93bd1489a7b300d",
+    "04-changes.png": "58fb8fa768d97b981cb1283175d82de56282d23681c94c07602090e5ecdddef2",
+    "05-explanation.png": "772380f6905b5b7fc8d3691009f3677927d0ff89f4b87261b0adde46d7ecd0a1",
+    "06-review.png": "2d0bb40c955be9b7754dedc7994f82c81ddd67209fe9e9e13f78fb55810804fd",
+    "07-outlook.png": "12f80510d37ec2ce74cb7c23f6e9bb863cdb3735c47e11828ec1fe757e16c78b"
+  },
+  "asset": "Bearing1_1",
+  "measurements": {
+    "first": 1,
+    "last": 100,
+    "count": 100
+  },
+  "ai_display": "AI 해설 · 근거 확인됨 · local-main · 2026. 10. 21. 오후 10:35:58",
+  "human_decision": "illustrative inspect, not maintenance execution"
+}

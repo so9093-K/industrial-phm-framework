@@ -164,7 +164,7 @@ def test_model_run_evidence_refuses_changed_input_identity(tmp_path: Path, width
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
                 expect_place(pw, page, "이상 징후", "모델 점수")
                 # The stored output is summarized as score and comparison, not recomputed.
-                scores = page.get_by_role("group", name="측정 순서 #3 모델 결과")
+                scores = page.get_by_role("group", name="3번째 측정 모델 결과")
                 pw.expect(scores).to_contain_text("0.5")
                 pw.expect(scores).to_contain_text("기준 이하")
                 pw.expect(scores).to_contain_text("기록 없음")  # no stored threshold
@@ -183,7 +183,7 @@ def test_model_run_evidence_refuses_changed_input_identity(tmp_path: Path, width
                 ).to_be_visible()
                 assert page.get_by_text("모델 출력 원본").count() == 0
                 choose.select_option("3")
-                pw.expect(page.get_by_role("group", name="측정 순서 #3 모델 결과")).to_be_visible()
+                pw.expect(page.get_by_role("group", name="3번째 측정 모델 결과")).to_be_visible()
                 overrides["source_id"] = "different-source"
                 choose.select_option("4")
                 choose.select_option("3")

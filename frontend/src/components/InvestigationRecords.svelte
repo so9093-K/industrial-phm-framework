@@ -206,7 +206,7 @@
       <tbody>
         {#each models as model (model.bindingId)}
           <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{names.get(model.bindingId)}</td><td>{sourceLabel(sourceNames, model.sourceId)}</td>
-            <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" : "측정 순서 #") + model.lastAnalyzed}</td>
+            <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" + model.lastAnalyzed : model.lastAnalyzed + "번째 측정")}</td>
             <td><a href={assetTabUrl(model.assetId, "anomaly", "model")}>모델 점수 보기 →</a></td></tr>
         {/each}
       </tbody>

@@ -1,8 +1,9 @@
 <script lang="ts">
+  import {elapsedText, xTicks, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding, StepPointer} from "../model-evidence";
-  import {firstExceedance, measurementTime, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {exceedanceStory, exceedanceText, measurementTime, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** Every stored score of this model in input order, its threshold and the intervals the
@@ -24,7 +25,10 @@
     return current ? trendSummary(current) : null;
   });
   const threshold = $derived(scored.find((point) => point.threshold !== null)?.threshold ?? null);
-  const first = $derived(firstExceedance(scored));
+  // What to read first: a run still going on, else a latest one-off crossing, else "below now".
+  const story = $derived.by(() => { const current: ScoreTrend | null = trend; return current ? exceedanceStory(current) : null; });
+  const told = $derived(story ? exceedanceText(story, place) : null);
+  const first = $derived(story?.anchor ?? null);
   const scale = $derived.by(() => {
     const values = scored.map((point) => point.score as number);
     if (threshold !== null) values.push(threshold);
@@ -69,13 +73,16 @@
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
-    {#if first}
-      <div class="onset" aria-label="첫 기준 초과 확인">
-        <strong>첫 기준 초과 확인</strong>
-        <span>{measurementTime(first, period) ?? ""}{measurementTime(first, period) ? " · " : ""}{place(first.pointer.position)}</span>
-        <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>측정 보기 →</button>
+    {#if first && told}
+      <div class="onset" aria-label="기준 초과 상태">
+        <strong>{told.headline}</strong>
+        {#if first.eventStart && measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
+        <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
+        {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
+          <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
       </div>
     {/if}
+    {#if period}<p class="context">가로축 · 기록 시작 후 경과 시간 · 기록된 측정 간격 {elapsedText(period)}</p>{/if}
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
       {#each trend.intervals as interval (interval.start)}
@@ -89,7 +96,7 @@
       <path d={path} class="line" />
       {#if first}
         <line x1={scale.x(first.pointer.position)} x2={scale.x(first.pointer.position)} y1={TOP} y2={BOTTOM} class="onset-line">
-          <title>첫 기준 초과 확인 · {measurementTime(first, period) ?? place(first.pointer.position)}</title>
+          <title>{told?.headline ?? place(first.pointer.position)}{first.eventStart && measurementTime(first, period) ? " · " + measurementTime(first, period) : ""}</title>
         </line>
         <circle cx={scale.x(first.pointer.position)} cy={scale.y(first.score)} r="5" class="onset-dot" />
       {/if}
@@ -100,11 +107,17 @@
           <title>{place(point.pointer.position)} · 점수 {num(point.score)}</title>
         </circle>
       {/each}
-      <text x={LEFT} y={H - 6} class="label">{place(scale.first)}</text>
-      <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
+      {#if period}
+        {#each xTicks(scale.first, scale.last, measurementScale(period), 3) as tick (tick.value)}
+          <text x={scale.x(tick.value)} y={H - 6} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
+        {/each}
+      {:else}
+        <text x={LEFT} y={H - 6} class="label">{place(scale.first)}</text>
+        <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
+      {/if}
       <text x={LEFT + 4} y={TOP + 10} class="label">최고 {num(scale.high)}</text>
     </svg>
-    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? " 세로 점선은 조회된 기록에서 처음 기준 초과를 확인한 측정입니다." : ""}</p>
+    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? (story?.state === "ongoing" ? " 세로 점선은 지금 이어지는 기준 초과가 시작된 측정입니다." : " 세로 점선은 위에 적은 측정입니다.") : ""}</p>
     {#if trend.intervals.length}
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}
@@ -127,6 +140,8 @@
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .onset { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); font-size: var(--font-small); }
+  .earlier { flex-basis: 100%; color: var(--color-ink-muted); }
+  .link { border: 0; padding: 0; margin-left: var(--space-2); background: none; color: var(--color-action); font: inherit; text-decoration: underline; cursor: pointer; }
   .onset-line { stroke: var(--color-caution-ink); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
   circle.onset-dot { fill: var(--color-caution-ink); stroke: var(--color-surface); stroke-width: 2; }
   circle { fill: var(--color-action); cursor: pointer; }

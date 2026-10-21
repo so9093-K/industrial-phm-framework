@@ -243,3 +243,45 @@ def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_a_confirm_or_close_records_the_persons_decision(tmp_path: Path) -> None:
+    """추가 점검 필요 / 계속 관찰 / 점검 불필요 is kept with the event and read back."""
+    workspace, analysis = _prepared_workspace(tmp_path)
+    finding = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": analysis.run.analysis_run_id,
+            "evidence_id": analysis.evidence.evidence_id,
+        },
+    )["finding_id"]
+    base = {"finding_id": finding, "note": ""}
+    with pytest.raises(ValueError):  # a plain note carries no decision
+        record_web_review_action(
+            workspace.root, {**base, "action": "note", "note": "x", "decision": "inspect"}
+        )
+    with pytest.raises(ValueError):
+        record_web_review_action(
+            workspace.root, {**base, "action": "acknowledge", "decision": "fault"}
+        )
+    event_id = str(uuid4())
+    confirm = {**base, "action": "acknowledge", "decision": "inspect", "event_id": event_id}
+    assert record_web_review_action(workspace.root, confirm)["status"] == "acknowledged"
+    # The decision is part of the request identity: a retry with another one is a conflict.
+    with pytest.raises(WebReviewConflict):
+        record_web_review_action(workspace.root, {**confirm, "decision": "observe"})
+    record_web_review_action(
+        workspace.root, {**base, "action": "close", "note": "교체 완료", "decision": "no-action"}
+    )
+    events = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
+    assert [(e.action.value, e.decision and e.decision.value) for e in events] == [
+        ("acknowledge", "inspect"),
+        ("close", "no-action"),
+    ]
+    # Reopened from disk, and an event written before decisions existed reads as none.
+    stored = json.loads(workspace.maintenance_review_state_path.read_text())
+    assert stored["events"][0]["decision"] == "inspect"
+    del stored["events"][0]["decision"]
+    workspace.maintenance_review_state_path.write_text(json.dumps(stored))
+    reread = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
+    assert reread[0].decision is None and reread[1].decision is not None

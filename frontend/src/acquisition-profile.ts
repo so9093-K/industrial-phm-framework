@@ -15,7 +15,7 @@ export type FeaturePeriod = {
 };
 export type FeatureProfile = {
   assetId:string;sourceId:string;bindingId:string;featureId:string;label:string;
-  spans:Spans;a:FeaturePeriod;b:FeaturePeriod;
+  unit?:string|null;spans:Spans;a:FeaturePeriod;b:FeaturePeriod;
   medianChange:number|null;outsidePercent:number|null;
 };
 export class FeatureEvidenceUnavailable extends Error {}
@@ -112,7 +112,7 @@ export function parseFeatureProfile(
     throw new Error("기준 분포 이탈 비율이 유효하지 않습니다.");
   return {assetId,sourceId:source.sourceId,bindingId:source.bindingId,
     featureId,label:typeof row.label==="string"?row.label:featureId,
-    spans,a,b,medianChange:change,outsidePercent:outside};
+    unit:typeof row.unit==="string"?row.unit:null,spans,a,b,medianChange:change,outsidePercent:outside};
 }
 async function get(path:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(path,{signal,cache:"no-store",credentials:"same-origin"});

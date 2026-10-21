@@ -228,6 +228,13 @@ def test_bound_package_results_are_served_incrementally_without_paths(
         assert status == 200 and preview["available"]
         assert [c["channel"] for c in preview["channels"]] == list(CHANNELS)
         assert len(preview["channels"][0]["envelope"]) == 8
+        # The screen states what was verified before drawing; nothing is claimed unchecked.
+        assert preview["checks"] == {
+            "sha256_matches": True,
+            "header_matches": True,
+            "sample_count_matches": True,
+            "non_finite_values": 0,
+        }
         assert str(tmp_path) not in json.dumps(preview)
 
         assert get("/api/v1/phm/series?binding_id=nope")[0] == 404

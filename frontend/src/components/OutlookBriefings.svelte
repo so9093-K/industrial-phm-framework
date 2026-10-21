@@ -109,6 +109,10 @@
     {/if}
     <p class="context">질문 · {latest.question}</p>
     <p class="summary">{latest.answer.summary}</p>
+    {#if latest.answer.modelUnavailable && writable}
+      <p class="context">AI 서버가 응답하지 않아 계산 결과로 썼습니다.
+        <button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => {if (latest) void ask(latest.question);}}>AI로 다시 만들기</button></p>
+    {/if}
     {#if latest.answer.points.length}
       <ul>
         {#each latest.answer.points as point,i (i)}

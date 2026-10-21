@@ -1,21 +1,27 @@
 <script lang="ts">
   import {onMount, tick} from "svelte";
   import {
-    reviewNote, OutcomeUnknown, ReviewConflict, WriteForbidden,
-    type ReviewAction, type ReviewEvent, type ReviewStatus,
+    reviewNote, latestDecision, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict, WriteForbidden,
+    type ReviewAction, type ReviewDecision, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
-  /** The review history of one subject and the next human actions on it: confirm, then close,
-   * each with an optional reason that stays in the history. The parent owns the write and the
-   * reload; this keeps a retried action on its first event ID. */
+  /** The review history of one subject and the next human actions on it. Confirming records
+   * what the person judged it needs (추가 점검 필요 · 계속 관찰 · 점검 불필요) with an optional
+   * reason; closing keeps or changes that judgement. The parent owns the write and the reload;
+   * this keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
     closeQuestion: string;
-    submit: (action: ReviewAction, note: string, eventId: string, signal: AbortSignal) => Promise<unknown>;
+    submit: (action: ReviewAction, note: string, eventId: string, signal: AbortSignal,
+      decision: ReviewDecision | null) => Promise<unknown>;
     reload: (signal: AbortSignal) => Promise<boolean>;
   };
   let {id, status, events, eventsTotal = events.length, writable, closeQuestion, submit, reload}: Props = $props();
   let reason = $state("");
+  // The current judgement; a close starts from it and may change it.
+  const judged = $derived(latestDecision(events));
+  let decision: ReviewDecision | null = $state(null);
+  $effect(() => { if (decision === null && judged !== null) decision = judged; });
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
@@ -45,13 +51,14 @@
       messageKind = "failure"; message = cause instanceof Error ? cause.message : "판단 이유를 확인하세요.";
       return;
     }
-    const key = action + "\n" + text;
+    if (action !== "note" && !decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
+    const key = action + "\n" + decision + "\n" + text;
     if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
     controller?.abort();
     const request = new AbortController(); controller = request;
     busy = true; messageKind = "information"; message = "검토 기록을 남기고 있습니다.";
     try {
-      await submit(action, text, pending.eventId, request.signal);
+      await submit(action, text, pending.eventId, request.signal, action === "note" ? null : decision);
       if (request.signal.aborted) return;
       pending = null; confirmingClose = false; reason = "";
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
@@ -75,6 +82,16 @@
   onMount(() => () => controller?.abort());
 </script>
 
+{#snippet decisionField()}
+  <fieldset class="decision" disabled={busy}>
+    <legend>판단</legend>
+    {#each DECISIONS as option (option)}
+      <label><input type="radio" name={"decision-" + id} value={option} checked={decision === option}
+        onchange={() => decision = option} /> {DECISION_LABEL[option]}</label>
+    {/each}
+  </fieldset>
+{/snippet}
+
 {#snippet reasonField()}
   <label class="field">판단 이유 (선택)
     <textarea maxlength="1000" rows="2" value={reason} disabled={busy}
@@ -90,7 +107,7 @@
     {/if}
     <ol class="events">
       {#each events as event (event.eventId)}
-        <li>{clock(event.recordedAt)} · {ACTION[event.action]}{event.note ? " · " + event.note : ""}</li>
+        <li>{clock(event.recordedAt)} · {ACTION[event.action]}{event.decision ? " · " + DECISION_LABEL[event.decision] : ""}{event.note ? " · " + event.note : ""}</li>
       {/each}
     </ol>
   {:else}
@@ -102,15 +119,17 @@
     <p class="context">보기 전용이라 검토 기록을 남길 수 없습니다. 운영을 시작하면 남길 수 있습니다.</p>
   {:else}
     {#if status === "open"}
+      {@render decisionField()}
       <details class="reason">
         <summary>판단 이유 함께 남기기 (선택)</summary>
         {@render reasonField()}
       </details>
       <div class="actions">
-        <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
+        <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
       </div>
-      <p class="context">확인한 뒤에 검토를 종료할 수 있습니다.</p>
+      <p class="context">판단을 남기면 확인함이 되고, 그 뒤에 검토를 종료할 수 있습니다.</p>
     {:else if !confirmingClose}
+      {#if judged}<p class="current">현재 판단 · <strong>{DECISION_LABEL[judged]}</strong></p>{/if}
       <div class="actions">
         <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void askClose()}>검토 종료</button>
       </div>
@@ -118,9 +137,10 @@
     {#if confirmingClose}
       <div class="confirm" role="group" aria-labelledby={"close-" + id} tabindex="-1" bind:this={confirmBox}>
         <p id={"close-" + id}>{closeQuestion}</p>
+        {@render decisionField()}
         {@render reasonField()}
         <div class="actions">
-          <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void act("close")}>종료하기</button>
+          <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("close")}>종료하기</button>
           <button type="button" class="ui-button" disabled={busy} onclick={() => void cancelClose()}>취소</button>
         </div>
       </div>
@@ -137,6 +157,11 @@
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .events { padding-inline-start: var(--space-5); }
   .events li { overflow-wrap: anywhere; }
+  .decision { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .decision legend { font-weight: 650; font-size: var(--font-small); padding: 0 var(--space-1); }
+  .decision label { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 32px; }
+  .current { margin: var(--space-2) 0 0; }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
   .reason { margin-top: var(--space-3); }
   .reason summary { cursor: pointer; color: var(--color-ink-muted); font-size: var(--font-small); }

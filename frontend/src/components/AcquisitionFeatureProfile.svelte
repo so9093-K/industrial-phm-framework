@@ -1,4 +1,8 @@
 <script lang="ts">
+  import AcquisitionRange from "./AcquisitionRange.svelte";
+  import AcquisitionPeriodTrend from "./AcquisitionPeriodTrend.svelte";
+  import type {AcquisitionTiming} from "../asset-data";
+  import {measurementLabel} from "../time-axis";
   import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
   import {onMount} from "svelte";
@@ -11,13 +15,18 @@
     type FeatureSource,type FeatureProfile,
   } from "../acquisition-profile";
 
-  let {assetId}:{assetId:string}=$props();
+  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let listState:State=$state("loading");
   let profileState:State=$state("empty");
   let source:FeatureSource|null=$state(null);
   let profile:FeatureProfile|null=$state(null);
   let spans:Spans|null=$state(null);
+  const period = $derived.by(() => {
+    const current: FeatureSource | null = source;
+    return current && timing && timing.sourceId === current.sourceId ? timing.periodSeconds : null;
+  });
+  const place = (at:number) => measurementLabel(at, period);
   let message=$state("");
   const url=new URLSearchParams(location.search);
   let selected=$state(url.get("acquisition_feature")??"");
@@ -116,7 +125,7 @@
 
 <section class="ui-panel acquisition" aria-labelledby="feature-title">
   <h2 id="feature-title">진동 특징 두 기간 비교</h2>
-  <p class="context">진동 측정에서 뽑은 특징값(예: RMS)을 측정 순서로 나눈 두 기간 A·B에서 비교합니다.</p>
+  <p class="context">진동 측정에서 뽑은 특징값(예: RMS)을 두 구간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
 
   {#if listState==="loading"}
     <StatusNotice message="진동 특징과 저장된 측정을 불러오고 있습니다." />
@@ -129,7 +138,7 @@
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{source.sourceId}</strong>
-      · 분석한 측정 #{source.first} ~ #{source.last} · {source.count}회</p>
+      · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
     <label for="acquisition-feature">진동 특징
       <select id="acquisition-feature" value={selected} onchange={e=>selectFeature(e.currentTarget.value)}>
         {#each source.features as item(item.id)}
@@ -140,16 +149,8 @@
     <div class="ranges">
       {#each ["a","b"] as key(key)}
         {@const name=key as "a"|"b"}
-        <fieldset><legend>기간 {name.toUpperCase()} · 측정 순서</legend>
-          <label>처음 측정 #
-            <input type="number" step="1" min={source.first} max={source.last}
-              value={spans[name].from} onchange={e=>editSpan(name,"from",e.currentTarget.value)}/>
-          </label>
-          <label>마지막 측정 #
-            <input type="number" step="1" min={source.first} max={source.last}
-              value={spans[name].to} onchange={e=>editSpan(name,"to",e.currentTarget.value)}/>
-          </label>
-        </fieldset>
+        <AcquisitionRange name={name} span={spans[name]} first={source.first} last={source.last} {period}
+          onChange={(edge, ordinal) => editSpan(name, edge, String(ordinal))} />
       {/each}
     </div>
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
@@ -166,8 +167,10 @@
     {:else if profile}
       <section class="evidence">
         <h3>{profile.label}</h3>
-        <p class="context">기간 A 측정 #{profile.spans.a.from}~#{profile.spans.a.to}
-          · 기간 B 측정 #{profile.spans.b.from}~#{profile.spans.b.to}</p>
+        <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
+          · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
+        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans}/>
+        <h3>두 기간의 분포 비교</h3>
         {#if profile.medianChange===null}
           <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
         {:else}
@@ -177,9 +180,9 @@
             {/if}
           </p>
         {/if}
-        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} unit={null} label={profile.label} />
+        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} unit={profile.unit??null} label={profile.label} />
         <div class="table-scroll"><table>
-          <caption>측정 순서로 나눈 두 기간의 집계 (날짜가 아닌 측정 순서)</caption>
+          <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
           <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
           <tbody>
             <tr><th scope="row">받은 측정</th><td>{profile.a.delivered}</td><td>{profile.b.delivered}</td></tr>
@@ -212,9 +215,8 @@
   .acquisition{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .ranges{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-4)}
   label{display:grid;gap:var(--space-2);font-weight:650}
-  input,select{min-width:0;width:100%;border:1px solid var(--color-border);border-radius:var(--radius-control);
+  select{min-width:0;width:100%;border:1px solid var(--color-border);border-radius:var(--radius-control);
     background:var(--color-surface);color:var(--color-ink);padding:var(--space-3)}
-  fieldset{min-width:0;display:grid;gap:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-panel)}
   .evidence{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
   h3{overflow-wrap:anywhere}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}

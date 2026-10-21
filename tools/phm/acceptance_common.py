@@ -198,6 +198,6 @@ def check_explanation(checks: Checks, suffix: str, panel: Any, *, window: bool) 
     item["verdict_phrases"] = verdict_phrases(item["text"])
     checks.add(f"real-local-main-explanation{suffix}", bool(item["text"].strip()), item["status"])
     checks.add(f"answer-has-no-status-verdict{suffix}", not item["verdict_phrases"], item["text"])
-    named = ("시간 구간 #" if window else "측정 순서 #") in item["heading"]
+    named = ("시간 구간 #" if window else "번째 측정") in item["heading"]
     checks.add(f"explanation-names-the-step{suffix}", named, item["heading"])
     return item

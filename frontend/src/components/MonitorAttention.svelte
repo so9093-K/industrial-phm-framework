@@ -128,7 +128,7 @@
     {#if !groups.length}
       <p>{notesState !== "ready" ? "확인 항목을 일부만 읽었습니다. 미확인 항목이 남아 있습니다." : snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
     {:else}
-      {#if groups.some((group) => group.notes.some((note) => note.kind === "threshold"))}
+      {#if groups.some((group) => group.notes.some((note) => note.kind === "threshold" || note.kind === "crossing"))}
         <p class="context">모델 기준 초과는 학습한 평소 상태와 다르다는 뜻입니다. 항목을 열면 이유·근거·다음 행동을 봅니다.</p>
       {/if}
       <ul class="groups">

@@ -5,7 +5,21 @@ export {object,OutcomeUnknown,WriteForbidden} from "./writes.ts";
 
 export type ReviewStatus="open"|"acknowledged"|"closed";
 export type ReviewAction="note"|"acknowledge"|"close";
-export type ReviewEvent={eventId:string;action:ReviewAction;note:string;recordedAt:string};
+/** What the person concluded on a confirm or close: a recorded judgement, not a fault verdict. */
+export type ReviewDecision="inspect"|"observe"|"no-action";
+export const DECISIONS:readonly ReviewDecision[]=["inspect","observe","no-action"];
+export const DECISION_LABEL:Record<ReviewDecision,string>={inspect:"추가 점검 필요",observe:"계속 관찰","no-action":"점검 불필요"};
+export type ReviewEvent={eventId:string;action:ReviewAction;note:string;recordedAt:string;decision:ReviewDecision|null};
+/** A stored decision; an unknown value is refused rather than shown as another one. */
+export function readDecision(raw:unknown):ReviewDecision|null{
+  if(raw===null||raw===undefined)return null;
+  if(!DECISIONS.includes(raw as ReviewDecision))throw new Error("검토 판단의 형식이 올바르지 않습니다.");
+  return raw as ReviewDecision;
+}
+/** The latest decision in a review's history: what it was last judged to need. */
+export function latestDecision(events:ReviewEvent[]):ReviewDecision|null{
+  return [...events].reverse().find(event=>event.decision!==null)?.decision??null;
+}
 
 export class ReviewConflict extends Error {}
 export class ReviewNotFound extends Error {}

@@ -203,12 +203,18 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
 
                 action_route = "**/api/v1/outlook/captures/review/action"
                 page.route(action_route, lost_response)
+                # Confirming records the person's decision; it is part of the retried request.
+                pw.expect(detail.get_by_role("button", name="확인함으로 표시")).to_be_disabled()
+                detail.get_by_role("radio", name="추가 점검 필요").check()
                 detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail).to_contain_text("다시 시도해도 기록이 겹치지 않습니다")
                 detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail.locator(".events li")).to_have_count(1, timeout=30000)
                 pw.expect(detail.locator(".badge")).to_have_text("확인함")
                 assert len(submitted) == 2 and submitted[0] == submitted[1]
+                pw.expect(detail.locator(".events li").first).to_contain_text(
+                    "확인 · 추가 점검 필요"
+                )
                 page.unroute(action_route, lost_response)
 
                 # A second operator closes first; the stale page gets a conflict, not an overwrite.
@@ -252,7 +258,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 pw.expect(detail).to_contain_text("원본 데이터: 요청 뒤 바뀜", timeout=30000)
                 detail.get_by_role("button", name="지금 데이터로 다시 계산해 비교").click()
                 pw.expect(detail).to_contain_text(
-                    "새 측정이 들어옴 (측정 순서 #64 → 측정 순서 #70)", timeout=60000
+                    "새 측정이 들어옴 (64번째 측정 → 70번째 측정)", timeout=60000
                 )
                 comparison = detail.get_by_role("table").first
                 pw.expect(comparison).to_contain_text("관리 기준")

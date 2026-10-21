@@ -5,6 +5,7 @@
   import {captureUrl, readCaptures, CaptureNotFound, type Capture} from "../outlook-captures";
   import {seriesName} from "../series-names";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
+  import {latestDecision, DECISION_LABEL} from "../review-writes";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
   import OutlookReviewDetail from "./OutlookReviewDetail.svelte";
@@ -21,6 +22,8 @@
       review: FindingReview; linked: Evidence[] | null};
   const ASSET_LIMIT = 20;
   const STATUS: Record<Status, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
+  // What the item was last judged to need, shown beside its status.
+  const judged = (item: Item) => latestDecision(item.kind === "outlook" ? item.capture.review.events : item.review.events);
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
   let captures: Capture[] = $state([]);
   // Display names of the captured series, looked up once each; the ID shows until then.
@@ -176,7 +179,7 @@
           {#each shown as item (item.key)}
             <li><a href={item.href} aria-current={selected?.key === item.key ? "true" : undefined}>
               <strong>{item.title}</strong>
-              <span>{item.label} · {STATUS[item.status]} · {clock(item.at)}</span>
+              <span>{item.label} · {STATUS[item.status]}{judged(item) ? " · " + DECISION_LABEL[judged(item)!] : ""} · {clock(item.at)}</span>
             </a></li>
           {/each}
         </ul>

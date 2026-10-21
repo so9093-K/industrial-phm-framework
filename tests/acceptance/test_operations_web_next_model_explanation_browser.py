@@ -10,6 +10,7 @@ import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.genai import phm_answer
+from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 from tests.support.web_next import asset_list, expect_place, start_web, stop_web
@@ -27,6 +28,75 @@ def _open(browser: Any, width: int) -> Any:
         ),
     )
     return page
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_unavailable_model_answer_can_be_regenerated_without_continuing_the_fallback(
+    tmp_path: Path, width: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "retry-ai")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+
+    def unavailable(*args: Any, **kwargs: Any) -> Any:
+        raise AnalysisExplanationError("temporary model outage")
+
+    monkeypatch.setattr(phm_answer, "complete_json", unavailable)
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    running = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = _open(browser, width)
+                asked: list[dict[str, Any]] = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        asked.append(request.post_data_json)
+                        if request.method == "POST"
+                        and request.url.endswith("/phm/explanations/request")
+                        else None
+                    ),
+                )
+                page.goto(
+                    f"http://127.0.0.1:{running[0].server_port}/web/?page=assets&tab=anomaly"
+                    "&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=3"
+                )
+                explanation = page.get_by_role("region", name="AI 해설")
+                explanation.get_by_text("직접 질문하기", exact=True).click()
+                question = "두 측정 사이에 무엇이 달라졌는지 설명해 주세요."
+                explanation.get_by_label("AI에게 물을 질문 (최대 600자)").fill(question)
+                explanation.get_by_role("button", name="질문 보내기", exact=True).click()
+                retry = explanation.get_by_role("button", name="AI로 다시 만들기")
+                pw.expect(retry).to_be_visible(timeout=20_000)
+                pw.expect(explanation).to_contain_text("AI 응답 없음 · 저장된 비교로 작성")
+                model = ScriptedModel(
+                    {
+                        "summary": SUMMARY,
+                        "observations": [{"feature": RMS, "change": "증가"}],
+                        "next_signals": [],
+                        "next_step": "두 측정의 원본 파형을 비교해 보세요.",
+                    }
+                )
+                monkeypatch.setattr(phm_answer, "complete_json", model)
+                retry.click()
+                pw.expect(explanation.locator("p.summary")).to_have_text(SUMMARY, timeout=20_000)
+                pw.expect(retry).to_have_count(0)
+                assert len(asked) == 2
+                assert asked[0] == asked[1]
+                assert asked[1]["question"] == question and "continue_from" not in asked[1]
+                records = PhmExplanationStore(workspace.phm_explanation_path).list_for(
+                    "anomaly-a", 3
+                )
+                assert len(records) == 2 and all(item["status"] == "complete" for item in records)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -91,7 +161,7 @@ def test_model_result_explanation_and_review_request(
                 table = explanation.get_by_role("table", name="해설이 짚은 측정값")
                 row = table.get_by_role("row", name="수평 진동 RMS")
                 pw.expect(row).to_contain_text("증가")
-                pw.expect(explanation).to_contain_text("측정 순서 #2 → 측정 순서 #3")
+                pw.expect(explanation).to_contain_text("2번째 측정 → 3번째 측정")
                 assert asked == [
                     {
                         "binding_id": "anomaly-a",
@@ -192,17 +262,17 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                     "button", name="가장 큰 변화", exact=False
                 ).click()
                 explanation = page.get_by_role("region", name="AI 해설")
-                pw.expect(explanation).to_contain_text("질문 기준 지점 · 측정 순서 #4 · 모델 점수")
+                pw.expect(explanation).to_contain_text("질문 기준 지점 · 4번째 측정 · 모델 점수")
                 pw.expect(
                     explanation.get_by_role("region", name="측정값 비교").get_by_role(
-                        "heading", name="측정 순서 #4 원본 파형"
+                        "heading", name="4번째 측정 원본 파형"
                     )
                 ).to_be_visible()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
                 explanation.get_by_role(
                     "button", name="이 지점 전후로 무엇이 달라졌어?", exact=True
                 ).click()
-                pw.expect(explanation.get_by_text("답변 기준 지점 · 측정 순서 #4")).to_be_visible(
+                pw.expect(explanation.get_by_text("답변 기준 지점 · 4번째 측정")).to_be_visible(
                     timeout=20_000
                 )
                 (record,) = PhmExplanationStore(workspace.phm_explanation_path).list_for(
@@ -212,7 +282,7 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                 assert record["context"]["focus"]["series"] == "primary"
                 assert record["context"]["signal_comparison"]["previous_position"] == 1
                 explanation.get_by_role("button", name="질문 기준 지점 해제").click()
-                assert explanation.get_by_text("답변 기준 지점 · 측정 순서 #4").count() == 0
+                assert explanation.get_by_text("답변 기준 지점 · 4번째 측정").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
             finally:
                 browser.close()

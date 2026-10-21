@@ -32,7 +32,7 @@
       <li>
         <a class="row" href={href(asset.assetId)}>
           <strong>{assetOptionLabel(assets, asset.assetId)}</strong>
-          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : asset.lastPosition != null ? "마지막 측정 순서 #" + asset.lastPosition : "측정 시각 기록 없음"}</span>
+          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : asset.lastPosition != null ? "최근 " + asset.lastPosition + "번째 측정" : "측정 시각 기록 없음"}</span>
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>

@@ -273,3 +273,33 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
     assert saved["snapshot"]["outlook"]["binding_id"] == "anomaly-a"
     with pytest.raises(ValueError, match="unexpected capture fields"):
         capture_outlook(workspace.root, {**exact, "package_id": "model-a"})
+
+
+def test_capture_review_keeps_the_decision_and_reads_stores_from_before_it(
+    tmp_path: Path,
+) -> None:
+    import sqlite3
+
+    from industrial_phm.application.maintenance_review import ReviewDecision
+
+    path = tmp_path / "outlook.sqlite"
+    store = OutlookCaptureStore(path)
+    capture = store.save(_snapshot())["capture_id"]
+    store.write_review(
+        "bearing-a",
+        capture,
+        FindingReviewAction.ACKNOWLEDGE,
+        "",
+        str(uuid4()),
+        ReviewDecision.OBSERVE,
+    )
+    events = store.list_for("bearing-a", capture_id=capture)[0]["review"]["events"]
+    assert [row["decision"] for row in events] == ["observe"]
+    # A store written before decisions existed: no column until the next write, read as none.
+    old = tmp_path / "old.sqlite"
+    previous = OutlookCaptureStore(old)
+    kept = previous.save(_snapshot())["capture_id"]
+    previous.write_review("bearing-a", kept, FindingReviewAction.NOTE, "확인", str(uuid4()))
+    with sqlite3.connect(old) as connection:
+        connection.execute("ALTER TABLE review_event DROP COLUMN decision")
+    assert [row["decision"] for row in previous.read_review(kept)["events"]] == [None]

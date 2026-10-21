@@ -9,6 +9,7 @@ incremental refresh.
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,11 @@ def project_phm_monitor(
         processed = store.latest_result(binding.binding_id)
         delivered = _latest_delivered(binding, snapshots, windows)
         progress = store.progress(binding.binding_id)
+        # The run of consecutive exceedances still going on, if any: what 관측 현황 leads with,
+        # so a sustained change and a one-off crossing do not read alike.
+        ongoing = next(
+            (item for item in store.list_intervals(binding.binding_id) if item.open), None
+        )
         pending = bool(delivered and (not processed or delivered["position"] > processed.position))
         reason: str | None
         if progress.health == "unavailable" or package is None:
@@ -90,6 +96,7 @@ def project_phm_monitor(
                 **_binding_json(binding),
                 "task": None if not package else (package.get("output") or {}).get("task"),
                 "recipe_id": None if not package else package.get("recipe_id"),
+                "estimator_kind": None if not package else package.get("estimator_kind"),
                 "validation": None if not package else package.get("validation"),
                 "processing_state": state,
                 "processing_reason": reason,
@@ -99,6 +106,16 @@ def project_phm_monitor(
                 else {**_step_brief(processed), "reason": processed.reason},
                 "latest_analyzed": None if not analyzed else _model_brief(analyzed),
                 "previous_analyzed": None if previous is None else _model_brief(previous),
+                "open_interval": None
+                if ongoing is None
+                else {
+                    "start_position": ongoing.start_position,
+                    "end_position": ongoing.end_position,
+                    "step_count": ongoing.step_count,
+                    "start_event_at": None
+                    if ongoing.start_event_at is None
+                    else ongoing.start_event_at.isoformat(),
+                },
             }
         )
     # Delivered waveforms that no running model reads still belong to an asset worth listing.
@@ -259,12 +276,15 @@ def project_snapshot_preview(
     count = len(series.values)
     width = max(1, -(-count // bins))
     channels = []
+    non_finite = 0
     for index, name in enumerate(series.channels):
         column = [row[index] for row in series.values]
-        envelope = [
-            [min(column[start : start + width]), max(column[start : start + width])]
-            for start in range(0, count, width)
-        ]
+        non_finite += sum(1 for value in column if not math.isfinite(value))
+        envelope = []
+        for start in range(0, count, width):
+            # A bin with no finite value is drawn at zero; the check below names how many.
+            usable = [value for value in column[start : start + width] if math.isfinite(value)]
+            envelope.append([min(usable), max(usable)] if usable else [0.0, 0.0])
         channels.append({"channel": name, "envelope": envelope})
     return {
         "schema_version": PHM_READ_SCHEMA_VERSION,
@@ -278,6 +298,14 @@ def project_snapshot_preview(
         "replay": snapshot.replay,
         "delivered_at": snapshot.delivered_at.isoformat(),
         "channels": channels,
+        # What was checked before drawing: the bytes are the delivered ones (SHA-256), the header
+        # and sample count match the delivery, and how many values are not finite numbers.
+        "checks": {
+            "sha256_matches": True,
+            "header_matches": True,
+            "sample_count_matches": True,
+            "non_finite_values": non_finite,
+        },
     }
 
 
@@ -340,6 +368,7 @@ def _latest_delivered(
         "delivered_at": snapshot.delivered_at.isoformat(),
         "event_at": _iso(snapshot.event_at),
         "replay": snapshot.replay,
+        "period_seconds": snapshot.acquisition_period_seconds,
     }
 
 

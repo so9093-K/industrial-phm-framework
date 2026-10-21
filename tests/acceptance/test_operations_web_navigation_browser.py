@@ -31,7 +31,7 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
                 assert "/web/?" in page.url and "model_binding=anomaly-a" in page.url
                 assert "monitor_asset=bearing-a" in page.url and "phm_binding=" not in page.url
                 page.reload()
-                pw.expect(page.get_by_role("group", name="측정 순서 #2 모델 결과")).to_be_visible()
+                pw.expect(page.get_by_role("group", name="2번째 측정 모델 결과")).to_be_visible()
                 for suffix in (
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=absent",
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=999",
@@ -42,7 +42,7 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
                         if "absent" in suffix
                         else page.get_by_text("모델 결과를 읽지 못했습니다", exact=False)
                     ).to_be_visible()
-                    assert page.get_by_role("group", name="측정 순서 #70 모델 결과").count() == 0
+                    assert page.get_by_role("group", name="70번째 측정 모델 결과").count() == 0
                 page.goto(base + "/web/?page=assets&tab=signals&monitor_asset=bearing-a")
                 feature = page.get_by_label("진동 특징", exact=False)
                 pw.expect(feature).to_be_visible()

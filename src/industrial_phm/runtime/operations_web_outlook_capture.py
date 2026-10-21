@@ -21,6 +21,7 @@ from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.application.maintenance_review import (
     FindingReviewAction,
     FindingReviewStatus,
+    ReviewDecision,
     next_human_review_status,
 )
 from industrial_phm.application.phm_analysis import PhmAnalysisError
@@ -35,7 +36,11 @@ from industrial_phm.runtime.operations_web_outlook import (
     outlook_arguments,
     verify_outlook_provenance,
 )
-from industrial_phm.runtime.operations_web_review import WebReviewConflict, WebReviewNotFound
+from industrial_phm.runtime.operations_web_review import (
+    WebReviewConflict,
+    WebReviewNotFound,
+    review_decision,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 CAPTURES_ROUTE = "/api/v1/outlook/captures"
@@ -99,6 +104,9 @@ class OutlookCaptureStore:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_outlook_review_capture ON review_event(capture_id)"
         )
+        # Reviews written before decisions existed keep no decision; nothing is backfilled.
+        if not _has_decision(connection):
+            connection.execute("ALTER TABLE review_event ADD COLUMN decision TEXT")
         return connection
 
     def save(self, snapshot: dict[str, Any]) -> dict[str, str]:
@@ -202,21 +210,23 @@ class OutlookCaptureStore:
 
     @staticmethod
     def _review_on_connection(connection: sqlite3.Connection, capture_id: str) -> dict[str, Any]:
+        decision = "decision" if _has_decision(connection) else "NULL"
         rows = connection.execute(
-            "SELECT event_id, action, note, recorded_at FROM review_event "
+            f"SELECT event_id, action, note, recorded_at, {decision} FROM review_event "
             "WHERE capture_id=? ORDER BY rowid",
             (capture_id,),
         ).fetchall()
         status = FindingReviewStatus.OPEN
         events = []
         try:
-            for event_id, action, note, recorded_at in rows:
+            for event_id, action, note, recorded_at, judged in rows:
                 status = next_human_review_status(status, FindingReviewAction(action))
                 events.append(
                     {
                         "event_id": event_id,
                         "action": action,
                         "note": note,
+                        "decision": judged,
                         "recorded_at": recorded_at,
                     }
                 )
@@ -232,7 +242,13 @@ class OutlookCaptureStore:
             return self._review_on_connection(connection, capture_id)
 
     def write_review(
-        self, asset_id: str, capture_id: str, action: FindingReviewAction, note: str, event_id: str
+        self,
+        asset_id: str,
+        capture_id: str,
+        action: FindingReviewAction,
+        note: str,
+        event_id: str,
+        decision: ReviewDecision | None = None,
     ) -> dict[str, Any]:
         with self._connect() as connection:
             # Serialize checking the current status with inserting the next action.
@@ -244,10 +260,12 @@ class OutlookCaptureStore:
             if row is None:
                 raise WebReviewNotFound("captured outlook evidence does not belong to asset")
             previous = connection.execute(
-                "SELECT capture_id, action, note FROM review_event WHERE event_id=?", (event_id,)
+                "SELECT capture_id, action, note, decision FROM review_event WHERE event_id=?",
+                (event_id,),
             ).fetchone()
+            judged = None if decision is None else decision.value
             if previous is not None:
-                if previous != (capture_id, action.value, note):
+                if previous != (capture_id, action.value, note, judged):
                     raise WebReviewConflict("review event identity conflicts with saved action")
                 outcome = self._review_on_connection(connection, capture_id)
                 return {"event_id": event_id, **outcome}
@@ -259,9 +277,9 @@ class OutlookCaptureStore:
             except ValueError as error:
                 raise WebReviewConflict("review action is invalid for current status") from error
             connection.execute(
-                "INSERT INTO review_event(event_id, capture_id, action, note, recorded_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (event_id, capture_id, action.value, note, datetime.now(UTC).isoformat()),
+                "INSERT INTO review_event(event_id, capture_id, action, note, recorded_at, "
+                "decision) VALUES (?, ?, ?, ?, ?, ?)",
+                (event_id, capture_id, action.value, note, datetime.now(UTC).isoformat(), judged),
             )
             outcome = self._review_on_connection(connection, capture_id)
             return {"event_id": event_id, **outcome}
@@ -269,9 +287,10 @@ class OutlookCaptureStore:
 
 def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str, Any]:
     """Apply one human review event to one exact immutable captured outlook."""
-    if set(payload) != {"asset_id", "capture_id", "action", "note", "event_id"}:
+    required = {"asset_id", "capture_id", "action", "note", "event_id"}
+    if not required <= set(payload) <= required | {"decision"}:
         raise ValueError("unexpected outlook review fields")
-    if not all(isinstance(v, str) for v in payload.values()):
+    if not all(isinstance(v, str) for key, v in payload.items() if key != "decision"):
         raise ValueError("review fields must be strings")
     asset = cast(str, payload["asset_id"])
     capture = cast(str, payload["capture_id"])
@@ -292,8 +311,9 @@ def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str,
         raise ValueError("invalid review note characters")
     if action == FindingReviewAction.NOTE and not note:
         raise ValueError("review note is required")
+    decision = review_decision(payload.get("decision"), action)
     result = OutlookCaptureStore(OperationsWorkspace(root).outlook_capture_path).write_review(
-        asset, capture, action, note, event_id
+        asset, capture, action, note, event_id, decision
     )
     return {
         "schema_version": 1,
@@ -479,3 +499,9 @@ def handle_outlook_captures_read(
         return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
     except OSError, sqlite3.Error, OutlookCaptureCorrupted:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
+
+
+def _has_decision(connection: sqlite3.Connection) -> bool:
+    return any(
+        row[1] == "decision" for row in connection.execute("PRAGMA table_info(review_event)")
+    )

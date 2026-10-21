@@ -314,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
                 page.set_viewport_size({"width": 1440, "height": 900})
                 open_model(page, url, "anomaly-score-Bearing1_1")
                 expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("18")
-                expect(page.get_by_role("heading", name="측정 순서 #18 원본 파형")).to_be_visible()
+                expect(page.get_by_role("heading", name="18번째 측정 원본 파형")).to_be_visible()
                 checks.add(
                     "actual-waveform-available-in-asset-task",
                     page.locator("section.input figure").count() == 2,

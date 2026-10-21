@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,firstExceedance,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -81,4 +81,49 @@ test("the first exceeded measurement is visible even without a sustained interva
   assert.equal(measurementTime(points[2], null), null); // No receipt-time clock is invented.
   assert.match(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00Z"}, null)!, /09:00:00.*KST/);
   assert.equal(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00"}, null), null);
+});
+
+test("a run still going on is read first; one-off and ended crossings are counted, not led with", () => {
+  const point = (position: number, exceeds: boolean): TrendPoint => ({
+    pointer: {position, runId: "run-" + position, state: "analyzed", stepKey: "k" + position, changeSeq: position, reason: null},
+    score: exceeds ? 2 : 0.5, threshold: 1, exceeds, eventStart: null});
+  const over = (positions: number[]) => Array.from({length: 12}, (_, i) => point(i + 1, positions.includes(i + 1)));
+  const place = (position: number) => "#" + position;
+  // One crossing at #2, a run #4–#5 that ended, and a run from #9 still going on.
+  const sustained = {points: over([2, 4, 5, 9, 10, 11, 12]), truncated: false,
+    intervals: [{start: 4, end: 5, steps: 2, peak: 2, open: false}, {start: 9, end: 12, steps: 4, peak: 2, open: true}]};
+  const story = exceedanceStory(sustained);
+  assert.equal(story.state, "ongoing");
+  assert.equal(story.anchor?.pointer.position, 9);
+  assert.deepEqual(exceedanceText(story, place), {headline: "#9부터 계속 기준 초과 · 4회",
+    earlier: "그 전 · 끝난 기준 초과 구간 1개 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #2"});
+  // A run still open within the model's allowed gap, with the latest measurement below.
+  const gap = exceedanceStory({points: over([9, 10, 11]), truncated: false,
+    intervals: [{start: 9, end: 11, steps: 3, peak: 2, open: true}]});
+  assert.equal(exceedanceText(gap, place)?.headline, "#9부터 기준 초과 구간 · 3회 · 최근 측정은 기준 이하");
+  // The latest measurement crosses alone: said as such, never as "since".
+  const lone = exceedanceStory({points: over([7, 12]), intervals: [], truncated: false});
+  assert.equal(lone.state, "latest");
+  assert.deepEqual(exceedanceText(lone, place), {headline: "#12에서 기준 초과 · 연속 초과는 아님",
+    earlier: "그 전 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #7"});
+  // Crossed earlier, below now.
+  const below = exceedanceStory({points: over([3, 6, 7]), truncated: false,
+    intervals: [{start: 6, end: 7, steps: 2, peak: 2, open: false}]});
+  assert.equal(below.state, "below");
+  assert.equal(exceedanceText(below, place)?.headline, "지금은 기준 이하 · 마지막 기준 초과 #7");
+  assert.equal(exceedanceText(exceedanceStory({points: over([]), intervals: [], truncated: false}), place), null);
+});
+
+test("the raw input check says what was verified before drawing, and only what the server checked", () => {
+  const waveform = parseWaveform({position: 3, available: true, file_name: "3.csv", sampling_rate_hz: 25600,
+    sample_count: 32768, samples_per_bin: 82, channels: [{channel: "h", envelope: [[0, 1]]}, {channel: "v", envelope: [[0, 1]]}],
+    checks: {sha256_matches: true, non_finite_values: 0}}, 3);
+  assert.equal(inputCheck(waveform), "원본 확인 · 전달 당시 확인값(SHA-256)과 일치 · 표본 32,768개 × 2채널 · 결측 없음");
+  const older = parseWaveform({position: 3, available: true, file_name: "3.csv", sampling_rate_hz: 25600,
+    sample_count: 10, samples_per_bin: 1, channels: [{channel: "h", envelope: [[0, 1]]}]}, 3);
+  assert.equal(inputCheck(older), null); // A server that did not report its checks claims nothing.
+  const window = parseWindow({available: true, position: 7, start: "2026-10-01T00:00:00Z", end: "2026-10-01T00:01:00Z",
+    channels: [{channel_id: "a", points: [{at: "x", value: 1, quality: "good"}, {at: "y", value: null, quality: "unusable"},
+      {at: "z", value: 2, quality: "conflict"}]}]}, 7);
+  assert.equal(inputCheck(window), "원본 확인 · 측정값 3개 · 쓸 수 없는 값 1개 · 값 충돌 1개");
 });

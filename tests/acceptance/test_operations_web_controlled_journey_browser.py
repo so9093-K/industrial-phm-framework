@@ -710,6 +710,7 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 record.get_by_role("link", name="정비 검토함에서 보기").click()
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(detail).to_contain_text("journey-pump")
+                detail.get_by_role("radio", name="계속 관찰").check()
                 detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail).to_contain_text("검토 기록을 남겼습니다")
                 pw.expect(detail.get_by_role("button", name="검토 종료")).to_be_visible()
@@ -1076,14 +1077,14 @@ def test_model_connection_is_analyzed_by_real_runner_and_following_can_be_pinned
                 offer.get_by_role("listitem").filter(has_text="synthetic-rms-score-v1").get_by_role(
                     "button"
                 ).click()
-                pw.expect(page.get_by_role("group", name="측정 순서 #1 모델 결과")).to_be_visible(
+                pw.expect(page.get_by_role("group", name="1번째 측정 모델 결과")).to_be_visible(
                     timeout=30_000
                 )
                 store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
                 (binding,) = store.list_bindings()
                 assert store.get_result(binding.binding_id, 1).state.value == "analyzed"
                 deliver(workspace, tmp_path / "waves", 2, 3.0)
-                pw.expect(page.get_by_role("group", name="측정 순서 #2 모델 결과")).to_contain_text(
+                pw.expect(page.get_by_role("group", name="2번째 측정 모델 결과")).to_contain_text(
                     "기준 초과", timeout=20_000
                 )
                 selector = page.get_by_label("측정 선택 (최근 64회)")
@@ -1105,7 +1106,7 @@ def test_model_connection_is_analyzed_by_real_runner_and_following_can_be_pinned
                 ).to_be_visible(timeout=15_000)
                 assert page.locator("[data-model-position]").count() == 0
                 page.unroute("**/api/v1/phm/trace?*")
-                pw.expect(page.get_by_role("group", name="측정 순서 #3 모델 결과")).to_be_visible(
+                pw.expect(page.get_by_role("group", name="3번째 측정 모델 결과")).to_be_visible(
                     timeout=15_000
                 )
             finally:

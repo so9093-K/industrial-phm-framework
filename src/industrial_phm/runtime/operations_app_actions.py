@@ -29,6 +29,7 @@ from industrial_phm.application import (
     RegisteredFileFeatureAnalysis,
     RegisteredOpcUaSubscriptionCycleResult,
     RegisteredSource,
+    ReviewDecision,
     SourceFreshnessPolicy,
     SourceLifecycleRecord,
     SourceLifecycleState,
@@ -266,9 +267,10 @@ class OperationsAppActions:
         action: FindingReviewAction,
         note: str,
         request_id: UUID | None = None,
+        decision: ReviewDecision | None = None,
     ) -> tuple[FindingReviewEvent, tuple[FindingReviewEvent, ...]]:
         event = create_finding_review_event(
-            finding, action=action, note=note, request_id=request_id
+            finding, action=action, note=note, request_id=request_id, decision=decision
         )
         repository = JsonFindingReviewRepository(self.paths.review)
         repository.record(event)
