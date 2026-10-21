@@ -12,6 +12,55 @@ from tests.support.web_next import asset_list, start_web, stop_web
 
 
 @pytest.mark.parametrize("width", [390, 1280])
+def test_open_interval_and_quiet_latest_measurement_agree_across_views(
+    tmp_path: Path, width: int
+) -> None:
+    from industrial_phm.runtime.operations_web_actions import execute_web_source_action
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "quiet-gap")
+    for ordinal, scale in enumerate((3.0, 3.2, 0.5), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    requested = execute_web_source_action(
+        workspace.root.resolve(),
+        "/api/v1/phm/reviews/request",
+        {"binding_id": "anomaly-a", "position": 3, "explanation_id": None},
+    )
+    running = start_web(workspace.root.resolve(), writer=False)
+    base = f"http://127.0.0.1:{running[0].server_port}"
+    expected = "측정 순서 #1부터 기준 초과 구간 · 2회 · 최근 측정은 기준 이하"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 1000}, locale="ko-KR")
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        status=200, content_type="application/json", body=asset_list("bearing-a")
+                    ),
+                )
+                page.goto(base + "/web/")
+                pw.expect(page.get_by_role("region", name="확인이 필요한 설비")).to_contain_text(
+                    expected
+                )
+                page.goto(base + "/web/?page=assets&monitor_asset=bearing-a")
+                pw.expect(page.get_by_role("region", name="기록 현황")).to_contain_text(expected)
+                page.goto(
+                    base
+                    + "/web/?page=maintenance&monitor_asset=bearing-a&finding_id="
+                    + requested["finding_id"]
+                )
+                pw.expect(page.locator(".grounds")).to_contain_text(expected)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
 @pytest.mark.parametrize("view", ["monitor", "assets", "summary"])
 def test_unread_attention_never_becomes_no_items_and_can_recover(
     tmp_path: Path, width: int, view: str

@@ -46,6 +46,16 @@ test("a run of crossings still going on is a change; a latest crossing on its ow
     ["crossing","최근 측정에서 모델 기준 초과","Isolation Forest · 연속 초과는 아님"]);
 });
 
+test("an interval kept open across an allowed quiet measurement stays visible",()=>{
+  const open=monitor(model({latest_analyzed:{position:5,output:{exceeds_threshold:false}},
+    open_interval:{start_position:3,end_position:4,step_count:2,start_event_at:null}})).models;
+  const [group]=attentionByAsset(open,null);
+  assert.equal(group.notes[0].kind,"threshold");
+  assert.match(group.notes[0].detail,/측정 순서 #3부터 기준 초과 구간 · 2회 · 최근 측정은 기준 이하/);
+  assert.match(group.notes[0].href,/model_position=5/);
+  assert.deepEqual(attentionByAsset(open.map(item=>({...item,ongoing:null})),null),[]);
+});
+
 test("only a collection someone asked to run is flagged when it stops receiving",()=>{
   const sources=parseSources({schema_version:1,meaning:"registration-does-not-imply-accepted-receipt-or-live-connection",
     sources:{items:[

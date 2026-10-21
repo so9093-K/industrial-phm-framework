@@ -34,4 +34,9 @@ test("since when, as it stood at the reviewed measurement", () => {
   assert.equal(exceedanceStory(asOf(trend, 8)).state, "latest");
   // Reviewing #4, before the run: nothing had crossed yet.
   assert.equal(exceedanceStory(asOf(trend, 4)).state, "none");
+  const quiet = { ...trend, points: [...points, point(13, false)] };
+  const held = exceedanceStory(asOf(quiet, 13, 3));
+  assert.equal(held.state, "ongoing");
+  assert.equal(held.lastExceeds, false);
+  assert.equal(held.ongoing?.steps, 7);
 });

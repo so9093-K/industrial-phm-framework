@@ -50,7 +50,7 @@ export function asOf(trend: ScoreTrend, position: number, minimum = Infinity): S
   const over = (start: number) => points.filter((point) => point.pointer.position >= start && point.exceeds === true).length;
   return {...trend, points, intervals: trend.intervals.filter((run) => run.start <= position
     && (run.end <= position || over(run.start) >= minimum)).map((run) =>
-    run.end >= position ? {...run, end: position, open: true, steps: over(run.start)} : {...run, open: false})};
+    run.end >= position ? {...run, end: position, open: true, steps: over(run.start)} : {...run})};
 }
 
 export async function readReviewEvidence(
