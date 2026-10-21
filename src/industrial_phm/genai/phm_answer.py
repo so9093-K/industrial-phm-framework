@@ -404,7 +404,9 @@ _FIELD = re.compile(
     r"|contribution_order|history)\b(?:\.\w+)?"
 )
 # A threshold comparison; "…을 기준으로" (as a basis) is not one.
-_THRESHOLD = re.compile(r"기준(?!\s*으로)[^.,\n]{0,8}?(?:초과|넘|이하|미만|보다|웃돌|밑돌|아래|위)")
+_THRESHOLD = re.compile(
+    r"기준(?!\s*으로)[^.,\n]{0,8}?(?:초과|넘|이하|미만|웃돌|밑돌|아래|위|미달|높|낮)"
+)
 _SUPERLATIVE = re.compile(r"가장\s*(?:크|큰|많이|두드러|뚜렷)")
 _ATTRIBUTION = re.compile(r"반영|기여")
 _SUGGESTION = re.compile(r"보세요|보시|좋겠습니다|좋습니다|권장|제안|살펴보")
@@ -516,8 +518,11 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
     return issues
 
 
-_OVER = re.compile(r"초과|넘|웃돌|위")
-_UNDER = re.compile(r"이하|미만|아래|밑돌")
+_OVER = re.compile(r"초과|넘|웃돌|위|높")
+_UNDER = re.compile(r"이하|미만|아래|밑돌|미달|낮")
+_THRESHOLD_NEGATION = re.compile(
+    r"^(?:하|에\s*있)?\s*(?:지\s*(?:않|못)|(?:가|이|는|은)?\s*아(?:니|닙))"
+)
 
 
 def _threshold_issues(text: str, payload: dict[str, Any]) -> list[str]:
@@ -531,17 +536,23 @@ def _threshold_issues(text: str, payload: dict[str, Any]) -> list[str]:
     for sentence in sentences(text):
         subject = (primary["model"], primary["reference"])
         for clause in re.split(r"지만|반면|,|며 |고 ", sentence):
-            subject = next(((n, r) for n, r in models if n in clause), subject)
-            said = _THRESHOLD.search(clause.replace("학습 기준", ""))
-            if not said or not subject[1]:
-                continue
-            over, under = _OVER.search(said.group(0)), _UNDER.search(said.group(0))
-            claimed = "초과" if over and not under else "이하" if under and not over else None
-            if claimed and not subject[1].endswith(claimed):
-                issues.append(
-                    f"{subject[0]}의 선택 시점 결과는 '{subject[1]}'입니다. "
-                    "기준 비교 방향을 맞추세요."
-                )
+            clause = clause.replace("학습 기준", "학습 범위")
+            for said in _THRESHOLD.finditer(clause):
+                mentions = [(clause.rfind(n, 0, said.start()), n, r) for n, r in models]
+                nearest = max(mentions, key=lambda item: (item[0], len(item[1])))
+                if nearest[0] >= 0:
+                    subject = nearest[1:]
+                if not subject[1]:
+                    continue
+                over, under = _OVER.search(said.group(0)), _UNDER.search(said.group(0))
+                claimed = "초과" if over and not under else "이하" if under and not over else None
+                if claimed and _THRESHOLD_NEGATION.match(clause[said.end() :]):
+                    claimed = "이하" if claimed == "초과" else "초과"
+                if claimed and not subject[1].endswith(claimed):
+                    issues.append(
+                        f"{subject[0]}의 선택 시점 결과는 '{subject[1]}'입니다. "
+                        "기준 비교 방향을 맞추세요."
+                    )
     return issues
 
 

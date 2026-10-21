@@ -27,6 +27,78 @@ def _open(browser: Any, width: int) -> Any:
 
 
 @pytest.mark.parametrize("width", [390, 1280])
+@pytest.mark.parametrize("part", ["primary", "ai", "different-input"])
+def test_review_evidence_failures_and_other_input_are_not_shown_as_absent(
+    tmp_path: Path, width: int, part: str
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "review-read")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    root = workspace.root.resolve()
+    requested = execute_web_source_action(
+        root,
+        "/api/v1/phm/reviews/request",
+        {"binding_id": "anomaly-a", "position": 3, "explanation_id": None},
+    )
+    running = start_web(root, writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = _open(browser, width)
+                broken = {"yes": True}
+
+                def result(route: Any) -> None:
+                    binding = parse_qs(urlsplit(route.request.url).query)["binding_id"][0]
+                    if broken["yes"] and part == "primary" and binding == "anomaly-a":
+                        route.fulfill(status=503, json={"error": "unavailable"})
+                    elif broken["yes"] and part == "different-input" and binding == "anomaly-b":
+                        response = route.fetch()
+                        body = response.json()
+                        body["step"]["input_reference"]["sha256"] = "f" * 64
+                        route.fulfill(json=body)
+                    else:
+                        route.continue_()
+
+                def explanation(route: Any) -> None:
+                    if broken["yes"] and part == "ai":
+                        route.fulfill(status=503, json={"error": "unavailable"})
+                    else:
+                        route.continue_()
+
+                page.route("**/api/v1/phm/result?**", result)
+                page.route("**/api/v1/phm/explanations?**", explanation)
+                page.goto(
+                    f"http://127.0.0.1:{running[0].server_port}/web/?page=maintenance"
+                    f"&monitor_asset=bearing-a&finding_id={requested['finding_id']}"
+                )
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                retry = detail.get_by_role("button", name="판단 근거 다시 읽기")
+                pw.expect(retry).to_be_visible()
+                if part == "ai":
+                    pw.expect(detail).to_contain_text(
+                        "해설을 읽지 못했습니다. 해설이 없다는 뜻은 아닙니다."
+                    )
+                    pw.expect(detail.get_by_text("아직 없습니다.", exact=False)).to_have_count(0)
+                if part == "different-input":
+                    pw.expect(detail).to_contain_text("같은 원본의 다른 모델")
+                    pw.expect(detail.locator(".grounds dt", has_text="다른 모델")).to_have_count(0)
+                broken["yes"] = False
+                retry.click()
+                pw.expect(detail.locator(".grounds")).to_be_visible()
+                pw.expect(retry).to_have_count(0)
+                pw.expect(detail).to_contain_text("아직 없습니다. 설비 화면에서")
+                pw.expect(detail.locator(".grounds dt", has_text="다른 모델")).to_have_count(1)
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
 def test_model_result_review_is_written_once_and_opens_its_exact_result(
     tmp_path: Path, width: int
 ) -> None:

@@ -201,7 +201,7 @@ export function inputCheck(input:Waveform|WindowInput):string|null{
   }
   const {good,unusable,conflict}=input.quality;
   return "원본 확인 · 측정값 "+(good+unusable+conflict).toLocaleString("ko-KR")+"개 · "
-    +(unusable||conflict?[unusable?"쓸 수 없는 값 "+unusable+"개":"",conflict?"값 충돌 "+conflict+"개":""].filter(Boolean).join(" · "):"결측·충돌 없음");
+    +(unusable||conflict?[unusable?"쓸 수 없는 값 "+unusable+"개":"",conflict?"값 충돌 "+conflict+"개":""].filter(Boolean).join(" · "):"표시된 값에 사용 불가·충돌 없음");
 }
 
 export async function readInput(binding:ModelBinding,position:number,signal:AbortSignal):Promise<Waveform|WindowInput>{

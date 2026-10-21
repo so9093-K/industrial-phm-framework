@@ -349,3 +349,24 @@ def test_a_clause_about_another_model_is_checked_against_that_model(
         "Isolation Forest의 선택 시점 결과는 '모델 기준 이하'"
         in text_issues(wrong, payload, field="summary")[0]
     )
+
+
+@pytest.mark.parametrize(
+    ("text", "valid"),
+    [
+        ("Isolation Forest는 기준을 넘지 않았습니다.", True),
+        ("LSTM 오토인코더는 기준 아래가 아닙니다.", True),
+        ("LSTM 오토인코더와 달리 Isolation Forest는 기준 아래입니다.", True),
+        ("Isolation Forest는 기준보다 낮습니다.", True),
+        ("Isolation Forest는 기준 아래가 아닙니다.", False),
+        ("LSTM 오토인코더는 기준을 초과하지 않았습니다.", False),
+        ("Isolation Forest는 기준보다 높습니다.", False),
+    ],
+)
+def test_natural_threshold_negation_and_named_subjects(
+    contexts: dict[str, Any], text: str, valid: bool
+) -> None:
+    payload = answer_input(contexts["anomaly-a"])
+    payload["primary"]["model"] = "LSTM 오토인코더"
+    payload["related_models"] = [{"name": "Isolation Forest", "reference": "모델 기준 이하"}]
+    assert (not phm_answer._threshold_issues(text, payload)) is valid

@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {TrendPoint} from "./model-trend.ts";
-import {asOf, largestChanges} from "./review-evidence.ts";
+import {asOf, largestChanges, sameInputReference} from "./review-evidence.ts";
 import {exceedanceStory, exceedanceText} from "./model-trend.ts";
+
+test("other models must have the same complete input identity, including metadata", () => {
+  const first = {kind: "acquisition-snapshot", ordinal: 3, sha256: "same", channels: ["R", "S"],
+    sampling: {rate: 25600, unit: "g"}};
+  assert.equal(sameInputReference(first, {sampling: {unit: "g", rate: 25600}, channels: ["R", "S"],
+    sha256: "same", ordinal: 3, kind: "acquisition-snapshot"}), true);
+  for (const change of [{sha256: "other"}, {channels: ["S", "R"]}, {sampling: {rate: 25600, unit: "mm/s"}}])
+    assert.equal(sameInputReference(first, {...first, ...change}), false);
+});
 
 test("how much: the largest stored relative changes, unknown ones left out", () => {
   const row = (feature: string, previous: number | null, current: number, relativePercent: number | null) =>
@@ -18,7 +27,11 @@ test("since when, as it stood at the reviewed measurement", () => {
   const points = Array.from({length: 12}, (_, i) => point(i + 1, i + 1 >= 6));
   const trend = {points, truncated: false, intervals: [{start: 6, end: 12, steps: 7, peak: 2, open: true}]};
   // Reviewing #8: the run held #8 then, with three crossings so far; later measurements are not counted.
-  assert.equal(exceedanceText(exceedanceStory(asOf(trend, 8)), (at) => "#" + at)?.headline, "#6부터 계속 기준 초과 · 3회");
+  assert.equal(exceedanceText(exceedanceStory(asOf(trend, 8, 3)), (at) => "#" + at)?.headline, "#6부터 계속 기준 초과 · 3회");
+  // A later confirmed run must not make its first crossing look confirmed already.
+  assert.equal(exceedanceStory(asOf(trend, 7, 3)).state, "latest");
+  assert.equal(exceedanceStory(asOf(trend, 8, 5)).state, "latest");
+  assert.equal(exceedanceStory(asOf(trend, 8)).state, "latest");
   // Reviewing #4, before the run: nothing had crossed yet.
   assert.equal(exceedanceStory(asOf(trend, 4)).state, "none");
 });

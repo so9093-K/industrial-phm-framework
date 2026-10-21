@@ -110,8 +110,13 @@ not install Node dependencies.
   re-check and ‘지금 데이터로 다시 계산해 비교’.
 - `src/components/FindingReviewDetail.svelte`: one requested analysis or model-result review: its
   exact evidence (or the stored model result's binding/position) and its history.
+  `src/review-evidence.ts` joins the reviewed measurement's interval, feature changes, AI answer
+  and other models with the same complete input identity. Each failed part stays unread with a retry;
+  a later confirmed interval cannot make an earlier measurement appear confirmed already.
 - `src/components/ReviewActions.svelte`: the shared append-only note/acknowledge/close for every
   review subject (a retried uncertain action reuses its event ID; a 409 re-reads; close asks once more).
+  Confirm and close record the person's inspect/observe/no-action decision. Older events without
+  a decision remain readable and do not acquire an invented one.
 - `src/components/ModelExplanation.svelte`, `src/components/ModelReviewRequest.svelte`: the selected
   model result's AI explanation against an earlier analyzed measurement (only answers of the same run,
   shown with the comparison the server stored and checked) and its review request.
@@ -151,6 +156,7 @@ not install Node dependencies.
   collection without recent receipt), each opening the exact place; read again every 3 seconds while
   visible, and a failed read hides earlier items. The monitor, asset list and summary distinguish
   complete counts from loading, partial and failed reads; an unread part never means zero items.
+  Sustained model intervals lead the threshold notice; isolated recent crossings are separate.
 - `src/components/ElectricalCondition.svelte`, `src/electrical-condition.ts`: 3-phase load, unbalance and
   reference-pattern score of a recent period against an earlier one (`/api/v1/condition`), times to check
   first and per-phase values; KST inputs travel as the same instant and lines never cross missing data.
