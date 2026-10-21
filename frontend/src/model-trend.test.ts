@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,exceedanceStory,exceedanceText,firstExceedance,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -108,4 +108,18 @@ test("a run still going on is read first; one-off and ended crossings are counte
   assert.equal(below.state, "below");
   assert.equal(exceedanceText(below, place)?.headline, "지금은 기준 이하 · 마지막 기준 초과 #7");
   assert.equal(exceedanceText(exceedanceStory({points: over([]), intervals: [], truncated: false}), place), null);
+});
+
+test("the raw input check says what was verified before drawing, and only what the server checked", () => {
+  const waveform = parseWaveform({position: 3, available: true, file_name: "3.csv", sampling_rate_hz: 25600,
+    sample_count: 32768, samples_per_bin: 82, channels: [{channel: "h", envelope: [[0, 1]]}, {channel: "v", envelope: [[0, 1]]}],
+    checks: {sha256_matches: true, non_finite_values: 0}}, 3);
+  assert.equal(inputCheck(waveform), "원본 확인 · 전달 당시 확인값(SHA-256)과 일치 · 표본 32,768개 × 2채널 · 결측 없음");
+  const older = parseWaveform({position: 3, available: true, file_name: "3.csv", sampling_rate_hz: 25600,
+    sample_count: 10, samples_per_bin: 1, channels: [{channel: "h", envelope: [[0, 1]]}]}, 3);
+  assert.equal(inputCheck(older), null); // A server that did not report its checks claims nothing.
+  const window = parseWindow({available: true, position: 7, start: "2026-10-01T00:00:00Z", end: "2026-10-01T00:01:00Z",
+    channels: [{channel_id: "a", points: [{at: "x", value: 1, quality: "good"}, {at: "y", value: null, quality: "unusable"},
+      {at: "z", value: 2, quality: "conflict"}]}]}, 7);
+  assert.equal(inputCheck(window), "원본 확인 · 측정값 3개 · 쓸 수 없는 값 1개 · 값 충돌 1개");
 });

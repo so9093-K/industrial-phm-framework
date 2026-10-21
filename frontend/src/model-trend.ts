@@ -72,11 +72,14 @@ export function measurementTime(point: TrendPoint, period: number | null): strin
 export type Envelope={channel:string;bands:[number,number][]};
 export type Waveform=
   |{available:false;reason:string}
-  |{available:true;fileName:string;rateHz:number;samples:number;perBin:number;channels:Envelope[]};
+  |{available:true;fileName:string;rateHz:number;samples:number;perBin:number;channels:Envelope[];
+    /** Values that are not finite numbers, when the server counted them. */
+    nonFinite:number|null};
 export type WindowChannel={channel:string;unit:string|null;property?:string|null;scope?:string|null;points:{at:string;value:number|null}[]};
 export type WindowInput=
   |{available:false;reason:string}
-  |{available:true;start:string;end:string;channels:WindowChannel[]};
+  |{available:true;start:string;end:string;channels:WindowChannel[];
+    quality:{good:number;unusable:number;conflict:number}};
 
 const MAX_PAGES=4;
 
@@ -155,8 +158,11 @@ export function parseWaveform(raw:unknown,position:number):Waveform{
       return [band[0] as number,band[1] as number];
     })};
   });
+  const checks=object(root.checks);
+  const nonFinite=checks?.sha256_matches===true&&typeof checks.non_finite_values==="number"
+    &&Number.isSafeInteger(checks.non_finite_values)?checks.non_finite_values:null;
   return {available:true,fileName:root.file_name,rateHz:finite(root.sampling_rate_hz)??0,
-    samples:whole(root.sample_count,"표본 수"),perBin:whole(root.samples_per_bin,"묶음 크기"),channels};
+    samples:whole(root.sample_count,"표본 수"),perBin:whole(root.samples_per_bin,"묶음 크기"),channels,nonFinite};
 }
 
 export function parseWindow(raw:unknown,position:number):WindowInput{
@@ -165,7 +171,8 @@ export function parseWindow(raw:unknown,position:number):WindowInput{
   if(root.available===false)return {available:false,reason:typeof root.reason==="string"?root.reason:"관측을 읽을 수 없습니다"};
   if(root.available!==true||root.position!==position||!Array.isArray(root.channels)
     ||typeof root.start!=="string"||typeof root.end!=="string")invalid("관측 구간");
-  return {available:true,start:root.start,end:root.end,channels:root.channels.map((item:unknown):WindowChannel=>{
+  const quality={good:0,unusable:0,conflict:0};
+  return {available:true,start:root.start,end:root.end,quality,channels:root.channels.map((item:unknown):WindowChannel=>{
     const row=object(item);
     if(!row||typeof row.channel_id!=="string"||!Array.isArray(row.points))invalid("관측 구간");
     return {channel:row.channel_id,unit:typeof row.unit==="string"?row.unit:null,
@@ -173,9 +180,23 @@ export function parseWindow(raw:unknown,position:number):WindowInput{
       points:row.points.map((point:unknown)=>{
         const value=object(point);
         if(!value||typeof value.at!=="string")invalid("관측 구간");
+        quality[value.quality==="good"?"good":value.quality==="conflict"?"conflict":"unusable"]++;
         return {at:value.at,value:value.quality==="good"?finite(value.value):null};
       })};
   })};
+}
+
+/** One line on what was checked about the raw input before it is drawn. */
+export function inputCheck(input:Waveform|WindowInput):string|null{
+  if(!input.available)return null;
+  if("fileName" in input){
+    if(input.nonFinite===null)return null;
+    return "원본 확인 · 전달 당시 확인값(SHA-256)과 일치 · 표본 "+input.samples.toLocaleString("ko-KR")+"개 × "
+      +input.channels.length+"채널 · "+(input.nonFinite?"숫자가 아닌 값 "+input.nonFinite.toLocaleString("ko-KR")+"개":"결측 없음");
+  }
+  const {good,unusable,conflict}=input.quality;
+  return "원본 확인 · 측정값 "+(good+unusable+conflict).toLocaleString("ko-KR")+"개 · "
+    +(unusable||conflict?[unusable?"쓸 수 없는 값 "+unusable+"개":"",conflict?"값 충돌 "+conflict+"개":""].filter(Boolean).join(" · "):"결측·충돌 없음");
 }
 
 export async function readInput(binding:ModelBinding,position:number,signal:AbortSignal):Promise<Waveform|WindowInput>{

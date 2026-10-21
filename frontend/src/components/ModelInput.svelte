@@ -2,7 +2,7 @@
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding} from "../model-evidence";
-  import {readInput, type Waveform, type WindowInput} from "../model-trend";
+  import {inputCheck, readInput, type Waveform, type WindowInput} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** The stored raw input this result was computed from: the vibration waveform's min/max
@@ -64,7 +64,8 @@
   {:else if !input.available}
     <StatusNotice kind="uncertain" title="원본을 보여 줄 수 없습니다" message={input.reason} />
   {:else if "fileName" in input}
-    <p class="context">{input.fileName} · 샘플링 {num(input.rateHz / 1000)} kHz · 표본 {input.samples.toLocaleString("ko-KR")}개 · 표본 {input.perBin}개마다 최소·최대</p>
+    {#if inputCheck(input)}<p class="check">{inputCheck(input)}</p>{/if}
+    <p class="context">{input.fileName} · 샘플링 {num(input.rateHz / 1000)} kHz · 표본 {input.perBin}개마다 최소·최대</p>
     {#each input.channels as channel (channel.channel)}
       <figure class:selected={selected(channel)}>
         <figcaption>{channel.channel} · 범위 {range(channel.bands.flat())}</figcaption>
@@ -74,6 +75,7 @@
       </figure>
     {/each}
   {:else}
+    {#if inputCheck(input)}<p class="check">{inputCheck(input)}</p>{/if}
     <p class="context">{clock(input.start)} ~ {clock(input.end)} · 품질이 좋은 값만 잇고, 쓸 수 없는 값은 비워 둡니다.</p>
     {#each input.channels as channel (channel.channel)}
       <figure class:selected={selected(channel)}>
@@ -87,6 +89,7 @@
 </section>
 
 <style>
+  .check { margin: 0; font-size: var(--font-small); color: var(--color-ink); overflow-wrap: anywhere; }
   .input { display: grid; gap: var(--space-2); margin-block: var(--space-4); min-width: 0; }
   h3 { margin: 0; font-size: var(--font-section); }
   p { margin: 0; overflow-wrap: anywhere; }

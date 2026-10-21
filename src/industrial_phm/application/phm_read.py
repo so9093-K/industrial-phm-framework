@@ -9,6 +9,7 @@ incremental refresh.
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -275,12 +276,15 @@ def project_snapshot_preview(
     count = len(series.values)
     width = max(1, -(-count // bins))
     channels = []
+    non_finite = 0
     for index, name in enumerate(series.channels):
         column = [row[index] for row in series.values]
-        envelope = [
-            [min(column[start : start + width]), max(column[start : start + width])]
-            for start in range(0, count, width)
-        ]
+        non_finite += sum(1 for value in column if not math.isfinite(value))
+        envelope = []
+        for start in range(0, count, width):
+            # A bin with no finite value is drawn at zero; the check below names how many.
+            usable = [value for value in column[start : start + width] if math.isfinite(value)]
+            envelope.append([min(usable), max(usable)] if usable else [0.0, 0.0])
         channels.append({"channel": name, "envelope": envelope})
     return {
         "schema_version": PHM_READ_SCHEMA_VERSION,
@@ -294,6 +298,14 @@ def project_snapshot_preview(
         "replay": snapshot.replay,
         "delivered_at": snapshot.delivered_at.isoformat(),
         "channels": channels,
+        # What was checked before drawing: the bytes are the delivered ones (SHA-256), the header
+        # and sample count match the delivery, and how many values are not finite numbers.
+        "checks": {
+            "sha256_matches": True,
+            "header_matches": True,
+            "sample_count_matches": True,
+            "non_finite_values": non_finite,
+        },
     }
 
 
