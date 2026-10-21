@@ -246,6 +246,13 @@ def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> 
     _top(series.nth(1))
     _shot(page, out, "06-frequency-change.png", frames)
     _gif(frames, out / "walkthrough.gif")
+    query = {"asset_id": asset}
+    for name, span in spans.items():
+        for edge, value in span.items():
+            query[f"{name}_{edge}"] = str(value)
+    spectrum_response = page.request.get(base + "/api/v1/explore/spectrum?" + urlencode(query))
+    assert spectrum_response.ok, spectrum_response.status
+    calculated = spectrum_response.json()
     _record(
         out,
         "changes",
@@ -256,6 +263,11 @@ def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> 
             "selected_ranges": spans,
             "features": features,
             "period_seconds": acquisition["period_seconds"],
+            "spectrum": {
+                "used_measurements": calculated["acquisitions"],
+                "sampling_rate_hz": calculated["sampling_rate_hz"],
+                "segment_samples": calculated["segment"],
+            },
             "time_basis": "recorded interval, elapsed since measurement 1; no invented clock",
             "interpretation": "A is selected, not verified healthy; no fault diagnosis",
         },
