@@ -2,7 +2,7 @@
 import {yTicks, type Tick} from "./chart-axis.ts";
 
 export type AcquisitionTrend = {
-  assetId: string; sourceId: string; feature: string; label: string; unit: string | null;
+  assetId: string; sourceId: string; bindingId?: string | null; feature: string; label: string; unit: string | null;
   periodSeconds: number | null; analyzed: number; sampled: boolean;
   points: {ordinal: number; value: number}[];
 };
@@ -28,7 +28,7 @@ export function parseAcquisitionTrend(raw: unknown, assetId: string, feature: st
     before = ordinal;
     return {ordinal, value};
   });
-  return {assetId, sourceId: root.source_id, feature, label: root.label,
+  return {assetId, sourceId: root.source_id, bindingId:typeof root.binding_id==="string"?root.binding_id:null, feature, label: root.label,
     unit: typeof root.unit === "string" && root.unit.trim() ? root.unit : null,
     periodSeconds: root.period_seconds as number | null, analyzed: root.analyzed, sampled: root.sampled, points};
 }

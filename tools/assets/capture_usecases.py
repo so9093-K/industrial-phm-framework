@@ -223,8 +223,12 @@ def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> 
     expect(compare.locator("section.evidence")).to_be_visible(timeout=120_000)
     _top(compare)
     _shot(page, out, "01-periods.png", frames)
-    _top(compare.locator("section.evidence"))
-    _shot(page, out, "02-distribution.png", frames)
+    temporal = compare.get_by_role("region", name="시간에 따른 변화", exact=True)
+    expect(temporal.get_by_role("img")).to_be_visible(timeout=30_000)
+    _top(temporal)
+    _shot(page, out, "02-time-trend.png", frames)
+    _top(compare.get_by_role("heading", name="두 기간의 분포 비교", exact=True))
+    _shot(page, out, "03-distribution.png", frames)
 
     visit("relation", "acq", {"acq_relation_x": features["x"], "acq_relation_y": features["y"]})
     relation = page.get_by_role("region", name="진동 특징 관계")
@@ -232,9 +236,9 @@ def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> 
     expect(groups).to_have_count(2, timeout=120_000)
     expect(groups.first.get_by_role("img")).to_be_visible()
     _top(relation)
-    _shot(page, out, "03-relation.png", frames)
+    _shot(page, out, "04-relation.png", frames)
     _top(groups.first)
-    _shot(page, out, "04-scatter.png", frames)
+    _shot(page, out, "05-scatter.png", frames)
 
     visit("spectrum", "spectrum", {})
     spectrum = page.get_by_role("region", name="주파수 분석", exact=True)
@@ -242,9 +246,9 @@ def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> 
     expect(series).to_have_count(2, timeout=120_000)
     expect(series.first.get_by_role("img")).to_be_visible()
     _top(spectrum)
-    _shot(page, out, "05-spectrum.png", frames)
+    _shot(page, out, "06-spectrum.png", frames)
     _top(series.nth(1))
-    _shot(page, out, "06-frequency-change.png", frames)
+    _shot(page, out, "07-frequency-change.png", frames)
     _gif(frames, out / "walkthrough.gif")
     query = {"asset_id": asset}
     for name, span in spans.items():

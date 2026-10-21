@@ -1,5 +1,6 @@
 <script lang="ts">
   import AcquisitionRange from "./AcquisitionRange.svelte";
+  import AcquisitionPeriodTrend from "./AcquisitionPeriodTrend.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
   import RangeCompare from "./RangeCompare.svelte";
@@ -168,6 +169,8 @@
         <h3>{profile.label}</h3>
         <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
           · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
+        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans}/>
+        <h3>두 기간의 분포 비교</h3>
         {#if profile.medianChange===null}
           <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
         {:else}
