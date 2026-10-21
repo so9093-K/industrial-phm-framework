@@ -289,6 +289,7 @@ def capture_live(page: Any, base: str, out: Path) -> None:
     page.get_by_role("link").filter(has_text="마지막").first.click()
     page.get_by_role("link", name="신호", exact=True).click()
     time.sleep(6)
+    _top(page.get_by_role("region", name="측정 신호", exact=True))
     _shot(page, out, "03-signals.png", frames)
     _gif(frames, out / "walkthrough.gif")
     _record(
