@@ -8,6 +8,8 @@ registers data. Live starts and stops the isolated built-in synthetic OPC UA exa
     # XJTU-SY Bearing1_1 replayed to #100 with both models (demo xjtu --until 100);
     # AI explanations need the configured model server.
     uv run --no-sync python -m tools.assets.capture_usecases models --base http://127.0.0.1:2742
+    # Two-period distributions, paired features and waveform spectra from that same record.
+    uv run --no-sync python -m tools.assets.capture_usecases changes --base http://127.0.0.1:2742
     # An empty workspace: registers the synthetic pump CSV (tools.assets.pump_csv) through the Web.
     uv run --no-sync python -m tools.assets.capture_usecases csv --base http://127.0.0.1:2741 \\
         --csv /path/to/cooling-pump.csv
@@ -186,6 +188,81 @@ def capture_models(page: Any, base: str, out: Path, asset: str) -> None:
     )
 
 
+def capture_changes(page: Any, base: str, out: Path, asset: str, split: int) -> None:
+    """Capture real distributions, relationships and PSDs; the selected A is not known normal."""
+    from playwright.sync_api import expect
+
+    options = page.request.get(base + "/api/v1/forecast/options?" + urlencode({"asset_id": asset}))
+    assert options.ok, options.status
+    acquisition = options.json()["acquisition"]
+    first, last = acquisition["first"], acquisition["last"]
+    assert first < split <= last, "--split-at must divide the stored measurements"
+    spans = {"a": {"from": first, "to": split - 1}, "b": {"from": split, "to": last}}
+    features = {
+        "x": "feature.Horizontal_vibration_signals.rms",
+        "y": "feature.Vertical_vibration_signals.rms",
+    }
+    frames: list[Path] = []
+
+    def visit(method: str, prefix: str, extra: dict[str, str]) -> None:
+        query = {
+            "page": "assets",
+            "tab": "change",
+            "method": method,
+            "data": "vibration",
+            "monitor_asset": asset,
+            **extra,
+        }
+        for name, span in spans.items():
+            for edge, value in span.items():
+                query[f"{prefix}_{name}_{edge}"] = str(value)
+        page.goto(base + "/web/?" + urlencode(query))
+
+    visit("compare", "feature", {"acquisition_feature": features["x"]})
+    compare = page.get_by_role("region", name="진동 특징 두 기간 비교")
+    expect(compare.locator("section.evidence")).to_be_visible(timeout=120_000)
+    _top(compare)
+    _shot(page, out, "01-periods.png", frames)
+    _top(compare.locator("section.evidence"))
+    _shot(page, out, "02-distribution.png", frames)
+
+    visit("relation", "acq", {"acq_relation_x": features["x"], "acq_relation_y": features["y"]})
+    relation = page.get_by_role("region", name="진동 특징 관계")
+    groups = relation.locator("section.group")
+    expect(groups).to_have_count(2, timeout=120_000)
+    expect(groups.first.get_by_role("img")).to_be_visible()
+    _top(relation)
+    _shot(page, out, "03-relation.png", frames)
+    _top(groups.first)
+    _shot(page, out, "04-scatter.png", frames)
+
+    visit("spectrum", "spectrum", {})
+    spectrum = page.get_by_role("region", name="주파수 분석", exact=True)
+    series = spectrum.locator("section.series")
+    expect(series).to_have_count(2, timeout=120_000)
+    expect(series.first.get_by_role("img")).to_be_visible()
+    _top(spectrum)
+    _shot(page, out, "05-spectrum.png", frames)
+    _top(series.nth(1))
+    _shot(page, out, "06-frequency-change.png", frames)
+    _gif(frames, out / "walkthrough.gif")
+    _record(
+        out,
+        "changes",
+        base,
+        {
+            "asset": asset,
+            "measurements": {"first": first, "last": last, "count": acquisition["count"]},
+            "selected_ranges": spans,
+            "features": features,
+            "period_seconds": acquisition["period_seconds"],
+            "time_basis": "recorded interval, elapsed since measurement 1; no invented clock",
+            "interpretation": "A is selected, not verified healthy; no fault diagnosis",
+        },
+        frames,
+    )
+
+
 def capture_csv(page: Any, base: str, out: Path, csv: Path) -> None:
     """A CSV without timezone registered through the Web, then the change it shows."""
     from playwright.sync_api import expect
@@ -304,10 +381,11 @@ def capture_live(page: Any, base: str, out: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("use_case", choices=("models", "csv", "live"))
+    parser.add_argument("use_case", choices=("models", "changes", "csv", "live"))
     parser.add_argument("--base", required=True)
     parser.add_argument("--csv", type=Path)
     parser.add_argument("--asset", default="Bearing1_1")
+    parser.add_argument("--split-at", type=int, default=76)
     args = parser.parse_args()
     out = ROOT / "assets" / args.use_case
     out.mkdir(parents=True, exist_ok=True)
@@ -320,6 +398,8 @@ def main() -> None:
         page.on("pageerror", lambda error: errors.append(str(error)))
         if args.use_case == "models":
             capture_models(page, args.base, out, args.asset)
+        elif args.use_case == "changes":
+            capture_changes(page, args.base, out, args.asset, args.split_at)
         elif args.use_case == "csv":
             if args.csv is None:
                 parser.error("csv needs --csv")
