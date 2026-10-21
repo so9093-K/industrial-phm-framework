@@ -26,7 +26,8 @@ export function yTicks(lo: number, hi: number, top: number, bottom: number, coun
 
 /** A tick or a measured value as people read it: a few digits and the unit when there is one. */
 export function measure(value: number, unit: string | null | undefined, digits = 3): string {
-  const text = Math.abs(value) >= 1000 || Number.isInteger(value)
+  const text = value !== 0 && Math.abs(value) < 0.0001 ? value.toExponential(digits - 1)
+    : Math.abs(value) >= 1000 || Number.isInteger(value)
     ? Math.round(value).toLocaleString("ko-KR")
     : Number.parseFloat(value.toPrecision(digits)).toLocaleString("ko-KR", {maximumFractionDigits: 6});
   return unit ? text + " " + unit : text;

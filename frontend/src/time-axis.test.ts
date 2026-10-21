@@ -72,3 +72,7 @@ test("measurement labels prioritize interval-derived time and keep their exact a
     assert.equal(measurementLabel(76, period), "76번째 측정");
   assert.equal(measurementLabel(1, 60), "기록 시작 후 0초 (1번째 측정)");
 });
+
+test("numeric feature axes keep decimal ticks without a measurement prefix", () => {
+  assert.deepEqual(xTicks(0.1, 0.9, {kind:"value"}, 4).map(tick=>tick.label), ["0.2", "0.4", "0.6", "0.8"]);
+});

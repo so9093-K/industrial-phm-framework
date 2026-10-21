@@ -1,3 +1,6 @@
+import {niceTicks} from "./chart-axis.ts";
+import {num} from "./format.ts";
+
 /** What the horizontal axis of a measurement chart counts, and its tick labels.
  * Stored records keep their own clock, order and receipt times; only the display converts.
  * A record with timestamps is drawn on the clock. A sequence with a known measurement interval
@@ -6,6 +9,8 @@
  * by measurement number. */
 
 export type XScale =
+  /** Numeric feature values or frequencies, never measurement addresses. */
+  | {kind: "value"}
   /** Values are epoch milliseconds; labels in `zone` (wall times written without an offset
    * are placed on UTC to keep their written clock). */
   | {kind: "clock"; zone?: "Asia/Seoul" | "UTC"}
@@ -93,6 +98,11 @@ export function xTicks(lo: number, hi: number, scale: XScale, count = 5): XTick[
   count = Number.isFinite(count) ? Math.max(1, Math.min(12, Math.floor(count))) : 5;
   const at = (value: number) => hi === lo ? 0 : (value - lo) / (hi - lo);
   const ticks: XTick[] = [];
+  if (scale.kind === "value") {
+    const values = niceTicks(lo, hi, count);
+    return (values.length >= 2 ? values : hi === lo ? [lo] : [lo, hi])
+      .map(value => ({value, x: at(value), label: num(value)}));
+  }
   if (scale.kind === "clock") {
     const zone = scale.zone ?? "Asia/Seoul";
     const shift = zone === "UTC" ? 0 : 9 * HOUR * 1000;

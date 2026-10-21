@@ -3,7 +3,7 @@ export type Span={from:number;to:number};
 export type Spans={a:Span;b:Span};
 export type Acquisition={source:string;binding:string;first:number;last:number;count:number};
 export type FrequencyBand={from:number;to:number;changeDb:number};
-export type SpectrumChannel={id:string;label:string;a:number[];b:number[];bands:FrequencyBand[]};
+export type SpectrumChannel={id:string;label:string;unit?:string|null;a:number[];b:number[];bands:FrequencyBand[]};
 export type Spectrum={asset:string;source:string;samplingRate:number;segment:number;
   frequencies:number[];used:{a:number[];b:number[]};channels:SpectrumChannel[]};
 export class SpectrumUnavailable extends Error {}
@@ -93,7 +93,8 @@ export function parseSpectrum(
         throw new Error("파워 대역 범위가 유효하지 않습니다.");
       return {from,to,changeDb};
     });
-    return {id:name,label:typeof channel.label==="string"?channel.label:name,a,b,bands};
+    return {id:name,label:typeof channel.label==="string"?channel.label:name,
+      unit:typeof channel.unit==="string"?channel.unit:null,a,b,bands};
   });
   return {asset,source:acq.source,samplingRate:rate,segment,frequencies:frequency,
     used:usedOrdinal,channels};

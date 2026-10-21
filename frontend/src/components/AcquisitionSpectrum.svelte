@@ -2,6 +2,9 @@
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
+  import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
+  import {yTicks} from "../chart-axis";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
@@ -28,11 +31,11 @@
   const fmt=(value:number)=>value.toExponential(3);
   // Drawn on a stretchable 800x180 plot; every label is page text, not scaled SVG text.
   function trace(values:number[],channel:SpectrumChannel,frequencies:number[]):string {
-    const top=Math.max(...channel.a,...channel.b,1e-16);
+    const top=Math.max(...channel.a,...channel.b,1e-16)*1.05;
     const lo=frequencies[0], hi=frequencies[frequencies.length-1];
     return values.map((n,i)=>{
       const x=800*(frequencies[i]-lo)/Math.max(hi-lo,1e-12);
-      const y=176-168*n/top;
+      const y=180-180*n/top;
       return x.toFixed(1)+","+y.toFixed(1);
     }).join(" ");
   }
@@ -144,16 +147,22 @@
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
+        {@const frequencies=result.frequencies}
+        {@const high=Math.max(...channel.a,...channel.b,1e-16)*1.05}
         <section class="series">
           <h3>{channel.label} · {channel.id}</h3>
-          <p class="axis-note">세로축: 주파수별 평균 세기 · 최대 {fmt(Math.max(...channel.a,...channel.b))}</p>
+          <p class="axis-note">세로축 · 주파수별 평균 세기 (PSD) · {channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
+          <ValueAxis ticks={yTicks(0,high,0,180)} height={180} unit={null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
             aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + result.frequencies[0].toFixed(0) + "Hz부터 " + result.frequencies[result.frequencies.length-1].toFixed(0) + "Hz까지. 정확한 값은 표에 있습니다."}>
+            {#each yTicks(0,high,0,180) as tick(tick.value)}<line x1="0" x2="800" y1={tick.y} y2={tick.y} class="grid"/>{/each}
             <polyline points={trace(channel.a,channel,result.frequencies)} class="line-a"/>
             <polyline points={trace(channel.b,channel,result.frequencies)} class="line-b"/>
             <path d="M0 0 V180 H800" class="axis"/>
           </svg>
-          <p class="axis-x"><span>{result.frequencies[0].toFixed(0)} Hz</span><span>{result.frequencies[result.frequencies.length-1].toFixed(0)} Hz</span></p>
+          {#snippet footer()}<XAxis lo={frequencies[0]} hi={frequencies[frequencies.length-1]}
+            scale={{kind:"value"}} note="가로축 · 주파수 (Hz)"/>{/snippet}
+          </ValueAxis>
           <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span></p>
           {#if changed.length}
             <h4>세기가 크게 달라진 주파수</h4>
@@ -188,7 +197,7 @@
       <details>
         <summary>기술 상세</summary>
         <p class="context">Welch PSD · 샘플링 {result.samplingRate}Hz · 세그먼트 {result.segment}개 샘플.
-          세기는 PSD를 주파수 구간별로 평균한 값이며, 원본 물리 단위가 확인되지 않아 단위를 붙이지 않습니다.
+          세기는 PSD를 주파수 구간별로 평균한 값이며, 세기의 단위는 기록된 원본 진폭 단위의 제곱/Hz입니다. 원본 단위가 없으면 단위 미확인으로 표시합니다.
           두 기간 그래프는 채널마다 같은 선형 축을 씁니다. 이 응답은 데이터 출처 ID를 따로 돌려주지 않습니다.
           · 적용 모델 연결 {acquisition.binding}</p>
       </details>
@@ -200,11 +209,11 @@
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
   .series{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
-  svg{display:block;width:100%;height:180px}svg polyline,svg path{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
+  svg{display:block;width:100%;height:180px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
+  .grid{stroke:var(--color-border);stroke-width:1}
   .line-a{fill:none;stroke:var(--color-action);stroke-width:2}
   .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:5 4}
-  .axis-note,.axis-x,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
-  .axis-x{display:flex;justify-content:space-between}
+  .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
   .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
   .key{display:inline-block;width:18px;height:0;border-top:2px solid var(--color-action);vertical-align:middle;margin-inline-end:var(--space-1)}
   .key.b{border-top:2px dashed var(--color-ink-muted)}li{overflow-wrap:anywhere}

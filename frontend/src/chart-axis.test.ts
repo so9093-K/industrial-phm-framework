@@ -19,4 +19,5 @@ test("values read with a few digits and their unit", () => {
   assert.equal(measure(0.56389, null), "0.564");
   assert.equal(measure(1500.4, "rpm"), "1,500 rpm");
   assert.equal(measure(8, "°C"), "8 °C");
+  assert.equal(measure(2e-8, null), "2.00e-8");
 });

@@ -48,7 +48,7 @@ def _serve(root: Path):
 def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     for ordinal, scale in enumerate((0.5, 0.5, 0.55, 0.5, 3.0, 3.1, 3.0, 3.2), start=1):
-        deliver(workspace, tmp_path / "waves", ordinal, scale)
+        deliver(workspace, tmp_path / "waves", ordinal, scale, amplitude_unit="g")
     analyze(workspace)
     get, stop = _serve(workspace.root)
     try:
@@ -77,6 +77,7 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         a, b = series["periods"]["a"], series["periods"]["b"]
         assert (a["observation_count"], a["usable_count"], a["missing_count"]) == (4, 4, 0)
         assert b["quantiles"][2] > a["quantiles"][2]
+        assert series["unit"] == "g"
         assert series["comparison"]["b_outside_a_band"] == 4
         assert series["comparison"]["b_outside_a_band_percent"] == 100
         assert sum(series["histogram"]["a"]) == 4 and sum(series["histogram"]["b"]) == 4
@@ -92,6 +93,7 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
             **ranges,
         )
         assert status == 200 and relation["pairing"] == "same-acquisition"
+        assert relation["x_unit"] == relation["y_unit"] == "g"
         assert [g["pair_count"] for g in relation["groups"]] == [4, 4]
         assert all(
             group["binding_id"] == acquisition["binding_id"]
@@ -105,6 +107,7 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert status == 200 and spectrum["sampling_rate_hz"] == 1000
         assert spectrum["acquisitions"] == {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]}
         horizontal = spectrum["channels"][0]
+        assert horizontal["unit"] == "g²/Hz"
         assert len(horizontal["a"]) == len(horizontal["b"]) == len(spectrum["frequencies"])
         # B carries six times the amplitude of A: about 15 dB more power in its strongest band.
         assert max(band["change_db"] for band in horizontal["band_changes"]) > 10

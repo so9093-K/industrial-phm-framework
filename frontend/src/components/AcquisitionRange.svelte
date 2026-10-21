@@ -21,9 +21,9 @@
 <fieldset>
   <legend>기간 {name.toUpperCase()} · {label}</legend>
   <label>시작 <input type="number" min={value(first)} max={value(last)} step={interval === null ? 1 : interval / unit}
-    value={value(span.from)} onchange={e => edit("from", e.currentTarget.value)} /></label>
+    value={value(span.from)} oninput={e => edit("from", e.currentTarget.value)} /></label>
   <label>끝 <input type="number" min={value(first)} max={value(last)} step={interval === null ? 1 : interval / unit}
-    value={value(span.to)} onchange={e => edit("to", e.currentTarget.value)} /></label>
+    value={value(span.to)} oninput={e => edit("to", e.currentTarget.value)} /></label>
   {#if Number.isSafeInteger(span.from) && Number.isSafeInteger(span.to)}
     <p>{measurementLabel(span.from, interval)} ~ {measurementLabel(span.to, interval)}</p>
   {:else}<p>측정에 맞는 구간 경계를 입력하세요.</p>{/if}

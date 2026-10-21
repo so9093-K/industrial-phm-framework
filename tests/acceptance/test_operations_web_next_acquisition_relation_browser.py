@@ -116,7 +116,7 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                                 "pearson": None,
                                 "spearman": None,
                                 "sampled": True,
-                                "points": [[position, 2.0, 4.0]],
+                                "points": [[position, 2.0 if period == "a" else 8.0, 4.0]],
                             }
                         )
                     route.fulfill(
@@ -149,6 +149,19 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                 pw.expect(
                     page.get_by_role("status").filter(has_text="관계가 없다는 뜻은 아닙니다")
                 ).to_have_count(2)
+                plots = page.locator(".group figure")
+                pw.expect(plots).to_have_count(2)
+                for plot in plots.all():
+                    pw.expect(plot).to_contain_text("두 기간은 같은 축 범위로 표시합니다")
+                    pw.expect(plot).to_contain_text("가로축")
+                    pw.expect(plot).to_contain_text("세로축")
+                assert (
+                    plots.nth(0).locator(".x-axis .ticks").inner_text()
+                    == plots.nth(1).locator(".x-axis .ticks").inner_text()
+                )
+                assert float(plots.nth(0).locator("circle").get_attribute("cx")) < float(
+                    plots.nth(1).locator("circle").get_attribute("cx")
+                )
                 assert "acq_a_from=1" in page.url
                 assert "acq_b_to=20" in page.url
                 page.reload(wait_until="networkidle")

@@ -10,7 +10,7 @@ export type AcquisitionPairGroup = {
 };
 export type AcquisitionRelation = {
   assetId:string;sourceId:string;bindingId:string;x:string;y:string;
-  spans:Spans;groups:AcquisitionPairGroup[];
+  spans:Spans;groups:AcquisitionPairGroup[];xUnit?:string|null;yUnit?:string|null;
 };
 export class AcquisitionRelationUnavailable extends Error {}
 function rec(raw:unknown):Record<string,unknown>|null {
@@ -77,7 +77,8 @@ export function parseAcquisitionRelation(
       analyzed,pairs,pearson,spearman,sampled:group.sampled,points};
   });
   if(!seen.has("a")||!seen.has("b"))throw new Error("비교 구간이 누락됐습니다.");
-  return {assetId,sourceId:source.sourceId,bindingId:source.bindingId,x,y,spans,groups};
+  return {assetId,sourceId:source.sourceId,bindingId:source.bindingId,x,y,spans,groups,
+    xUnit:typeof root.x_unit==="string"?root.x_unit:null,yUnit:typeof root.y_unit==="string"?root.y_unit:null};
 }
 export async function readAcquisitionRelation(
   assetId:string,source:FeatureSource,x:string,y:string,spans:Spans,signal:AbortSignal,

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import FeatureScatter from "./FeatureScatter.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
@@ -11,7 +12,7 @@
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {
     readAcquisitionRelation,AcquisitionRelationUnavailable,
-    type AcquisitionRelation,type AcquisitionPairGroup,
+    type AcquisitionRelation,
   } from "../acquisition-relation";
 
   let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
@@ -113,16 +114,14 @@
       resultState=cause instanceof AcquisitionRelationUnavailable?"unavailable":"failed";
     }
   }
-  function scatter(group:AcquisitionPairGroup):{ordinal:number;x:number;y:number}[]{
-    if(!group.points.length)return [];
-    const xx=group.points.map(p=>p.x),yy=group.points.map(p=>p.y);
-    const xmin=Math.min(...xx),xrange=Math.max(...xx)-xmin;
-    const ymin=Math.min(...yy),yrange=Math.max(...yy)-ymin;
-    return group.points.map(p=>({
-      ordinal:p.ordinal,x:xrange===0?160:24+(p.x-xmin)/xrange*272,
-      y:yrange===0?90:156-(p.y-ymin)/yrange*132,
-    }));
-  }
+  // The same feature pair in both periods needs the same scales for a fair visual comparison.
+  const axes = $derived.by(() => {
+    const current:AcquisitionRelation|null = relation;
+    const points = current?.groups.flatMap(group=>group.points) ?? [];
+    return points.length ? {xmin:Math.min(...points.map(p=>p.x)), xmax:Math.max(...points.map(p=>p.x)),
+      ymin:Math.min(...points.map(p=>p.y)), ymax:Math.max(...points.map(p=>p.y))} : null;
+  });
+  const featureLabel = (id:string) => source?.features.find(item=>item.id===id)?.label ?? id;
   onMount(()=>{void load();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 </script>
 
@@ -190,15 +189,11 @@
               message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
           {/if}
           {#if group.points.length}
-            <svg viewBox="0 0 320 180" role="img"
-              aria-label={"기간 "+group.period.toUpperCase()+"의 같은 측정 특징 짝 "+group.points.length+"개 산점도. 가로축은 시간이 아닙니다."}>
-              <path d="M24 16 V156 H304" fill="none" stroke="currentColor" stroke-width="1"/>
-              {#each scatter(group) as point(point.ordinal)}
-                <circle cx={point.x} cy={point.y} r="3.5" fill="var(--color-action)">
-                  <title>{place(point.ordinal)} · {x} / {y}</title>
-                </circle>
-              {/each}
-            </svg>
+            {#if axes}<FeatureScatter bounds={axes}
+              points={group.points.map(p=>({x:p.x,y:p.y,label:place(p.ordinal)}))}
+              xLabel={featureLabel(x)+(relation.xUnit?" ("+relation.xUnit+")":" · 단위 미확인")}
+              yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":" · 단위 미확인")}
+              description={"기간 "+group.period.toUpperCase()+" · 같은 측정 특징 짝 "+group.points.length+"개 산점도."}/>{/if}
           {/if}
           <details>
             <summary>같은 측정의 특징 짝 표 ({group.points.length}개 표시)</summary>
@@ -227,7 +222,7 @@
     color:var(--color-ink);background:var(--color-surface);border-radius:var(--radius-control)}
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}
   dd{margin:0;font-weight:650}.group{border-top:1px solid var(--color-border);padding-block:var(--space-4)}
-  svg{max-width:100%;height:auto} .table-scroll{overflow-x:auto}
+  .table-scroll{overflow-x:auto}
   table{width:100%;border-collapse:collapse}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}
   .headline{font-size:var(--font-section);font-weight:700}

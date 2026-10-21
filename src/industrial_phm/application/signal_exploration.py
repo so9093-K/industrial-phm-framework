@@ -28,7 +28,11 @@ from industrial_phm.application.measurement_history import (
     MeasurementProfile,
 )
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore
-from industrial_phm.application.phm_signal_comparison import feature_label
+from industrial_phm.application.phm_signal_comparison import (
+    feature_label,
+    feature_unit,
+    stream_amplitude_unit,
+)
 from industrial_phm.models.package import StepKind
 
 BINS = 20
@@ -250,6 +254,7 @@ def acquisition_series(
             "sampled": analyzed_total > len(analyzed),
         }
     series = []
+    amplitude_unit = stream_amplitude_unit(snapshots, binding.source_id, binding.asset_id)
     for feature in features:
         values = {
             name: [
@@ -294,7 +299,7 @@ def acquisition_series(
                 "kind": "acquisition",
                 "key": feature,
                 "label": feature_label(feature),
-                "unit": None,
+                "unit": feature_unit(feature, amplitude_unit),
                 "source_id": binding.source_id,
                 "binding_id": binding.binding_id,
                 "periods": stats,
@@ -500,6 +505,7 @@ def acquisition_spectrum(
     shown = [float(frequencies[a:b].mean()) for a, b in pairwise(edges) if b > a]
     bands = np.linspace(0, len(frequencies), SPECTRUM_BANDS + 1).astype(int)
     result = []
+    amplitude_unit = stream_amplitude_unit(snapshots, binding.source_id, binding.asset_id)
     for channel in channels:
         mean = {name: np.mean(spectra[channel][name], axis=0) for name, _, _ in periods}
         changes = []
@@ -518,6 +524,7 @@ def acquisition_spectrum(
             {
                 "channel": channel,
                 "label": feature_label(f"feature.{channel}.rms").removesuffix(" RMS"),
+                "unit": None if amplitude_unit is None else f"{amplitude_unit}²/Hz",
                 **{
                     name: [float(mean[name][a:b].mean()) for a, b in pairwise(edges) if b > a]
                     for name in mean

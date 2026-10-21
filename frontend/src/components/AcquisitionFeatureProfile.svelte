@@ -177,7 +177,7 @@
             {/if}
           </p>
         {/if}
-        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} unit={null} label={profile.label} />
+        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} unit={profile.unit??null} label={profile.label} />
         <div class="table-scroll"><table>
           <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
           <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
