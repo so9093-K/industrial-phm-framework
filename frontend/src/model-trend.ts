@@ -62,7 +62,7 @@ export function exceedanceText(story: ExceedanceStory, place: (position: number)
   if (story.earlierRuns) parts.push("끝난 기준 초과 구간 " + story.earlierRuns + "개");
   if (story.earlierSingles) parts.push("한 번만 넘은 측정 " + story.earlierSingles + "번");
   if (story.first && story.first.pointer.position < story.anchor.pointer.position)
-    parts.push("처음 넘은 측정 " + place(story.first.pointer.position));
+    parts.push("처음 기준을 넘은 때 " + place(story.first.pointer.position));
   return {headline, earlier: parts.length ? "그 전 · " + parts.join(" · ") : null};
 }
 

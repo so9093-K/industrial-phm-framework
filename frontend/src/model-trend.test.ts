@@ -96,7 +96,7 @@ test("a run still going on is read first; one-off and ended crossings are counte
   assert.equal(story.state, "ongoing");
   assert.equal(story.anchor?.pointer.position, 9);
   assert.deepEqual(exceedanceText(story, place), {headline: "#9부터 계속 기준 초과 · 4회",
-    earlier: "그 전 · 끝난 기준 초과 구간 1개 · 한 번만 넘은 측정 1번 · 처음 넘은 측정 #2"});
+    earlier: "그 전 · 끝난 기준 초과 구간 1개 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #2"});
   // A run still open within the model's allowed gap, with the latest measurement below.
   const gap = exceedanceStory({points: over([9, 10, 11]), truncated: false,
     intervals: [{start: 9, end: 11, steps: 3, peak: 2, open: true}]});
@@ -105,7 +105,7 @@ test("a run still going on is read first; one-off and ended crossings are counte
   const lone = exceedanceStory({points: over([7, 12]), intervals: [], truncated: false});
   assert.equal(lone.state, "latest");
   assert.deepEqual(exceedanceText(lone, place), {headline: "#12에서 기준 초과 · 연속 초과는 아님",
-    earlier: "그 전 · 한 번만 넘은 측정 1번 · 처음 넘은 측정 #7"});
+    earlier: "그 전 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #7"});
   // Crossed earlier, below now.
   const below = exceedanceStory({points: over([3, 6, 7]), truncated: false,
     intervals: [{start: 6, end: 7, steps: 2, peak: 2, open: false}]});

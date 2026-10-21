@@ -78,7 +78,7 @@
         {#if measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
         <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
         {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
-          <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>처음 넘은 측정 보기</button>{/if}</span>{/if}
+          <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
       </div>
     {/if}
     <svg viewBox={"0 0 " + W + " " + H} role="img"
