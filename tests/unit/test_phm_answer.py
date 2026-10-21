@@ -47,19 +47,26 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
     payload = answer_input(contexts["anomaly-a"])
     assert payload["primary"] == {
         "name": "이상 점수",
-        "model": "진동 변화 탐지",
+        "model": "진동 변화 탐지 모델",
         "change": "증가",
         "input_acquisitions": 1,
         "reference": "모델 기준 초과",
+        "threshold_ratio": 1.79,
     }
     rows = {item["id"]: item for item in payload["candidates"]}
     assert rows[RMS] == {"id": RMS, "label": "수평 진동 RMS", "change": "증가", "size": "뚜렷함"}
     assert rows[VERTICAL]["change"] == "거의 같음"
     assert rows["feature.Horizontal_vibration_signals.skewness"]["size"] is None
-    # The other model on the same input is named by direction only, never by its values.
-    assert payload["related_models"] == [
-        {"name": "진동 변화 탐지", "change": "거의 같음", "input_acquisitions": 1}
-    ]
+    # The other model on the same input carries its direction and its own threshold verdict,
+    # so "why do the two models differ" has stored facts to answer with.
+    (related,) = payload["related_models"]
+    assert {k: related[k] for k in ("name", "change", "input_acquisitions")} == {
+        "name": "진동 변화 탐지 모델",
+        "change": "거의 같음",
+        "input_acquisitions": 1,
+    }
+    assert related["reference"] in {"모델 기준 초과", "모델 기준 이하"}
+    assert isinstance(related["threshold_ratio"], float)
 
 
 def test_references_keep_their_stored_direction_and_unknown_ones_are_dropped(
@@ -99,8 +106,11 @@ def test_references_keep_their_stored_direction_and_unknown_ones_are_dropped(
         ("이상 점수가 증가했고 수평 진동이 가장 크게 변했습니다.", ["가장 크"]),
         ("이상 점수가 감소했습니다.", ["저장된 방향"]),
         ("수평 진동 RMS가 증가했습니다.", ["먼저 말하세요"]),
-        ("이상 점수가 증가했지만 모델 기준 이하입니다.", ["기준 비교는"]),
-        ("이상 점수가 증가해 모델 기준보다 높아졌습니다.", ["기준 비교는"]),
+        ("이상 점수가 증가했지만 모델 기준 이하입니다.", ["기준 비교 방향"]),
+        ("이상 점수가 증가해 기준 아래에 머물렀습니다.", ["기준 비교 방향"]),
+        # A threshold comparison may be worded freely when it says the stored direction.
+        ("이상 점수가 증가해 모델 기준보다 높아졌습니다.", []),
+        ("이상 점수가 증가해 기준을 넘었습니다.", []),
         ("이상 점수가 증가해 모델 기준 초과입니다.", []),
         ("#4를 기준으로 보면 이상 점수가 증가했습니다.", []),
         ("이상 점수가 증가했고 설비는 정상 상태입니다.", ["판정"]),
@@ -320,3 +330,22 @@ def test_store_keeps_the_structured_answer(tmp_path: Path) -> None:
     answer = {"summary": "s", "observations": [], "next_signals": [], "next_step": "n"}
     store.finish(identifier, owner="me", text="s n", answer=answer)
     assert store.get(identifier)["answer"] == answer
+
+
+def test_a_clause_about_another_model_is_checked_against_that_model(
+    contexts: dict[str, Any],
+) -> None:
+    payload = answer_input(contexts["anomaly-a"])
+    payload["primary"]["model"] = "LSTM 오토인코더"
+    payload["related_models"] = [
+        {**payload["related_models"][0], "name": "Isolation Forest", "reference": "모델 기준 이하"}
+    ]
+    agree = (
+        "이상 점수가 증가해 LSTM 오토인코더는 기준을 넘었지만 Isolation Forest는 기준 아래입니다."
+    )
+    assert text_issues(agree, payload, field="summary") == []
+    wrong = "이상 점수가 증가했고 Isolation Forest도 기준을 넘었습니다."
+    assert (
+        "Isolation Forest의 선택 시점 결과는 '모델 기준 이하'"
+        in text_issues(wrong, payload, field="summary")[0]
+    )

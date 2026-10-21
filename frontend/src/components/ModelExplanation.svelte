@@ -85,7 +85,9 @@
       error = cause instanceof Error ? cause.message : "해설을 불러오지 못했습니다.";
     }
   }
-  async function ask(text: string) {
+  // `fresh` asks the same question again instead of continuing the shown answer, e.g. after the
+  // AI server did not answer and the stored comparison was written instead.
+  async function ask(text: string, fresh = false) {
     if (!writable || requesting || !text.trim()) return;
     chosen = true;
     onInteract?.();
@@ -95,7 +97,7 @@
     try {
       // A follow-up continues the shown answer of the same comparison.
       await requestModelExplanation(binding, run, compare, text,
-        text === DEFAULT_QUESTION ? null : latest?.id ?? null, pending.signal, focus);
+        fresh || text === DEFAULT_QUESTION ? null : latest?.id ?? null, pending.signal, focus);
       if (pending.signal.aborted) return;
       question = "";
       requesting = false;
@@ -165,6 +167,10 @@
     <p class="question">질문 · {latest.question}</p>
     {#if latest.focus}<p class="context">답변 기준 지점 · {place(latest.focus.position)}</p>{/if}
     <p class="summary">{latest.answer.summary}</p>
+    {#if latest.answer.modelUnavailable && writable}
+      <p class="context">AI 서버가 응답하지 않아 저장된 비교로 썼습니다.
+        <button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => {if (latest) void ask(latest.question, true);}}>AI로 다시 만들기</button></p>
+    {/if}
     {#if latest.comparePosition !== null}
       <p class="context">모델 점수 {num(latest.previousScore, "기록 없음")} → {num(score.score, "기록 없음")}
         ({place(latest.comparePosition)} → {place(run.position)})</p>

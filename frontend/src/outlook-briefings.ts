@@ -9,6 +9,8 @@ export type BriefingFact={label:string;text:string};
 export type BriefingAnswer={
   summary:string;points:Array<{text:string;evidence:string[]}>;
   evidence:Record<string,BriefingFact>;source:string;
+  /** Written from the computed facts because the AI server did not answer. */
+  modelUnavailable:boolean;
 };
 export type Briefing={
   id:string;question:string;status:"pending"|"complete"|"failed";
@@ -147,7 +149,8 @@ function parseAnswer(raw:unknown):BriefingAnswer{
   if(source!==undefined&&source!=="model"&&source!=="model-trimmed"&&source!=="computed")
     throw new Error("해설을 만든 방식을 확인할 수 없습니다.");
   return {summary:value(result.summary,"AI 요약",4000),
-    points:parsed,evidence,source:typeof source==="string"?source:"unknown"};
+    points:parsed,evidence,source:typeof source==="string"?source:"unknown",
+    modelUnavailable:checks?.model_unavailable===true};
 }
 export function parseBriefings(raw:unknown,expectedSelection:string):Briefing[]{
   const root=object(raw);

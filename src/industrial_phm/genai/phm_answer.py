@@ -42,25 +42,33 @@ def relation(before: object, after: object) -> str | None:
 
 
 def model_name(package_id: str, task: object, step_kind: object = None) -> str:
-    """The name the screen shows for a model (phm-connect.js modelFamily)."""
-    algorithm = next(
-        (
-            name
-            for pattern, name in (
-                (r"lstm|autoencoder", "LSTM"),
-                (r"pca", "PCA"),
-                (r"iforest", "Isolation Forest"),
-                (r"ridge", "Ridge"),
-            )
-            if re.search(pattern, package_id)
-        ),
-        "",
-    )
+    """The name the screen shows for a model: its method (model-evidence.ts modelName)."""
+    for pattern, name in (
+        (r"lstm|autoencoder", "LSTM 오토인코더"),
+        (r"pca", "PCA 잔차"),
+        (r"iforest|isolation", "Isolation Forest"),
+        (r"ridge", "Ridge"),
+    ):
+        if re.search(pattern, package_id):
+            return name
     signal = {"observation-window": "관측 신호", "acquisition-snapshot": "진동"}.get(
         str(step_kind), "신호"
     )
-    purpose = signal + " 변화 탐지"
-    return purpose + (f" · {algorithm} 기반" if algorithm else "")
+    return signal + " 변화 탐지 모델"
+
+
+def _reference(output: dict[str, Any]) -> str | None:
+    """A model's stored threshold verdict at one result, in the screen's words."""
+    exceeds = output.get("exceeds_threshold")
+    return None if not isinstance(exceeds, bool) else "모델 기준 " + ("초과" if exceeds else "이하")
+
+
+def _ratio(output: dict[str, Any]) -> float | None:
+    """Score over the model's own threshold, so models on different scales can be compared."""
+    score, threshold = output.get("score"), output.get("threshold")
+    if not isinstance(score, (int, float)) or not isinstance(threshold, (int, float)):
+        return None
+    return round(float(score) / float(threshold), 2) if threshold > 0 else None
 
 
 def input_range(output: dict[str, Any], position: int) -> dict[str, int]:
@@ -142,6 +150,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
         primary["reference"] = "모델 기준 " + (
             "초과" if output.get("exceeds_threshold") else "이하"
         )
+        primary["threshold_ratio"] = _ratio(output)
     candidates = [
         {
             "id": row["feature"],
@@ -163,6 +172,10 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
                 "change": _word(
                     relation((item.get("previous_output") or {}).get(key), other.get(key))
                 ),
+                # The other model's own verdict and how far it is from its threshold, so a
+                # question about two models disagreeing has stored facts to answer with.
+                "reference": _reference(other),
+                "threshold_ratio": _ratio(other),
                 "input_acquisitions": input_range(other, position)["count"],
             }
         )
@@ -309,7 +322,10 @@ _INSTRUCTIONS = (
     "가장 관련 있는 두세 가지만 말하세요. 다음 탐색 제안은 summary가 아니라 next_step에만 쓰세요. "
     "질문이 원인을 물으면 두 시점 비교로는 원인을 확정할 수 없다고 한 번만 말한 뒤, 함께 달라진 "
     "측정 특징과 (contribution_order가 있으면) 모델 점수에 크게 반영된 특징을 구분해 답하세요. "
-    "질문이 다른 모델의 결과를 물으면 related_models의 change로 답하세요. "
+    "질문이 다른 모델의 결과를 물으면 related_models의 reference(기준 초과/이하)와 change로 "
+    "답하세요. 두 모델의 판단이 다르면 각 모델의 reference를 함께 말하세요. "
+    "threshold_ratio는 점수를 그 모델의 기준으로 나눈 값이라 숫자로 쓰지 말고 '기준에 가깝다', "
+    "'기준을 크게 넘었다'처럼만 말하세요. "
     "observations: summary의 근거로 쓴 측정 특징 1~4개입니다. candidates의 id와 change를 그대로 "
     "쓰세요. next_signals: 다음에 열어볼 측정 특징 0~3개입니다. next_step: 다음에 무엇을 비교하면 "
     "좋은지 한 문장입니다. "
@@ -346,7 +362,9 @@ _TASK = {
         "primary는 이상 점수입니다. 학습 기준과 얼마나 다른지를 나타내며 고장 확률이 아닙니다. "
         "primary.name이 재구성 오차이면 재구성 오차가 곧 이 모델의 점수이므로 "
         "'재구성 오차가 높아져 점수가 올랐다'처럼 같은 값을 원인처럼 반복하지 마세요. "
-        "기준 비교는 '모델 기준 초과' 또는 '모델 기준 이하'로만 쓰세요."
+        "기준 비교는 primary.reference와 related_models의 reference에 맞게 쓰세요. "
+        "'기준을 넘었습니다', '기준 아래입니다'처럼 자연스럽게 써도 되지만 "
+        "방향이 달라서는 안 됩니다."
     ),
 }
 
@@ -492,13 +510,38 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
             f"{payload['primary']['name']}: 두 시점 사이에 {expected}입니다. "
             "저장된 방향과 다르게 쓰지 마세요."
         )
-    # The threshold comparison is said only in the stored words, never paraphrased.
-    reference = payload["primary"].get("reference")
-    if reference and any(
-        _THRESHOLD.search(sentence.replace(reference, "").replace("학습 기준", ""))
-        for sentence in sentences(text)
-    ):
-        issues.append(f"선택 시점의 점수는 '{reference}'입니다. 기준 비교는 이 표현 그대로 쓰세요.")
+    # A threshold comparison may be worded freely but must match the stored verdict of the
+    # model it is about: the primary model unless the clause names another one.
+    issues.extend(_threshold_issues(text, payload))
+    return issues
+
+
+_OVER = re.compile(r"초과|넘|웃돌|위")
+_UNDER = re.compile(r"이하|미만|아래|밑돌")
+
+
+def _threshold_issues(text: str, payload: dict[str, Any]) -> list[str]:
+    primary = payload["primary"]
+    if not primary.get("reference"):
+        return []
+    models = [(primary["model"], primary["reference"])] + [
+        (item["name"], item.get("reference")) for item in payload.get("related_models", [])
+    ]
+    issues: list[str] = []
+    for sentence in sentences(text):
+        subject = (primary["model"], primary["reference"])
+        for clause in re.split(r"지만|반면|,|며 |고 ", sentence):
+            subject = next(((n, r) for n, r in models if n in clause), subject)
+            said = _THRESHOLD.search(clause.replace("학습 기준", ""))
+            if not said or not subject[1]:
+                continue
+            over, under = _OVER.search(said.group(0)), _UNDER.search(said.group(0))
+            claimed = "초과" if over and not under else "이하" if under and not over else None
+            if claimed and not subject[1].endswith(claimed):
+                issues.append(
+                    f"{subject[0]}의 선택 시점 결과는 '{subject[1]}'입니다. "
+                    "기준 비교 방향을 맞추세요."
+                )
     return issues
 
 
