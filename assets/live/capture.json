@@ -1,0 +1,18 @@
+{
+  "use_case": "live",
+  "captured_at": "2026-10-21T13:47:55+00:00",
+  "code_revision": "443cfb3515d11d2c6de34b78d5ff9a781b571c79",
+  "browser": "Chromium (Playwright), ko-KR",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "base": "127.0.0.1 (local)",
+  "capture_tool_sha256": "c606541873c0ce3c43f5cd3554e06e6d53aba80048479ca6d7965fbec7863599",
+  "screens": {
+    "01-connection.png": "e7b786404e446b30ccc41c56d696cf62e50ccef310ce368b4401f19183eabca6",
+    "02-monitor.png": "59f79d5062d3556c9cf5105dc5cce70ef61d38f36a23239246a450e5ed9aa984",
+    "03-signals.png": "c8c2e78c5d0fb3bc95e5d9c8f99898819f809b9486da5dde75a50c03051c9e6a"
+  },
+  "input": "local OPC UA example (synthetic three-phase motor)"
+}

@@ -1,0 +1,70 @@
+{
+  "use_case": "changes",
+  "captured_at": "2026-10-21T14:23:28+00:00",
+  "code_revision": "ecc5046f4788a2d82edc73fcda10cebd477bfd9f",
+  "browser": "Chromium (Playwright), ko-KR",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "base": "127.0.0.1 (local)",
+  "capture_tool_sha256": "8e7b7a56aa35e977f106c2c00534d91693fd4fd3311964891f4e3821eba35b52",
+  "screens": {
+    "01-periods.png": "4d6e5d0bcc8e67c6a879ee9366cd2897ab61acff8fed0e7c2a77ca5c94516b81",
+    "02-time-trend.png": "e85144f81f79c743d4c2d510669e49fe0429453dae74cfcc57b3e7eb52c04990",
+    "03-distribution.png": "ba1a1a6942b2be914b5099aee81cb391d84b67e7e6a03b4a22b08cf8e44f5fe7",
+    "04-relation.png": "9f8439e191aca4d42986b314774ed1954182ee15e0b4815c6f847379d3efbb5a",
+    "05-scatter.png": "18187c8a6b78f3aec17cc69019c3b6a5c9466303ac3712293258493c9579ce0d",
+    "06-spectrum.png": "8406ec3bf2c58b14026136f325311e861bd66552337952aada3c16d80ecca357",
+    "07-frequency-change.png": "c114cceddc06d30552858f1928d3245d050ed526c1216ac7503534d840dc019d"
+  },
+  "asset": "Bearing1_1",
+  "measurements": {
+    "first": 1,
+    "last": 100,
+    "count": 100
+  },
+  "selected_ranges": {
+    "a": {
+      "from": 1,
+      "to": 75
+    },
+    "b": {
+      "from": 76,
+      "to": 100
+    }
+  },
+  "features": {
+    "x": "feature.Horizontal_vibration_signals.rms",
+    "y": "feature.Vertical_vibration_signals.rms"
+  },
+  "period_seconds": 60.0,
+  "spectrum": {
+    "used_measurements": {
+      "a": [
+        1,
+        12,
+        22,
+        33,
+        43,
+        54,
+        64,
+        75
+      ],
+      "b": [
+        76,
+        79,
+        83,
+        86,
+        90,
+        93,
+        97,
+        100
+      ]
+    },
+    "sampling_rate_hz": 25600.0,
+    "segment_samples": 4096
+  },
+  "time_basis": "recorded interval, elapsed since measurement 1; no invented clock",
+  "interpretation": "A is selected, not verified healthy; no fault diagnosis"
+}

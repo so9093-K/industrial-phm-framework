@@ -47,6 +47,10 @@ not install Node dependencies.
   measurement and receive state words shared with `/web/`.
 - `src/components/AssetSummary.svelte`: the asset's first screen: record facts and next actions.
 - `src/components/CautionNote.svelte`: the single interpretation caution under a result.
+- `src/time-axis.ts`: recorded clocks, interval-derived elapsed time and numeric feature axes; original measurement addresses stay intact.
+- `src/components/AcquisitionPeriodTrend.svelte`: same-source/binding feature history with elapsed time, A/B shading and gaps at missing measurements.
+- `src/components/AcquisitionRange.svelte`: elapsed-minute/second inputs converted back to exact ordinals, with a count fallback when the interval is unknown.
+- `src/components/FeatureScatter.svelte`: labelled numeric axes with common A/B bounds; x is a feature, never elapsed time.
 - `src/format.ts`: display-only number text (6 significant digits); stored values are never rounded.
 - `src/reach.ts`: one wording for a server-computed limit reach; acquisition counts are never turned into durations.
 - `model-evidence.ts` `scoreSummary()`/`loadLatestScores()`: stored score, threshold and exceedance only; the asset summary's anomaly section.
