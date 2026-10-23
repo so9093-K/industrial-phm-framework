@@ -86,9 +86,10 @@ test("an unreadable analysis list is reported as such without hiding the assets"
 
 test("operational service faults retain their own destination without becoming asset diagnoses",()=>{
   const item={attention_id:"collection-down",title:"Collection service is not running",status:"error",destination:"system",asset_id:null,source_id:null,finding_id:null,occurred_at:"2026-10-17T00:00:00Z"};
-  const result=parseMonitor({...observed,attention:{items:[item],truncated:false}});
+  const result=parseMonitor({...observed,attention:{items:[{...item,code:"collection-service-not-running"}],truncated:false}});
   assert.equal(result.operationsAttention?.items[0].assetId,null);
   assert.equal(result.operationsAttention?.items[0].destination,"system");
+  assert.equal(result.operationsAttention?.items[0].code,"collection-service-not-running");
   assert.equal(result.operationsAttention?.complete,true);
   assert.equal(parseMonitor({...observed,attention:{items:[{...item,attention_id:null}],truncated:false}}).operationsAttention?.complete,false);
 });

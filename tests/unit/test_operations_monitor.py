@@ -163,6 +163,7 @@ def test_monitor_marks_stale_runner_heartbeat_as_delayed_attention() -> None:
     assert "45s old" in analysis.summary
     assert monitor.attention_count == 1
     assert monitor.attention[0].title == "Analysis service is not updating"
+    assert monitor.attention[0].code == "analysis-service-delayed"
     assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
 

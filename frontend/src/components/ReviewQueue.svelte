@@ -231,7 +231,7 @@
           if (request.signal.aborted) return;
           assets = page.assets;
           nextAsset = page.nextAfter;
-          partialAssetScope = nextAsset !== null || Boolean(snapshot?.truncated);
+          partialAssetScope = nextAsset !== null;
         } catch {
           if (request.signal.aborted) return;
           // Preserve historical standalone/static read-only demos whose server

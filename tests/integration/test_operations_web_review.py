@@ -327,4 +327,3 @@ def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
         handle_review_asset_index(workspace, "after_asset=x&after_asset=y")[0]
         == HTTPStatus.BAD_REQUEST
     )
-
