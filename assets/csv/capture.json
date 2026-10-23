@@ -1,21 +1,21 @@
 {
   "use_case": "csv",
-  "captured_at": "2026-10-21T13:36:08+00:00",
-  "code_revision": "51bc86ebd94b2e77f0c19e8599cdc0630ca7e357",
+  "captured_at": "2026-10-23T07:31:52+00:00",
+  "code_revision": "f337306ba214affc2ebc5b84a830be95bdfd9bb9",
   "browser": "Chromium (Playwright), ko-KR",
   "viewport": {
     "width": 1440,
     "height": 1000
   },
   "base": "127.0.0.1 (local)",
-  "capture_tool_sha256": "faf7945385c4dc8f5652b8bd2aee712e0363e9bfe0000dfb2ef3cc3492c7a667",
+  "capture_tool_sha256": "1519b2008f1e822dd194ba9253a78e3463fc40d57cf7b570a721c502a58eba30",
   "screens": {
-    "01-register.png": "91ed9dab5b786270204643019d905c0f62936d4495ad6da3846c0c2df1d25455",
-    "02-attention.png": "3a3ba8242d6931f4d201061ffcd7c1e28b1b12fc1d7f47cd3d29b982e10dfadb",
-    "03-departure.png": "9ff08917d511b21a8003df6da54973421eb57dbbc4824e12153b89573ca8d3d5",
-    "04-summary.png": "2df82c8978c7381598005f97ef32cd1ba250e9932f6795933d2d7bc822fcc628",
-    "05-outlook.png": "cfe3aa5dda4436af779eeb6ae1d382a3e7357805db3c528c1e12aa1087aa15d8",
-    "06-review.png": "ba1e6f67867aac2baeaae7c6b301e6b197e4a1da0b2764996dbd13174975a2fa"
+    "01-register.png": "f475805b6e0737620399ed69afdfb74c0e33758a47ea43df729e1bf742641a30",
+    "02-attention.png": "98383340ee47a2e03efe9f07f1a0184d38aa9140ab75807994bad70126a7f964",
+    "03-departure.png": "671ea07d2a1f1791ddae5b0217ba1bf1e15d518d56857fe5ccbac902a92e5298",
+    "04-summary.png": "dae2529649e672a63a5111806d8e19a4154a48a4651179b69ff6668ba22e0d82",
+    "05-outlook.png": "638a4c76b716ee75ae46591e3cddd218e1b0c2c96ee5710e091290e15721a513",
+    "06-review.png": "9960959c46b646861397c2b9098b19326b178eb75752342d6d1072fae91633d0"
   },
   "input": "tools/assets/pump_csv.py (synthetic, no timezone)",
   "input_sha256": "440933dd216233df36086f65918fb994e990e44c6db5e2297544b4d14b617ee3",
