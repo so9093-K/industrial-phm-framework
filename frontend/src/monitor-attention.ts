@@ -18,9 +18,9 @@ export type MonitoredModel={
   state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null}|null;
   /** The run of consecutive crossings still going on, if any. */
   ongoing:{start:number;steps:number;startAt:string|null}|null;
-  processed:number|null;reviewStatus:"open"|"acknowledged"|"closed"|null;
+  processed:number|null;
 };
-export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean;reviewsUnknown:boolean};
+export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean};
 export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"warmup";
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
@@ -61,7 +61,6 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
       ||(row.step_kind!=="acquisition-snapshot"&&row.step_kind!=="observation-window"))invalid();
     const analyzed=object(row.latest_analyzed),output=object(analyzed?.output);
     const at=position(analyzed);
-    const review=row.latest_review_status;
     const run=object(row.open_interval);
     const start=run?.start_position,steps=run?.step_count;
     const period=object(row.latest_delivered)?.period_seconds;
@@ -73,10 +72,9 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
       state:row.processing_state as ModelState,
       reason:text(row.processing_reason),
       analyzed:at===null?null:{position:at,exceeds:typeof output?.exceeds_threshold==="boolean"?output.exceeds_threshold:null},
-      processed:position(row.latest_processed),
-      reviewStatus:review==="open"||review==="acknowledged"||review==="closed"?review:null};
+      processed:position(row.latest_processed)};
   });
-  return {assessedAt:text(root.assessed_at),models,truncated:root.truncated===true,reviewsUnknown:root.review_read_error===true};
+  return {assessedAt:text(root.assessed_at),models,truncated:root.truncated===true};
 }
 
 /** The legacy screen's plain reasons for a refused input. */

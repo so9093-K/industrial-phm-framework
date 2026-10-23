@@ -15,7 +15,6 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
-from industrial_phm.application.maintenance_review import finding_review_status
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore
@@ -68,36 +67,11 @@ def handle_phm_read(
     try:
         params = _params(query)
         if path == "/api/v1/phm/monitor":
-            overview = project_phm_monitor(store, workspace.models_path, snapshots, windows=windows)
-            try:
-                findings = [
-                    item
-                    for item in JsonOperationalFindingRepository(
-                        workspace.finding_state_path
-                    ).list_findings()
-                    if item.finding_semantics_id == "phm-human-review-request-v1"
-                ]
-                events = JsonFindingReviewRepository(
-                    workspace.maintenance_review_state_path
-                ).list_events()
-                statuses = {
-                    item.finding_id: finding_review_status(events, item.finding_id).value
-                    for item in findings
-                }
-                overview["reviews"] = {
-                    state: sum(value == state for value in statuses.values())
-                    for state in ("open", "acknowledged", "closed")
-                }
-                for item in overview["items"]:
-                    latest = item["latest_analyzed"]
-                    item["latest_review_status"] = (
-                        statuses.get("finding-phm-" + latest["analysis_run_id"]) if latest else None
-                    )
-                overview["review_read_error"] = False
-            except ValueError, OSError:
-                overview["reviews"] = None
-                overview["review_read_error"] = True
-            return HTTPStatus.OK, overview
+            # Poll only PHM measurements/model progress. Human review is an opt-in
+            # workflow with separate read routes, not a 3-second monitoring dependency.
+            return HTTPStatus.OK, project_phm_monitor(
+                store, workspace.models_path, snapshots, windows=windows
+            )
         if path == "/api/v1/phm/bindings":
             return HTTPStatus.OK, project_phm_bindings(
                 store, workspace.models_path, snapshots, windows=windows

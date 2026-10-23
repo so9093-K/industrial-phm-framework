@@ -113,10 +113,11 @@ def test_monitor_distinguishes_new_input_refusal_and_an_exact_saved_result(tmp_p
         handle_phm_read(workspace, "/api/v1/phm/result", "binding_id=anomaly-a&position=99")[0]
         == 400
     )
-    # An unavailable review store remains distinct from zero outstanding reviews.
+    # A broken optional human-review store cannot degrade the fast PHM monitor path.
     workspace.finding_state_path.write_text("invalid json")
     _, body = handle_phm_read(workspace, "/api/v1/phm/monitor", "")
-    assert body["review_read_error"] is True and body["reviews"] is None
+    assert "reviews" not in body and "review_read_error" not in body
+    assert "latest_review_status" not in body["items"][0]
     assert body["items"][0]["latest_analyzed"] is not None
 
 

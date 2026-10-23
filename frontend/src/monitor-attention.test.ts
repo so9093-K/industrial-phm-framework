@@ -8,7 +8,7 @@ function model(extra:Record<string,unknown>){
     processing_state:"processed",processing_reason:null,latest_analyzed:{position:3,output:{exceeds_threshold:false}},
     latest_processed:{position:3},latest_review_status:null,...extra};
 }
-const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,truncated:false,review_read_error:false});
+const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,truncated:false});
 
 test("PHM alerts exclude optional review states while preserving actionable model events",()=>{
   const phm=monitor(
@@ -32,7 +32,7 @@ test("an open human-review status alone does not make an asset need PHM attentio
   const reports=monitor(model({latest_review_status:"open"}));
   assert.deepEqual(attentionByAsset(reports.models,null),[]);
   const sources={assessedAt:null,items:[],truncated:false,readErrors:[],liveErrors:[]};
-  assert.equal(attentionComplete({...reports,reviewsUnknown:true},sources,true),true);
+  assert.equal(attentionComplete(reports,sources,true),true);
 });
 
 test("a run of crossings still going on is a change; a latest crossing on its own is said as such",()=>{
