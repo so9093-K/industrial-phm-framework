@@ -251,7 +251,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">{failedAssets.length || hiddenFindings || snapshot?.truncated ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
+        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : failedAssets.length || hiddenFindings || snapshot?.truncated ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}
         <button type="button" class="ui-button" disabled={loadingMore} onclick={() => void loadOlderCaptures()}>
@@ -265,7 +265,7 @@
   <section class="ui-panel detail-panel" aria-label="고른 검토 항목">
     {#if loadState === "loading"}
       <StatusNotice message="검토 항목을 불러오고 있습니다." />
-    {:else if missingFocus}
+    {:else if missingFocus && !ignoreFocus}
       <StatusNotice kind="uncertain" title="검토 항목을 찾을 수 없습니다"
         message="이 설비에서 해당 검토 항목을 찾을 수 없습니다. 다른 설비의 기록으로 대신 보여 주지 않습니다." />
     {:else if olderFindingFocus && !ignoreFocus}
