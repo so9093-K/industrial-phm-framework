@@ -1,0 +1,48 @@
+name: Temporary dataset UX review
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "src/industrial_phm/runtime/operations_web_capabilities.py"
+      - "tests/acceptance/test_operations_web_next_capabilities_browser.py"
+      - "tests/integration/test_operations_web_capabilities.py"
+      - ".github/workflows/temporary-dataset-ux-review.yml"
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22.23.3"
+          package-manager-cache: false
+      - run: npm ci --prefix frontend --no-audit --no-fund
+      - run: npm run --prefix frontend check
+      - run: npm test --prefix frontend
+      - run: npm run --prefix frontend build
+  capability-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        with:
+          version: "0.12.13"
+          enable-cache: true
+      - run: uv python install 3.14
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22.23.3"
+          package-manager-cache: false
+      - run: uv sync --locked --extra operations --extra aihub
+      - run: make frontend
+      - run: uv pip install --python .venv/bin/python "playwright==1.64.0"
+      - run: uv run --no-sync playwright install --with-deps chromium
+      - run: uv run --no-sync pytest tests/integration/test_operations_web_capabilities.py tests/acceptance/test_operations_web_next_capabilities_browser.py -q -rs --maxfail=1
