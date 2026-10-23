@@ -1,0 +1,58 @@
+name: Verification
+
+on:
+  pull_request:
+    paths:
+      - 'tools/verification/**'
+      - 'docs/verification-policy.md'
+      - 'docs/adr/0032-runtime-verification-independence.md'
+      - '.github/workflows/verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verification-smoke:
+    name: Verification CLI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+      - run: uv python install 3.14
+      - run: uv sync --locked
+      - name: Verify native pytest through one CLI
+        run: uv run --no-sync python tools/verification/verify.py run verification-smoke
+      - name: Publish run evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verification-results
+          path: artifacts/verification/
+          if-no-files-found: warn
+          retention-days: 7
+
+  runtime-independence:
+    name: Runtime independence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.13"
+      - run: uv python install 3.14
+      - name: Install only product dependencies
+        run: uv sync --locked --no-dev --extra operations
+      - name: Product CLI must work without verifier and pytest
+        run: |
+          uv run --no-sync industrial-phm --help
+          uv run --no-sync python -c 'import importlib.util; assert importlib.util.find_spec("pytest") is None'
+          env -u CI -u GITHUB_ACTIONS uv run --no-sync industrial-phm operations init "${RUNNER_TEMP}/runtime-only-workspace"
