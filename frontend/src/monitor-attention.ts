@@ -1,6 +1,7 @@
 /** What needs a look on each asset right now: a model over its threshold, a stored signal that
  * ends far from its own baseline, an input the model refused or has not reached, a model that
- * cannot run, a collection that stopped receiving or a review in progress. Each item opens the
+ * cannot run, or a collection that stopped receiving. An optional person-review status
+ * is deliberately not a PHM monitoring event. Each item opens the
  * exact place to check; none is a fault verdict. */
 import {modelResultUrl} from "./finding-reviews.ts";
 import {modelName} from "./model-evidence.ts";
@@ -20,7 +21,7 @@ export type MonitoredModel={
   processed:number|null;reviewStatus:"open"|"acknowledged"|"closed"|null;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean;reviewsUnknown:boolean};
-export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"review"|"warmup";
+export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"warmup";
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
   distance:number;direction:"up"|"down"|null;since:string};
@@ -35,13 +36,13 @@ export function attentionText(count: number | null, state: AttentionState): stri
 }
 export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<typeof readSources>> | null,
   departuresComplete: boolean): boolean {
-  return !phm.truncated && !phm.reviewsUnknown && sources !== null && !sources.truncated
+  return !phm.truncated && sources !== null && !sources.truncated
     && !sources.readErrors.length && !sources.liveErrors.length && !sources.items.some(item=>item.readError)
     && departuresComplete;
 }
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
-const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3,review:4,warmup:3};
+const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3,warmup:3};
 
 function invalid():never{throw new Error("모델 처리 상태의 형식이 올바르지 않습니다.");}
 function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:null;}
@@ -132,9 +133,6 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
     const waiting=list.filter(model=>model.state==="pending");
     if(waiting.length)add(assetId,{id:"pending",kind:"pending",label:"새 입력 분석 대기",detail:waiting.length+"개 모델이 아직 처리하지 않았습니다",
       href:at(waiting[0],null),action:"분석 진행 보기"});
-    if(list.some(model=>model.reviewStatus==="open"||model.reviewStatus==="acknowledged"))
-      add(assetId,{id:"review",kind:"review",label:"검토 진행 중",detail:"모델 결과의 사람 검토가 끝나지 않았습니다",
-        href:routeUrl({page:"maintenance",assetId,tab:"summary",method:null,data:null}),action:"정비 검토함 보기"});
   }
   for(const item of departures){
     const name=item.label?item.label+(item.unit?" ("+item.unit+")":""):item.channel;

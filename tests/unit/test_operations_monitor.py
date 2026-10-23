@@ -574,7 +574,7 @@ def test_live_telemetry_without_any_collector_heartbeat_fails_closed() -> None:
     assert monitor.attention[0].destination == OperationsAttentionDestination.SYSTEM
 
 
-def test_review_attention_routes_to_investigation_with_finding_context() -> None:
+def test_pending_human_review_remains_stored_but_not_in_phm_attention() -> None:
     source = _source()
     run = _analysis_run()
     finding = OperationalFinding(
@@ -624,7 +624,11 @@ def test_review_attention_routes_to_investigation_with_finding_context() -> None
         as_of=NOW,
     )
 
-    review = next(item for item in monitor.attention if item.finding_id == finding.finding_id)
-    assert review.destination == OperationsAttentionDestination.INVESTIGATIONS
-    assert review.asset_id == source.asset_id
-    assert review.finding_id == finding.finding_id
+    assert overview.pending_review_count == 1
+    assert all(item.finding_id != finding.finding_id for item in monitor.attention)
+    assert not monitor.attention
+    asset = next(item for item in monitor.assets if item.asset_id == source.asset_id)
+    assert asset.pending_review_count == 1
+    assert asset.attention_count == 0
+    stage = next(s for s in monitor.stages if s.kind == OperationsMonitorStageKind.REVIEW)
+    assert stage.count == 1

@@ -109,7 +109,6 @@
     {#if departuresFailed}<StatusNotice kind="uncertain" message="기준 구간 이탈을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
     {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="기준 구간 이탈을 일부만 확인했습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
-    {#if phm.reviewsUnknown}<p class="context">검토 상태를 읽지 못해 검토 진행 여부는 빠져 있습니다.</p>{/if}
     <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
     {#if serviceItems.length || dataItems.length || !snapshot.operationsAttention?.complete}
     <section aria-label="운영 확인 항목" class="operations-attention">
@@ -120,7 +119,7 @@
         <ul>{#each serviceItems as item (item.id)}{@render operation(item)}{/each}</ul>
       {/if}
       {#if dataItems.length}
-        <h4>데이터·검토</h4><p class="context">설비 데이터의 수신·품질과 사람 검토가 남은 항목입니다.</p>
+        <h4>수신·데이터 품질</h4><p class="context">설비 데이터의 수신 상태와 품질을 확인합니다.</p>
         <ul>{#each dataItems as item (item.id)}{@render operation(item)}{/each}</ul>
       {/if}
     </section>

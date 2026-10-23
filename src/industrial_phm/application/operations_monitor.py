@@ -675,6 +675,10 @@ def _monitor_attention(
         AttentionKind.STALE,
     }
     for item in queue.items:
+        # A review is an optional human workflow, not a new PHM observation or fault.
+        # Its persisted subject and status remain available in the review read models.
+        if item.kind == AttentionKind.REVIEW_REQUIRED:
+            continue
         # Live acquisition evidence supersedes one-shot receipt attention for the
         # same source; live silence, reconnects and failures are projected below.
         if item.kind in source_kinds and item.source_id is not None and item.source_id in surfaces:
