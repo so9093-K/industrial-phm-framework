@@ -43,8 +43,15 @@
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
   const methods = $derived(methodsFor(route.tab, data));
-  const waitingForDefault = $derived(dataState === "loading" && (route.tab === "signals" ||
-    (route.tab === "anomaly" && !route.method) || (usesDataKind(route.tab, method) && !route.data)));
+  const waitingForDefault = $derived(dataState === "loading" && route.tab !== "summary");
+  const unsupportedSelection = $derived.by(() => {
+    const state: "loading" | "ready" | "failed" = dataState;
+    const current: AssetData | null = data;
+    if (state !== "ready" || current === null) return false;
+    return (route.method !== null && !methods.includes(route.method))
+      || (route.data !== null && usesDataKind(route.tab, method)
+        && !kindsOf(current).includes(route.data));
+  });
   const facts = $derived.by(() => {
     if (!data) return "";
     const parts: string[] = [];
@@ -66,13 +73,19 @@
     route.tab;
     tabBar?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
   });
-  onMount(() => {
-    const request = new AbortController();
+  let dataRequest: AbortController | null = null;
+  function reloadData() {
+    dataRequest?.abort();
+    const request = new AbortController(); dataRequest = request;
+    data = null; dataState = "loading";
     void readAssetData(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       data = value; dataState = "ready";
     }).catch(() => { if (!request.signal.aborted) dataState = "failed"; });
-    return () => request.abort();
+  }
+  onMount(() => {
+    reloadData();
+    return () => dataRequest?.abort();
   });
 </script>
 
@@ -89,7 +102,7 @@
     </div>
     {#if assets.length > 1}
       <label class="switch-asset">다른 설비
-        <select value={asset.assetId} onchange={(event) => onSelectAsset(event.currentTarget.value)}>
+        <select data-asset-switch value={asset.assetId} onchange={(event) => onSelectAsset(event.currentTarget.value)}>
           {#each assets as option (option.assetId)}<option value={option.assetId}>{assetOptionLabel(assets, option.assetId)}</option>{/each}
         </select>
       </label>
@@ -104,8 +117,9 @@
         aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
     {/each}
   </nav>
+  <p class="tabs-hint">다른 설비 화면은 탭을 가로로 밀어 확인하세요.</p>
 
-  {#if methods.length || kind}
+  {#if dataState !== "failed" && (methods.length || kind)}
     <div class="choices">
       <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
       {#if methods.length > 1 && dataState !== "loading"}
@@ -130,8 +144,17 @@
     </div>
   {/if}
 
-  {#if waitingForDefault}
+  {#if dataState === "failed"}
+    <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
+      message="분석 방법을 추측해 보여 주지 않습니다. 다시 조회하거나 다른 설비를 선택하세요."
+      actionLabel="다시 불러오기" onAction={reloadData} />
+    {#if route.tab === "summary"}<AssetSummary {asset} {data} {dataState} {observed} />{/if}
+  {:else if waitingForDefault}
     <StatusNotice message="이 설비가 가진 데이터 종류를 확인하고 있습니다." />
+  {:else if unsupportedSelection}
+    <StatusNotice kind="uncertain" title="선택한 분석을 이 데이터에서 사용할 수 없습니다"
+      message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."
+      actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else}
     {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind}
       {#if route.tab === "summary"}
@@ -178,11 +201,12 @@
     background: var(--color-surface); color: var(--color-ink);
   }
   .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 1px solid var(--color-border); }
+  .tabs-hint { display: none; margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
   /* One row of tabs that scrolls sideways on a phone, so the fifth tab is not on its own line. */
   @media (max-width: 560px) {
-    .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-    .tabs::-webkit-scrollbar { display: none; }
+    .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
     .tabs a { flex: none; }
+    .tabs-hint { display: block; }
   }
   .tabs a {
     padding: var(--space-3) var(--space-4); color: var(--color-ink-muted); text-decoration: none;

@@ -41,6 +41,7 @@
   let timeIndex = $state(-1);
   // Timestamps written without an offset are read at this one; most field exports are local time.
   let offset = $state("+09:00");
+  let timeZoneConfirmed = $state(false);
   const offsets = offsetChoices();
   let channels: string[] = $state([]);
   let chartChannel = $state("");
@@ -72,6 +73,7 @@
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
   const problems = $derived(table ? previewProblems(table, timeIndex, channels, offset) : []);
   const timing = $derived(table && timeIndex >= 0 ? readTimes(table, timeIndex, offset) : null);
+  const timeZoneReady = $derived(!timing?.naive || timeZoneConfirmed);
   const gaps = $derived(timing ? intervals(timing) : null);
   const points = $derived(table && timing && chartChannel ? previewPoints(table, timing, chartChannel) : []);
   const checked = $derived.by((): boolean => {
@@ -96,6 +98,7 @@
     const token = ++fileChoice;
     const chosen = fileInput?.files?.[0] ?? null;
     fileDigest = "";
+    timeZoneConfirmed = false;
     file = null; table = null; progress = null; steps = fresh(); stored = null; saveMessage = ""; roles = emptyRoles();
     fileProblem = false; changed();
     if (!chosen) { fileMessage = "아직 파일을 고르지 않았습니다."; return; }
@@ -148,6 +151,7 @@
     fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
   }
   function chooseTime(value: string) {
+    timeZoneConfirmed = false;
     timeIndex = value === "" ? -1 : Number(value);
     channels = channels.filter((name) => table?.columns.find((c) => c.name === name)?.index !== timeIndex);
     if (!channels.includes(chartChannel)) chartChannel = channels[0] ?? "";
@@ -183,6 +187,7 @@
     if (!values.asset_id || !values.source_id || !values.name) { checkMessage = "설비 이름을 입력하세요. 연결 ID와 이름도 비어 있으면 안 됩니다."; return; }
     if (problems.length) { checkMessage = "미리보기에서 찾은 문제를 먼저 고치세요."; return; }
     if (roleProblem) { checkMessage = roleProblem; return; }
+    if (!timeZoneReady) { checkMessage = "시간대가 없는 파일입니다. 선택한 시간대를 확인하세요."; return; }
     const token = revision;
     checking = true; checkMessage = "서버의 데이터 검증기로 파일을 점검합니다. 아무것도 저장하지 않습니다.";
     try {
@@ -217,7 +222,7 @@
   }
 
   async function save() {
-    if (!file || !checked || saving || !writable) return;
+    if (!file || !checked || !timeZoneReady || saving || !writable) return;
     const current = file;
     const signal = new AbortController().signal;
     const retry = progress !== null || report?.match === "matching";
@@ -304,9 +309,14 @@
         </label>
         {#if timing?.naive}
           <label class="field">시각의 시간대 (파일에 시간대가 없음)
-            <select value={offset} disabled={locked} onchange={(event) => { offset = event.currentTarget.value; changed(); }}>
+            <select value={offset} disabled={locked} onchange={(event) => { offset = event.currentTarget.value; timeZoneConfirmed = false; changed(); }}>
               {#each offsets as choice (choice.value)}<option value={choice.value}>{choice.label}</option>{/each}
             </select>
+          </label>
+          <label class="choice">
+            <input type="checkbox" checked={timeZoneConfirmed} disabled={locked}
+              onchange={(event) => { timeZoneConfirmed = event.currentTarget.checked; changed(); }} />
+            이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다. 저장되는 측정 시각에 영향을 줍니다.
           </label>
         {/if}
         <fieldset>
@@ -411,7 +421,7 @@
       {#if !writable}
         <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
       {:else}
-        <button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0}
+        <button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
           onclick={() => void check()}>서버에서 점검 (저장 안 함)</button>
       {/if}
       {#if checkMessage}
@@ -429,7 +439,7 @@
         {/each}
       </ol>
       {#if !stored}
-        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !checked || saving}
+        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !checked || !timeZoneReady || saving}
           onclick={() => void save()}>{saveFailed && progress ? "실패한 단계부터 다시 시도" : "등록하고 이력 저장"}</button>
       {/if}
       {#if saveMessage}

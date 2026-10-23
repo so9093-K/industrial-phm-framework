@@ -107,8 +107,7 @@ main > * + * { margin-top: var(--space-4); }
 }
 /* Narrow screens keep the task menu on one row that scrolls sideways instead of stacking. */
 @media (max-width: 560px) {
-  .topnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
-  .topnav::-webkit-scrollbar { display: none; }
+  .topnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; scroll-snap-type: x proximity; }
   .topnav a { flex: none; scroll-snap-align: start; }
 }
 @media (prefers-reduced-motion: reduce) {

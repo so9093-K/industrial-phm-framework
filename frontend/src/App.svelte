@@ -76,8 +76,8 @@
     // a page change or an asset the list does not know reads it again.
     if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
       void quietRefresh();
-    // A new page moves focus to its content. A tab switch, or choosing another asset with
-    // the keyboard in its select, keeps focus where the user is.
+    // A new page moves focus to its content. Asset changes restore the select
+    // after its keyed workspace is replaced, instead of leaving focus on the body.
     if (before.page !== route.page) {
       await tick();
       // A link to a part of the new page (e.g. #sample) scrolls there; focus still starts at main.
@@ -86,8 +86,11 @@
       part?.scrollIntoView({block: "start"});
     }
   }
-  function selectAsset(assetId: string) {
-    if (assetId !== route.assetId) void navigate(assetUrl(location.href, assetId));
+  async function selectAsset(assetId: string) {
+    if (assetId === route.assetId) return;
+    await navigate(assetUrl(location.href, assetId));
+    await tick();
+    document.querySelector<HTMLSelectElement>("[data-asset-switch]")?.focus();
   }
   function assetHref(assetId: string): string {
     return routeUrl({page: "assets", assetId, tab: "summary", method: null, data: null});
@@ -179,12 +182,21 @@
   }
 
   onMount(() => {
-    const restore = () => {
+    const restore = async () => {
       if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
       const before = route;
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
       if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
         void quietRefresh();
+      // History navigation can replace the focused node without going through
+      // navigate(). Restore focus to the new content or to the new asset picker.
+      const nextPage = route.page, nextAsset = route.assetId;
+      if (before.page !== nextPage || (nextPage === "assets" && before.assetId !== nextAsset)) {
+        await tick();
+        if (route.page !== nextPage || route.assetId !== nextAsset) return;
+        if (before.page !== nextPage) document.getElementById("main")?.focus();
+        else document.querySelector<HTMLSelectElement>("[data-asset-switch]")?.focus();
+      }
     };
     // Same-document links switch screens without reloading the asset list.
     const follow = (event: MouseEvent) => {
@@ -236,7 +248,7 @@
         <span class="mode" role="status">쓰기 권한 확인 실패 · 보기만 가능</span>
         <button type="button" class="ui-button" onclick={() => void checkPermission()}>권한 다시 확인</button>
       {:else if writable === true}
-        <span class="mode" role="status">운영 중 · 기록 가능</span>
+        <span class="mode" role="status">기록 가능 · 서비스 상태는 시스템 상태에서 확인</span>
       {:else}
         <span class="mode" role="status">보기 전용</span>
       {/if}
@@ -271,6 +283,14 @@
       actionLabel="다시 시도"
       onAction={() => void refresh()}
     />
+    {#if route.page === "maintenance"}
+      <PageHeading title={PAGE_INFO.maintenance.label} description="관측 요약을 읽지 못했습니다. 설비 ID를 지정하면 해당 설비의 저장된 검토 기록을 별도로 조회할 수 있습니다."
+        loading={false} onRefresh={() => void refresh()} />
+      {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
+        <ReviewQueue snapshot={null} writable={writable === true} focusAssetId={route.assetId}
+          focusCaptureId={focus.captureId} focusFindingId={focus.findingId} />
+      {/key}
+    {/if}
   {:else if snapshot}
     {#if route.page === "assets" && selected}
       {#key selected.assetId}

@@ -66,7 +66,7 @@
       if (request.signal.aborted) return;
       if (cause instanceof ReviewConflict) {
         pending = null; confirmingClose = false;
-        messageKind = "uncertain"; message = "다른 사람이 먼저 검토 상태를 바꿨습니다. 최신 기록을 다시 불러왔습니다.";
+        messageKind = "uncertain"; message = "다른 창이나 요청에서 검토 상태가 변경됐습니다. 최신 기록을 다시 불러왔습니다.";
         await refreshed(request.signal);
         return;
       }

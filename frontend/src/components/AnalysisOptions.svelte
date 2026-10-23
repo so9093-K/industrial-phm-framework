@@ -2,6 +2,7 @@
   import {onMount} from "svelte";
   import {NAME, connectPlace, fact, nothingStored, place, readCapabilities, type Capabilities, type Capability} from "../capabilities";
   import {systemUrl} from "../routes";
+  import StatusNotice from "./StatusNotice.svelte";
 
   /** What this asset's stored data supports: each analysis opens with the asset kept, one
    * model connection away is one link, and what the data cannot support is one quiet line. */
@@ -21,12 +22,18 @@
     const current: Capabilities | null = capabilities;
     return current ? current.items.filter((item) => item.status === "unavailable") : [];
   });
+  let request: AbortController | null = null;
+  function reload() {
+    request?.abort();
+    const pending = new AbortController(); request = pending;
+    capabilities = null; loadState = "loading";
+    void readCapabilities(assetId, pending.signal).then((value) => {
+      if (!pending.signal.aborted) { capabilities = value; loadState = "ready"; }
+    }).catch(() => { if (!pending.signal.aborted) loadState = "failed"; });
+  }
   onMount(() => {
-    const request = new AbortController();
-    void readCapabilities(assetId, request.signal).then((value) => {
-      if (!request.signal.aborted) { capabilities = value; loadState = "ready"; }
-    }).catch(() => { if (!request.signal.aborted) loadState = "failed"; });
-    return () => request.abort();
+    reload();
+    return () => request?.abort();
   });
 </script>
 
@@ -35,7 +42,8 @@
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}
-    <p class="context">분석 항목을 확인하지 못했습니다. 각 탭에서 직접 열 수 있습니다.</p>
+    <StatusNotice kind="uncertain" message="분석할 수 있는 항목을 확인하지 못했습니다. 데이터가 없다는 뜻은 아닙니다."
+      actionLabel="다시 불러오기" onAction={reload} />
   {:else if empty}
     <p>{empty === "not-received" ? "등록한 데이터 연결에서 아직 저장된 측정이 없습니다." : "저장된 측정이 없습니다."}
       <a href={systemUrl("connections")}>데이터 연결하기 →</a></p>
