@@ -261,3 +261,24 @@ def test_timeout_creates_interrupted_manifest(tmp_path: Path) -> None:
     result = json.loads(manifests[0].read_text(encoding="utf-8"))
     assert result["status"] == "INTERRUPTED"
     assert "exceeded" in result["error"]
+
+
+
+def test_junit_rejects_disguised_failure_metadata(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    path.write_text(
+        '<testsuite tests="1" failures="1"><testcase name="claimed-pass"/></testsuite>',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="declared failures"):
+        junit_summary(path)
+
+
+def test_junit_rejects_negative_declared_counts(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    path.write_text(
+        '<testsuite tests="1" errors="-1"><testcase name="claimed-pass"/></testsuite>',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="declared errors"):
+        junit_summary(path)

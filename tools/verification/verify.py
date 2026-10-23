@@ -99,14 +99,22 @@ def junit_summary(path: Path) -> dict[str, int]:
         raise ValueError("JUnit contains no test cases")
     declared_suites = [root] if root.tag == "testsuite" else [root, *root.iter("testsuite")]
     for suite in declared_suites:
-        declared = suite.get("tests")
-        if declared is not None:
-            try:
-                count = int(declared)
-            except ValueError as exc:
-                raise ValueError("JUnit tests count is invalid") from exc
-            if count != len(list(suite.iter("testcase"))):
-                raise ValueError("JUnit declared tests count does not match actual cases")
+        suite_cases = list(suite.iter("testcase"))
+        counts = {
+            "tests": len(suite_cases),
+            "failures": sum(any(child.tag == "failure" for child in case) for case in suite_cases),
+            "errors": sum(any(child.tag == "error" for child in case) for case in suite_cases),
+            "skipped": sum(any(child.tag == "skipped" for child in case) for case in suite_cases),
+        }
+        for field, observed in counts.items():
+            declared = suite.get(field)
+            if declared is not None:
+                try:
+                    count = int(declared)
+                except ValueError as exc:
+                    raise ValueError(f"JUnit {field} count is invalid") from exc
+                if count < 0 or count != observed:
+                    raise ValueError(f"JUnit declared {field} count does not match actual cases")
     if any(not case.get("name") for case in cases):
         raise ValueError("JUnit testcase has no name")
     if any(
