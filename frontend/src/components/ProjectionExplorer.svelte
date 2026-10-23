@@ -251,12 +251,14 @@
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          <ReviewRequest {projection} onEvidenceChanged={message=>{
+          <details class="optional-review"><summary>검토 기록에 남기기 (선택)</summary>
+            <ReviewRequest {projection} onEvidenceChanged={message=>{
             requestProjection?.abort();
             projection=null;
             resultState="unverified";
             error=message;
           }}/>
+          </details>
         {/key}
         <ForecastValidation checks={projection.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다." />

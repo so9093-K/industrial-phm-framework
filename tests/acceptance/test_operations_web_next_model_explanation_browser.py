@@ -171,6 +171,7 @@ def test_model_result_explanation_and_review_request(
                     }
                 ]
 
+                page.locator("details.optional-review > summary").click()
                 review = page.get_by_role("region", name="사람 검토")
                 pw.expect(review).to_contain_text("위의 AI 해설을 정비 검토함에 남깁니다")
                 review.get_by_role("button", name="검토 요청").click()
@@ -206,6 +207,7 @@ def test_model_result_explanation_and_review_request(
                 pw.expect(watched.get_by_text(SUMMARY)).to_be_visible(timeout=20000)
                 pw.expect(watched).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
                 assert watched.get_by_role("button", name="해설 만들기").count() == 0
+                observer.locator("details.optional-review > summary").click()
                 pw.expect(observer.get_by_role("region", name="사람 검토")).to_contain_text(
                     "정비 검토함에 있습니다"
                 )

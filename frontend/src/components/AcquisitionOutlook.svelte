@@ -246,12 +246,14 @@
             resultState="mismatch";
             message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          <ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
+          <details class="optional-review"><summary>검토 기록에 남기기 (선택)</summary>
+            <ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
             resultAbort?.abort();
             outlook=null;
             resultState="mismatch";
             message=reason;
           }}/>
+          </details>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>

@@ -300,7 +300,9 @@
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
                 onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
-              <ModelReviewRequest {binding} run={result} {explanationId} {writable}/>
+              <details class="optional-review"><summary>검토 기록에 남기기 (선택)</summary>
+                <ModelReviewRequest {binding} run={result} {explanationId} {writable}/>
+              </details>
             {/key}
             <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다. AI 해설은 저장된 측정값 비교를 설명할 뿐 원인을 진단하지 않습니다."/>
           {/if}

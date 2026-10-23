@@ -114,7 +114,7 @@
           <li><article aria-labelledby={"record-" + item.evidenceId}>
             <div class="head">
               <h3 id={"record-" + item.evidenceId}>{KIND[item.kind]} · {assetLabel(snapshot.assets, item.assetId)}</h3>
-              <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
+              
             </div>
             <p class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 분석 완료 {clock(item.completedAt)}</p>
             <p class="context">데이터 출처 {sourceLabel(sourceNames, item.sourceId)} · 측정 위치 {item.pointId ?? "미확인"}
@@ -157,7 +157,9 @@
                 </details>
               {/if}
             {/if}
-            <div class="review">
+            <details class="optional-review"><summary>{current ? "저장된 검토 보기" : "검토 기록에 남기기 (선택)"}</summary>
+              <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
+              <div class="review">
               {#if current}
                 <a href={findingUrl(item.assetId, current.findingId)}>정비 검토함에서 보기 →</a>
               {:else if writable}
@@ -168,6 +170,7 @@
               {/if}
               <a href={assetTabUrl(item.assetId, "summary")}>설비 보기 →</a>
             </div>
+            </details>
             {#if messages[key(item)]}
               <p class="message" class:uncertain={messages[key(item)].kind === "uncertain"}
                 class:failure={messages[key(item)].kind === "failure"}
@@ -256,6 +259,7 @@
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
   td.wrap { overflow-wrap: anywhere; }
+  .optional-review > summary { cursor: pointer; color: var(--color-ink-muted); }
   .review { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
   .message { overflow-wrap: anywhere; }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }

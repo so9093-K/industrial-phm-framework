@@ -50,6 +50,7 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
 
+                record.locator("details.optional-review > summary").click()
                 record.get_by_role("button", name="검토 요청").click()
                 link = record.get_by_role("link", name="정비 검토함에서 보기")
                 pw.expect(link).to_be_visible()

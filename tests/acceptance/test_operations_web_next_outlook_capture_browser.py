@@ -97,6 +97,12 @@ def _open(browser: Any, width: int) -> Any:
     return page
 
 
+def _show_optional_review(page: Any) -> None:
+    disclosure = page.locator("details.optional-review").first
+    if disclosure.get_attribute("open") is None:
+        disclosure.locator("summary").click()
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
     tmp_path: Path, width: int
@@ -139,6 +145,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 )
                 page.goto(f"http://127.0.0.1:{writer.server_port}/web/{outlook_query}")
                 page.get_by_role("button", name="계산하기", exact=True).click()
+                _show_optional_review(page)
                 request_button = page.get_by_role("button", name="검토 요청")
                 pw.expect(request_button).to_be_enabled(timeout=60000)
                 request_button.click()
@@ -265,7 +272,9 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 pw.expect(detail).to_contain_text("추가 측정 4회 후 닿음")
                 detail.get_by_role("link", name="설비 화면에서 이 조건으로 다시 보기 →").click()
                 page.get_by_role("button", name="계산하기", exact=True).click()
+                _show_optional_review(page)
                 pw.expect(page.get_by_role("button", name="검토 요청")).to_be_enabled(timeout=60000)
+                _show_optional_review(page)
                 page.get_by_role("button", name="검토 요청").click()
                 pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=60000)
                 page.get_by_role("link", name="정비 검토함에서 보기 →").click()
@@ -479,6 +488,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 page.goto(address)
                 calculate = page.get_by_role("button", name="계산하기", exact=True)
                 calculate.click()
+                _show_optional_review(page)
                 request = page.get_by_role("button", name="검토 요청")
                 pw.expect(request).to_be_enabled(timeout=15000)
                 request.click()
@@ -509,6 +519,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 state["writable"] = False
                 page.goto(address)
                 calculate.click()
+                _show_optional_review(page)
                 pw.expect(page.get_by_role("button", name="검토 요청")).to_be_disabled(
                     timeout=15000
                 )
