@@ -214,4 +214,3 @@ def test_web_attention_codes_are_additive_to_the_existing_exact_json_contract(
         replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
     )
     assert payload["attention"]["items"][0]["code"] == "collection-service-not-running"
-
