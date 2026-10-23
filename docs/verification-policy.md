@@ -36,7 +36,8 @@ From the repository root after installing development dependencies:
     python tools/verification/verify.py run verification-smoke
 
 The default output is artifacts/verification/<UTC-run-id>/, ignored by git.
-It contains a run-manifest.json, runner.log and native junit.xml if present.
+It always contains run-manifest.json. runner.log exists if execution reached
+runner launch, and native junit.xml exists only when the runner produces it.
 Use --output to choose a different results root.
 
 ## Status contract
@@ -48,7 +49,7 @@ Use --output to choose a different results root.
 | EXECUTION_ERROR | Missing runner, native error case, abnormal process exit |
 | CONFIG_ERROR | Unknown or malformed suite configuration |
 | INTERRUPTED | Operator interrupt or configured timeout |
-| INCOMPLETE | Missing, empty, invalid or wholly skipped JUnit results |
+| INCOMPLETE | Missing, empty or invalid JUnit; any skip unless explicitly permitted; all-skipped always incomplete |
 
 Only PASSED yields exit 0; TEST_FAILED yields 1; CONFIG_ERROR yields 2;
 all other non-passing states yield 3. Missing JUnit cannot count as success.
@@ -63,21 +64,23 @@ Evidence retention is determined by the caller, not by Product Runtime.
 
 verification-smoke is an actual pytest suite for the CLI contract. The Vitest
 and Playwright suite entries are explicitly marked planned, and cannot execute
-as active suites until their development toolchain is installed and checked: Node development dependencies, reproducible package-lock updates,
-browser runtime and product browser cases require a separate implementation
-change. When not installed, those native runners must fail visibly. The
+as active suites until their development toolchain is installed and checked.
+Node development dependencies, reproducible package-lock updates, browser
+runtime and product browser cases require a separate implementation change. When not installed, those native runners must fail visibly. The
 foundation does not certify PHM model performance or product acceptance.
 
 Existing product test automation is not evaluated, migrated or declared valid
-by this first foundation change; the new workflow runs only on verification-related PR changes or explicit
-manual dispatch and has an independent runtime-dependency boundary check.
+by this first foundation change. The new workflow runs on verification-related
+PR changes or explicit manual dispatch and separately checks the Runtime
+without development dependencies.
 
 The contract rejects unknown placeholders, contradictory JUnit outcomes and
 JUnit root test-count mismatches; the manifest retains the suite definition
 SHA-256, Python version and execution platform.
 
 Runner interruption and timeout terminate the started native process group
-on POSIX platforms so a timed-out npm/browser child does not continue to run.
+on POSIX platforms to avoid leaving group-member children behind. Processes
+that deliberately detach into a separate session need additional isolation.
 For configuration errors before runner launch, runner.log is absent and the
 manifest records null rather than referencing a nonexistent file.
 
