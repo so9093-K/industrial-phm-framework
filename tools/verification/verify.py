@@ -10,7 +10,7 @@ import subprocess
 import sys
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ RUNNERS = {"pytest", "vitest", "playwright"}
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def revision() -> str | None:
@@ -109,7 +109,7 @@ def expand(value: str, *, junit: Path) -> str:
 
 
 def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     folder = output_root / run_id
     folder.mkdir(parents=True, exist_ok=False)
     junit = folder / "junit.xml"
