@@ -19,6 +19,8 @@ from industrial_phm.application import (
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
+from industrial_phm.runtime.operations_web_review_index import handle_review_asset_index
 from industrial_phm.runtime.operations_web_review import (
     WebReviewConflict,
     WebReviewNotFound,
@@ -285,3 +287,43 @@ def test_a_confirm_or_close_records_the_persons_decision(tmp_path: Path) -> None
     workspace.maintenance_review_state_path.write_text(json.dumps(stored))
     reread = JsonFindingReviewRepository(workspace.maintenance_review_state_path).list_events()
     assert reread[0].decision is None and reread[1].decision is not None
+
+
+def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
+    tmp_path: Path,
+) -> None:
+    workspace, analysis = _prepared_workspace(tmp_path)
+    status, empty = handle_review_asset_index(workspace, "")
+    assert status == HTTPStatus.OK and empty["asset_ids"] == []
+
+    created = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": analysis.run.analysis_run_id,
+            "evidence_id": analysis.evidence.evidence_id,
+        },
+    )
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    for index in range(22):
+        asset = f"asset-{index:02d}"
+        store.save(
+            {
+                "identity": {"asset_id": asset, "series": "temperature"},
+                "outlook": {"asset_id": asset},
+            }
+        )
+    status, first = handle_review_asset_index(workspace, "")
+    assert status == HTTPStatus.OK
+    assert len(first["asset_ids"]) == 20
+    assert first["total_assets"] == 23
+    assert first["next_after"] == first["asset_ids"][-1]
+    status, later = handle_review_asset_index(
+        workspace, "after_asset=" + str(first["next_after"])
+    )
+    assert status == HTTPStatus.OK
+    assert len(later["asset_ids"]) == 3 and later["next_after"] is None
+    assert analysis.run.asset_id in later["asset_ids"] or analysis.run.asset_id in first["asset_ids"]
+    assert created["finding_id"]
+    assert handle_review_asset_index(workspace, "after_asset=missing")[0] == HTTPStatus.BAD_REQUEST
+    assert handle_review_asset_index(workspace, "after_asset=x&after_asset=y")[0] == HTTPStatus.BAD_REQUEST
+
