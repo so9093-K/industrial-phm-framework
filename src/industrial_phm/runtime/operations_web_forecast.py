@@ -40,7 +40,11 @@ from industrial_phm.application.signal_exploration import (
     strongest_identity,
 )
 from industrial_phm.runtime.operations_live import OperationsReadError
-from industrial_phm.runtime.operations_web_explore import _history, acquisition_period, explore_sources
+from industrial_phm.runtime.operations_web_explore import (
+    _history,
+    acquisition_period,
+    explore_sources,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 FORECAST_ROUTES = frozenset(

@@ -753,8 +753,16 @@ def _monitor_attention(
                 )
             )
         for component, title, code in (
-            (AcquisitionFailureComponent.OPCUA_WORKER, "Collection needs attention", "collection-worker-error"),
-            (AcquisitionFailureComponent.HISTORY_WRITER, "History storage needs attention", "history-writer-error"),
+            (
+                AcquisitionFailureComponent.OPCUA_WORKER,
+                "Collection needs attention",
+                "collection-worker-error",
+            ),
+            (
+                AcquisitionFailureComponent.HISTORY_WRITER,
+                "History storage needs attention",
+                "history-writer-error",
+            ),
             (
                 AcquisitionFailureComponent.WINDOW_COORDINATOR,
                 "Analysis input preparation needs attention",
