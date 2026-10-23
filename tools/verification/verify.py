@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import suppress
 import hashlib
 import json
 import os
@@ -13,6 +12,7 @@ import subprocess
 import sys
 import uuid
 import xml.etree.ElementTree as ET
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
