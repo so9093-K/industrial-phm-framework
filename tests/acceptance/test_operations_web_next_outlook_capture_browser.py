@@ -236,7 +236,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 confirm = detail.get_by_role("group", name="검토를 종료할까요?")
                 pw.expect(confirm).to_be_focused()
                 detail.get_by_role("button", name="종료하기").click()
-                pw.expect(detail).to_contain_text("다른 사람이 먼저 검토 상태를 바꿨습니다")
+                pw.expect(detail).to_contain_text("다른 창이나 요청에서 검토 상태가 변경됐습니다")
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
                 pw.expect(detail.locator(".events li")).to_have_count(2)
                 pw.expect(detail.get_by_role("textbox")).to_have_count(0)
