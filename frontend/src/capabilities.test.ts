@@ -3,7 +3,8 @@ import {test} from "node:test";
 import {connectPlace,fact,nothingStored,parseCapabilities,place} from "./capabilities.ts";
 
 const MEANING="what-the-stored-data-supports-not-asset-health";
-const item=(id:string,status:string,reason:string,facts:Record<string,unknown>={})=>({id,status,reason,target:null,facts});
+const item=(id:string,status:string,reason:string,facts:Record<string,unknown>={},
+  target:{view:string;goal:string|null;data?:string}|null=null)=>({id,status,reason,target,facts});
 function body(capabilities:unknown[],data:Record<string,unknown>={}){
   return {schema_version:1,asset_id:"motor",meaning:MEANING,capabilities,
     data:{history:{channel_count:2,measurement_count:80,start_at:"2026-10-14T00:00:00Z",end_at:"2026-10-14T00:39:00Z"},
@@ -12,13 +13,13 @@ function body(capabilities:unknown[],data:Record<string,unknown>={}){
 
 test("each analysis opens its own place with the asset and data kind kept",()=>{
   const parsed=parseCapabilities(body([
-    item("measurements","ready","history",{channels:2}),
-    item("period-compare","ready","acquisition"),
-    item("relation","ready","history",{channels:3}),
+    item("measurements","ready","history",{channels:2},{view:"signals",goal:"trend",data:"history"}),
+    item("period-compare","ready","acquisition",{}, {view:"signals",goal:"compare",data:"vibration"}),
+    item("relation","ready","history",{channels:3},{view:"signals",goal:"relation",data:"history"}),
     item("spectrum","unavailable","no-waveform"),
-    item("forecast","ready","outlook-only"),
-    item("anomaly","ready","explore",{packages:2}),
-    item("ai-question","ready","outlook"),
+    item("forecast","ready","outlook-only",{}, {view:"forecast",goal:null,data:"history"}),
+    item("anomaly","ready","explore",{packages:2},{view:"anomaly",goal:"baseline"}),
+    item("ai-question","ready","outlook",{}, {view:"forecast",goal:"ask"}),
   ]),"motor");
   const [measurements,compare,relation,spectrum,forecast,anomaly,ask]=parsed.items;
   assert.match(place(measurements,"motor")!,/tab=signals/);
@@ -37,13 +38,13 @@ test("each analysis opens its own place with the asset and data kind kept",()=>{
 });
 
 test("a model one connection away opens model connect; nothing stored is one line",()=>{
-  const parsed=parseCapabilities(body([item("anomaly","needs-connection","compatible-model",{packages:1}),
+  const parsed=parseCapabilities(body([item("anomaly","needs-connection","compatible-model",{packages:1},{view:"anomaly",goal:null}),
     item("forecast","unavailable","input-mismatch",{details:["channels differ",3]})],
   {acquisition:{first:1,last:8,sampling_rate_hz:25600}}),"motor");
   assert.match(place(parsed.items[0],"motor")!,/tab=anomaly&method=model/);
   assert.equal(fact(parsed.items[1],parsed),"모델 입력 조건이 맞지 않음 (channels differ)");
   assert.equal(nothingStored(parsed),null);
-  const empty=parseCapabilities(body([item("measurements","unavailable","not-received")],{history:null}),"motor");
+  const empty=parseCapabilities(body([item("measurements","unavailable","not-received",{}, {view:"connect",goal:null})],{history:null}),"motor");
   assert.equal(nothingStored(empty),"not-received");
   assert.match(place(empty.items[0],"motor")!,/page=system&section=connections/);
 });
@@ -53,3 +54,34 @@ test("an answer about another asset or a health verdict is refused",()=>{
   assert.throws(()=>parseCapabilities({...body([]),meaning:"asset-health"},"motor"),/형식/);
   assert.throws(()=>parseCapabilities(body([item("diagnosis","ready","history")]),"motor"),/형식/);
 });
+
+test("unknown or absent targets never produce a fabricated analysis route",()=>{
+  const [absent,unknown]=parseCapabilities(body([
+    item("measurements","ready","acquisition"),
+    item("anomaly","waiting","waiting-results",{}, {view:"anomaly",goal:null}),
+  ]),"motor").items;
+  assert.equal(place(absent,"motor"),null);
+  assert.equal(place(unknown,"motor"),null);
+  assert.throws(()=>parseCapabilities(body([item("measurements","ready","history",{}, {view:"invalid",goal:"trend"})]),"motor"),/형식/);
+});
+
+test("unsupported capability goal and source combinations never open a different analysis",()=>{
+  const samples=[
+    item("anomaly","ready","connected",{}, {view:"anomaly",goal:"compare"}),
+    item("period-compare","ready","history",{}, {view:"signals",goal:"compare"}),
+    item("relation","ready","history",{}, {view:"signals",goal:"trend",data:"history"}),
+    item("forecast","ready","stored-flow",{}, {view:"forecast",goal:"spectrum",data:"history"}),
+    item("measurements","ready","history",{}, {view:"connect",goal:"trend"}),
+  ];
+  for (const entry of parseCapabilities(body(samples),"motor").items)
+    assert.equal(place(entry,"motor"),null,entry.id);
+});
+
+test("available baseline exploration still discloses a waiting model result",()=>{
+  const parsed=parseCapabilities(body([
+    item("anomaly","ready","explore",{packages:0,model_waiting:true},{view:"anomaly",goal:"baseline"}),
+  ]),"motor");
+  assert.equal(fact(parsed.items[0],parsed),"모델 없이 기준 구간에서 벗어난 값 찾기 · 모델 결과 대기 중");
+  assert.match(place(parsed.items[0],"motor")!,/tab=anomaly&method=baseline/);
+});
+

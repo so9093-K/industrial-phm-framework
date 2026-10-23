@@ -6,7 +6,12 @@ import {object} from "./writes.ts";
 
 export type CapabilityId="measurements"|"period-compare"|"relation"|"spectrum"|"forecast"|"anomaly"|"ai-question";
 export type CapabilityStatus="ready"|"needs-connection"|"waiting"|"unavailable";
-export type Capability={id:CapabilityId;status:CapabilityStatus;reason:string;facts:Record<string,unknown>};
+export type CapabilityTarget={
+  view:"signals"|"monitor"|"anomaly"|"forecast"|"connect";
+  goal:string|null;
+  data:"history"|"vibration"|null;
+};
+export type Capability={id:CapabilityId;status:CapabilityStatus;reason:string;facts:Record<string,unknown>;target:CapabilityTarget|null};
 export type Capabilities={
   assetId:string;
   history:{channels:number;start:string;end:string}|null;
@@ -34,7 +39,16 @@ export function parseCapabilities(raw:unknown,assetId:string):Capabilities{
   const items=root.capabilities.map((item:unknown):Capability=>{
     const row=object(item);
     if(!row||!IDS.includes(row.id as CapabilityId)||!STATUSES.includes(row.status as CapabilityStatus)||typeof row.reason!=="string")invalid();
-    return {id:row.id as CapabilityId,status:row.status as CapabilityStatus,reason:row.reason,facts:object(row.facts)??{}};
+    const source=object(row.target);
+    if(row.target!==null&&row.target!==undefined&&!source)invalid();
+    const view=source?.view;
+    if(source && !["signals","monitor","anomaly","forecast","connect"].includes(String(view)))invalid();
+    if(source && source.goal!==null && typeof source.goal!=="string")invalid();
+    if(source && source.data!==undefined && !["history","vibration"].includes(String(source.data)))invalid();
+    return {id:row.id as CapabilityId,status:row.status as CapabilityStatus,reason:row.reason,
+      facts:object(row.facts)??{},
+      target:source?{view:view as CapabilityTarget["view"],goal:source.goal as string|null,
+        data:(source.data as CapabilityTarget["data"])??null}:null};
   });
   return {assetId,items,
     history:history&&typeof history.start_at==="string"&&typeof history.end_at==="string"
@@ -65,7 +79,9 @@ export function fact(item:Capability,capabilities:Capabilities):string{
       if(item.id==="relation")return "같은 진동 측정의 두 특징값";
       if(item.id==="spectrum")return "원본 파형"+(acquisition?.samplingRate?" · "+acquisition.samplingRate/1000+" kHz":"");
       return acquisition?.first!==null&&acquisition?.first!==undefined?acquisition.first+"~"+acquisition.last+"번째 측정":"진동 측정";
-    case "explore":return "모델 없이 기준 구간에서 벗어난 값 찾기"+(n("packages")?" · 맞는 모델 "+n("packages")+"개 연결 가능":"");
+    case "explore":return "모델 없이 기준 구간에서 벗어난 값 찾기"
+      +(n("packages")?" · 맞는 모델 "+n("packages")+"개 연결 가능":"")
+      +(facts.model_waiting===true?" · 모델 결과 대기 중":"");
     case "stored-flow":return "기준까지 남은 여유 · 최대 "+(HORIZON[String(facts.horizon)]??String(facts.horizon))+" 앞까지 예측";
     case "stored-flow-count":return "기준까지 남은 여유 · 측정 횟수 기준";
     case "outlook-only":return "기준까지 남은 여유 · 기록이 짧아 예측 그래프는 없음";
@@ -92,22 +108,42 @@ export function fact(item:Capability,capabilities:Capabilities):string{
   }
 }
 
-/** Where an analysis opens, with the asset kept; null when there is nowhere to go yet. */
+/** Route the server's explicit capability target, never re-decide it from reason text. */
 export function place(item:Capability,assetId:string):string|null{
-  if(item.reason==="no-data"||item.reason==="not-received")return systemUrl("connections");
+  const target=item.target;
+  if(!target)return null;
+  if(target.view==="connect")
+    return target.goal===null && target.data===null ? systemUrl("connections") : null;
   if(item.status==="unavailable"||item.status==="waiting")return null;
-  if(item.status==="needs-connection")return assetTabUrl(assetId,"anomaly","model");
-  const kind=item.reason==="acquisition"?"vibration":item.reason==="history"?"history":null;
-  switch(item.id){
-    case "measurements":return kind==="history"?assetTabUrl(assetId,"signals"):assetTabUrl(assetId,"anomaly","model");
-    case "period-compare":return assetTabUrl(assetId,"change","compare",kind);
-    case "relation":return assetTabUrl(assetId,"change","relation",kind);
-    case "spectrum":return assetTabUrl(assetId,"change","spectrum");
-    case "forecast":return assetTabUrl(assetId,"outlook",null,
-      item.reason==="stored-flow-count"?"vibration":item.reason==="outlook-only"?"history":null);
-    case "anomaly":return assetTabUrl(assetId,"anomaly",item.reason==="explore"?"baseline":"model");
-    case "ai-question":return item.reason==="outlook"?assetTabUrl(assetId,"outlook"):assetTabUrl(assetId,"anomaly","model");
+  if(target.view==="forecast"){
+    const correct=(item.id==="forecast" && target.goal===null)
+      || (item.id==="ai-question" && target.goal==="ask");
+    return correct ? assetTabUrl(assetId,"outlook",null,target.data) : null;
   }
+  if(target.view==="anomaly"){
+    if(target.data!==null)return null;
+    if(item.id==="anomaly" && target.goal==="baseline")
+      return assetTabUrl(assetId,"anomaly","baseline");
+    if(item.id==="ai-question" && target.goal==="ask")
+      return assetTabUrl(assetId,"anomaly","model");
+    if(target.goal===null && item.id!=="ai-question")
+      return assetTabUrl(assetId,"anomaly","model");
+    return null;
+  }
+  if(target.view==="monitor")
+    return item.id==="measurements" && target.goal===null && target.data===null
+      ? assetTabUrl(assetId,"signals") : null;
+  if(target.view==="signals"){
+    if(item.id==="period-compare" && target.goal==="compare" && target.data!==null)
+      return assetTabUrl(assetId,"change","compare",target.data);
+    if(item.id==="relation" && target.goal==="relation" && target.data!==null)
+      return assetTabUrl(assetId,"change","relation",target.data);
+    if(item.id==="spectrum" && target.goal==="spectrum" && target.data===null)
+      return assetTabUrl(assetId,"change","spectrum");
+    if(item.id==="measurements" && target.goal==="trend" && target.data!==null)
+      return assetTabUrl(assetId,"signals");
+  }
+  return null;
 }
 
 /** Model-free analysis is ready, and a model that fits is one connection away as well. */

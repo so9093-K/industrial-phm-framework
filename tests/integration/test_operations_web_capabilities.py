@@ -91,8 +91,28 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     assert spectrum["target"] == {"view": "signals", "goal": "spectrum"}
     anomaly = next(item for item in asked["capabilities"] if item["id"] == "anomaly")
     assert anomaly["facts"]["results"] == 4
+    measurements = next(item for item in asked["capabilities"] if item["id"] == "measurements")
+    assert measurements["target"] == {
+        "view": "signals",
+        "goal": "trend",
+        "data": "vibration",
+    }
     read_only = _status(project_asset_capabilities(workspace, "bearing-a", can_ask=False))
     assert read_only["ai-question"] == ("unavailable", "read-only")
+
+
+def test_stored_history_remains_explorable_during_pending_model_results(
+    tmp_path: Path,
+) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    _history(workspace, "bearing-a", ("temperature",))
+    body = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
+    anomaly = next(item for item in body["capabilities"] if item["id"] == "anomaly")
+    assert anomaly["status"] == "ready"
+    assert anomaly["reason"] == "explore"
+    assert anomaly["target"] == {"view": "anomaly", "goal": "baseline"}
+    assert anomaly["facts"]["model_waiting"] is True
 
 
 def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_read_it(
@@ -112,6 +132,13 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     # Twenty minutes carry an outlook (no chart horizon fits), and questions about it.
     assert status["forecast"] == ("ready", "outlook-only")
     assert status["ai-question"] == ("ready", "outlook")
+    assert next(item for item in body["capabilities"] if item["id"] == "anomaly")["target"] == {
+        "view": "anomaly",
+        "goal": "baseline",
+    }
+    assert next(item for item in body["capabilities"] if item["id"] == "period-compare")[
+        "target"
+    ] == {"view": "signals", "goal": "compare", "data": "history"}
     assert body["data"]["history"]["channel_count"] == 2
     assert body["data"]["history"]["measurement_count"] == 40
 

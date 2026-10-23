@@ -41,17 +41,19 @@ export function parseAssetData(raw: unknown, assetId: string): AssetData {
   };
 }
 
-/** Unknown availability offers both kinds rather than hiding one. */
+/** Unknown data or no stored measurements cannot grant a usable capability. */
 export function kindsOf(data: AssetData | null): DataKind[] {
-  if (!data) return ["history", "vibration"];
+  if (!data) return [];
   const kinds: DataKind[] = [];
   if (data.history) kinds.push("history");
   if (data.vibration) kinds.push("vibration");
-  return kinds.length ? kinds : ["history", "vibration"];
+  return kinds;
 }
 
-export function defaultKind(data: AssetData | null): DataKind {
-  return kindsOf(data)[0];
+/** A mixed asset requires an explicit choice; avoid silently favoring one source. */
+export function defaultKind(data: AssetData | null): DataKind | null {
+  const kinds = kindsOf(data);
+  return kinds.length === 1 ? kinds[0] : null;
 }
 
 export async function readAssetData(assetId: string, signal: AbortSignal): Promise<AssetData> {
@@ -64,11 +66,12 @@ export async function readAssetData(assetId: string, signal: AbortSignal): Promi
   return parseAssetData(await response.json() as unknown, assetId);
 }
 
-/** The analysis methods this asset's data supports: frequency analysis needs waveforms, and the
- * baseline departure and load/unbalance read time series. Unknown data offers them all. */
+/** Only list methods with compatible stored input. A model method opens its
+ * connection/result workflow, not a claim that a model has already run. */
 export function methodsFor(tab: Tab, data: AssetData | null): Method[] {
-  const needs: Partial<Record<Method, keyof AssetData>> = {baseline: "history", spectrum: "vibration", electrical: "history"};
-  // As with data kinds, knowing of neither kind is not a reason to hide a method.
-  const known = data !== null && (data.history !== null || data.vibration !== null);
-  return methodsOf(tab).filter((method) => !known || !needs[method] || data![needs[method]!] !== null);
+  if (!kindsOf(data).length) return [];
+  const needs: Partial<Record<Method, keyof AssetData>> = {
+    baseline: "history", spectrum: "vibration", electrical: "history",
+  };
+  return methodsOf(tab).filter((method) => !needs[method] || data?.[needs[method]] !== null);
 }
