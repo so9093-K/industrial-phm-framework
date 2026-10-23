@@ -80,20 +80,6 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     assert waiting["ai-question"] == ("unavailable", "waiting-results")
 
 
-def test_stored_history_remains_explorable_during_pending_model_results(
-    tmp_path: Path,
-) -> None:
-    workspace = phm_workspace(tmp_path / "ws")
-    deliver(workspace, tmp_path / "waves", 1, 0.5)
-    _history(workspace, "bearing-a", ("temperature",))
-    body = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
-    anomaly = next(item for item in body["capabilities"] if item["id"] == "anomaly")
-    assert anomaly["status"] == "ready"
-    assert anomaly["reason"] == "explore"
-    assert anomaly["target"] == {"view": "anomaly", "goal": "baseline"}
-    assert anomaly["facts"]["model_waiting"] is True
-
-
     analyze(workspace)
     asked = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
     status = _status(asked)
@@ -114,6 +100,21 @@ def test_stored_history_remains_explorable_during_pending_model_results(
     }
     read_only = _status(project_asset_capabilities(workspace, "bearing-a", can_ask=False))
     assert read_only["ai-question"] == ("unavailable", "read-only")
+
+
+def test_stored_history_remains_explorable_during_pending_model_results(
+    tmp_path: Path,
+) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    _history(workspace, "bearing-a", ("temperature",))
+    body = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
+    anomaly = next(item for item in body["capabilities"] if item["id"] == "anomaly")
+    assert anomaly["status"] == "ready"
+    assert anomaly["reason"] == "explore"
+    assert anomaly["target"] == {"view": "anomaly", "goal": "baseline"}
+    assert anomaly["facts"]["model_waiting"] is True
+
 
 
 def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_read_it(
