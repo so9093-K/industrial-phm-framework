@@ -38,7 +38,8 @@
 
   // Every asset starts from the same task. The user chooses an anomaly method;
   // mixed inputs require an explicit measurement kind, never a hidden default.
-  const method: Method | null = $derived(route.method ?? (route.tab === "change" ? "compare" : null));
+  const method: Method | null = $derived(route.method ?? (route.tab === "change"
+    ? methodsFor("change", data, capabilities, defaultKind(data))[0] ?? "compare" : null));
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
   const chooseAnomaly = $derived(route.tab === "anomaly" && route.method === null);
@@ -46,6 +47,7 @@
     usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
   const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
   const needsCapability = $derived(route.tab === "anomaly" || route.tab === "change");
+  const noAvailableChange = $derived(route.tab === "change" && methods.length === 0);
   const waitingForDefault = $derived((dataState === "loading" || (needsCapability && capabilityState === "loading"))
     && route.tab !== "summary");
   const unsupportedSelection = $derived.by(() => {
@@ -98,8 +100,14 @@
   }
   onMount(() => {
     reloadData();
-    reloadCapability();
     return () => {dataRequest?.abort(); capabilityRequest?.abort();};
+  });
+  // A tab change reuses this component; fetch only for analysis selection, not
+  // for every signal view or summary (which owns its separate options read).
+  $effect(() => {
+    if (!needsCapability) return;
+    reloadCapability();
+    return () => capabilityRequest?.abort();
   });
 </script>
 
@@ -177,6 +185,10 @@
   {:else if route.tab !== "summary" && kindsOf(data).length === 0}
     <StatusNotice kind="uncertain" title="분석할 저장 데이터가 없습니다"
       message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다. 다른 종류로 대체해 보여 주지 않습니다."
+      actionLabel="설비 요약 보기" actionHref={at("summary")} />
+  {:else if noAvailableChange}
+    <StatusNotice kind="uncertain" title="현재 입력에서 가능한 변화 분석이 없습니다"
+      message="측정 구간·채널·진동 분석 결과 또는 3상 입력 조건을 확인하세요."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else if chooseAnomaly}
     <section class="task-chooser ui-panel" aria-labelledby="task-anomaly-title">

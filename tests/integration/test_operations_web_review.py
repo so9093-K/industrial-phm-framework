@@ -247,6 +247,48 @@ def test_review_request_http_requires_origin_csrf_and_persists_evidence(tmp_path
         thread.join(timeout=5)
 
 
+def test_exact_finding_read_bypasses_recent_100_and_checks_asset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from industrial_phm.runtime.operations_web_review import handle_reviews_read
+
+    workspace, analysis = _prepared_workspace(tmp_path)
+    requested = request_web_analysis_review(
+        workspace.root,
+        {
+            "analysis_run_id": analysis.run.analysis_run_id,
+            "evidence_id": analysis.evidence.evidence_id,
+        },
+    )
+    base = JsonOperationalFindingRepository(workspace.finding_state_path).list_findings()[0]
+    oldest = replace(base, finding_id="finding-000")
+    newer = tuple(replace(base, finding_id=f"finding-{number:03d}") for number in range(1, 102))
+    monkeypatch.setattr(
+        JsonOperationalFindingRepository, "list_findings", lambda self: (oldest, *newer)
+    )
+    # A generic list cannot reach the oldest subject once more than 100 exist.
+    code, recent = handle_reviews_read(workspace, "asset_id=" + base.asset_id)
+    assert code == HTTPStatus.OK
+    assert recent["reviews"]["truncated"] is True
+    assert all(item["finding_id"] != oldest.finding_id for item in recent["reviews"]["items"])
+    code, exact = handle_reviews_read(
+        workspace, "asset_id=" + base.asset_id + "&finding_id=" + oldest.finding_id
+    )
+    assert code == HTTPStatus.OK
+    assert exact["reviews"]["total"] == 1
+    assert exact["reviews"]["items"][0]["finding_id"] == oldest.finding_id
+    assert handle_reviews_read(
+        workspace, "asset_id=other-asset&finding_id=" + oldest.finding_id
+    )[0] == HTTPStatus.NOT_FOUND
+    assert handle_reviews_read(
+        workspace, "asset_id=" + base.asset_id + "&finding_id=missing"
+    )[0] == HTTPStatus.NOT_FOUND
+    for bad in ("&finding_id=", "&finding_id=a&finding_id=b"):
+        assert handle_reviews_read(workspace, "asset_id=" + base.asset_id + bad)[0] == HTTPStatus.BAD_REQUEST
+
+
 def test_a_confirm_or_close_records_the_persons_decision(tmp_path: Path) -> None:
     """추가 점검 필요 / 계속 관찰 / 점검 불필요 is kept with the event and read back."""
     workspace, analysis = _prepared_workspace(tmp_path)
