@@ -139,6 +139,7 @@ def test_planned_suite_is_not_runnable(tmp_path: Path) -> None:
     assert result["status"] == "CONFIG_ERROR"
     assert result["command"] is None
 
+
 def test_junit_rejects_mismatched_declared_test_count(tmp_path: Path) -> None:
     path = tmp_path / "junit.xml"
     path.write_text(
