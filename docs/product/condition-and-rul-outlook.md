@@ -81,7 +81,7 @@ RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-lif
   잘못된 식별자는 거부합니다. 조회는 저장소를 만들거나 변경하지 않으며 읽기 전용 Web에서도 가능합니다.
   쓰기는 `POST /api/v1/outlook/captures/confirm`, 명시적 검토는
   `POST /api/v1/outlook/captures/review/action`의 권한·동일 출처·CSRF 검사를 통과합니다.
-- 사람의 `메모 → 확인함 → 검토 완료`는 기존 AnalysisRun finding과 같은 상태 전이 규칙을
+- 사람의 `확인함 → 검토 완료`는 기존 AnalysisRun finding과 같은 상태 전이 규칙을
   사용하지만, 현재 전망을 기존 FILE·3상 분석의 finding으로 가장하지 않습니다.
   완료는 검토 기록의 완료이지 정비 수행이나 고장 판정이 아닙니다.
 - 재관측 비교는 동일 설비·출처·측정점·신호·축·시간 근거·기준·예측 설정일 때만 가능합니다.

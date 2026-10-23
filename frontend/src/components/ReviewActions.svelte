@@ -1,13 +1,13 @@
 <script lang="ts">
   import {onMount, tick} from "svelte";
   import {
-    reviewNote, latestDecision, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict, WriteForbidden,
+    latestDecision, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict, WriteForbidden,
     type ReviewAction, type ReviewDecision, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
   /** The review history of one subject and the next human actions on it. Confirming records
    * what the person judged it needs (추가 점검 필요 · 계속 관찰 · 점검 불필요) with an optional
-   * reason; closing keeps or changes that judgement. The parent owns the write and the reload;
+   * no memo is required; closing keeps or changes that judgement. The parent owns the write and reload;
    * this keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
@@ -17,7 +17,6 @@
     reload: (signal: AbortSignal) => Promise<boolean>;
   };
   let {id, status, events, eventsTotal = events.length, writable, closeQuestion, submit, reload}: Props = $props();
-  let reason = $state("");
   // The current judgement; a close starts from it and may change it.
   const judged = $derived(latestDecision(events));
   let decision: ReviewDecision | null = $state(null);
@@ -45,14 +44,9 @@
   }
   async function act(action: ReviewAction) {
     if (busy || !writable || status === "closed") return;
-    let text: string;
-    try { text = reviewNote(action, reason); }
-    catch (cause: unknown) {
-      messageKind = "failure"; message = cause instanceof Error ? cause.message : "판단 이유를 확인하세요.";
-      return;
-    }
     if (action !== "note" && !decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
-    const key = action + "\n" + decision + "\n" + text;
+    const text = ""; // Structured decision only; existing saved notes remain readable.
+    const key = action + "\n" + decision;
     if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
     controller?.abort();
     const request = new AbortController(); controller = request;
@@ -60,7 +54,7 @@
     try {
       await submit(action, text, pending.eventId, request.signal, action === "note" ? null : decision);
       if (request.signal.aborted) return;
-      pending = null; confirmingClose = false; reason = "";
+      pending = null; confirmingClose = false;
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -92,13 +86,6 @@
   </fieldset>
 {/snippet}
 
-{#snippet reasonField()}
-  <label class="field">판단 이유 (선택)
-    <textarea maxlength="1000" rows="2" value={reason} disabled={busy}
-      oninput={(event) => reason = event.currentTarget.value}></textarea>
-  </label>
-{/snippet}
-
 <section aria-labelledby={"review-" + id}>
   <h3 id={"review-" + id} tabindex="-1" bind:this={historyHeading}>검토 기록</h3>
   {#if events.length}
@@ -120,10 +107,6 @@
   {:else}
     {#if status === "open"}
       {@render decisionField()}
-      <details class="reason">
-        <summary>판단 이유 함께 남기기 (선택)</summary>
-        {@render reasonField()}
-      </details>
       <div class="actions">
         <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
       </div>
@@ -138,7 +121,6 @@
       <div class="confirm" role="group" aria-labelledby={"close-" + id} tabindex="-1" bind:this={confirmBox}>
         <p id={"close-" + id}>{closeQuestion}</p>
         {@render decisionField()}
-        {@render reasonField()}
         <div class="actions">
           <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("close")}>종료하기</button>
           <button type="button" class="ui-button" disabled={busy} onclick={() => void cancelClose()}>취소</button>
@@ -163,11 +145,6 @@
   .decision label { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 32px; }
   .current { margin: var(--space-2) 0 0; }
   .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
-  .reason { margin-top: var(--space-3); }
-  .reason summary { cursor: pointer; color: var(--color-ink-muted); font-size: var(--font-small); }
-  .field { display: grid; gap: var(--space-2); margin-top: var(--space-2); font-weight: 650; font-size: var(--font-small); }
-  textarea { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .confirm { margin-top: var(--space-3); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .message { overflow-wrap: anywhere; }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }

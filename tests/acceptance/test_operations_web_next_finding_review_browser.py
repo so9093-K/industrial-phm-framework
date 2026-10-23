@@ -164,12 +164,10 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                     route.fulfill(response=response)
 
                 page.route("**/api/v1/reviews/action", lose_once)
-                # Confirming records what the person judged it needs; a reason is optional.
+                # A structured decision is enough: no free-text memo is requested.
                 assert detail.get_by_role("textbox").count() == 0
                 pw.expect(detail.get_by_role("button", name="확인함으로 표시")).to_be_disabled()
                 detail.get_by_role("radio", name="추가 점검 필요").check()
-                detail.get_by_text("판단 이유 함께 남기기 (선택)").click()
-                detail.get_by_label("판단 이유 (선택)").fill(" 베어링 소음 현장 확인 ")
                 detail.get_by_role("button", name="확인함으로 표시").click()
                 pw.expect(detail.get_by_role("status").last).to_contain_text("다시 시도해도")
                 assert detail.get_by_role("alert").count() == 0
@@ -177,20 +175,20 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 pw.expect(detail.get_by_role("status").last).to_have_text("검토 기록을 남겼습니다.")
                 pw.expect(detail.locator(".events li")).to_have_count(1)
                 pw.expect(detail.locator(".events li").first).to_contain_text(
-                    "확인 · 추가 점검 필요 · 베어링 소음 현장 확인"
+                    "확인 · 추가 점검 필요"
                 )
                 assert len(writes) == 2 and writes[0] == writes[1]
                 assert set(writes[0]) == {"finding_id", "action", "note", "event_id", "decision"}
                 assert writes[0]["decision"] == "inspect"
                 assert writes[0]["finding_id"] == finding
-                assert writes[0]["note"] == "베어링 소음 현장 확인"
+                assert writes[0]["note"] == ""
                 events = JsonFindingReviewRepository(
                     workspace.maintenance_review_state_path
                 ).list_events()
                 assert [
                     (event.action.value, event.note, event.decision and event.decision.value)
                     for event in events
-                ] == [("acknowledge", "베어링 소음 현장 확인", "inspect")]
+                ] == [("acknowledge", "", "inspect")]
                 pw.expect(detail.locator(".badge")).to_have_text("확인함")
                 # Someone else closes it first; this screen reloads instead of overwriting.
                 execute_web_source_action(

@@ -119,9 +119,9 @@ not install Node dependencies.
   `src/review-evidence.ts` joins the reviewed measurement's interval, feature changes, AI answer
   and other models with the same complete input identity. Each failed part stays unread with a retry;
   a later confirmed interval cannot make an earlier measurement appear confirmed already.
-- `src/components/ReviewActions.svelte`: the shared append-only note/acknowledge/close for every
+- `src/components/ReviewActions.svelte`: the shared append-only acknowledge/close UI for every
   review subject (a retried uncertain action reuses its event ID; a 409 re-reads; close asks once more).
-  Confirm and close record the person's inspect/observe/no-action decision. Older events without
+  Confirm and close record the person's inspect/observe/no-action decision, without a free-text memo. Existing note events remain readable. Older events without
   a decision remain readable and do not acquire an invented one.
 - `src/components/ModelExplanation.svelte`, `src/components/ModelReviewRequest.svelte`: the selected
   model result's AI explanation against an earlier analyzed measurement (only answers of the same run,
