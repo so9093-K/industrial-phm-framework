@@ -52,7 +52,7 @@ time-series semantics를 참고하지만 core object를 특정 AAS/OPC UA/Sensor
 - `channels`
 - rectangular finite numeric sample-by-channel `values`
 - optional sample-aligned `labels`
-- optional sample-aligned `rul`
+- 수명 종료 target 또는 RUL은 이 공통 시계열 객체에 포함하지 않음([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)). 상태 전망에서 계산하는 조건부 RUL은 별도의 application 기능
 - domain-neutral primitive `metadata`
 
 이 구조는 XJTU-SY의 한 vibration acquisition처럼 **동일 sample axis를 공유하는 여러 channel의 유한 segment**를
@@ -181,11 +181,10 @@ source에서 제공하는 quality/provenance를 잃지 않는 것을 우선합�
 failure, alarm, configuration-change event와 right-censored lifecycle을 raw waveform sample label 하나로 강제로
 표현하지 않습니다.
 
-Dataset-neutral `RulTargetSeries`는 exact target이 어떤 endpoint 의미를 사용하는지
-`RulEndpointKind`로 기록합니다. 현재 XJTU-SY target은 `observed-record-end`이며 마지막 기록점을 confirmed
-physical failure로 승격하지 않습니다. `right-censored` lifecycle은 실제 remaining life가 관측되지 않았으므로
-현재 exact `RulTargetSeries`로 만들 수 없습니다. 향후 censored prognostics가 필요하면 survival/censor-aware
-target/evaluator를 별도 contract로 추가합니다.
+과거 XJTU-SY 연구의 `observed-record-end`는 실제 고장 확인 시점이 아니며, 과거 RUL 모델과 그 target 계약은
+[ADR-0026](../adr/0026-retire-remaining-life-estimation.md)에 따라 현행 운영 경로에서 폐기했습니다. 당시 실험 결과와
+프로토콜은 연구 이력으로 보존합니다. 실제 고장·교체·관측 종료 사건과 right-censoring을 이용한 예측이
+다시 필요해지면, 근거 있는 endpoint 정의와 survival/censor-aware target·평가 계약을 별도로 설계해야 합니다.
 
 ### Security and governance
 
@@ -195,9 +194,9 @@ Notebook 또는 canonical payload의 source of truth가 아닙니다. Runtime se
 
 ### Offline and online reuse
 
-현재 구현은 offline batch research가 중심이지만 reusable processing logic은 batch runner, future stream consumer,
-API 또는 edge process에서 호출할 수 있는 deterministic unit으로 유지합니다. Streaming infrastructure를 실제
-requirement 없이 미리 도입하지 않습니다.
+현재 구현에는 연구용 batch 분석과 별도의 FILE/OPC UA 운영 수집·윈도우 분석 경로가 모두 있습니다.
+재사용 가능한 처리 로직은 연구 runner와 운영 분석이 공유할 수 있는 결정적 단위로 유지합니다.
+새 source나 외부 streaming infrastructure는 실측 요구 없이 미리 추가하지 않습니다.
 
 ## 7. Validation sequence
 
