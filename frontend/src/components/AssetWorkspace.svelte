@@ -46,6 +46,11 @@
   const chooseKind = $derived(
     usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
   const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
+  // Mixed inputs stay an explicit choice, but do not offer the wrong source
+  // for a method the server cannot execute on that source kind.
+  const eligibleKinds = $derived(kindsOf(data).filter(option =>
+    route.tab !== "change" || method === null ||
+      methodsFor(route.tab, data, capabilities, option).includes(method)));
   const needsCapability = $derived(route.tab === "anomaly" || route.tab === "change");
   const noAvailableChange = $derived(route.tab === "change" && methods.length === 0);
   const waitingForDefault = $derived((dataState === "loading" || (needsCapability && capabilityState === "loading"))
@@ -156,7 +161,7 @@
       {/if}
       {#if kind && kindsOf(data).length > 1}
         <nav class="segmented" aria-label="데이터 종류">
-          {#each kindsOf(data) as option (option)}
+          {#each eligibleKinds as option (option)}
             <a href={at(route.tab, method, option)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
               aria-current={kind === option ? "true" : undefined}>{DATA_INFO[option]}</a>
           {/each}
@@ -207,7 +212,7 @@
       <h2 id="task-source-title">어떤 측정 근거로 확인할까요?</h2>
       <p class="context">분석할 측정 종류를 선택하세요.</p>
       <ul>
-        {#each kindsOf(data) as option (option)}
+        {#each eligibleKinds as option (option)}
           <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}으로 확인 →</a></li>
         {/each}
       </ul>
