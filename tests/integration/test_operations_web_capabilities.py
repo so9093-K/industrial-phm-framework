@@ -91,6 +91,10 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     assert spectrum["target"] == {"view": "signals", "goal": "spectrum"}
     anomaly = next(item for item in asked["capabilities"] if item["id"] == "anomaly")
     assert anomaly["facts"]["results"] == 4
+    measurements = next(item for item in asked["capabilities"] if item["id"] == "measurements")
+    assert measurements["target"] == {
+        "view": "signals", "goal": "trend", "data": "vibration",
+    }
     read_only = _status(project_asset_capabilities(workspace, "bearing-a", can_ask=False))
     assert read_only["ai-question"] == ("unavailable", "read-only")
 
@@ -112,6 +116,12 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     # Twenty minutes carry an outlook (no chart horizon fits), and questions about it.
     assert status["forecast"] == ("ready", "outlook-only")
     assert status["ai-question"] == ("ready", "outlook")
+    assert next(item for item in body["capabilities"] if item["id"] == "anomaly")[
+        "target"
+    ] == {"view": "anomaly", "goal": "baseline"}
+    assert next(item for item in body["capabilities"] if item["id"] == "period-compare")[
+        "target"
+    ] == {"view": "signals", "goal": "compare", "data": "history"}
     assert body["data"]["history"]["channel_count"] == 2
     assert body["data"]["history"]["measurement_count"] == 40
 

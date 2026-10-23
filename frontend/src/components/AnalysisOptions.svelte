@@ -55,8 +55,10 @@
         <li data-status={item.status} data-capability={item.id}>
           <strong>{NAME[item.id]}</strong>
           <span class="fact">{fact(item, capabilities)}</span>
-          {#if item.status === "waiting" || !href}
-            <em>대기</em>
+          {#if item.status === "waiting"}
+            <em>결과 대기</em>
+          {:else if !href}
+            <em>이동 경로 확인 필요</em>
           {:else if item.status === "needs-connection"}
             <a {href} aria-label={NAME[item.id] + " 모델 연결하기"}>모델 연결하기 →</a>
           {:else}
