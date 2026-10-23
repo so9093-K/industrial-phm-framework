@@ -69,7 +69,7 @@ HTML 파일을 더블클릭하는 `file://` 실행은 지원하지 않습니다.
 
 ```sh
 uv sync --locked --extra history --extra forecast --extra opcua
-uv pip install --python .venv/bin/python "playwright==1.64.0"
+uv pip install --python .venv/bin/python "playwright==1.64.0" "pillow>=12,<13"
 uv run --no-sync playwright install chromium
 make frontend
 uv run --no-sync python -m tools.showcase.export
@@ -79,7 +79,8 @@ uv run --no-sync python -m tools.showcase.capture
 
 캡처 도구는 API 서버 없이 정적 파일만 제공하고 실제 Chromium에서 여섯 단계를 따라갑니다.
 PNG는 분석 내용이 보이도록 실제 화면을 스크롤해 촬영합니다. GIF는 촬영 프레임으로 구성한 짧은 흐름이며
-WebM은 같은 브라우저 세션 녹화입니다. 그래프나 결과를 이미지에 합성하지 않습니다.
+WebM은 같은 브라우저 세션 녹화입니다. 데이터 종류에 무관한
+'무엇이 평소와 달라졌나요?' 분석 방법 선택도 실제 화면으로 촬영합니다. 그래프나 결과를 이미지에 합성하지 않습니다.
 `--no-media`는 파일을 다시 촬영하지 않고 동일한 브라우저 검증을 실행합니다.
 
 입력/근거 계약 테스트는 기본 unit/contract 검사에 포함됩니다. 실제 API 재생성, 브라우저 확인과

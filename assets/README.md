@@ -96,14 +96,17 @@ ko-KR Chromium, 1440×1000이며 [촬영 조건](models/capture.json)에 실제 
 
 ## 설치 없는 체험
 
-현재 Svelte UI를 ko-KR Chromium, 1440×1100에서 촬영했습니다.
-PNG·GIF는 실제 화면, WebM은 브라우저 녹화이며 [배포물·화면 해시](showcase/capture.json)를 기록합니다.
+현재 Svelte UI를 ko-KR Chromium, 1440×1100에서 촬영합니다.
+PNG·GIF는 실제 화면, WebM은 브라우저 녹화이며 [캡처 이력·화면/영상 해시](showcase/capture.json)에
+촬영 시각과 소스 커밋, 정적 API 스냅샷을 함께 기록합니다.
+공통 '이상 징후' 선택 화면도 촬영하되, 준비된 상세 분석의 직접 링크는 유지합니다.
 
 | 파일 | 확인할 사용자 가치 |
 | --- | --- |
 | [관측](showcase/01-observe.png) | 두 설비의 저장 기록과 다음 확인 대상 |
 | [신호](showcase/02-signals.png) | 전류 변화·시각·출처·단위 |
-| [기준 구간 이탈](showcase/03-anomaly.png) | 벗어난 구간·시점·정도 |
+| [분석 방법 선택](showcase/02a-choose-method.png) | 데이터 종류에 무관한 공통 이상 징후 질문과 방법 선택 |
+| [기준 구간 이탈](showcase/03-anomaly.png) | 선택한 방법의 벗어난 구간·시점·정도 |
 | [기간 비교](showcase/04-compare.png) | 앞뒤 기간의 분포·유효 측정·결측 |
 | [전망](showcase/05-outlook.png) | 계산한 1시간 전망과 임의 기준 13 A·15 A |
 | [검토](showcase/06-review.png) | 저장된 분석 근거와 예시 사람 검토 메모 |
