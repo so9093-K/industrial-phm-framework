@@ -84,13 +84,14 @@ def project_asset_capabilities(
     forecast = _forecast_capability(workspace, asset_id, data, acquisition)
     modelled = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
     anomaly = modelled
-    if modelled["status"] != READY and modelled["reason"] != "waiting-results" and data["history"]:
+    if modelled["status"] != READY and data["history"]:
         # Stored history can always be searched for departures from its own baseline.
         anomaly = _item(
             "anomaly",
             READY,
             "explore",
             "anomaly",
+            "baseline",
             packages=modelled["facts"].get("packages", 0),
         )
     return {
@@ -126,13 +127,18 @@ def _item(
     reason: str,
     view: str | None,
     goal: str | None = None,
+    *,
+    data_kind: str | None = None,
     **facts: object,
 ) -> dict[str, Any]:
     return {
         "id": capability,
         "status": status,
         "reason": reason,
-        "target": None if view is None else {"view": view, "goal": goal},
+        "target": (
+            None if view is None
+            else {"view": view, "goal": goal, **({"data": data_kind} if data_kind else {})}
+        ),
         "facts": facts,
     }
 
@@ -159,16 +165,16 @@ def _signal_capabilities(
     unread = waveforms and acquisition is None
     items = []
     if history:
-        items.append(_item("measurements", READY, "history", "signals", "trend", channels=channels))
+        items.append(_item("measurements", READY, "history", "signals", "trend", data_kind="history", channels=channels))
     elif acquisition:
-        items.append(_item("measurements", READY, "acquisition", "monitor", count=analyzed))
+        items.append(_item("measurements", READY, "acquisition", "signals", "trend", data_kind="vibration", count=analyzed))
     else:
         items.append(_item("measurements", NEEDS_CONNECTION, "waveforms-need-model", "anomaly"))
 
     if spans_time:
-        items.append(_item("period-compare", READY, "history", "signals", "compare"))
+        items.append(_item("period-compare", READY, "history", "signals", "compare", data_kind="history"))
     elif acquisition and analyzed >= 2:
-        items.append(_item("period-compare", READY, "acquisition", "signals", "compare"))
+        items.append(_item("period-compare", READY, "acquisition", "signals", "compare", data_kind="vibration"))
     elif acquisition:
         items.append(_item("period-compare", WAITING, "few-acquisitions", None, count=analyzed))
     elif unread:
@@ -177,9 +183,9 @@ def _signal_capabilities(
         items.append(_item("period-compare", UNAVAILABLE, "single-moment", None))
 
     if history and channels >= 2:
-        items.append(_item("relation", READY, "history", "signals", "relation", channels=channels))
+        items.append(_item("relation", READY, "history", "signals", "relation", data_kind="history", channels=channels))
     elif acquisition and features >= 2 and analyzed >= 3:
-        items.append(_item("relation", READY, "acquisition", "signals", "relation"))
+        items.append(_item("relation", READY, "acquisition", "signals", "relation", data_kind="vibration"))
     elif acquisition:
         items.append(_item("relation", WAITING, "few-acquisitions", None, count=analyzed))
     elif unread:
@@ -218,14 +224,25 @@ def _forecast_capability(
     ]
     if not allowed:
         if options["acquisition"] and options["acquisition"].get("count_forecast"):
-            return _item("forecast", READY, "stored-flow-count", "forecast")
+            return _item("forecast", READY, "stored-flow-count", "forecast", data_kind="vibration")
         history = options["history"]
         if history and "few-points" not in history["horizons"].values():
             # Twenty values carry a condition outlook even where no chart horizon fits.
-            return _item("forecast", READY, "outlook-only", "forecast")
+            return _item("forecast", READY, "outlook-only", "forecast", data_kind="history")
         return _item("forecast", UNAVAILABLE, "short-history", None)
     longest = max(allowed, key=lambda name: HORIZONS[name])
-    return _item("forecast", READY, "stored-flow", "forecast", horizon=longest)
+    # Select the source whose recorded horizon is usable, and advertise that
+    # source explicitly rather than letting the Web infer it from the label.
+    best_kind = max(
+        ((kind, name) for kind in ("history", "acquisition")
+         if options[kind] is not None
+         for name, reason in options[kind]["horizons"].items() if reason is None),
+        key=lambda pair: HORIZONS[pair[1]],
+    )[0]
+    return _item(
+        "forecast", READY, "stored-flow", "forecast",
+        data_kind="history" if best_kind == "history" else "vibration", horizon=longest,
+    )
 
 
 def _model_capability(

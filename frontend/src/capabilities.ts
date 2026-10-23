@@ -6,7 +6,12 @@ import {object} from "./writes.ts";
 
 export type CapabilityId="measurements"|"period-compare"|"relation"|"spectrum"|"forecast"|"anomaly"|"ai-question";
 export type CapabilityStatus="ready"|"needs-connection"|"waiting"|"unavailable";
-export type Capability={id:CapabilityId;status:CapabilityStatus;reason:string;facts:Record<string,unknown>};
+export type CapabilityTarget={
+  view:"signals"|"monitor"|"anomaly"|"forecast"|"connect";
+  goal:string|null;
+  data:"history"|"vibration"|null;
+};
+export type Capability={id:CapabilityId;status:CapabilityStatus;reason:string;facts:Record<string,unknown>;target:CapabilityTarget|null};
 export type Capabilities={
   assetId:string;
   history:{channels:number;start:string;end:string}|null;
@@ -34,7 +39,16 @@ export function parseCapabilities(raw:unknown,assetId:string):Capabilities{
   const items=root.capabilities.map((item:unknown):Capability=>{
     const row=object(item);
     if(!row||!IDS.includes(row.id as CapabilityId)||!STATUSES.includes(row.status as CapabilityStatus)||typeof row.reason!=="string")invalid();
-    return {id:row.id as CapabilityId,status:row.status as CapabilityStatus,reason:row.reason,facts:object(row.facts)??{}};
+    const source=object(row.target);
+    if(row.target!==null&&row.target!==undefined&&!source)invalid();
+    const view=source?.view;
+    if(source && !["signals","monitor","anomaly","forecast","connect"].includes(String(view)))invalid();
+    if(source && source.goal!==null && typeof source.goal!=="string")invalid();
+    if(source && source.data!==undefined && !["history","vibration"].includes(String(source.data)))invalid();
+    return {id:row.id as CapabilityId,status:row.status as CapabilityStatus,reason:row.reason,
+      facts:object(row.facts)??{},
+      target:source?{view:view as CapabilityTarget["view"],goal:source.goal as string|null,
+        data:(source.data as CapabilityTarget["data"])??null}:null};
   });
   return {assetId,items,
     history:history&&typeof history.start_at==="string"&&typeof history.end_at==="string"
@@ -92,22 +106,23 @@ export function fact(item:Capability,capabilities:Capabilities):string{
   }
 }
 
-/** Where an analysis opens, with the asset kept; null when there is nowhere to go yet. */
+/** Route the server's explicit capability target, never re-decide it from reason text. */
 export function place(item:Capability,assetId:string):string|null{
-  if(item.reason==="no-data"||item.reason==="not-received")return systemUrl("connections");
+  const target=item.target;
+  if(!target)return null;
+  if(target.view==="connect")return systemUrl("connections");
   if(item.status==="unavailable"||item.status==="waiting")return null;
-  if(item.status==="needs-connection")return assetTabUrl(assetId,"anomaly","model");
-  const kind=item.reason==="acquisition"?"vibration":item.reason==="history"?"history":null;
-  switch(item.id){
-    case "measurements":return kind==="history"?assetTabUrl(assetId,"signals"):assetTabUrl(assetId,"anomaly","model");
-    case "period-compare":return assetTabUrl(assetId,"change","compare",kind);
-    case "relation":return assetTabUrl(assetId,"change","relation",kind);
-    case "spectrum":return assetTabUrl(assetId,"change","spectrum");
-    case "forecast":return assetTabUrl(assetId,"outlook",null,
-      item.reason==="stored-flow-count"?"vibration":item.reason==="outlook-only"?"history":null);
-    case "anomaly":return assetTabUrl(assetId,"anomaly",item.reason==="explore"?"baseline":"model");
-    case "ai-question":return item.reason==="outlook"?assetTabUrl(assetId,"outlook"):assetTabUrl(assetId,"anomaly","model");
+  if(target.view==="forecast")return assetTabUrl(assetId,"outlook",null,target.data);
+  if(target.view==="anomaly")
+    return assetTabUrl(assetId,"anomaly",target.goal==="baseline"?"baseline":"model");
+  if(target.view==="monitor")return assetTabUrl(assetId,"signals");
+  if(target.view==="signals"){
+    if(target.goal==="compare")return assetTabUrl(assetId,"change","compare",target.data);
+    if(target.goal==="relation")return assetTabUrl(assetId,"change","relation",target.data);
+    if(target.goal==="spectrum")return assetTabUrl(assetId,"change","spectrum");
+    if(target.goal==="trend")return assetTabUrl(assetId,"signals");
   }
+  return null;
 }
 
 /** Model-free analysis is ready, and a model that fits is one connection away as well. */
