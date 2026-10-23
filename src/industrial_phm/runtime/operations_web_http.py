@@ -71,6 +71,10 @@ from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
     project_operations_runtime_status,
 )
+from industrial_phm.runtime.operations_web_review_index import (
+    REVIEW_ASSET_INDEX_ROUTE,
+    handle_review_asset_index,
+)
 from industrial_phm.runtime.operations_web_review import (
     REVIEWS_ROUTE,
     WebReviewConflict,
@@ -369,6 +373,10 @@ def create_operations_web_read_server(
                     OperationsWorkspace(root), parts.query
                 )
                 self._send_json(status, captures)
+                return
+            if parts.path == REVIEW_ASSET_INDEX_ROUTE:
+                status, index = handle_review_asset_index(OperationsWorkspace(root), parts.query)
+                self._send_json(status, index)
                 return
             if parts.path == REVIEWS_ROUTE:
                 status, reviews = handle_reviews_read(OperationsWorkspace(root), parts.query)

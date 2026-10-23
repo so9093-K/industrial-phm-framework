@@ -140,6 +140,13 @@ class OutlookCaptureStore:
             # with identical observations and options. Preserve the first saved bytes.
         return {"capture_id": identifier, "captured_at": stored[2]}
 
+    def review_asset_ids(self) -> set[str]:
+        """Exact asset identities with persisted captures, no snapshots or writes."""
+        if not self.path.exists():
+            return set()
+        with sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=10) as connection:
+            return {row[0] for row in connection.execute("SELECT DISTINCT asset_id FROM capture")}
+
     def list_for(
         self,
         asset_id: str,
