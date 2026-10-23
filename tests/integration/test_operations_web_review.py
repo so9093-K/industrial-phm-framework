@@ -20,13 +20,13 @@ from industrial_phm.runtime import OperationsWorkspace, initialize_operations_wo
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
-from industrial_phm.runtime.operations_web_review_index import handle_review_asset_index
 from industrial_phm.runtime.operations_web_review import (
     WebReviewConflict,
     WebReviewNotFound,
     record_web_review_action,
     request_web_analysis_review,
 )
+from industrial_phm.runtime.operations_web_review_index import handle_review_asset_index
 from tests.support.window_analysis import phase_unbalance_analysis
 
 
@@ -322,8 +322,14 @@ def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
     )
     assert status == HTTPStatus.OK
     assert len(later["asset_ids"]) == 3 and later["next_after"] is None
-    assert analysis.run.asset_id in later["asset_ids"] or analysis.run.asset_id in first["asset_ids"]
+    assert analysis.run.asset_id in [*later["asset_ids"], *first["asset_ids"]]
     assert created["finding_id"]
-    assert handle_review_asset_index(workspace, "after_asset=missing")[0] == HTTPStatus.BAD_REQUEST
-    assert handle_review_asset_index(workspace, "after_asset=x&after_asset=y")[0] == HTTPStatus.BAD_REQUEST
+    assert (
+        handle_review_asset_index(workspace, "after_asset=missing")[0]
+        == HTTPStatus.BAD_REQUEST
+    )
+    assert (
+        handle_review_asset_index(workspace, "after_asset=x&after_asset=y")[0]
+        == HTTPStatus.BAD_REQUEST
+    )
 

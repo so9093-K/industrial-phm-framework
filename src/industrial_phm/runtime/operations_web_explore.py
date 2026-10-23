@@ -243,9 +243,7 @@ def explore_sources(
     acquisition = None
     if binding is not None:
         acquisition = acquisition_source(store, binding)
-        acquisition["period_seconds"] = acquisition_period(
-            workspace, asset_id, binding.source_id
-        )
+        acquisition["period_seconds"] = acquisition_period(workspace, asset_id, binding.source_id)
         # Which model results an acquisition range can open, per binding.
         acquisition["models"] = [
             {"binding_id": item.binding_id, "task": task}

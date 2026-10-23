@@ -71,15 +71,15 @@ from industrial_phm.runtime.operations_web_read import (
     project_operations_monitor,
     project_operations_runtime_status,
 )
-from industrial_phm.runtime.operations_web_review_index import (
-    REVIEW_ASSET_INDEX_ROUTE,
-    handle_review_asset_index,
-)
 from industrial_phm.runtime.operations_web_review import (
     REVIEWS_ROUTE,
     WebReviewConflict,
     WebReviewNotFound,
     handle_reviews_read,
+)
+from industrial_phm.runtime.operations_web_review_index import (
+    REVIEW_ASSET_INDEX_ROUTE,
+    handle_review_asset_index,
 )
 from industrial_phm.runtime.operations_web_setup import (
     SourceControlConflict,

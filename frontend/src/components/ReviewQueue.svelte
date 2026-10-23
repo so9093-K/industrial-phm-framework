@@ -238,8 +238,8 @@
           // snapshot predates the new discovery route; never call this complete.
           assetIndexProblem = true;
           const scope = selectReviewAssets([
-            ...(snapshot?.assets.map((asset) => asset.assetId) ?? [],
-            ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? [],
+            ...(snapshot?.assets.map((asset) => asset.assetId) ?? []),
+            ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? []),
             ...(snapshot?.analyses.records.map((item) => item.assetId) ?? []),
           ], "", 20);
           assets = scope.assets;
