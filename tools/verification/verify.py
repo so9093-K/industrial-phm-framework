@@ -45,6 +45,8 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or data.get("schema_version") != 1:
         raise ValueError("suite configuration must use schema_version=1")
+    if set(data) != {"schema_version", "suites"}:
+        raise ValueError("suite configuration has missing or unsupported fields")
     suites = data.get("suites")
     if not isinstance(suites, dict) or not suites:
         raise ValueError("suites must be a non-empty object")
@@ -53,6 +55,12 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
             raise ValueError(f"invalid suite name: {name!r}")
         if not isinstance(suite, dict) or suite.get("runner") not in RUNNERS:
             raise ValueError(f"{name}: invalid runner")
+        supported = {
+            "runner", "state", "cwd", "timeout_seconds", "command",
+            "environment", "allow_skips",
+        }
+        if set(suite) - supported:
+            raise ValueError(f"{name}: unsupported suite fields")
         if suite.get("state") not in {"active", "planned"}:
             raise ValueError(f"{name}: state must be active or planned")
         command = suite.get("command")

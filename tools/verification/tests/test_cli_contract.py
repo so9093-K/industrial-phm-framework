@@ -294,3 +294,25 @@ def test_partial_skips_require_explicit_suite_policy(tmp_path: Path) -> None:
     summary = junit_summary(path)
     assert verdict(0, summary) == "INCOMPLETE"
     assert verdict(0, summary, allow_skips=True) == "PASSED"
+
+
+def test_unsupported_suite_settings_are_rejected(tmp_path: Path) -> None:
+    spec = load_suites()["verification-smoke"].copy()
+    spec["allow_skip"] = True  # Typo must not silently weaken the skip policy.
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps({"schema_version": 1, "suites": {"typo": spec}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="unsupported suite fields"):
+        load_suites(config)
+
+
+def test_unsupported_root_settings_are_rejected(tmp_path: Path) -> None:
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps({"schema_version": 1, "suites": load_suites(), "defaults": {}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="unsupported fields"):
+        load_suites(config)
