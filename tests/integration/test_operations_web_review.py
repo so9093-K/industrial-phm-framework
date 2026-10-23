@@ -279,12 +279,14 @@ def test_exact_finding_read_bypasses_recent_100_and_checks_asset(
     assert code == HTTPStatus.OK
     assert exact["reviews"]["total"] == 1
     assert exact["reviews"]["items"][0]["finding_id"] == oldest.finding_id
-    assert handle_reviews_read(
-        workspace, "asset_id=other-asset&finding_id=" + oldest.finding_id
-    )[0] == HTTPStatus.NOT_FOUND
-    assert handle_reviews_read(
-        workspace, "asset_id=" + base.asset_id + "&finding_id=missing"
-    )[0] == HTTPStatus.NOT_FOUND
+    assert (
+        handle_reviews_read(workspace, "asset_id=other-asset&finding_id=" + oldest.finding_id)[0]
+        == HTTPStatus.NOT_FOUND
+    )
+    assert (
+        handle_reviews_read(workspace, "asset_id=" + base.asset_id + "&finding_id=missing")[0]
+        == HTTPStatus.NOT_FOUND
+    )
     for bad in ("&finding_id=", "&finding_id=a&finding_id=b"):
         assert (
             handle_reviews_read(workspace, "asset_id=" + base.asset_id + bad)[0]
