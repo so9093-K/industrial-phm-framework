@@ -706,6 +706,9 @@ def test_supervised_csv_lost_response_reload_analysis_review_and_restart(
                 page.get_by_role("link", name="분석 기록에서 보기").click()
                 record = page.get_by_role("region", name="분석 결과").get_by_role("article")
                 pw.expect(record).to_contain_text("journey-pump")
+                # Human review is optional. Expand it explicitly instead of assuming the
+                # retired always-visible review action in the default analysis journey.
+                record.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
                 record.get_by_role("button", name="검토 요청").click()
                 record.get_by_role("link", name="정비 검토함에서 보기").click()
                 detail = page.get_by_role("region", name="고른 검토 항목")
