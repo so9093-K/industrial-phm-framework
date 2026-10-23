@@ -132,9 +132,7 @@ def junit_summary(path: Path) -> dict[str, int]:
     }
 
 
-def verdict(
-    exit_code: int, summary: dict[str, int] | None, *, allow_skips: bool = False
-) -> str:
+def verdict(exit_code: int, summary: dict[str, int] | None, *, allow_skips: bool = False) -> str:
     if summary is None:
         return "INCOMPLETE"
     if summary["errors"]:
