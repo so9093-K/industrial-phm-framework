@@ -199,7 +199,6 @@ def test_run_manifest_has_a_suite_fingerprint(tmp_path: Path) -> None:
     assert result["python_version"] and result["platform"]
 
 
-
 def test_nested_junit_suite_mismatch_is_rejected(tmp_path: Path) -> None:
     path = tmp_path / "junit.xml"
     path.write_text(
