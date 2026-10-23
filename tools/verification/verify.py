@@ -56,8 +56,13 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
         if not isinstance(suite, dict) or suite.get("runner") not in RUNNERS:
             raise ValueError(f"{name}: invalid runner")
         supported = {
-            "runner", "state", "cwd", "timeout_seconds", "command",
-            "environment", "allow_skips",
+            "runner",
+            "state",
+            "cwd",
+            "timeout_seconds",
+            "command",
+            "environment",
+            "allow_skips",
         }
         if set(suite) - supported:
             raise ValueError(f"{name}: unsupported suite fields")
