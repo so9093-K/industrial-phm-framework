@@ -159,3 +159,61 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
                 browser.close()
     finally:
         stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1024, 1440])
+def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
+    tmp_path: Path, width: int
+) -> None:
+    """The task starts consistently, while the source of evidence remains explicit."""
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal, scale in enumerate((0.5, 0.6, 0.7, 0.8), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    _history(workspace, "motor-01", ("current", "temperature"), 40)
+    _history(workspace, "bearing-a", ("temperature",), 40)
+    server, thread = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser, page, errors = _page(
+                runtime, server.server_port, width, "motor-01", "bearing-a"
+            )
+            try:
+                base = f"http://127.0.0.1:{server.server_port}/web/?page=assets"
+                for asset in ("motor-01", "bearing-a"):
+                    page.goto(base + f"&tab=anomaly&monitor_asset={asset}")
+                    pw.expect(
+                        page.get_by_role("heading", name="무엇이 평소와 달라졌나요?")
+                    ).to_be_visible()
+                    pw.expect(
+                        page.get_by_role("link", name="기준 구간 이탈 확인")
+                    ).to_be_visible()
+
+                # Mixed-input assets must not silently pick history over vibration.
+                page.goto(base + "&tab=outlook&monitor_asset=bearing-a")
+                pw.expect(
+                    page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?")
+                ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("link", name="시계열 기록으로 확인")
+                ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("link", name="진동 측정으로 확인")
+                ).to_be_visible()
+
+                page.get_by_role("link", name="진동 측정으로 확인").click()
+                pw.expect(page).to_have_url(
+                    base + "&tab=outlook&data=vibration&monitor_asset=bearing-a"
+                )
+                assert page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?").count() == 0
+                assert page.evaluate(
+                    "document.documentElement.scrollWidth <= window.innerWidth + 2"
+                )
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
