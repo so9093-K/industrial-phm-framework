@@ -46,7 +46,7 @@
       if (!value || !value.features.length) { listState = "empty"; return; }
       options = value;
       if (!value.features.some((item) => item.id === feature))
-        feature = (value.features.find((item) => item.id.endsWith("Horizontal_vibration_signals.rms")) ?? value.features[0]).id;
+        feature = value.features[0].id;
       listState = "ready";
       void load();
     }).catch(() => { if (!pending.signal.aborted) listState = "failed"; });

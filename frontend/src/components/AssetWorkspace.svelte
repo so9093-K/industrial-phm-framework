@@ -33,15 +33,14 @@
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
 
-  // An explicit choice in the address wins; otherwise the asset's own data decides.
-  const method: Method | null = $derived.by(() => {
-    if (route.method) return route.method;
-    if (route.tab === "anomaly") return data && !data.vibration && data.history ? "baseline" : "model";
-    if (route.tab === "change") return "compare";
-    return null;
-  });
+  // Every asset starts from the same task. The user chooses an anomaly method;
+  // mixed inputs require an explicit measurement kind, never a hidden default.
+  const method: Method | null = $derived(route.method ?? (route.tab === "change" ? "compare" : null));
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
+  const chooseAnomaly = $derived(route.tab === "anomaly" && route.method === null);
+  const chooseKind = $derived(
+    usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
   const methods = $derived(methodsFor(route.tab, data));
   const waitingForDefault = $derived(dataState === "loading" && route.tab !== "summary");
   const unsupportedSelection = $derived.by(() => {
@@ -155,6 +154,32 @@
     <StatusNotice kind="uncertain" title="선택한 분석을 이 데이터에서 사용할 수 없습니다"
       message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
+  {:else if route.tab !== "summary" && kindsOf(data).length === 0}
+    <StatusNotice kind="uncertain" title="분석할 저장 데이터가 없습니다"
+      message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다. 다른 종류로 대체해 보여 주지 않습니다."
+      actionLabel="설비 요약 보기" actionHref={at("summary")} />
+  {:else if chooseAnomaly}
+    <section class="task-chooser ui-panel" aria-labelledby="task-anomaly-title">
+      <h2 id="task-anomaly-title">무엇이 평소와 달라졌나요?</h2>
+      <p class="context">데이터 종류에 관계없이 같은 질문에서 시작합니다. 가능한 분석을 선택하고, 모델 점수는 연결된 모델과 실제 결과가 있어야 표시됩니다.</p>
+      <ul>
+        {#each methods as option (option)}
+          <li><a href={at("anomaly", option)}>{METHOD_INFO[option]} 확인 →</a>
+            <span class="context">{option === "baseline" ? "저장된 시계열의 기준 구간과 변화 비교" : "모델 분석 결과 또는 연결 상태 확인"}</span>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {:else if chooseKind}
+    <section class="task-chooser ui-panel" aria-labelledby="task-source-title">
+      <h2 id="task-source-title">어떤 측정 근거로 확인할까요?</h2>
+      <p class="context">이 설비에는 둘 이상의 데이터 종류가 있습니다. 자동으로 다른 근거를 선택하지 않습니다.</p>
+      <ul>
+        {#each kindsOf(data) as option (option)}
+          <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}로 확인 →</a></li>
+        {/each}
+      </ul>
+    </section>
   {:else}
     {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind}
       {#if route.tab === "summary"}
@@ -202,6 +227,12 @@
   }
   .tabs { display: flex; flex-wrap: wrap; gap: var(--space-1); border-bottom: 1px solid var(--color-border); }
   .tabs-hint { display: none; margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .task-chooser { display: grid; gap: var(--space-3); }
+  .task-chooser h2, .task-chooser p { margin: 0; }
+  .task-chooser ul { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+  .task-chooser li { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
+  .task-chooser li a { font-weight: 650; }
+  .task-chooser .context { color: var(--color-ink-muted); font-size: var(--font-small); }
   /* One row of tabs that scrolls sideways on a phone, so the fifth tab is not on its own line. */
   @media (max-width: 560px) {
     .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }

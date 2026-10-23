@@ -17,10 +17,12 @@ test("an asset's stored data kinds choose the default analysis, never another as
   assert.throws(() => parseAssetData({schema_version: 1, asset_id: "m", history: {}}, "m"), /형식/);
 });
 
-test("unknown or empty availability offers both kinds instead of hiding one", () => {
-  assert.deepEqual(kindsOf(null), ["history", "vibration"]);
-  assert.deepEqual(kindsOf({history: null, vibration: null}), ["history", "vibration"]);
-  assert.equal(defaultKind(null), "history");
+test("unknown, absent and mixed data never invent a default kind", () => {
+  assert.deepEqual(kindsOf(null), []);
+  assert.deepEqual(kindsOf({history: null, vibration: null}), []);
+  assert.equal(defaultKind(null), null);
+  assert.equal(defaultKind({history: null, vibration: null}), null);
+  assert.equal(defaultKind({history: {signals: 2}, vibration: {measurements: 4, first: 1, last: 4}}), null);
 });
 
 test("only the methods an asset's data supports are offered", () => {
@@ -29,8 +31,8 @@ test("only the methods an asset's data supports are offered", () => {
   assert.deepEqual(methodsFor("anomaly", vibration), ["model"]);
   assert.deepEqual(methodsFor("change", vibration), ["compare", "relation", "spectrum"]);
   assert.deepEqual(methodsFor("change", csv), ["compare", "relation", "electrical"]);
-  assert.deepEqual(methodsFor("anomaly", null), ["model", "baseline"]);
-  assert.deepEqual(methodsFor("change", {history: null, vibration: null}), ["compare", "relation", "spectrum", "electrical"]);
+  assert.deepEqual(methodsFor("anomaly", null), []);
+  assert.deepEqual(methodsFor("change", {history: null, vibration: null}), []);
   assert.deepEqual(methodsFor("signals", csv), []);
 });
 
