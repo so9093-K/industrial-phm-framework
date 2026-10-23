@@ -315,7 +315,7 @@
           </label>
           <label class="choice">
             <input type="checkbox" checked={timeZoneConfirmed} disabled={locked}
-              onchange={(event) => timeZoneConfirmed = event.currentTarget.checked} />
+              onchange={(event) => { timeZoneConfirmed = event.currentTarget.checked; changed(); }} />
             이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다. 저장되는 측정 시각에 영향을 줍니다.
           </label>
         {/if}

@@ -7,7 +7,7 @@
   import {seriesName} from "../series-names";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
-  import {filterReviewItems, selectReviewItem} from "../review-selection";
+  import {filterReviewItems, selectReviewItem, selectReviewAssets} from "../review-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
   import OutlookReviewDetail from "./OutlookReviewDetail.svelte";
@@ -53,6 +53,7 @@
   let historyProblem = $state("");
   let hiddenFindings = $state(false);
   let loadedAssets = $state(0);
+  let partialAssetScope = $state(false);
   // A direct link opens with every status so its subject is visible; later links keep the filter.
   let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
   let typeFilter: "all" | "analysis" | "outlook" = $state("all");
@@ -149,11 +150,14 @@
 
   onMount(() => {
     const request = new AbortController();
-    // Assets with stored analyses or reviews count too, even when the asset list omits them.
-    const assets = [...new Set([...(snapshot?.assets.map((asset) => asset.assetId) ?? []),
+    // A direct asset route reads its exact owner; a general queue is bounded.
+    const scope = selectReviewAssets([
+      ...(snapshot?.assets.map((asset) => asset.assetId) ?? []),
       ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? []),
-      ...(snapshot?.analyses.records.map((item) => item.assetId) ?? [])])].slice(0, ASSET_LIMIT);
-    if (focusAssetId && !assets.includes(focusAssetId)) assets.push(focusAssetId);
+      ...(snapshot?.analyses.records.map((item) => item.assetId) ?? []),
+    ], focusAssetId, ASSET_LIMIT);
+    const assets = scope.assets;
+    partialAssetScope = scope.partial || Boolean(snapshot?.truncated);
     // An identity-bearing bookmark without its owning asset is not a review subject.
     if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
     const failed = (assetId: string) => {
@@ -208,8 +212,12 @@
 <div class="queue-layout">
   <section class="ui-panel queue" aria-labelledby="queue-title">
     <h2 id="queue-title">검토함</h2>
-    {#if snapshot === null}
-      <StatusNotice kind="uncertain" message="관측 요약을 읽지 못해 전체 검토 목록은 알 수 없습니다. 지정한 설비의 검토 기록만 따로 확인합니다." />
+    {#if snapshot === null || partialAssetScope}
+      {#if snapshot === null}
+        <StatusNotice kind="uncertain" message="관측 요약을 읽지 못해 전체 검토 목록은 알 수 없습니다. 지정한 설비의 검토 기록만 따로 확인합니다." />
+      {:else}
+        <StatusNotice kind="uncertain" message="설비 목록이 일부만 조회됐습니다. 찾는 설비가 보이지 않으면 설비 ID로 직접 조회할 수 있습니다." />
+      {/if}
       <form onsubmit={openAssetScope} class="scope-form">
         <label for="review-scope">검토할 설비 ID</label>
         <input id="review-scope" value={scopeAssetId} oninput={(event) => scopeAssetId = event.currentTarget.value} maxlength="128" required placeholder="설비 ID 입력" />
@@ -234,8 +242,8 @@
         <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."}
           actionLabel="검토 목록 다시 읽기" onAction={() => location.reload()} />
       {/if}
-      <p class="context">현재 설비 {loadedAssets}곳에 대해 검토 기록 조회를 시도했습니다.
-        {#if snapshot?.truncated || (snapshot?.assets.length ?? 0) > ASSET_LIMIT || hiddenFindings || moreAvailable}
+      <p class="context">{focusAssetId ? "선택한 설비 1곳" : "설비 " + loadedAssets + "곳"}의 검토 기록 조회를 시도했습니다.
+        {#if partialAssetScope || hiddenFindings || moreAvailable}
           전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망은 한 번에 20건씩 읽습니다.
         {:else if failedAssets.length} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
         {/if}
@@ -251,7 +259,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : failedAssets.length || hiddenFindings || snapshot?.truncated ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
+        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}
         <button type="button" class="ui-button" disabled={loadingMore} onclick={() => void loadOlderCaptures()}>

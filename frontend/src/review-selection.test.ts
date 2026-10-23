@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {filterReviewItems, selectReviewItem, type ReviewListItem} from "./review-selection.ts";
+import {filterReviewItems, selectReviewItem, selectReviewAssets, type ReviewListItem} from "./review-selection.ts";
 
 const entries: ReviewListItem[] = [
   {key: "finding:one", assetId: "pump-a", kind: "analysis", status: "open"},
@@ -26,3 +26,15 @@ test("after review is updated, explicit selection remains visible under all-stat
   const all = filterReviewItems(entries, "all", "all");
   assert.equal(selectReviewItem(all, null, "finding:three")?.key, "finding:three");
 });
+
+test("limited review queue reports omitted assets and permits exact-owner direct access", () => {
+  const ids = Array.from({length: 22}, (_, index) => "asset-" + index);
+  const general = selectReviewAssets([...ids, "asset-0"], "", 20);
+  assert.equal(general.assets.length, 20);
+  assert.equal(general.partial, true);
+  const scoped = selectReviewAssets(ids, "asset-21", 20);
+  assert.deepEqual(scoped.assets, ["asset-21"]);
+  assert.equal(scoped.partial, true);
+  assert.deepEqual(selectReviewAssets(["asset-a", "asset-a"], "asset-a", 20).assets, ["asset-a"]);
+});
+
