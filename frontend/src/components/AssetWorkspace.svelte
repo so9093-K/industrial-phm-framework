@@ -176,7 +176,7 @@
       <p class="context">이 설비에는 둘 이상의 데이터 종류가 있습니다. 자동으로 다른 근거를 선택하지 않습니다.</p>
       <ul>
         {#each kindsOf(data) as option (option)}
-          <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}로 확인 →</a></li>
+          <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}으로 확인 →</a></li>
         {/each}
       </ul>
     </section>
