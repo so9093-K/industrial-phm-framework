@@ -255,7 +255,7 @@ def test_exact_finding_read_bypasses_recent_100_and_checks_asset(
     from industrial_phm.runtime.operations_web_review import handle_reviews_read
 
     workspace, analysis = _prepared_workspace(tmp_path)
-    requested = request_web_analysis_review(
+    request_web_analysis_review(
         workspace.root,
         {
             "analysis_run_id": analysis.run.analysis_run_id,
@@ -286,7 +286,10 @@ def test_exact_finding_read_bypasses_recent_100_and_checks_asset(
         workspace, "asset_id=" + base.asset_id + "&finding_id=missing"
     )[0] == HTTPStatus.NOT_FOUND
     for bad in ("&finding_id=", "&finding_id=a&finding_id=b"):
-        assert handle_reviews_read(workspace, "asset_id=" + base.asset_id + bad)[0] == HTTPStatus.BAD_REQUEST
+        assert (
+            handle_reviews_read(workspace, "asset_id=" + base.asset_id + bad)[0]
+            == HTTPStatus.BAD_REQUEST
+        )
 
 
 def test_a_confirm_or_close_records_the_persons_decision(tmp_path: Path) -> None:
