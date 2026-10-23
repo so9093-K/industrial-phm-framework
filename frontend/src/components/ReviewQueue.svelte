@@ -8,6 +8,7 @@
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
   import {filterReviewItems, selectReviewItem, selectReviewAssets} from "../review-selection";
+  import {readReviewAssetIndex} from "../review-index";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
   import OutlookReviewDetail from "./OutlookReviewDetail.svelte";
@@ -54,6 +55,9 @@
   let hiddenFindings = $state(false);
   let loadedAssets = $state(0);
   let partialAssetScope = $state(false);
+  let nextAsset: string | null = $state(null);
+  let loadingAssets = $state(false);
+  let assetIndexProblem = $state(false);
   // A direct link opens with every status so its subject is visible; later links keep the filter.
   let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
   let typeFilter: "all" | "analysis" | "outlook" = $state("all");
@@ -148,22 +152,14 @@
     }
   }
 
-  onMount(() => {
-    const request = new AbortController();
-    // A direct asset route reads its exact owner; a general queue is bounded.
-    const scope = selectReviewAssets([
-      ...(snapshot?.assets.map((asset) => asset.assetId) ?? []),
-      ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? []),
-      ...(snapshot?.analyses.records.map((item) => item.assetId) ?? []),
-    ], focusAssetId, ASSET_LIMIT);
-    const assets = scope.assets;
-    partialAssetScope = scope.partial || Boolean(snapshot?.truncated);
-    // An identity-bearing bookmark without its owning asset is not a review subject.
-    if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
+  let scopeRequest: AbortController | null = null;
+
+  async function loadAssetReviews(assets: string[], request: AbortController): Promise<void> {
     const failed = (assetId: string) => {
-      if (!request.signal.aborted && !failedAssets.includes(assetId)) failedAssets = [...failedAssets, assetId];
+      if (!request.signal.aborted && !failedAssets.includes(assetId))
+        failedAssets = [...failedAssets, assetId];
     };
-    void Promise.all(assets.map(async (assetId) => {
+    const pages = await Promise.all(assets.map(async (assetId) => {
       const [outlooks, reviews] = await Promise.all([
         readCaptures(assetId, {}, request.signal).then((page) => {
           if (page.nextBefore) {
@@ -181,29 +177,80 @@
         }).catch(() => { failed(assetId); return []; }),
       ]);
       return {outlooks, reviews};
-    })).then(async (pages) => {
-      if (request.signal.aborted) return;
-      const loaded = pages.flatMap((page) => page.outlooks);
-      // A direct link to an older request is read by its exact identity.
-      if (focusCaptureId && focusAssetId && !loaded.some((item) =>
-        item.id === focusCaptureId && item.outlook.assetId === focusAssetId)) {
+    }));
+    if (request.signal.aborted) return;
+    const loaded = pages.flatMap((page) => page.outlooks);
+    // Direct capture links are exact, even if the capture precedes the first page.
+    if (focusCaptureId && focusAssetId && !loaded.some((item) =>
+      item.id === focusCaptureId && item.outlook.assetId === focusAssetId)) {
+      try {
+        loaded.push(...(await readCaptures(focusAssetId, {captureId: focusCaptureId}, request.signal)).captures);
+      } catch (cause: unknown) {
+        if (!request.signal.aborted && cause instanceof CaptureNotFound) missingFocus = true;
+        else failed(focusAssetId);
+      }
+    }
+    if (request.signal.aborted) return;
+    captures = [...captures, ...loaded.filter((item) => !captures.some((prior) => prior.id === item.id))];
+    findings = [...findings, ...pages.flatMap((page) => page.reviews).filter((item) =>
+      !findings.some((prior) => prior.findingId === item.findingId))];
+    loadedAssets += assets.length;
+    if (focusFindingId && !failedAssets.includes(focusAssetId)
+      && !findings.some((item) => item.findingId === focusFindingId)) {
+      if (truncatedFindingAssets[focusAssetId]) olderFindingFocus = true;
+      else missingFocus = true;
+    }
+  }
+
+  async function loadMoreAssets() {
+    const before = nextAsset;
+    if (!before || loadingAssets || !scopeRequest) return;
+    loadingAssets = true; assetIndexProblem = false;
+    try {
+      const page = await readReviewAssetIndex(scopeRequest.signal, before);
+      if (scopeRequest.signal.aborted) return;
+      nextAsset = page.nextAfter;
+      partialAssetScope = nextAsset !== null;
+      await loadAssetReviews(page.assets, scopeRequest);
+    } catch {
+      if (!scopeRequest.signal.aborted) assetIndexProblem = true;
+    } finally {
+      loadingAssets = false;
+    }
+  }
+
+  onMount(() => {
+    const request = new AbortController(); scopeRequest = request;
+    void (async () => {
+      let assets: string[];
+      if (focusAssetId) {
+        assets = [focusAssetId]; // Exact-owner direct links never scan unrelated assets.
+      } else {
         try {
-          loaded.push(...(await readCaptures(focusAssetId, {captureId: focusCaptureId}, request.signal)).captures);
-        } catch (cause: unknown) {
-          if (!request.signal.aborted && cause instanceof CaptureNotFound) missingFocus = true;
-          else failed(focusAssetId);
+          const page = await readReviewAssetIndex(request.signal);
+          if (request.signal.aborted) return;
+          assets = page.assets;
+          nextAsset = page.nextAfter;
+          partialAssetScope = nextAsset !== null || Boolean(snapshot?.truncated);
+        } catch {
+          if (request.signal.aborted) return;
+          // Preserve historical standalone/static read-only demos whose server
+          // snapshot predates the new discovery route; never call this complete.
+          assetIndexProblem = true;
+          const scope = selectReviewAssets([
+            ...(snapshot?.assets.map((asset) => asset.assetId) ?? [],
+            ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? [],
+            ...(snapshot?.analyses.records.map((item) => item.assetId) ?? []),
+          ], "", 20);
+          assets = scope.assets;
+          partialAssetScope = true;
         }
       }
-      if (request.signal.aborted) return;
-      captures = loaded;
-      findings = pages.flatMap((page) => page.reviews);
-      loadedAssets = assets.length;
-      if (focusFindingId && !failedAssets.includes(focusAssetId)
-        && !findings.some((item) => item.findingId === focusFindingId)) {
-        if (truncatedFindingAssets[focusAssetId]) olderFindingFocus = true;
-        else missingFocus = true;
-      }
-      loadState = "ready";
+      if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
+      await loadAssetReviews(assets, request);
+      if (!request.signal.aborted) loadState = "ready";
+    })().catch(() => {
+      if (!request.signal.aborted) { assetIndexProblem = true; loadState = "ready"; }
     });
     return () => { request.abort(); olderRequest?.abort(); };
   });
@@ -212,11 +259,14 @@
 <div class="queue-layout">
   <section class="ui-panel queue" aria-labelledby="queue-title">
     <h2 id="queue-title">검토함</h2>
-    {#if snapshot === null || partialAssetScope}
-      {#if snapshot === null}
-        <StatusNotice kind="uncertain" message="관측 요약을 읽지 못해 전체 검토 목록은 알 수 없습니다. 지정한 설비의 검토 기록만 따로 확인합니다." />
-      {:else}
-        <StatusNotice kind="uncertain" message="설비 목록이 일부만 조회됐습니다. 찾는 설비가 보이지 않으면 설비 ID로 직접 조회할 수 있습니다." />
+    {#if snapshot === null || partialAssetScope || assetIndexProblem}
+      {#if assetIndexProblem}
+        <StatusNotice kind="uncertain" message="서버의 검토 대상 목록을 확인하지 못해 관측 요약에 있는 설비만 임시 조회했습니다. 전체 목록이 아닙니다."
+          actionLabel="다시 불러오기" onAction={() => location.reload()} />
+      {:else if partialAssetScope}
+        <StatusNotice kind="uncertain" message="검토 대상 설비를 일부만 불러왔습니다. 계속 불러오거나 설비 ID로 직접 조회할 수 있습니다." />
+      {:else if snapshot === null}
+        <p class="context">관측 요약과 독립적으로 저장 검토 기록을 조회합니다.</p>
       {/if}
       <form onsubmit={openAssetScope} class="scope-form">
         <label for="review-scope">검토할 설비 ID</label>
@@ -248,6 +298,11 @@
         {:else if failedAssets.length} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
         {/if}
       </p>
+      {#if nextAsset}
+        <button type="button" class="ui-button" disabled={loadingAssets} onclick={loadMoreAssets}>
+          {loadingAssets ? "다음 설비의 검토를 읽고 있습니다." : "다음 설비의 검토 더 보기"}
+        </button>
+      {/if}
       {#if hiddenFindings}<StatusNotice kind="uncertain" message="일부 분석 검토 기록은 조회 범위 밖에 있습니다. 목록에서 찾지 못했다고 기록이 없다는 뜻은 아닙니다." />{/if}
       {#if shown.length}
         <ul class="items">
