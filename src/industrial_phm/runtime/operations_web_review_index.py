@@ -7,9 +7,9 @@ asset-scoped review/capture APIs and retain their exact identities.
 
 from __future__ import annotations
 
-import sqlite3
 import hashlib
 import json
+import sqlite3
 from http import HTTPStatus
 from urllib.parse import parse_qs
 

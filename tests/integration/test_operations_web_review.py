@@ -328,7 +328,9 @@ def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
             "outlook": {"asset_id": "asset-03-new"},
         }
     )
-    status, changed = handle_review_asset_index(workspace, "after_asset=" + str(first["next_after"]))
+    status, changed = handle_review_asset_index(
+        workspace, "after_asset=" + str(first["next_after"])
+    )
     assert status == HTTPStatus.OK
     assert changed["total_assets"] == first["total_assets"] + 1
     assert changed["revision"] != first["revision"]
