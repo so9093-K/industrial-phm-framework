@@ -40,10 +40,10 @@ not install Node dependencies.
 - `src/routes.ts`: task pages, asset tabs, analysis methods and data kinds; former
   addresses map to their new place. Only the route, the asset and a chosen signal travel
   between screens; another asset's conditions or review identities never do.
-- `src/App.svelte`: top task menu, read-only/operating mode, same-document navigation.
+- `src/App.svelte`: top task menu, session write capability (not runtime health), same-document navigation.
 - `src/components/AssetWorkspace.svelte`: one asset's header, tabs, method/data choice and
   the workflow for that choice. The default data kind comes from the asset's stored data.
-- `src/asset-data.ts`: which stored data an asset has (from `/api/v1/forecast/options`);
+- `src/asset-data.ts`: which stored data an asset has (from `/api/v1/explore/sources`);
   it picks a default analysis and says nothing about the asset's condition.
 - `src/components/AssetList.svelte`: assets with something to check first, last
   measurement and receive state words shared with `/web/`.
