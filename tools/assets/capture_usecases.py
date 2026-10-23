@@ -295,9 +295,19 @@ def capture_csv(page: Any, base: str, out: Path, csv: Path) -> None:
         ("pressure_bar", "bar"),
     ):
         page.get_by_label(column + " 단위").fill(unit)
+    # A naive timestamp requires explicit time-zone confirmation before preflight.
+    confirmation = page.get_by_role(
+        "checkbox",
+        name="이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다.",
+        exact=False,
+    )
+    expect(confirmation).to_be_visible()
+    confirmation.check()
     _top(page.get_by_role("heading", name="파일 미리보기"))
     _shot(page, out, "01-register.png", frames)
-    page.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+    check = page.get_by_role("button", name="서버에서 점검 (저장 안 함)")
+    expect(check).to_be_enabled()
+    check.click()
     save = page.get_by_role("button", name="등록하고 이력 저장")
     expect(save).to_be_enabled(timeout=60_000)
     save.click()
