@@ -2,27 +2,38 @@
   "screens": [
     {
       "name": "01-observe",
-      "path": "/web/"
+      "path": "/web/",
+      "sha256": "37de887242293e94f214c970194ace7036161c113fac2b94f90af7abbd3cff59"
     },
     {
       "name": "02-signals",
-      "path": "/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=all&monitor_anchor=latest"
+      "path": "/web/?page=assets&tab=signals&monitor_asset=demo-pump-change&monitor_channel=current_a&monitor_range=all&monitor_anchor=latest",
+      "sha256": "f7090be9ab7bcb41f29915ebb81aadec3da5bd7e469ba9eefda918a637b1eacd"
+    },
+    {
+      "name": "02a-choose-method",
+      "path": "/web/?page=assets&tab=anomaly&monitor_asset=demo-pump-change",
+      "sha256": "f572509fa78f110027434bff0034f3384ad8975e814dcc993a57561f089a9900"
     },
     {
       "name": "03-anomaly",
-      "path": "/web/?page=assets&tab=anomaly&method=baseline&monitor_asset=demo-pump-change&monitor_channel=current_a&departure_baseline=first-30"
+      "path": "/web/?page=assets&tab=anomaly&method=baseline&monitor_asset=demo-pump-change&monitor_channel=current_a&departure_baseline=first-30",
+      "sha256": "9e51582ee2b5c6f9c3cfa888322943bc2c578afad70888770d67a6d74e1279a3"
     },
     {
       "name": "04-compare",
-      "path": "/web/?page=assets&tab=change&method=compare&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&compare_a=2026-10-01T00%3A00%3A00.000Z%7E2026-10-01T01%3A59%3A30.500Z&compare_b=2026-10-01T01%3A59%3A30.500Z%7E2026-10-01T03%3A59%3A01.000Z"
+      "path": "/web/?page=assets&tab=change&method=compare&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&compare_a=2026-10-01T00%3A00%3A00.000Z%7E2026-10-01T01%3A59%3A30.500Z&compare_b=2026-10-01T01%3A59%3A30.500Z%7E2026-10-01T03%3A59%3A01.000Z",
+      "sha256": "7b313a9bccc30a513adee356f5a17936205c52739757965c7d572d4d3b48af04"
     },
     {
       "name": "05-outlook",
-      "path": "/web/?page=assets&tab=outlook&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&projection_horizon=1h&projection_management=13&projection_end=15&forecast_seasonality=off&projection_direction=upper&forecast_prior=0.05&forecast_range=0.9&forecast_backtest=one"
+      "path": "/web/?page=assets&tab=outlook&data=history&monitor_asset=demo-pump-change&monitor_channel=current_a&projection_horizon=1h&projection_management=13&projection_end=15&forecast_seasonality=off&projection_direction=upper&forecast_prior=0.05&forecast_range=0.9&forecast_backtest=one",
+      "sha256": "66156d058055854b354a661d9fb393d93b7acdfbd9484cd0588b6fa23a8c2576"
     },
     {
       "name": "06-review",
-      "path": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-f0ae8e6d-a483-40d3-89f0-a5367ae21e32"
+      "path": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-fa0ea592-f32f-4ae6-aa4f-5762081193bb",
+      "sha256": "437432a5158062f899e2122cbb664f6bfea183e1cd570a02208c8d6f806e5046"
     }
   ],
   "viewport": [
@@ -31,8 +42,14 @@
   ],
   "api_backend": false,
   "data_kind": "synthetic",
-  "snapshot_sha256": "ef15012bec64cc757dce55e0cd25f1adcf84dae5405fc8f513e57ad79939e91f",
-  "bundle_manifest_sha256": "f9e32540d37dd7de47712cef77c508dcf45afcf813da09b8104abdf7589e7271",
-  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-f0ae8e6d-a483-40d3-89f0-a5367ae21e32",
-  "browser": "156.0.8078.4"
+  "captured_at": "2026-10-23T07:24:46+00:00",
+  "code_revision": "431a02d3d5a44f5900edc0a71036c0b9cbd77828",
+  "snapshot_sha256": "d732df9aa8e65fcd7f0b0013eccb3035079f56bbe6aa3e96b9e534ec240eb696",
+  "bundle_manifest_sha256": "428080fa7b10411d1c8ad68811c8e96bfbd299cd4b11ea55b2b9b8c2603af220",
+  "review_url": "/web/?page=maintenance&monitor_asset=demo-pump-change&finding_id=finding-review-analysis-run-fa0ea592-f32f-4ae6-aa4f-5762081193bb",
+  "browser": "156.0.8078.4",
+  "media_sha256": {
+    "walkthrough.gif": "3adc3347d46b748f05e32e60c9e88859dd29ee17f8e8c959abea4724751ce71e",
+    "walkthrough.webm": "de325f7cd988f8e925fca559d009bf07223ec4fdc92ab192aef5600290fd750b"
+  }
 }
