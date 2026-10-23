@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "suites": {
+    "verification-smoke": {
+      "runner": "pytest",
+      "cwd": ".",
+      "timeout_seconds": 90,
+      "command": [
+        "{python}",
+        "-m",
+        "pytest",
+        "-q",
+        "tools/verification/tests",
+        "--junitxml={junit}"
+      ]
+    },
+    "frontend-vitest": {
+      "runner": "vitest",
+      "cwd": "frontend",
+      "timeout_seconds": 180,
+      "command": [
+        "npm", "exec", "--offline", "--no", "--",
+        "vitest", "run", "--reporter=junit", "--outputFile={junit}"
+      ]
+    },
+    "browser-playwright": {
+      "runner": "playwright",
+      "cwd": "frontend",
+      "timeout_seconds": 300,
+      "command": [
+        "npm", "exec", "--offline", "--no", "--",
+        "playwright", "test", "--reporter=junit"
+      ],
+      "environment": {
+        "PLAYWRIGHT_JUNIT_OUTPUT_FILE": "{junit}"
+      }
+    }
+  }
+}
