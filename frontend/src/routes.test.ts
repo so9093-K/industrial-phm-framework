@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
@@ -15,6 +15,12 @@ test("tab activation carries the latest chosen signal while dropping workflow-sp
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",wave),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
   const summary=tabSelectionUrl("/web/?page=assets&monitor_asset=bearing",wave);
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",origin+summary),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
+});
+
+test("primary navigation stays observation-first while old record links still resolve", () => {
+  assert.deepEqual([...PRIMARY_PAGES], ["monitor", "assets", "system"]);
+  assert.equal(parseRoute("?page=investigations&monitor_asset=motor-a").route.page, "investigations");
+  assert.equal(parseRoute("?page=maintenance&monitor_asset=motor-a&finding_id=f").route.page, "maintenance");
 });
 
 test("pages and asset tabs are user tasks; unknown values are not invented", () => {

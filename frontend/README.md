@@ -18,7 +18,9 @@ npm run build
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
 on the **same loopback origin** under `/web/` only after building it.
-Screens follow the task menus of `docs/product/overview.md`:
+Primary navigation follows the observation-first tasks: 관측 현황, 설비·신호, 운영 관리.
+Saved analysis history and existing human-review records remain reachable through contextual or exact links,
+not through the primary navigation. Screens follow the task routes of `docs/product/overview.md`:
 `/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
 `tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
 `?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are

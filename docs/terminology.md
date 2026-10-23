@@ -464,7 +464,7 @@ Operations Web(Web-next)의 화면 문장·버튼·제목은 아래 표현만 �
 
 | 개념 | 화면 표현 | 기술 상세에만 표시 |
 | --- | --- | --- |
-| 업무 메뉴 | 관측 현황 · 설비·신호 · 분석 기록 · 정비 검토 · 운영 관리 | `page` (`monitor`·`assets`·`investigations`·`maintenance`·`system`) |
+| 업무 메뉴 | 관측 현황 · 설비·신호 · 운영 관리 (분석 기록·정비 검토는 문맥 링크) | `page` (`monitor`·`assets`·`investigations`·`maintenance`·`system`) |
 | 설비 화면 탭 | 상태 요약 · 이상 징후 · 신호 · 변화 분석 · 상태 전망 | `tab` |
 | 데이터 종류 | 시계열 기록 · 진동 측정 | `history` · `acquisition` |
 | 파형 묶음 한 번 | 진동 측정 1회 | `acquisition` |

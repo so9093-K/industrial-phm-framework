@@ -3,7 +3,7 @@
   import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession, sampleReturn } from "./session";
   import {loadModelBindings} from "./model-evidence";
-  import { PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
+  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import { readAttention, type AttentionState } from "./monitor-attention";
@@ -235,7 +235,7 @@
   <div class="topbar-inner">
     <a class="brand" href="/web/">Industrial PHM</a>
     <nav class="topnav" aria-label="업무 메뉴" bind:this={topnav}>
-      {#each PAGES as page (page)}
+      {#each PRIMARY_PAGES as page (page)}
         <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
           {PAGE_INFO[page].label}
         </a>
@@ -243,12 +243,12 @@
     </nav>
     <div class="topbar-side">
       {#if permissionState === "checking"}
-        <span class="mode" role="status">쓰기 권한 확인 중 · 기록 잠시 중지</span>
+        <span class="mode" role="status">작업 권한 확인 중</span>
       {:else if permissionState === "failed"}
-        <span class="mode" role="status">쓰기 권한 확인 실패 · 보기만 가능</span>
+        <span class="mode" role="status">읽기 전용 · 권한 확인 실패</span>
         <button type="button" class="ui-button" onclick={() => void checkPermission()}>권한 다시 확인</button>
       {:else if writable === true}
-        <span class="mode" role="status">기록 가능 · 서비스 상태는 시스템 상태에서 확인</span>
+        <span class="mode" role="status">운영 중</span>
       {:else}
         <span class="mode" role="status">보기 전용</span>
       {/if}
