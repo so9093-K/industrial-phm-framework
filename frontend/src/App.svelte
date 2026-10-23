@@ -182,12 +182,21 @@
   }
 
   onMount(() => {
-    const restore = () => {
+    const restore = async () => {
       if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
       const before = route;
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
       if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
         void quietRefresh();
+      // History navigation can replace the focused node without going through
+      // navigate(). Restore focus to the new content or to the new asset picker.
+      const nextPage = route.page, nextAsset = route.assetId;
+      if (before.page !== nextPage || (nextPage === "assets" && before.assetId !== nextAsset)) {
+        await tick();
+        if (route.page !== nextPage || route.assetId !== nextAsset) return;
+        if (before.page !== nextPage) document.getElementById("main")?.focus();
+        else document.querySelector<HTMLSelectElement>("[data-asset-switch]")?.focus();
+      }
     };
     // Same-document links switch screens without reloading the asset list.
     const follow = (event: MouseEvent) => {
