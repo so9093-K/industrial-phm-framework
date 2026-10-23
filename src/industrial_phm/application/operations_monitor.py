@@ -110,6 +110,7 @@ class OperationsMonitorAttention:
     source_id: str | None = None
     measurement_point_id: str | None = None
     finding_id: str | None = None
+    code: str | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.attention_id, "attention_id")
@@ -123,6 +124,8 @@ class OperationsMonitorAttention:
             raise ValueError("destination must be an OperationsAttentionDestination")
         _require_text(self.title, "title")
         _require_text(self.detail, "detail")
+        if self.code is not None:
+            _require_text(self.code, "code")
         if self.occurred_at is not None:
             _require_aware(self.occurred_at, "occurred_at")
         for value, field_name in (
@@ -690,6 +693,7 @@ def _monitor_attention(
                 ),
                 title=service_issue.title,
                 detail=service_issue.detail,
+                code=service_issue.code,
                 destination=OperationsAttentionDestination.SYSTEM,
                 occurred_at=service_issue.occurred_at,
             )
@@ -709,6 +713,7 @@ def _monitor_attention(
                     attention_id=f"live-session:reconnecting:{source_id}",
                     status=OperationsMonitorStatus.DELAYED,
                     title="Source connection lost",
+                    code="source-connection-lost",
                     detail=(
                         f"{source.name}: reconnecting since "
                         f"{session.state_changed_at.strftime('%H:%M:%S UTC')}"
@@ -736,6 +741,7 @@ def _monitor_attention(
                     attention_id=f"live-data:overdue:{source_id}",
                     status=OperationsMonitorStatus.DELAYED,
                     title="No new data",
+                    code="source-no-new-data",
                     detail=(
                         f"{source.name}: connected, but the last data arrived "
                         f"{_duration_text(age)} ago (limit {_duration_text(limit)})."
@@ -746,12 +752,13 @@ def _monitor_attention(
                     source_id=source_id,
                 )
             )
-        for component, title in (
-            (AcquisitionFailureComponent.OPCUA_WORKER, "Collection needs attention"),
-            (AcquisitionFailureComponent.HISTORY_WRITER, "History storage needs attention"),
+        for component, title, code in (
+            (AcquisitionFailureComponent.OPCUA_WORKER, "Collection needs attention", "collection-worker-error"),
+            (AcquisitionFailureComponent.HISTORY_WRITER, "History storage needs attention", "history-writer-error"),
             (
                 AcquisitionFailureComponent.WINDOW_COORDINATOR,
                 "Analysis input preparation needs attention",
+                "analysis-input-error",
             ),
         ):
             failure = _current_failure(surface, component)
@@ -762,6 +769,7 @@ def _monitor_attention(
                     attention_id=f"runtime:{component.value}:{source_id}",
                     status=OperationsMonitorStatus.ERROR,
                     title=title,
+                    code=code,
                     detail=failure.detail,
                     destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=failure.occurred_at,
@@ -777,6 +785,7 @@ def _monitor_attention(
                     attention_id="analysis-service:failed",
                     status=OperationsMonitorStatus.ERROR,
                     title="Analysis service stopped on an error",
+                    code="analysis-service-error",
                     detail=runtime.last_failure or "Analysis service failed",
                     destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=runtime.last_failure_at,
@@ -791,6 +800,7 @@ def _monitor_attention(
                     attention_id="analysis-service:delayed",
                     status=OperationsMonitorStatus.DELAYED,
                     title="Analysis service is not updating",
+                    code="analysis-service-delayed",
                     detail="The latest analysis-service heartbeat is delayed.",
                     destination=OperationsAttentionDestination.SYSTEM,
                     occurred_at=runtime.heartbeat_at,
@@ -833,12 +843,25 @@ def _project_existing_attention(
     else:
         status = OperationsMonitorStatus.NEEDS_ATTENTION
         title = "Source is waiting for data"
+    code = {
+        AttentionKind.STALE: "source-delayed",
+        AttentionKind.REVIEW_REQUIRED: (
+            "review-waiting"
+            if item.handling_state == AttentionHandlingState.UNHANDLED
+            else "review-in-progress"
+        ),
+        AttentionKind.DATA_QUALITY_ISSUE: "data-quality-review",
+        AttentionKind.SYSTEM_STATE_ERROR: "system-unavailable",
+        AttentionKind.SOURCE_ERROR: "source-flow-error",
+        AttentionKind.NO_RECEIPT: "source-waiting",
+    }[item.kind]
     detail = item.detail or item.kind.value.replace("_", " ").lower()
     return OperationsMonitorAttention(
         attention_id=f"existing:{item.attention_id}",
         status=status,
         title=title,
         detail=detail,
+        code=code,
         destination=destination,
         occurred_at=item.occurred_at,
         asset_id=asset_id,
@@ -862,6 +885,7 @@ class CollectionServiceIssue:
     summary: str
     detail: str
     occurred_at: datetime
+    code: str | None = None
 
 
 def collection_service_issue(
@@ -888,7 +912,8 @@ def collection_service_issue(
                 "No collection-service heartbeat has been recorded, so the live session "
                 "states shown are unconfirmed reports rather than current connections."
             ),
-            as_of,
+            as_of,,
+            "collection-service-heartbeat-unavailable"
         )
     if service.state == CollectionServiceRuntimeState.FAILED:
         return CollectionServiceIssue(
@@ -896,7 +921,8 @@ def collection_service_issue(
             "Collection service stopped on an error",
             "Collection service failed",
             service.last_failure or "The collection service recorded a failure.",
-            service.last_failure_at or service.heartbeat_at,
+            service.last_failure_at or service.heartbeat_at,,
+            "collection-service-error"
         )
     if service.state == CollectionServiceRuntimeState.STOPPED:
         return CollectionServiceIssue(
@@ -904,7 +930,8 @@ def collection_service_issue(
             "Collection service stopped",
             "Collection service stopped",
             "The collection service shut down; live sources are not being collected.",
-            service.heartbeat_at,
+            service.heartbeat_at,,
+            "collection-service-stopped"
         )
     age = as_of - service.heartbeat_at
     if age > timeout:
@@ -916,7 +943,8 @@ def collection_service_issue(
                 f"No collection-service heartbeat for {_duration_text(age)}; live source "
                 "sessions shown are its last report, not current connections."
             ),
-            service.heartbeat_at,
+            service.heartbeat_at,,
+            "collection-service-not-running"
         )
     return None
 
