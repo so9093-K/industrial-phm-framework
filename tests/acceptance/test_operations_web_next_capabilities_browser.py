@@ -194,6 +194,21 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                         page.get_by_role("link", name="기준 구간 이탈 확인").click()
                         pw.expect(page.get_by_role("navigation", name="분석 방법")).to_be_visible()
 
+                # On the one-signal history source, relation is not eligible;
+                # the connected vibration features support it instead.
+                page.goto(base + "&tab=change&method=relation&monitor_asset=bearing-a")
+                pw.expect(
+                    page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?")
+                ).to_be_visible()
+                pw.expect(page.get_by_role("link", name="진동 측정으로 확인")).to_be_visible()
+                assert page.get_by_role("link", name="시계열 기록으로 확인").count() == 0
+                page.goto(
+                    base + "&tab=change&method=relation&data=history&monitor_asset=bearing-a"
+                )
+                pw.expect(
+                    page.get_by_text("선택한 분석을 이 데이터에서 사용할 수 없습니다")
+                ).to_be_visible()
+
                 # Mixed-input assets must not silently pick history over vibration.
                 page.goto(base + "&tab=outlook&monitor_asset=bearing-a")
                 pw.expect(
