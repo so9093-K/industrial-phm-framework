@@ -222,7 +222,7 @@ def _signal_capabilities(
     else:
         items.append(_item("period-compare", UNAVAILABLE, "single-moment", None))
 
-    if history and channels >= 2:
+    if history and channels >= 2 and spans_time:
         items.append(
             _item(
                 "relation",
@@ -250,7 +250,8 @@ def _signal_capabilities(
     elif unread:
         items.append(_item("relation", NEEDS_CONNECTION, "waveforms-need-model", "anomaly"))
     else:
-        items.append(_item("relation", UNAVAILABLE, "single-signal", None))
+        reason = "single-moment" if history and channels >= 2 else "single-signal"
+        items.append(_item("relation", UNAVAILABLE, reason, None))
 
     if acquisition:
         items.append(_item("spectrum", READY, "acquisition", "signals", "spectrum"))
@@ -270,7 +271,7 @@ def _signal_capabilities(
             ),
         },
         "relation": {
-            "history": READY if channels >= 2 else UNAVAILABLE,
+            "history": READY if channels >= 2 and spans_time else UNAVAILABLE,
             "vibration": READY
             if analyzed >= 3 and features >= 2
             else (

@@ -126,6 +126,11 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     assert status["measurements"] == ("ready", "history")
     assert status["period-compare"] == ("ready", "history")
     assert status["relation"] == ("ready", "history")
+    relation = next(item for item in body["capabilities"] if item["id"] == "relation")
+    assert relation["facts"]["by_kind"] == {
+        "history": "ready",
+        "vibration": "unavailable",
+    }
     assert status["spectrum"] == ("unavailable", "no-waveform")
     # A CSV history is not a model input, but it can be searched for departures without one.
     assert status["anomaly"] == ("ready", "explore")
@@ -142,10 +147,10 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     assert body["data"]["history"]["channel_count"] == 2
     assert body["data"]["history"]["measurement_count"] == 40
 
-    assert _status(project_asset_capabilities(workspace, "fan-01", can_ask=True))["relation"] == (
-        "unavailable",
-        "single-signal",
-    )
+    fan = project_asset_capabilities(workspace, "fan-01", can_ask=True)
+    assert _status(fan)["relation"] == ("unavailable", "single-signal")
+    relation = next(item for item in fan["capabilities"] if item["id"] == "relation")
+    assert relation["facts"]["by_kind"]["history"] == "unavailable"
     empty = _status(project_asset_capabilities(workspace, "nothing-here", can_ask=True))
     assert empty["measurements"] == ("unavailable", "no-data")
     assert empty["spectrum"] == ("unavailable", "no-data")
