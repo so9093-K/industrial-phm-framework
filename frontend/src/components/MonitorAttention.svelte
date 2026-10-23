@@ -25,6 +25,7 @@
   const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let readAt: Date | null = $state(null);
+  let sourcesCheckedAt: Date | null = $state(null);
   let paused = $state(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let request: AbortController | null = null;
@@ -70,6 +71,7 @@
         due ? readDepartureStatus(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
       if (pending.signal.aborted) return;
       phm = model; sources = connections; loadState = "ready"; readAt = new Date();
+      sourcesCheckedAt = connections === null ? null : new Date();
       if (found !== undefined) {
         departures = found?.items ?? []; departuresFailed = found === null;
         departuresComplete = found?.complete ?? false;
@@ -89,7 +91,8 @@
       else {
         // After backgrounding, no former model or departure fact is claimed current.
         phm = null; sources = null; departures = []; departuresComplete = false;
-        departuresCheckedAt = null; departuresAt = 0; loadState = "loading";
+        departuresFailed = false; departuresCheckedAt = null; departuresAt = 0;
+        sourcesCheckedAt = null; loadState = "loading";
         void read();
       }
     };
@@ -112,7 +115,7 @@
   <p class="context">{!live ? "저장된 체험 기록입니다." :
     (paused ? "자동 갱신을 멈췄습니다 · " : "") +
     "모델 평가 " + (assessed ? clock(assessed) : "확인 중") +
-    " · 수신 조회 " + (readAt ? clock(readAt) : "확인 중") +
+    " · 수신 조회 " + (sourcesCheckedAt ? clock(sourcesCheckedAt) : "미확인") +
     " · 기준 이탈 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
   {#if live && !paused}<p class="context">모델·수신은 약 3초, 기준 이탈은 최대 30초 간격으로 별도 조회합니다.</p>{/if}
   {#if loadState === "loading"}
