@@ -118,10 +118,10 @@ jobs:
           print(f"Installed wheel Web assets: {len(names)}")
           PY
 
-      - name: Install browser runtime
+      - name: Install headless browser only
         run: |
           uv pip install --python .venv/bin/python "playwright==1.64.0"
-          uv run --no-sync playwright install --with-deps chromium
+          uv run --no-sync playwright install --only-shell chromium
 
       - name: Integration regression
         run: uv run --no-sync pytest tests/integration --maxfail=1 -q -rs --durations=15
