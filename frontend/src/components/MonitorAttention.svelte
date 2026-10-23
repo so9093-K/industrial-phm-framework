@@ -110,7 +110,7 @@
     {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
   </div>
   <p class="context">{!live ? "저장된 체험 기록입니다." :
-    (paused ? "자동 갱신 중지 · " : "") +
+    (paused ? "자동 갱신을 멈췄습니다 · " : "") +
     "모델 평가 " + (assessed ? clock(assessed) : "확인 중") +
     " · 수신 조회 " + (readAt ? clock(readAt) : "확인 중") +
     " · 기준 이탈 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
