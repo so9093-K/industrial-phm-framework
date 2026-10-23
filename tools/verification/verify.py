@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
 import hashlib
 import json
 import os
@@ -169,10 +170,8 @@ def invoke_runner(
         except BaseException:
             if process.poll() is None:
                 if os.name == "posix":
-                    try:
+                    with suppress(ProcessLookupError):
                         os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
                 else:
                     process.kill()
             process.wait()
