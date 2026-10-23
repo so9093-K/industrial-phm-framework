@@ -71,7 +71,9 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                     ),
                 )
                 record.get_by_role("button", name="다시 확인").click()
-                pw.expect(record.get_by_text("이전 기록이 없다고 판단하지 않습니다.")).to_be_visible()
+                pw.expect(
+                    record.get_by_text("이전 기록이 없다고 판단하지 않습니다.")
+                ).to_be_visible()
                 assert record.get_by_role("button", name="검토 요청").count() == 0
                 page.unroute("**/api/v1/reviews?*")
                 record.get_by_role("button", name="다시 확인").click()
