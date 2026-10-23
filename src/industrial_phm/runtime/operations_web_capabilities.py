@@ -136,7 +136,8 @@ def _item(
         "status": status,
         "reason": reason,
         "target": (
-            None if view is None
+            None
+            if view is None
             else {"view": view, "goal": goal, **({"data": data_kind} if data_kind else {})}
         ),
         "facts": facts,
@@ -291,14 +292,22 @@ def _forecast_capability(
     # Select the source whose recorded horizon is usable, and advertise that
     # source explicitly rather than letting the Web infer it from the label.
     best_kind = max(
-        ((kind, name) for kind in ("history", "acquisition")
-         if options[kind] is not None
-         for name, reason in options[kind]["horizons"].items() if reason is None),
+        (
+            (kind, name)
+            for kind in ("history", "acquisition")
+            if options[kind] is not None
+            for name, reason in options[kind]["horizons"].items()
+            if reason is None
+        ),
         key=lambda pair: HORIZONS[pair[1]],
     )[0]
     return _item(
-        "forecast", READY, "stored-flow", "forecast",
-        data_kind="history" if best_kind == "history" else "vibration", horizon=longest,
+        "forecast",
+        READY,
+        "stored-flow",
+        "forecast",
+        data_kind="history" if best_kind == "history" else "vibration",
+        horizon=longest,
     )
 
 
