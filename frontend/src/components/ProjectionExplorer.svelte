@@ -15,6 +15,7 @@
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
+  let reviewSelection: string | null = $state(null);
   import {
     HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, outlookChart, spreadRows,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
@@ -251,13 +252,13 @@
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          <details class="optional-review"><summary>검토 기록에 남기기 (선택)</summary>
-            <ReviewRequest {projection} onEvidenceChanged={message=>{
+          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
+            {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
             requestProjection?.abort();
             projection=null;
             resultState="unverified";
             error=message;
-          }}/>
+          }}/>{/if}
           </details>
         {/key}
         <ForecastValidation checks={projection.checks}/>

@@ -21,6 +21,9 @@
   let bindings: ModelBinding[] = $state([]);
   let bindingState: "loading" | "ready" | "failed" = $state("loading");
   let reviews: FindingReview[] | null = $state(null);
+  let loadedReviewAssets: Record<string, boolean> = $state({});
+  let loadingReviewAssets: Record<string, boolean> = $state({});
+  let reviewController: AbortController | null = null;
   // Reviews requested on this screen, until the next snapshot reports them.
   let requested: Record<string, string> = $state({});
   let pending: Record<string, boolean> = $state({});
@@ -45,7 +48,8 @@
     const same = (entry: {assetId: string; runId: string; evidenceIds: string[]}) => entry.assetId === item.assetId
       && entry.runId === item.runId && entry.evidenceIds.includes(item.evidenceId);
     // The current review list wins; the monitor snapshot is the fallback when it failed.
-    const saved = reviews ? reviews.find((entry) => entry.subject === "analysis" && same(entry))
+    const saved = loadedReviewAssets[item.assetId]
+      ? reviews?.find((entry) => entry.subject === "analysis" && same(entry))
       : snapshot.reviewInbox.reviews.find(same);
     if (saved) return {findingId: saved.findingId, status: saved.status};
     const findingId = requested[key(item)];
@@ -73,16 +77,27 @@
       pending = {...pending, [id]: false};
     }
   }
+  async function loadReviewFor(assetId: string) {
+    const request = reviewController;
+    if (!request || request.signal.aborted || loadedReviewAssets[assetId] || loadingReviewAssets[assetId]) return;
+    loadingReviewAssets = {...loadingReviewAssets, [assetId]: true};
+    try {
+      const page = await readFindingReviews(assetId, request.signal);
+      if (request.signal.aborted) return;
+      reviews = [...(reviews ?? []).filter((entry) => entry.assetId !== assetId), ...page.items];
+      loadedReviewAssets = {...loadedReviewAssets, [assetId]: true};
+    } catch {
+      // A failed optional review lookup does not mean that a review is absent.
+    } finally {
+      if (!request.signal.aborted) loadingReviewAssets = {...loadingReviewAssets, [assetId]: false};
+    }
+  }
   onMount(() => {
-    const request = new AbortController();
+    const request = new AbortController(); reviewController = request;
     void loadModelBindings(null, request.signal).then((loaded) => {
       if (!request.signal.aborted) { bindings = loaded; bindingState = "ready"; }
     }).catch(() => { if (!request.signal.aborted) bindingState = "failed"; });
-    const analyzed = [...new Set(snapshot.analyses.records.map((item) => item.assetId))].slice(0, 20);
-    void Promise.all(analyzed.map((id) => readFindingReviews(id, request.signal)))
-      .then((pages) => { if (!request.signal.aborted) reviews = pages.flatMap((page) => page.items); })
-      .catch(() => {});
-    return () => request.abort();
+    return () => { request.abort(); reviewController = null; };
   });
 </script>
 
@@ -157,7 +172,7 @@
                 </details>
               {/if}
             {/if}
-            <details class="optional-review"><summary>{current ? "저장된 검토 보기" : "검토 기록에 남기기 (선택)"}</summary>
+            <details class="optional-review" ontoggle={(event)=>{if(event.currentTarget.open)void loadReviewFor(item.assetId);}}><summary>{current ? "저장된 검토 보기" : "검토 기록에 남기기 (선택)"}</summary>
               <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
               <div class="review">
               {#if current}
