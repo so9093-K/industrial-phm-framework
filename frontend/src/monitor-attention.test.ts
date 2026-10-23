@@ -31,7 +31,8 @@ test("PHM alerts exclude optional review states while preserving actionable mode
 test("an open human-review status alone does not make an asset need PHM attention",()=>{
   const reports=monitor(model({latest_review_status:"open"}));
   assert.deepEqual(attentionByAsset(reports.models,null),[]);
-  assert.equal(attentionComplete({...reports,reviewsUnknown:true},null,true),false);
+  const sources={assessedAt:null,items:[],truncated:false,readErrors:[],liveErrors:[]};
+  assert.equal(attentionComplete({...reports,reviewsUnknown:true},sources,true),true);
 });
 
 test("a run of crossings still going on is a change; a latest crossing on its own is said as such",()=>{
