@@ -149,7 +149,7 @@ def test_junit_rejects_mismatched_declared_test_count(tmp_path: Path) -> None:
 
 def test_junit_rejects_unnamed_or_contradictory_cases(tmp_path: Path) -> None:
     path = tmp_path / "junit.xml"
-    write_junit(path, '<testcase><skipped/></testcase>')
+    write_junit(path, "<testcase><skipped/></testcase>")
     with pytest.raises(ValueError, match="no name"):
         junit_summary(path)
     write_junit(path, '<testcase name="bad"><failure/><skipped/></testcase>')
@@ -181,7 +181,7 @@ def test_run_manifest_has_a_suite_fingerprint(tmp_path: Path) -> None:
             "-c",
             "import os; from pathlib import Path; "
             "Path(os.environ['NATIVE_JUNIT_PATH']).write_text("
-            "'<testsuite tests=\\\"1\\\"><testcase name=\\\"example\\\"/></testsuite>')",
+            '\'<testsuite tests=\\"1\\"><testcase name=\\"example\\"/></testsuite>\')',
         ],
         "environment": {"NATIVE_JUNIT_PATH": "{junit}"},
     }

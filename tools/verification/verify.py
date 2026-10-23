@@ -107,8 +107,7 @@ def junit_summary(path: Path) -> dict[str, int]:
     if any(not case.get("name") for case in cases):
         raise ValueError("JUnit testcase has no name")
     if any(
-        sum(child.tag in {"failure", "error", "skipped"} for child in case) > 1
-        for case in cases
+        sum(child.tag in {"failure", "error", "skipped"} for child in case) > 1 for case in cases
     ):
         raise ValueError("JUnit testcase has contradictory outcomes")
     return {
