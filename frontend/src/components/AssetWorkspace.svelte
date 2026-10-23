@@ -121,7 +121,7 @@
   {#if dataState === "ready" && !chooseAnomaly && !chooseKind && (methods.length || kind)}
     <div class="choices">
       <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
-      {#if methods.length > 1 && dataState !== "loading"}
+      {#if methods.length > 1}
         <nav class="segmented" aria-label="분석 방법">
           {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
