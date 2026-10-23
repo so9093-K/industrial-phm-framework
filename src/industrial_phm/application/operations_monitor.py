@@ -912,7 +912,7 @@ def collection_service_issue(
                 "No collection-service heartbeat has been recorded, so the live session "
                 "states shown are unconfirmed reports rather than current connections."
             ),
-            as_of,,
+            as_of,
             "collection-service-heartbeat-unavailable"
         )
     if service.state == CollectionServiceRuntimeState.FAILED:
@@ -921,7 +921,7 @@ def collection_service_issue(
             "Collection service stopped on an error",
             "Collection service failed",
             service.last_failure or "The collection service recorded a failure.",
-            service.last_failure_at or service.heartbeat_at,,
+            service.last_failure_at or service.heartbeat_at,
             "collection-service-error"
         )
     if service.state == CollectionServiceRuntimeState.STOPPED:
@@ -930,7 +930,7 @@ def collection_service_issue(
             "Collection service stopped",
             "Collection service stopped",
             "The collection service shut down; live sources are not being collected.",
-            service.heartbeat_at,,
+            service.heartbeat_at,
             "collection-service-stopped"
         )
     age = as_of - service.heartbeat_at
@@ -943,7 +943,7 @@ def collection_service_issue(
                 f"No collection-service heartbeat for {_duration_text(age)}; live source "
                 "sessions shown are its last report, not current connections."
             ),
-            service.heartbeat_at,,
+            service.heartbeat_at,
             "collection-service-not-running"
         )
     return None

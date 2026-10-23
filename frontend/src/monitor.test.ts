@@ -93,11 +93,12 @@ test("operational service faults retain their own destination without becoming a
   assert.equal(parseMonitor({...observed,attention:{items:[{...item,attention_id:null}],truncated:false}}).operationsAttention?.complete,false);
 });
 
-test("server attention titles read in Korean; an unknown one falls back by where it leads", () => {
-  const item = (title: string, destination: string) =>
-    ({id: "a", title, status: "needs-attention", destination, assetId: null, sourceId: null, findingId: null, at: null});
-  assert.equal(attentionLabel(item("Review waiting", "investigations")), "검토 대기");
-  assert.equal(attentionLabel(item("No new data", "asset-signals")), "새 측정이 들어오지 않음");
-  assert.equal(attentionLabel(item("Something new", "system")), "운영 서비스 확인 필요");
-  assert.doesNotMatch(attentionLabel(item("Analysis service is not updating", "system")), /[A-Za-z]/);
+test("stable attention codes drive Korean labels independently of English descriptions", () => {
+  const item = (title: string, code: string | null, destination: string) =>
+    ({id: "a", title, code, status: "needs-attention", destination,
+      assetId: null, sourceId: null, findingId: null, at: null});
+  assert.equal(attentionLabel(item("The server changed this title", "review-waiting", "investigations")), "검토 대기");
+  assert.equal(attentionLabel(item("Different English wording", "source-no-new-data", "asset-signals")), "새 측정이 들어오지 않음");
+  assert.equal(attentionLabel(item("Something new", "not-yet-known", "system")), "운영 서비스 확인 필요");
+  assert.equal(attentionLabel(item("Old server title", null, "investigations")), "분석 결과 확인 필요");
 });
