@@ -1,7 +1,7 @@
 <script lang="ts">
   import {tick} from "svelte";
   import type {Evidence} from "../reviews";
-  import {modelResultUrl, readFindingReviews, recordFindingAction, type FindingReview} from "../finding-reviews";
+  import {modelResultUrl, readFindingReview, recordFindingAction, type FindingReview} from "../finding-reviews";
   import {assetTabUrl} from "../routes";
   import {num} from "../format";
   import {readReviewEvidence, type ReviewEvidence} from "../review-evidence";
@@ -46,8 +46,7 @@
 
   async function refresh(signal: AbortSignal): Promise<boolean> {
     try {
-      const page = await readFindingReviews(review.assetId, signal);
-      const updated = page.items.find((item) => item.findingId === review.findingId);
+      const updated = await readFindingReview(review.assetId, review.findingId, signal);
       if (signal.aborted || !updated) return false;
       onUpdated(updated);
       await tick();

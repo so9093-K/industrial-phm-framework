@@ -231,11 +231,19 @@ def handle_reviews_read(
         if len(raw_query) > 800:
             raise ValueError("review query too long")
         query = parse_qs(raw_query, strict_parsing=True)
-        if set(query) != {"asset_id"} or len(query["asset_id"]) != 1:
+        if set(query) not in ({"asset_id"}, {"asset_id", "finding_id"}) or len(query["asset_id"]) != 1:
             raise ValueError("invalid review query")
         asset_id = query["asset_id"][0]
+        exact = query.get("finding_id", [None])
+        if len(exact) != 1:
+            raise ValueError("invalid finding identity")
+        finding_id = exact[0]
         if not 1 <= len(asset_id) <= 512 or any(ord(char) < 32 for char in asset_id):
             raise ValueError("invalid asset identity")
+        if finding_id is not None and (
+            not 1 <= len(finding_id) <= 512 or any(ord(char) < 32 for char in finding_id)
+        ):
+            raise ValueError("invalid finding identity")
     except ValueError:
         return HTTPStatus.BAD_REQUEST, {"error": "invalid_review_query"}
     semantics = {HUMAN_REVIEW_FINDING_SEMANTICS_ID, PHM_REVIEW_FINDING_SEMANTICS_ID}
@@ -247,12 +255,17 @@ def handle_reviews_read(
                     workspace.finding_state_path
                 ).list_findings()
                 if item.asset_id == asset_id
+                and (finding_id is None or item.finding_id == finding_id)
                 and item.finding_semantics_id in semantics
                 and item.state == HUMAN_REVIEW_FINDING_STATE
             ),
             key=lambda item: (item.observed_at, item.finding_id),
             reverse=True,
         )
+        # Exact ID lookup is independent of the recent-list limit and never
+        # returns another asset's record, even if its finding ID is known.
+        if finding_id is not None and not findings:
+            return HTTPStatus.NOT_FOUND, {"error": "review_not_found"}
         shown = findings[:_REVIEW_LIMIT]
         events: dict[str, list[FindingReviewEvent]] = {item.finding_id: [] for item in shown}
         history = JsonFindingReviewRepository(workspace.maintenance_review_state_path)
