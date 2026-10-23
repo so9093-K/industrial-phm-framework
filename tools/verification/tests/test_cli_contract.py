@@ -59,6 +59,7 @@ def test_invalid_suite_config_is_rejected(tmp_path: Path) -> None:
                 "suites": {
                     "bad": {
                         "runner": "pytest",
+                        "state": "active",
                         "cwd": "..",
                         "timeout_seconds": 10,
                         "command": [sys.executable],
@@ -81,6 +82,7 @@ def test_missing_runner_produces_manifest_not_false_pass(tmp_path: Path) -> None
                 "suites": {
                     "missing": {
                         "runner": "pytest",
+                        "state": "active",
                         "cwd": ".",
                         "timeout_seconds": 5,
                         "command": ["/definitely/no/verification-runner"],
@@ -120,3 +122,59 @@ def test_cli_lists_without_importing_product(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert "verification-smoke" in result.stdout
+
+
+def test_declared_unavailable_suites_are_not_runnable(tmp_path: Path) -> None:
+    suites = load_suites()
+    assert suites["verification-smoke"]["state"] == "active"
+    for name in ("frontend-vitest", "browser-playwright"):
+        assert suites[name]["state"] == "planned"
+        assert run_suite(name, output_root=tmp_path / name) == 2
+        states = list((tmp_path / name).glob("*/run-manifest.json"))
+        assert len(states) == 1
+        result = json.loads(states[0].read_text(encoding="utf-8"))
+        assert result["status"] == "CONFIG_ERROR"
+        assert result["command"] is None
+
+
+def test_junit_rejects_mismatched_declared_test_count(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    path.write_text(
+        '<testsuite tests="3"><testcase name="only-one"/></testsuite>',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="does not match"):
+        junit_summary(path)
+
+
+def test_junit_rejects_unnamed_or_contradictory_cases(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    write_junit(path, '<testcase><skipped/></testcase>')
+    with pytest.raises(ValueError, match="no name"):
+        junit_summary(path)
+    write_junit(path, '<testcase name="bad"><failure/><skipped/></testcase>')
+    with pytest.raises(ValueError, match="contradictory"):
+        junit_summary(path)
+
+
+def test_unrecognized_placeholder_is_rejected(tmp_path: Path) -> None:
+    spec = load_suites()["verification-smoke"].copy()
+    spec["command"] = ["{python}", "-m", "pytest", "--bad={secret}"]
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps({"schema_version": 1, "suites": {"bad": spec}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="placeholder"):
+        load_suites(config)
+
+
+def test_run_manifest_has_a_suite_fingerprint(tmp_path: Path) -> None:
+    assert run_suite("verification-smoke", output_root=tmp_path / "runs") == 0
+    manifests = list((tmp_path / "runs").glob("*/run-manifest.json"))
+    assert len(manifests) == 1
+    result = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert result["status"] == "PASSED"
+    assert len(result["suite_definition_sha256"]) == 64
+    assert result["summary"]["tests"] > 0
+    assert result["python_version"] and result["platform"]

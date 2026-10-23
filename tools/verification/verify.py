@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -50,6 +51,8 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
             raise ValueError(f"invalid suite name: {name!r}")
         if not isinstance(suite, dict) or suite.get("runner") not in RUNNERS:
             raise ValueError(f"{name}: invalid runner")
+        if suite.get("state") not in {"active", "planned"}:
+            raise ValueError(f"{name}: state must be active or planned")
         command = suite.get("command")
         if (
             not isinstance(command, list)
@@ -73,8 +76,15 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
         ):
             raise ValueError(f"{name}: invalid environment")
         for key in environment:
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) is None:
+                raise ValueError(f"{name}: invalid environment key: {key!r}")
             if key.startswith(("GITHUB_", "CI_", "INDUSTRIAL_PHM_")):
                 raise ValueError(f"{name}: reserved environment key: {key}")
+        for value in [*command, *environment.values()]:
+            if "{" in re.sub(r"\{(?:python|junit)\}", "", value) or "}" in re.sub(
+                r"\{(?:python|junit)\}", "", value
+            ):
+                raise ValueError(f"{name}: unknown command/environment placeholder")
     return suites
 
 
@@ -86,6 +96,21 @@ def junit_summary(path: Path) -> dict[str, int]:
     cases = list(root.iter("testcase"))
     if not cases:
         raise ValueError("JUnit contains no test cases")
+    declared = root.get("tests")
+    if declared is not None:
+        try:
+            count = int(declared)
+        except ValueError as exc:
+            raise ValueError("JUnit tests count is invalid") from exc
+        if count != len(cases):
+            raise ValueError("JUnit declared tests count does not match actual cases")
+    if any(not case.get("name") for case in cases):
+        raise ValueError("JUnit testcase has no name")
+    if any(
+        sum(child.tag in {"failure", "error", "skipped"} for child in case) > 1
+        for case in cases
+    ):
+        raise ValueError("JUnit testcase has contradictory outcomes")
     return {
         "tests": len(cases),
         "failures": sum(any(child.tag == "failure" for child in case) for case in cases),
@@ -97,9 +122,11 @@ def junit_summary(path: Path) -> dict[str, int]:
 def verdict(exit_code: int, summary: dict[str, int] | None) -> str:
     if summary is None:
         return "INCOMPLETE"
+    if summary["errors"]:
+        return "EXECUTION_ERROR"
     if summary["failures"]:
         return "TEST_FAILED"
-    if summary["errors"] or exit_code != 0:
+    if exit_code != 0:
         return "EXECUTION_ERROR"
     if summary["tests"] == summary["skipped"]:
         return "INCOMPLETE"
@@ -124,6 +151,9 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
         "finished_at": None,
         "revision": revision(),
         "runner": None,
+        "suite_definition_sha256": None,
+        "python_version": sys.version.split()[0],
+        "platform": sys.platform,
         "command": None,
         "exit_code": None,
         "status": "CONFIG_ERROR",
@@ -138,6 +168,11 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
             raise ValueError(f"unknown suite: {name}")
         spec = suites[name]
         manifest["runner"] = spec["runner"]
+        manifest["suite_definition_sha256"] = hashlib.sha256(
+            json.dumps(spec, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+        if spec["state"] != "active":
+            raise ValueError(f"suite {name} is planned, not activated")
         cmd = [expand(value, junit=junit) for value in spec["command"]]
         manifest["command"] = cmd
         environment = os.environ.copy()
@@ -167,7 +202,10 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
                 manifest["error"] = f"missing/invalid native JUnit result: {exc}"
         except FileNotFoundError as exc:
             manifest["status"] = "EXECUTION_ERROR"
-            manifest["error"] = f"runner not installed: {exc.filename}"
+            manifest["error"] = f"runner or execution file unavailable: {exc.filename}"
+        except OSError as exc:
+            manifest["status"] = "EXECUTION_ERROR"
+            manifest["error"] = f"runner execution failure: {exc}"
         except subprocess.TimeoutExpired:
             manifest["status"] = "INTERRUPTED"
             manifest["error"] = f"runner exceeded {spec['timeout_seconds']} seconds"
@@ -203,7 +241,7 @@ def main() -> int:
     if args.action == "list":
         try:
             for name, spec in load_suites().items():
-                print(f"{name}\t{spec['runner']}")
+                print(f"{name}\t{spec['runner']}\t{spec['state']}")
             return 0
         except (OSError, ValueError, TypeError) as exc:
             parser.error(str(exc))
