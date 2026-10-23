@@ -80,9 +80,10 @@ def test_demo_media_matches_capture_manifest_and_includes_current_task_choice() 
     evidence = json.loads((root / "capture.json").read_text())
     assert evidence["api_backend"] is False and evidence["data_kind"] == "synthetic"
     assert len(evidence["code_revision"]) == 40
-    assert evidence["snapshot_sha256"] == hashlib.sha256(
-        (FIXTURES / "responses.json").read_bytes()
-    ).hexdigest()
+    assert (
+        evidence["snapshot_sha256"]
+        == hashlib.sha256((FIXTURES / "responses.json").read_bytes()).hexdigest()
+    )
     screens = evidence["screens"]
     assert [screen["name"] for screen in screens] == [
         "01-observe",
@@ -99,7 +100,27 @@ def test_demo_media_matches_capture_manifest_and_includes_current_task_choice() 
         image = root / (screen["name"] + ".png")
         assert hashlib.sha256(image.read_bytes()).hexdigest() == screen["sha256"]
     for name in ("walkthrough.gif", "walkthrough.webm"):
-        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == (
-            evidence["media_sha256"][name]
+        assert (
+            hashlib.sha256((root / name).read_bytes()).hexdigest()
+            == (evidence["media_sha256"][name])
         )
+
+
+def test_csv_demo_media_matches_real_browser_recorded_files() -> None:
+    """CSV onboarding/review photos must match the actual capture manifest."""
+    root = FIXTURES.parents[2] / "assets/csv"
+    evidence = json.loads((root / "capture.json").read_text())
+    assert evidence["use_case"] == "csv"
+    assert len(evidence["code_revision"]) == 40
+    assert set(evidence["screens"]) == {
+        "01-register.png",
+        "02-attention.png",
+        "03-departure.png",
+        "04-summary.png",
+        "05-outlook.png",
+        "06-review.png",
+    }
+    for filename, digest in evidence["screens"].items():
+        assert hashlib.sha256((root / filename).read_bytes()).hexdigest() == digest
+    assert (root / "walkthrough.gif").stat().st_size > 0
 
