@@ -39,7 +39,7 @@ jobs:
       - run: uv sync --locked --extra operations --extra aihub
       - run: uv run --no-sync ruff check src/industrial_phm/application/operations_monitor.py src/industrial_phm/runtime/operations_web_read.py src/industrial_phm/runtime/operations_web_explore.py src/industrial_phm/runtime/operations_web_forecast.py tests/integration/test_operations_web_http.py
       - run: uv run --no-sync ruff format --check src/industrial_phm/application/operations_monitor.py src/industrial_phm/runtime/operations_web_read.py src/industrial_phm/runtime/operations_web_explore.py src/industrial_phm/runtime/operations_web_forecast.py tests/integration/test_operations_web_http.py
-      - run: uv run --no-sync pytest tests/integration/test_operations_web_http.py tests/integration/test_operations_web_explore.py tests/integration/test_operations_web_capabilities.py tests/integration/test_operations_web_review.py tests/unit/test_operations_monitor.py -q -rs --maxfail=1
+      - run: uv run --no-sync pytest tests/integration/test_operations_web_http.py tests/integration/test_operations_web_explore.py tests/integration/test_operations_web_capabilities.py tests/integration/test_operations_web_review.py tests/integration/test_operations_phm_monitor.py tests/unit/test_operations_monitor.py -q -rs --maxfail=1
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -69,6 +69,7 @@ jobs:
           tests/acceptance/test_operations_web_next_model_explanation_browser.py
           tests/acceptance/test_operations_web_next_outlook_capture_browser.py
           tests/acceptance/test_operations_web_navigation_browser.py
+          tests/acceptance/test_operations_web_next_monitor_attention_browser.py
           -q -rs --maxfail=1
       - run: >-
           uv run --no-sync pytest
