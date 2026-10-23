@@ -44,10 +44,14 @@
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
   const methods = $derived(methodsFor(route.tab, data));
   const waitingForDefault = $derived(dataState === "loading" && route.tab !== "summary");
-  const unsupportedSelection = $derived(dataState === "ready" && data !== null
-    && ((route.method !== null && !methods.includes(route.method))
+  const unsupportedSelection = $derived.by(() => {
+    const state: "loading" | "ready" | "failed" = dataState;
+    const current: AssetData | null = data;
+    if (state !== "ready" || current === null) return false;
+    return (route.method !== null && !methods.includes(route.method))
       || (route.data !== null && usesDataKind(route.tab, method)
-        && !kindsOf(data).includes(route.data))));
+        && !kindsOf(current).includes(route.data));
+  });
   const facts = $derived.by(() => {
     if (!data) return "";
     const parts: string[] = [];
