@@ -280,3 +280,13 @@ def test_junit_rejects_negative_declared_counts(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="declared errors"):
         junit_summary(path)
+
+def test_partial_skips_require_explicit_suite_policy(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    write_junit(
+        path,
+        '<testcase name="ran"/><testcase name="optional"><skipped/></testcase>',
+    )
+    summary = junit_summary(path)
+    assert verdict(0, summary) == "INCOMPLETE"
+    assert verdict(0, summary, allow_skips=True) == "PASSED"

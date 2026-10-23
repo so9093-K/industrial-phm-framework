@@ -80,3 +80,6 @@ Runner interruption and timeout terminate the started native process group
 on POSIX platforms so a timed-out npm/browser child does not continue to run.
 For configuration errors before runner launch, runner.log is absent and the
 manifest records null rather than referencing a nonexistent file.
+
+By default, a partially skipped suite is incomplete. A named suite may set
+`allow_skips: true` only when those exclusions are expected and reviewed.

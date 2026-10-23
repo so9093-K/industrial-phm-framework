@@ -62,6 +62,8 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
             or any(not isinstance(part, str) or not part for part in command)
         ):
             raise ValueError(f"{name}: command must be a non-empty argument array")
+        if not isinstance(suite.get("allow_skips", False), bool):
+            raise ValueError(f"{name}: allow_skips must be boolean")
         timeout = suite.get("timeout_seconds")
         if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 3600:
             raise ValueError(f"{name}: invalid timeout")
@@ -130,7 +132,9 @@ def junit_summary(path: Path) -> dict[str, int]:
     }
 
 
-def verdict(exit_code: int, summary: dict[str, int] | None) -> str:
+def verdict(
+    exit_code: int, summary: dict[str, int] | None, *, allow_skips: bool = False
+) -> str:
     if summary is None:
         return "INCOMPLETE"
     if summary["errors"]:
@@ -139,7 +143,7 @@ def verdict(exit_code: int, summary: dict[str, int] | None) -> str:
         return "TEST_FAILED"
     if exit_code != 0:
         return "EXECUTION_ERROR"
-    if summary["tests"] == summary["skipped"]:
+    if summary["tests"] == summary["skipped"] or (summary["skipped"] and not allow_skips):
         return "INCOMPLETE"
     return "PASSED"
 
@@ -236,7 +240,9 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
                 summary = junit_summary(junit)
                 manifest["summary"] = summary
                 manifest["junit"] = "junit.xml"
-                manifest["status"] = verdict(exit_code, summary)
+                manifest["status"] = verdict(
+                    exit_code, summary, allow_skips=spec.get("allow_skips", False)
+                )
             except (ET.ParseError, OSError, ValueError) as exc:
                 manifest["status"] = "INCOMPLETE" if exit_code == 0 else "EXECUTION_ERROR"
                 manifest["error"] = f"missing/invalid native JUnit result: {exc}"
