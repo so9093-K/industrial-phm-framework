@@ -4,17 +4,20 @@ import {defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts"
 
 test("an asset's stored data kinds choose the default analysis, never another asset's", () => {
   const vibrationOnly = parseAssetData({schema_version: 1, asset_id: "bearing-a", history: null,
-    acquisition: {count: 64, first: 1, last: 64, series: []}}, "bearing-a");
+    acquisition: {count: 64, first: 1, last: 64, features: []}}, "bearing-a");
   assert.deepEqual(vibrationOnly, {history: null, vibration: {measurements: 64, first: 1, last: 64}});
   assert.deepEqual(kindsOf(vibrationOnly), ["vibration"]);
   assert.equal(defaultKind(vibrationOnly), "vibration");
-  const both = parseAssetData({schema_version: 1, asset_id: "m", history: {series: [{key: "R"}]},
-    acquisition: {count: 3, first: 1, last: 3}}, "m");
+  const both = parseAssetData({schema_version: 1, asset_id: "m", history: {channels: ["R"]},
+    acquisition: {count: 3, first: 1, last: 3, features: []}}, "m");
   assert.deepEqual(kindsOf(both), ["history", "vibration"]);
-  const historyOnly = parseAssetData({schema_version: 1, asset_id: "m", history: {series: []}}, "m");
+  const historyOnly = parseAssetData({schema_version: 1, asset_id: "m", history: {features: []}}, "m");
   assert.equal(defaultKind(historyOnly), "history");
   assert.throws(() => parseAssetData({schema_version: 1, asset_id: "other", history: null}, "m"), /설비/);
   assert.throws(() => parseAssetData({schema_version: 1, asset_id: "m", history: {}}, "m"), /형식/);
+  assert.deepEqual(parseAssetData({schema_version: 1, asset_id: "m",
+    history: {channels: ["temperature"], measurement_count: 2}, acquisition: null}, "m"),
+    {history: {signals: 1}, vibration: null});
 });
 
 test("unknown, absent and mixed data never invent a default kind", () => {
@@ -38,7 +41,7 @@ test("only the methods an asset's data supports are offered", () => {
 
 test("elapsed measurement time carries its source and requires a valid recorded interval", () => {
   const read = (period_seconds: unknown) => parseAssetData({schema_version:1, asset_id:"m", history:null,
-    acquisition:{count:10,first:1,last:10,source_id:"bench",period_seconds}}, "m");
+    acquisition:{count:10,first:1,last:10,source_id:"bench",period_seconds,features:[]}}, "m");
   assert.deepEqual(read(60).vibration?.timing, {sourceId:"bench",periodSeconds:60});
   for (const period of [null, undefined, 0, -1, NaN, Infinity, "60"])
     assert.equal(read(period).vibration?.timing, undefined);

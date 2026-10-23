@@ -186,7 +186,7 @@ def project_operations_monitor(
                 "asset_id": historical.asset_id,
                 "data_flow_status": "stored-history",
                 "source_count": 0,
-                "last_data_at": _utc(historical.end_at),
+                "last_data_at": None,
                 "last_observed_at": _utc(historical.end_at),
                 "latest_analysis_at": None,
                 "pending_review_count": 0,

@@ -40,7 +40,7 @@ from industrial_phm.application.signal_exploration import (
     strongest_identity,
 )
 from industrial_phm.runtime.operations_live import OperationsReadError
-from industrial_phm.runtime.operations_web_explore import _history, explore_sources
+from industrial_phm.runtime.operations_web_explore import _history, acquisition_period, explore_sources
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 FORECAST_ROUTES = frozenset(
@@ -219,12 +219,7 @@ def feature_unit(
 
 
 def _period(workspace: OperationsWorkspace, asset_id: str, source_id: str) -> float | None:
-    for stream in SqliteAcquisitionSnapshotRepository(
-        workspace.acquisition_snapshot_path
-    ).list_streams():
-        if stream.asset_id == asset_id and stream.source_id == source_id:
-            return stream.acquisition_period_seconds
-    return None
+    return acquisition_period(workspace, asset_id, source_id)
 
 
 def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
