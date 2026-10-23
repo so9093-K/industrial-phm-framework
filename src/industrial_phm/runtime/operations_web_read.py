@@ -236,7 +236,7 @@ def project_operations_monitor(
         {
             "attention_id": item.attention_id,
             "title": item.title,
-            "code": item.code,
+            **({"code": item.code} if item.code is not None else {}),
             "status": item.status.value,
             "destination": item.destination.value,
             "occurred_at": _utc(item.occurred_at),
