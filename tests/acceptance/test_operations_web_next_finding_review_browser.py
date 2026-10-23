@@ -240,3 +240,55 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
     finally:
         for server, thread in running:
             stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_review_closing_defaults_to_newer_persisted_decision(
+    tmp_path: Path, width: int
+) -> None:
+    """A concurrent acknowledgement must not leave an obsolete choice preselected."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "decision-reload")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0, 3.2), start=1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    root = workspace.root.resolve()
+    requested = execute_web_source_action(
+        root,
+        "/api/v1/phm/reviews/request",
+        {"binding_id": "anomaly-a", "position": 3, "explanation_id": None},
+    )
+    finding = requested["finding_id"]
+    server, thread = start_web(root, writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = _open(browser, width)
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?page=maintenance"
+                    f"&monitor_asset=bearing-a&finding_id={finding}"
+                )
+                detail = page.get_by_role("region", name="고른 검토 항목")
+                detail.get_by_role("radio", name="추가 점검 필요").check()
+                execute_web_source_action(
+                    root,
+                    "/api/v1/reviews/action",
+                    {
+                        "finding_id": finding,
+                        "action": "acknowledge",
+                        "note": "",
+                        "decision": "observe",
+                    },
+                )
+                detail.get_by_role("button", name="확인함으로 표시").click()
+                pw.expect(detail).to_contain_text("다른 창이나 요청에서 검토 상태가 변경됐습니다")
+                pw.expect(detail.locator(".badge")).to_have_text("확인함")
+                detail.get_by_role("button", name="검토 종료").click()
+                confirm = detail.get_by_role("group", name="검토를 종료할까요?")
+                pw.expect(confirm.get_by_role("radio", name="계속 관찰")).to_be_checked()
+                pw.expect(confirm.get_by_role("radio", name="추가 점검 필요")).not_to_be_checked()
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)

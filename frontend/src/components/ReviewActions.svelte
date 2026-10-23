@@ -20,7 +20,9 @@
   // The current judgement; a close starts from it and may change it.
   const judged = $derived(latestDecision(events));
   let decision: ReviewDecision | null = $state(null);
-  $effect(() => { if (decision === null && judged !== null) decision = judged; });
+  // On a concurrent review update, rebase the next decision on the persisted judgment.
+  // User edits do not trigger this effect; only a changed stored judgment does.
+  $effect(() => { decision = judged; });
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
