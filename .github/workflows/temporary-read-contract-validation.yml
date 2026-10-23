@@ -70,3 +70,8 @@ jobs:
           tests/acceptance/test_operations_web_next_outlook_capture_browser.py
           tests/acceptance/test_operations_web_navigation_browser.py
           -q -rs --maxfail=1
+      - run: >-
+          uv run --no-sync pytest
+          tests/acceptance/test_operations_web_next_browser.py
+          -k test_session_read_failure_is_not_read_only_and_retry_is_explicit
+          -q -rs --maxfail=1

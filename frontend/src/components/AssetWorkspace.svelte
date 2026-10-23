@@ -161,7 +161,7 @@
   {:else if chooseAnomaly}
     <section class="task-chooser ui-panel" aria-labelledby="task-anomaly-title">
       <h2 id="task-anomaly-title">무엇이 평소와 달라졌나요?</h2>
-      <p class="context">데이터 종류에 관계없이 같은 질문에서 시작합니다. 가능한 분석을 선택하고, 모델 점수는 연결된 모델과 실제 결과가 있어야 표시됩니다.</p>
+      <p class="context">모델 점수는 연결된 모델과 분석 결과가 있어야 표시됩니다.</p>
       <ul>
         {#each methods as option (option)}
           <li><a href={at("anomaly", option)}>{METHOD_INFO[option]} 확인 →</a>
@@ -173,7 +173,7 @@
   {:else if chooseKind}
     <section class="task-chooser ui-panel" aria-labelledby="task-source-title">
       <h2 id="task-source-title">어떤 측정 근거로 확인할까요?</h2>
-      <p class="context">이 설비에는 둘 이상의 데이터 종류가 있습니다. 자동으로 다른 근거를 선택하지 않습니다.</p>
+      <p class="context">분석할 측정 종류를 선택하세요.</p>
       <ul>
         {#each kindsOf(data) as option (option)}
           <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}으로 확인 →</a></li>

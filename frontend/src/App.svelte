@@ -248,7 +248,7 @@
         <span class="mode" role="status">읽기 전용 · 권한 확인 실패</span>
         <button type="button" class="ui-button" onclick={() => void checkPermission()}>권한 다시 확인</button>
       {:else if writable === true}
-        <span class="mode" role="status">운영 중</span>
+        <span class="mode" role="status">변경 가능</span>
       {:else}
         <span class="mode" role="status">보기 전용</span>
       {/if}
