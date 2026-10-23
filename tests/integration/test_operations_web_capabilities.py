@@ -183,3 +183,21 @@ def test_the_route_decides_question_access_from_the_web_mode(tmp_path: Path) -> 
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+def test_forecast_capability_uses_one_recorded_source_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from industrial_phm.runtime import operations_web_forecast
+    from industrial_phm.runtime.operations_web_capabilities import project_asset_capabilities
+
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    _history(workspace, "motor-01", ("current",))
+    expected = project_asset_capabilities(workspace, "motor-01", can_ask=False)
+
+    def unexpected(*_args: object) -> None:
+        raise AssertionError("forecast must reuse capability's recorded sources")
+
+    monkeypatch.setattr(operations_web_forecast, "explore_sources", unexpected)
+    assert project_asset_capabilities(workspace, "motor-01", can_ask=False) == expected
+
