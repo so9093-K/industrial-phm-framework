@@ -72,3 +72,34 @@ def test_walkthrough_exposes_named_assets_and_real_baseline_analysis() -> None:
             assert responses[key]["body"]["interval_count"] > 0
         else:
             assert responses[key]["body"]["interval_count"] == 0
+
+
+def test_demo_media_matches_capture_manifest_and_includes_current_task_choice() -> None:
+    """Published PNG and video files must match recorded actual Chromium evidence."""
+    root = FIXTURES.parents[2] / "assets/showcase"
+    evidence = json.loads((root / "capture.json").read_text())
+    assert evidence["api_backend"] is False and evidence["data_kind"] == "synthetic"
+    assert len(evidence["code_revision"]) == 40
+    assert evidence["snapshot_sha256"] == hashlib.sha256(
+        (FIXTURES / "responses.json").read_bytes()
+    ).hexdigest()
+    screens = evidence["screens"]
+    assert [screen["name"] for screen in screens] == [
+        "01-observe",
+        "02-signals",
+        "02a-choose-method",
+        "03-anomaly",
+        "04-compare",
+        "05-outlook",
+        "06-review",
+    ]
+    selected = screens[2]["path"]
+    assert "tab=anomaly" in selected and "method=" not in selected
+    for screen in screens:
+        image = root / (screen["name"] + ".png")
+        assert hashlib.sha256(image.read_bytes()).hexdigest() == screen["sha256"]
+    for name in ("walkthrough.gif", "walkthrough.webm"):
+        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == (
+            evidence["media_sha256"][name]
+        )
+
