@@ -243,9 +243,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
 
 
 @pytest.mark.parametrize("width", [390, 1280])
-def test_review_closing_defaults_to_newer_persisted_decision(
-    tmp_path: Path, width: int
-) -> None:
+def test_review_closing_defaults_to_newer_persisted_decision(tmp_path: Path, width: int) -> None:
     """A concurrent acknowledgement must not leave an obsolete choice preselected."""
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "decision-reload")

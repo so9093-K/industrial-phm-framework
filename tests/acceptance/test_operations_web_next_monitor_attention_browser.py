@@ -241,6 +241,7 @@ def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
             attention_id="attention:collection-down",
             status=OperationsMonitorStatus.ERROR,
             title="Collection service is not running",
+            code="collection-service-not-running",
             detail="Collector heartbeat is stale",
             destination=OperationsAttentionDestination.SYSTEM,
             occurred_at=snapshot.assessed_at,
