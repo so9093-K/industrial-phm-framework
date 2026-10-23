@@ -197,3 +197,67 @@ def test_run_manifest_has_a_suite_fingerprint(tmp_path: Path) -> None:
     assert len(result["suite_definition_sha256"]) == 64
     assert result["summary"]["tests"] > 0
     assert result["python_version"] and result["platform"]
+
+
+
+def test_nested_junit_suite_mismatch_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "junit.xml"
+    path.write_text(
+        '<testsuites><testsuite tests="2"><testcase name="one"/></testsuite></testsuites>',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="does not match"):
+        junit_summary(path)
+
+
+def test_successful_exit_without_native_result_is_incomplete(tmp_path: Path) -> None:
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "suites": {
+                    "stub": {
+                        "runner": "pytest",
+                        "state": "active",
+                        "cwd": ".",
+                        "timeout_seconds": 5,
+                        "command": ["{python}", "-c", "pass"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert run_suite("stub", output_root=tmp_path / "runs", config=config) == 3
+    manifests = list((tmp_path / "runs").glob("*/run-manifest.json"))
+    result = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert result["status"] == "INCOMPLETE"
+    assert result["log"] == "runner.log"
+    assert (manifests[0].parent / result["log"]).is_file()
+
+
+def test_timeout_creates_interrupted_manifest(tmp_path: Path) -> None:
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "suites": {
+                    "stub": {
+                        "runner": "pytest",
+                        "state": "active",
+                        "cwd": ".",
+                        "timeout_seconds": 1,
+                        "command": ["{python}", "-c", "import time; time.sleep(10)"],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert run_suite("stub", output_root=tmp_path / "runs", config=config) == 3
+    manifests = list((tmp_path / "runs").glob("*/run-manifest.json"))
+    result = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert result["status"] == "INTERRUPTED"
+    assert "exceeded" in result["error"]

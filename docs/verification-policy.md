@@ -75,3 +75,8 @@ manual dispatch and has an independent runtime-dependency boundary check.
 The contract rejects unknown placeholders, contradictory JUnit outcomes and
 JUnit root test-count mismatches; the manifest retains the suite definition
 SHA-256, Python version and execution platform.
+
+Runner interruption and timeout terminate the started native process group
+on POSIX platforms so a timed-out npm/browser child does not continue to run.
+For configuration errors before runner launch, runner.log is absent and the
+manifest records null rather than referencing a nonexistent file.

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import uuid
@@ -96,14 +97,16 @@ def junit_summary(path: Path) -> dict[str, int]:
     cases = list(root.iter("testcase"))
     if not cases:
         raise ValueError("JUnit contains no test cases")
-    declared = root.get("tests")
-    if declared is not None:
-        try:
-            count = int(declared)
-        except ValueError as exc:
-            raise ValueError("JUnit tests count is invalid") from exc
-        if count != len(cases):
-            raise ValueError("JUnit declared tests count does not match actual cases")
+    declared_suites = [root] if root.tag == "testsuite" else [root, *root.iter("testsuite")]
+    for suite in declared_suites:
+        declared = suite.get("tests")
+        if declared is not None:
+            try:
+                count = int(declared)
+            except ValueError as exc:
+                raise ValueError("JUnit tests count is invalid") from exc
+            if count != len(list(suite.iter("testcase"))):
+                raise ValueError("JUnit declared tests count does not match actual cases")
     if any(not case.get("name") for case in cases):
         raise ValueError("JUnit testcase has no name")
     if any(
@@ -136,6 +139,38 @@ def expand(value: str, *, junit: Path) -> str:
     return value.replace("{python}", sys.executable).replace("{junit}", str(junit))
 
 
+def invoke_runner(
+    cmd: list[str],
+    *,
+    cwd: Path,
+    environment: dict[str, str],
+    log: Any,
+    timeout_seconds: int,
+) -> int:
+    """Terminate the runner process group on timeout or operator interruption."""
+    with subprocess.Popen(
+        cmd,
+        cwd=cwd,
+        env=environment,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=os.name == "posix",
+    ) as process:
+        try:
+            return process.wait(timeout=timeout_seconds)
+        except BaseException:
+            if process.poll() is None:
+                if os.name == "posix":
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    process.kill()
+            process.wait()
+            raise
+
+
 def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     folder = output_root / run_id
@@ -158,7 +193,7 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
         "status": "CONFIG_ERROR",
         "junit": None,
         "summary": None,
-        "log": "runner.log",
+        "log": None,
         "error": None,
     }
     try:
@@ -181,23 +216,22 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
         cwd = (ROOT / spec.get("cwd", ".")).resolve()
         try:
             with log_path.open("w", encoding="utf-8") as log:
-                result = subprocess.run(
+                manifest["log"] = "runner.log"
+                exit_code = invoke_runner(
                     cmd,
                     cwd=cwd,
-                    env=environment,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    timeout=spec["timeout_seconds"],
-                    check=False,
+                    environment=environment,
+                    log=log,
+                    timeout_seconds=spec["timeout_seconds"],
                 )
-            manifest["exit_code"] = result.returncode
+            manifest["exit_code"] = exit_code
             try:
                 summary = junit_summary(junit)
                 manifest["summary"] = summary
                 manifest["junit"] = "junit.xml"
-                manifest["status"] = verdict(result.returncode, summary)
+                manifest["status"] = verdict(exit_code, summary)
             except (ET.ParseError, OSError, ValueError) as exc:
-                manifest["status"] = "INCOMPLETE" if result.returncode == 0 else "EXECUTION_ERROR"
+                manifest["status"] = "INCOMPLETE" if exit_code == 0 else "EXECUTION_ERROR"
                 manifest["error"] = f"missing/invalid native JUnit result: {exc}"
         except FileNotFoundError as exc:
             manifest["status"] = "EXECUTION_ERROR"
