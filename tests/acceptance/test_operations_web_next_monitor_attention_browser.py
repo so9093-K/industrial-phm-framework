@@ -43,9 +43,7 @@ def test_monitor_never_substitutes_fetch_time_for_missing_assessment(
                 attention.get_by_role("button", name="자동 갱신 멈추기").click()
                 failed["value"] = True
                 attention.get_by_role("button", name="자동 갱신 다시 시작").click()
-                pw.expect(attention).to_contain_text(
-                    "모델 처리 상태를 다시 읽지 못했습니다"
-                )
+                pw.expect(attention).to_contain_text("모델 처리 상태를 다시 읽지 못했습니다")
                 pw.expect(attention).to_contain_text("수신 조회 미확인")
                 pw.expect(attention).to_contain_text("기준 이탈 조회 미확인")
             finally:
