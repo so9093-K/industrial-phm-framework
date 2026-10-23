@@ -113,24 +113,32 @@ export function place(item:Capability,assetId:string):string|null{
   if(target.view==="connect")
     return target.goal===null && target.data===null ? systemUrl("connections") : null;
   if(item.status==="unavailable"||item.status==="waiting")return null;
-  if(target.view==="forecast")
-    return target.goal===null||target.goal==="ask"
-      ? assetTabUrl(assetId,"outlook",null,target.data) : null;
+  if(target.view==="forecast"){
+    const correct=(item.id==="forecast" && target.goal===null)
+      || (item.id==="ai-question" && target.goal==="ask");
+    return correct ? assetTabUrl(assetId,"outlook",null,target.data) : null;
+  }
   if(target.view==="anomaly"){
-    if(target.goal==="baseline")return assetTabUrl(assetId,"anomaly","baseline");
-    if(target.goal===null||target.goal==="ask")return assetTabUrl(assetId,"anomaly","model");
+    if(target.data!==null)return null;
+    if(item.id==="anomaly" && target.goal==="baseline")
+      return assetTabUrl(assetId,"anomaly","baseline");
+    if(item.id==="ai-question" && target.goal==="ask")
+      return assetTabUrl(assetId,"anomaly","model");
+    if(target.goal===null && item.id!=="ai-question")
+      return assetTabUrl(assetId,"anomaly","model");
     return null;
   }
   if(target.view==="monitor")
-    return target.goal===null && target.data===null ? assetTabUrl(assetId,"signals") : null;
+    return item.id==="measurements" && target.goal===null && target.data===null
+      ? assetTabUrl(assetId,"signals") : null;
   if(target.view==="signals"){
-    if(target.goal==="compare" && target.data!==null)
+    if(item.id==="period-compare" && target.goal==="compare" && target.data!==null)
       return assetTabUrl(assetId,"change","compare",target.data);
-    if(target.goal==="relation" && target.data!==null)
+    if(item.id==="relation" && target.goal==="relation" && target.data!==null)
       return assetTabUrl(assetId,"change","relation",target.data);
-    if(target.goal==="spectrum" && target.data===null)
+    if(item.id==="spectrum" && target.goal==="spectrum" && target.data===null)
       return assetTabUrl(assetId,"change","spectrum");
-    if(target.goal==="trend" && target.data!==null)
+    if(item.id==="measurements" && target.goal==="trend" && target.data!==null)
       return assetTabUrl(assetId,"signals");
   }
   return null;
