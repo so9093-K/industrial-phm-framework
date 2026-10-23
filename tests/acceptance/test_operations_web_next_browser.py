@@ -368,9 +368,7 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
 
                 status["kind"] = "writer"
                 page.reload(wait_until="networkidle")
-                pw.expect(
-                    page.get_by_role("status").filter(has_text="변경 가능")
-                ).to_be_visible()
+                pw.expect(page.get_by_role("status").filter(has_text="변경 가능")).to_be_visible()
                 assert not errors, errors
             finally:
                 browser.close()
