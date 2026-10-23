@@ -8,6 +8,8 @@ asset-scoped review/capture APIs and retain their exact identities.
 from __future__ import annotations
 
 import sqlite3
+import hashlib
+import json
 from http import HTTPStatus
 from urllib.parse import parse_qs
 
@@ -54,6 +56,10 @@ def handle_review_asset_index(
     except ValueError, OSError, sqlite3.Error:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "review_asset_index_unavailable"}
     ordered = sorted(assets)
+    # Identical page sets have identical revisions even across independent reads.
+    revision = hashlib.sha256(
+        json.dumps(ordered, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     if after is not None and after not in assets:
         # Removed/stale cursor is not silently treated as the first page.
         return HTTPStatus.BAD_REQUEST, {"error": "review_asset_cursor_changed"}
@@ -65,5 +71,6 @@ def handle_review_asset_index(
         "meaning": "stored-human-review-asset-identities-not-health",
         "asset_ids": page,
         "total_assets": len(ordered),
+        "revision": revision,
         "next_after": page[-1] if more else None,
     }

@@ -317,9 +317,22 @@ def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
     assert len(first["asset_ids"]) == 20
     assert first["total_assets"] == 23
     assert first["next_after"] == first["asset_ids"][-1]
+    assert len(first["revision"]) == 64
     status, later = handle_review_asset_index(workspace, "after_asset=" + str(first["next_after"]))
     assert status == HTTPStatus.OK
     assert len(later["asset_ids"]) == 3 and later["next_after"] is None
+    assert later["revision"] == first["revision"]
+    store.save(
+        {
+            "identity": {"asset_id": "asset-03-new", "series": "temperature"},
+            "outlook": {"asset_id": "asset-03-new"},
+        }
+    )
+    status, changed = handle_review_asset_index(workspace, "after_asset=" + str(first["next_after"]))
+    assert status == HTTPStatus.OK
+    assert changed["total_assets"] == first["total_assets"] + 1
+    assert changed["revision"] != first["revision"]
+    assert "asset-03-new" not in changed["asset_ids"]
     assert analysis.run.asset_id in [*later["asset_ids"], *first["asset_ids"]]
     assert created["finding_id"]
     assert handle_review_asset_index(workspace, "after_asset=missing")[0] == HTTPStatus.BAD_REQUEST

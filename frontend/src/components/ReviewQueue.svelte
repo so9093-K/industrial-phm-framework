@@ -58,6 +58,8 @@
   let nextAsset: string | null = $state(null);
   let loadingAssets = $state(false);
   let assetIndexProblem = $state(false);
+  let assetIndexChanged = $state(false);
+  let assetIndexRevision: string | null = $state(null);
   // A direct link opens with every status so its subject is visible; later links keep the filter.
   let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
   let typeFilter: "all" | "analysis" | "outlook" = $state("all");
@@ -209,6 +211,13 @@
     try {
       const page = await readReviewAssetIndex(scopeRequest.signal, before);
       if (scopeRequest.signal.aborted) return;
+      if (page.revision !== assetIndexRevision) {
+        // A newly inserted record before this cursor could otherwise be missed.
+        assetIndexChanged = true;
+        partialAssetScope = true;
+        nextAsset = null;
+        return;
+      }
       nextAsset = page.nextAfter;
       partialAssetScope = nextAsset !== null;
       await loadAssetReviews(page.assets, scopeRequest);
@@ -230,6 +239,7 @@
           const page = await readReviewAssetIndex(request.signal);
           if (request.signal.aborted) return;
           assets = page.assets;
+          assetIndexRevision = page.revision;
           nextAsset = page.nextAfter;
           partialAssetScope = nextAsset !== null;
         } catch {
@@ -259,8 +269,11 @@
 <div class="queue-layout">
   <section class="ui-panel queue" aria-labelledby="queue-title">
     <h2 id="queue-title">검토함</h2>
-    {#if snapshot === null || partialAssetScope || assetIndexProblem}
-      {#if assetIndexProblem}
+    {#if snapshot === null || partialAssetScope || assetIndexProblem || assetIndexChanged}
+      {#if assetIndexChanged}
+        <StatusNotice kind="uncertain" message="검토 대상을 불러오는 사이 목록이 바뀌었습니다. 다시 불러와 전체 목록을 확인하세요."
+          actionLabel="다시 불러오기" onAction={() => location.reload()} />
+      {:else if assetIndexProblem}
         <StatusNotice kind="uncertain" message="서버의 검토 대상 목록을 확인하지 못해 관측 요약에 있는 설비만 임시 조회했습니다. 전체 목록이 아닙니다."
           actionLabel="다시 불러오기" onAction={() => location.reload()} />
       {:else if partialAssetScope}

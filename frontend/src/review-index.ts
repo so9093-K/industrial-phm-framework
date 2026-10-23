@@ -1,5 +1,5 @@
 /** Server-owned, paged discovery of assets with stored human-review subjects. */
-export type ReviewAssetIndex={assets:string[];totalAssets:number;nextAfter:string|null};
+export type ReviewAssetIndex={assets:string[];totalAssets:number;nextAfter:string|null;revision:string};
 
 export function parseReviewAssetIndex(raw:unknown):ReviewAssetIndex {
   const row=raw!==null&&typeof raw==="object"&&!Array.isArray(raw)
@@ -8,7 +8,8 @@ export function parseReviewAssetIndex(raw:unknown):ReviewAssetIndex {
     ||row.meaning!=="stored-human-review-asset-identities-not-health"
     ||!Array.isArray(row.asset_ids)||row.asset_ids.length>20
     ||typeof row.total_assets!=="number"||!Number.isSafeInteger(row.total_assets)
-    ||row.total_assets<row.asset_ids.length)throw new Error("검토 대상 목록의 형식이 올바르지 않습니다.");
+    ||row.total_assets<row.asset_ids.length
+    ||typeof row.revision!=="string"||!/^[a-f0-9]{64}$/.test(row.revision))throw new Error("검토 대상 목록의 형식이 올바르지 않습니다.");
   const assets=row.asset_ids as unknown[];
   if(assets.some(id=>typeof id!=="string"||!id||id.length>512||/[\x00-\x1f]/.test(id))
     ||new Set(assets).size!==assets.length
@@ -17,7 +18,7 @@ export function parseReviewAssetIndex(raw:unknown):ReviewAssetIndex {
   const cursor=row.next_after;
   if(cursor!==null&& (typeof cursor!=="string"||cursor!==assets.at(-1)))
     throw new Error("검토 목록의 다음 페이지가 올바르지 않습니다.");
-  return {assets:assets as string[],totalAssets:row.total_assets,nextAfter:cursor as string|null};
+  return {assets:assets as string[],totalAssets:row.total_assets,nextAfter:cursor as string|null,revision:row.revision};
 }
 
 export async function readReviewAssetIndex(signal:AbortSignal,after:string|null=null):Promise<ReviewAssetIndex> {
