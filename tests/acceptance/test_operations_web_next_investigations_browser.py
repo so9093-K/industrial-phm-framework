@@ -59,6 +59,21 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                 pw.expect(record.get_by_text("기록이 없다는 뜻은 아닙니다.")).to_be_visible()
                 assert record.get_by_role("button", name="검토 요청").count() == 0
                 page.unroute("**/api/v1/reviews?*")
+                # A bounded response is not proof that an older review is absent.
+                page.route(
+                    "**/api/v1/reviews?*",
+                    lambda route: route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body='{"schema_version":1,"asset_id":"motor-7",'
+                        '"meaning":"human-review-records-not-maintenance-or-diagnosis",'
+                        '"reviews":{"items":[],"total":101,"truncated":true}}',
+                    ),
+                )
+                record.get_by_role("button", name="다시 확인").click()
+                pw.expect(record.get_by_text("이전 기록이 없다고 판단하지 않습니다.")).to_be_visible()
+                assert record.get_by_role("button", name="검토 요청").count() == 0
+                page.unroute("**/api/v1/reviews?*")
                 record.get_by_role("button", name="다시 확인").click()
                 pw.expect(record.get_by_role("button", name="검토 요청")).to_be_enabled()
                 record.get_by_role("button", name="검토 요청").click()

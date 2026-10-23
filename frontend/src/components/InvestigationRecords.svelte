@@ -22,6 +22,7 @@
   let bindingState: "loading" | "ready" | "failed" = $state("loading");
   let reviews: FindingReview[] | null = $state(null);
   let loadedReviewAssets: Record<string, boolean> = $state({});
+  let partialReviewAssets: Record<string, boolean> = $state({});
   let loadingReviewAssets: Record<string, boolean> = $state({});
   let failedReviewAssets: Record<string, boolean> = $state({});
   let reviewController: AbortController | null = null;
@@ -49,9 +50,12 @@
     const same = (entry: {assetId: string; runId: string; evidenceIds: string[]}) => entry.assetId === item.assetId
       && entry.runId === item.runId && entry.evidenceIds.includes(item.evidenceId);
     // The current review list wins; the monitor snapshot is the fallback when it failed.
+    const stored = reviews?.find((entry) => entry.subject === "analysis" && same(entry));
+    const fromSnapshot = snapshot.reviewInbox.reviews.find(same);
+    // A truncated review read cannot prove absence; preserve a known snapshot identity.
     const saved = loadedReviewAssets[item.assetId]
-      ? reviews?.find((entry) => entry.subject === "analysis" && same(entry))
-      : snapshot.reviewInbox.reviews.find(same);
+      ? stored ?? (partialReviewAssets[item.assetId] ? fromSnapshot : undefined)
+      : fromSnapshot;
     if (saved) return {findingId: saved.findingId, status: saved.status};
     const findingId = requested[key(item)];
     return findingId ? {findingId, status: "open"} : null;
@@ -65,7 +69,8 @@
   async function ask(item: AnalysisRecord) {
     const id = key(item);
     // A failed or still pending read cannot establish that this item is not already stored.
-    if (!writable || pending[id] || !loadedReviewAssets[item.assetId] || failedReviewAssets[item.assetId]) return;
+    if (!writable || pending[id] || !loadedReviewAssets[item.assetId]
+      || failedReviewAssets[item.assetId] || partialReviewAssets[item.assetId]) return;
     pending = {...pending, [id]: true};
     const {[id]: _, ...rest} = messages; messages = rest;
     try {
@@ -79,9 +84,10 @@
       pending = {...pending, [id]: false};
     }
   }
-  async function loadReviewFor(assetId: string) {
+  async function loadReviewFor(assetId: string, retry = false) {
     const request = reviewController;
-    if (!request || request.signal.aborted || loadedReviewAssets[assetId] || loadingReviewAssets[assetId]) return;
+    if (!request || request.signal.aborted || (loadedReviewAssets[assetId] && !retry)
+      || loadingReviewAssets[assetId]) return;
     loadingReviewAssets = {...loadingReviewAssets, [assetId]: true};
     failedReviewAssets = {...failedReviewAssets, [assetId]: false};
     try {
@@ -89,6 +95,7 @@
       if (request.signal.aborted) return;
       reviews = [...(reviews ?? []).filter((entry) => entry.assetId !== assetId), ...page.items];
       loadedReviewAssets = {...loadedReviewAssets, [assetId]: true};
+      partialReviewAssets = {...partialReviewAssets, [assetId]: page.truncated};
     } catch {
       if (!request.signal.aborted) failedReviewAssets = {...failedReviewAssets, [assetId]: true};
       // Unknown must never be presented as a verified absence.
@@ -181,12 +188,15 @@
                 <p class="context" role="status">검토 기록을 확인하고 있습니다.</p>
               {:else if failedReviewAssets[item.assetId]}
                 <StatusNotice kind="uncertain" message="검토 기록을 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다."
-                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId)} />
+                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId, true)} />
+              {:else if partialReviewAssets[item.assetId] && !current}
+                <StatusNotice kind="uncertain" message="최근 검토 기록 일부만 확인했습니다. 이전 기록이 없다고 판단하지 않습니다."
+                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId, true)} />
               {/if}
               <div class="review">
               {#if current}
                 <a href={findingUrl(item.assetId, current.findingId)}>정비 검토함에서 보기 →</a>
-              {:else if writable && !failedReviewAssets[item.assetId]}
+              {:else if writable && !failedReviewAssets[item.assetId] && !partialReviewAssets[item.assetId]}
                 <button type="button" class="ui-button" disabled={pending[key(item)] || !loadedReviewAssets[item.assetId] || loadingReviewAssets[item.assetId]}
                   onclick={() => void ask(item)}>검토 요청</button>
                 <span class="context">이 분석 결과를 정비 검토함에 남깁니다.</span>
