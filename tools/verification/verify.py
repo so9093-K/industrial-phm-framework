@@ -56,7 +56,7 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
         ):
             raise ValueError(f"{name}: command must be a non-empty argument array")
         timeout = suite.get("timeout_seconds")
-        if type(timeout) is not int or not 1 <= timeout <= 3600:
+        if not isinstance(timeout, int) or isinstance(timeout, bool) or not 1 <= timeout <= 3600:
             raise ValueError(f"{name}: invalid timeout")
         cwd = suite.get("cwd", ".")
         if not isinstance(cwd, str):
@@ -161,7 +161,7 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
                 manifest["junit"] = "junit.xml"
                 manifest["status"] = verdict(result.returncode, summary)
             except (ET.ParseError, OSError, ValueError) as exc:
-                manifest["status"] = "INCOMPLETE"
+                manifest["status"] = "INCOMPLETE" if result.returncode == 0 else "EXECUTION_ERROR"
                 manifest["error"] = f"missing/invalid native JUnit result: {exc}"
         except FileNotFoundError as exc:
             manifest["status"] = "EXECUTION_ERROR"
@@ -169,7 +169,7 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
         except subprocess.TimeoutExpired:
             manifest["status"] = "INTERRUPTED"
             manifest["error"] = f"runner exceeded {spec['timeout_seconds']} seconds"
-    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, TypeError) as exc:
         manifest["status"] = "CONFIG_ERROR"
         manifest["error"] = str(exc)
     except KeyboardInterrupt:
@@ -205,7 +205,7 @@ def main() -> int:
             for name, spec in load_suites().items():
                 print(f"{name}\t{spec['runner']}")
             return 0
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError, TypeError) as exc:
             parser.error(str(exc))
     return run_suite(args.suite, output_root=args.output.resolve())
 

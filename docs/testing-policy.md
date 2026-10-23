@@ -69,5 +69,5 @@ change. When not installed, those native runners must fail visibly. The
 foundation does not certify PHM model performance or product acceptance.
 
 Existing product test automation is not evaluated, migrated or declared valid
-by this first foundation change; the new verification workflow is manual only
-and has an independent runtime-dependency boundary check.
+by this first foundation change; the new workflow runs only on verification-related PR changes or explicit
+manual dispatch and has an independent runtime-dependency boundary check.

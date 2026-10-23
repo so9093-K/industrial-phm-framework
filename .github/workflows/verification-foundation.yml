@@ -1,6 +1,11 @@
 name: Verification foundation
 
 on:
+  pull_request:
+    paths:
+      - 'tools/verification/**'
+      - 'docs/testing-policy.md'
+      - '.github/workflows/verification-foundation.yml'
   workflow_dispatch:
 
 permissions:
