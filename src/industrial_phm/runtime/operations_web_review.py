@@ -231,7 +231,8 @@ def handle_reviews_read(
         if len(raw_query) > 800:
             raise ValueError("review query too long")
         query = parse_qs(raw_query, strict_parsing=True)
-        if set(query) not in ({"asset_id"}, {"asset_id", "finding_id"}) or len(query["asset_id"]) != 1:
+        if (set(query) not in ({"asset_id"}, {"asset_id", "finding_id"})
+                or len(query["asset_id"]) != 1):
             raise ValueError("invalid review query")
         asset_id = query["asset_id"][0]
         exact = query.get("finding_id", [None])
