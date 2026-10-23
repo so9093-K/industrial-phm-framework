@@ -11,7 +11,7 @@ test("an asset's stored data kinds choose the default analysis, never another as
   const both = parseAssetData({schema_version: 1, asset_id: "m", history: {channels: ["R"]},
     acquisition: {count: 3, first: 1, last: 3, features: []}}, "m");
   assert.deepEqual(kindsOf(both), ["history", "vibration"]);
-  const historyOnly = parseAssetData({schema_version: 1, asset_id: "m", history: {features: []}}, "m");
+  const historyOnly = parseAssetData({schema_version: 1, asset_id: "m", history: {channels: []}}, "m");
   assert.equal(defaultKind(historyOnly), "history");
   assert.throws(() => parseAssetData({schema_version: 1, asset_id: "other", history: null}, "m"), /설비/);
   assert.throws(() => parseAssetData({schema_version: 1, asset_id: "m", history: {}}, "m"), /형식/);
