@@ -263,16 +263,18 @@ def _signal_capabilities(
     by_kind = {
         "period-compare": {
             "history": READY if spans_time else UNAVAILABLE,
-            "vibration": READY if analyzed >= 2 else (
-                WAITING if acquisition is not None else
-                NEEDS_CONNECTION if unread else UNAVAILABLE
+            "vibration": READY
+            if analyzed >= 2
+            else (
+                WAITING if acquisition is not None else NEEDS_CONNECTION if unread else UNAVAILABLE
             ),
         },
         "relation": {
             "history": READY if channels >= 2 else UNAVAILABLE,
-            "vibration": READY if analyzed >= 3 and features >= 2 else (
-                WAITING if acquisition is not None else
-                NEEDS_CONNECTION if unread else UNAVAILABLE
+            "vibration": READY
+            if analyzed >= 3 and features >= 2
+            else (
+                WAITING if acquisition is not None else NEEDS_CONNECTION if unread else UNAVAILABLE
             ),
         },
     }
