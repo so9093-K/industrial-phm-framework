@@ -93,7 +93,12 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                     )
 
                 def reviews(route):
-                    asset = parse_qs(urlsplit(route.request.url).query)["asset_id"][0]
+                    params = parse_qs(urlsplit(route.request.url).query)
+                    asset = params["asset_id"][0]
+                    exact = params.get("finding_id", [None])[0]
+                    if exact and (asset != "motor-a" or exact != "finding-archive"):
+                        route.fulfill(status=404, json={"error": "review_not_found"})
+                        return
                     items = [
                         {
                             "finding_id": "finding-a",
@@ -109,6 +114,9 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                             "events_total": 0,
                         }
                     ]
+                    if exact:
+                        # This item is deliberately absent from the recent list.
+                        items[0]["finding_id"] = exact
                     body = {
                         "schema_version": 1,
                         "asset_id": asset,
@@ -163,6 +171,22 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 # The review keeps its own subject; another asset's evidence never fills in.
                 assert detail.locator(".evidence li").filter(has_text="데이터 출처").count() == 0
                 assert page.get_by_role("heading", name="motor-b · ").count() == 0
+
+                # A direct bookmark outside the recent list still opens its exact review.
+                page.goto(
+                    base + "/web/?page=maintenance&monitor_asset=motor-a"
+                    "&finding_id=finding-archive"
+                )
+                archived = page.get_by_role("region", name="고른 검토 항목")
+                archived.get_by_text("기술 상세").click()
+                pw.expect(archived.get_by_text("finding-archive", exact=True)).to_be_visible()
+                # The very same finding identity must never resolve for another asset.
+                page.goto(
+                    base + "/web/?page=maintenance&monitor_asset=motor-b"
+                    "&finding_id=finding-archive"
+                )
+                pw.expect(page.get_by_text("검토 항목을 찾을 수 없습니다")).to_be_visible()
+                assert page.get_by_text("finding-archive", exact=True).count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
