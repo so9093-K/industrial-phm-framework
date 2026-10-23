@@ -79,7 +79,6 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     assert waiting["anomaly"] == ("waiting", "waiting-results")
     assert waiting["ai-question"] == ("unavailable", "waiting-results")
 
-
     analyze(workspace)
     asked = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
     status = _status(asked)
@@ -114,7 +113,6 @@ def test_stored_history_remains_explorable_during_pending_model_results(
     assert anomaly["reason"] == "explore"
     assert anomaly["target"] == {"view": "anomaly", "goal": "baseline"}
     assert anomaly["facts"]["model_waiting"] is True
-
 
 
 def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_read_it(
