@@ -317,17 +317,12 @@ def test_review_asset_index_discovers_stored_reviews_without_monitor_asset_cap(
     assert len(first["asset_ids"]) == 20
     assert first["total_assets"] == 23
     assert first["next_after"] == first["asset_ids"][-1]
-    status, later = handle_review_asset_index(
-        workspace, "after_asset=" + str(first["next_after"])
-    )
+    status, later = handle_review_asset_index(workspace, "after_asset=" + str(first["next_after"]))
     assert status == HTTPStatus.OK
     assert len(later["asset_ids"]) == 3 and later["next_after"] is None
     assert analysis.run.asset_id in [*later["asset_ids"], *first["asset_ids"]]
     assert created["finding_id"]
-    assert (
-        handle_review_asset_index(workspace, "after_asset=missing")[0]
-        == HTTPStatus.BAD_REQUEST
-    )
+    assert handle_review_asset_index(workspace, "after_asset=missing")[0] == HTTPStatus.BAD_REQUEST
     assert (
         handle_review_asset_index(workspace, "after_asset=x&after_asset=y")[0]
         == HTTPStatus.BAD_REQUEST

@@ -200,4 +200,3 @@ def test_forecast_capability_uses_one_recorded_source_snapshot(
 
     monkeypatch.setattr(operations_web_forecast, "explore_sources", unexpected)
     assert project_asset_capabilities(workspace, "motor-01", can_ask=False) == expected
-
