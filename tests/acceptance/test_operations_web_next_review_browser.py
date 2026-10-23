@@ -183,7 +183,9 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 page.goto(
                     base + "/web/?page=maintenance&monitor_asset=motor-b&finding_id=finding-archive"
                 )
-                pw.expect(page.get_by_role("heading", name="검토 항목을 찾을 수 없습니다")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("heading", name="검토 항목을 찾을 수 없습니다")
+                ).to_be_visible()
                 assert page.get_by_text("finding-archive", exact=True).count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
