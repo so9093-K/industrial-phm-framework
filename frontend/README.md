@@ -106,10 +106,10 @@ not install Node dependencies.
   frequency/power axes, missing raw-waveform and storage failures distinguished.
 - `src/spectrum.ts`: acquisition binding/sampling rate/ordinal and PSD channel/
   frequency/band consistency contracts. Ordinal positions are not clock times.
-- `src/components/ReviewRequest.svelte`: the outlook's ‘검토 요청’. It names the shown selection,
+- `src/components/ReviewRequest.svelte`: an opt-in outlook ‘검토 요청’, mounted only after the optional section opens. It names the shown selection,
   versions and source/binding/time-basis provenance; the supervisor recomputes and stores every
   number (ADR-0029). A changed recomputation discards the shown result; an unknown outcome is safe to retry.
-- `src/components/ReviewQueue.svelte`: the maintenance queue of analysis, model-result and requested
+- `src/components/ReviewQueue.svelte`: the deep-linked maintenance queue of analysis, model-result and requested
   outlook reviews, filtered by status and kind, with exact `capture_id`/`finding_id` links. The item
   just acted on stays open when its new status leaves the filter.
 - `src/components/OutlookReviewDetail.svelte`: one requested outlook: the archived result, source
