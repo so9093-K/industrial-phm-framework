@@ -7,6 +7,7 @@
   import {seriesName} from "../series-names";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
+  import {filterReviewItems, selectReviewItem} from "../review-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
   import OutlookReviewDetail from "./OutlookReviewDetail.svelte";
@@ -40,6 +41,7 @@
   let loadState: "loading" | "ready" = $state("loading");
   let failedAssets: string[] = $state([]);
   let missingFocus = $state(false);
+  let olderFindingFocus = $state(false);
   let moreAvailable = $state(false);
   let scopeAssetId = $state(untrack(() => focusAssetId));
   let ignoreFocus = $state(false);
@@ -48,7 +50,6 @@
   let historyProblem = $state("");
   let hiddenFindings = $state(false);
   let loadedAssets = $state(0);
-  let queriedAssetCount = $state(0);
   // A direct link opens with every status so its subject is visible; later links keep the filter.
   let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
   let typeFilter: "all" | "analysis" | "outlook" = $state("all");
@@ -94,15 +95,14 @@
     open: items.filter((item) => item.status === "open").length,
     acknowledged: items.filter((item) => item.status === "acknowledged").length,
   });
-  const shown = $derived(items.filter((item) =>
-    (statusFilter === "all" || item.status === statusFilter) && (typeFilter === "all" || item.kind === typeFilter)));
-  const selected = $derived.by((): Item | undefined => {
-    if (!ignoreFocus && focusCaptureId) return items.find((item) => item.kind === "outlook" && item.capture.id === focusCaptureId
-      && !!focusAssetId && item.assetId === focusAssetId);
-    if (!ignoreFocus && focusFindingId) return items.find((item) => item.kind === "analysis" && item.review.findingId === focusFindingId
-      && !!focusAssetId && item.assetId === focusAssetId);
-    return shown.find((item) => item.key === keptKey) ?? shown[0];
-  });
+  const shown = $derived(filterReviewItems(items, statusFilter, typeFilter));
+  const selected = $derived(selectReviewItem(
+    shown,
+    ignoreFocus || !focusAssetId ? null
+      : {assetId: focusAssetId, key: focusCaptureId ? "capture:" + focusCaptureId
+        : focusFindingId ? "finding:" + focusFindingId : ""},
+    keptKey,
+  ));
 
   function replaceCapture(updated: Capture) {
     captures = captures.map((item) => item.id === updated.id ? updated : item);
@@ -121,21 +121,27 @@
     location.assign(routeUrl({page: "maintenance", assetId: id, tab: "summary", method: null, data: null}));
   }
 
+  let olderRequest: AbortController | null = null;
   async function loadOlderCaptures() {
     if (loadingMore) return;
     const [assetId, before] = Object.entries(captureCursors)[0] ?? [];
     if (!assetId || !before) return;
     loadingMore = true; historyProblem = "";
+    const request = new AbortController(); olderRequest = request;
     try {
-      const page = await readCaptures(assetId, {before}, new AbortController().signal);
+      const page = await readCaptures(assetId, {before}, request.signal);
+      if (request.signal.aborted) return;
       captures = [...captures, ...page.captures.filter((item) => !captures.some((prior) => prior.id === item.id))];
       const next = {...captureCursors};
       if (page.nextBefore) next[assetId] = page.nextBefore;
       else delete next[assetId];
       captureCursors = next;
+      moreAvailable = hiddenFindings || Object.keys(next).length > 0;
     } catch {
-      historyProblem = "이전 전망을 읽지 못했습니다. 현재 목록은 그대로 유지됩니다.";
-    } finally {loadingMore = false;}
+      if (!request.signal.aborted) historyProblem = "이전 전망을 읽지 못했습니다. 현재 목록은 그대로 유지됩니다.";
+    } finally {
+      if (!request.signal.aborted) loadingMore = false;
+    }
   }
 
   onMount(() => {
@@ -145,7 +151,6 @@
       ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? []),
       ...(snapshot?.analyses.records.map((item) => item.assetId) ?? [])])].slice(0, ASSET_LIMIT);
     if (focusAssetId && !assets.includes(focusAssetId)) assets.push(focusAssetId);
-    queriedAssetCount = assets.length;
     // An identity-bearing bookmark without its owning asset is not a review subject.
     if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
     const failed = (assetId: string) => {
@@ -184,10 +189,13 @@
       findings = pages.flatMap((page) => page.reviews);
       loadedAssets = assets.length;
       if (focusFindingId && !failedAssets.includes(focusAssetId)
-        && !findings.some((item) => item.findingId === focusFindingId)) missingFocus = true;
+        && !findings.some((item) => item.findingId === focusFindingId)) {
+        if (hiddenFindings) olderFindingFocus = true;
+        else missingFocus = true;
+      }
       loadState = "ready";
     });
-    return () => request.abort();
+    return () => { request.abort(); olderRequest?.abort(); };
   });
 </script>
 
@@ -203,7 +211,7 @@
       </form>
     {/if}
     <div class="filters" role="group" aria-label="검토 상태">
-      {#each [["open", "검토 대기 " + counts.open], ["acknowledged", "확인함 " + counts.acknowledged], ["closed", "검토 종료"], ["all", "전체"]] as [value, label] (value)}
+      {#each [["open", "검토 대기 " + counts.open + " (조회됨)"], ["acknowledged", "확인함 " + counts.acknowledged + " (조회됨)"], ["closed", "검토 종료"], ["all", "전체"]] as [value, label] (value)}
         <button type="button" class="chip" aria-pressed={statusFilter === value}
           onclick={() => { statusFilter = value as Status | "all"; keptKey = null; ignoreFocus = true; }}>{label}</button>
       {/each}
@@ -217,7 +225,8 @@
       <StatusNotice message="검토 목록을 불러오고 있습니다." />
     {:else}
       {#if failedAssets.length}
-        <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."} />
+        <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."}
+          actionLabel="검토 목록 다시 읽기" onAction={() => location.reload()} />
       {/if}
       <p class="context">현재 조회한 설비 {loadedAssets}곳의 검토 항목을 표시합니다.
         {#if snapshot?.truncated || (snapshot?.assets.length ?? 0) > ASSET_LIMIT || hiddenFindings || moreAvailable}
@@ -253,6 +262,9 @@
     {:else if missingFocus}
       <StatusNotice kind="uncertain" title="검토 항목을 찾을 수 없습니다"
         message="이 설비에서 해당 검토 항목을 찾을 수 없습니다. 다른 설비의 기록으로 대신 보여 주지 않습니다." />
+    {:else if olderFindingFocus && !ignoreFocus}
+      <StatusNotice kind="uncertain" title="검토 기록이 이번 조회 범위 밖에 있습니다"
+        message="분석 검토 목록은 설비당 최대 100건만 제공합니다. 더 오래된 기록을 찾지 못한 것이 삭제됐다는 뜻은 아닙니다." />
     {:else if !selected}
       <p class="context">왼쪽에서 검토 항목을 고르세요.</p>
     {:else if selected.kind === "outlook"}
