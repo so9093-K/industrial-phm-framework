@@ -10,7 +10,9 @@ import argparse
 import functools
 import hashlib
 import json
+import subprocess
 import tempfile
+from datetime import UTC, datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from pathlib import Path
@@ -38,6 +40,10 @@ def capture(media: bool) -> None:
         "viewport": [1440, 1100],
         "api_backend": False,
         "data_kind": "synthetic",
+        "captured_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        "code_revision": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+        ).strip(),
         "snapshot_sha256": hashlib.sha256(
             (DIST / "web/scenario/responses.json").read_bytes()
         ).hexdigest(),
@@ -87,14 +93,20 @@ def capture(media: bool) -> None:
                 if name != "01-observe":
                     panel = {
                         "02-signals": "측정 신호",
+                        "02a-choose-method": "무엇이 평소와 달라졌나요?",
                         "03-anomaly": "기준 구간 이탈",
                         "04-compare": "두 기간 비교",
                         "05-outlook": "기준 도달 전망",
                         "06-review": "고른 검토 항목",
                     }[name]
                     page.get_by_role("region", name=panel, exact=True).scroll_into_view_if_needed()
-                page.screenshot(path=str(MEDIA / (name + ".png"))) if media else None
-                evidence["screens"].append({"name": name, "path": page.url.split(origin)[1]})
+                screenshot = MEDIA / (name + ".png")
+                if media:
+                    page.screenshot(path=str(screenshot))
+                screen = {"name": name, "path": page.url.split(origin)[1]}
+                if media:
+                    screen["sha256"] = hashlib.sha256(screenshot.read_bytes()).hexdigest()
+                evidence["screens"].append(screen)
                 if media:
                     # A short pause records the real UI. GIF frames are unaltered captures.
                     for _ in range(8):
@@ -111,6 +123,15 @@ def capture(media: bool) -> None:
             ).click()
             expect(page.locator(".explorer svg").first).to_be_visible()
             shot("02-signals")
+            # Task-first UX: show a common method chooser before the prepared
+            # baseline analysis; the six main demo steps stay unchanged.
+            page.goto(
+                origin + "/web/?page=assets&tab=anomaly&monitor_asset=demo-pump-change",
+                wait_until="networkidle",
+            )
+            expect(page.get_by_role("heading", name="무엇이 평소와 달라졌나요?")).to_be_visible()
+            expect(page.get_by_role("link", name="기준 구간 이탈 확인")).to_be_visible()
+            shot("02a-choose-method")
             page.get_by_role("navigation", name="체험 순서").get_by_role(
                 "link", name="3. 이상 탐지"
             ).click()
@@ -207,7 +228,14 @@ def capture(media: bool) -> None:
                     loop=0,
                     optimize=True,
                 )
-                evidence.update(review_url=review_url.split(origin)[1], browser=browser.version)
+                evidence.update(
+                    review_url=review_url.split(origin)[1],
+                    browser=browser.version,
+                    media_sha256={
+                        name: hashlib.sha256((MEDIA / name).read_bytes()).hexdigest()
+                        for name in ("walkthrough.gif", "walkthrough.webm")
+                    },
+                )
                 (MEDIA / "capture.json").write_text(
                     json.dumps(evidence, ensure_ascii=False, indent=2) + "\n"
                 )
