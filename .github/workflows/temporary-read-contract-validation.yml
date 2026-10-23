@@ -1,0 +1,78 @@
+name: Temporary read contract verification
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "frontend/**"
+      - "tests/**"
+      - ".github/workflows/temporary-read-contract-validation.yml"
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22.23.3"
+          package-manager-cache: false
+      - run: npm ci --prefix frontend --no-audit --no-fund
+      - run: npm run --prefix frontend check
+      - run: npm test --prefix frontend
+      - run: npm run --prefix frontend build
+  product-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        with:
+          version: "0.12.13"
+          enable-cache: true
+      - run: uv python install 3.14
+      - run: uv sync --locked --extra operations --extra aihub
+      - run: uv run --no-sync ruff check src/industrial_phm/application/operations_monitor.py src/industrial_phm/runtime/operations_web_read.py src/industrial_phm/runtime/operations_web_explore.py src/industrial_phm/runtime/operations_web_forecast.py tests/integration/test_operations_web_http.py
+      - run: uv run --no-sync ruff format --check src/industrial_phm/application/operations_monitor.py src/industrial_phm/runtime/operations_web_read.py src/industrial_phm/runtime/operations_web_explore.py src/industrial_phm/runtime/operations_web_forecast.py tests/integration/test_operations_web_http.py
+      - run: uv run --no-sync pytest tests/integration/test_operations_web_http.py tests/integration/test_operations_web_explore.py tests/integration/test_operations_web_capabilities.py tests/integration/test_operations_web_review.py tests/integration/test_operations_phm_monitor.py tests/unit/test_operations_monitor.py -q -rs --maxfail=1
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        with:
+          version: "0.12.13"
+          enable-cache: true
+      - run: uv python install 3.14
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: "22.23.3"
+          package-manager-cache: false
+      - run: uv sync --locked --extra operations --extra aihub
+      - run: make frontend
+      - run: uv pip install --python .venv/bin/python "playwright==1.64.0"
+      - run: uv run --no-sync playwright install --with-deps chromium
+      - run: >-
+          uv run --no-sync pytest
+          tests/acceptance/test_operations_web_next_review_browser.py
+          tests/acceptance/test_operations_web_next_capabilities_browser.py
+          tests/acceptance/test_operations_web_next_investigations_browser.py
+          tests/acceptance/test_operations_web_next_finding_review_browser.py
+          tests/acceptance/test_operations_web_next_model_explanation_browser.py
+          tests/acceptance/test_operations_web_next_outlook_capture_browser.py
+          tests/acceptance/test_operations_web_navigation_browser.py
+          tests/acceptance/test_operations_web_next_monitor_attention_browser.py
+          -q -rs --maxfail=1
+      - run: >-
+          uv run --no-sync pytest
+          tests/acceptance/test_operations_web_next_browser.py
+          -k test_session_read_failure_is_not_read_only_and_retry_is_explicit
+          -q -rs --maxfail=1
