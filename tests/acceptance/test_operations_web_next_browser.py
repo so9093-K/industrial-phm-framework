@@ -352,9 +352,9 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(base + "/web/?page=system", wait_until="networkidle")
                 pw.expect(
-                    page.get_by_role("status").filter(has_text="쓰기 권한 확인 실패 · 보기만 가능")
+                    page.get_by_role("status").filter(has_text="읽기 전용 · 권한 확인 실패")
                 ).to_be_visible()
-                assert page.get_by_text("운영 중 · 기록 가능").count() == 0
+                assert page.get_by_text("변경 가능").count() == 0
                 # Long error text plus retry button must wrap on a 390px screen.
                 pw.expect(page.get_by_role("button", name="권한 다시 확인")).to_be_visible()
                 assert page.evaluate(
@@ -368,9 +368,7 @@ def test_session_read_failure_is_not_read_only_and_retry_is_explicit(tmp_path: P
 
                 status["kind"] = "writer"
                 page.reload(wait_until="networkidle")
-                pw.expect(
-                    page.get_by_role("status").filter(has_text="운영 중 · 기록 가능")
-                ).to_be_visible()
+                pw.expect(page.get_by_role("status").filter(has_text="변경 가능")).to_be_visible()
                 assert not errors, errors
             finally:
                 browser.close()

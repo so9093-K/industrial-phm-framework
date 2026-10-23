@@ -14,6 +14,7 @@
   import {assetTabUrl} from "../routes";
   import OutlookBriefings from "./OutlookBriefings.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
+  let reviewSelection: string | null = $state(null);
   import {
     loadAcquisitionOptions,loadAcquisitionPair,acquisitionChart,
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
@@ -246,12 +247,14 @@
             resultState="mismatch";
             message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          <ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
+          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && outlook ? outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis : null}><summary>검토 기록에 남기기 (선택)</summary>
+            {#if reviewSelection === outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}<ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
             resultAbort?.abort();
             outlook=null;
             resultState="mismatch";
             message=reason;
-          }}/>
+          }}/>{/if}
+          </details>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
         <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>

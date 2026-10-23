@@ -21,6 +21,11 @@
   let bindings: ModelBinding[] = $state([]);
   let bindingState: "loading" | "ready" | "failed" = $state("loading");
   let reviews: FindingReview[] | null = $state(null);
+  let loadedReviewAssets: Record<string, boolean> = $state({});
+  let partialReviewAssets: Record<string, boolean> = $state({});
+  let loadingReviewAssets: Record<string, boolean> = $state({});
+  let failedReviewAssets: Record<string, boolean> = $state({});
+  let reviewController: AbortController | null = null;
   // Reviews requested on this screen, until the next snapshot reports them.
   let requested: Record<string, string> = $state({});
   let pending: Record<string, boolean> = $state({});
@@ -45,8 +50,12 @@
     const same = (entry: {assetId: string; runId: string; evidenceIds: string[]}) => entry.assetId === item.assetId
       && entry.runId === item.runId && entry.evidenceIds.includes(item.evidenceId);
     // The current review list wins; the monitor snapshot is the fallback when it failed.
-    const saved = reviews ? reviews.find((entry) => entry.subject === "analysis" && same(entry))
-      : snapshot.reviewInbox.reviews.find(same);
+    const stored = reviews?.find((entry) => entry.subject === "analysis" && same(entry));
+    const fromSnapshot = snapshot.reviewInbox.reviews.find(same);
+    // A truncated review read cannot prove absence; preserve a known snapshot identity.
+    const saved = loadedReviewAssets[item.assetId]
+      ? stored ?? (partialReviewAssets[item.assetId] ? fromSnapshot : undefined)
+      : fromSnapshot;
     if (saved) return {findingId: saved.findingId, status: saved.status};
     const findingId = requested[key(item)];
     return findingId ? {findingId, status: "open"} : null;
@@ -59,7 +68,9 @@
   }
   async function ask(item: AnalysisRecord) {
     const id = key(item);
-    if (!writable || pending[id]) return;
+    // A failed or still pending read cannot establish that this item is not already stored.
+    if (!writable || pending[id] || !loadedReviewAssets[item.assetId]
+      || failedReviewAssets[item.assetId] || partialReviewAssets[item.assetId]) return;
     pending = {...pending, [id]: true};
     const {[id]: _, ...rest} = messages; messages = rest;
     try {
@@ -73,16 +84,31 @@
       pending = {...pending, [id]: false};
     }
   }
+  async function loadReviewFor(assetId: string, retry = false) {
+    const request = reviewController;
+    if (!request || request.signal.aborted || (loadedReviewAssets[assetId] && !retry)
+      || loadingReviewAssets[assetId]) return;
+    loadingReviewAssets = {...loadingReviewAssets, [assetId]: true};
+    failedReviewAssets = {...failedReviewAssets, [assetId]: false};
+    try {
+      const page = await readFindingReviews(assetId, request.signal);
+      if (request.signal.aborted) return;
+      reviews = [...(reviews ?? []).filter((entry) => entry.assetId !== assetId), ...page.items];
+      loadedReviewAssets = {...loadedReviewAssets, [assetId]: true};
+      partialReviewAssets = {...partialReviewAssets, [assetId]: page.truncated};
+    } catch {
+      if (!request.signal.aborted) failedReviewAssets = {...failedReviewAssets, [assetId]: true};
+      // Unknown must never be presented as a verified absence.
+    } finally {
+      if (!request.signal.aborted) loadingReviewAssets = {...loadingReviewAssets, [assetId]: false};
+    }
+  }
   onMount(() => {
-    const request = new AbortController();
+    const request = new AbortController(); reviewController = request;
     void loadModelBindings(null, request.signal).then((loaded) => {
       if (!request.signal.aborted) { bindings = loaded; bindingState = "ready"; }
     }).catch(() => { if (!request.signal.aborted) bindingState = "failed"; });
-    const analyzed = [...new Set(snapshot.analyses.records.map((item) => item.assetId))].slice(0, 20);
-    void Promise.all(analyzed.map((id) => readFindingReviews(id, request.signal)))
-      .then((pages) => { if (!request.signal.aborted) reviews = pages.flatMap((page) => page.items); })
-      .catch(() => {});
-    return () => request.abort();
+    return () => { request.abort(); reviewController = null; };
   });
 </script>
 
@@ -114,7 +140,6 @@
           <li><article aria-labelledby={"record-" + item.evidenceId}>
             <div class="head">
               <h3 id={"record-" + item.evidenceId}>{KIND[item.kind]} · {assetLabel(snapshot.assets, item.assetId)}</h3>
-              <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
             </div>
             <p class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 분석 완료 {clock(item.completedAt)}</p>
             <p class="context">데이터 출처 {sourceLabel(sourceNames, item.sourceId)} · 측정 위치 {item.pointId ?? "미확인"}
@@ -157,17 +182,30 @@
                 </details>
               {/if}
             {/if}
-            <div class="review">
+            <details class="optional-review" ontoggle={(event)=>{if(event.currentTarget.open)void loadReviewFor(item.assetId);}}><summary>{current ? "저장된 검토 보기" : "검토 기록에 남기기 (선택)"}</summary>
+              {#if current}<span class="badge">{STATUS[current.status]}</span>{/if}
+              {#if loadingReviewAssets[item.assetId] && !current}
+                <p class="context" role="status">검토 기록을 확인하고 있습니다.</p>
+              {:else if failedReviewAssets[item.assetId]}
+                <StatusNotice kind="uncertain" message="검토 기록을 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다."
+                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId, true)} />
+              {:else if partialReviewAssets[item.assetId] && !current}
+                <StatusNotice kind="uncertain" message="최근 검토 기록 일부만 확인했습니다. 이전 기록이 없다고 판단하지 않습니다."
+                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId, true)} />
+              {/if}
+              <div class="review">
               {#if current}
                 <a href={findingUrl(item.assetId, current.findingId)}>정비 검토함에서 보기 →</a>
-              {:else if writable}
-                <button type="button" class="ui-button" disabled={pending[key(item)]} onclick={() => void ask(item)}>검토 요청</button>
+              {:else if writable && !failedReviewAssets[item.assetId] && !partialReviewAssets[item.assetId]}
+                <button type="button" class="ui-button" disabled={pending[key(item)] || !loadedReviewAssets[item.assetId] || loadingReviewAssets[item.assetId]}
+                  onclick={() => void ask(item)}>검토 요청</button>
                 <span class="context">이 분석 결과를 정비 검토함에 남깁니다.</span>
-              {:else}
+              {:else if !writable}
                 <span class="context">보기 전용이라 검토를 요청할 수 없습니다.</span>
               {/if}
               <a href={assetTabUrl(item.assetId, "summary")}>설비 보기 →</a>
             </div>
+            </details>
             {#if messages[key(item)]}
               <p class="message" class:uncertain={messages[key(item)].kind === "uncertain"}
                 class:failure={messages[key(item)].kind === "failure"}
@@ -192,7 +230,7 @@
 
 <section class="ui-panel" aria-labelledby="applied-models-title">
   <h2 id="applied-models-title">적용한 이상 탐지 모델</h2>
-  <p class="context">모델 점수, AI 해설과 검토 요청은 설비 화면의 이상 징후 탭에서 봅니다.</p>
+  <p class="context">모델 점수와 AI 해설은 설비 화면의 이상 징후 탭에서 볼 수 있습니다.</p>
   {#if bindingState === "loading"}
     <StatusNotice message="적용한 모델을 확인하고 있습니다." />
   {:else if bindingState === "failed"}
@@ -256,6 +294,7 @@
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
   td.wrap { overflow-wrap: anywhere; }
+  .optional-review > summary { cursor: pointer; color: var(--color-ink-muted); }
   .review { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
   .message { overflow-wrap: anywhere; }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }

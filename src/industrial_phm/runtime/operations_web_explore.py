@@ -243,6 +243,7 @@ def explore_sources(
     acquisition = None
     if binding is not None:
         acquisition = acquisition_source(store, binding)
+        acquisition["period_seconds"] = acquisition_period(workspace, asset_id, binding.source_id)
         # Which model results an acquisition range can open, per binding.
         acquisition["models"] = [
             {"binding_id": item.binding_id, "task": task}
@@ -257,6 +258,20 @@ def explore_sources(
         "history": history,
         "acquisition": acquisition,
     }
+
+
+def acquisition_period(
+    workspace: OperationsWorkspace, asset_id: str, source_id: str
+) -> float | None:
+    """The recorded acquisition interval, if declared by the stored stream."""
+    if not workspace.acquisition_snapshot_path.is_file():
+        return None
+    for stream in SqliteAcquisitionSnapshotRepository(
+        workspace.acquisition_snapshot_path
+    ).list_streams():
+        if stream.asset_id == asset_id and stream.source_id == source_id:
+            return stream.acquisition_period_seconds
+    return None
 
 
 def package_task(workspace: OperationsWorkspace, package_id: str) -> str | None:

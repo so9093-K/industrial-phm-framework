@@ -39,7 +39,7 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                 pw.expect(page.get_by_role("heading", name="분석 기록", level=1)).to_be_visible()
                 results = page.get_by_role("region", name="분석 결과")
                 record = results.get_by_role("article", name="3상 불평형 분석 · motor-7")
-                pw.expect(record.locator(".badge")).to_have_text("검토 요청 전")
+                assert record.locator(".badge").count() == 0
                 pw.expect(record.get_by_role("table", name="3상 불평형률 (%)")).to_be_visible()
                 pw.expect(record).to_contain_text("데이터 출처 site-opcua")
                 pw.expect(record.get_by_text(analysis.run.analysis_run_id)).to_be_hidden()
@@ -50,6 +50,34 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
 
+                # An unavailable optional review lookup must not be mistaken for no prior record.
+                page.route(
+                    "**/api/v1/reviews?*",
+                    lambda route: route.fulfill(status=503, body="{}"),
+                )
+                record.locator("details.optional-review > summary").click()
+                pw.expect(record.get_by_text("기록이 없다는 뜻은 아닙니다.")).to_be_visible()
+                assert record.get_by_role("button", name="검토 요청").count() == 0
+                page.unroute("**/api/v1/reviews?*")
+                # A bounded response is not proof that an older review is absent.
+                page.route(
+                    "**/api/v1/reviews?*",
+                    lambda route: route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body='{"schema_version":1,"asset_id":"motor-7",'
+                        '"meaning":"human-review-records-not-maintenance-or-diagnosis",'
+                        '"reviews":{"items":[],"total":101,"truncated":true}}',
+                    ),
+                )
+                record.get_by_role("button", name="다시 확인").click()
+                pw.expect(
+                    record.get_by_text("이전 기록이 없다고 판단하지 않습니다.")
+                ).to_be_visible()
+                assert record.get_by_role("button", name="검토 요청").count() == 0
+                page.unroute("**/api/v1/reviews?*")
+                record.get_by_role("button", name="다시 확인").click()
+                pw.expect(record.get_by_role("button", name="검토 요청")).to_be_enabled()
                 record.get_by_role("button", name="검토 요청").click()
                 link = record.get_by_role("link", name="정비 검토함에서 보기")
                 pw.expect(link).to_be_visible()

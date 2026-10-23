@@ -195,3 +195,22 @@ def test_web_attention_includes_exact_text_and_scope_for_fault_audit(tmp_path: P
         "total": 1,
         "truncated": False,
     }
+
+
+def test_web_attention_codes_are_additive_to_the_existing_exact_json_contract(
+    tmp_path: Path,
+) -> None:
+    _, snapshot = _snapshot(tmp_path)
+    item = OperationsMonitorAttention(
+        attention_id="attention:collection-down",
+        status=OperationsMonitorStatus.ERROR,
+        title="Text may change without altering its stable code",
+        detail="Collector heartbeat is stale",
+        destination=OperationsAttentionDestination.SYSTEM,
+        occurred_at=snapshot.assessed_at,
+        code="collection-service-not-running",
+    )
+    payload = project_operations_monitor(
+        replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
+    )
+    assert payload["attention"]["items"][0]["code"] == "collection-service-not-running"

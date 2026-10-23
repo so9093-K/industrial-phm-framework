@@ -98,7 +98,7 @@
 </section>
 
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <h2 id="summary-title">기록 현황</h2>
+  <h2 id="summary-title">측정 현황</h2>
   {#if notesState === "partial" || notesState === "failed"}
     <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
       actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
@@ -119,8 +119,8 @@
 
 <section class="ui-panel next">
   <AnalysisOptions assetId={asset.assetId} />
-  <p class="context"><a href={routeUrl({page: "maintenance", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
-    정비 검토함 보기 →</a></p>
+  <p class="context"><a href={routeUrl({page: "investigations", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
+    저장된 분석 결과 보기 →</a></p>
 </section>
 
 <style>

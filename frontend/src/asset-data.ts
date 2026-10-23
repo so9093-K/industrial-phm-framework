@@ -1,5 +1,5 @@
-/** Which stored data an asset has. It picks a sensible default analysis; it says nothing
- * about the asset's condition. Read from the existing GET /api/v1/forecast/options. */
+/** Actual recorded inputs, independent of forecast readiness or algorithms.
+ * GET /api/v1/explore/sources owns input facts, never an asset-health verdict. */
 import {methodsOf, type DataKind, type Method, type Tab} from "./routes.ts";
 
 export type AcquisitionTiming = {sourceId: string; periodSeconds: number};
@@ -23,17 +23,16 @@ export function parseAssetData(raw: unknown, assetId: string): AssetData {
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId)
     throw new Error("선택한 설비의 데이터 목록이 아닙니다.");
   const history = root.history === null ? null : object(root.history);
-  const vibration = root.acquisition === null || root.acquisition === undefined
-    ? null : object(root.acquisition);
-  if ((root.history !== null && (!history || !Array.isArray(history.series)))
-    || (root.acquisition !== null && root.acquisition !== undefined && !vibration))
+  const vibration = root.acquisition === null ? null : object(root.acquisition);
+  if ((root.history !== null && (!history || !Array.isArray(history.channels)))
+    || (root.acquisition !== null && (!vibration || !Array.isArray(vibration.features))))
     throw new Error("설비 데이터 목록의 형식이 올바르지 않습니다.");
   const timing = vibration && typeof vibration.source_id === "string" && vibration.source_id.trim()
     && typeof vibration.period_seconds === "number" && Number.isFinite(vibration.period_seconds)
     && vibration.period_seconds > 0
     ? {sourceId: vibration.source_id, periodSeconds: vibration.period_seconds} : null;
   return {
-    history: history ? {signals: (history.series as unknown[]).length} : null,
+    history: history ? {signals: (history.channels as unknown[]).length} : null,
     vibration: vibration
       ? {measurements: count(vibration.count), first: count(vibration.first), last: count(vibration.last),
         ...(timing ? {timing} : {})}
@@ -57,7 +56,7 @@ export function defaultKind(data: AssetData | null): DataKind | null {
 }
 
 export async function readAssetData(assetId: string, signal: AbortSignal): Promise<AssetData> {
-  const response = await fetch("/api/v1/forecast/options?" + new URLSearchParams({asset_id: assetId}),
+  const response = await fetch("/api/v1/explore/sources?" + new URLSearchParams({asset_id: assetId}),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});

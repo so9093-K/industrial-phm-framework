@@ -46,7 +46,7 @@ def test_open_interval_and_quiet_latest_measurement_agree_across_views(
                     expected
                 )
                 page.goto(base + "/web/?page=assets&monitor_asset=bearing-a")
-                pw.expect(page.get_by_role("region", name="기록 현황")).to_contain_text(expected)
+                pw.expect(page.get_by_role("region", name="측정 현황")).to_contain_text(expected)
                 page.goto(
                     base
                     + "/web/?page=maintenance&monitor_asset=bearing-a&finding_id="
@@ -241,6 +241,7 @@ def test_operational_fault_attention_is_visible_and_clears_on_read_failure(
             attention_id="attention:collection-down",
             status=OperationsMonitorStatus.ERROR,
             title="Collection service is not running",
+            code="collection-service-not-running",
             detail="Collector heartbeat is stale",
             destination=OperationsAttentionDestination.SYSTEM,
             occurred_at=snapshot.assessed_at,

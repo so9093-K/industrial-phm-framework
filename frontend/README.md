@@ -18,7 +18,9 @@ npm run build
 The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
 on the **same loopback origin** under `/web/` only after building it.
-Screens follow the task menus of `docs/product/overview.md`:
+Primary navigation follows the observation-first tasks: 관측 현황, 설비·신호, 운영 관리.
+Saved analysis history and existing human-review records remain reachable through contextual or exact links,
+not through the primary navigation. Screens follow the task routes of `docs/product/overview.md`:
 `/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
 `tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
 `?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are
@@ -38,10 +40,10 @@ not install Node dependencies.
 - `src/routes.ts`: task pages, asset tabs, analysis methods and data kinds; former
   addresses map to their new place. Only the route, the asset and a chosen signal travel
   between screens; another asset's conditions or review identities never do.
-- `src/App.svelte`: top task menu, read-only/operating mode, same-document navigation.
+- `src/App.svelte`: top task menu, session write capability (not runtime health), same-document navigation.
 - `src/components/AssetWorkspace.svelte`: one asset's header, tabs, method/data choice and
   the workflow for that choice. The default data kind comes from the asset's stored data.
-- `src/asset-data.ts`: which stored data an asset has (from `/api/v1/forecast/options`);
+- `src/asset-data.ts`: which stored data an asset has (from `/api/v1/explore/sources`);
   it picks a default analysis and says nothing about the asset's condition.
 - `src/components/AssetList.svelte`: assets with something to check first, last
   measurement and receive state words shared with `/web/`.
@@ -104,10 +106,10 @@ not install Node dependencies.
   frequency/power axes, missing raw-waveform and storage failures distinguished.
 - `src/spectrum.ts`: acquisition binding/sampling rate/ordinal and PSD channel/
   frequency/band consistency contracts. Ordinal positions are not clock times.
-- `src/components/ReviewRequest.svelte`: the outlook's ‘검토 요청’. It names the shown selection,
+- `src/components/ReviewRequest.svelte`: an opt-in outlook ‘검토 요청’, mounted only after the optional section opens. It names the shown selection,
   versions and source/binding/time-basis provenance; the supervisor recomputes and stores every
   number (ADR-0029). A changed recomputation discards the shown result; an unknown outcome is safe to retry.
-- `src/components/ReviewQueue.svelte`: the maintenance queue of analysis, model-result and requested
+- `src/components/ReviewQueue.svelte`: the deep-linked maintenance queue of analysis, model-result and requested
   outlook reviews, filtered by status and kind, with exact `capture_id`/`finding_id` links. The item
   just acted on stays open when its new status leaves the filter.
 - `src/components/OutlookReviewDetail.svelte`: one requested outlook: the archived result, source
@@ -117,9 +119,9 @@ not install Node dependencies.
   `src/review-evidence.ts` joins the reviewed measurement's interval, feature changes, AI answer
   and other models with the same complete input identity. Each failed part stays unread with a retry;
   a later confirmed interval cannot make an earlier measurement appear confirmed already.
-- `src/components/ReviewActions.svelte`: the shared append-only note/acknowledge/close for every
+- `src/components/ReviewActions.svelte`: the shared append-only acknowledge/close UI for every
   review subject (a retried uncertain action reuses its event ID; a 409 re-reads; close asks once more).
-  Confirm and close record the person's inspect/observe/no-action decision. Older events without
+  Confirm and close record the person's inspect/observe/no-action decision, without a free-text memo. Existing note events remain readable. Older events without
   a decision remain readable and do not acquire an invented one.
 - `src/components/ModelExplanation.svelte`, `src/components/ModelReviewRequest.svelte`: the selected
   model result's AI explanation against an earlier analyzed measurement (only answers of the same run,

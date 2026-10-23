@@ -38,7 +38,7 @@
 </script>
 
 <section class="options" aria-labelledby={"options-" + assetId}>
-  <svelte:element this={"h" + level} id={"options-" + assetId}>분석 바로가기</svelte:element>
+  <svelte:element this={"h" + level} id={"options-" + assetId}>분석하기</svelte:element>
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}
@@ -69,8 +69,8 @@
       {/each}
     </ul>
     {#if refused.length}
-      <p class="refused"><strong>지금 할 수 없는 분석</strong>
-        {#each refused as item (item.id)}<span>{NAME[item.id]} — {fact(item, capabilities)}</span>{/each}</p>
+      <details class="refused"><summary>현재 사용할 수 없는 분석</summary>
+        {#each refused as item (item.id)}<span>{NAME[item.id]} — {fact(item, capabilities)}</span>{/each}</details>
     {/if}
   {/if}
 </section>
@@ -88,7 +88,8 @@
   li a { font-weight: 650; white-space: nowrap; }
   .go { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); justify-content: flex-end; }
   .refused { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--color-ink-muted); font-size: var(--font-small); }
-  .refused strong { color: var(--color-ink); }
+  .refused summary { cursor: pointer; color: var(--color-ink-muted); }
+  .refused span { display: inline; }
   @media (max-width: 640px) {
     li { grid-template-columns: minmax(0, 1fr) auto; }
     li > strong { grid-column: 1; grid-row: 1; }

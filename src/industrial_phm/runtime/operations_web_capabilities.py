@@ -81,7 +81,7 @@ def project_asset_capabilities(
         "waiting_sources": sum(s["input_state"] == "waiting-input" for s in models["streams"]),
     }
     signals = _signal_capabilities(data, acquisition)
-    forecast = _forecast_capability(workspace, asset_id, data, acquisition)
+    forecast = _forecast_capability(workspace, asset_id, data, acquisition, explore)
     modelled = _model_capability("anomaly", ModelTask.ANOMALY_SCORE, workspace, store, models)
     anomaly = modelled
     if modelled["status"] != READY and data["history"]:
@@ -266,6 +266,7 @@ def _forecast_capability(
     asset_id: str,
     data: dict[str, Any],
     acquisition: dict[str, Any] | None,
+    sources: dict[str, Any],
 ) -> dict[str, Any]:
     """The outlook needs 20 stored values; its chart needs twice the shortest horizon too."""
     if data["history"] is None and data["acquisition"] is None and acquisition is None:
@@ -273,7 +274,7 @@ def _forecast_capability(
         return _item("forecast", UNAVAILABLE, reason, "connect")
     if data["acquisition"] is not None and acquisition is None and data["history"] is None:
         return _item("forecast", NEEDS_CONNECTION, "waveforms-need-model", "anomaly")
-    options = forecast_options(workspace, asset_id)
+    options = forecast_options(workspace, asset_id, sources=sources)
     allowed = [
         name
         for kind in ("history", "acquisition")

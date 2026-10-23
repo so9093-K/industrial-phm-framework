@@ -35,6 +35,7 @@ def review_explained_result(
     expect(panel.locator("p.summary")).not_to_be_empty(timeout=180_000)
     answer = check_explanation(checks, suffix, panel, window=window)
     answer["model_url"] = page.url
+    page.locator("details.optional-review > summary").click()
     review = page.get_by_role("region", name="사람 검토")
     expect(
         review.get_by_role("button", name="검토 요청", exact=True).or_(

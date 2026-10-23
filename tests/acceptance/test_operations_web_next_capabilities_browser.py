@@ -74,7 +74,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
             try:
                 base = f"http://127.0.0.1:{server.server_port}/web/?page=assets"
                 page.goto(base + "&monitor_asset=motor-01")
-                options = page.get_by_role("region", name="분석 바로가기")
+                options = page.get_by_role("region", name="분석하기")
                 rows = options.get_by_role("listitem")
 
                 def row(capability: str) -> Any:
@@ -148,7 +148,7 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
                     f"http://127.0.0.1:{server.server_port}/web/"
                     "?page=assets&monitor_asset=bearing-a"
                 )
-                options = page.get_by_role("region", name="분석 바로가기")
+                options = page.get_by_role("region", name="분석하기")
                 anomaly = options.locator('li[data-capability="anomaly"]')
                 pw.expect(anomaly).to_contain_text("맞는 모델 2개 연결 가능")
                 anomaly.get_by_role("link", name="이상 징후 모델 연결하기").click()

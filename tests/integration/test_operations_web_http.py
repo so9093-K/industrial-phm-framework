@@ -327,6 +327,10 @@ def test_recorded_history_anchor_preserves_old_event_time_without_source_registr
         assert not workspace.source_registry_path.exists()
         _, _, monitor = _request(server.server_port, "GET", "/api/v1/monitor")
         assert monitor["assets"]["total"] == 1
+        (only,) = monitor["assets"]["items"]
+        assert only["data_flow_status"] == "stored-history"
+        assert only["last_data_at"] is None  # Historical event time is not a receipt.
+        assert only["last_observed_at"] == "2020-11-12T15:59:04Z"
         assert _request(server.server_port, "GET", query + "&anchor=guess")[0] == 400
         assert _request(server.server_port, "GET", query + "&anchor=now&anchor=latest")[0] == 400
         newer = tmp_path / "newer.csv"

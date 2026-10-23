@@ -8,9 +8,9 @@ function model(extra:Record<string,unknown>){
     processing_state:"processed",processing_reason:null,latest_analyzed:{position:3,output:{exceeds_threshold:false}},
     latest_processed:{position:3},latest_review_status:null,...extra};
 }
-const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,truncated:false,review_read_error:false});
+const monitor=(...items:unknown[])=>parsePhmMonitor({schema_version:1,items,truncated:false});
 
-test("threshold, refusal, waiting and review notes open the exact place, most urgent first",()=>{
+test("PHM alerts exclude optional review states while preserving actionable model events",()=>{
   const phm=monitor(
     model({binding_id:"a",latest_analyzed:{position:7,output:{exceeds_threshold:true}},
       open_interval:{start_position:5,end_position:7,step_count:3,start_event_at:null}}),
@@ -20,12 +20,19 @@ test("threshold, refusal, waiting and review notes open the exact place, most ur
   );
   const groups=attentionByAsset(phm.models,null);
   assert.deepEqual(groups.map(group=>group.assetId),["bearing-a"]);
-  assert.deepEqual(groups[0].notes.map(note=>note.kind),["threshold","refusal","pending","review"]);
+  assert.deepEqual(groups[0].notes.map(note=>note.kind),["threshold","refusal","pending"]);
   assert.match(groups[0].notes[0].href,/model_binding=a&model_position=7/);
   assert.match(groups[0].notes[1].href,/model_position=8/);
   assert.match(groups[0].notes[1].detail,/전달 뒤 원본이 바뀜/);
-  assert.match(groups[0].notes[3].href,/page=maintenance/);
+  assert.equal(groups[0].notes.some(note=>note.href.includes("page=maintenance")),false);
   assert.equal(refusalReason("package expects 2 channels"),"모델이 받는 입력 규격과 다름");
+});
+
+test("an open human-review status alone does not make an asset need PHM attention",()=>{
+  const reports=monitor(model({latest_review_status:"open"}));
+  assert.deepEqual(attentionByAsset(reports.models,null),[]);
+  const sources={assessedAt:null,items:[],truncated:false,readErrors:[],liveErrors:[]};
+  assert.equal(attentionComplete(reports,sources,true),true);
 });
 
 test("a run of crossings still going on is a change; a latest crossing on its own is said as such",()=>{

@@ -130,13 +130,13 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                     base + "/web/?view=reviews&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                # The former review address lands on the maintenance queue with every asset.
+                # Existing review links continue to resolve, but are not top-level navigation.
                 pw.expect(page.get_by_role("heading", name="정비 검토", level=1)).to_be_visible()
                 pw.expect(
                     page.get_by_role("navigation", name="업무 메뉴").get_by_role(
                         "link", name="정비 검토"
                     )
-                ).to_have_attribute("aria-current", "page")
+                ).to_have_count(0)
                 queue = page.get_by_role("region", name="검토함")
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 items = queue.get_by_role("listitem")

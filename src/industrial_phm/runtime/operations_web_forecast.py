@@ -40,7 +40,11 @@ from industrial_phm.application.signal_exploration import (
     strongest_identity,
 )
 from industrial_phm.runtime.operations_live import OperationsReadError
-from industrial_phm.runtime.operations_web_explore import _history, explore_sources
+from industrial_phm.runtime.operations_web_explore import (
+    _history,
+    acquisition_period,
+    explore_sources,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 FORECAST_ROUTES = frozenset(
@@ -219,18 +223,21 @@ def feature_unit(
 
 
 def _period(workspace: OperationsWorkspace, asset_id: str, source_id: str) -> float | None:
-    for stream in SqliteAcquisitionSnapshotRepository(
-        workspace.acquisition_snapshot_path
-    ).list_streams():
-        if stream.asset_id == asset_id and stream.source_id == source_id:
-            return stream.acquisition_period_seconds
-    return None
+    return acquisition_period(workspace, asset_id, source_id)
 
 
-def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
-    """The series each kind of stored data offers, and which horizons its length supports."""
+def forecast_options(
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    *,
+    sources: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Forecast readiness over a single validated view of recorded inputs."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    sources = explore_sources(workspace, store, asset_id)
+    if sources is None:
+        sources = explore_sources(workspace, store, asset_id)
+    if sources["asset_id"] != asset_id:
+        raise ValueError("recorded input source belongs to another asset")
     history = sources["history"]
     acquisition = sources["acquisition"]
     body: dict[str, Any] = {"schema_version": 1, "asset_id": asset_id}
@@ -246,9 +253,7 @@ def forecast_options(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
         }
     else:
         body["history"] = None
-    period = (
-        _period(workspace, asset_id, acquisition["source_id"]) if acquisition is not None else None
-    )
+    period = acquisition.get("period_seconds") if acquisition is not None else None
     if acquisition is not None:
         # Use the same bounded analyzed rows and finite feature filtering as the forecast
         # itself. The analyzed-step total may include missing/invalid feature values.
