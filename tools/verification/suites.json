@@ -14,42 +14,6 @@
         "--junitxml={junit}"
       ],
       "state": "active"
-    },
-    "frontend-vitest": {
-      "runner": "vitest",
-      "cwd": "frontend",
-      "timeout_seconds": 180,
-      "command": [
-        "npm",
-        "exec",
-        "--offline",
-        "--no",
-        "--",
-        "vitest",
-        "run",
-        "--reporter=junit",
-        "--outputFile={junit}"
-      ],
-      "state": "planned"
-    },
-    "browser-playwright": {
-      "runner": "playwright",
-      "cwd": "frontend",
-      "timeout_seconds": 300,
-      "command": [
-        "npm",
-        "exec",
-        "--offline",
-        "--no",
-        "--",
-        "playwright",
-        "test",
-        "--reporter=junit"
-      ],
-      "environment": {
-        "PLAYWRIGHT_JUNIT_OUTPUT_FILE": "{junit}"
-      },
-      "state": "planned"
     }
   }
 }

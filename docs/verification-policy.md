@@ -1,4 +1,4 @@
-# Verification Policy — New Foundation
+# Verification Policy
 
 ## Product Runtime independence
 
@@ -20,7 +20,7 @@ package import or runtime requirement, and must not modify production workspaces
   evidence directories and run-level status.
 - pytest, Vitest and Playwright own test collection, assertions, native
   per-case verdicts and JUnit generation. The CLI never invents passed cases.
-- GitHub Actions, GitLab CI or local shells are thin callers and publishers;
+- GitHub Actions or local shells are thin callers and publishers;
   they must not duplicate verdict policy.
 
 Only two tokens are expanded in suite arguments: {python} for the invoking
@@ -35,7 +35,7 @@ From the repository root after installing development dependencies:
     python tools/verification/verify.py list
     python tools/verification/verify.py run verification-smoke
 
-The default output is artifacts/verification/<UTC-run-id>/, ignored by git.
+The default output is `artifacts/verification/<UTC-run-id>/`, ignored by git.
 It always contains run-manifest.json. runner.log exists if execution reached
 runner launch, and native junit.xml exists only when the runner produces it.
 Use --output to choose a different results root.
@@ -62,12 +62,12 @@ Evidence retention is determined by the caller, not by Product Runtime.
 
 ## Foundation boundary
 
-verification-smoke is an actual pytest suite for the CLI contract. The Vitest
-and Playwright suite entries are explicitly marked planned, and cannot execute
-as active suites until their development toolchain is installed and checked.
-Node development dependencies, reproducible package-lock updates, browser
-runtime and product browser cases require a separate implementation change. When not installed, those native runners must fail visibly. The
-foundation does not certify PHM model performance or product acceptance.
+The executable registry initially contains only `verification-smoke`, a
+pytest suite for the CLI contract. Vitest and Playwright are intended native
+integrations but are **not registered as executable suites** until their Node
+development dependencies, committed lockfile, browser runtime and concrete
+tests are provisioned and verified. A future declared `planned` suite cannot
+execute. The foundation does not certify product or field PHM performance.
 
 Existing product test automation is not evaluated, migrated or declared valid
 by this first foundation change. The new workflow runs on verification-related
@@ -86,3 +86,8 @@ manifest records null rather than referencing a nonexistent file.
 
 By default, a partially skipped suite is incomplete. A named suite may set
 `allow_skips: true` only when those exclusions are expected and reviewed.
+
+Verification CI uses two separate jobs because the development environment
+must include pytest while the Runtime-independence environment must exclude
+all test dependencies. This separation is an execution requirement, not a
+standard naming convention. Add other CI providers only when actually used.

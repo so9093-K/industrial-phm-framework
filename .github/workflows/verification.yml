@@ -1,4 +1,4 @@
-name: Verification foundation
+name: Verification
 
 on:
   pull_request:
@@ -6,14 +6,15 @@ on:
       - 'tools/verification/**'
       - 'docs/verification-policy.md'
       - 'docs/adr/0032-runtime-verification-independence.md'
-      - '.github/workflows/verification-foundation.yml'
+      - '.github/workflows/verification.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  verify-control-plane:
+  verification-smoke:
+    name: Verification CLI
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -24,19 +25,20 @@ jobs:
         with:
           version: "0.12.13"
       - run: uv python install 3.14
-      - run: uv sync --locked --extra operations --extra aihub
+      - run: uv sync --locked
       - name: Verify native pytest through one CLI
         run: uv run --no-sync python tools/verification/verify.py run verification-smoke
       - name: Publish run evidence even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: verification-foundation
+          name: verification-results
           path: artifacts/verification/
           if-no-files-found: warn
           retention-days: 7
 
-  verify-product-runtime-independence:
+  runtime-independence:
+    name: Runtime independence
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

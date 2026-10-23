@@ -1,4 +1,4 @@
-# 0032. Separate Product Runtime from the verification control plane
+# 0032. Separate Product Runtime from verification execution
 
 Status: Proposed (2026-10-23)
 
@@ -24,12 +24,12 @@ native runner results and comparable execution evidence across environments.
 4. CLI/CI must fail closed on missing or incomplete native evidence.
    CI providers are thin invocation/publication adapters, not test engines.
 5. Keep one suite registry and introduce abstractions only when a real,
-   validated integration requires them. Unprovisioned runners are explicitly
-   planned rather than silently selectable as active suites. New developer
+   validated integration requires them. Unprovisioned runners are kept out of the active registry
+   until the native tools and tests are verified. New developer
    dependencies remain outside production distribution.
 6. Targeted verification PR checks may run in addition to standard Source CI.
    They do not add a default product-wide browser or container gate. The
-   detailed control-plane execution policy is owned by
+   detailed verification execution policy is owned by
    [Verification Policy](../verification-policy.md); per-product test policy
    remains separately owned by docs/testing-policy.md.
 

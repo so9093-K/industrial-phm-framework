@@ -16,13 +16,11 @@ def write_junit(path: Path, body: str) -> None:
     path.write_text(f'<testsuite name="contract">{body}</testsuite>', encoding="utf-8")
 
 
-def test_registry_declares_three_native_runners() -> None:
+def test_registry_exposes_only_provisioned_native_suite() -> None:
     suites = load_suites()
-    assert {suite["runner"] for suite in suites.values()} == {
-        "pytest",
-        "vitest",
-        "playwright",
-    }
+    assert list(suites) == ["verification-smoke"]
+    assert suites["verification-smoke"]["runner"] == "pytest"
+    assert suites["verification-smoke"]["state"] == "active"
 
 
 def test_junit_verdict_is_native_result_not_process_exit_alone(tmp_path: Path) -> None:
@@ -122,20 +120,24 @@ def test_cli_lists_without_importing_product(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert "verification-smoke" in result.stdout
+    assert "frontend-vitest" not in result.stdout
+    assert "browser-playwright" not in result.stdout
 
 
-def test_declared_unavailable_suites_are_not_runnable(tmp_path: Path) -> None:
-    suites = load_suites()
-    assert suites["verification-smoke"]["state"] == "active"
-    for name in ("frontend-vitest", "browser-playwright"):
-        assert suites[name]["state"] == "planned"
-        assert run_suite(name, output_root=tmp_path / name) == 2
-        states = list((tmp_path / name).glob("*/run-manifest.json"))
-        assert len(states) == 1
-        result = json.loads(states[0].read_text(encoding="utf-8"))
-        assert result["status"] == "CONFIG_ERROR"
-        assert result["command"] is None
-
+def test_planned_suite_is_not_runnable(tmp_path: Path) -> None:
+    spec = load_suites()["verification-smoke"].copy()
+    spec["state"] = "planned"
+    config = tmp_path / "suites.json"
+    config.write_text(
+        json.dumps({"schema_version": 1, "suites": {"future": spec}}),
+        encoding="utf-8",
+    )
+    assert run_suite("future", output_root=tmp_path / "runs", config=config) == 2
+    files = list((tmp_path / "runs").glob("*/run-manifest.json"))
+    assert len(files) == 1
+    result = json.loads(files[0].read_text(encoding="utf-8"))
+    assert result["status"] == "CONFIG_ERROR"
+    assert result["command"] is None
 
 def test_junit_rejects_mismatched_declared_test_count(tmp_path: Path) -> None:
     path = tmp_path / "junit.xml"
