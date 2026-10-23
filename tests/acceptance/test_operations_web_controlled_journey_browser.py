@@ -1030,6 +1030,7 @@ def test_cross_asset_reviews_and_runtime_failure_keep_their_own_evidence(
                     )
                     record = page.get_by_role("region", name="분석 결과").get_by_role("article")
                     pw.expect(record).to_contain_text(run.run.asset_id)
+                    record.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
                     record.get_by_role("button", name="검토 요청").click()
                     record.get_by_role("link", name="정비 검토함에서 보기").click()
                     detail = page.get_by_role("region", name="고른 검토 항목")
