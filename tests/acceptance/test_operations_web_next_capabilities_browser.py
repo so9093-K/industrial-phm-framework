@@ -188,6 +188,13 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                         page.get_by_role("heading", name="무엇이 평소와 달라졌나요?")
                     ).to_be_visible()
                     pw.expect(page.get_by_role("link", name="기준 구간 이탈 확인")).to_be_visible()
+                    # A method must not appear both as a navigation tab and a choice.
+                    assert page.get_by_role("navigation", name="분석 방법").count() == 0
+                    if asset == "motor-01":
+                        page.get_by_role("link", name="기준 구간 이탈 확인").click()
+                        pw.expect(
+                            page.get_by_role("navigation", name="분석 방법")
+                        ).to_be_visible()
 
                 # Mixed-input assets must not silently pick history over vibration.
                 page.goto(base + "&tab=outlook&monitor_asset=bearing-a")

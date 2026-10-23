@@ -64,3 +64,16 @@ test("unknown or absent targets never produce a fabricated analysis route",()=>{
   assert.equal(place(unknown,"motor"),null);
   assert.throws(()=>parseCapabilities(body([item("measurements","ready","history",{}, {view:"invalid",goal:"trend"})]),"motor"),/형식/);
 });
+
+test("unsupported capability goal and source combinations never open a different analysis",()=>{
+  const samples=[
+    item("anomaly","ready","connected",{}, {view:"anomaly",goal:"compare"}),
+    item("period-compare","ready","history",{}, {view:"signals",goal:"compare"}),
+    item("relation","ready","history",{}, {view:"signals",goal:"trend",data:"history"}),
+    item("forecast","ready","stored-flow",{}, {view:"forecast",goal:"spectrum",data:"history"}),
+    item("measurements","ready","history",{}, {view:"connect",goal:"trend"}),
+  ];
+  for (const entry of parseCapabilities(body(samples),"motor").items)
+    assert.equal(place(entry,"motor"),null,entry.id);
+});
+

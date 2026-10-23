@@ -110,17 +110,28 @@ export function fact(item:Capability,capabilities:Capabilities):string{
 export function place(item:Capability,assetId:string):string|null{
   const target=item.target;
   if(!target)return null;
-  if(target.view==="connect")return systemUrl("connections");
+  if(target.view==="connect")
+    return target.goal===null && target.data===null ? systemUrl("connections") : null;
   if(item.status==="unavailable"||item.status==="waiting")return null;
-  if(target.view==="forecast")return assetTabUrl(assetId,"outlook",null,target.data);
-  if(target.view==="anomaly")
-    return assetTabUrl(assetId,"anomaly",target.goal==="baseline"?"baseline":"model");
-  if(target.view==="monitor")return assetTabUrl(assetId,"signals");
+  if(target.view==="forecast")
+    return target.goal===null||target.goal==="ask"
+      ? assetTabUrl(assetId,"outlook",null,target.data) : null;
+  if(target.view==="anomaly"){
+    if(target.goal==="baseline")return assetTabUrl(assetId,"anomaly","baseline");
+    if(target.goal===null||target.goal==="ask")return assetTabUrl(assetId,"anomaly","model");
+    return null;
+  }
+  if(target.view==="monitor")
+    return target.goal===null && target.data===null ? assetTabUrl(assetId,"signals") : null;
   if(target.view==="signals"){
-    if(target.goal==="compare")return assetTabUrl(assetId,"change","compare",target.data);
-    if(target.goal==="relation")return assetTabUrl(assetId,"change","relation",target.data);
-    if(target.goal==="spectrum")return assetTabUrl(assetId,"change","spectrum");
-    if(target.goal==="trend")return assetTabUrl(assetId,"signals");
+    if(target.goal==="compare" && target.data!==null)
+      return assetTabUrl(assetId,"change","compare",target.data);
+    if(target.goal==="relation" && target.data!==null)
+      return assetTabUrl(assetId,"change","relation",target.data);
+    if(target.goal==="spectrum" && target.data===null)
+      return assetTabUrl(assetId,"change","spectrum");
+    if(target.goal==="trend" && target.data!==null)
+      return assetTabUrl(assetId,"signals");
   }
   return null;
 }

@@ -118,7 +118,7 @@
   </nav>
   <p class="tabs-hint">다른 설비 화면은 탭을 가로로 밀어 확인하세요.</p>
 
-  {#if dataState !== "failed" && (methods.length || kind)}
+  {#if dataState === "ready" && !chooseAnomaly && !chooseKind && (methods.length || kind)}
     <div class="choices">
       <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
       {#if methods.length > 1 && dataState !== "loading"}
