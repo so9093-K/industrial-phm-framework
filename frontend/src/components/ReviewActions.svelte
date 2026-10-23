@@ -6,8 +6,8 @@
   } from "../review-writes";
 
   /** The review history of one subject and the next human actions on it. Confirming records
-   * what the person judged it needs (추가 점검 필요 · 계속 관찰 · 점검 불필요) with an optional
-   * no memo is required; closing keeps or changes that judgement. The parent owns the write and reload;
+   * what the person judged it needs (추가 점검 필요 · 계속 관찰 · 점검 불필요).
+   * No new memo is required. Closing keeps or changes that judgement; the parent reloads the result.
    * this keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
@@ -42,9 +42,9 @@
     }
     return false;
   }
-  async function act(action: ReviewAction) {
+  async function act(action: "acknowledge" | "close") {
     if (busy || !writable || status === "closed") return;
-    if (action !== "note" && !decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
+    if (!decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
     const text = ""; // Structured decision only; existing saved notes remain readable.
     const key = action + "\n" + decision;
     if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
@@ -52,7 +52,7 @@
     const request = new AbortController(); controller = request;
     busy = true; messageKind = "information"; message = "검토 기록을 남기고 있습니다.";
     try {
-      await submit(action, text, pending.eventId, request.signal, action === "note" ? null : decision);
+      await submit(action, text, pending.eventId, request.signal, decision);
       if (request.signal.aborted) return;
       pending = null; confirmingClose = false;
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }

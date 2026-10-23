@@ -23,7 +23,6 @@
     | {kind: "outlook"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string; capture: Capture}
     | {kind: "analysis"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string;
       review: FindingReview; linked: Evidence[] | null};
-  const ASSET_LIMIT = 20;
   const STATUS: Record<Status, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
   // What the item was last judged to need, shown beside its status.
   const judged = (item: Item) => latestDecision(item.kind === "outlook" ? item.capture.review.events : item.review.events);

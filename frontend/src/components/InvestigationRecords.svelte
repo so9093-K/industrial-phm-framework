@@ -23,6 +23,7 @@
   let reviews: FindingReview[] | null = $state(null);
   let loadedReviewAssets: Record<string, boolean> = $state({});
   let loadingReviewAssets: Record<string, boolean> = $state({});
+  let failedReviewAssets: Record<string, boolean> = $state({});
   let reviewController: AbortController | null = null;
   // Reviews requested on this screen, until the next snapshot reports them.
   let requested: Record<string, string> = $state({});
@@ -63,7 +64,8 @@
   }
   async function ask(item: AnalysisRecord) {
     const id = key(item);
-    if (!writable || pending[id]) return;
+    // A failed or still pending read cannot establish that this item is not already stored.
+    if (!writable || pending[id] || !loadedReviewAssets[item.assetId] || failedReviewAssets[item.assetId]) return;
     pending = {...pending, [id]: true};
     const {[id]: _, ...rest} = messages; messages = rest;
     try {
@@ -81,13 +83,15 @@
     const request = reviewController;
     if (!request || request.signal.aborted || loadedReviewAssets[assetId] || loadingReviewAssets[assetId]) return;
     loadingReviewAssets = {...loadingReviewAssets, [assetId]: true};
+    failedReviewAssets = {...failedReviewAssets, [assetId]: false};
     try {
       const page = await readFindingReviews(assetId, request.signal);
       if (request.signal.aborted) return;
       reviews = [...(reviews ?? []).filter((entry) => entry.assetId !== assetId), ...page.items];
       loadedReviewAssets = {...loadedReviewAssets, [assetId]: true};
     } catch {
-      // A failed optional review lookup does not mean that a review is absent.
+      if (!request.signal.aborted) failedReviewAssets = {...failedReviewAssets, [assetId]: true};
+      // Unknown must never be presented as a verified absence.
     } finally {
       if (!request.signal.aborted) loadingReviewAssets = {...loadingReviewAssets, [assetId]: false};
     }
@@ -129,7 +133,6 @@
           <li><article aria-labelledby={"record-" + item.evidenceId}>
             <div class="head">
               <h3 id={"record-" + item.evidenceId}>{KIND[item.kind]} · {assetLabel(snapshot.assets, item.assetId)}</h3>
-              
             </div>
             <p class="context">분석 구간 {clock(item.observedStart)} ~ {clock(item.observedEnd)} · 분석 완료 {clock(item.completedAt)}</p>
             <p class="context">데이터 출처 {sourceLabel(sourceNames, item.sourceId)} · 측정 위치 {item.pointId ?? "미확인"}
@@ -173,14 +176,21 @@
               {/if}
             {/if}
             <details class="optional-review" ontoggle={(event)=>{if(event.currentTarget.open)void loadReviewFor(item.assetId);}}><summary>{current ? "저장된 검토 보기" : "검토 기록에 남기기 (선택)"}</summary>
-              <span class="badge">{current ? STATUS[current.status] : "검토 요청 전"}</span>
+              {#if current}<span class="badge">{STATUS[current.status]}</span>{/if}
+              {#if loadingReviewAssets[item.assetId] && !current}
+                <p class="context" role="status">검토 기록을 확인하고 있습니다.</p>
+              {:else if failedReviewAssets[item.assetId]}
+                <StatusNotice kind="uncertain" message="검토 기록을 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다."
+                  actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId)} />
+              {/if}
               <div class="review">
               {#if current}
                 <a href={findingUrl(item.assetId, current.findingId)}>정비 검토함에서 보기 →</a>
-              {:else if writable}
-                <button type="button" class="ui-button" disabled={pending[key(item)]} onclick={() => void ask(item)}>검토 요청</button>
+              {:else if writable && !failedReviewAssets[item.assetId]}
+                <button type="button" class="ui-button" disabled={pending[key(item)] || !loadedReviewAssets[item.assetId] || loadingReviewAssets[item.assetId]}
+                  onclick={() => void ask(item)}>검토 요청</button>
                 <span class="context">이 분석 결과를 정비 검토함에 남깁니다.</span>
-              {:else}
+              {:else if !writable}
                 <span class="context">보기 전용이라 검토를 요청할 수 없습니다.</span>
               {/if}
               <a href={assetTabUrl(item.assetId, "summary")}>설비 보기 →</a>
@@ -210,7 +220,7 @@
 
 <section class="ui-panel" aria-labelledby="applied-models-title">
   <h2 id="applied-models-title">적용한 이상 탐지 모델</h2>
-  <p class="context">모델 점수, AI 해설과 검토 요청은 설비 화면의 이상 징후 탭에서 봅니다.</p>
+  <p class="context">모델 점수와 AI 해설은 설비 화면의 이상 징후 탭에서 볼 수 있습니다.</p>
   {#if bindingState === "loading"}
     <StatusNotice message="적용한 모델을 확인하고 있습니다." />
   {:else if bindingState === "failed"}
