@@ -21,6 +21,7 @@
   let departuresFailed = $state(false);
   let departuresComplete = $state(false);
   let departuresAt = 0;
+  let departuresCheckedAt: Date | null = $state(null);
   const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let readAt: Date | null = $state(null);
@@ -38,7 +39,7 @@
     return attentionComplete(current,connections,departuresComplete) ? "ready" : "partial";
   });
   $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])]),notesState); });
-  const clock = (at: Date) => at.toLocaleTimeString("ko-KR", {timeZone: "Asia/Seoul"});
+  const clock = (at: Date) => at.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
   // The server's assessment time, so this panel and the page header name the same moment.
   const assessed = $derived.by((): Date | null => {
     const current: PhmMonitor | null = phm;
@@ -73,6 +74,7 @@
         departures = found?.items ?? []; departuresFailed = found === null;
         departuresComplete = found?.complete ?? false;
         departuresAt = found === null ? 0 : Date.now();
+        departuresCheckedAt = found === null ? null : new Date();
       }
     } catch {
       if (pending.signal.aborted) return;
@@ -82,7 +84,15 @@
   }
   function toggle() { paused = !paused; if (paused) { if (timer !== null) clearTimeout(timer); timer = null; } else void read(); }
   onMount(() => {
-    const visible = () => { if (document.hidden) { if (timer !== null) clearTimeout(timer); timer = null; } else void read(); };
+    const visible = () => {
+      if (document.hidden) {if (timer !== null) clearTimeout(timer); timer = null;}
+      else {
+        // After backgrounding, no former model or departure fact is claimed current.
+        phm = null; sources = null; departures = []; departuresComplete = false;
+        departuresCheckedAt = null; departuresAt = 0; loadState = "loading";
+        void read();
+      }
+    };
     document.addEventListener("visibilitychange", visible);
     void read();
     return () => { document.removeEventListener("visibilitychange", visible); request?.abort(); if (timer !== null) clearTimeout(timer); };
@@ -99,7 +109,12 @@
     <h2 id="attention-title">확인이 필요한 설비</h2>
     {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
   </div>
-  <p class="context">{assessed ? clock(assessed) + " 기준 · " : ""}{!live ? "저장된 체험 기록입니다." : paused ? "자동 갱신을 멈췄습니다." : "3초마다 다시 읽습니다."}</p>
+  <p class="context">{!live ? "저장된 체험 기록입니다." :
+    (paused ? "자동 갱신 중지 · " : "") +
+    "모델 평가 " + (assessed ? clock(assessed) : "확인 중") +
+    " · 수신 조회 " + (readAt ? clock(readAt) : "확인 중") +
+    " · 기준 이탈 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
+  {#if live && !paused}<p class="context">모델·수신은 약 3초, 기준 이탈은 최대 30초 간격으로 별도 조회합니다.</p>{/if}
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}

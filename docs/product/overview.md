@@ -785,7 +785,7 @@ Operations Web의 설계 단위는 기존 탭이나 API endpoint가 아니라 **
 | 운영 관측 | 어떤 설비 데이터가 언제 들어왔나? | 측정값, 마지막 시각, 품질, 최근 변화 | Monitor → Asset Signal/History |
 | 데이터 확인 | 왜 원하는 값이 보이지 않는가? | source/measurement point/channel 매핑 및 수신 상태 확인 | Asset → Source/Data Flow |
 | 분석 검토 | 어떤 관측 범위와 근거에서 결과가 나왔나? | capability-specific evidence, 적용 한계, 기록 | Asset/Monitor → Investigation |
-| 정비 검토 | 무엇을 누가 어떤 근거로 검토했나? | review 상태·기록·정확한 원본 evidence | Investigation → Maintenance → Evidence |
+| 선택적 정비 검토 | 이전에 저장한 검토 기록을 다시 확인할 필요가 있나? | 기존 review 상태·기록·정확한 원본 evidence | 저장 기록 직접 링크 → Maintenance |
 | 관리·복구 | 수집기/분석/저장소 중 어디에서 실패했나? | 독립된 process/runtime 진단 및 복구 안내 | System → Data connection |
 
 #### 화면 구성과 이동 원칙
@@ -810,9 +810,9 @@ Operations Web의 설계 단위는 기존 탭이나 API endpoint가 아니라 **
 - 전 화면에서 같은 제품 헤더, 현재 위치, 용도에 맞는 1차 행동, 시간/출처,
   로딩·빈 상태·실패 표현을 공유한다. 연구 notebook cell, 내부 `workspace`
   명령, runtime class 이름이 사용자 기본 화면의 제목이 되지 않도록 한다.
-- 사용자 기본 흐름은 `현재 관측 → 특정 설비·신호 → 원본 이력 → 분석 기록 →
-  검토 기록`이다. 기존 typed investigation/attention route와 선택한 asset/channel/
-  time window 맥락을 앞뒤 이동에서도 잃지 않아야 한다.
+- 사용자 기본 흐름은 `현재 관측 → 특정 설비·신호 → 변화 분석 → 조건부 상태 전망 → 필요한 판단`이다.
+  분석 기록과 검토 기록은 필요할 때만 직접 링크로 열 수 있으며 필수 승인 단계가 아니다.
+  기존 typed investigation/attention route와 선택한 asset/channel/time window 맥락을 앞뒤 이동에서도 잃지 않아야 한다.
 - 내부 서비스 상태는 일반 관측 KPI와 분리한다. 연결됨/수집 요청됨/프로세스 실행 중은
   측정값 수신 완료나 설비 정상으로 표현하지 않는다.
 - 원본 `source_id`/`asset_id`/`channel_id`, evidence/run/finding ID와 UTC
