@@ -49,6 +49,11 @@ test("server eligibility restricts methods for each data kind", () => {
   assert.deepEqual(methodsFor("change",mixed,null),[]);
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
     cap("unavailable","unavailable","unavailable"),"history"),["electrical"]);
+  const mixedElectrical = {history:{signals:3},vibration:vibration.vibration};
+  // The electrical workflow consumes R/S/T history, never the selected vibration source.
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"history"),["electrical"]);
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"vibration"),
+    ["compare","relation","spectrum"]);
 });
 
 test("elapsed measurement time carries its source and requires a valid recorded interval", () => {
