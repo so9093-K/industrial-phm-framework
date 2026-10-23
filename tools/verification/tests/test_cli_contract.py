@@ -262,7 +262,6 @@ def test_timeout_creates_interrupted_manifest(tmp_path: Path) -> None:
     assert "exceeded" in result["error"]
 
 
-
 def test_junit_rejects_disguised_failure_metadata(tmp_path: Path) -> None:
     path = tmp_path / "junit.xml"
     path.write_text(
