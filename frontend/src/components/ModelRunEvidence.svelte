@@ -301,7 +301,7 @@
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
                 onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
-              <details class="optional-review" ontoggle={(event)=>reviewRun=event.currentTarget.open ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
+              <details class="optional-review" ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
                 {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}/>{/if}
               </details>
             {/key}

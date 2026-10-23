@@ -252,7 +252,7 @@
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
+          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && projection ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
             {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
             requestProjection?.abort();
             projection=null;
