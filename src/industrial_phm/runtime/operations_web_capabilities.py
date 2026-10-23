@@ -165,16 +165,54 @@ def _signal_capabilities(
     unread = waveforms and acquisition is None
     items = []
     if history:
-        items.append(_item("measurements", READY, "history", "signals", "trend", data_kind="history", channels=channels))
+        items.append(
+            _item(
+                "measurements",
+                READY,
+                "history",
+                "signals",
+                "trend",
+                data_kind="history",
+                channels=channels,
+            )
+        )
     elif acquisition:
-        items.append(_item("measurements", READY, "acquisition", "signals", "trend", data_kind="vibration", count=analyzed))
+        items.append(
+            _item(
+                "measurements",
+                READY,
+                "acquisition",
+                "signals",
+                "trend",
+                data_kind="vibration",
+                count=analyzed,
+            )
+        )
     else:
         items.append(_item("measurements", NEEDS_CONNECTION, "waveforms-need-model", "anomaly"))
 
     if spans_time:
-        items.append(_item("period-compare", READY, "history", "signals", "compare", data_kind="history"))
+        items.append(
+            _item(
+                "period-compare",
+                READY,
+                "history",
+                "signals",
+                "compare",
+                data_kind="history",
+            )
+        )
     elif acquisition and analyzed >= 2:
-        items.append(_item("period-compare", READY, "acquisition", "signals", "compare", data_kind="vibration"))
+        items.append(
+            _item(
+                "period-compare",
+                READY,
+                "acquisition",
+                "signals",
+                "compare",
+                data_kind="vibration",
+            )
+        )
     elif acquisition:
         items.append(_item("period-compare", WAITING, "few-acquisitions", None, count=analyzed))
     elif unread:
@@ -183,9 +221,28 @@ def _signal_capabilities(
         items.append(_item("period-compare", UNAVAILABLE, "single-moment", None))
 
     if history and channels >= 2:
-        items.append(_item("relation", READY, "history", "signals", "relation", data_kind="history", channels=channels))
+        items.append(
+            _item(
+                "relation",
+                READY,
+                "history",
+                "signals",
+                "relation",
+                data_kind="history",
+                channels=channels,
+            )
+        )
     elif acquisition and features >= 2 and analyzed >= 3:
-        items.append(_item("relation", READY, "acquisition", "signals", "relation", data_kind="vibration"))
+        items.append(
+            _item(
+                "relation",
+                READY,
+                "acquisition",
+                "signals",
+                "relation",
+                data_kind="vibration",
+            )
+        )
     elif acquisition:
         items.append(_item("relation", WAITING, "few-acquisitions", None, count=analyzed))
     elif unread:
