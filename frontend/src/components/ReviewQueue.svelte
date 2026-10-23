@@ -34,7 +34,9 @@
     for (const capture of captures) {
       const {assetId, kind, series} = capture.outlook, key = assetId + "\n" + kind + "\n" + series;
       if (key in untrack(() => seriesNames)) continue;
-      void seriesName(assetId, kind, series).then((name) => { seriesNames = {...seriesNames, [key]: name}; });
+      void seriesName(assetId, kind, series)
+        .then((name) => { seriesNames = {...seriesNames, [key]: name}; })
+        .catch(() => { /* A missing display name must not hide a verified review. */ });
     }
   });
   let findings: FindingReview[] = $state([]);
@@ -42,6 +44,7 @@
   let failedAssets: string[] = $state([]);
   let missingFocus = $state(false);
   let olderFindingFocus = $state(false);
+  let truncatedFindingAssets: Record<string, boolean> = $state({});
   let moreAvailable = $state(false);
   let scopeAssetId = $state(untrack(() => focusAssetId));
   let ignoreFocus = $state(false);
@@ -166,7 +169,10 @@
           return page.captures;
         }).catch(() => { failed(assetId); return []; }),
         readFindingReviews(assetId, request.signal).then((page) => {
-          if (page.truncated) {moreAvailable = true; hiddenFindings = true;}
+          if (page.truncated) {
+            moreAvailable = true; hiddenFindings = true;
+            truncatedFindingAssets = {...truncatedFindingAssets, [assetId]: true};
+          }
           return page.items;
         }).catch(() => { failed(assetId); return []; }),
       ]);
@@ -190,7 +196,7 @@
       loadedAssets = assets.length;
       if (focusFindingId && !failedAssets.includes(focusAssetId)
         && !findings.some((item) => item.findingId === focusFindingId)) {
-        if (hiddenFindings) olderFindingFocus = true;
+        if (truncatedFindingAssets[focusAssetId]) olderFindingFocus = true;
         else missingFocus = true;
       }
       loadState = "ready";
@@ -228,7 +234,7 @@
         <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."}
           actionLabel="검토 목록 다시 읽기" onAction={() => location.reload()} />
       {/if}
-      <p class="context">현재 조회한 설비 {loadedAssets}곳의 검토 항목을 표시합니다.
+      <p class="context">현재 설비 {loadedAssets}곳에 대해 검토 기록 조회를 시도했습니다.
         {#if snapshot?.truncated || (snapshot?.assets.length ?? 0) > ASSET_LIMIT || hiddenFindings || moreAvailable}
           전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망은 한 번에 20건씩 읽습니다.
         {:else if failedAssets.length} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
@@ -265,6 +271,11 @@
     {:else if olderFindingFocus && !ignoreFocus}
       <StatusNotice kind="uncertain" title="검토 기록이 이번 조회 범위 밖에 있습니다"
         message="분석 검토 목록은 설비당 최대 100건만 제공합니다. 더 오래된 기록을 찾지 못한 것이 삭제됐다는 뜻은 아닙니다." />
+    {:else if !selected && (focusCaptureId || focusFindingId) && !ignoreFocus
+      && failedAssets.includes(focusAssetId)}
+      <StatusNotice kind="uncertain" title="요청한 검토 기록을 확인하지 못했습니다"
+        message="이 설비의 조회에 실패했습니다. 기록이 없다고 판단하지 않습니다."
+        actionLabel="다시 불러오기" onAction={() => location.reload()} />
     {:else if !selected}
       <p class="context">왼쪽에서 검토 항목을 고르세요.</p>
     {:else if selected.kind === "outlook"}
