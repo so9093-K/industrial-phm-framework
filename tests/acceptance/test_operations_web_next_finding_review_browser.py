@@ -201,7 +201,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
                 pw.expect(confirm).to_be_focused()
                 confirm.get_by_role("button", name="종료하기").click()
                 pw.expect(detail.get_by_role("status").last).to_contain_text(
-                    "다른 사람이 먼저 검토 상태를 바꿨습니다"
+                    "다른 창이나 요청에서 검토 상태가 변경됐습니다"
                 )
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료")
                 assert detail.get_by_role("button", name="검토 종료").count() == 0
