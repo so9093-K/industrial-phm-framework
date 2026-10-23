@@ -422,6 +422,20 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                         status=200, content_type="application/json", body=_asset_list("motor-a")
                     ),
                 )
+                # The asset workspace now reads stored input identity directly, not
+                # indirectly from the forecast options endpoint.
+                page.route(
+                    "**/api/v1/explore/sources?**",
+                    lambda route: reply(
+                        route,
+                        {
+                            "schema_version": 1,
+                            "asset_id": "motor-a",
+                            "history": {"channels": [{"id": "R"}]},
+                            "acquisition": None,
+                        },
+                    ),
+                )
                 page.route(
                     "**/api/v1/forecast/options?**",
                     lambda route: reply(
