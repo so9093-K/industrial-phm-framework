@@ -33,7 +33,7 @@ def revision() -> str | None:
             timeout=5,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
     return result.stdout.strip() if result.returncode == 0 else None
 
@@ -51,8 +51,10 @@ def load_suites(path: Path = CONFIG) -> dict[str, dict[str, Any]]:
         if not isinstance(suite, dict) or suite.get("runner") not in RUNNERS:
             raise ValueError(f"{name}: invalid runner")
         command = suite.get("command")
-        if not isinstance(command, list) or not command or any(
-            not isinstance(part, str) or not part for part in command
+        if (
+            not isinstance(command, list)
+            or not command
+            or any(not isinstance(part, str) or not part for part in command)
         ):
             raise ValueError(f"{name}: command must be a non-empty argument array")
         timeout = suite.get("timeout_seconds")
@@ -187,9 +189,7 @@ def run_suite(name: str, *, output_root: Path, config: Path = CONFIG) -> int:
         print(f"{name}: {manifest['status']} ({target})", flush=True)
         if manifest["error"]:
             print(manifest["error"], file=sys.stderr)
-    return {"PASSED": 0, "TEST_FAILED": 1, "CONFIG_ERROR": 2}.get(
-        manifest["status"], 3
-    )
+    return {"PASSED": 0, "TEST_FAILED": 1, "CONFIG_ERROR": 2}.get(manifest["status"], 3)
 
 
 def main() -> int:
