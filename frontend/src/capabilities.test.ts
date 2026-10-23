@@ -77,3 +77,11 @@ test("unsupported capability goal and source combinations never open a different
     assert.equal(place(entry,"motor"),null,entry.id);
 });
 
+test("available baseline exploration still discloses a waiting model result",()=>{
+  const parsed=parseCapabilities(body([
+    item("anomaly","ready","explore",{packages:0,model_waiting:true},{view:"anomaly",goal:"baseline"}),
+  ]),"motor");
+  assert.equal(fact(parsed.items[0],parsed),"모델 없이 기준 구간에서 벗어난 값 찾기 · 모델 결과 대기 중");
+  assert.match(place(parsed.items[0],"motor")!,/tab=anomaly&method=baseline/);
+});
+

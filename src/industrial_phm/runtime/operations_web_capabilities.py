@@ -93,6 +93,7 @@ def project_asset_capabilities(
             "anomaly",
             "baseline",
             packages=modelled["facts"].get("packages", 0),
+            model_waiting=modelled["reason"] == "waiting-results",
         )
     return {
         "schema_version": 1,
