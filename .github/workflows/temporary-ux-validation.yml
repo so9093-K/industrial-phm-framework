@@ -1,0 +1,32 @@
+name: Temporary UX validation
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/temporary-ux-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
+      - name: Check Svelte and TypeScript
+        run: npm run --prefix frontend check
+      - name: Run frontend regression tests
+        run: npm test --prefix frontend
+      - name: Build bundled frontend
+        run: npm run --prefix frontend build
