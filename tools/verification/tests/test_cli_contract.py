@@ -170,7 +170,26 @@ def test_unrecognized_placeholder_is_rejected(tmp_path: Path) -> None:
 
 
 def test_run_manifest_has_a_suite_fingerprint(tmp_path: Path) -> None:
-    assert run_suite("verification-smoke", output_root=tmp_path / "runs") == 0
+    config = tmp_path / "suites.json"
+    spec = {
+        "runner": "pytest",
+        "state": "active",
+        "cwd": ".",
+        "timeout_seconds": 10,
+        "command": [
+            "{python}",
+            "-c",
+            "import os; from pathlib import Path; "
+            "Path(os.environ['NATIVE_JUNIT_PATH']).write_text("
+            "'<testsuite tests=\\\"1\\\"><testcase name=\\\"example\\\"/></testsuite>')",
+        ],
+        "environment": {"NATIVE_JUNIT_PATH": "{junit}"},
+    }
+    config.write_text(
+        json.dumps({"schema_version": 1, "suites": {"stub": spec}}),
+        encoding="utf-8",
+    )
+    assert run_suite("stub", output_root=tmp_path / "runs", config=config) == 0
     manifests = list((tmp_path / "runs").glob("*/run-manifest.json"))
     assert len(manifests) == 1
     result = json.loads(manifests[0].read_text(encoding="utf-8"))
