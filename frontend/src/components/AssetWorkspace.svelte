@@ -3,6 +3,7 @@
   import {onMount} from "svelte";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
+  import {readCapabilities, type Capabilities} from "../capabilities";
   import {
     DATA_INFO, METHOD_INFO, TAB_INFO, TABS, routeUrl, tabSelectionUrl, usesDataKind,
     type DataKind, type Method, type Route, type Tab,
@@ -32,6 +33,8 @@
   let {asset, assets, route, observed, onSelectAsset}: Props = $props();
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
+  let capabilities: Capabilities | null = $state(null);
+  let capabilityState: "loading" | "ready" | "failed" = $state("loading");
 
   // Every asset starts from the same task. The user chooses an anomaly method;
   // mixed inputs require an explicit measurement kind, never a hidden default.
@@ -41,8 +44,10 @@
   const chooseAnomaly = $derived(route.tab === "anomaly" && route.method === null);
   const chooseKind = $derived(
     usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
-  const methods = $derived(methodsFor(route.tab, data));
-  const waitingForDefault = $derived(dataState === "loading" && route.tab !== "summary");
+  const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
+  const needsCapability = $derived(route.tab === "anomaly" || route.tab === "change");
+  const waitingForDefault = $derived((dataState === "loading" || (needsCapability && capabilityState === "loading"))
+    && route.tab !== "summary");
   const unsupportedSelection = $derived.by(() => {
     const state: "loading" | "ready" | "failed" = dataState;
     const current: AssetData | null = data;
@@ -73,6 +78,15 @@
     tabBar?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
   });
   let dataRequest: AbortController | null = null;
+  let capabilityRequest: AbortController | null = null;
+  function reloadCapability() {
+    capabilityRequest?.abort();
+    const request = new AbortController(); capabilityRequest = request;
+    capabilities = null; capabilityState = "loading";
+    void readCapabilities(asset.assetId, request.signal).then(value => {
+      if (!request.signal.aborted) {capabilities = value; capabilityState = "ready";}
+    }).catch(() => {if (!request.signal.aborted) capabilityState = "failed";});
+  }
   function reloadData() {
     dataRequest?.abort();
     const request = new AbortController(); dataRequest = request;
@@ -84,7 +98,8 @@
   }
   onMount(() => {
     reloadData();
-    return () => dataRequest?.abort();
+    reloadCapability();
+    return () => {dataRequest?.abort(); capabilityRequest?.abort();};
   });
 </script>
 
@@ -118,7 +133,8 @@
   </nav>
   <p class="tabs-hint">다른 설비 화면은 탭을 가로로 밀어 확인하세요.</p>
 
-  {#if dataState === "ready" && !chooseAnomaly && !chooseKind && (methods.length || kind)}
+  {#if dataState === "ready" && (!needsCapability || capabilityState === "ready")
+    && !chooseAnomaly && !chooseKind && (methods.length || kind)}
     <div class="choices">
       <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
       {#if methods.length > 1}
@@ -126,7 +142,7 @@
           {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
               onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
-              aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}</a>
+              aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}{option === "electrical" ? " · 입력 조건 확인" : ""}</a>
           {/each}
         </nav>
       {/if}
@@ -148,8 +164,12 @@
       message="분석 방법을 추측해 보여 주지 않습니다. 다시 조회하거나 다른 설비를 선택하세요."
       actionLabel="다시 불러오기" onAction={reloadData} />
     {#if route.tab === "summary"}<AssetSummary {asset} {data} {dataState} {observed} />{/if}
+  {:else if needsCapability && capabilityState === "failed" && route.tab !== "summary"}
+    <StatusNotice kind="uncertain" title="분석 가능 여부를 확인하지 못했습니다"
+      message="서버의 분석 조건을 확인하지 못했습니다. 가능한 분석을 추측하지 않습니다."
+      actionLabel="다시 확인" onAction={reloadCapability} />
   {:else if waitingForDefault}
-    <StatusNotice message="이 설비가 가진 데이터 종류를 확인하고 있습니다." />
+    <StatusNotice message="분석 가능한 항목을 확인하고 있습니다." />
   {:else if unsupportedSelection}
     <StatusNotice kind="uncertain" title="선택한 분석을 이 데이터에서 사용할 수 없습니다"
       message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."

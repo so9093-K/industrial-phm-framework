@@ -1,6 +1,7 @@
 /** Actual recorded inputs, independent of forecast readiness or algorithms.
  * GET /api/v1/explore/sources owns input facts, never an asset-health verdict. */
 import {methodsOf, type DataKind, type Method, type Tab} from "./routes.ts";
+import type {Capabilities, CapabilityId} from "./capabilities.ts";
 
 export type AcquisitionTiming = {sourceId: string; periodSeconds: number};
 export type AssetData = {
@@ -65,12 +66,30 @@ export async function readAssetData(assetId: string, signal: AbortSignal): Promi
   return parseAssetData(await response.json() as unknown, assetId);
 }
 
-/** Only list methods with compatible stored input. A model method opens its
- * connection/result workflow, not a claim that a model has already run. */
-export function methodsFor(tab: Tab, data: AssetData | null): Method[] {
-  if (!kindsOf(data).length) return [];
-  const needs: Partial<Record<Method, keyof AssetData>> = {
-    baseline: "history", spectrum: "vibration", electrical: "history",
+/** Data kinds are navigation context; execution eligibility is owned by the server.
+ * Model and 3-phase electrical methods open inspection/setup, not a ready claim. */
+export function methodsFor(
+  tab: Tab, data: AssetData | null, capabilities: Capabilities | null, kind: DataKind | null = null,
+): Method[] {
+  if (!capabilities || !kindsOf(data).length) return [];
+  const status = (id: CapabilityId, source: DataKind | null): string => {
+    const item = capabilities.items.find(value => value.id === id);
+    if (!item) return "unavailable";
+    const byKind = item.facts.by_kind;
+    if (source && byKind && typeof byKind === "object" && !Array.isArray(byKind)) {
+      const state = (byKind as Record<string, unknown>)[source];
+      return typeof state === "string" ? state : "unavailable";
+    }
+    return item.status;
   };
-  return methodsOf(tab).filter((method) => !needs[method] || data?.[needs[method]] !== null);
+  const kinds = kind ? [kind] : kindsOf(data);
+  return methodsOf(tab).filter(method => {
+    if (method === "model") return true;
+    if (method === "baseline") return data?.history !== null && data?.history !== undefined;
+    // Correct R/S/T and units require the existing /api/v1/condition source inspection.
+    if (method === "electrical") return (data?.history?.signals ?? 0) >= 3;
+    if (method === "spectrum") return kinds.includes("vibration") && status("spectrum","vibration") === "ready";
+    const id = method === "compare" ? "period-compare" : "relation";
+    return kinds.some(source => status(id,source) === "ready");
+  });
 }
