@@ -519,6 +519,8 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
 
                 state["measurement"] = "d" * 64
                 calculate.click()
+                # A changed result opens as a fresh analysis, with optional capture collapsed.
+                _show_optional_review(page)
                 request.click()
                 pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=15000)
                 assert state["posted"][1]["measurement_version"] == "d" * 64
