@@ -10,7 +10,7 @@ from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
-from industrial_phm.runtime._sqlite import connect_wal
+from industrial_phm._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-collection-control-v1"
 

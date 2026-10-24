@@ -36,7 +36,7 @@ from industrial_phm.application.opcua_persistent import (
 )
 from industrial_phm.application.source_subscription import RegisteredOpcUaDataChangeEvent
 from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNotification
-from industrial_phm.runtime._sqlite import connect_wal
+from industrial_phm._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-acquisition-spool-v1"
 

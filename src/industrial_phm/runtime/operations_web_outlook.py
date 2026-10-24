@@ -127,9 +127,9 @@ def _finite(text: str) -> float:
 def verify_outlook_provenance(outlook: dict[str, Any], params: dict[str, str]) -> None:
     """Reject a recomputed outlook whose provenance differs from what the browser showed.
 
-    Selectors are opt-in because the deployed legacy /web/ does not submit them.
-    ``measurement_version`` does not hash a binding or time basis, so a submitted
-    selector must match the supervisor's freshly computed facts before any write.
+    Optional selectors identify the displayed source and time basis. A submitted
+    selector must match the supervisor's freshly computed facts before any write;
+    ``measurement_version`` alone does not bind a model or time basis.
     """
     for selector in ("source_id", "binding_id", "measurement_version", "time_basis"):
         if selector in params and outlook.get(selector) != params[selector]:

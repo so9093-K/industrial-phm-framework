@@ -1,4 +1,4 @@
-"""Web-next baseline departures keep the asset, baseline, and evidence limits visible."""
+"""Baseline departures keep the asset, baseline, and evidence limits visible."""
 
 from __future__ import annotations
 

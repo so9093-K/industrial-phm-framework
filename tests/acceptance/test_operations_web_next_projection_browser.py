@@ -1,4 +1,4 @@
-"""Version-matched Web-next forecast and outlook are paired only with exact evidence."""
+"""Version-matched forecast and outlook use the same measured evidence."""
 
 from __future__ import annotations
 

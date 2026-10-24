@@ -1,4 +1,4 @@
-"""Two-period Web-next EDA distinguishes evidence sources and unavailable data."""
+"""Two-period Operations Web analysis distinguishes sources and unavailable data."""
 
 from __future__ import annotations
 

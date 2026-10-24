@@ -1,4 +1,4 @@
-"""The isolated Web-next view must distinguish an observation from a failed read."""
+"""The Operations Web must distinguish an observation from a failed read."""
 
 from __future__ import annotations
 

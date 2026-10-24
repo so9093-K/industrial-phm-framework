@@ -31,7 +31,7 @@ from industrial_phm.application.opcua_persistent import (
 from industrial_phm.application.window_coordinator import (
     ObservationWindowCoordinatorCycleResult,
 )
-from industrial_phm.runtime._sqlite import connect_wal
+from industrial_phm._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-acquisition-telemetry-v1"
 _SESSION = "session"
