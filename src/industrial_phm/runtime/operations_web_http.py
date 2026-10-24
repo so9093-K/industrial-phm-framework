@@ -336,7 +336,7 @@ def create_operations_web_read_server(
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")
                 return
             parts = urlsplit(self.path)
-            if parts.path in {"/web", "/web-next", "/web-next/"}:
+            if parts.path == "/web":
                 self.send_response(HTTPStatus.PERMANENT_REDIRECT)
                 self.send_header("Location", "/web/" + ("?" + parts.query if parts.query else ""))
                 self.send_header("Content-Length", "0")

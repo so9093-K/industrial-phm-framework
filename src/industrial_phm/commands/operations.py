@@ -86,23 +86,14 @@ def _run_operations_up(args: argparse.Namespace) -> int:
         if inspection.state == OperationsWorkspaceState.UNRECOGNIZED:
             _print_unrecognized_workspace_guidance(workspace)
             return 1
-        initialization = initialize_operations_workspace(
-            workspace,
-            allow_recognized_legacy=True,
-        )
+        initialization = initialize_operations_workspace(workspace)
     except (OSError, ValueError) as error:
         print("Operations could not prepare this workspace.", file=sys.stderr)
         print(f"Reason: {error}", file=sys.stderr)
         print("The workspace was not started.", file=sys.stderr)
         return 1
 
-    state = (
-        "created"
-        if initialization.created
-        else "adopted-existing"
-        if initialization.adopted
-        else "existing"
-    )
+    state = "created" if initialization.created else "existing"
     print(f"workspace={workspace.root} state={state}", flush=True)
     if leftover := stop_leftover_components(workspace):
         print(

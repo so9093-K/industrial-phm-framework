@@ -62,12 +62,12 @@ def test_operations_workspace_inspection_distinguishes_safe_entry_states(tmp_pat
     empty_workspace.root.mkdir()
     assert inspect_operations_workspace(empty_workspace).state == OperationsWorkspaceState.EMPTY
 
-    legacy_workspace = OperationsWorkspace(tmp_path / "legacy")
+    legacy_workspace = OperationsWorkspace(tmp_path / "pre-config")
     legacy_workspace.root.mkdir()
     legacy_workspace.source_runtime_path.write_text("{}\n", encoding="utf-8")
     assert (
         inspect_operations_workspace(legacy_workspace).state
-        == OperationsWorkspaceState.RECOGNIZED_LEGACY
+        == OperationsWorkspaceState.UNRECOGNIZED
     )
 
     foreign_workspace = OperationsWorkspace(tmp_path / "foreign")

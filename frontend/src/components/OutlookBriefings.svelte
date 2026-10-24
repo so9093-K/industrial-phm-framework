@@ -22,7 +22,7 @@
   const checkedSource=(record:Briefing):string=>
     record.answer?.source==="computed"?"계산 결과 요약(AI 미사용)":
     record.answer?.source==="model-trimmed"?"AI 해설 · 근거 없는 문장 제외":
-    record.answer?.source==="model"?"AI 해설 · 근거 확인됨":"만든 방식 미확인";
+    record.answer?.source==="model"?"AI 해설":"만든 방식 미확인";
   const latest=$derived(records.find(item=>item.status==="complete"&&item.answer)??null);
   const waiting=$derived(records.some(item=>item.status==="pending"));
   const earlier=$derived(records.filter(item=>item!==latest));

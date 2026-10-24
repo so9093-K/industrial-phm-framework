@@ -3,7 +3,7 @@
   import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession, sampleReturn } from "./session";
   import {loadModelBindings} from "./model-evidence";
-  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
+  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import { readAttention, type AttentionState } from "./monitor-attention";
@@ -17,9 +17,6 @@
   const showcase = import.meta.env.MODE === "showcase";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
-  if (parseRoute(location.search,location.hash).legacy) {
-    history.replaceState(history.state, "", canonicalUrl(location.search,location.hash));
-  }
   let route: Route = $state(parseRoute(location.search).route);
   let focus = $state(reviewFocus(location.search));
   let section = $state(systemSection(location.search));
@@ -183,7 +180,7 @@
 
   onMount(() => {
     const restore = async () => {
-      if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
+      
       const before = route;
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
       if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))

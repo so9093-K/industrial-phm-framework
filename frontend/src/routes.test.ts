@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
@@ -40,32 +40,6 @@ test("pages and asset tabs are user tasks; unknown values are not invented", () 
   assert.equal(parseRoute("?page=assets&tab=outlook&data=vibration").route.data, "vibration");
 });
 
-test("every former workflow address lands on its new place with its own parameters", () => {
-  const cases: Array<[string, string]> = [
-    ["view=departures", "page=assets&tab=anomaly&method=baseline"],
-    ["view=model-evidence", "page=assets&tab=anomaly&method=model"],
-    ["view=features", "page=assets&tab=change&method=compare&data=vibration"],
-    ["view=acq-relation", "page=assets&tab=change&method=relation&data=vibration"],
-    ["view=spectrum", "page=assets&tab=change&method=spectrum"],
-    ["view=acq-outlook", "page=assets&tab=outlook&data=vibration"],
-    ["view=projection", "page=assets&tab=outlook&data=history"],
-    ["view=reviews", "page=maintenance"],
-    ["view=overview", ""],
-  ];
-  for (const [legacy, expected] of cases) {
-    const {legacy: isLegacy} = parseRoute("?" + legacy);
-    assert.equal(isLegacy, true);
-    const url = new URL(canonicalUrl("?" + legacy + "&monitor_asset=a"), "http://local");
-    const want = new URLSearchParams(expected);
-    for (const [key, value] of want) assert.equal(url.searchParams.get(key), value, legacy);
-    assert.equal(url.searchParams.has("view"), false);
-    assert.equal(url.searchParams.get("monitor_asset"), "a");
-  }
-  const kept = new URL(canonicalUrl("?view=projection&monitor_asset=m&projection_management=7"),
-    "http://local");
-  assert.equal(kept.searchParams.get("projection_management"), "7");
-});
-
 test("changing assets removes all old evidence and conditions while keeping the task", () => {
   const original = "http://localhost:2718/web/?page=assets&tab=outlook&data=history" +
     "&monitor_asset=motor-a&monitor_channel=R&projection_direction=lower&projection_management=7" +
@@ -102,30 +76,3 @@ test("운영 관리 opens data connections unless the address asks for system st
   assert.equal(systemUrl("status"),"/web/?page=system&section=status");
 });
 
-test("retired hash and model bookmarks keep their exact selection at the default address",()=>{
-  const cases:[[string,string],string][]=[[["","#connect"],"page=system&section=connections"],[["","#system"],"page=system&section=status"],
-    [["?phm_binding=b%2Fa&phm_position=2&phm_compare=1","#anomaly"],"page=assets&tab=anomaly&method=model&model_binding=b%2Fa&model_position=2&model_compare=1"]];
-  for(const [[search,hash],expected] of cases){
-    const actual=new URL(canonicalUrl(search,hash),"http://local");
-    assert.equal(actual.pathname,"/web/");
-    for(const [key,value] of new URLSearchParams(expected))assert.equal(actual.searchParams.get(key),value);
-    assert.equal(actual.searchParams.has("phm_binding"),false);
-  }
-  assert.equal(parseRoute("?page=maintenance","#connect").route.page,"maintenance");
-});
-
-test("legacy forecast and exploration conditions move with their axis and exact series",()=>{
-  const projection=new URL(canonicalUrl("?monitor_asset=a&forecast_series=history%7CR&forecast_horizon=7d&forecast_threshold=8&forecast_prior=0.2","#forecast"),"http://local");
-  assert.equal(projection.searchParams.get("monitor_channel"),"R");
-  assert.equal(projection.searchParams.get("projection_horizon"),"7d");
-  assert.equal(projection.searchParams.get("projection_management"),"8");
-  assert.equal(projection.searchParams.get("forecast_prior"),"0.2");
-  const acq=new URL(canonicalUrl("?forecast_series=acquisition%7Cfeature.rms&forecast_horizon=24h&forecast_assumed_period=60","#rul"),"http://local");
-  assert.equal(acq.searchParams.get("data"),"vibration");
-  assert.equal(acq.searchParams.get("acq_forecast_unit"),"time");
-  assert.equal(acq.searchParams.get("acq_assumed_period"),"60");
-  const compare=new URL(canonicalUrl("?explore_kind=acquisition&explore_series=feature.rms&explore_a=1~8&explore_b=9~16","#signals"),"http://local");
-  assert.equal(compare.searchParams.get("method"),"compare");
-  assert.equal(compare.searchParams.get("acquisition_feature"),"feature.rms");
-  assert.equal(compare.searchParams.get("feature_b_from"),"9");
-});

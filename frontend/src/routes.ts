@@ -27,22 +27,6 @@ export const METHOD_INFO: Record<Method, string> = {
 };
 export const DATA_INFO: Record<DataKind, string> = {history: "시계열 기록", vibration: "진동 측정"};
 
-/** Addresses from before the task navigation keep working and land on the same workflow. */
-const LEGACY: Record<string, Omit<Route, "assetId">> = {
-  overview: {page: "monitor", tab: "summary", method: null, data: null},
-  signals: {page: "assets", tab: "signals", method: null, data: null},
-  departures: {page: "assets", tab: "anomaly", method: "baseline", data: null},
-  "model-evidence": {page: "assets", tab: "anomaly", method: "model", data: null},
-  compare: {page: "assets", tab: "change", method: "compare", data: "history"},
-  features: {page: "assets", tab: "change", method: "compare", data: "vibration"},
-  relation: {page: "assets", tab: "change", method: "relation", data: "history"},
-  "acq-relation": {page: "assets", tab: "change", method: "relation", data: "vibration"},
-  spectrum: {page: "assets", tab: "change", method: "spectrum", data: "vibration"},
-  projection: {page: "assets", tab: "outlook", method: null, data: "history"},
-  "acq-outlook": {page: "assets", tab: "outlook", method: null, data: "vibration"},
-  reviews: {page: "maintenance", tab: "summary", method: null, data: null},
-};
-
 function oneOf<T extends string>(values: readonly T[], raw: string | null): T | null {
   return values.find((value) => value === raw) ?? null;
 }
@@ -55,31 +39,14 @@ export function usesDataKind(tab: Tab, method: Method | null): boolean {
   return tab === "outlook" || (tab === "change" && method !== "spectrum" && method !== "electrical");
 }
 
-const HASH_VIEWS: Record<string, Omit<Route,"assetId">> = {
-  monitor: LEGACY.overview, research: LEGACY.overview,
-  signals: LEGACY.signals,
-  anomaly: LEGACY["model-evidence"],
-  forecast: LEGACY.projection, rul: LEGACY.projection,
-  connect: {page:"system",tab:"summary",method:null,data:null},
-  system: {page:"system",tab:"summary",method:null,data:null},
-  evidence: {page:"investigations",tab:"summary",method:null,data:null},
-  review: {page:"maintenance",tab:"summary",method:null,data:null},
-};
-const PARAM_ALIASES: Record<string,string> = {phm_binding:"model_binding",phm_position:"model_position",phm_compare:"model_compare"};
-export function parseRoute(search: string, hash = ""): {route: Route; legacy: boolean} {
+export function parseRoute(search: string): {route: Route} {
   const params = new URLSearchParams(search);
   const assetId = params.get("monitor_asset") ?? "";
-  const legacy = LEGACY[params.get("view") ?? ""];
-  if (legacy && !params.has("page")) return {route: {...legacy, assetId}, legacy: true};
-  let former=HASH_VIEWS[hash.replace(/^#/,"")];
-  if((hash==="#forecast"||hash==="#rul")&&params.get("forecast_series")?.startsWith("acquisition|"))former=LEGACY["acq-outlook"];
-  if(hash==="#signals"&&params.has("explore_kind"))former=params.get("explore_kind")==="acquisition"?LEGACY.features:LEGACY.compare;
-  if(former&&!params.has("page"))return {route:{...former,assetId},legacy:true};
   const page = oneOf(PAGES, params.get("page")) ?? "monitor";
   const tab = oneOf(TABS, params.get("tab")) ?? "summary";
   const method = oneOf(methodsOf(tab), params.get("method"));
   const data = usesDataKind(tab, method) ? oneOf(["history", "vibration"] as const, params.get("data")) : null;
-  return {route: {page, assetId, tab, method, data}, legacy: params.has("view")||Object.keys(PARAM_ALIASES).some(key=>params.has(key))};
+  return {route: {page, assetId, tab, method, data}};
 }
 
 /** Only the route itself and an asset's chosen signal travel between screens; a previous
@@ -113,39 +80,6 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
     ?? Object.values(keys).map(key => current.searchParams.get(key)).find(value => value);
   if (feature) next.searchParams.set(targetKey ?? "vibration_feature", feature);
   return next.pathname + next.search + next.hash;
-}
-
-/** The canonical address of a legacy link keeps the workflow's own parameters. */
-export function canonicalUrl(search: string, hash = ""): string {
-  const {route} = parseRoute(search,hash);
-  const target = new URL(routeUrl(route), "http://local");
-  for (const [key, value] of new URLSearchParams(search)) {
-    if(key==="view"||key==="phm_view")continue;
-    const next=PARAM_ALIASES[key]??key;
-    if(!target.searchParams.has(next))target.searchParams.set(next,value);
-  }
-  const old=new URLSearchParams(search);
-  if(hash==="#forecast"||hash==="#rul"){
-    const series=old.get("forecast_series"),acq=series?.startsWith("acquisition|");
-    if(series)target.searchParams.set(acq?"acq_forecast_feature":"monitor_channel",series.slice(series.indexOf("|")+1));
-    const mapping=acq?{forecast_horizon:"acq_forecast_horizon",forecast_unit:"acq_forecast_unit",forecast_count:"acq_forecast_count",forecast_assumed_period:"acq_assumed_period",forecast_threshold:"acq_management",forecast_end:"acq_end",forecast_direction:"acq_direction"}
-      :{forecast_horizon:"projection_horizon",forecast_threshold:"projection_management",forecast_end:"projection_end",forecast_direction:"projection_direction"};
-    for(const [from,to] of Object.entries(mapping))if(old.has(from))target.searchParams.set(to,old.get(from)!);
-    if(acq&&!old.has("forecast_unit"))target.searchParams.set("acq_forecast_unit","time");
-  }
-  if(hash==="#signals"&&old.has("explore_kind")){
-    const acquisition=old.get("explore_kind")==="acquisition";
-    if(old.has("explore_series"))target.searchParams.set(acquisition?"acquisition_feature":"monitor_channel",old.get("explore_series")!.split(",")[0]);
-    for(const period of ["a","b"]){
-      const span=old.get("explore_"+period);
-      if(!span)continue;
-      if(!acquisition)target.searchParams.set("compare_"+period,span);
-      else {const [from,to]=span.split("~");if(from&&to){target.searchParams.set("feature_"+period+"_from",from);target.searchParams.set("feature_"+period+"_to",to);}}
-    }
-  }
-  if(hash==="#system")target.searchParams.set("section","status");
-  if(hash==="#connect")target.searchParams.set("section","connections");
-  return target.pathname + target.search;
 }
 
 /** Never reuse any old-asset query parameter, including parameters added by future
