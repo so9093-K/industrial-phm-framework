@@ -118,7 +118,7 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                 page.route("**/api/v1/explore/spectrum?**", spectrum)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=spectrum&monitor_asset=motor-a",
+                    base + "/web/?page=assets&tab=change&method=spectrum&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "변화 분석", "주파수 분석")

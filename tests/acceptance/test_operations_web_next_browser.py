@@ -207,10 +207,9 @@ def test_asset_history_navigation_clears_old_context_and_restores_selection(
                 )
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=reviews&monitor_asset=motor-a", wait_until="networkidle"
+                    base + "/web/?page=maintenance&monitor_asset=motor-a", wait_until="networkidle"
                 )
-                # A former address is replaced by its new place, not left half-understood.
-                assert "page=maintenance" in page.url and "view=" not in page.url
+                assert "page=maintenance" in page.url
                 page.goto(
                     base + "/web/?page=assets&tab=outlook&data=history&monitor_asset=motor-a"
                     "&monitor_channel=R&projection_direction=lower"

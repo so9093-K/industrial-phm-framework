@@ -296,7 +296,7 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                 page.route("**/api/v1/outlook?**", outlook)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=acq-outlook&monitor_asset=bearing-a",
+                    base + "/web/?page=assets&tab=outlook&data=vibration&monitor_asset=bearing-a",
                     wait_until="networkidle",
                 )
                 pw.expect(page.get_by_role("heading", name="기준 도달 전망")).to_be_visible()

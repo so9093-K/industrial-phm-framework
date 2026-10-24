@@ -135,10 +135,10 @@ def test_review_inbox_preserves_run_and_evidence_identity(tmp_path: Path, width:
                 page.route("**/api/v1/reviews?*", reviews)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=reviews&monitor_asset=motor-a",
+                    base + "/web/?page=maintenance&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
-                # Existing review links continue to resolve, but are not top-level navigation.
+                # Direct review links remain available without adding a primary navigation item.
                 pw.expect(page.get_by_role("heading", name="정비 검토", level=1)).to_be_visible()
                 pw.expect(
                     page.get_by_role("navigation", name="업무 메뉴").get_by_role(
