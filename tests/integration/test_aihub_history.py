@@ -418,16 +418,20 @@ def test_bounded_aggregation_covers_full_range_and_preserves_excluded_counts(tmp
     assert empty.buckets == ()
 
 
-def test_aggregation_refuses_to_drop_source_groups_over_response_budget(tmp_path):
+def test_aggregation_refuses_to_drop_measurement_groups_over_response_budget(tmp_path):
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
     )
+    # The limit counts source/point/interpretation groups, not distinct source
+    # registrations. One source with many measurement points proves the same
+    # 2,001-group boundary without 2,001 redundant FILE identity lookups.
     history.append_file_batch(
         tuple(
             FileBackfillEvent(
                 raw_evidence_id=f"row-{i}",
-                source_id=f"source-{i}",
+                source_id="source",
                 asset_id="asset",
+                measurement_point_id=f"point-{i}",
                 channel_id="power",
                 source_file="series.csv",
                 source_sha256="a" * 64,
@@ -438,7 +442,7 @@ def test_aggregation_refuses_to_drop_source_groups_over_response_budget(tmp_path
             )
             for i in range(2001)
         ),
-        batch_id="many-sources",
+        batch_id="many-points",
     )
     with pytest.raises(ValueError, match="exceeds 2000"):
         history.query_measurement_aggregation(
