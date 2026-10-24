@@ -39,14 +39,14 @@ export function usesDataKind(tab: Tab, method: Method | null): boolean {
   return tab === "outlook" || (tab === "change" && method !== "spectrum" && method !== "electrical");
 }
 
-export function parseRoute(search: string): {route: Route} {
+export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
   const assetId = params.get("monitor_asset") ?? "";
   const page = oneOf(PAGES, params.get("page")) ?? "monitor";
   const tab = oneOf(TABS, params.get("tab")) ?? "summary";
   const method = oneOf(methodsOf(tab), params.get("method"));
   const data = usesDataKind(tab, method) ? oneOf(["history", "vibration"] as const, params.get("data")) : null;
-  return {route: {page, assetId, tab, method, data}};
+  return {page, assetId, tab, method, data};
 }
 
 /** Only the route itself and an asset's chosen signal travel between screens; a previous
@@ -68,7 +68,7 @@ export function routeUrl(route: Route, channel: string | null = null): string {
  * Only the selected signal/feature follows; forecast settings and comparison ranges do not. */
 export function tabSelectionUrl(href: string, currentHref: string): string {
   const current = new URL(currentHref), next = new URL(href, current);
-  const from = parseRoute(current.search).route, to = parseRoute(next.search).route;
+  const from = parseRoute(current.search), to = parseRoute(next.search);
   if (next.origin !== current.origin) return next.href;
   if (to.page !== "assets" || from.page !== "assets"
     || !from.assetId || from.assetId !== to.assetId) return next.pathname + next.search + next.hash;
@@ -86,7 +86,7 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
  * workflows. This is safer than maintaining an incomplete delete list. */
 export function assetUrl(currentHref: string, assetId: string): string {
   if (!assetId) throw new Error("설비 식별자가 필요합니다.");
-  const {route} = parseRoute(new URL(currentHref).search);
+  const route = parseRoute(new URL(currentHref).search);
   const page = route.page === "monitor" ? "assets" : route.page;
   return routeUrl({...route, page, assetId, data: null});
 }

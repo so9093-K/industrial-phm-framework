@@ -17,27 +17,27 @@ test("tab activation carries the latest chosen signal while dropping workflow-sp
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",origin+summary),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
 });
 
-test("primary navigation stays observation-first while old record links still resolve", () => {
+test("primary navigation stays observation-first while record links resolve directly", () => {
   assert.deepEqual([...PRIMARY_PAGES], ["monitor", "assets", "system"]);
-  assert.equal(parseRoute("?page=investigations&monitor_asset=motor-a").route.page, "investigations");
-  assert.equal(parseRoute("?page=maintenance&monitor_asset=motor-a&finding_id=f").route.page, "maintenance");
+  assert.equal(parseRoute("?page=investigations&monitor_asset=motor-a").page, "investigations");
+  assert.equal(parseRoute("?page=maintenance&monitor_asset=motor-a&finding_id=f").page, "maintenance");
 });
 
 test("pages and asset tabs are user tasks; unknown values are not invented", () => {
-  assert.deepEqual(parseRoute("?page=unknown&tab=nope&monitor_asset=pump%2F1").route,
+  assert.deepEqual(parseRoute("?page=unknown&tab=nope&monitor_asset=pump%2F1"),
     {page: "monitor", assetId: "pump/1", tab: "summary", method: null, data: null});
   for (const page of PAGES) assert.ok(PAGE_INFO[page].label);
   for (const tab of TABS) {
     assert.ok(TAB_INFO[tab]);
     assert.equal(parseRoute(routeUrl({page: "assets", assetId: "m", tab, method: null, data: null})
-      .split("?")[1]).route.tab, tab);
+      .split("?")[1]).tab, tab);
   }
   // A method or data kind only exists inside the tab that offers it.
-  assert.deepEqual(parseRoute("?page=assets&tab=signals&method=relation&data=vibration").route,
+  assert.deepEqual(parseRoute("?page=assets&tab=signals&method=relation&data=vibration"),
     {page: "assets", assetId: "", tab: "signals", method: null, data: null});
-  assert.equal(parseRoute("?page=assets&tab=change&method=spectrum&data=history").route.data, null);
-  assert.equal(parseRoute("?page=assets&tab=change&method=electrical&data=vibration").route.data, null);
-  assert.equal(parseRoute("?page=assets&tab=outlook&data=vibration").route.data, "vibration");
+  assert.equal(parseRoute("?page=assets&tab=change&method=spectrum&data=history").data, null);
+  assert.equal(parseRoute("?page=assets&tab=change&method=electrical&data=vibration").data, null);
+  assert.equal(parseRoute("?page=assets&tab=outlook&data=vibration").data, "vibration");
 });
 
 test("changing assets removes all old evidence and conditions while keeping the task", () => {
