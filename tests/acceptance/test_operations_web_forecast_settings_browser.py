@@ -1,4 +1,4 @@
-"""Migrated forecast settings/bookmarks reach paired real Prophet computations."""
+"""Current forecast settings/bookmarks reach paired real Prophet computations."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from tests.support.web_next import start_web, stop_web
 
 
 @pytest.mark.parametrize("kind", ["history", "acquisition"])
-def test_legacy_forecast_settings_and_time_horizon_use_real_evidence(
+def test_current_forecast_settings_and_time_horizon_use_real_evidence(
     tmp_path: Path, kind: str
 ) -> None:
     pw = pytest.importorskip("playwright.sync_api")
@@ -61,22 +61,31 @@ def test_legacy_forecast_settings_and_time_horizon_use_real_evidence(
                     return lambda response: response.url.split("?")[0].endswith("/" + name)
 
                 query = {
+                    "page": "assets",
+                    "tab": "outlook",
+                    "data": "history" if kind == "history" else "vibration",
                     "monitor_asset": "motor-01" if kind == "history" else "bearing-a",
-                    "forecast_series": kind + "|" + ("current" if kind == "history" else feature),
-                    "forecast_horizon": "1h",
-                    "forecast_unit": "time",
-                    "forecast_threshold": "12",
                     "forecast_prior": "0.12",
                     "forecast_range": "0.8",
                     "forecast_training": "150" if kind == "history" else "50",
                     "forecast_seasonality": "off",
                     "forecast_backtest": "multi",
                 }
-                if kind == "acquisition":
-                    query["forecast_assumed_period"] = "180"
-                page.goto(
-                    f"http://127.0.0.1:{server.server_port}/web-next/?{urlencode(query)}#forecast"
-                )
+                if kind == "history":
+                    query.update(
+                        monitor_channel="current",
+                        projection_horizon="1h",
+                        projection_management="12",
+                    )
+                else:
+                    query.update(
+                        acq_forecast_feature=feature,
+                        acq_forecast_unit="time",
+                        acq_forecast_horizon="1h",
+                        acq_management="12",
+                        acq_assumed_period="180",
+                    )
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/?{urlencode(query)}")
                 panel = page.get_by_role("region", name="기준 도달 전망")
                 panel.get_by_text("예측 계산 설정", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.12")

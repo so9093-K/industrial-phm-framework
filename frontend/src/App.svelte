@@ -3,7 +3,7 @@
   import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession, sampleReturn } from "./session";
   import {loadModelBindings} from "./model-evidence";
-  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, canonicalUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
+  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import { readAttention, type AttentionState } from "./monitor-attention";
@@ -19,10 +19,7 @@
   const showcase = import.meta.env.MODE === "showcase";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
-  if (parseRoute(location.search,location.hash).legacy) {
-    history.replaceState(history.state, "", canonicalUrl(location.search,location.hash));
-  }
-  let route: Route = $state(parseRoute(location.search).route);
+  let route: Route = $state(parseRoute(location.search));
   let focus = $state(reviewFocus(location.search));
   let section = $state(systemSection(location.search));
   let loadState: LoadState = $state("loading");
@@ -51,7 +48,6 @@
     return () => request.abort();
   });
   const returnTo = sampleReturn(location.search);
-  const previousSeries=new URLSearchParams(location.search).get("explore_series")?.split(",")??[];
   let controller: AbortController | null = null;
   let quietController: AbortController | null = null;
   let snapshotRead = 0;
@@ -74,7 +70,7 @@
     const destination = new URL(url, location.href);
     if (returnTo) destination.searchParams.set("return_to", returnTo);
     history.pushState(history.state, "", destination.pathname + destination.search + destination.hash);
-    route = parseRoute(location.search).route;
+    route = parseRoute(location.search);
     focus = reviewFocus(location.search);
     section = systemSection(location.search);
     // A save on another page (e.g. a CSV just stored) may not have reached this list yet;
@@ -189,9 +185,8 @@
 
   onMount(() => {
     const restore = async () => {
-      if(parseRoute(location.search,location.hash).legacy)history.replaceState(history.state,"",canonicalUrl(location.search,location.hash));
       const before = route;
-      route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
+      route = parseRoute(location.search); focus = reviewFocus(location.search); section = systemSection(location.search);
       if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
         void quietRefresh();
       // History navigation can replace the focused node without going through
@@ -264,9 +259,6 @@
 
 <main id="main" tabindex="-1">
   {#if showcase}<Guide search={new URLSearchParams({page:route.page,tab:route.tab,asset:route.assetId,method:route.method??""}).toString()} />{/if}
-  {#if previousSeries.length>1&&route.page==="assets"&&route.tab==="change"}
-    <p class="meta">이전 주소에 고른 신호: {previousSeries.join(", ")}. 두 기간 비교는 신호별로 확인합니다. 먼저 {previousSeries[0]}을 열었으며 신호 선택에서 나머지를 확인할 수 있습니다.</p>
-  {/if}
   {#if example && !showcase && !journey}
     <p class="example">합성 예시 데이터 · 별도 작업공간 · {writable ? "변경 내용은 예시에만 저장" : "보기 전용"}{#if returnTo}{" · "}<a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
   {/if}

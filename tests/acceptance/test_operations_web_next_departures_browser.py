@@ -1,4 +1,4 @@
-"""Web-next baseline departures keep the asset, baseline, and evidence limits visible."""
+"""Baseline departures keep the asset, baseline, and evidence limits visible."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 page.route("**/api/v1/explore/anomaly?**", departures)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=departures&monitor_asset=motor-a",
+                    base + "/web/?page=assets&tab=anomaly&method=baseline&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "이상 징후", "기준 구간 이탈")

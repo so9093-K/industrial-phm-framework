@@ -46,7 +46,7 @@ SELECTION_FIELDS = (
     "seasonality",
     "assumed_period_seconds",
     "data_version",
-    # Optional provenance of the exact outlook shown when the request was made.
+    # Submitted provenance selectors participate in the current briefing selection.
     "source_id",
     "binding_id",
     "measurement_version",

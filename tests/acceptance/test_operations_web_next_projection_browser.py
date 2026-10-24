@@ -1,4 +1,4 @@
-"""Version-matched Web-next forecast and outlook are paired only with exact evidence."""
+"""Version-matched forecast and outlook use the same measured evidence."""
 
 from __future__ import annotations
 
@@ -137,7 +137,7 @@ def test_versioned_projection_blocks_mismatched_measurements(tmp_path: Path, wid
                 page.route("**/api/v1/outlook?**", serve_outlook)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=projection&monitor_asset=motor-a",
+                    base + "/web/?page=assets&tab=outlook&data=history&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "상태 전망")

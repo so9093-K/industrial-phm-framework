@@ -1,7 +1,7 @@
 """Inspect saved recorded results in the default task-based Operations Web.
 
-This is the task-UI protocol, separate from the 2026-10-13 legacy-screen evidence.
-Run acceptance_xjtu/acceptance_aihub first; no replay or model fitting is performed.
+Run acceptance_xjtu/acceptance_aihub first to prepare saved inputs and results.
+This task-UI check does not replay sources or fit models.
 """
 
 from __future__ import annotations

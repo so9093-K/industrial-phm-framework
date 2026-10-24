@@ -1,4 +1,4 @@
-"""Old addresses retain exact identity; invalid bookmarks never pick another result."""
+"""Current model bookmarks retain exact identity; invalid selections never pick another result."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from tests.support.phm import analyze, deliver, phm_workspace
 from tests.support.web_next import start_web, stop_web
 
 
-def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Path) -> None:
+def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
     pw = pytest.importorskip("playwright.sync_api")
     workspace = phm_workspace(tmp_path / "bookmarks")
     for ordinal in range(1, 71):
@@ -24,12 +24,14 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
                 page.goto(
-                    base + "/web-next/?phm_binding=anomaly-a&phm_position=2&phm_compare=1#anomaly"
+                    base
+                    + "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
+                    + "&model_binding=anomaly-a&model_position=2&model_compare=1"
                 )
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("2")
                 assert "/web/?" in page.url and "model_binding=anomaly-a" in page.url
-                assert "monitor_asset=bearing-a" in page.url and "phm_binding=" not in page.url
+                assert "monitor_asset=bearing-a" in page.url
                 page.reload()
                 pw.expect(page.get_by_role("group", name="2번째 측정 모델 결과")).to_be_visible()
                 for suffix in (
@@ -53,10 +55,9 @@ def test_old_address_redirect_hash_and_result_outside_recent_trace(tmp_path: Pat
                 pw.expect(page.get_by_label("진동 특징", exact=False)).to_have_value(
                     "feature.Vertical_vibration_signals.rms"
                 )
-                page.goto(base + "/web/#connect")
+                page.goto(base + "/web/?page=system")
                 pw.expect(page.get_by_role("heading", name="CSV 파일로 시작")).to_be_visible()
-                assert "section=connections" in page.url
-                page.goto(base + "/web/#system")
+                page.goto(base + "/web/?page=system&section=status")
                 pw.expect(page.get_by_role("heading", name="실행 상태")).to_be_visible()
                 assert "section=status" in page.url
                 page.get_by_role("link", name="본문으로 건너뛰기").focus()

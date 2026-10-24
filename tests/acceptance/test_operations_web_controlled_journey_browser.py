@@ -1076,7 +1076,10 @@ def test_model_connection_is_analyzed_by_real_runner_and_following_can_be_pinned
             browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
-                page.goto(f"http://127.0.0.1:{port}/web/?monitor_asset=bearing-a#anomaly")
+                page.goto(
+                    f"http://127.0.0.1:{port}/web/"
+                    "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
+                )
                 offer = page.get_by_role("region", name="연결할 수 있는 이상 탐지 모델")
                 offer.get_by_role("listitem").filter(has_text="synthetic-rms-score-v1").get_by_role(
                     "button"

@@ -1,8 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     OperationsWorkspaceState,
+    initialize_operations_workspace,
     inspect_operations_workspace,
 )
 
@@ -62,12 +65,12 @@ def test_operations_workspace_inspection_distinguishes_safe_entry_states(tmp_pat
     empty_workspace.root.mkdir()
     assert inspect_operations_workspace(empty_workspace).state == OperationsWorkspaceState.EMPTY
 
-    legacy_workspace = OperationsWorkspace(tmp_path / "legacy")
+    legacy_workspace = OperationsWorkspace(tmp_path / "pre-config")
     legacy_workspace.root.mkdir()
     legacy_workspace.source_runtime_path.write_text("{}\n", encoding="utf-8")
     assert (
         inspect_operations_workspace(legacy_workspace).state
-        == OperationsWorkspaceState.RECOGNIZED_LEGACY
+        == OperationsWorkspaceState.UNRECOGNIZED
     )
 
     foreign_workspace = OperationsWorkspace(tmp_path / "foreign")
@@ -88,3 +91,18 @@ def test_operations_workspace_inspection_rejects_unknown_runtime_entries(tmp_pat
     inspection = inspect_operations_workspace(workspace)
 
     assert inspection.state == OperationsWorkspaceState.UNRECOGNIZED
+
+
+def test_initialize_refuses_unconfigured_workspace_without_mutation(tmp_path: Path) -> None:
+    workspace = OperationsWorkspace(tmp_path / "pre-config")
+    workspace.root.mkdir()
+    existing = workspace.source_runtime_path
+    existing.write_text('{"running": true}\n', encoding="utf-8")
+    original = existing.read_bytes()
+
+    with pytest.raises(ValueError, match=r"non-empty Operations workspace without config\.toml"):
+        initialize_operations_workspace(workspace)
+
+    assert existing.read_bytes() == original
+    assert not workspace.config_path.exists()
+    assert sorted(path.name for path in workspace.root.iterdir()) == [existing.name]

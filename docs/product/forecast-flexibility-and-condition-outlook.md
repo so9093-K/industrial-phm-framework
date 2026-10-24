@@ -1,9 +1,6 @@
 # 미래 예측 유연화·상태 전망 콘텐츠
 
-상태: Operations Web 제품 기능. 별도 사용자 역할 화면이나 새로운 RUL 학습 모델은 만들지 않는다.
-
-> 2026-10-15 이후: 이 문서의 5번 `상태 전망`은 [상태·잔여수명 전망](condition-and-rul-outlook.md)으로 확장돼 탭의 첫 내용이
-> 됐습니다(열화 지표, 관리·종료 기준까지의 여유, 예측 조건별 비교, 계산 근거). 예측 그래프와 설정 계약은 이 문서가 그대로 유효합니다.
+Operations Web의 예측 설정·그래프 계약입니다. 상태 전망의 기준 도달 계산은 [상태·잔여수명 전망](condition-and-rul-outlook.md)을 따릅니다.
 
 ## 사용 경험
 
@@ -16,7 +13,7 @@
 
 ## 계산 계약
 
-- `GET /api/v1/forecast`는 이전과 동일한 기본값으로 작동한다.
+- `GET /api/v1/forecast`는 선택한 설비·신호·기간에 대해 예측값과 예측 범위를 제공한다.
 - `GET /api/v1/forecast/options`에 `kind`, `series`와 선택적 `training_points`, `assumed_period_seconds`를 전달하면 해당 신호의 실제 유효 학습 범위에서 가능한 시간 예측 기간을 `selection.horizons`로 제공한다. 화면 버튼도 이 결과를 사용한다.
 - 선택값: `changepoint_prior_scale` (0.001–0.5, 기본 0.05), `changepoint_range` (0.5–0.95, 기본 0.9), `training_points` (20–1000), `seasonality=auto|off`, `backtest=one|multi`.
 - 진동 획득 이력의 `horizon=count&horizon_count=N` (1–2000)은 획득 순서 기준 예측이다. 현재 획득을 포함해 정수 획득 위치 N+1개를 예측하며, 최소 기록 조건은 기존과 동일하게 유지한다. 선택적 `assumed_period_seconds` (1–86400)는 원본을 바꾸지 않는 가정이다.
@@ -35,21 +32,3 @@
 - 이상 구간은 관측·모델이 찾은 변화이고, 곧바로 고장 판정이 아니다.
 - 기준까지의 잔여 시간·획득 수는 사용자가 정한 기준에 대한 계산이다. 종료 기준까지의 거리를 잔여수명으로 부른다([ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md)). 폐기된 RUL 모델은 복원하지 않는다.
 - 추세 민감도나 간격 가정 변경에 따라 예측은 바뀔 수 있다. 결과는 설정과 근거를 함께 보여준다.
-
-## 화면 예시
-
-현재 제품 화면의 [진동 상태 전망](../../assets/models/07-outlook.png)과
-[합성 CSV 상태 전망](../../assets/csv/05-outlook.png)을 참고하세요.
-입력·계산·촬영 조건은 [시각 자료 안내](../../assets/README.md)에 기록합니다.
-
-## 테스트 범위
-
-- 기본 예측 API 호환, 파라미터 경계값·비정상 값 거부
-- 학습 구간 제한 및 동일 설정을 적용한 과거 예측 검증
-- 획득 순서와 원본/가정 획득 간격 분리
-- Y축·관리 기준 표기, 상세 설정, 상태 전망
-- 동일 설비에서 신호 탐색·이상 탐지·미래 예측 간 이동
-- 브라우저 390px / 1280px 회귀, 상·하한 기준, EDA 구간 전달, 짧은 획득 기록의 개수 예측 진입 및 기존 모델·CSV·OPC UA 경로 유지
-- 단일 CI의 Product acceptance에서 예측 API 통합 테스트와 Playwright 브라우저 테스트를 실행([검증 정책](../testing-policy.md))
-
-기존 수집 내구성/AI-Hub 이상 탐지 성능 관련 이슈는 본 UI 콘텐츠 개발과 분리한다.

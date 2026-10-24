@@ -1,6 +1,6 @@
 # 상태·잔여수명 전망
 
-설비 탭 `상태 전망`(`page=assets&tab=outlook`)의 첫 내용입니다. 선택한 측정값 하나가 처음보다 얼마나 변했는지와,
+설비 탭 `상태 전망`(주소 `/web/?page=assets&tab=outlook&data=history`, 진동은 `data=vibration`)의 첫 내용입니다. 선택한 측정값 하나가 처음보다 얼마나 변했는지와,
 사용자가 정한 관리 기준·종료 기준까지 얼마나 남았는지를 근거와 함께 한곳에서 봅니다.
 결정 배경은 [ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md), 공통 관측 버전·가능 도달 표현의 결정은 [ADR-0028](../adr/0028-bind-forecast-and-outlook-to-one-measurement-projection.md)에 있습니다.
 RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)), 저장된 측정과 예측만으로 계산합니다.

@@ -266,7 +266,7 @@ def test_briefing_version_and_supervisor_write_contract(
                 page.route("**/api/v1/outlook/briefings/request", request_briefing)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=projection&monitor_asset=motor-a",
+                    base + "/web/?page=assets&tab=outlook&data=history&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 page.get_by_label("관리 기준 (선택)").fill("12")

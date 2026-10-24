@@ -172,27 +172,24 @@ class OperationsWorkspaceState(StrEnum):
     NEW = "new"
     EMPTY = "empty"
     INITIALIZED = "initialized"
-    RECOGNIZED_LEGACY = "recognized-legacy"
     UNRECOGNIZED = "unrecognized"
 
 
 @dataclass(frozen=True, slots=True)
 class OperationsWorkspaceInspection:
-    """Describe whether a root can be safely initialized, reopened, or adopted."""
+    """Describe whether a root can be safely initialized or reopened."""
 
     workspace: OperationsWorkspace
     state: OperationsWorkspaceState
-    entries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class OperationsWorkspaceInitialization:
-    """Result of creating, adopting, or reopening an initialized workspace."""
+    """Result of creating or reopening an initialized workspace."""
 
     workspace: OperationsWorkspace
     config: OperationsRuntimeConfig
     created: bool
-    adopted: bool = False
 
 
 def inspect_operations_workspace(workspace: OperationsWorkspace) -> OperationsWorkspaceInspection:
@@ -206,68 +203,17 @@ def inspect_operations_workspace(workspace: OperationsWorkspace) -> OperationsWo
     if not root.is_dir():
         raise OSError(f"Operations workspace root is not a directory: {root}")
 
-    entries = tuple(sorted(path.name for path in root.iterdir()))
     if workspace.config_path.exists():
-        return OperationsWorkspaceInspection(
-            workspace,
-            OperationsWorkspaceState.INITIALIZED,
-            entries,
-        )
-    if not entries:
+        return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.INITIALIZED)
+    if not any(root.iterdir()):
         return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.EMPTY)
-
-    allowed_entries = {path.name for path in workspace.runtime_state_files}
-    allowed_entries.update(
-        {
-            workspace.history_data_path.name,
-            workspace.logs_path.name,
-            workspace.supervisor_state_path.parent.name,
-        }
-    )
-    if not set(entries) <= allowed_entries:
-        return OperationsWorkspaceInspection(
-            workspace,
-            OperationsWorkspaceState.UNRECOGNIZED,
-            entries,
-        )
-
-    runtime_dir = workspace.supervisor_state_path.parent
-    if runtime_dir.is_dir():
-        runtime_entries = {path.name for path in runtime_dir.iterdir()}
-        allowed_runtime_entries = {
-            workspace.supervisor_state_path.name,
-            workspace.supervisor_lock_path.name,
-            workspace.file_history_job_path.name,
-        }
-        if not runtime_entries <= allowed_runtime_entries:
-            return OperationsWorkspaceInspection(
-                workspace,
-                OperationsWorkspaceState.UNRECOGNIZED,
-                entries,
-            )
-
-    has_state_file = any(path.is_file() for path in workspace.runtime_state_files)
-    has_runtime_state = runtime_dir.is_dir() and any(runtime_dir.iterdir())
-    if has_state_file or has_runtime_state:
-        return OperationsWorkspaceInspection(
-            workspace,
-            OperationsWorkspaceState.RECOGNIZED_LEGACY,
-            entries,
-        )
-
-    return OperationsWorkspaceInspection(
-        workspace,
-        OperationsWorkspaceState.UNRECOGNIZED,
-        entries,
-    )
+    return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.UNRECOGNIZED)
 
 
 def initialize_operations_workspace(
     workspace: OperationsWorkspace,
-    *,
-    allow_recognized_legacy: bool = False,
 ) -> OperationsWorkspaceInitialization:
-    """Initialize an empty workspace or explicitly adopt recognized pre-config state."""
+    """Initialize an empty workspace or reopen an existing configured one."""
     inspection = inspect_operations_workspace(workspace)
     root = workspace.root
 
@@ -276,23 +222,6 @@ def initialize_operations_workspace(
         workspace.history_data_path.mkdir(parents=True, exist_ok=True)
         workspace.logs_path.mkdir(parents=True, exist_ok=True)
         return OperationsWorkspaceInitialization(workspace, config, created=False)
-
-    if inspection.state == OperationsWorkspaceState.RECOGNIZED_LEGACY:
-        if not allow_recognized_legacy:
-            raise ValueError(
-                "refusing to initialize a non-empty Operations workspace "
-                f"without config.toml: {root}"
-            )
-        config = OperationsRuntimeConfig()
-        write_operations_runtime_config(workspace.config_path, config)
-        workspace.history_data_path.mkdir(parents=True, exist_ok=True)
-        workspace.logs_path.mkdir(parents=True, exist_ok=True)
-        return OperationsWorkspaceInitialization(
-            workspace,
-            config,
-            created=False,
-            adopted=True,
-        )
 
     if inspection.state == OperationsWorkspaceState.UNRECOGNIZED:
         raise ValueError(

@@ -81,34 +81,28 @@ def test_operations_up_reopens_initialized_workspace(
 
 
 @pytest.mark.usefixtures("free_ui_port")
-def test_operations_up_adopts_recognized_pre_config_workspace_without_losing_state(
+def test_operations_up_refuses_pre_config_workspace_without_changing_it(
     tmp_path: Path,
     monkeypatch,
     capsys,
 ) -> None:
+    """A config-less directory from an earlier release is not adopted or rewritten."""
     workspace = OperationsWorkspace(tmp_path / "plant-legacy")
     workspace.root.mkdir()
     workspace.source_registry_path.write_text('{"sources": []}\n', encoding="utf-8")
     before = workspace.source_registry_path.read_bytes()
 
     def fake_run(plan):
-        assert plan.workspace == workspace
-        return SimpleNamespace(
-            state=SimpleNamespace(
-                failure=None,
-                state=OperationsSupervisorStateKind.STOPPED,
-            ),
-            exit_code=0,
-        )
+        raise AssertionError("a pre-config workspace must not start")
 
     monkeypatch.setattr(operations_commands, "run_operations_supervisor", fake_run)
 
     exit_code = main(["operations", "up", str(workspace.root)])
 
-    assert exit_code == 0
-    assert workspace.config_path.is_file()
+    assert exit_code == 1
+    assert not workspace.config_path.exists()
     assert workspace.source_registry_path.read_bytes() == before
-    assert f"workspace={workspace.root} state=adopted-existing" in capsys.readouterr().out
+    assert "were not changed" in capsys.readouterr().err
 
 
 def test_operations_up_refuses_unrecognized_directory_with_next_action(

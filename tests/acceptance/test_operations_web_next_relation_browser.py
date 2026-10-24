@@ -126,7 +126,9 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                 page.route("**/api/v1/explore/relation?**", relation)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?view=relation&monitor_asset=motor-a",
+                    base
+                    + "/web/?page=assets&tab=change&method=relation&data=history"
+                    + "&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "변화 분석", "신호 관계")
