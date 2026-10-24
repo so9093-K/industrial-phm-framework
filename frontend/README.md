@@ -1,9 +1,8 @@
 # Operations Web
 
-The Operations Web, organised by user task, is served at **`/web/`**. The former
-`/web-next/` address redirects to it on the same origin. It reads the existing APIs
-and never recalculates measured values or health verdicts in the browser.
-See [migration and verification boundaries](../docs/product/web-migration.md).
+The task-based Operations Web is served at **`/web/`** (`/web` redirects there).
+It reads the existing APIs and never recalculates measured values or health verdicts
+in the browser. See [current product support boundaries](../docs/status.md).
 
 ## Verification
 
@@ -23,8 +22,8 @@ Saved analysis history and existing human-review records remain reachable throug
 not through the primary navigation. Screens follow the task routes of `docs/product/overview.md`:
 `/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with
 `tab=summary|anomaly|signals|change|outlook`, optional `method` and `data=history|vibration`),
-`?page=investigations`, `?page=maintenance` and `?page=system`. Former `?view=…` addresses are
-replaced by their new place with the workflow's own parameters kept. Screen words follow
+`?page=investigations`, `?page=maintenance` and `?page=system`. Retired `view` and hash
+routes are not converted. Screen words follow
 [Web 화면 용어 기준](../docs/terminology.md#web-화면-용어-기준).
 No Node process is required to serve the compiled output; the runtime does
 not install Node dependencies.
@@ -37,8 +36,8 @@ not install Node dependencies.
 - `src/styles.css`: shell, accessible shared controls and responsive layout
   used across the new frontend; a page should not invent its own unrelated
   colors, fields or button treatment.
-- `src/routes.ts`: task pages, asset tabs, analysis methods and data kinds; former
-  addresses map to their new place. Only the route, the asset and a chosen signal travel
+- `src/routes.ts`: task pages, asset tabs, analysis methods and data kinds.
+  Only the route, the asset and a chosen signal travel
   between screens; another asset's conditions or review identities never do.
 - `src/App.svelte`: top task menu, session write capability (not runtime health), same-document navigation.
 - `src/components/AssetWorkspace.svelte`: one asset's header, tabs, method/data choice and

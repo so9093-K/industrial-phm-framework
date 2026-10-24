@@ -6,11 +6,11 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from industrial_phm._sqlite import connect_wal
 from industrial_phm.application.collection_control import (
     CollectionControlRecord,
     CollectionDesiredState,
 )
-from industrial_phm._sqlite import connect_wal
 
 _SCHEMA_VERSION = "industrial-phm-collection-control-v1"
 
