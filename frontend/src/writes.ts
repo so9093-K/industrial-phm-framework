@@ -44,6 +44,8 @@ export async function postWrite(url:string,payload:object,signal:AbortSignal):Pr
     const code=errorCode(await response.json().catch(()=>null));
     if(response.status===503&&code==="command_outcome_unknown")
       throw new OutcomeUnknown("요청이 처리됐는지 확인하지 못했습니다.");
+    if(response.status===403&&code==="example_records_only")
+      throw new WriteForbidden("체험 작업공간에는 새 데이터나 모델을 연결하지 않습니다. 내 작업공간에서 연결하세요.");
     if(response.status===403)
       throw new WriteForbidden("기록 권한이 확인되지 않았습니다. 새로고침한 뒤 다시 시도하세요.");
     throw new WriteRejected(response.status,code);

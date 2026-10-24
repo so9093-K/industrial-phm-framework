@@ -364,8 +364,8 @@ def capture_live(page: Any, base: str, out: Path) -> None:
     frames: list[Path] = []
     page.goto(base + "/web/?page=system&section=connections")
     sample = page.get_by_role("region", name="예시로 둘러보기")
-    if sample.get_by_role("button", name="예시 시작").count():
-        sample.get_by_role("button", name="예시 시작").click()
+    if sample.get_by_role("button", name="실시간 수신 예시 시작").count():
+        sample.get_by_role("button", name="실시간 수신 예시 시작").click()
     opened = sample.get_by_role("link", name="예시 화면 열기 (새 탭)")
     expect(opened).to_be_visible(timeout=180_000)
     url = opened.get_attribute("href").split("?", 1)[0]
@@ -392,18 +392,106 @@ def capture_live(page: Any, base: str, out: Path) -> None:
     sample = page.get_by_role("region", name="예시로 둘러보기")
     sample.get_by_role("button", name="예시 종료", exact=True).click()
     sample.get_by_role("button", name="종료하기", exact=True).click()
-    expect(sample.get_by_role("button", name="예시 시작", exact=True)).to_be_visible(timeout=60_000)
+    expect(sample.get_by_role("button", name="실시간 수신 예시 시작", exact=True)).to_be_visible(
+        timeout=60_000
+    )
+
+
+def capture_bearing(page: Any, base: str, out: Path) -> None:
+    """Capture the prepared, isolated model/EDA investigation with one real review decision."""
+    from playwright.sync_api import expect
+
+    context = page.request.get(base + "/api/v1/session").json()
+    journey = context.get("journey")
+    if context.get("workspace_kind") != "bearing-demo" or not journey:
+        raise ValueError("bearing capture needs a prepared, isolated bearing example")
+    if context.get("can_change") is not True:
+        raise ValueError("bearing capture records a review and needs the supervised example")
+    frames: list[Path] = []
+    page.goto(
+        base
+        + "/web/?"
+        + urlencode(
+            {
+                "page": "assets",
+                "monitor_asset": journey["asset_id"],
+            }
+        )
+    )
+    guide = page.get_by_role("complementary", name="베어링 분석 체험 안내")
+    expect(guide).to_be_visible()
+    expect(
+        page.get_by_role("region", name="이상 징후", exact=True).locator(".scores li")
+    ).to_have_count(2)
+    _shot(page, out, "01-records.png", frames)
+    sequence = (
+        ("2. 모델 비교", "모델별 점수 비교", "02-models.png"),
+        ("3. 신호 확인", "진동 측정", "03-signals.png"),
+        ("4. 두 기간 비교", "진동 특징 두 기간 비교", "04-periods.png"),
+        ("5. 특징 관계", "진동 특징 관계", "05-relation.png"),
+        ("6. 주파수 비교", "주파수 분석", "06-spectrum.png"),
+    )
+    for label, name, filename in sequence:
+        guide.get_by_role("link", name="다음: " + label, exact=True).click()
+        panel = page.get_by_role("region", name=name, exact=True)
+        expect(panel.locator("svg").first).to_be_visible()
+        if label in {"5. 특징 관계", "6. 주파수 비교"}:
+            _top(panel.locator("svg").first)
+        else:
+            _top(panel)
+        _shot(page, out, filename, frames)
+    guide.get_by_role("link", name="다음: 7. 판단 남기기", exact=True).click()
+    review = page.get_by_role("region", name="사람 검토", exact=True)
+    expect(review).to_be_visible()
+    request = review.get_by_role("button", name="검토 요청", exact=True, disabled=False)
+    link = review.get_by_role("link", name="정비 검토함에서 보기")
+    expect(request.or_(link)).to_be_visible()
+    if request.count():
+        request.click()
+    link.click()
+    detail = page.get_by_role("region", name="고른 검토 항목")
+    expect(detail).to_be_visible()
+    acknowledge = detail.get_by_role("button", name="확인함으로 표시")
+    expect(
+        acknowledge.or_(detail.get_by_role("button", name="검토 종료", exact=True))
+    ).to_be_visible()
+    if acknowledge.count():
+        detail.get_by_role("radio", name="계속 관찰", exact=True).check()
+        acknowledge.click()
+    expect(detail.locator(".badge")).to_have_text("확인함")
+    _top(detail)
+    _shot(page, out, "07-review.png", frames)
+    bundle = page.locator('script[type="module"]').get_attribute("src")
+    bundle_bytes = page.request.get(urljoin(base, bundle)).body()
+    _gif(frames, out / "walkthrough.gif")
+    _record(
+        out,
+        "bearing",
+        base,
+        {
+            "journey": journey,
+            "review_decision": "observe (capture example)",
+            "frontend_bundle_sha256": hashlib.sha256(bundle_bytes).hexdigest(),
+            "input_scope": "synthetic reference and demo streams"
+            if journey["dataset"] == "synthetic"
+            else "local held-out XJTU-SY bearing; raw data not redistributed",
+        },
+        frames,
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("use_case", choices=("models", "changes", "csv", "live"))
+    parser.add_argument("use_case", choices=("models", "changes", "csv", "live", "bearing"))
     parser.add_argument("--base", required=True)
     parser.add_argument("--csv", type=Path)
     parser.add_argument("--asset", default="Bearing1_1")
     parser.add_argument("--split-at", type=int, default=76)
+    parser.add_argument(
+        "--output", type=Path, help="capture directory (default: assets/<use-case>)"
+    )
     args = parser.parse_args()
-    out = ROOT / "assets" / args.use_case
+    out = args.output.resolve() if args.output is not None else ROOT / "assets" / args.use_case
     out.mkdir(parents=True, exist_ok=True)
     from playwright.sync_api import sync_playwright
 
@@ -412,7 +500,9 @@ def main() -> None:
         page = browser.new_page(viewport=VIEWPORT, locale="ko-KR")
         errors: list[str] = []
         page.on("pageerror", lambda error: errors.append(str(error)))
-        if args.use_case == "models":
+        if args.use_case == "bearing":
+            capture_bearing(page, args.base, out)
+        elif args.use_case == "models":
             capture_models(page, args.base, out, args.asset)
         elif args.use_case == "changes":
             capture_changes(page, args.base, out, args.asset, args.split_at)

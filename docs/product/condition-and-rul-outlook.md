@@ -43,9 +43,9 @@ RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-lif
 
 기준을 넣지 않으면 열화 지표와 예측만 보이고, 기준까지 여유는 `—` 및 기준 입력 안내로 표시됩니다.
 
-역사적 화면 예시(2026-10-15 당시 캡처로, 최신 PR 화면의 시각적 합격 증거는 아님. XJTU-SY Bearing1_1 수평 진동 RMS 123개 획득, 관리 상한 8 · 종료 기준 15, 실제 `local-main` 답):
-[1280px 상태·잔여 여유와 AI 브리핑](images/outlook/outlook-briefing-1280.png) ·
-[390px 탭 전체(운영 미실행 화면)](images/outlook/outlook-390.png).
+현재 화면 예시는 [진동 상태 전망](../../assets/models/07-outlook.png)과
+[합성 CSV 상태 전망](../../assets/csv/05-outlook.png)을 참고하세요.
+입력·계산·촬영 조건은 [시각 자료 안내](../../assets/README.md)에 기록합니다.
 
 ## 계산 계약 (`GET /api/v1/outlook`)
 

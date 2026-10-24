@@ -71,7 +71,7 @@ export async function readAssetData(assetId: string, signal: AbortSignal): Promi
 export function methodsFor(
   tab: Tab, data: AssetData | null, capabilities: Capabilities | null, kind: DataKind | null = null,
 ): Method[] {
-  if (!capabilities || !kindsOf(data).length) return [];
+  if (!capabilities || !data) return [];
   const status = (id: CapabilityId, source: DataKind | null): string => {
     const item = capabilities.items.find(value => value.id === id);
     if (!item) return "unavailable";

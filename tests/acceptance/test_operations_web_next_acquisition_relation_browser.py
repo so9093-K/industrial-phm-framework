@@ -11,6 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import mock_analysis_capabilities
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -30,6 +31,7 @@ def test_acquisition_relationship_retains_exact_binding_and_fails_closed(
                 page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
+                mock_analysis_capabilities(page, "bearing-a", "relation")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(

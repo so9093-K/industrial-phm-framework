@@ -14,6 +14,8 @@
   import InvestigationRecords from "./components/InvestigationRecords.svelte";
   import OperationsPage from "./components/OperationsPage.svelte";
   import Guide from "./showcase/Guide.svelte";
+  import BearingGuide from "./components/BearingGuide.svelte";
+  import type {DemoJourney} from "./demo-journey";
   const showcase = import.meta.env.MODE === "showcase";
 
   type LoadState = "loading" | "ready" | "empty" | "failed";
@@ -28,6 +30,7 @@
   let permissionState: "checking" | "ready" | "failed" = $state("checking");
   let permissionController: AbortController | null = null;
   let example = $state(false);
+  let journey: DemoJourney | null = $state(null);
   let notes: Record<string, number> = $state({});
   let notesState: AttentionState = $state("loading");
   // The asset list counts the same items as 관측 현황, read once when the list is shown.
@@ -64,7 +67,9 @@
 
   async function navigate(url: string) {
     const before = route;
-    history.pushState(history.state, "", url);
+    const destination = new URL(url, location.href);
+    if (returnTo) destination.searchParams.set("return_to", returnTo);
+    history.pushState(history.state, "", destination.pathname + destination.search + destination.hash);
     route = parseRoute(location.search);
     focus = reviewFocus(location.search);
     section = systemSection(location.search);
@@ -160,6 +165,7 @@
       if (pending.signal.aborted) return;
       writable = session.writable;
       example = session.example;
+      journey = session.journey;
       permissionState = "ready";
     } catch {
       if (pending.signal.aborted) return;
@@ -253,9 +259,10 @@
 
 <main id="main" tabindex="-1">
   {#if showcase}<Guide search={new URLSearchParams({page:route.page,tab:route.tab,asset:route.assetId,method:route.method??""}).toString()} />{/if}
-  {#if example && !showcase}
-    <p class="example">합성 예시 데이터 · 별도 작업공간 · 보기 전용{#if returnTo} · <a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
+  {#if example && !showcase && !journey}
+    <p class="example">합성 예시 데이터 · 별도 작업공간 · {writable ? "변경 내용은 예시에만 저장" : "보기 전용"}{#if returnTo}{" · "}<a href={returnTo}>내 작업공간으로 돌아가기</a>{/if}</p>
   {/if}
+  {#if journey && !showcase}<BearingGuide {journey} {returnTo} writable={writable===true} search={new URLSearchParams({page:route.page,tab:route.tab,method:route.method??"",monitor_asset:route.assetId,...(new URLSearchParams(location.search).get("demo_step")==="review"?{demo_step:"review"}:{})}).toString()} />{/if}
   {#if quietError && (loadState === "ready" || loadState === "empty")}
     <StatusNotice kind="uncertain" title="설비 목록 갱신 실패"
       message={"이전 조회 시점의 목록만 표시합니다. 새로운 데이터를 확인하지 못했습니다. " + quietError}
@@ -264,7 +271,7 @@
   {#if route.page === "system"}
     <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
       loading={loadState === "loading"} onRefresh={() => void refresh()} />
-    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} onChanged={quietRefresh} />
+    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} {example} {returnTo} onChanged={quietRefresh} />
   {:else if loadState === "loading"}
     <StatusNotice message="설비 목록을 불러오고 있습니다." />
   {:else if loadState === "failed"}
@@ -303,11 +310,11 @@
         <!-- A first visit starts with how to get data in, not with panels about data that is not there. -->
         <section class="ui-panel start" aria-labelledby="start-title">
           <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "아직 연결된 데이터가 없습니다"}</h2>
-          <p>CSV 파일을 올리면 설비별 신호와 변화, 이상 징후, 상태 전망을 볼 수 있습니다.
-            실제 데이터가 없다면 이 작업공간과 분리된 예시로 화면을 먼저 둘러보세요.</p>
+          <p>준비된 베어링 진동 기록과 두 모델로 변화 조사부터 검토 기록까지 따라가 보세요.
+            직접 분석할 데이터는 CSV 파일로 연결합니다.</p>
           <div class="start-actions">
+            <a class="ui-button ui-button-primary" href={systemUrl("connections") + "#sample"}>분석 체험하기</a>
             <a class="ui-link-primary" href={systemUrl("connections")}>CSV 파일로 시작</a>
-            <a class="ui-button" href={systemUrl("connections") + "#sample"}>예시로 둘러보기</a>
           </div>
         </section>
       {/if}

@@ -11,7 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.web_next import choose_asset, expect_place
+from tests.support.web_next import choose_asset, expect_place, mock_analysis_capabilities
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -41,6 +41,7 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                     },
                     "system_error_scopes": [],
                 }
+                mock_analysis_capabilities(page, "motor-a", "spectrum")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(
@@ -128,6 +129,13 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                 assert "spectrum_b_from=11" in page.url
                 page.reload(wait_until="networkidle")
                 pw.expect(page.get_by_text("B/A 세기 변화")).to_be_visible()
+                # A dB axis keeps the weaker bands readable; the same two traces are redrawn.
+                linear = page.locator(".spectra svg polyline").first.get_attribute("points")
+                page.get_by_label("세로축을 dB로 보기", exact=False).check()
+                pw.expect(page.locator(".spectra .axis-note").first).to_contain_text("dB")
+                pw.expect(page.locator(".spectra .tick").first).to_contain_text("dB")
+                assert page.locator(".spectra svg polyline").first.get_attribute("points") != linear
+                pw.expect(page.locator(".spectra svg polyline")).to_have_count(2)
 
                 error["missing"] = True
                 page.get_by_role("button", name="주파수 비교하기").click()
@@ -139,7 +147,9 @@ def test_acquisition_psd_keeps_ordinals_and_missing_waveform(tmp_path: Path, wid
                 choose_asset(page, "motor-b")
                 expect_place(pw, page, "변화 분석", "주파수 분석")
                 pw.expect(
-                    page.get_by_role("heading", name="주파수를 비교할 원본 파형이 없습니다")
+                    page.get_by_role(
+                        "heading", name="선택한 분석을 이 데이터에서 사용할 수 없습니다"
+                    )
                 ).to_be_visible()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"

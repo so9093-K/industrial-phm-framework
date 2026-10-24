@@ -161,6 +161,33 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
         stop_web(server, thread)
 
 
+def test_change_default_uses_the_bookmarked_data_kind(tmp_path: Path) -> None:
+    """History comparison availability must not select comparison for one vibration record."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "mixed")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    analyze(workspace)
+    _history(workspace, "bearing-a", ("temperature",), 40)
+    server, thread = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser, page, errors = _page(runtime, server.server_port, 390, "bearing-a")
+            try:
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/"
+                    "?page=assets&tab=change&data=vibration&monitor_asset=bearing-a"
+                )
+                pw.expect(
+                    page.get_by_role("heading", name="주파수 분석", exact=True)
+                ).to_be_visible()
+                assert page.get_by_role("heading", name="진동 특징의 두 구간 비교").count() == 0
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
 @pytest.mark.parametrize("width", [390, 1024, 1440])
 def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
     tmp_path: Path, width: int

@@ -31,6 +31,7 @@ from industrial_phm.runtime.operations_app_composition import load_operations_ap
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_status import inspect_operations_runtime_status
 from industrial_phm.runtime.operations_web_actions import (
+    WEB_EXAMPLE_RECORD_ROUTES,
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
@@ -140,6 +141,12 @@ def create_operations_web_read_server(
         )
     except OSError, ValueError:
         synthetic_demo = False
+    from industrial_phm.runtime.operations_demo_context import (
+        order_by_exceedance,
+        read_bearing_journey,
+    )
+
+    bearing_journey = read_bearing_journey(root)
     csrf_token = secrets.token_urlsafe(32)
     mutation_lock = Lock()
 
@@ -450,7 +457,14 @@ def create_operations_web_read_server(
                             if command_client is not None
                             else "local-source-control-and-opcua-preview"
                         ),
-                        "workspace_kind": "synthetic-demo" if synthetic_demo else "operations",
+                        "workspace_kind": "synthetic-demo"
+                        if synthetic_demo
+                        else "bearing-demo"
+                        if bearing_journey is not None
+                        else "operations",
+                        "journey": None
+                        if bearing_journey is None
+                        else order_by_exceedance(root, bearing_journey),
                         # One Web: what changes are available follows whether operations
                         # (the supervisor and its command broker) runs behind this server.
                         "mode": "example"
@@ -521,6 +535,9 @@ def create_operations_web_read_server(
                 return
             if self.path not in WEB_SOURCE_ACTION_ROUTES:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
+                return
+            if bearing_journey is not None and self.path not in WEB_EXAMPLE_RECORD_ROUTES:
+                self._error(HTTPStatus.FORBIDDEN, "example_records_only")
                 return
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")

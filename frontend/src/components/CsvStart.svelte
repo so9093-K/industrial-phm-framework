@@ -1,7 +1,7 @@
 <script lang="ts">
   import {tick} from "svelte";
   import {
-    declaredRoles, emptyRoles, explainWrite, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
+    declaredRoles, emptyRoles, explainWrite, PHASE_ROLES, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
     setLifecycle, startHistory, waitForHistory, HistoryFailed, type CsvSetup, type Preflight,
   } from "../connections";
   import {
@@ -145,6 +145,20 @@
         if (Array.isArray(prior.channel_labels)) for (const item of prior.channel_labels) {
           if (typeof item?.channel_id === "string" && item.channel_id in labels && typeof item.label === "string")
             labels[item.channel_id] = {label: item.label, unit: typeof item.unit === "string" ? item.unit : ""};
+        }
+        if (Array.isArray(prior.phase_channels)) {
+          roles = PHASE_ROLES.map((role) => {
+            const saved = prior.phase_channels.find((item: unknown) => {
+              if (!item || typeof item !== "object") return false;
+              const value = item as Record<string, unknown>;
+              return value.quantity === role.quantity && value.phase === role.phase
+                && typeof value.channel_id === "string" && channels.includes(value.channel_id)
+                && typeof value.unit_evidence === "string" && value.unit_evidence.length <= 128
+                && typeof value.interpretation_evidence === "string" && value.interpretation_evidence.length <= 128;
+            });
+            return saved ? {channel: saved.channel_id, unit: saved.unit_evidence, meaning: saved.interpretation_evidence}
+              : {channel: "", unit: "", meaning: ""};
+          });
         }
       }
     } catch { /* Blocked browser storage does not prevent a new upload. */ }

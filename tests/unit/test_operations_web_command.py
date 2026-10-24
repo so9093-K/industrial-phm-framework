@@ -292,8 +292,9 @@ def test_command_replay_cache_reaches_bounded_capacity_without_eviction(
     assert calls == [first, second]
 
 
+@pytest.mark.parametrize("scenario", ["synthetic", "bearing"])
 def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scenario: str
 ) -> None:
     from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
     from industrial_phm.runtime import operations_sample as sample
@@ -301,6 +302,9 @@ def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
 
     workspace = OperationsWorkspace(tmp_path / "operations")
     initialize_operations_workspace(workspace)
+    # Model preparation legitimately outlives an ordinary command deadline.
+    monkeypatch.setattr(command, "_TIMEOUT_SECONDS", 0.1)
+    monkeypatch.setattr(command, "_DEMO_TIMEOUT_SECONDS", 2.0)
 
     class FakeProcess:
         pid = 9911
@@ -329,12 +333,15 @@ def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
     process = FakeProcess()
     ports = iter([2788, 4889])
 
-    def fake_launch(root: OperationsWorkspace) -> sample.FirstRunSampleLaunch:
+    def fake_launch(
+        root: OperationsWorkspace, *, scenario: str = "live"
+    ) -> sample.FirstRunSampleLaunch:
         return sample.launch_first_run_sample(
             root,
             process_launcher=lambda _args, _log: process,
-            listener_waiter=lambda *_args, **_kwargs: None,
+            listener_waiter=lambda *_args, **_kwargs: Event().wait(0.2),
             port_resolver=lambda *_args: next(ports),
+            scenario=scenario,
         )
 
     monkeypatch.setattr(sample_web, "launch_first_run_sample", fake_launch)
@@ -342,13 +349,13 @@ def test_real_supervisor_ipc_allows_only_bound_child_to_control_sample(
     with command.open_supervisor_web_command_broker(workspace.root) as broker:
         client = command.WebCommandClient(broker.socket_path, broker.token)
         with pytest.raises(command.WebCommandRejected, match="write_not_authorized"):
-            client.execute("/api/v1/demo/synthetic/status", {})
+            client.execute(f"/api/v1/demo/{scenario}/status", {})
         broker.bind_child(os.getpid())
-        started = client.execute("/api/v1/demo/synthetic/start", {})
+        started = client.execute(f"/api/v1/demo/{scenario}/start", {})
         assert started["url"] == "http://127.0.0.1:2788/web/"
-        assert client.execute("/api/v1/demo/synthetic/status", {}) == started
+        assert client.execute(f"/api/v1/demo/{scenario}/status", {}) == started
         with pytest.raises(command.WebCommandRejected, match="invalid_source_action"):
-            client.execute("/api/v1/demo/synthetic/start", {"port": 9999})
-        assert client.execute("/api/v1/demo/synthetic/stop", {})["state"] == "stopped"
+            client.execute(f"/api/v1/demo/{scenario}/start", {"port": 9999})
+        assert client.execute(f"/api/v1/demo/{scenario}/stop", {})["state"] == "stopped"
         assert process.poll() == 0
     assert not workspace.source_registry_path.exists()

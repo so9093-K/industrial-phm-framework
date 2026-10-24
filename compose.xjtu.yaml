@@ -1,0 +1,20 @@
+# Optional local-data experience for the Web start button. Prepare the workspace first:
+#   uv run industrial-phm demo xjtu --until 100 --workspace artifacts/demo-xjtu-ui --prepare-only
+# then: docker compose --env-file /dev/null -f compose.yaml -f compose.xjtu.yaml up -d --build
+# Match the original absolute source paths recorded by the local replay.
+services:
+  operations:
+    environment:
+      INDUSTRIAL_PHM_XJTU_WORKSPACE: /var/lib/industrial-phm/demo-xjtu-ui
+    volumes:
+      - type: bind
+        source: ./artifacts/demo-xjtu-ui
+        target: /var/lib/industrial-phm/demo-xjtu-ui
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+        target: ${PWD}/data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets
+        read_only: true
+        bind:
+          create_host_path: false

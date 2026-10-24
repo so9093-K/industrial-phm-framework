@@ -33,6 +33,7 @@ The default Compose project is `industrial-phm`. Its named volume `industrial-ph
 ```text
 /var/lib/industrial-phm/operations/             real Operations workspace
 /var/lib/industrial-phm/demo-synthetic-*/       isolated first-run sample
+/var/lib/industrial-phm/demo-bearing-v1-*/      isolated bearing investigation
 ```
 
 The runtime runs as UID 10001. The new volume inherits the image directory's ownership. `down` removes
@@ -45,6 +46,9 @@ Use browser CSV upload for a first connection. Workspace-relative CSV paths refe
 Existing model packages or workspaces need explicit provisioning; the supported backup/restore contract
 remains the application CLI and ADR-0015. Keep the internal Web port in `config.toml` at 2718: this local
 Compose reference and its Host/Origin checks intentionally use fixed ports 2718 and 2719.
+Compose sets `INDUSTRIAL_PHM_SAMPLE_UI_PORT=2719` for both bearing and live examples. A genuinely
+occupied example port reports a failure. The readiness probe uses the HTTP server's address-reuse
+policy so TCP TIME_WAIT after a clean stop preserves the same example port and workspace on restart.
 
 For an offline backup, stop the node without deleting its volume, run the CLI against that volume,
 then copy the backup directory out of the stopped service container:

@@ -105,14 +105,16 @@ def prepare_xjtu_model_demo(
     missing = [recipe for recipe in (IFOREST_RECIPE, LSTM_RECIPE) if recipe not in packages]
     if missing:
         packages.update(_fit_packages(preset, workspace, missing, code_revision(), report))
+    bindings = []
     for recipe in (IFOREST_RECIPE, LSTM_RECIPE):
-        create_phm_binding(
+        binding, _, _ = create_phm_binding(
             workspace,
             package_id=packages[recipe],
             source_id=XJTU_DEMO_SOURCE_ID,
             asset_id=preset.bearing,
             recorded_replay=True,
         )
+        bindings.append(binding.binding_id)
     replay = replay_xjtu_bearing(
         SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
         preset.source,
@@ -121,6 +123,17 @@ def prepare_xjtu_model_demo(
         interval_seconds=0.0,
         count=preset.until,
     )
+    from industrial_phm.demo.bearing import write_journey
+
+    if replay.last_ordinal is not None and replay.last_ordinal > 1:
+        write_journey(
+            workspace,
+            asset=preset.bearing,
+            bindings=tuple(bindings),
+            first=1,
+            last=replay.last_ordinal,
+            dataset="xjtu-sy",
+        )
     return XjtuModelDemoPreparation(
         workspace, config, (packages[IFOREST_RECIPE], packages[LSTM_RECIPE]), replay
     )

@@ -6,6 +6,8 @@ services:
       context: .
       dockerfile: deploy/container/Dockerfile
     init: true
+    environment:
+      INDUSTRIAL_PHM_SAMPLE_UI_PORT: "2719"
     stop_grace_period: 60s
     volumes:
       - workspace:/var/lib/industrial-phm

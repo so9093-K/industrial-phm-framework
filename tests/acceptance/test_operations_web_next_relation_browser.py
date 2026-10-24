@@ -11,7 +11,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.web_next import expect_place
+from tests.support.web_next import expect_place, mock_analysis_capabilities
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -45,6 +45,7 @@ def test_relation_pairing_and_unknown_correlation(tmp_path: Path, width: int) ->
                     },
                     "system_error_scopes": [],
                 }
+                mock_analysis_capabilities(page, "motor-a", "relation")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(

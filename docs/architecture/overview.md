@@ -118,17 +118,19 @@ Isolation Forest와 LSTM Autoencoder는 research path의 reference implementatio
 
 ## 2. 모델 학습 및 평가 (research path)
 
-![입력 데이터부터 모델 비교와 선택까지 이어지는 모델 학습 및 평가 파이프라인](../../assets/model-training-evaluation.png)
+```mermaid
+flowchart LR
+  data[원천 데이터와 메타데이터] --> split[설비·실험·시간 기준 분할]
+  split --> train[훈련 범위에서 전처리·특징·모델 학습]
+  train --> evaluate[고정된 상태로 검증·테스트 평가]
+  evaluate --> evidence[버전·입력·지표를 보존한 평가 결과]
+  evidence --> compare[동일 프로토콜의 비교·선택]
+```
 
-그림은 입력 데이터에서 전처리·특징 생성, 데이터 분할, 모델 학습, 분석 결과 생성, 모델 평가, 비교·선택으로
-이어지는 전체 실험 수명주기를 보여줍니다. 실제 split strategy는 deployment scenario와 데이터 구조에 맞게
-asset/run/time/site/cohort 같은 leakage boundary를 명시적으로 정합니다. XJTU-SY의 bearing-run split을 모든
-industrial dataset의 공통 split 규칙으로 일반화하지 않습니다.
-
-그림의 `전처리 및 특징 생성`은 파이프라인 책임을 나타내는 개념 단계입니다. scaler, normalizer, threshold,
-feature statistics처럼 데이터로부터 학습되는 상태는 split 이후 **train 범위에서만 fit**하고 validation/test에는
-학습된 상태만 적용해야 합니다. 따라서 도식의 좌→우 순서를 "전체 데이터에 먼저 fit한다"는 의미로 해석하지
-않습니다.
+분할은 deployment scenario와 데이터 구조에 맞게 asset/run/time/site/cohort 같은 leakage boundary를
+명시적으로 정합니다. XJTU-SY의 bearing-run split을 모든 industrial dataset의 공통 규칙으로
+일반화하지 않습니다. scaler, normalizer, threshold, feature statistics처럼 데이터로부터 학습되는 상태는
+**train 범위에서만 fit**하고 validation/test에는 학습된 상태만 적용합니다.
 
 모델 평가는 모델 구현과 분리합니다. Isolation Forest와 LSTM Autoencoder를 비교할 때도 같은 split과 같은
 평가 프로토콜을 사용합니다. anomaly, early detection, prognostics 지표는 데이터가 실제로 지원하는 capability와
@@ -136,10 +138,12 @@ ground truth가 정의된 경우에만 사용합니다.
 
 ## 3. 서비스 아키텍처
 
-![모델 산출물부터 대시보드와 생성형 AI를 거쳐 사용자에게 전달되는 서비스 아키텍처](../../assets/service-architecture.png)
+![수집·저장·분석·Operations Web과 운영자 판단의 책임](../../assets/system-architecture.png)
 
-이 도식의 서비스/추론 계층은 operational deployment에서 필요한 책임 경계를 설명하는 reference입니다.
-도식 자체는 구현 지원 여부를 주장하지 않으며 현재 지원 범위는 [현재 지원 상태](../status.md)를 따릅니다.
+수집·분석·Web은 같은 작업공간의 근거를 읽고, Web의 변경 요청은 supervisor가 처리합니다.
+AI 해설은 저장된 분석 또는 현재 전망의 계산 근거를 사용합니다. 실제 정비 실행은 사용자의 후속 업무이며,
+구성도 자체는 모델 성능이나 현장 적용의 검증을 뜻하지 않습니다. 기능별 지원 범위는
+[현재 지원 상태](../status.md)를 따릅니다.
 
 현재 presentation loading 경계는 두 단계입니다. 모든 supported artifact는 schema-specific inspector를 통해
 `ExperimentInspection`으로 검증되고, `AnalysisSurface`는 이 inspection과 optional detailed `AnalysisView`를

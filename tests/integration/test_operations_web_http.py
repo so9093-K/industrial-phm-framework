@@ -80,6 +80,88 @@ def test_synthetic_workspace_declares_purpose_and_denies_web_writes(tmp_path: Pa
         thread.join(timeout=5)
 
 
+class _RecordingCommands:
+    """Accepts every forwarded command, so only the server's own gate decides."""
+
+    def __init__(self, directory: Path) -> None:
+        self.socket_path = str(directory / "web.sock")
+        self.routes: list[str] = []
+
+    def execute(self, route: str, payload: dict[str, object], **_: object) -> dict[str, object]:
+        self.routes.append(route)
+        return {"schema_version": 1}
+
+
+def test_bearing_example_keeps_investigation_records_but_takes_no_new_data(
+    tmp_path: Path,
+) -> None:
+    from industrial_phm.runtime.operations_web_actions import (
+        WEB_EXAMPLE_RECORD_ROUTES,
+        WEB_SOURCE_ACTION_ROUTES,
+    )
+
+    workspace = OperationsWorkspace(tmp_path / "example")
+    initialize_operations_workspace(workspace)
+    workspace.web_context_path.parent.mkdir(exist_ok=True)
+    workspace.web_context_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "bearing-demo",
+                "dataset": "xjtu-sy",
+                "asset_id": "Bearing1_1",
+                "bindings": ["forest", "lstm"],
+                "first": 1,
+                "last": 100,
+                "feature": "feature.Horizontal_vibration_signals.rms",
+                "other_feature": "feature.Vertical_vibration_signals.rms",
+            }
+        )
+    )
+    commands = _RecordingCommands(tmp_path)
+    server = create_operations_web_read_server(workspace.root, command_client=commands)  # type: ignore[arg-type]
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    port = server.server_port
+    origin = f"http://127.0.0.1:{port}"
+
+    def post(route: str) -> tuple[int, dict[str, object]]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request(
+                "POST",
+                route,
+                body="{}",
+                headers={
+                    "Origin": origin,
+                    "Sec-Fetch-Site": "same-origin",
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": session["csrf_token"],
+                },
+            )
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
+
+    try:
+        _, _, session = _request(port, "GET", "/api/v1/session")
+        assert session["workspace_kind"] == "bearing-demo" and session["can_change"] is True
+        assert WEB_EXAMPLE_RECORD_ROUTES < WEB_SOURCE_ACTION_ROUTES
+        # Data, model connections and nested examples would persist in the prepared replay.
+        for route in sorted(WEB_SOURCE_ACTION_ROUTES - WEB_EXAMPLE_RECORD_ROUTES):
+            status, payload = post(route)
+            assert (status, payload["error"]["code"]) == (403, "example_records_only"), route
+        assert commands.routes == []
+        for route in sorted(WEB_EXAMPLE_RECORD_ROUTES):
+            assert 200 <= post(route)[0] < 300, route
+        assert commands.routes == sorted(WEB_EXAMPLE_RECORD_ROUTES)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_local_operations_web_read_http_is_bounded_and_origin_checked(
     tmp_path: Path,
 ) -> None:
@@ -263,6 +345,12 @@ def test_standalone_web_never_controls_synthetic_processes(tmp_path: Path) -> No
             "/api/v1/demo/synthetic/start",
             "/api/v1/demo/synthetic/stop",
             "/api/v1/demo/synthetic/status",
+            "/api/v1/demo/bearing/start",
+            "/api/v1/demo/bearing/stop",
+            "/api/v1/demo/bearing/status",
+            "/api/v1/demo/xjtu/start",
+            "/api/v1/demo/xjtu/stop",
+            "/api/v1/demo/xjtu/status",
         ):
             status, _, payload = _request(
                 port,
