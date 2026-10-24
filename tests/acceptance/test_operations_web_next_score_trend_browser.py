@@ -106,7 +106,7 @@ def test_score_trend_intervals_and_raw_waveform(
                         body["acquisition"]["source_id"] = "another-stream"
                         route.fulfill(response=response, json=body)
 
-                    page.route("**/api/v1/forecast/options?**", foreign_timing)
+                    page.route("**/api/v1/explore/sources?**", foreign_timing)
                     page.reload()
                     onset = page.get_by_role("region", name="점수 추이").get_by_label(
                         "기준 초과 상태", exact=True

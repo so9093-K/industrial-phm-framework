@@ -29,7 +29,7 @@
   let width = $state(720);
   const W = $derived(Math.max(300, Math.round(width)));
   const labelled = $derived(W >= 520);
-  const H = 210, LEFT = 40, TOP = 14, BOTTOM = 178;
+  const H = 210, LEFT = 64, TOP = 14, BOTTOM = 178;
   const RIGHT = $derived(W - (labelled ? 124 : 12));
 
   const scale = $derived.by(() => {
@@ -109,6 +109,7 @@
 <section class="overlay" aria-labelledby="model-overlay-title">
   <h3 id="model-overlay-title">모델별 점수 비교</h3>
   <p class="context">각 모델의 점수를 그 모델의 기준으로 나눈 값입니다. 1을 넘으면 그 모델의 기준 초과입니다.</p>
+  <p class="context">같은 배수가 같은 위험 수준을 뜻하지는 않습니다. 아래 모델을 고르면 해당 모델의 점수 추이를 따로 확인할 수 있습니다.</p>
   {#if loadState === "loading"}
     <StatusNotice message="모델별 점수 기록을 불러오고 있습니다." />
   {:else}
@@ -137,7 +138,7 @@
         <line x1={LEFT} x2={RIGHT} y1={scale.y(1)} y2={scale.y(1)} class="threshold" />
         <text x={LEFT - 6} y={scale.y(1) + 4} text-anchor="end" class="label">1</text>
         <text x={LEFT - 6} y={TOP + 4} text-anchor="end" class="label">{ratio(scale.high)}</text>
-        <text x={LEFT - 6} y={BOTTOM + 4} text-anchor="end" class="label">0</text>
+        {#if BOTTOM-scale.y(1)>14}<text x={LEFT - 6} y={BOTTOM + 4} text-anchor="end" class="label">0</text>{/if}
         <text x={LEFT + 4} y={scale.y(1) - 5} class="label">각 모델 기준</text>
         {#each shown as binding (binding.bindingId)}
           {@const drawn = line(binding)}

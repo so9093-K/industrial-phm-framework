@@ -1,0 +1,36 @@
+{
+  "use_case": "bearing",
+  "captured_at": "2026-10-24T13:57:17+00:00",
+  "code_revision": "fddf4b400ec68a74704b6143c994aa6bdce0042c",
+  "browser": "Chromium (Playwright), ko-KR",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "base": "127.0.0.1 (local)",
+  "capture_tool_sha256": "05bac38299c87aa6f8f31fa22422571cfa12cc4337f427a4c56acf2e24b971cf",
+  "screens": {
+    "01-records.png": "312f7c28b4bf1d3d4e60fa0c29381ba4b9ebe1b9bcb172204c7e8a27f217a82e",
+    "02-models.png": "bd36498c34c2be0e246c9fcc6cc380b90ec151add4a08263283d192966e35a94",
+    "03-signals.png": "24647aa1882734a600779952a3b1416236ed4b58f8593fb067b1868834626bc4",
+    "04-periods.png": "65907e8a8d2c4c43916aec21f8316089d9b2232825cb9aa3faf8682e7586c615",
+    "05-relation.png": "cf2076d84b157d4f6042ea5c176e20995fd5b77124f5a2cdef0e07a2f46d01c3",
+    "06-spectrum.png": "94b32e56524c8456cf670360aa9a64661be074bef3ad7d4867665e23465e6be1",
+    "07-review.png": "3739a5eddf20da23c01e59ce8becd608748a65fd369920e7561c77c5a935e9a1"
+  },
+  "journey": {
+    "dataset": "synthetic",
+    "asset_id": "demo-bearing-change",
+    "bindings": [
+      "phm-demo-bearing-change-c230013d76",
+      "phm-demo-bearing-change-fc9cfafd6f"
+    ],
+    "first": 1,
+    "last": 96,
+    "feature": "feature.Horizontal_vibration_signals.rms",
+    "other_feature": "feature.Vertical_vibration_signals.rms"
+  },
+  "review_decision": "observe (capture example)",
+  "frontend_bundle_sha256": "2dfcd35bdd5c8f92eff901c3fa5d125cb08f98422558a4713ee6848810a39766",
+  "input_scope": "synthetic reference and demo streams"
+}

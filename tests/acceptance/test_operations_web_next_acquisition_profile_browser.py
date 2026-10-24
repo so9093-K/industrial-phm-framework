@@ -12,6 +12,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from tests.support.web_next import mock_analysis_capabilities
 
 
 @pytest.mark.parametrize("width", [390, 1024])
@@ -48,6 +49,7 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                     },
                     "system_error_scopes": [],
                 }
+                mock_analysis_capabilities(page, "motor-a", "period-compare")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(
@@ -60,6 +62,7 @@ def test_acquisition_feature_profile_preserves_quality_and_binding(
                     "history": None,
                     "acquisition": {
                         "source_id": "sensor-src",
+                        "period_seconds": period,
                         "binding_id": "binding-a",
                         "first": 1,
                         "last": 20,

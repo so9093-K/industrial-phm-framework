@@ -68,6 +68,27 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/demo/synthetic/start",
         "/api/v1/demo/synthetic/stop",
         "/api/v1/demo/synthetic/status",
+        "/api/v1/demo/bearing/start",
+        "/api/v1/demo/bearing/stop",
+        "/api/v1/demo/bearing/status",
+        "/api/v1/demo/xjtu/start",
+        "/api/v1/demo/xjtu/stop",
+        "/api/v1/demo/xjtu/status",
+    }
+)
+
+# A prepared investigation example keeps what people leave while investigating (AI
+# explanations, review requests and decisions) but never takes new data, models or a nested
+# example. Its prepared records are reused across restarts, so a stray upload would stay.
+WEB_EXAMPLE_RECORD_ROUTES: frozenset[str] = frozenset(
+    {
+        "/api/v1/phm/explanations/request",
+        "/api/v1/phm/reviews/request",
+        "/api/v1/outlook/briefings/request",
+        "/api/v1/outlook/captures/confirm",
+        "/api/v1/outlook/captures/review/action",
+        "/api/v1/reviews/request",
+        "/api/v1/reviews/action",
     }
 )
 
@@ -92,6 +113,12 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
         "/api/v1/demo/synthetic/start",
         "/api/v1/demo/synthetic/stop",
         "/api/v1/demo/synthetic/status",
+        "/api/v1/demo/bearing/start",
+        "/api/v1/demo/bearing/stop",
+        "/api/v1/demo/bearing/status",
+        "/api/v1/demo/xjtu/start",
+        "/api/v1/demo/xjtu/stop",
+        "/api/v1/demo/xjtu/status",
     }
 )
 

@@ -22,6 +22,7 @@ from industrial_phm.commands.data import (
 )
 from industrial_phm.commands.demo import (
     _run_demo_aihub_boiler,
+    _run_demo_bearing,
     _run_demo_synthetic,
     _run_demo_xjtu,
 )
@@ -288,6 +289,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     demo_synthetic.set_defaults(handler=_run_demo_synthetic)
 
+    demo_bearing = demo_commands.add_parser(
+        "bearing", help="investigate synthetic bearing signals with Isolation Forest and LSTM"
+    )
+    demo_bearing.add_argument("--workspace", type=Path, default=Path("artifacts/demo-bearing"))
+    demo_bearing.add_argument("--ui-port", type=int, default=2719)
+    demo_bearing.set_defaults(handler=_run_demo_bearing)
+
     demo_xjtu = demo_commands.add_parser(
         "xjtu",
         help=(
@@ -326,6 +334,14 @@ def build_parser() -> argparse.ArgumentParser:
     demo_xjtu.add_argument(
         "--code-revision",
         help="full Git SHA recorded in fitted packages; default reads a clean checkout HEAD",
+    )
+    demo_xjtu.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help=(
+            "fit, replay and write the guided investigation, then exit without starting "
+            "Operations (for compose.xjtu.yaml or another host)"
+        ),
     )
     demo_xjtu.set_defaults(handler=_run_demo_xjtu)
 

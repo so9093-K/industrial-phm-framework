@@ -14,6 +14,22 @@ from industrial_phm.demo import (
 from industrial_phm.demo.xjtu_models import XjtuModelDemoConfig, prepare_xjtu_model_demo
 
 
+def _run_demo_bearing(args: argparse.Namespace) -> int:
+    from industrial_phm.commands.operations import _start_operations_workspace
+    from industrial_phm.demo.bearing import prepare_bearing_demo
+    from industrial_phm.runtime.operations_config import load_operations_runtime_config
+
+    try:
+        workspace = prepare_bearing_demo(args.workspace, port=args.ui_port)
+        print(f"Bearing example ready: http://127.0.0.1:{args.ui_port}/web/", flush=True)
+        return _start_operations_workspace(
+            workspace, load_operations_runtime_config(workspace.config_path)
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"bearing example failed: {error}", file=sys.stderr)
+        return 1
+
+
 def _run_demo_aihub_boiler(args: argparse.Namespace) -> int:
     try:
         preset = AihubBoilerDemoConfig(
@@ -72,6 +88,8 @@ def _run_demo_xjtu(args: argparse.Namespace) -> int:
         f"models={','.join(prepared.packages)} (recorded replay)",
         flush=True,
     )
+    if args.prepare_only:
+        return 0
     if not supervisor_is_live(prepared.workspace) and port_in_use(
         OPERATIONS_UI_HOST, preset.ui_port
     ):

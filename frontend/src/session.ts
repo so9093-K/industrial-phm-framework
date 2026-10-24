@@ -1,6 +1,7 @@
 /** The server session decides who may write; the browser only forwards its CSRF token. */
 /** `example` marks the isolated synthetic sample workspace, which is always read-only. */
-export type WriteSession={writable:boolean;csrf:string|null;example:boolean};
+import {parseDemoJourney, type DemoJourney} from "./demo-journey.ts";
+export type WriteSession={writable:boolean;csrf:string|null;example:boolean;journey:DemoJourney|null};
 
 function object(raw:unknown):Record<string,unknown>|null{
   return raw!==null&&typeof raw==="object"&&!Array.isArray(raw)?raw as Record<string,unknown>:null;
@@ -15,7 +16,9 @@ export function parseWriteSession(raw:unknown):WriteSession{
   const writable=session.can_change===true
     &&session.write_scope==="supervisor-owned-source-control"
     &&typeof session.csrf_token==="string"&&session.csrf_token.length>=16;
-  return {writable,csrf:writable?session.csrf_token as string:null,example:session.workspace_kind==="synthetic-demo"};
+  return {writable,csrf:writable?session.csrf_token as string:null,
+    example:session.workspace_kind==="synthetic-demo"||session.workspace_kind==="bearing-demo",
+    journey:parseDemoJourney(session.journey)};
 }
 
 export async function readWriteSession(signal:AbortSignal):Promise<WriteSession>{

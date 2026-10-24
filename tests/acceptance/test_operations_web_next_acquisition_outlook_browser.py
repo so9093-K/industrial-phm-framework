@@ -88,6 +88,25 @@ def test_acquisition_outlook_does_not_invent_clock_and_blocks_drift(
                         ),
                     ),
                 )
+                page.route(
+                    "**/api/v1/explore/sources?**",
+                    lambda route: route.fulfill(
+                        json={
+                            "schema_version": 1,
+                            "asset_id": "bearing-a",
+                            "history": None,
+                            "acquisition": {
+                                "source_id": "wave-source",
+                                "binding_id": "binding-a",
+                                "first": 1,
+                                "last": 64,
+                                "count": 64,
+                                "period_seconds": recorded_period,
+                                "features": [{"key": "feature.rms", "label": "진동 RMS"}],
+                            },
+                        }
+                    ),
+                )
                 selected = {
                     "binding": "binding-a",
                     "forecast_version": "a" * 64,

@@ -44,7 +44,9 @@ uv run --no-sync python -m industrial_phm.runtime.operations_web_preview \
 소유하지 않습니다. 같은 workspace의 supervised Web가 작동 중이면 협조적 writer lease가
 preview 쓰기를 차단합니다. 무인증 네트워크·다중 사용자 서비스가 아닙니다.
 
-빈 작업공간의 첫 화면에서 `CSV 파일로 시작` 또는 격리된 `예시로 둘러보기`를 선택합니다.
+빈 작업공간의 첫 화면에서 `분석 체험하기` 또는 `CSV 파일로 시작`을 선택합니다.
+체험에서는 합성 진동 기록을 두 모델로 실제 분석하고, 신호·분포·관계·주파수·검토를 순서대로 봅니다.
+[체험의 데이터·학습·저장 범위](../docs/product/data-first-start.md#데이터-없는-첫-사용-베어링-분석-체험).
 CSV 점검·등록·이력 저장과 FILE/OPC UA 소스 제어의 정확한 절차 및 동작 계약은
 [Web 화면·컴포넌트 안내](../frontend/README.md)를 참고하세요.
 저장 작업은 Supervisor가 소유하며, 상태 조회 실패는 저장 실패와 구별합니다.

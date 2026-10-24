@@ -2,6 +2,7 @@
   import {elapsedText, xTicks, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import {num} from "../format";
+  import {measure, yTicks} from "../chart-axis";
   import type {ModelBinding, StepPointer} from "../model-evidence";
   import {exceedanceStory, exceedanceText, measurementTime, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
@@ -89,6 +90,11 @@
         <rect x={scale.x(interval.start) - 2} y={TOP} width={Math.max(4, scale.x(interval.end) - scale.x(interval.start) + 4)} height={BOTTOM - TOP} class="band" />
       {/each}
       <path d={"M" + LEFT + " " + TOP + " V" + BOTTOM + " H" + RIGHT} class="axis" />
+      <!-- Value ticks sit outside the plot so they never cover the threshold label. -->
+      {#each yTicks(scale.low, scale.high, TOP, BOTTOM, 5) as tick (tick.value)}
+        <line x1={LEFT} x2={RIGHT} y1={tick.y} y2={tick.y} class="grid" />
+        <text x={LEFT - 6} y={tick.y + 4} text-anchor="end" class="label">{measure(tick.value, null)}</text>
+      {/each}
       {#if threshold !== null}
         <line x1={LEFT} x2={RIGHT} y1={scale.y(threshold)} y2={scale.y(threshold)} class="threshold" />
         <text x={LEFT + 4} y={scale.y(threshold) - 4} class="label">모델 기준 {num(threshold)}</text>
@@ -108,14 +114,13 @@
         </circle>
       {/each}
       {#if period}
-        {#each xTicks(scale.first, scale.last, measurementScale(period), 3) as tick (tick.value)}
+        {#each xTicks(scale.first, scale.last, measurementScale(period), 5) as tick (tick.value)}
           <text x={scale.x(tick.value)} y={H - 6} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
         {/each}
       {:else}
         <text x={LEFT} y={H - 6} class="label">{place(scale.first)}</text>
         <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
       {/if}
-      <text x={LEFT + 4} y={TOP + 10} class="label">최고 {num(scale.high)}</text>
     </svg>
     <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? (story?.state === "ongoing" ? " 세로 점선은 지금 이어지는 기준 초과가 시작된 측정입니다." : " 세로 점선은 위에 적은 측정입니다.") : ""}</p>
     {#if trend.intervals.length}
@@ -136,6 +141,7 @@
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
   svg { width: 100%; height: auto; max-height: 240px; }
   .axis { fill: none; stroke: var(--color-border); }
+  .grid { stroke: var(--color-border); stroke-opacity: 0.5; }
   .band { fill: var(--color-uncertain-surface); }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }

@@ -102,8 +102,9 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # Where the data arrived: what it supports now, and what it cannot support.
-                options = done.get_by_role("region", name="분석 바로가기")
+                options = done.get_by_role("region", name="분석하기")
                 pw.expect(options.get_by_role("link", name="두 기간 비교 열기")).to_be_visible()
+                options.get_by_text("현재 사용할 수 없는 분석", exact=True).click()
                 pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
 
                 card = connections.get_by_role("article", name="pump.csv")
@@ -182,6 +183,11 @@ def test_local_and_offset_times_preview_and_preflight_use_the_same_instants(
                     positions[2] - positions[0]
                 ) == pytest.approx(0.1, abs=1 / 120)
                 panel.get_by_label("설비 이름·번호").fill("mixed-time-pump")
+                panel.get_by_role(
+                    "checkbox",
+                    name="이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다.",
+                    exact=False,
+                ).check()
                 with page.expect_response("**/api/v1/sources/file/upload/preflight") as checked:
                     panel.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
                 payload = checked.value.json()
@@ -210,7 +216,10 @@ def _three_phase_csv() -> bytes:
     return ("\n".join(lines) + "\n").encode()
 
 
-def test_csv_with_three_phase_roles_reaches_load_and_unbalance(tmp_path: Path) -> None:
+@pytest.mark.parametrize("resume_after_reload", [False, True])
+def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
+    tmp_path: Path, resume_after_reload: bool
+) -> None:
     """The main CSV flow carries R/S/T roles with the person's evidence, so the stored file
     opens in 부하·불평형 without the separate registration form."""
     pw = pytest.importorskip("playwright.sync_api")
@@ -253,6 +262,38 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(tmp_path: Path) -
                     meaning.fill("배선도에서 상 확인")
                 start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
                 pw.expect(start.get_by_text("점검 통과")).to_be_visible()
+                if resume_after_reload:
+
+                    def lose_registration_response(route: Any) -> None:
+                        route.fetch(headers=same_origin(route))
+                        route.fulfill(
+                            status=503,
+                            content_type="application/json",
+                            body=json.dumps({"error": {"code": "command_outcome_unknown"}}),
+                        )
+
+                    page.route("**/api/v1/sources/file/upload", lose_registration_response)
+                    start.get_by_role("button", name="등록하고 이력 저장").click()
+                    pw.expect(start).to_contain_text("결과 확인 필요")
+                    page.reload()
+                    start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
+                        files=[
+                            {
+                                "name": "motor.csv",
+                                "mimeType": "text/csv",
+                                "buffer": _three_phase_csv(),
+                            }
+                        ]
+                    )
+                    pw.expect(start).to_contain_text("이전 작업 입력 복원")
+                    pw.expect(roles.get_by_label("전압 R상")).to_have_value("vR")
+                    pw.expect(roles.get_by_label("전류 T상")).to_have_value("iT")
+                    for unit in roles.get_by_label("단위 근거").all():
+                        pw.expect(unit).to_have_value("계측기 표시 단위 확인")
+                    for meaning in roles.get_by_label("해석 근거").all():
+                        pw.expect(meaning).to_have_value("배선도에서 상 확인")
+                    start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                    pw.expect(start.get_by_text("점검 통과")).to_be_visible()
                 start.get_by_role("button", name="등록하고 이력 저장").click()
                 done = start.get_by_role("region", name="다음 할 일")
                 pw.expect(done).to_be_visible(timeout=60_000)

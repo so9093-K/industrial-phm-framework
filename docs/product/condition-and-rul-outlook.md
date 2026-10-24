@@ -1,6 +1,6 @@
 # 상태·잔여수명 전망
 
-설비 탭 `상태 전망`(주소 `#forecast`)의 첫 내용입니다. 선택한 측정값 하나가 처음보다 얼마나 변했는지와,
+설비 탭 `상태 전망`(`page=assets&tab=outlook`)의 첫 내용입니다. 선택한 측정값 하나가 처음보다 얼마나 변했는지와,
 사용자가 정한 관리 기준·종료 기준까지 얼마나 남았는지를 근거와 함께 한곳에서 봅니다.
 결정 배경은 [ADR-0027](../adr/0027-condition-and-remaining-life-outlook-from-stored-analyses.md), 공통 관측 버전·가능 도달 표현의 결정은 [ADR-0028](../adr/0028-bind-forecast-and-outlook-to-one-measurement-projection.md)에 있습니다.
 RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-life-estimation.md)), 저장된 측정과 예측만으로 계산합니다.
@@ -43,9 +43,9 @@ RUL 모델은 복원하지 않았고([ADR-0026](../adr/0026-retire-remaining-lif
 
 기준을 넣지 않으면 열화 지표와 예측만 보이고, 기준까지 여유는 `—` 및 기준 입력 안내로 표시됩니다.
 
-역사적 화면 예시(2026-10-15 당시 캡처로, 최신 PR 화면의 시각적 합격 증거는 아님. XJTU-SY Bearing1_1 수평 진동 RMS 123개 획득, 관리 상한 8 · 종료 기준 15, 실제 `local-main` 답):
-[1280px 상태·잔여 여유와 AI 브리핑](images/outlook/outlook-briefing-1280.png) ·
-[390px 탭 전체(운영 미실행 화면)](images/outlook/outlook-390.png).
+현재 화면 예시는 [진동 상태 전망](../../assets/models/07-outlook.png)과
+[합성 CSV 상태 전망](../../assets/csv/05-outlook.png)을 참고하세요.
+입력·계산·촬영 조건은 [시각 자료 안내](../../assets/README.md)에 기록합니다.
 
 ## 계산 계약 (`GET /api/v1/outlook`)
 

@@ -80,7 +80,9 @@ class WebCommandClient:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 timeout = (
                     _DEMO_TIMEOUT_SECONDS
-                    if route.startswith("/api/v1/demo/synthetic/")
+                    if route.startswith(
+                        ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
+                    )
                     else _PHASE_FILE_TIMEOUT_SECONDS
                     if route == "/api/v1/analysis/phase-file"
                     else _TIMEOUT_SECONDS
@@ -182,7 +184,9 @@ class SupervisorWebCommandBroker:
             ):
                 raise ValueError("invalid bounded command")
             identity = json.dumps([route, payload], sort_keys=True, allow_nan=False)
-            if route.startswith("/api/v1/demo/synthetic/"):
+            if route.startswith(
+                ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
+            ):
                 connection.settimeout(_DEMO_TIMEOUT_SECONDS)
             elif route == "/api/v1/analysis/phase-file":
                 connection.settimeout(_PHASE_FILE_TIMEOUT_SECONDS)

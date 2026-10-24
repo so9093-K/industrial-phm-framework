@@ -77,7 +77,7 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
   return {assessedAt:text(root.assessed_at),models,truncated:root.truncated===true};
 }
 
-/** The legacy screen's plain reasons for a refused input. */
+/** Plain explanations for stored input-refusal reasons. */
 export function refusalReason(reason:string|null):string{
   if(/sha.?256|checksum|digest/i.test(reason??""))return "전달 뒤 원본이 바뀜";
   if(/channels differ|sampling rate|sample count|package expects/i.test(reason??""))return "모델이 받는 입력 규격과 다름";

@@ -9,6 +9,22 @@ Python 기반 PHM(Prognostics and Health Management) 애플리케이션입니다
 
 [이상 탐지와 RUL](#이상-탐지와-rul) · [변화 분석](#변화-분석) · [CSV·실시간 수신](#csv-등록과-실시간-수신) · [설치 없는 체험](#설치-없는-체험) · [빠른 시작](#빠른-시작) · [사용법](apps/README.md) · [지원 범위](docs/status.md)
 
+## 데이터 없이 분석 체험하기
+
+`make up` 후 첫 화면의 **분석 체험하기 → 베어링 분석 체험 시작**을 선택합니다.
+별도 데이터셋이나 AI 서버 없이, 분리된 예시 작업공간에서 다음 흐름을 따라갑니다.
+
+**기록 이해 → 두 모델 비교 → 원본·특징 확인 → 두 기간 분포 → 특징 관계 → 주파수 비교 → 판단 기록**
+
+![준비된 진동 데이터와 두 모델로 신호·분포·관계·주파수·검토를 따라가는 기본 분석 체험](assets/bearing/walkthrough.gif)
+
+일정한 기록과 후반부에 변화를 넣은 기록을 각각 96회 준비하고, 별도 합성 참조로 학습한
+Isolation Forest·LSTM 오토인코더로 실제 분석합니다. 고른 모델·측정·특징·A/B 구간은 다음 단계에도 이어집니다.
+그래프와 결과는 기존 분석 화면에서 조회·재계산하며, 검토 판단은 예시 작업공간에만 저장합니다.
+
+입력과 모델 학습은 체험용 합성 데이터입니다. 아래 XJTU-SY 실기록 모델의 검증 결과나 실제 고장 사례로 해석하지 않습니다.
+[체험 데이터와 재현 범위](docs/product/data-first-start.md#데이터-없는-첫-사용-베어링-분석-체험).
+
 ## 이상 탐지와 RUL
 
 XJTU-SY 베어링 수명 시험 기록 중 모델 학습에 쓰지 않은 Bearing1_1을 측정 #100까지 재생한 화면입니다.
@@ -67,6 +83,14 @@ uv run industrial-phm demo xjtu --until 100     # --until 없이 실행하면 �
 ```bash
 uv run industrial-phm operations phm replay-xjtu artifacts/demo-xjtu \
   --source data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets --bearing Bearing1_1 --start 101 --interval-seconds 5
+```
+
+운영 화면(`make up`)의 **분석 체험하기 → 실제 데이터로 분석 시작**에서 같은 기록을 열려면 작업공간을 준비만 한 뒤
+`compose.xjtu.yaml`로 연결합니다. 저장소 루트에서 실행하며, 원본은 읽기 전용으로 연결하고 이미지에 넣지 않습니다.
+
+```bash
+uv run industrial-phm demo xjtu --until 100 --workspace artifacts/demo-xjtu-ui --prepare-only
+docker compose --env-file /dev/null -f compose.yaml -f compose.xjtu.yaml up -d --build
 ```
 
 XJTU-SY 원본은 이 저장소에서 재배포하지 않습니다(Wang et al., IEEE Trans. Reliability, 2020,
@@ -146,8 +170,8 @@ cd industrial-phm-framework
 make up
 ```
 
-[http://127.0.0.1:2718/web/](http://127.0.0.1:2718/web/)를 열고 첫 화면에서 **CSV 파일로 시작**으로 파일을 연결하거나,
-**예시로 둘러보기**로 예시 작업공간을 엽니다.
+[http://127.0.0.1:2718/web/](http://127.0.0.1:2718/web/)를 열고 **분석 체험하기**로 준비된 분석 흐름을 보거나,
+**CSV 파일로 시작**으로 직접 분석할 파일을 연결합니다. 실시간 OPC UA 예시는 운영 관리에서 별도로 시작합니다.
 
 ```bash
 make status   # 상태

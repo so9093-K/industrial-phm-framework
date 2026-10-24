@@ -9,7 +9,7 @@
   import ModelScoreOverlay from "./ModelScoreOverlay.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
   import {num} from "../format";
-  import {readPermission} from "../outlook-briefings";
+  import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
     loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,
@@ -38,8 +38,38 @@
   let result:ModelRun|null=$state(null);
   let error=$state("");
   let writable=$state(false);
+  // A prepared example keeps its models; connecting another one belongs to the user's workspace.
+  let example=$state(false);
   let explanationId:string|null=$state(null);
   let reviewRun:string|null=$state(null);
+  let reviewPanel: HTMLDetailsElement | null = $state(null);
+  // The hash target appears after asynchronous model reads, beyond native anchor navigation,
+  // and the explanation above it keeps growing as its own reads finish. Keep the panel in view
+  // until the reader takes over; after that, choosing another measurement keeps their place.
+  let reviewTarget = location.hash === "#model-review";
+  $effect(() => {
+    const panel = reviewPanel;
+    if (!panel || !reviewTarget) return;
+    const TAKEOVER = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+    let frame = 0;
+    const reach = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const summary = panel.querySelector("summary");
+        if (summary && document.activeElement !== summary) summary.focus({preventScroll: true});
+        panel.scrollIntoView({block: "start"});
+      });
+    };
+    const layout = new ResizeObserver(reach);
+    const stop = () => {
+      cancelAnimationFrame(frame); layout.disconnect();
+      for (const name of TAKEOVER) removeEventListener(name, release, true);
+    };
+    function release() { reviewTarget = false; stop(); }
+    for (const name of TAKEOVER) addEventListener(name, release, {capture: true, passive: true});
+    layout.observe(document.body);
+    return stop;
+  });
   const params=new URLSearchParams(location.search);
   let selectedBinding=$state(params.get("model_binding")??"");
   let selectedPosition=$state(params.get("model_position")??"");
@@ -54,6 +84,11 @@
   const place=(position:number)=>binding?.stepKind==="observation-window"
     ?"시간 구간 #"+position:measurementLabel(position);
   const timelinePlace=(position:number)=>binding?.stepKind==="observation-window" ? place(position) : measurementLabel(position,period);
+  // The review sits below the explanation; it names the result it would leave for review.
+  const reviewSubject=(current:ModelBinding,run:ModelRun)=>{
+    const exceeds=scoreSummary(run.output).exceeds;
+    return [names.get(current.bindingId)??"모델",place(run.position),exceeds===null?"판단 정보 없음":exceeds?"기준 초과":"기준 이하"].join(" · ");
+  };
   // The recent list, plus a step chosen from the trend that is older than it.
   const choices=$derived.by(():StepPointer[]=>{
     const steps=trace?.steps??[];
@@ -193,8 +228,8 @@
   }
   onMount(()=>{
     const permission=new AbortController();
-    void readPermission(permission.signal).then(allowed=>{
-      if(!permission.signal.aborted)writable=allowed;
+    void readWriteSession(permission.signal).then(session=>{
+      if(!permission.signal.aborted){writable=session.writable;example=session.example;}
     }).catch(()=>{});
     void loadBindings();
     const timer=setInterval(()=>void poll(),3000);
@@ -218,7 +253,7 @@
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
       message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
       actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
-    <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
+    {#if !example}<ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>{/if}
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
@@ -301,8 +336,9 @@
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
                 onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
-              <details class="optional-review" ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
-                {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}/>{/if}
+              <details id="model-review" bind:this={reviewPanel} class="optional-review" open={location.hash==="#model-review"} ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
+                {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}
+                  subject={reviewSubject(binding, result)}/>{/if}
               </details>
             {/key}
             <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다. AI 해설은 저장된 측정값 비교를 설명할 뿐 원인을 진단하지 않습니다."/>
@@ -334,7 +370,7 @@
         {/if}
       {/if}
     {/if}
-    <ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
+    {#if !example}<ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>{/if}
   {/if}
 </section>
 <style>

@@ -7,8 +7,9 @@
 
   /** Leaves this stored model result in the maintenance review queue, linked to the
    * explanation shown with it. Asking again names the same review item. */
-  type Props = {binding: ModelBinding; run: ModelRun; explanationId: string | null; writable: boolean};
-  let {binding, run, explanationId, writable}: Props = $props();
+  type Props = {binding: ModelBinding; run: ModelRun; explanationId: string | null; writable: boolean;
+    subject?: string};
+  let {binding, run, explanationId, writable, subject = ""}: Props = $props();
   let review: ModelReview | null = $state(null);
   let readFailed = $state(false);
   let saving = $state(false);
@@ -55,6 +56,7 @@
 
 <section class="review-request" aria-labelledby={"model-review-" + run.runId}>
   <h3 id={"model-review-" + run.runId}>사람 검토</h3>
+  {#if subject}<p class="subject">검토할 결과 · <strong>{subject}</strong></p>{/if}
   {#if review?.findingId && review.status}
     <p>이 모델 결과는 정비 검토함에 있습니다 · <strong>{STATUS[review.status]}</strong>
       <a href={findingUrl(binding.assetId, review.findingId)}>정비 검토함에서 보기 →</a></p>

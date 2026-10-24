@@ -3,8 +3,7 @@
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import {measurementScale, measurementLabel} from "../time-axis";
-  import {num} from "../format";
+  import {elapsedText, measurementScale, measurementLabel} from "../time-axis";
   import {assetTabUrl} from "../routes";
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
   import {readAcquisitionTrend, trendChart, type AcquisitionTrend} from "../acquisition-trend";
@@ -73,7 +72,7 @@
       <a href={link("change", "acquisition_feature")}>두 기간 비교 →</a>
       <a href={link("outlook", "acq_forecast_feature")}>기준 도달 전망 →</a>
       <a href={assetTabUrl(assetId, "anomaly", "model")}>측정별 원본 파형·모델 점수 →</a></p>
-    <p class="context">측정 #{options.first}~#{options.last} · 분석 {options.count}회{options.recordedPeriod === null ? "" : " · 기록된 측정 간격 " + num(options.recordedPeriod) + "초"}</p>
+    <p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회{options.recordedPeriod === null ? "" : " · 기록된 측정 간격 " + elapsedText(options.recordedPeriod)}</p>
     {#if trendState === "loading"}
       <StatusNotice message="고른 특징의 기록을 불러오고 있습니다." />
     {:else if trendState === "failed" || !trend}
@@ -82,12 +81,12 @@
       {#if latest}<p class="headline">최근 {measurementLabel(latest.ordinal,trend.periodSeconds)} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
       {#if chart}
         {@const period = trend.periodSeconds}
-        {@const axisNote = "측정 #" + chart.first + "~#" + chart.last + (period ? " · 기록 시작 후 경과 시간 · 측정 간격 " + num(period) + "초" : "")}
+        {@const axisNote = chart.first + "~" + chart.last + "번째 측정" + (period ? " · 기록 시작 후 경과 시간 · 측정 간격 " + elapsedText(period) : "")}
         <figure class="chart">
           <p class="axis-note">최고 {measure(chart.high, trend.unit)} · 최저 {measure(chart.low, trend.unit)}{trend.sampled ? " · 측정이 많아 고르게 " + trend.points.length + "개를 그림" : ""}</p>
           <ValueAxis ticks={chart.ticks} height={chart.height} unit={trend.unit}>
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
-            aria-label={trend.label + " · 측정 #" + chart.first + "부터 #" + chart.last + "까지"}>
+            aria-label={trend.label + " · " + chart.first + "번째부터 " + chart.last + "번째 측정까지"}>
             {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
             <path d={chart.line} class="line" />
             {#each chart.marks as mark (mark.ordinal)}
