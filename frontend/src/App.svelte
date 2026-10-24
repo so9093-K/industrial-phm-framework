@@ -180,7 +180,6 @@
 
   onMount(() => {
     const restore = async () => {
-      
       const before = route;
       route = parseRoute(location.search).route; focus = reviewFocus(location.search); section = systemSection(location.search);
       if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
