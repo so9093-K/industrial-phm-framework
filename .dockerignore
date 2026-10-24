@@ -7,7 +7,7 @@
 !LICENSE
 !frontend/
 !frontend/**
-frontend/node_modules/
+frontend/node_modules
 !src/
 !src/**
 src/**/__pycache__/

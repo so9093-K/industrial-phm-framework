@@ -39,7 +39,7 @@ htmlcov/
 /apps/__marimo__/
 
 # Generated Operations frontend assets
-/frontend/node_modules/
+/frontend/node_modules
 /src/industrial_phm/apps/web_next/asset-manifest.json
 /src/industrial_phm/apps/web_next/index.html
 /src/industrial_phm/apps/web_next/assets/
