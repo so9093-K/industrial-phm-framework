@@ -158,7 +158,8 @@ def test_web_next_signal_history_preserves_context_and_quality(tmp_path: Path, w
                 page.route("**/api/v1/history/trend?**", trend)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?page=assets&tab=signals&monitor_asset=motor-a", wait_until="networkidle"
+                    base + "/web/?page=assets&tab=signals&monitor_asset=motor-a",
+                    wait_until="networkidle",
                 )
                 expect_place(pw, page, "신호")
                 # Without a chosen window the whole stored record is shown.
