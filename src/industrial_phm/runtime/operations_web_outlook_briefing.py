@@ -46,7 +46,7 @@ SELECTION_FIELDS = (
     "seasonality",
     "assumed_period_seconds",
     "data_version",
-    # Exact optional provenance from Web-next. Legacy selection keys stay unchanged.
+    # Optional provenance of the exact outlook shown when the request was made.
     "source_id",
     "binding_id",
     "measurement_version",

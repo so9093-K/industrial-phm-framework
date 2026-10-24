@@ -320,18 +320,24 @@ export function channelIdFrom(name:string,taken:string[]):string{
   return candidate;
 }
 
-export type Sample={state:"running"|"stopped";url:string|null};
+export type Sample={state:"running"|"stopped";url:string|null;scenario?:"bearing"|"live"|"xjtu";assetId?:string;xjtuAvailable?:boolean};
 const SAMPLE_URL=/^http:\/\/127\.0\.0\.1:(\d{2,5})\/web\/$/;
 
 /** The isolated synthetic sample runs in its own workspace; only its local address is used. */
 export function parseSample(raw:Record<string,unknown>):Sample{
-  if(raw.synthetic!==true||(raw.state!=="running"&&raw.state!=="stopped"))unexpected();
-  if(raw.state==="stopped")return {state:"stopped",url:null};
+  if((raw.synthetic!==true&&!(raw.synthetic===false&&(raw.scenario==="xjtu"||typeof raw.xjtu_available==="boolean")))||(raw.state!=="running"&&raw.state!=="stopped"))unexpected();
+  if(raw.state==="stopped")return {state:"stopped",url:null,...(typeof raw.xjtu_available==="boolean"?{xjtuAvailable:raw.xjtu_available}:{})};
   const match=typeof raw.url==="string"?SAMPLE_URL.exec(raw.url):null;
   if(raw.separate_workspace!==true||!match||Number(match[1])>65535)unexpected();
-  return {state:"running",url:raw.url as string};
+  if(raw.scenario!==undefined&&raw.scenario!=="bearing"&&raw.scenario!=="live"&&raw.scenario!=="xjtu")unexpected();
+  if(raw.synthetic===false&&raw.scenario!=="xjtu")unexpected();
+  if(raw.scenario==="xjtu"&&(typeof raw.asset_id!=="string"||!raw.asset_id||raw.asset_id.length>256))unexpected();
+  return {state:"running",url:raw.url as string,xjtuAvailable:raw.xjtu_available===true,
+    ...(typeof raw.asset_id==="string"?{assetId:raw.asset_id}:{}),
+    ...(raw.scenario?{scenario:raw.scenario as "bearing"|"live"|"xjtu"}:{})};
 }
 
-export async function sampleCommand(action:"status"|"start"|"stop",signal:AbortSignal):Promise<Sample>{
-  return parseSample(await postWrite("/api/v1/demo/synthetic/"+action,{},signal));
+export async function sampleCommand(action:"status"|"start"|"stop",signal:AbortSignal,scenario:"bearing"|"live"|"xjtu"="live"):Promise<Sample>{
+  const sample=parseSample(await postWrite("/api/v1/demo/"+(scenario==="live"?"synthetic":scenario)+"/"+action,{},signal));
+  return sample.state==="running"?{...sample,scenario:sample.scenario??scenario}:sample;
 }

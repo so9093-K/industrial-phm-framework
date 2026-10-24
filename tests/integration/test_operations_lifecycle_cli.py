@@ -2,6 +2,8 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import industrial_phm.commands.operations as operations_commands
 from industrial_phm.cli import main
 from industrial_phm.runtime import (
@@ -11,6 +13,14 @@ from industrial_phm.runtime import (
 )
 
 
+@pytest.fixture
+def free_ui_port(monkeypatch) -> None:
+    """These tests replace the supervisor; a local stack already on the default UI port
+    (for example `make up` on 2718) must not decide their outcome."""
+    monkeypatch.setattr(operations_commands, "port_in_use", lambda host, port: False)
+
+
+@pytest.mark.usefixtures("free_ui_port")
 def test_operations_up_creates_fresh_workspace_and_starts_node(
     tmp_path: Path,
     monkeypatch,
@@ -42,6 +52,7 @@ def test_operations_up_creates_fresh_workspace_and_starts_node(
     assert "operations_url=http://127.0.0.1:2718/web/" in output
 
 
+@pytest.mark.usefixtures("free_ui_port")
 def test_operations_up_reopens_initialized_workspace(
     tmp_path: Path,
     monkeypatch,
@@ -69,6 +80,7 @@ def test_operations_up_reopens_initialized_workspace(
     assert f"workspace={workspace.root} state=existing" in capsys.readouterr().out
 
 
+@pytest.mark.usefixtures("free_ui_port")
 def test_operations_up_adopts_recognized_pre_config_workspace_without_losing_state(
     tmp_path: Path,
     monkeypatch,
@@ -241,6 +253,7 @@ def test_operations_stop_requests_supervisor_shutdown(
     assert "stop=requested supervisor_pid=701" in capsys.readouterr().out
 
 
+@pytest.mark.linux_only
 def test_operations_stop_is_done_when_nothing_runs_and_clears_left_components(
     tmp_path: Path, capsys, monkeypatch
 ) -> None:

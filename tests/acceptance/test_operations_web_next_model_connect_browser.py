@@ -52,7 +52,11 @@ def test_model_is_connected_to_the_assets_own_stream(tmp_path: Path, width: int)
                 pw.expect(page.get_by_text("다른 모델 연결 (1)")).to_be_visible()
 
                 analyze(workspace)
-                page.reload()
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="신호", exact=True).click()
+                pw.expect(page.get_by_label("진동 특징", exact=False)).to_be_visible()
+                tabs.get_by_role("link", name="이상 징후", exact=True).click()
+                page.get_by_role("link", name="모델 점수 확인", exact=False).click()
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("3")
                 pw.expect(page.get_by_role("group", name="3번째 측정 모델 결과")).to_contain_text(
                     "기준 초과"

@@ -46,6 +46,8 @@ test("server eligibility restricts methods for each data kind", () => {
   assert.deepEqual(methodsFor("change",mixed,cap("ready","ready","ready"),"vibration"),["compare","relation","spectrum"]);
   assert.deepEqual(methodsFor("change",vibration,cap("ready","ready","unavailable"),"vibration"),["compare","relation"]);
   assert.deepEqual(methodsFor("anomaly",null,cap("ready","ready","ready")),[]);
+  // Connecting a model is how stored raw waveforms acquire their first analyzed features.
+  assert.deepEqual(methodsFor("anomaly",{history:null,vibration:null},cap("ready","ready","ready")),["model"]);
   assert.deepEqual(methodsFor("change",mixed,null),[]);
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
     cap("unavailable","unavailable","unavailable"),"history"),["electrical"]);

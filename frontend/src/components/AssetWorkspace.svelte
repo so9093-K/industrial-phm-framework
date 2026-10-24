@@ -1,6 +1,5 @@
 <script lang="ts">
   import {measurementLabel,elapsedText} from "../time-axis";
-  import {onMount} from "svelte";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
@@ -39,7 +38,7 @@
   // Every asset starts from the same task. The user chooses an anomaly method;
   // mixed inputs require an explicit measurement kind, never a hidden default.
   const method: Method | null = $derived(route.method ?? (route.tab === "change"
-    ? methodsFor("change", data, capabilities, defaultKind(data))[0] ?? "compare" : null));
+    ? methodsFor("change", data, capabilities, route.data ?? defaultKind(data))[0] ?? "compare" : null));
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
   const chooseAnomaly = $derived(route.tab === "anomaly" && route.method === null);
@@ -103,13 +102,17 @@
       data = value; dataState = "ready";
     }).catch(() => { if (!request.signal.aborted) dataState = "failed"; });
   }
-  onMount(() => {
+  // A first model analysis or a new receipt can make another task available
+  // while this asset remains open. Re-read input facts when entering a tab.
+  $effect(() => {
+    route.tab;
     reloadData();
-    return () => {dataRequest?.abort(); capabilityRequest?.abort();};
+    return () => dataRequest?.abort();
   });
   // A tab change reuses this component; fetch only for analysis selection, not
   // for every signal view or summary (which owns its separate options read).
   $effect(() => {
+    route.tab;
     if (!needsCapability) return;
     reloadCapability();
     return () => capabilityRequest?.abort();
@@ -187,7 +190,8 @@
     <StatusNotice kind="uncertain" title="선택한 분석을 이 데이터에서 사용할 수 없습니다"
       message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
-  {:else if route.tab !== "summary" && kindsOf(data).length === 0}
+  {:else if route.tab !== "summary" && kindsOf(data).length === 0
+    && !(route.tab === "anomaly" && (chooseAnomaly || method === "model"))}
     <StatusNotice kind="uncertain" title="분석할 저장 데이터가 없습니다"
       message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다. 다른 종류로 대체해 보여 주지 않습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
@@ -201,7 +205,8 @@
       <p class="context">모델 점수는 연결된 모델과 분석 결과가 있어야 표시됩니다.</p>
       <ul>
         {#each methods as option (option)}
-          <li><a href={at("anomaly", option)}>{METHOD_INFO[option]} 확인 →</a>
+          <li><a href={at("anomaly", option)} onclick={retainSelection}
+            onauxclick={retainSelection} oncontextmenu={retainSelection}>{METHOD_INFO[option]} 확인 →</a>
             <span class="context">{option === "baseline" ? "저장된 시계열의 기준 구간과 변화 비교" : "모델 분석 결과 또는 연결 상태 확인"}</span>
           </li>
         {/each}
@@ -213,7 +218,8 @@
       <p class="context">분석할 측정 종류를 선택하세요.</p>
       <ul>
         {#each eligibleKinds as option (option)}
-          <li><a href={at(route.tab, method, option)}>{DATA_INFO[option]}으로 확인 →</a></li>
+          <li><a href={at(route.tab, method, option)} onclick={retainSelection}
+            onauxclick={retainSelection} oncontextmenu={retainSelection}>{DATA_INFO[option]}으로 확인 →</a></li>
         {/each}
       </ul>
     </section>

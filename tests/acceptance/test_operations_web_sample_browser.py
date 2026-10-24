@@ -37,7 +37,7 @@ def test_supervised_sample_is_separate_read_only_and_stoppable(tmp_path: Path) -
                 page = browser.new_page(viewport={"width": 390, "height": 900})
                 page.goto(f"http://127.0.0.1:{port}/web/?page=system")
                 sample = page.get_by_role("region", name="예시로 둘러보기")
-                sample.get_by_role("button", name="예시 시작").click()
+                sample.get_by_role("button", name="실시간 수신 예시 시작").click()
                 link = sample.get_by_role("link", name="예시 화면 열기 (새 탭)")
                 pw.expect(link).to_be_visible(timeout=60_000)
                 href = link.get_attribute("href")
@@ -61,7 +61,7 @@ def test_supervised_sample_is_separate_read_only_and_stoppable(tmp_path: Path) -
                 pw.expect(link).to_have_attribute("href", href)
                 sample.get_by_role("button", name="예시 종료").click()
                 sample.get_by_role("button", name="종료하기").click()
-                pw.expect(sample.get_by_role("button", name="예시 시작")).to_be_visible(
+                pw.expect(sample.get_by_role("button", name="실시간 수신 예시 시작")).to_be_visible(
                     timeout=45_000
                 )
                 assert not JsonSourceRepository(workspace.source_registry_path).list_sources()

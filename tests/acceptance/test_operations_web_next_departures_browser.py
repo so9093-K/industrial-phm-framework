@@ -12,7 +12,7 @@ import pytest
 
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
-from tests.support.web_next import choose_asset, expect_place
+from tests.support.web_next import choose_asset, expect_place, mock_history_source
 
 
 @pytest.mark.parametrize("width", [390, 1024, 1440])
@@ -54,6 +54,7 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                     },
                     "system_error_scopes": [],
                 }
+                mock_history_source(page, "motor-a", "R")
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(
@@ -186,7 +187,9 @@ def test_departures_are_not_diagnosis_and_selection_survives_reload(
                 choose_asset(page, "motor-b")
                 expect_place(pw, page, "이상 징후", "기준 구간 이탈")
                 pw.expect(
-                    page.get_by_role("heading", name="이 설비에 저장된 신호가 없습니다")
+                    page.get_by_role(
+                        "heading", name="선택한 분석을 이 데이터에서 사용할 수 없습니다"
+                    )
                 ).to_be_visible()
                 assert "motor-b" in page.url
                 assert not errors, errors

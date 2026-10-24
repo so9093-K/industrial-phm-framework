@@ -144,7 +144,7 @@ def test_web_next_empty_and_partial_read_are_not_asset_health(tmp_path: Path) ->
                 pw.expect(page.get_by_role("link", name="CSV 파일로 시작")).to_have_attribute(
                     "href", "/web/?page=system&section=connections"
                 )
-                pw.expect(page.get_by_role("link", name="예시로 둘러보기")).to_have_attribute(
+                pw.expect(page.get_by_role("link", name="분석 체험하기")).to_have_attribute(
                     "href", "/web/?page=system&section=connections#sample"
                 )
                 assert page.get_by_role("heading", name="설비 0개").count() == 0

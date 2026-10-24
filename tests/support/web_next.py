@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 from threading import Thread
 from typing import Any
+from urllib.parse import urlencode
 
 from industrial_phm.runtime.operations_web_actions import execute_web_source_action
 from industrial_phm.runtime.operations_web_file_history import FileHistoryJobs
@@ -33,6 +34,50 @@ def expect_place(pw: Any, page: Any, tab: str, method: str | None = None) -> Non
 def choose_asset(page: Any, asset_id: str) -> None:
     """Switch to another asset from the asset screen header."""
     page.get_by_label("다른 설비").select_option(asset_id)
+
+
+def mock_analysis_capabilities(page: Any, asset_id: str, *ready: str) -> None:
+    """Declare analysis eligibility alongside a test's mocked stored measurements.
+
+    These isolated DTO/UI tests do not populate stores. Real eligibility is exercised
+    by the capability browser tests, which retain the real server response.
+    """
+    page.route(
+        "**/api/v1/explore/capabilities?" + urlencode({"asset_id": asset_id}),
+        lambda route: route.fulfill(
+            json={
+                "schema_version": 1,
+                "asset_id": asset_id,
+                "meaning": "what-the-stored-data-supports-not-asset-health",
+                "data": {},
+                "capabilities": [
+                    {
+                        "id": capability,
+                        "status": "ready",
+                        "reason": "history",
+                        "facts": {},
+                        "target": None,
+                    }
+                    for capability in ready
+                ],
+            }
+        ),
+    )
+
+
+def mock_history_source(page: Any, asset_id: str, *channels: str) -> None:
+    """Stored input metadata is independent of the mocked forecast options."""
+    page.route(
+        "**/api/v1/explore/sources?" + urlencode({"asset_id": asset_id}),
+        lambda route: route.fulfill(
+            json={
+                "schema_version": 1,
+                "asset_id": asset_id,
+                "history": {"channels": list(channels)},
+                "acquisition": None,
+            }
+        ),
+    )
 
 
 class InProcessSupervisor:

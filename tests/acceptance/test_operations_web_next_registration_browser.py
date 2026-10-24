@@ -61,6 +61,7 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
 
                 # The sample would start another local process; its answers are fixed here.
                 page.route("**/api/v1/demo/synthetic/*", demo)
+                page.route("**/api/v1/demo/bearing/*", demo)
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
                 register = page.get_by_role("region", name="다른 방법으로 연결")
 
@@ -151,7 +152,7 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
                 pw.expect(live_card.get_by_role("button", name="수집 시작 요청")).to_be_visible()
 
                 example = page.get_by_role("region", name="예시로 둘러보기")
-                example.get_by_role("button", name="예시 시작").click()
+                example.get_by_role("button", name="실시간 수신 예시 시작").click()
                 opened = example.get_by_role("link", name="예시 화면 열기 (새 탭)")
                 back = f"http://127.0.0.1:{server.server_port}/web/?page=system"
                 pw.expect(opened).to_have_attribute(
@@ -161,7 +162,9 @@ def test_phase_roles_opcua_and_sample_registration(tmp_path: Path, width: int) -
                 example.get_by_role("group", name="예시를 종료할까요?").get_by_role(
                     "button", name="종료하기"
                 ).click()
-                pw.expect(example.get_by_role("button", name="예시 시작")).to_be_visible()
+                pw.expect(
+                    example.get_by_role("button", name="실시간 수신 예시 시작")
+                ).to_be_visible()
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )

@@ -3,7 +3,7 @@
 The Operations Web, organised by user task, is served at **`/web/`**. The former
 `/web-next/` address redirects to it on the same origin. It reads the existing APIs
 and never recalculates measured values or health verdicts in the browser.
-See [migration and verification boundaries](../docs/product/web-migration.md).
+See [user workflows](../docs/product/overview.md) and [verification boundaries](../docs/testing-policy.md).
 
 ## Verification
 
@@ -19,6 +19,12 @@ The build outputs `src/industrial_phm/apps/web_next` and an explicit
 `asset-manifest.json` read by the Python HTTP server. The package is served
 on the **same loopback origin** under `/web/` only after building it.
 Primary navigation follows the observation-first tasks: 관측 현황, 설비·신호, 운영 관리.
+The empty workspace leads to a self-contained bearing investigation with real Isolation Forest
+and LSTM calculations on explicitly synthetic, independently generated reference and demo streams.
+`BearingGuide.svelte` links the existing model, waveform, feature, period, relationship, spectrum
+and optional review screens; `demo-journey.ts` carries valid model/measurement/feature/period choices
+at link activation without mixing another asset. XJTU recorded-data demos use the same guide.
+The server session supplies bounded example identity; every calculation still uses the normal APIs.
 Saved analysis history and existing human-review records remain reachable through contextual or exact links,
 not through the primary navigation. Screens follow the task routes of `docs/product/overview.md`:
 `/web/` (관측 현황), `?page=assets&monitor_asset=…` (설비·신호, with

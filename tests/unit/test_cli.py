@@ -120,3 +120,29 @@ def test_top_level_help_exposes_operational_responsibility_groups(
     assert "maintenance" in output
     assert "validate" in output
     assert "internal" in output
+
+
+def test_xjtu_demo_can_prepare_without_starting_operations(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A workspace prepared on one host is opened by compose.xjtu.yaml, not by this command."""
+    from types import SimpleNamespace
+
+    import industrial_phm.commands.demo as demo
+    import industrial_phm.commands.operations as operations
+
+    prepared = SimpleNamespace(
+        workspace=SimpleNamespace(root=tmp_path),
+        config=None,
+        packages=("forest", "lstm"),
+        replay=SimpleNamespace(delivered=100, already_present=0),
+    )
+    monkeypatch.setattr(demo, "prepare_xjtu_model_demo", lambda *args, **kwargs: prepared)
+
+    def started(*args: object) -> int:
+        raise AssertionError("Operations must not start with --prepare-only")
+
+    monkeypatch.setattr(operations, "_start_operations_workspace", started)
+
+    assert main(["demo", "xjtu", "--until", "100", "--prepare-only"]) == 0
+    assert f"workspace={tmp_path}" in capsys.readouterr().out

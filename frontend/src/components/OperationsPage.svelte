@@ -13,10 +13,10 @@
    * services and stores work. The two parts share one address with a section. */
   type Props = {
     snapshot: Snapshot | null; storeState: "loading" | "ready" | "empty" | "failed"; storeError: string;
-    writable: boolean; section: SystemSection;
+    writable: boolean; section: SystemSection; example?: boolean; returnTo?: string | null;
     onChanged?: () => Promise<void>;
   };
-  let {snapshot, storeState, storeError, writable, section, onChanged}: Props = $props();
+  let {snapshot, storeState, storeError, writable, section, example=false, returnTo=null, onChanged}: Props = $props();
   let sources: Sources | null = $state(null);
   let sourceState: "loading" | "ready" | "failed" = $state("loading");
   // Analyses run here count at once; the monitor snapshot catches up on the next read.
@@ -51,7 +51,15 @@
   {/each}
 </nav>
 
-{#if section === "connections"}
+{#if section === "connections" && example}
+  <!-- An example keeps its prepared records; the server refuses new data or models there. -->
+  <section class="ui-panel" aria-labelledby="example-data-title">
+    <h2 id="example-data-title">데이터 연결</h2>
+    <p>이 체험 작업공간은 준비된 기록만 사용합니다. CSV·OPC UA 데이터와 모델은 내 작업공간에서 연결합니다.</p>
+    <p class="context">체험 중 남긴 AI 해설과 검토 기록은 이 체험 작업공간에만 저장됩니다.</p>
+    {#if returnTo}<a href={returnTo}>내 작업공간으로 돌아가기 →</a>{/if}
+  </section>
+{:else if section === "connections"}
   <CsvStart {writable} onSaved={reload} />
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
     onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />
@@ -62,6 +70,9 @@
 {/if}
 
 <style>
+  section { display: grid; gap: var(--space-3); }
+  section h2, section p { margin: 0; }
+  .context { color: var(--color-ink-muted); }
   .sections { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-block: var(--space-2) var(--space-4);
     padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
   .sections a { padding: var(--space-2) var(--space-4); border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; font-weight: 650; }

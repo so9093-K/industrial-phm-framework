@@ -86,3 +86,14 @@ test("roles are suggested from clear column names only, and evidence is never fi
   assert.equal(kept[0].channel,"other");
   assert.equal(phaseRoleProblem(declaredRoles(roles),["vR","vS","vT","iR","iS","iT"]),"역할마다 단위 근거와 해석 근거를 적으세요.");
 });
+
+test("actual-data start is available only for a prepared replay and keeps the selected real asset",()=>{
+  assert.deepEqual(parseSample({synthetic:false,state:"stopped",xjtu_available:true}),
+    {state:"stopped",url:null,xjtuAvailable:true});
+  const real={synthetic:false,state:"running",scenario:"xjtu",asset_id:"Bearing1_1",xjtu_available:true,
+    separate_workspace:true,url:"http://127.0.0.1:2719/web/"};
+  assert.equal(parseSample(real).assetId,"Bearing1_1");
+  assert.equal(parseSample(real).scenario,"xjtu");
+  assert.throws(()=>parseSample({...real,asset_id:undefined}));
+  assert.throws(()=>parseSample({...real,scenario:"bearing"}));
+});

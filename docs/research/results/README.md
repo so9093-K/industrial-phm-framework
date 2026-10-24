@@ -27,3 +27,6 @@ summary와 capability boundary를 PR evidence note에 기록합니다.
 AI-Hub 전기 다변량 후보의 [평가 v2](aihub-239-electrical-anomaly-evaluation-v2.json)는 **FAIL**입니다.
 설비·유형별 주입 사례와 학습 불가/위치 부족도 보존하며, 원본을 바꾸지 않은 경보 비율은 실제 이상이
 섞일 수 있어 오경보율로 부르지 않습니다. 기능 재생 검증을 모델 성능 합격으로 승격하지 않습니다.
+
+이전 Web 제품 수용 캡처·실행 로그는 Git 이력에서 확인합니다. 현재 화면은
+[제품 시각 자료](../../../assets/README.md), 수용 실행 범위는 [검증 정책](../../testing-policy.md)을 따릅니다.

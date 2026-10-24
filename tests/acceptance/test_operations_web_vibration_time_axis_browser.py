@@ -47,7 +47,7 @@ def test_vibration_time_axis_uses_measurement_interval(
                 else:
                     assert labels[0] == "0분"
                     assert all("분" in label for label in labels)
-                    pw.expect(panel.locator(".x-axis")).to_contain_text("측정 간격 60초")
+                    pw.expect(panel.locator(".x-axis")).to_contain_text("측정 간격 1분")
                 pw.expect(panel.locator("circle title").first).to_contain_text("1번째 측정")
                 pw.expect(panel.locator("circle title").last).to_contain_text("6번째 측정")
                 # Labels must fit their chart and remain readable on a phone as well as a desktop.
