@@ -94,6 +94,24 @@ export function parseFindingReviews(raw:unknown,assetId:string):FindingReviewPag
   return {items,total,truncated:reviews.truncated};
 }
 
+/** Exact persisted review identity; a bounded list must not hide old bookmarks. */
+export async function readFindingReview(assetId:string,findingId:string,signal:AbortSignal):Promise<FindingReview|null>{
+  const response=await fetch("/api/v1/reviews?"+new URLSearchParams({asset_id:assetId,finding_id:findingId}),
+    {signal,cache:"no-store",credentials:"same-origin"});
+  if(response.status===404){
+    await response.body?.cancel().catch(()=>{});
+    return null;
+  }
+  if(!response.ok){
+    await response.body?.cancel().catch(()=>{});
+    throw new Error("지정한 검토 기록을 확인하지 못했습니다.");
+  }
+  const page=parseFindingReviews(await response.json() as unknown,assetId);
+  if(page.truncated||page.items.length!==1||page.items[0].findingId!==findingId)
+    throw new Error("지정한 검토 기록과 서버 응답이 일치하지 않습니다.");
+  return page.items[0];
+}
+
 export async function readFindingReviews(assetId:string,signal:AbortSignal):Promise<FindingReviewPage>{
   const response=await fetch("/api/v1/reviews?"+new URLSearchParams({asset_id:assetId}),
     {signal,cache:"no-store",credentials:"same-origin"});

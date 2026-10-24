@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
+import type {Capabilities, CapabilityStatus} from "./capabilities.ts";
 
 test("an asset's stored data kinds choose the default analysis, never another asset's", () => {
   const vibrationOnly = parseAssetData({schema_version: 1, asset_id: "bearing-a", history: null,
@@ -28,15 +29,31 @@ test("unknown, absent and mixed data never invent a default kind", () => {
   assert.equal(defaultKind({history: {signals: 2}, vibration: {measurements: 4, first: 1, last: 4}}), null);
 });
 
-test("only the methods an asset's data supports are offered", () => {
-  const vibration = {history: null, vibration: {measurements: 100, first: 1, last: 100}};
-  const csv = {history: {signals: 2}, vibration: null};
-  assert.deepEqual(methodsFor("anomaly", vibration), ["model"]);
-  assert.deepEqual(methodsFor("change", vibration), ["compare", "relation", "spectrum"]);
-  assert.deepEqual(methodsFor("change", csv), ["compare", "relation", "electrical"]);
-  assert.deepEqual(methodsFor("anomaly", null), []);
-  assert.deepEqual(methodsFor("change", {history: null, vibration: null}), []);
-  assert.deepEqual(methodsFor("signals", csv), []);
+test("server eligibility restricts methods for each data kind", () => {
+  const vibration = {history:null,vibration:{measurements:100,first:1,last:100}};
+  const csv = {history:{signals:1},vibration:null};
+  const mixed = {history:{signals:1},vibration:vibration.vibration};
+  const cap = (compare:CapabilityStatus,relation:CapabilityStatus,spectrum:CapabilityStatus):Capabilities => ({
+    assetId:"m",history:null,acquisition:null,items:[
+      {id:"period-compare",status:compare,reason:"history",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
+      {id:"relation",status:relation,reason:"single-signal",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
+      {id:"spectrum",status:spectrum,reason:"no-waveform",target:null,facts:{}},
+      {id:"anomaly",status:"ready",reason:"explore",target:null,facts:{}},
+    ],
+  });
+  assert.deepEqual(methodsFor("change",csv,cap("unavailable","unavailable","unavailable"),"history"),[]);
+  assert.deepEqual(methodsFor("change",mixed,cap("ready","ready","ready"),"history"),[]);
+  assert.deepEqual(methodsFor("change",mixed,cap("ready","ready","ready"),"vibration"),["compare","relation","spectrum"]);
+  assert.deepEqual(methodsFor("change",vibration,cap("ready","ready","unavailable"),"vibration"),["compare","relation"]);
+  assert.deepEqual(methodsFor("anomaly",null,cap("ready","ready","ready")),[]);
+  assert.deepEqual(methodsFor("change",mixed,null),[]);
+  assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
+    cap("unavailable","unavailable","unavailable"),"history"),["electrical"]);
+  const mixedElectrical = {history:{signals:3},vibration:vibration.vibration};
+  // The electrical workflow consumes R/S/T history, never the selected vibration source.
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"history"),["electrical"]);
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"vibration"),
+    ["compare","relation","spectrum"]);
 });
 
 test("elapsed measurement time carries its source and requires a valid recorded interval", () => {

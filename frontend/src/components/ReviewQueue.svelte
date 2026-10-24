@@ -5,7 +5,7 @@
   import type {Evidence} from "../reviews";
   import {captureUrl, readCaptures, CaptureNotFound, type Capture} from "../outlook-captures";
   import {seriesName} from "../series-names";
-  import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
+  import {findingUrl, readFindingReview, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
   import {filterReviewItems, selectReviewItem, selectReviewAssets} from "../review-selection";
   import {readReviewAssetIndex} from "../review-index";
@@ -43,7 +43,6 @@
   let loadState: "loading" | "ready" = $state("loading");
   let failedAssets: string[] = $state([]);
   let missingFocus = $state(false);
-  let olderFindingFocus = $state(false);
   let truncatedFindingAssets: Record<string, boolean> = $state({});
   let moreAvailable = $state(false);
   let scopeAssetId = $state(untrack(() => focusAssetId));
@@ -192,15 +191,24 @@
       }
     }
     if (request.signal.aborted) return;
+    // Exact bookmarks bypass the recent 100-finding list, just like captures.
+    const foundReviews = pages.flatMap((page) => page.reviews);
+    if (focusFindingId && focusAssetId && !foundReviews.some((item) => item.findingId === focusFindingId)) {
+      try {
+        const exact = await readFindingReview(focusAssetId, focusFindingId, request.signal);
+        if (exact) foundReviews.push(exact);
+        else missingFocus = true;
+      } catch {
+        failed(focusAssetId);
+      }
+    }
+    if (request.signal.aborted) return;
     captures = [...captures, ...loaded.filter((item) => !captures.some((prior) => prior.id === item.id))];
-    findings = [...findings, ...pages.flatMap((page) => page.reviews).filter((item) =>
+    findings = [...findings, ...foundReviews.filter((item) =>
       !findings.some((prior) => prior.findingId === item.findingId))];
     loadedAssets += assets.length;
     if (focusFindingId && !failedAssets.includes(focusAssetId)
-      && !findings.some((item) => item.findingId === focusFindingId)) {
-      if (truncatedFindingAssets[focusAssetId]) olderFindingFocus = true;
-      else missingFocus = true;
-    }
+      && !findings.some((item) => item.findingId === focusFindingId)) missingFocus = true;
   }
 
   async function loadMoreAssets() {
@@ -343,9 +351,6 @@
     {:else if missingFocus && !ignoreFocus}
       <StatusNotice kind="uncertain" title="검토 항목을 찾을 수 없습니다"
         message="이 설비에서 해당 검토 항목을 찾을 수 없습니다. 다른 설비의 기록으로 대신 보여 주지 않습니다." />
-    {:else if olderFindingFocus && !ignoreFocus}
-      <StatusNotice kind="uncertain" title="검토 기록이 이번 조회 범위 밖에 있습니다"
-        message="분석 검토 목록은 설비당 최대 100건만 제공합니다. 더 오래된 기록을 찾지 못한 것이 삭제됐다는 뜻은 아닙니다." />
     {:else if !selected && (focusCaptureId || focusFindingId) && !ignoreFocus
       && failedAssets.includes(focusAssetId)}
       <StatusNotice kind="uncertain" title="요청한 검토 기록을 확인하지 못했습니다"

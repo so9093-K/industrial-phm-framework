@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {findingUrl,modelResultUrl,parseFindingReviews} from "./finding-reviews.ts";
+import {findingUrl,modelResultUrl,parseFindingReviews,readFindingReview} from "./finding-reviews.ts";
 
 const uuid=(n:string)=>n.repeat(8)+"-"+n.repeat(4)+"-4"+n.repeat(3)+"-8"+n.repeat(3)+"-"+n.repeat(12);
 const event=(n:string,action:string,note="")=>({event_id:"finding-review-event-"+uuid(n),action,note,
@@ -49,4 +49,23 @@ test("review links open the queue item or the exact stored model result",()=>{
   assert.equal(model.searchParams.get("method"),"model");
   assert.equal(model.searchParams.get("model_binding"),"anomaly-a");
   assert.equal(model.searchParams.get("model_position"),"7");
+});
+
+test("exact review URL is asset-scoped and rejects a substituted identity", async()=>{
+  const previous=globalThis.fetch;
+  const seen:string[]=[];
+  try{
+    globalThis.fetch=async(input:RequestInfo|URL)=>{
+      const u=new URL(String(input),"http://localhost");
+      seen.push(u.search);
+      return new Response(JSON.stringify(page(item())),{status:200,headers:{"Content-Type":"application/json"}});
+    };
+    const found=await readFindingReview("motor-a","finding-1",new AbortController().signal);
+    assert.equal(found?.findingId,"finding-1");
+    assert.equal(new URLSearchParams(seen[0]).get("finding_id"),"finding-1");
+    assert.equal(new URLSearchParams(seen[0]).get("asset_id"),"motor-a");
+    await assert.rejects(()=>readFindingReview("motor-a","not-this",new AbortController().signal),/일치/);
+    globalThis.fetch=async()=>new Response("",{status:404});
+    assert.equal(await readFindingReview("motor-a","missing",new AbortController().signal),null);
+  }finally{globalThis.fetch=previous;}
 });

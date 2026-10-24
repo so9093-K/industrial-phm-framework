@@ -222,7 +222,7 @@ def _signal_capabilities(
     else:
         items.append(_item("period-compare", UNAVAILABLE, "single-moment", None))
 
-    if history and channels >= 2:
+    if history and channels >= 2 and spans_time:
         items.append(
             _item(
                 "relation",
@@ -250,7 +250,8 @@ def _signal_capabilities(
     elif unread:
         items.append(_item("relation", NEEDS_CONNECTION, "waveforms-need-model", "anomaly"))
     else:
-        items.append(_item("relation", UNAVAILABLE, "single-signal", None))
+        reason = "single-moment" if history and channels >= 2 else "single-signal"
+        items.append(_item("relation", UNAVAILABLE, reason, None))
 
     if acquisition:
         items.append(_item("spectrum", READY, "acquisition", "signals", "spectrum"))
@@ -258,6 +259,29 @@ def _signal_capabilities(
         items.append(_item("spectrum", NEEDS_CONNECTION, "waveforms-need-model", "anomaly"))
     else:
         items.append(_item("spectrum", UNAVAILABLE, "no-waveform", None))
+    # One mixed asset may be ready for a method on one source kind only.
+    # Do not let overall status authorize a source with insufficient evidence.
+    by_kind = {
+        "period-compare": {
+            "history": READY if spans_time else UNAVAILABLE,
+            "vibration": READY
+            if analyzed >= 2
+            else (
+                WAITING if acquisition is not None else NEEDS_CONNECTION if unread else UNAVAILABLE
+            ),
+        },
+        "relation": {
+            "history": READY if channels >= 2 and spans_time else UNAVAILABLE,
+            "vibration": READY
+            if analyzed >= 3 and features >= 2
+            else (
+                WAITING if acquisition is not None else NEEDS_CONNECTION if unread else UNAVAILABLE
+            ),
+        },
+    }
+    for item in items:
+        if item["id"] in by_kind:
+            item["facts"]["by_kind"] = by_kind[item["id"]]
     return items
 
 

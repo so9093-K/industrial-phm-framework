@@ -126,6 +126,11 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     assert status["measurements"] == ("ready", "history")
     assert status["period-compare"] == ("ready", "history")
     assert status["relation"] == ("ready", "history")
+    relation = next(item for item in body["capabilities"] if item["id"] == "relation")
+    assert relation["facts"]["by_kind"] == {
+        "history": "ready",
+        "vibration": "unavailable",
+    }
     assert status["spectrum"] == ("unavailable", "no-waveform")
     # A CSV history is not a model input, but it can be searched for departures without one.
     assert status["anomaly"] == ("ready", "explore")
@@ -142,13 +147,46 @@ def test_stored_csv_history_opens_signal_analyses_and_says_why_models_cannot_rea
     assert body["data"]["history"]["channel_count"] == 2
     assert body["data"]["history"]["measurement_count"] == 40
 
-    assert _status(project_asset_capabilities(workspace, "fan-01", can_ask=True))["relation"] == (
-        "unavailable",
-        "single-signal",
-    )
+    fan = project_asset_capabilities(workspace, "fan-01", can_ask=True)
+    assert _status(fan)["relation"] == ("unavailable", "single-signal")
+    relation = next(item for item in fan["capabilities"] if item["id"] == "relation")
+    assert relation["facts"]["by_kind"]["history"] == "unavailable"
     empty = _status(project_asset_capabilities(workspace, "nothing-here", can_ask=True))
     assert empty["measurements"] == ("unavailable", "no-data")
     assert empty["spectrum"] == ("unavailable", "no-data")
+
+
+def test_two_channels_at_one_instant_cannot_support_time_comparison_or_relation(
+    tmp_path: Path,
+) -> None:
+    workspace = phm_workspace(tmp_path / "single-moment", bind=False)
+    DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    ).append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:motor-a:{'d' * 64}:{channel}:0",
+                source_id="motor-a-file",
+                asset_id="motor-a",
+                channel_id=channel,
+                source_file="m.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=BASE,
+                value=10.0 + index,
+            )
+            for index, channel in enumerate(("voltage", "current"))
+        ),
+        batch_id="motor-a-single-moment",
+    )
+    result = project_asset_capabilities(workspace, "motor-a", can_ask=False)
+    statuses = _status(result)
+    assert statuses["period-compare"] == ("unavailable", "single-moment")
+    assert statuses["relation"] == ("unavailable", "single-moment")
+    for item in result["capabilities"]:
+        if item["id"] in {"period-compare", "relation"}:
+            assert item["facts"]["by_kind"]["history"] == "unavailable"
 
 
 def test_the_route_decides_question_access_from_the_web_mode(tmp_path: Path) -> None:

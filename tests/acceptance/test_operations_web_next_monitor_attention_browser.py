@@ -12,6 +12,47 @@ from tests.support.web_next import asset_list, start_web, stop_web
 
 
 @pytest.mark.parametrize("width", [390, 1280])
+def test_monitor_never_substitutes_fetch_time_for_missing_assessment(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "missing-assessment")
+    deliver(workspace, tmp_path / "waves", 1, 0.5)
+    server, thread = start_web(workspace.root.resolve(), writer=False)
+    failed = {"value": False}
+
+    def monitor(route) -> None:
+        if failed["value"]:
+            route.fulfill(status=503, json={"error": "unavailable"})
+            return
+        response = route.fetch()
+        body = response.json()
+        body["assessed_at"] = None
+        route.fulfill(response=response, json=body)
+
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900}, locale="ko-KR")
+                page.route("**/api/v1/phm/monitor", monitor)
+                page.goto(f"http://127.0.0.1:{server.server_port}/web/")
+                attention = page.get_by_role("region", name="확인이 필요한 설비")
+                pw.expect(attention).to_contain_text("모델 상태 평가 시각 미확인")
+                # A failed fetch clears prior timestamps, not a stale current status.
+                attention.get_by_role("button", name="자동 갱신 멈추기").click()
+                failed["value"] = True
+                attention.get_by_role("button", name="자동 갱신 다시 시작").click()
+                pw.expect(attention).to_contain_text("모델 처리 상태를 다시 읽지 못했습니다")
+                pw.expect(attention).to_contain_text("수신 조회 미확인")
+                pw.expect(attention).to_contain_text("기준 이탈 조회 미확인")
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
 def test_open_interval_and_quiet_latest_measurement_agree_across_views(
     tmp_path: Path, width: int
 ) -> None:
