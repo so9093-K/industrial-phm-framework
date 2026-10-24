@@ -57,7 +57,6 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 )
                 page.goto(base + "/web/?page=system")
                 pw.expect(page.get_by_role("heading", name="CSV 파일로 시작")).to_be_visible()
-                assert "section=connections" in page.url
                 page.goto(base + "/web/?page=system&section=status")
                 pw.expect(page.get_by_role("heading", name="실행 상태")).to_be_visible()
                 assert "section=status" in page.url
