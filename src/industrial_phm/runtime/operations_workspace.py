@@ -181,7 +181,6 @@ class OperationsWorkspaceInspection:
 
     workspace: OperationsWorkspace
     state: OperationsWorkspaceState
-    entries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,16 +203,11 @@ def inspect_operations_workspace(workspace: OperationsWorkspace) -> OperationsWo
     if not root.is_dir():
         raise OSError(f"Operations workspace root is not a directory: {root}")
 
-    entries = tuple(sorted(path.name for path in root.iterdir()))
     if workspace.config_path.exists():
-        return OperationsWorkspaceInspection(
-            workspace,
-            OperationsWorkspaceState.INITIALIZED,
-            entries,
-        )
-    if not entries:
+        return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.INITIALIZED)
+    if not any(root.iterdir()):
         return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.EMPTY)
-    return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.UNRECOGNIZED, entries)
+    return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.UNRECOGNIZED)
 
 
 def initialize_operations_workspace(
