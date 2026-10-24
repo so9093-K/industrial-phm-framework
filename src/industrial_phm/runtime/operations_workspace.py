@@ -216,7 +216,6 @@ def inspect_operations_workspace(workspace: OperationsWorkspace) -> OperationsWo
     return OperationsWorkspaceInspection(workspace, OperationsWorkspaceState.UNRECOGNIZED, entries)
 
 
-
 def initialize_operations_workspace(
     workspace: OperationsWorkspace,
 ) -> OperationsWorkspaceInitialization:
