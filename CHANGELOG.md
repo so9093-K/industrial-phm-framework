@@ -113,7 +113,7 @@
 - macOS의 `make up/status/logs/down`에 Linux Docker Compose 실행 경로를 추가했습니다. 잠금된 Web·Python 의존성을 이미지에 빌드하고, 별도 영속 볼륨에 측정값·검토 기록을 보존합니다. Linux는 기존 네이티브 실행을 유지하며 `make container-up`으로 같은 구성을 사용할 수 있습니다. localhost·CSRF·Linux peer credential 검증과 격리 예시 화면을 유지하고, 컨테이너 재생성 후 복원을 브라우저로 검증합니다.
 - Operations Web 기본 `/web/`를 Svelte 업무 화면으로 전환하고 이전 direct-DOM 자산을 제거했습니다. `/web-next/`는 query를 보존해 이동하며 기존 hash·모델 측정·예측 조건 주소를 새 업무 위치로 연결합니다.
 - 실제 supervisor CSV 응답 유실/리로드·분석/검토/재시작, OPC UA 탐색/수집/중단/재연결, 격리 예시와 모델 자동 갱신을 현재 UI로 검증합니다. 모델·진동만 있는 설비 목록 누락, 분석 완료 링크의 목록 갱신 경합, 측정점이 미등록인 OPC UA 이력 조회를 수정했습니다.
-- 모델 측정 고정/원본·AI 없는 측정/구간 비교·변화 지점 질문, 예측 세부 설정/과거 검증, 같은 파일 재선택 후 CSV 작업 복구를 이전했습니다. 기록 데이터 검증 도구는 현재 화면 계약을 쓰며 과거 캡처/결과는 당시 버전의 증거로 유지합니다. [전환 범위](docs/product/web-migration.md).
+- 모델 측정 고정/원본·AI 없는 측정/구간 비교·변화 지점 질문, 예측 세부 설정/과거 검증, 같은 파일 재선택 후 CSV 작업 복구를 이전했습니다. 기록 데이터 검증 도구는 현재 화면 계약을 쓰며 과거 캡처/결과는 당시 버전의 증거로 유지합니다. [당시 전환 범위](https://github.com/so9093-K/industrial-phm-framework/blob/fddf4b400ec68a74704b6143c994aa6bdce0042c/docs/product/web-migration.md).
 
 
 - 소스에서 배포본을 만드는 `uv build`는 잠금 파일 기준으로 Operations Web 프런트엔드를 빌드해 sdist와 wheel에 반드시 포함합니다. Node.js 22.12 이상과 npm이 없으면 빌드를 중단하며, 기존 정적 파일로 대신하지 않습니다. `make up`·`make demo`도 시작 전에 화면을 준비하고, `make frontend`로 따로 빌드할 수 있습니다. 만들어진 wheel의 설치·실행에는 Node가 필요 없습니다. 배포 검증은 sdist에서 wheel 재빌드·정적 manifest 전체·별도 환경에 설치한 wheel의 Node 없는 정적 제공을 확인하며 기존 `dist/`를 지우지 않습니다. 이 빌드 변경에 이어 기본 `/web/` 화면을 업무 UI로 전환했습니다.

@@ -4,7 +4,7 @@ Status: Accepted (2026-10-16); required distribution build added 2026-10-17.
 Default automated verification scope in §6 was superseded by [ADR-0031](0031-separate-default-ci-from-targeted-product-acceptance.md) (2026-10-19). The product build and acceptance requirements remain.
 The user explicitly requested the default `/web/` cutover and old-UI removal on
 2026-10-17. The workflow mapping and verification boundary are recorded in
-[Web migration](../product/web-migration.md).
+[2026-10-17 Web 전환 기록](https://github.com/so9093-K/industrial-phm-framework/blob/fddf4b400ec68a74704b6143c994aa6bdce0042c/docs/product/web-migration.md).
 
 Extends: [ADR-0024](0024-separate-operations-web-ui-from-marimo.md). Does not change
 the existing Python Operations API, local supervisor, read/write/CSRF contracts,
