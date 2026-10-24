@@ -1,7 +1,8 @@
 """Continuous Monitor acceptance with original XJTU/AI-Hub replay and fixed packages.
 
-The page stays on the default monitor task before delivery. Analysis pause, refused input, node outage,
-restart, exact result handoff and three viewports are exercised on one supervised node.
+The page stays on the default monitor task before delivery. Analysis pause,
+refused input, node outage, restart, exact result handoff and three viewports
+are exercised on one supervised node.
 """
 
 from __future__ import annotations

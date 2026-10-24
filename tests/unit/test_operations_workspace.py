@@ -5,8 +5,8 @@ import pytest
 from industrial_phm.runtime.operations_workspace import (
     OperationsWorkspace,
     OperationsWorkspaceState,
-    inspect_operations_workspace,
     initialize_operations_workspace,
+    inspect_operations_workspace,
 )
 
 
@@ -93,14 +93,14 @@ def test_operations_workspace_inspection_rejects_unknown_runtime_entries(tmp_pat
     assert inspection.state == OperationsWorkspaceState.UNRECOGNIZED
 
 
-def test_initialize_refuses_unconfigured_nonempty_workspace_without_mutation(tmp_path: Path) -> None:
+def test_initialize_refuses_unconfigured_workspace_without_mutation(tmp_path: Path) -> None:
     workspace = OperationsWorkspace(tmp_path / "pre-config")
     workspace.root.mkdir()
     existing = workspace.source_runtime_path
     existing.write_text('{"running": true}\n', encoding="utf-8")
     original = existing.read_bytes()
 
-    with pytest.raises(ValueError, match="non-empty Operations workspace without config.toml"):
+    with pytest.raises(ValueError, match=r"non-empty Operations workspace without config\.toml"):
         initialize_operations_workspace(workspace)
 
     assert existing.read_bytes() == original
