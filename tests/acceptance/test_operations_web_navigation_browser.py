@@ -24,7 +24,8 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
                 page.goto(
-                    base + "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"\
+                    base
+                    + "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
                     + "&model_binding=anomaly-a&model_position=2&model_compare=1"
                 )
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
