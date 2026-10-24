@@ -121,7 +121,9 @@ def test_two_period_profile_preserves_evidence_and_requery(tmp_path: Path, width
                 page.route("**/api/v1/explore/profile?**", profile)
                 base = f"http://127.0.0.1:{server.server_port}"
                 page.goto(
-                    base + "/web/?page=assets&tab=change&method=compare&data=history&monitor_asset=motor-a",
+                    base
+                    + "/web/?page=assets&tab=change&method=compare&data=history"
+                    + "&monitor_asset=motor-a",
                     wait_until="networkidle",
                 )
                 expect_place(pw, page, "변화 분석", "두 기간 비교")
