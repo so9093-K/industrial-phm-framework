@@ -1,4 +1,4 @@
-"""The default Web bundle is manifest-only; old entry URLs redirect without reviving assets."""
+"""The default Web bundle is manifest-only; the canonical entry serves no unlisted assets."""
 
 from __future__ import annotations
 
@@ -63,11 +63,10 @@ def test_default_web_is_manifest_only_and_same_origin(tmp_path: Path) -> None:
             assert "frame-ancestors 'none'" in headers["content-security-policy"]
             assert "access-control-allow-origin" not in headers
         assert b"/web/assets/" in _get(port, "/web/?page=system")[2]
-        for path in ("/web", "/web-next", "/web-next/"):
-            status, headers, body = _get(port, path + "?view=reviews&monitor_asset=a%2Fb")
-            assert status == 308 and not body
-            assert headers["location"] == "/web/?view=reviews&monitor_asset=a%2Fb"
-            assert headers["cache-control"] == "no-store"
+        status, headers, body = _get(port, "/web?page=system&monitor_asset=a%2Fb")
+        assert status == 308 and not body
+        assert headers["location"] == "/web/?page=system&monitor_asset=a%2Fb"
+        assert headers["cache-control"] == "no-store"
         for path in [
             "/web/asset-manifest.json",
             "/web/../config.toml",
@@ -78,12 +77,11 @@ def test_default_web_is_manifest_only_and_same_origin(tmp_path: Path) -> None:
             "/web/app.js",
             "/web/styles.css",
             "/web/example-motor.csv",
-            "/web-next/assets/not-listed.js",
             "/web/research-results.json",
             "/web/" + next(name for name in manifest if name.endswith(".js")) + "?path=../../.env",
         ]:
             assert _get(port, path)[0] == 404, path
-        for path in ("/web/", "/web-next/", "/web", "/web/" + manifest[0]):
+        for path in ("/web/", "/web", "/web/" + manifest[0]):
             assert _get(port, path, Host="evil.test")[0] == 403
             assert _get(port, path, Origin="https://evil.test")[0] == 403
 
