@@ -72,10 +72,19 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     "forecast_backtest": "multi",
                 }
                 if kind == "history":
-                    query.update(monitor_channel="current", projection_horizon="1h", projection_management="12")
+                    query.update(
+                        monitor_channel="current",
+                        projection_horizon="1h",
+                        projection_management="12",
+                    )
                 else:
-                    query.update(acq_forecast_feature=feature, acq_forecast_unit="time",
-                                 acq_forecast_horizon="1h", acq_management="12", acq_assumed_period="180")
+                    query.update(
+                        acq_forecast_feature=feature,
+                        acq_forecast_unit="time",
+                        acq_forecast_horizon="1h",
+                        acq_management="12",
+                        acq_assumed_period="180",
+                    )
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?{urlencode(query)}")
                 panel = page.get_by_role("region", name="기준 도달 전망")
                 panel.get_by_text("예측 계산 설정", exact=True).click()
