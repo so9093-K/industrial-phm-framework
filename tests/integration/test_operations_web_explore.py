@@ -300,9 +300,9 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         assert get("/api/v1/explore/attention", asset_id="pump-steady")[1]["items"] == []
         # A record that keeps growing (a live source) is not checked again on every read.
         history.append_file_batch(events("pump-moved", 5.0, 61, 40)[60:], batch_id="moved-one-more")
-        assert (
-            get("/api/v1/explore/attention", asset_id="pump-moved")[1]["items"][0]["distance"]
-            == item["distance"]
-        )
+        (reused,) = get("/api/v1/explore/attention", asset_id="pump-moved")[1]["items"]
+        assert reused["distance"] == item["distance"]
+        # ...and it still names the record end it judged, not the newer one.
+        assert reused["last_at"] == item["last_at"] == (BASE + timedelta(minutes=59)).isoformat()
     finally:
         stop()

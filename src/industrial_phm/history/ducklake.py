@@ -37,6 +37,7 @@ from industrial_phm.application.history_retention import RetentionProtection
 from industrial_phm.application.measurement_history import (
     PROFILE_QUANTILES,
     HistoryAssetSummary,
+    HistoryStream,
     MeasurementHistoryAggregation,
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
@@ -1488,6 +1489,93 @@ class DuckLakeAssetHistory:
         if row is None or row[0] is None:
             return None
         return _require_datetime(row[0], "start_at"), _require_datetime(row[1], "end_at")
+
+    def history_stream_extent(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        measurement_point_id: str | None,
+        channel_ids: Sequence[str],
+        after: datetime | None,
+        snapshot_id: int,
+    ) -> tuple[datetime, datetime] | None:
+        """First event at or after `after` and last event of one stream's channels at a snapshot.
+
+        The same (asset, source, point, channels) population a history-window step reads, so a
+        window is judged complete, and a gap is skipped, by that stream's own observations.
+        """
+        _validate_identifier(asset_id, "asset_id")
+        _validate_identifier(source_id, "source_id")
+        if measurement_point_id is not None:
+            _validate_identifier(measurement_point_id, "measurement_point_id")
+        channels = list(channel_ids)
+        if not channels:
+            raise ValueError("channel_ids must not be empty")
+        for channel in channels:
+            _validate_identifier(channel, "channel_id")
+        if after is not None and after.utcoffset() is None:
+            raise ValueError("after must be timezone-aware")
+        snapshot = _require_int(snapshot_id, "snapshot_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            row = connection.execute(
+                f"""
+                SELECT min(event_at) FILTER (WHERE ? IS NULL OR event_at >= ?), max(event_at)
+                FROM {_CATALOG_NAME}.history.measurement AT (VERSION => {snapshot})
+                WHERE asset_id = ? AND source_id = ? AND event_at IS NOT NULL
+                  AND measurement_point_id IS NOT DISTINCT FROM ?
+                  AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+            """,
+                [after, after, asset_id, source_id, measurement_point_id, channels],
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None or row[0] is None:
+            return None
+        return _require_datetime(row[0], "first_at"), _require_datetime(row[1], "last_at")
+
+    def list_history_streams(self, asset_id: str) -> tuple[HistoryStream, ...]:
+        """Each (source, point) stream of an asset with the channels and period it holds."""
+        _validate_identifier(asset_id, "asset_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                SELECT source_id, measurement_point_id, channel_id, min(event_at), max(event_at)
+                FROM {_CATALOG_NAME}.history.measurement
+                WHERE asset_id = ? AND event_at IS NOT NULL
+                GROUP BY source_id, measurement_point_id, channel_id
+                ORDER BY source_id, measurement_point_id NULLS FIRST, channel_id LIMIT 1001
+            """,
+                [asset_id],
+            ).fetchall()
+        finally:
+            connection.close()
+        if len(rows) > 1000:
+            raise ValueError("history stream discovery exceeds 1000 channels")
+        streams: dict[tuple[str, str | None], list[tuple[str, datetime, datetime]]] = {}
+        for source, point, channel, first, last in rows:
+            key = (_require_str(source, "source_id"), _optional_str(point, "measurement_point_id"))
+            streams.setdefault(key, []).append(
+                (
+                    _require_str(channel, "channel_id"),
+                    _require_datetime(first, "start_at"),
+                    _require_datetime(last, "end_at"),
+                )
+            )
+        return tuple(
+            HistoryStream(
+                source_id=source,
+                measurement_point_id=point,
+                channels=tuple(channel for channel, _, _ in items),
+                start_at=min(first for _, first, _ in items),
+                end_at=max(last for _, _, last in items),
+            )
+            for (source, point), items in streams.items()
+        )
 
     def list_history_sources(self, asset_id: str) -> tuple[str, ...]:
         """Sources that recorded history for one asset, for explicit analysis selection."""

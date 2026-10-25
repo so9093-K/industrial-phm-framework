@@ -1,12 +1,15 @@
 """Pure rules of stored-history window steps (ADR-0032)."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 from industrial_phm.application.analysis_input import ChannelObservation
 from industrial_phm.application.history_window import (
     HistoryModelRequest,
+    build_history_model,
     feature_names,
     feature_set_id,
     group_windows,
@@ -69,3 +72,53 @@ def test_request_and_labels_say_what_a_person_chose() -> None:
         HistoryModelRequest("a", "s", ("x",), AT, AT, 600)
     assert feature_label("motor_temp_c.std") == "motor_temp_c 표준편차"
     assert feature_label("feature.Horizontal_vibration_signals.rms") == "수평 진동 RMS"
+
+
+def _unit(channel: str, minute: int, value: float, unit: str) -> ChannelObservation:
+    return replace(_obs(channel, minute, value), unit=unit)
+
+
+def test_values_of_different_units_are_never_one_feature() -> None:
+    mixed = group_windows(
+        [_unit("a", m, 1.0 + m, "mm/s") for m in range(3)] + [_unit("a", 4, 0.1, "g")],
+        seconds=600,
+        measurement_point_id=None,
+    )[0]
+    assert window_features(mixed, ["a"]) == (
+        None,
+        "a: values with different units or meanings in one window",
+    )
+    other = group_windows(
+        [_unit("a", m, 1.0 + m, "g") for m in range(3)], seconds=600, measurement_point_id=None
+    )[0]
+    values, reason = window_features(other, ["a"], {"a": [None, None, "mm/s", None]})
+    assert values is None and reason is not None
+    assert "differs from the reference period (-/-/mm/s -> -/-/g)" in reason
+
+
+class _History:
+    def __init__(self, rows: list[ChannelObservation]) -> None:
+        self.rows = rows
+
+    def current_snapshot_id(self) -> int:
+        return 1
+
+    def history_stream_extent(self, *args: object, **kwargs: object) -> None:
+        return None
+
+    def query_channel_observations(
+        self, asset_id: str, *, start_at: datetime, end_at: datetime, **_: object
+    ) -> tuple[ChannelObservation, ...]:
+        return tuple(r for r in self.rows if start_at <= r.event_at < end_at)
+
+
+def test_a_reference_period_whose_unit_changes_builds_no_model(tmp_path: Path) -> None:
+    rows = [_unit("a", m, 1.0 + (m % 7), "mm/s" if m < 300 else "g") for m in range(600)]
+    request = HistoryModelRequest(
+        "asset", "s", ("a",), AT - timedelta(minutes=3), AT + timedelta(hours=10), 600
+    )
+    built = build_history_model(
+        tmp_path, _History(rows), request, created_at=AT, code_revision="test"
+    )
+    assert built.package_id is None and "단위나 의미가 바뀝니다" in str(built.reason)
+    assert not list(tmp_path.glob("*/package.json"))

@@ -5,18 +5,21 @@
   import {readSignalNames, signalName, type SignalNames} from "../history";
   import {OutcomeUnknown, WriteForbidden, WriteRejected} from "../writes";
   import {
-    buildHistoryModel, MAX_SIGNALS, readHistoryFacts, referencePeriod, WINDOW_CHOICES,
-    type HistoryFacts, type ReferenceChoice,
+    buildHistoryModel, MAX_SIGNALS, readHistoryStreams, referencePeriod, streamLabel, WINDOW_CHOICES,
+    type HistoryStream, type ReferenceChoice,
   } from "../history-model";
+  import StatusNotice from "./StatusNotice.svelte";
 
   /** Build an Isolation Forest from a period of this asset's own stored record and bind it
    * (ADR-0032). Shown only for assets with stored history; nothing happens without the press. */
   type Props = {assetId: string; writable: boolean; hasModel: boolean; onBuilt: (bindingId: string, notice: string) => void};
   let {assetId, writable, hasModel, onBuilt}: Props = $props();
-  let facts: HistoryFacts | null = $state(null);
+  let load: "loading" | "failed" | "ready" = $state("loading");
+  let streams: HistoryStream[] = $state([]);
   let names: SignalNames | null = $state(null);
   let chosen: string[] = $state([]);
-  let source = $state("");
+  let streamIndex = $state(0);
+  const stream = $derived(streams[streamIndex] ?? null);
   let choice: ReferenceChoice = $state("first-30");
   let from = $state(""), to = $state("");
   let windowSeconds = $state(600);
@@ -25,26 +28,37 @@
   let failed = $state(false);
   const clock = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
 
+  let request: AbortController | null = null;
+  function readStreams() {
+    request?.abort();
+    const current = request = new AbortController();
+    load = "loading";
+    void readHistoryStreams(assetId, current.signal).then((value) => {
+      if (current.signal.aborted) return;
+      streams = value; load = "ready"; pick(0);
+    }).catch(() => { if (!current.signal.aborted) load = "failed"; });
+  }
   onMount(() => {
-    const request = new AbortController();
-    void readHistoryFacts(assetId, request.signal).then((value) => {
-      if (request.signal.aborted || !value) return;
-      facts = value; chosen = value.channels.slice(0, 4); source = value.sources[0];
-    }).catch(() => {});
-    void readSignalNames(assetId).then((value) => { if (!request.signal.aborted) names = value; }).catch(() => {});
-    return () => request.abort();
+    readStreams();
+    // Signal names only label the choices; without them the stored IDs are shown.
+    void readSignalNames(assetId).then((value) => { if (request && !request.signal.aborted) names = value; }).catch(() => {});
+    return () => request?.abort();
   });
+  /** A stream offers only its own signals and period. */
+  function pick(index: number) {
+    streamIndex = index; chosen = (streams[index]?.channels ?? []).slice(0, 4);
+  }
 
   function toggle(channel: string, on: boolean) {
     chosen = on ? [...chosen, channel].slice(0, MAX_SIGNALS) : chosen.filter((item) => item !== channel);
   }
   async function build() {
-    if (!facts || !writable || busy || !chosen.length) return;
+    if (!stream || !writable || busy || !chosen.length) return;
     busy = true; failed = false; message = "기준 기간의 기록을 읽고 모델을 학습하고 있습니다.";
     try {
-      const period = referencePeriod(choice, facts,
+      const period = referencePeriod(choice, stream,
         choice === "custom" ? {from: from && kstInstant(from), to: to && kstInstant(to)} : null);
-      const result = await buildHistoryModel({assetId, sourceId: source, channels: chosen,
+      const result = await buildHistoryModel({assetId, stream, channels: chosen,
         from: period.from, to: period.to, windowSeconds}, new AbortController().signal);
       if (!result.built) { failed = true; message = result.reason; return; }
       message = result.reused
@@ -64,24 +78,29 @@
   }
 </script>
 
-{#if facts}
+{#if load === "failed"}
+  <StatusNotice kind="failure" title="모델 만들기에 쓸 기록 정보를 읽지 못했습니다"
+    message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다. 기록이 없다는 뜻은 아닙니다."
+    actionLabel="다시 불러오기" onAction={readStreams} />
+{:else if stream}
   <details class="build" open={!hasModel}>
     <summary>{hasModel ? "이 설비 데이터로 다른 모델 만들기" : "이 설비 데이터로 모델 만들기"}</summary>
     <p class="context">고른 기준 기간을 평소 모습으로 삼아 Isolation Forest 모델을 학습하고 이 설비에 연결합니다.
       이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다.</p>
     <fieldset>
       <legend>신호 (최대 {MAX_SIGNALS}개)</legend>
-      {#each facts.channels as channel (channel)}
+      {#each stream.channels as channel (channel)}
         <label class="check"><input type="checkbox" checked={chosen.includes(channel)} disabled={busy}
           onchange={(event) => toggle(channel, event.currentTarget.checked)} /> {signalName(names, channel)}</label>
       {/each}
     </fieldset>
-    {#if facts.sources.length > 1}
-      <label class="field">데이터 출처<select bind:value={source} disabled={busy}>
-        {#each facts.sources as item (item)}<option value={item}>{item}</option>{/each}</select></label>
+    {#if streams.length > 1}
+      <label class="field">데이터 출처<select value={streamIndex} disabled={busy}
+        onchange={(event) => pick(Number(event.currentTarget.value))}>
+        {#each streams as item, index (index)}<option value={index}>{streamLabel(item)}</option>{/each}</select></label>
     {/if}
     <fieldset>
-      <legend>기준 기간 · 기록 {clock(facts.startAt)} ~ {clock(facts.endAt)}</legend>
+      <legend>기준 기간 · 기록 {clock(stream.startAt)} ~ {clock(stream.endAt)}</legend>
       <label class="check"><input type="radio" bind:group={choice} value="first-30" disabled={busy} /> 기록 처음 30%</label>
       <label class="check"><input type="radio" bind:group={choice} value="first-50" disabled={busy} /> 기록 처음 50%</label>
       <label class="check"><input type="radio" bind:group={choice} value="custom" disabled={busy} /> 직접 지정 (KST)</label>

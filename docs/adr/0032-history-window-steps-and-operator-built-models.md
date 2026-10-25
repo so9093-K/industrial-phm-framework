@@ -20,18 +20,26 @@ creation is a developer CLI tied to the XJTU-SY and AI-Hub recipes.
    epoch-aligned event-time windows. A window is a step only when it holds observations and the stream
    already has a later observation (so a live stream does not score a window that is still filling).
    The step key is the window start; the position is the window end in microseconds; the input
-   reference records the snapshot, the window and a digest of the exact values used.
+   reference records the snapshot, the window and a digest of the exact values used. Progress is
+   judged by that same (source, point, channels) population at the same snapshot: a window is
+   complete once that stream has a later observation (another source's newer data does not count),
+   and each cycle starts at the stream's first observation after the cursor, so a gap of any length
+   is passed over instead of being scanned.
 2. **Feature set.** `history-window-stats-v1:<seconds>s` takes the mean, population standard
    deviation, minimum and maximum of each channel's good, non-conflicting values. A channel with fewer
-   than three such values makes the step a recorded skip with that reason. Training rows and scored
-   steps are produced by the same function.
-3. **Operator-built package.** 이상 징후 › 모델 점수 lets a person choose signals, a reference period of
-   the stored record and a window length, then explicitly build an Isolation Forest package
+   than three such values makes the step a recorded skip with that reason, as does a channel whose
+   values in one window carry different units or meanings. Training rows and scored steps are
+   produced by the same function.
+3. **Operator-built package.** 이상 징후 › 모델 점수 lets a person choose one stored stream (source and
+   measurement point, offering only that stream's signals and period), signals, a reference period
+   and a window length, then explicitly build an Isolation Forest package
    (`operator-history-iforest-v1`) from that period's windows: robust scaling (median, IQR), the
    package format's deterministic refit, probe rows, and a threshold at the 99.5th percentile of the
    reference scores. At least 24 reference windows are required. The manifest records the asset,
-   source, channels, period, snapshot, window count and a digest of the reference rows, and states
-   `operator-reference-not-validated`. Building again with the same choices over the same reference
+   source, channels, period, snapshot, window count, a digest of the reference rows and each channel's
+   unit and meaning, and states `operator-reference-not-validated`. A reference period in which a
+   channel's unit or meaning changes builds nothing; a later window recorded with another unit or
+   meaning is a skip with that reason. Building again with the same choices over the same reference
    values reuses that package and binding instead of adding an identical model; values changed inside
    the period (a later backfill) build a new package. The package is bound to that source and asset
    only; the runtime still never retrains on its own.

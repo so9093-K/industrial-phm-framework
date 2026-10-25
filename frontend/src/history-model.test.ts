@@ -1,23 +1,42 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {historyFeatureLabel, parseBuildResult, parseHistoryFacts, referencePeriod} from "./history-model.ts";
+import {buildPayload, historyFeatureLabel, parseBuildResult, parseHistoryStreams, referencePeriod, streamLabel} from "./history-model.ts";
 import {attentionByAsset, parsePhmMonitor} from "./monitor-attention.ts";
 import {modelNames, parseModelBindings, parseModelRun, parseModelTrace, windowLabel} from "./model-evidence.ts";
 
 const facts = {schema_version: 1, asset_id: "pump-01", acquisition: null,
-  history: {channels: ["vibration", "temperature"], sources: ["pump-file"],
-    start_at: "2026-10-15T00:00:00+00:00", end_at: "2026-10-18T00:00:00+00:00", measurement_count: 8640}};
+  history: {channels: ["vibration", "temperature", "current"],
+    start_at: "2026-10-01T00:00:00+00:00", end_at: "2026-10-18T00:00:00+00:00", measurement_count: 8640,
+    streams: [
+      {source_id: "pump-file", measurement_point_id: null, channels: ["vibration", "temperature"],
+        start_at: "2026-10-15T00:00:00+00:00", end_at: "2026-10-18T00:00:00+00:00"},
+      {source_id: "pump-opc", measurement_point_id: "drive-end", channels: ["current"],
+        start_at: "2026-10-01T00:00:00+00:00", end_at: "2026-10-02T00:00:00+00:00"},
+      {source_id: "broken", measurement_point_id: 3, channels: ["x"],
+        start_at: "2026-10-01T00:00:00+00:00", end_at: "2026-10-02T00:00:00+00:00"},
+    ]}};
 
-test("a stored record offers its signals, sources and extent; no history offers nothing", () => {
-  const read = parseHistoryFacts(facts)!;
-  assert.deepEqual(read.channels, ["vibration", "temperature"]);
-  assert.deepEqual(read.sources, ["pump-file"]);
-  assert.equal(parseHistoryFacts({...facts, history: null}), null);
-  assert.equal(parseHistoryFacts({...facts, history: {...facts.history, sources: []}}), null);
+test("each source and measurement point offers only its own signals and period", () => {
+  const [file, opc, ...rest] = parseHistoryStreams(facts);
+  assert.deepEqual([file.sourceId, file.pointId, file.channels], ["pump-file", null, ["vibration", "temperature"]]);
+  assert.deepEqual([opc.sourceId, opc.pointId, opc.channels, opc.endAt],
+    ["pump-opc", "drive-end", ["current"], "2026-10-02T00:00:00+00:00"]);
+  assert.equal(rest.length, 0);
+  assert.equal(streamLabel(opc), "pump-opc · 측정 위치 drive-end");
+  assert.deepEqual(parseHistoryStreams({...facts, history: null}), []);
+  assert.throws(() => parseHistoryStreams({history: facts.history}), /형식/);
 });
 
-test("the reference period is the first share of the record or what was entered", () => {
-  const read = parseHistoryFacts(facts)!;
+test("a build names the stream's measurement point, and leaves it out when there is none", () => {
+  const [file, opc] = parseHistoryStreams(facts);
+  const request = {assetId: "pump-01", channels: ["current"], from: "a", to: "b", windowSeconds: 600};
+  assert.equal(buildPayload({...request, stream: opc}).measurement_point_id, "drive-end");
+  assert.equal(buildPayload({...request, stream: opc}).source_id, "pump-opc");
+  assert.equal("measurement_point_id" in buildPayload({...request, stream: file}), false);
+});
+
+test("the reference period is the first share of the stream's record or what was entered", () => {
+  const read = parseHistoryStreams(facts)[0];
   assert.deepEqual(referencePeriod("first-30", read),
     {from: "2026-10-15T00:00:00.000Z", to: "2026-10-15T21:36:00.000Z"});
   assert.equal(referencePeriod("first-50", read).to, "2026-10-16T12:00:00.000Z");

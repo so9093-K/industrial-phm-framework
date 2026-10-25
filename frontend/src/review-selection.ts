@@ -30,15 +30,3 @@ export function selectReviewItem<T extends ReviewListItem>(
   }
   return visible.find((item) => item.key === keptKey) ?? visible[0];
 }
-
-/** General queues are bounded; identity-bearing routes query only their exact owner. */
-export function selectReviewAssets(
-  candidateAssetIds: readonly string[],
-  focusAssetId: string,
-  limit: number,
-): {assets: string[]; partial: boolean} {
-  const known = [...new Set(candidateAssetIds.filter((id) => id.length > 0))];
-  if (focusAssetId) return {assets: [focusAssetId], partial: known.length > limit};
-  return {assets: known.slice(0, limit), partial: known.length > limit};
-}
-
