@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount, tick, untrack} from "svelte";
-  import {explainWrite, sampleCommand, type Sample} from "../connections";
+  import {exampleOpenUrl, explainWrite, sampleCommand, type Sample} from "../connections";
   import {OutcomeUnknown} from "../writes";
 
   /** A synthetic motor and local OPC UA sample in its own workspace; this workspace never
@@ -16,7 +16,7 @@
   let asked = false;
   const openUrl = $derived.by((): string | null => {
     const current: Sample | null = sample;
-    return current?.url ? current.url + "?" + new URLSearchParams({return_to: location.origin + location.pathname + "?page=system",
+    return current?.url ? exampleOpenUrl(current.url, location.hostname, {return_to: location.origin + location.pathname + "?page=system",
       ...(current.scenario==="bearing"||current.scenario==="xjtu"?{page:"assets",monitor_asset:current.assetId??"demo-bearing-change"}:{})}) : null;
   });
 

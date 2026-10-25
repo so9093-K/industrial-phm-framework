@@ -49,7 +49,7 @@ export function bearingSteps(journey: DemoJourney, search = "") {
   if (returnPath) {
     try {
       const back = new URL(returnPath);
-      if (back.protocol === "http:" && back.hostname === "127.0.0.1" && back.port
+      if (back.protocol === "http:" && (back.hostname === "127.0.0.1" || back.hostname === "localhost") && back.port
         && back.pathname === "/web/") returnTo = {return_to: back.origin + "/web/?page=system"};
     } catch { /* Invalid return destinations do not enter the guide links. */ }
   }

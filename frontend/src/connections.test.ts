@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {channelIdFrom,declaredRoles,emptyRoles,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,suggestRoles,type PhaseRole} from "./connections.ts";
+import {channelIdFrom,declaredRoles,emptyRoles,exampleOpenUrl,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,suggestRoles,type PhaseRole} from "./connections.ts";
 import {sampleReturn} from "./session.ts";
 import {parseSources} from "./operations-status.ts";
 import {errorCode,OutcomeUnknown,WriteRejected} from "./writes.ts";
@@ -70,6 +70,12 @@ test("OPC UA channel IDs are safe and distinct; the sample opens only a local ad
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/web/?page=system")),
     "http://127.0.0.1:2718/web/?page=system");
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("https://evil.example/web/")),null);
+  // A page opened as localhost returns there; the example opens on the same name (same site).
+  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://localhost:2718/web/?page=system")),
+    "http://localhost:2718/web/?page=system");
+  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","localhost",{page:"assets"}),"http://localhost:2719/web/?page=assets");
+  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","127.0.0.1",{}),"http://127.0.0.1:2719/web/");
+  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","evil.example",{}),"http://127.0.0.1:2719/web/");
   assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/other")),null);
 });
 

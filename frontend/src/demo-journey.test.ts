@@ -64,6 +64,8 @@ test("real dataset guidance describes one held-out run and retains the workspace
   assert.match(steps[0].question,/Bearing1_1.*1~100/);
   assert.doesNotMatch(steps[0].question,/일정한 기록/);
   for (const step of steps) assert.equal(new URL(step.href,"http://local").searchParams.get("return_to"),"http://127.0.0.1:2718/web/?page=system");
+  const local=new URL(bearingSteps(context,"?monitor_asset=Bearing1_1&return_to="+encodeURIComponent("http://localhost:2718/web/?page=system"))[1].href,"http://local");
+  assert.equal(local.searchParams.get("return_to"),"http://localhost:2718/web/?page=system");
   for (const invalid of ["https://evil.example/web/","http://127.0.0.1:2718/other","invalid"]) {
     assert.equal(new URL(bearingSteps(context,"?return_to="+encodeURIComponent(invalid))[1].href,"http://local").searchParams.has("return_to"),false);
   }
