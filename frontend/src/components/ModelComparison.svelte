@@ -26,6 +26,10 @@
     const size=(value:number|null)=>value===null?-1:Math.abs(value);
     return current?[...current.features].sort((a,b)=>size(b.relativePercent)-size(a.relativePercent)):[];
   });
+  // The largest changes come first; the rest stay one press away instead of lengthening the page.
+  const FIRST_ROWS=6;
+  let showAll=$state(false);
+  const visible=$derived(showAll?ordered:ordered.slice(0,FIRST_ROWS));
   function exploration(feature:string):string|null {
     if(compare===null||binding.stepKind!=="acquisition-snapshot")return null;
     const split=Math.floor((compare+run.position)/2);
@@ -76,11 +80,12 @@
     <div class="scroll"><table>
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th></tr></thead>
-      <tbody>{#each ordered as feature(feature.feature)}
+      <tbody>{#each visible as feature(feature.feature)}
         <tr><th scope="row"><button class="text-button" aria-label={feature.label + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{feature.label}</button></th>
           <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td></tr>
       {/each}</tbody>
     </table></div>
+    {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}
     {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>

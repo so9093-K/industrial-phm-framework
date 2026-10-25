@@ -29,7 +29,8 @@
   let spectrumRequest:AbortController|null=null;
 
   const fmt=(value:number)=>value.toExponential(3);
-  let decibel=$state(false);
+  // Vibration energy is usually dominated by one low band; dB keeps the other bands readable.
+  let decibel=$state(true);
   type Axis={lo:number;hi:number;map:(value:number)=>number};
   // Linear shows power as stored. dB is relative to the channel's strongest band (0 dB) and
   // floored at -60 dB, so small bands stay readable next to one dominant low-frequency peak.
@@ -155,14 +156,14 @@
       <StatusNotice message="두 기간을 고르고 주파수 비교하기를 누르세요."/>
     {:else if result}
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
-      <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 세기가 작은 주파수의 변화도 보입니다</label>
+      <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         {@const frequencies=result.frequencies}
         {@const axis=axisFor(channel,decibel)}
         <section class="series">
           <h3>{channel.label} · {channel.id}</h3>
-          <p class="axis-note">세로축 · 주파수별 평균 세기 (PSD) · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
+          <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
           <ValueAxis ticks={yTicks(axis.lo,axis.hi,0,180)} height={180} unit={decibel?"dB":null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
             aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + result.frequencies[0].toFixed(0) + "Hz부터 " + result.frequencies[result.frequencies.length-1].toFixed(0) + "Hz까지. 정확한 값은 표에 있습니다."}>
