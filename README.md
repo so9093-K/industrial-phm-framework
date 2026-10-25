@@ -183,7 +183,9 @@ make down     # 종료
   Linux 네이티브 실행은 `artifacts/operations`를 쓰고, 다른 경로는 모든 명령에 같은 `WORKSPACE=/absolute/path`로 지정합니다.
   두 작업공간은 서로 별개입니다.
 - **AI 해설:** OpenAI 호환 모델 서버가 필요합니다. 기본값은 `http://127.0.0.1:9400/v1`의 `local-main` 모델이며
-  `INDUSTRIAL_PHM_GENAI_BASE_URL`·`INDUSTRIAL_PHM_GENAI_MODEL`로 바꿉니다. 나머지 기능은 AI 서버 없이 동작합니다.
+  `INDUSTRIAL_PHM_GENAI_BASE_URL`·`INDUSTRIAL_PHM_GENAI_MODEL`로 바꿉니다. `make up` 컨테이너에서는 같은 주소가
+  이 컴퓨터의 9400 포트로 이어집니다. 구조화 출력(JSON 스키마)을 지원하지 않는 모델도 일반 응답으로 해설하며,
+  어느 경우든 해설은 저장된 측정값 비교와 대조합니다. 나머지 기능은 AI 서버 없이 동작합니다.
 
 [작업공간·상세 실행 방법](apps/README.md#operations--supervised-web) · [컨테이너 실행·백업·AI 연결](docs/architecture/operations-container.md)
 

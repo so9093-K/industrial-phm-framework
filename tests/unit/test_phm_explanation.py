@@ -118,6 +118,56 @@ def test_schema_constrained_chat_and_responses_fallback_keep_model_and_messages(
         thread.join(timeout=5)
 
 
+def test_plain_chat_answers_when_the_model_has_no_structured_output() -> None:
+    """A local gateway profile can refuse every schema field yet answer plain Chat."""
+    seen = []
+    answer = {"summary": "stored comparison answer"}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen.append((self.path, body))
+            if "response_format" in body or "text" in body:
+                self.send_response(422)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            fenced = "```json\n" + json.dumps(answer) + "\n```"
+            self.wfile.write(json.dumps({"choices": [{"message": {"content": fenced}}]}).encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+    messages = [{"role": "system", "content": "rules"}, {"role": "user", "content": "{}"}]
+    try:
+        result = complete_json(
+            ExplanationProvider(base_url=f"http://127.0.0.1:{server.server_port}/v1"),
+            messages,
+            schema,
+        )
+        assert result == answer
+        assert [path for path, _ in seen] == [
+            "/v1/chat/completions",
+            "/v1/responses",
+            "/v1/chat/completions",
+        ]
+        plain = seen[2][1]
+        assert "response_format" not in plain and plain["model"] == "local-main"
+        assert plain["messages"][0]["content"].startswith("rules\n\n")
+        assert json.dumps(schema, ensure_ascii=False) in plain["messages"][0]["content"]
+        assert plain["messages"][1:] == messages[1:]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_ai_unavailable_still_allows_direct_review_of_exact_stored_result(tmp_path: Path) -> None:
     workspace = phm_workspace(tmp_path / "ws")
     for i in range(1, 4):

@@ -51,6 +51,35 @@ class _NoRedirect(HTTPRedirectHandler):
         raise AnalysisExplanationError("explanation provider redirect refused")
 
 
+# Status codes with which a server declines a request shape rather than failing.
+_UNSUPPORTED = frozenset({400, 404, 405, 422, 501})
+_FENCED = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
+
+
+def _schema_instructed(
+    messages: list[dict[str, str]], schema: dict[str, object]
+) -> list[dict[str, str]]:
+    """The same conversation, with the answer schema stated in the system instructions."""
+    rule = (
+        "응답은 아래 JSON Schema를 따르는 JSON 객체 하나만 출력하세요. "
+        "코드 블록 표시나 설명 문장을 붙이지 마세요.\n" + json.dumps(schema, ensure_ascii=False)
+    )
+    if messages and messages[0]["role"] == "system":
+        return [
+            {"role": "system", "content": messages[0]["content"] + "\n\n" + rule},
+            *messages[1:],
+        ]
+    return [{"role": "system", "content": rule}, *messages]
+
+
+def _json_text(text: object) -> object:
+    """A JSON object from plain output, without a surrounding code fence."""
+    if not isinstance(text, str):
+        return text
+    fenced = _FENCED.match(text)
+    return fenced.group(1) if fenced else text
+
+
 def complete_json(
     provider: ExplanationProvider,
     messages: list[dict[str, str]],
@@ -95,22 +124,42 @@ def complete_json(
             text = data["choices"][0]["message"]["content"]
         except HTTPError as error:
             # Servers without Chat schema support (or its fields) still offer Responses.
-            if error.code not in {400, 404, 405, 422, 501}:
+            if error.code not in _UNSUPPORTED:
                 raise
             system = "\n".join(m["content"] for m in messages if m["role"] == "system")
             turns = [m for m in messages if m["role"] != "system"]
-            data = post(
-                "/responses",
-                {
-                    "model": provider.model,
-                    "store": False,
-                    "instructions": system,
-                    "input": [{"role": m["role"], "content": m["content"]} for m in turns],
-                    "max_output_tokens": max_tokens,
-                    "text": {"format": {"type": "json_schema", **named}},
-                },
-            )
-            text = _response_output_text(data)
+            try:
+                data = post(
+                    "/responses",
+                    {
+                        "model": provider.model,
+                        "store": False,
+                        "instructions": system,
+                        "input": [{"role": m["role"], "content": m["content"]} for m in turns],
+                        "max_output_tokens": max_tokens,
+                        "text": {"format": {"type": "json_schema", **named}},
+                    },
+                )
+                text = _response_output_text(data)
+            except HTTPError as fallback:
+                # A model profile without structured output still answers plain Chat. The
+                # schema becomes an instruction; callers still check every returned field.
+                if fallback.code not in _UNSUPPORTED:
+                    raise
+                data = post(
+                    "/chat/completions",
+                    {
+                        "model": provider.model,
+                        "messages": _schema_instructed(messages, schema),
+                        "max_tokens": max_tokens,
+                        "temperature": 0.2,
+                    },
+                )
+                if not isinstance(data, dict):
+                    raise AnalysisExplanationError(
+                        "invalid chat explanation response"
+                    ) from fallback
+                text = _json_text(data["choices"][0]["message"]["content"])
         if not isinstance(text, str) or not text.strip():
             raise AnalysisExplanationError("empty explanation response")
         return json.loads(text)

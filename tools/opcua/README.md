@@ -351,7 +351,6 @@ and Chromium before running this test:
 uv sync --locked --extra operations
 uv run --locked --extra operations --with playwright python -m playwright install chromium
 uv run --locked --extra operations --with playwright pytest \
-  tests/acceptance/test_operations_web_next_monitor_attention_browser.py \
   tests/acceptance/test_operations_web_controlled_journey_browser.py \
   tests/acceptance/test_operations_web_sample_browser.py
 ```

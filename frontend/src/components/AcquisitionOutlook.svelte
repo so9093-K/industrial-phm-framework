@@ -6,7 +6,7 @@
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import {measurementScale} from "../time-axis";
+  import {elapsedText,measurementScale} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import {reachDuration,reachText} from "../reach";
@@ -113,8 +113,8 @@
     }
   }
   function timeBasis(record:AcquisitionProjection):string{
-    if(record.timeBasis==="recorded")return "기록된 측정 간격 "+num(record.effectivePeriod)+"초";
-    if(record.timeBasis==="assumed")return "가정한 측정 간격 "+num(record.effectivePeriod)+"초 (실제 측정 간격 아님)";
+    if(record.timeBasis==="recorded")return "기록된 측정 간격 "+elapsedText(record.effectivePeriod);
+    if(record.timeBasis==="assumed")return "가정한 측정 간격 "+elapsedText(record.effectivePeriod)+" (실제 측정 간격 아님)";
     return "측정 간격 정보 없음 — 측정 횟수로만 계산";
   }
   const formatOffset=(n:number)=>Number.isInteger(n)?String(n):n.toFixed(2);
@@ -136,8 +136,8 @@
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
     <p class="context">데이터 출처 <strong>{options.sourceId}</strong>
-      · 측정 #{options.first}~#{options.last} · 분석 {options.count}회
-      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+num(options.recordedPeriod)+"초"}</p>
+      · {options.first}~{options.last}번째 측정 · 분석 {options.count}회
+      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
     <div class="inputs">
       <label>진동 특징
         <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();}}>
@@ -196,7 +196,7 @@
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
           <h3 id="acq-result-title">결과</h3>
-          <span class="context">측정 #{outlook.record.last}까지의 데이터로 계산 · {timeBasis(outlook)}</span>
+          <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
         </div>
         {#if limited}
           <div class="tiles">
@@ -213,12 +213,12 @@
           <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
         {/if}
         {#if chart}
-          {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+num(period)+"초")+" · 세로선 · 마지막 측정 #"+chart.last}
+          {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
           <figure class="chart">
             <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
             <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
-              aria-label={"저장된 측정 #"+chart.first+"~#"+chart.last+"과 #"+formatOffset(chart.end)+"까지의 예측"}>
+              aria-label={"저장된 "+chart.first+"~"+chart.last+"번째 측정과 "+formatOffset(chart.end)+"번째 측정까지의 예측"}>
               {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
               {#if chart.band}<path d={chart.band} class="band" />{/if}
               <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
@@ -262,11 +262,11 @@
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>
             <caption>측정별 특징 예측값 (최대 12개) · 예측 범위는 계산상 범위이며 고장 신뢰구간이 아닙니다</caption>
-            <thead><tr><th scope="col">측정 #</th><th scope="col">예측값</th>
+            <thead><tr><th scope="col">측정</th><th scope="col">예측값</th>
               <th scope="col">범위 하한</th><th scope="col">범위 상한</th></tr></thead>
             <tbody>
               {#each outlook.forecast.slice(0,12) as item,i (i)}
-                <tr><td>#{formatOffset(item.ordinal)}</td><td>{num(item.estimate)}</td>
+                <tr><td>{formatOffset(item.ordinal)}번째</td><td>{num(item.estimate)}</td>
                   <td>{num(item.lower)}</td><td>{num(item.upper)}</td></tr>
               {/each}
             </tbody>
@@ -276,7 +276,7 @@
           <details>
             <summary>계산 방식별 결과 {outlook.scenarios.length}가지</summary>
             <div class="scroll"><table>
-              <caption>계산 방식 사이의 차이는 신뢰 구간이 아닙니다 · 기준 도달은 측정 #{outlook.searchUntil}까지 찾음</caption>
+              <caption>계산 방식 사이의 차이는 신뢰 구간이 아닙니다 · 기준 도달은 {outlook.searchUntil}번째 측정까지 찾음</caption>
               <thead><tr><th scope="col">계산 방식</th>
                 {#if outlook.conditions.management!==null}<th scope="col">관리 기준</th>{/if}
                 {#if outlook.conditions.end!==null}<th scope="col">종료 기준</th>{/if}

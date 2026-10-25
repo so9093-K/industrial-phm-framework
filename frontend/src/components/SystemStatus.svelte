@@ -49,8 +49,9 @@
       <li><strong>감독 프로세스</strong><span>{CONDITION[runtime.supervisor.condition]}</span>
         <span class="context">마지막 응답 {clock(runtime.supervisor.heartbeatAt)}</span></li>
       {#each runtime.components as part (part.kind)}
+        <!-- A running part without its own heartbeat (the Web screen) needs no "기록 없음" line. -->
         <li><strong>{COMPONENT[part.kind]}</strong><span>{CONDITION[part.condition]}</span>
-          <span class="context">마지막 응답 {clock(part.heartbeatAt)}</span></li>
+          {#if part.heartbeatAt || part.condition !== "running"}<span class="context">마지막 응답 {clock(part.heartbeatAt)}</span>{/if}</li>
       {/each}
     </ul>
     <details>
