@@ -4,7 +4,7 @@
   import {assetLabel, assetOptionLabel, type Snapshot} from "../monitor";
   import {requestAnalysisReview, type AnalysisRecord, type QualityState} from "../analysis-records";
   import {findingUrl, readFindingReviews, type FindingReview} from "../finding-reviews";
-  import {loadModelBindings, modelNames, type ModelBinding} from "../model-evidence";
+  import {loadModelBindings, modelNames, windowLabel, type ModelBinding} from "../model-evidence";
   import {num} from "../format";
   import {OutcomeUnknown, WriteForbidden, type ReviewStatus} from "../review-writes";
   import {assetTabUrl, systemUrl} from "../routes";
@@ -244,7 +244,7 @@
       <tbody>
         {#each models as model (model.bindingId)}
           <tr><th scope="row">{assetLabel(snapshot.assets, model.assetId)}</th><td class="wrap">{names.get(model.bindingId)}</td><td>{sourceLabel(sourceNames, model.sourceId)}</td>
-            <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "observation-window" ? "시간 구간 #" + model.lastAnalyzed : model.lastAnalyzed + "번째 측정")}</td>
+            <td>{model.lastAnalyzed === null ? "아직 없음" : (model.stepKind === "acquisition-snapshot" ? model.lastAnalyzed + "번째 측정" : windowLabel(model.lastAnalyzed))}</td>
             <td><a href={assetTabUrl(model.assetId, "anomaly", "model")}>모델 점수 보기 →</a></td></tr>
         {/each}
       </tbody>

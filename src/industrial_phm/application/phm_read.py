@@ -98,6 +98,7 @@ def project_phm_monitor(
                 "recipe_id": None if not package else package.get("recipe_id"),
                 "estimator_kind": None if not package else package.get("estimator_kind"),
                 "validation": None if not package else package.get("validation"),
+                "training_reference": _training_reference(package),
                 "processing_state": state,
                 "processing_reason": reason,
                 "latest_delivered": delivered,
@@ -336,6 +337,16 @@ def _binding_json(binding: PhmBinding) -> dict[str, Any]:
         "recorded_replay": binding.recorded_replay,
         "measurement_point_id": binding.measurement_point_id,
     }
+
+
+def _training_reference(package: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The period an operator-built model learned from (ADR-0032), to tell models apart."""
+    scope = (package or {}).get("training_scope") or {}
+    channels = ((package or {}).get("input") or {}).get("channels")
+    start, end = scope.get("reference_start"), scope.get("reference_end")
+    if not isinstance(start, str) or not isinstance(end, str) or not isinstance(channels, list):
+        return None
+    return {"start": start, "end": end, "channels": len(channels)}
 
 
 def _latest_delivered(

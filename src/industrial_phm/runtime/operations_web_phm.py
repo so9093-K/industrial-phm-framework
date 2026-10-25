@@ -15,6 +15,7 @@ from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
     SqliteAcquisitionSnapshotRepository,
 )
+from industrial_phm.application.history_window import project_history_window
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore
@@ -34,6 +35,8 @@ from industrial_phm.application.phm_signal_comparison import (
     with_units,
 )
 from industrial_phm.application.phm_window_read import project_monitor_window, project_phm_window
+from industrial_phm.history import DuckLakeAssetHistory
+from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
 from industrial_phm.models.package import StepKind
 from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -203,11 +206,24 @@ def handle_phm_read(
                 windows=windows,
             )
         if path == "/api/v1/phm/window":
+            position = _int(params, "position", default=None, minimum=1)
+            owner = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)
+            if owner is not None and owner.step_kind is StepKind.HISTORY_WINDOW:
+                if not workspace.history_catalog_path.is_file():
+                    return HTTPStatus.OK, {"available": False, "reason": "no stored history"}
+                history = DuckLakeAssetHistory(
+                    DuckLakeAssetHistoryConfig(
+                        workspace.history_catalog_path, workspace.history_data_path
+                    )
+                )
+                return HTTPStatus.OK, project_history_window(
+                    store, history, binding_id=binding_id, position=position
+                )
             return HTTPStatus.OK, project_phm_window(
                 store,
                 SqliteObservationWindowRepository(workspace.window_state_path),
                 binding_id=binding_id,
-                position=_int(params, "position", default=None, minimum=1),
+                position=position,
             )
         return HTTPStatus.OK, project_snapshot_preview(
             store,

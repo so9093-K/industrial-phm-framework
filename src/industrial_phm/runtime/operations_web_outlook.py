@@ -333,7 +333,11 @@ def anomaly_evidence(
         and binding.source_id == source_id
         and (measurement_point_id is None or binding.measurement_point_id == measurement_point_id)
         and binding.step_kind.value
-        == ("acquisition-snapshot" if kind == "acquisition" else "observation-window")
+        in (
+            {"acquisition-snapshot"}
+            if kind == "acquisition"
+            else {"observation-window", "history-window"}
+        )
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
         and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
     ]

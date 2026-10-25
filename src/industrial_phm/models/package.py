@@ -64,6 +64,12 @@ def is_retired_package(models_root: Path, package_id: str) -> bool:
 class StepKind(StrEnum):
     OBSERVATION_WINDOW = "observation-window"
     ACQUISITION_SNAPSHOT = "acquisition-snapshot"
+    # Fixed windows over stored Asset History read at a recorded snapshot (ADR-0032).
+    HISTORY_WINDOW = "history-window"
+
+
+# Steps that cover an event-time interval rather than one numbered acquisition.
+TIME_WINDOW_STEPS = frozenset({StepKind.OBSERVATION_WINDOW, StepKind.HISTORY_WINDOW})
 
 
 class EstimatorKind(StrEnum):

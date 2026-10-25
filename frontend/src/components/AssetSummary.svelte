@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
-  import {loadLatestScores, modelName, scoreSummary, type LatestScore} from "../model-evidence";
+  import {isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
   import {measurementLabel} from "../time-axis";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
@@ -86,7 +86,8 @@
       <p class="departure"><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></p>
     {/each}
     <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
-      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}</p>
+      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}
+      {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
   {:else}
     <ul class="scores">
       {#each scores as item (item.binding.bindingId)}
@@ -95,7 +96,7 @@
           <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
           <span>{modelName(item.binding)}
             {#if item.run && summary}
-              · {item.binding.stepKind === "observation-window" ? "시간 구간 #" + item.run.position : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
+              · {isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
             {/if}</span>
         </li>
       {/each}

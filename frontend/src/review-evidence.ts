@@ -3,7 +3,7 @@
  * the other models on the same input read it. Each part is read on its own; one that cannot be
  * read is left out, never filled with another result's facts. */
 import {
-  loadModelBindings, loadModelPosition, modelNames, scoreSummary,
+  isTimeWindow, loadModelBindings, loadModelPosition, modelNames, scoreSummary, windowLabel,
   type ModelRun, type ScoreSummary,
 } from "./model-evidence.ts";
 import {beforeInterval, exceedanceStory, exceedanceText, readScoreTrend, type ScoreTrend} from "./model-trend.ts";
@@ -66,8 +66,8 @@ export async function readReviewEvidence(
   const timing = binding.stepKind === "acquisition-snapshot"
     ? (await readAssetData(assetId, signal).catch(() => null))?.vibration?.timing : null;
   const period = timing?.sourceId === binding.sourceId ? timing.periodSeconds : null;
-  const place = (position: number) => binding.stepKind === "observation-window"
-    ? "시간 구간 #" + position : measurementLabel(position);
+  const place = (position: number) => isTimeWindow(binding.stepKind)
+    ? windowLabel(position) : measurementLabel(position);
   const run = await loadModelPosition(binding, location.position, signal);
   const unread: ReviewEvidence["unread"] = [];
   const quiet = <T,>(part: ReviewEvidence["unread"][number], read: Promise<T>): Promise<T | null> =>
@@ -99,7 +99,7 @@ export async function readReviewEvidence(
     unread,
     name: names.get(binding.bindingId) ?? binding.bindingId, at: place(location.position), eventStart: run.eventStart,
     score: scoreSummary(run.output),
-    flow: story ? exceedanceText(story, position => binding.stepKind === "observation-window" ? place(position) : measurementLabel(position, period)) : null,
+    flow: story ? exceedanceText(story, position => isTimeWindow(binding.stepKind) ? place(position) : measurementLabel(position, period)) : null,
     changes: against !== null && features?.length ? {against: place(against), rows: largestChanges(features)} : null,
     ai: explained?.answer ? {summary: explained.answer.summary,
       byAi: !explained.answer.modelUnavailable && explained.answer.source !== "verified-comparison"} : null,

@@ -235,6 +235,7 @@ def explore_sources(
         if summary is not None:
             history = {
                 "channels": list(reader.list_history_channels(asset_id))[:200],
+                "sources": list(reader.list_history_sources(asset_id))[:20],
                 "start_at": summary.start_at.isoformat(),
                 "end_at": summary.end_at.isoformat(),
                 "measurement_count": summary.measurement_count,

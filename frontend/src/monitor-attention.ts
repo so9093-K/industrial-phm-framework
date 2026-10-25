@@ -4,7 +4,7 @@
  * is deliberately not a PHM monitoring event. Each item opens the
  * exact place to check; none is a fault verdict. */
 import {modelResultUrl} from "./finding-reviews.ts";
-import {modelName} from "./model-evidence.ts";
+import {modelName as methodName, referenceLabel, windowLabel} from "./model-evidence.ts";
 import {readSources,type Source} from "./operations-status.ts";
 import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
@@ -12,13 +12,15 @@ import {measurementLabel} from "./time-axis.ts";
 
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
-  bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window";recipeId:string|null;
+  bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window"|"history-window";recipeId:string|null;
   packageId:string;estimatorKind:string|null;
   periodSeconds?:number|null;
   state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null}|null;
   /** The run of consecutive crossings still going on, if any. */
   ongoing:{start:number;steps:number;startAt:string|null}|null;
   processed:number|null;
+  /** For a model built from the asset's own record: the period and signal count it learned (ADR-0032). */
+  reference?:string;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean};
 export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"warmup";
@@ -58,13 +60,16 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
     const row=object(item);
     const bindingId=text(row?.binding_id),assetId=text(row?.asset_id);
     if(!row||!bindingId||!assetId||!STATES.includes(row.processing_state as ModelState)
-      ||(row.step_kind!=="acquisition-snapshot"&&row.step_kind!=="observation-window"))invalid();
+      ||(row.step_kind!=="acquisition-snapshot"&&row.step_kind!=="observation-window"&&row.step_kind!=="history-window"))invalid();
     const analyzed=object(row.latest_analyzed),output=object(analyzed?.output);
     const at=position(analyzed);
     const run=object(row.open_interval);
     const start=run?.start_position,steps=run?.step_count;
     const period=object(row.latest_delivered)?.period_seconds;
-    return {bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),
+    const learned=object(row.training_reference);
+    const reference=typeof learned?.start==="string"&&typeof learned?.end==="string"
+      &&typeof learned?.channels==="number"?referenceLabel(learned.start,learned.end,learned.channels):undefined;
+    return {...(reference?{reference}:{}),bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),
       packageId:text(row.package_id)??"",estimatorKind:text(row.estimator_kind),
       periodSeconds:typeof period==="number"&&Number.isFinite(period)&&period>0?period:null,
       ongoing:typeof start==="number"&&Number.isSafeInteger(start)&&typeof steps==="number"&&Number.isSafeInteger(steps)
@@ -88,9 +93,9 @@ export function refusalReason(reason:string|null):string{
 /** Where a run started, as the model's input is counted: an acquisition number or a window's time. */
 function since(model:MonitoredModel):string{
   const run=model.ongoing!;
-  if(model.stepKind==="observation-window"&&run.startAt)
+  if(model.stepKind!=="acquisition-snapshot"&&run.startAt)
     return new Date(run.startAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
-  return model.stepKind==="acquisition-snapshot"?measurementLabel(run.start,model.periodSeconds):"시간 구간 #"+run.start;
+  return model.stepKind==="acquisition-snapshot"?measurementLabel(run.start,model.periodSeconds):windowLabel(run.start);
 }
 
 function at(model:MonitoredModel,which:number|null):string{
@@ -105,15 +110,22 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
   const byAsset=new Map<string,MonitoredModel[]>();
   for(const model of models)byAsset.set(model.assetId,[...(byAsset.get(model.assetId)??[]),model]);
   for(const [assetId,list] of byAsset){
+    // Two models of one method on an asset are told apart by the period they learned from.
+    const modelName=(model:MonitoredModel)=>{
+      const name=methodName(model);
+      return model.reference&&list.some(other=>other!==model&&methodName(other)===name)?name+" ("+model.reference+")":name;
+    };
     const vibration=list.some(model=>model.stepKind==="acquisition-snapshot");
     // A run of crossings still going on is a change to look at; a latest crossing on its own is
     // said as such, lower down, so the two never read alike.
     const processed=list.filter(model=>model.state==="processed"&&model.analyzed);
     const sustained=processed.filter(model=>model.ongoing),lone=processed.filter(model=>!model.ongoing&&model.analyzed?.exceeds===true);
-    if(sustained.length)add(assetId,{id:"threshold",kind:"threshold",label:(vibration?"진동":"전기 신호")+" 변화 확인 필요",
+    // Say what kind of signal changed: vibration acquisitions, live electrical windows, or stored history.
+    const subject=vibration?"진동":sustained.some(model=>model.stepKind==="observation-window")?"전기 신호":"측정 신호";
+    if(sustained.length)add(assetId,{id:"threshold",kind:"threshold",label:subject+" 변화 확인 필요",
       detail:sustained.map(model=>modelName(model)+" "+since(model)
         +(model.analyzed?.exceeds===false?"부터 기준 초과 구간 · ":"부터 계속 기준 초과 · ")+model.ongoing!.steps+"회"
-        +(model.analyzed?.exceeds===false?" · 최근 측정은 기준 이하":"")).join(" · ")
+        +(model.analyzed?.exceeds===false?" · 최근 측정은 기준 이하":"")).join(" / ")
         +(lone.length?" · "+lone.map(model=>modelName(model)).join("·")+"는 최근 측정만 기준 초과":""),
       href:at(sustained[0],sustained[0].analyzed!.position),action:"점수 추이 보기"});
     else if(lone.length)add(assetId,{id:"crossing",kind:"crossing",label:"최근 측정에서 모델 기준 초과",

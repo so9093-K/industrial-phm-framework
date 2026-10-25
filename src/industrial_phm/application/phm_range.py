@@ -12,7 +12,7 @@ from datetime import timedelta, timezone
 from typing import Any
 
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepResult
-from industrial_phm.models.package import StepKind
+from industrial_phm.models.package import TIME_WINDOW_STEPS, StepKind
 
 MAX_POINTS = 512
 MIN_POINTS = 5
@@ -133,7 +133,7 @@ def series_shape(positions: Sequence[int], values: Sequence[float]) -> dict[str,
 
 def position_label(result: StepResult, step_kind: StepKind) -> str:
     """What people call a step: an acquisition number, or a window's KST start time."""
-    if step_kind is StepKind.OBSERVATION_WINDOW and result.event_start is not None:
+    if step_kind in TIME_WINDOW_STEPS and result.event_start is not None:
         return result.event_start.astimezone(_KST).strftime("%m-%d %H:%M")
     return f"#{result.position}"
 

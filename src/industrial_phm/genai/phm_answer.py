@@ -51,9 +51,11 @@ def model_name(package_id: str, task: object, step_kind: object = None) -> str:
     ):
         if re.search(pattern, package_id):
             return name
-    signal = {"observation-window": "관측 신호", "acquisition-snapshot": "진동"}.get(
-        str(step_kind), "신호"
-    )
+    signal = {
+        "observation-window": "관측 신호",
+        "history-window": "측정 신호",
+        "acquisition-snapshot": "진동",
+    }.get(str(step_kind), "신호")
     return signal + " 변화 탐지 모델"
 
 

@@ -76,6 +76,9 @@ def feature_comparison(current: StepResult, previous: StepResult | None) -> list
     return rows[:64]
 
 
+_HISTORY_STATS = {"mean": "평균", "std": "표준편차", "min": "최소", "max": "최대"}
+
+
 def feature_label(name: str) -> str:
     electrical = {
         "current.unbalance.mean_percent": "전류 불평형 평균(%)",
@@ -98,6 +101,10 @@ def feature_label(name: str) -> str:
         "skewness": "왜도",
         "excess_kurtosis": "초과 첨도",
     }
+    # Stored-history window statistics (ADR-0032): "<channel>.<mean|std|min|max>".
+    channel, _, statistic = name.rpartition(".")
+    if channel and not name.startswith("feature.") and statistic in _HISTORY_STATS:
+        return f"{channel} {_HISTORY_STATS[statistic]}"
     if name.startswith("feature."):
         channel, statistic = name.removeprefix("feature.").rsplit(".", 1)
         channel = {
