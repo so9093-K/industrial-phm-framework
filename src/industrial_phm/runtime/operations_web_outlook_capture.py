@@ -96,15 +96,12 @@ class OutlookCaptureStore:
         connection.execute(
             "CREATE TABLE IF NOT EXISTS review_event("
             "event_id TEXT PRIMARY KEY, capture_id TEXT NOT NULL, "
-            "action TEXT NOT NULL, note TEXT NOT NULL, recorded_at TEXT NOT NULL, "
+            "action TEXT NOT NULL, note TEXT NOT NULL, recorded_at TEXT NOT NULL, decision TEXT, "
             "FOREIGN KEY(capture_id) REFERENCES capture(id))"
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_outlook_review_capture ON review_event(capture_id)"
         )
-        # Reviews written before decisions existed keep no decision; nothing is backfilled.
-        if not _has_decision(connection):
-            connection.execute("ALTER TABLE review_event ADD COLUMN decision TEXT")
         return connection
 
     def save(self, snapshot: dict[str, Any]) -> dict[str, str]:
@@ -215,9 +212,8 @@ class OutlookCaptureStore:
 
     @staticmethod
     def _review_on_connection(connection: sqlite3.Connection, capture_id: str) -> dict[str, Any]:
-        decision = "decision" if _has_decision(connection) else "NULL"
         rows = connection.execute(
-            f"SELECT event_id, action, note, recorded_at, {decision} FROM review_event "
+            "SELECT event_id, action, note, recorded_at, decision FROM review_event "
             "WHERE capture_id=? ORDER BY rowid",
             (capture_id,),
         ).fetchall()
@@ -332,9 +328,11 @@ def review_captured_outlook(root: Path, payload: dict[str, object]) -> dict[str,
 
 def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]:
     """Capture only exact current server-calculated facts after an explicit write request."""
-    if set(payload) - (_SELECTION | _VERSIONS | _PROVENANCE) or not (
-        {"asset_id", "kind", "series"} | _VERSIONS
-    ) <= set(payload):
+    # The screen names the source, and for acquisitions the model and time basis, it saw.
+    required = {"asset_id", "kind", "series", "source_id"} | _VERSIONS
+    if payload.get("kind") == "acquisition":
+        required |= {"binding_id", "time_basis"}
+    if set(payload) - (_SELECTION | _VERSIONS | _PROVENANCE) or not required <= set(payload):
         raise ValueError("unexpected capture fields")
     if any(not isinstance(value, str) or len(value) > 512 for value in payload.values()):
         raise ValueError("invalid capture parameter")
@@ -504,9 +502,3 @@ def handle_outlook_captures_read(
         return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
     except OSError, sqlite3.Error, OutlookCaptureCorrupted:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "outlook_capture_store_unavailable"}
-
-
-def _has_decision(connection: sqlite3.Connection) -> bool:
-    return any(
-        row[1] == "decision" for row in connection.execute("PRAGMA table_info(review_event)")
-    )

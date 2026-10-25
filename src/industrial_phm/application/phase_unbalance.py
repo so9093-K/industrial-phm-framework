@@ -170,13 +170,7 @@ def phase_unbalance_policy_digest(config: PhaseUnbalanceConfig | None = None) ->
         "min_mean_voltage_v": float(policy.min_mean_voltage_v),
         "min_mean_current_a": float(policy.min_mean_current_a),
         "bucket_count": policy.bucket_count,
-        # Strict alignment is the original behavior; omitting it keeps the identity
-        # of results recorded before alignment policies existed.
-        **(
-            {}
-            if policy.alignment.is_strict
-            else {"alignment": policy.alignment.computational_identity()}
-        ),
+        "alignment": policy.alignment.computational_identity(),
     }
     encoded = json.dumps(
         payload,

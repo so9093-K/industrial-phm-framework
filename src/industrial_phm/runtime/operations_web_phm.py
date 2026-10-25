@@ -189,7 +189,7 @@ def handle_phm_read(
             explanations = PhmExplanationStore(workspace.phm_explanation_path).list_for(
                 binding_id, _int(params, "position", default=None, minimum=1)
             )
-            # Units are added on read, so explanations stored before units existed show them too.
+            # Stored contexts keep feature names only; units are added for the screen on read.
             for record in explanations:
                 context = record.get("context")
                 comparison = context.get("signal_comparison") if isinstance(context, dict) else None

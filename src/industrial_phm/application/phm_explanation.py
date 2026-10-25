@@ -36,11 +36,6 @@ class PhmExplanationStore:
             "status TEXT, text TEXT, error TEXT, requested_at TEXT, "
             "finished_at TEXT, finding_id TEXT, warnings TEXT, answer TEXT)"
         )
-        columns = {row[1] for row in connection.execute("PRAGMA table_info(explanation)")}
-        if "warnings" not in columns:  # stores created before numeric grounding checks
-            connection.execute("ALTER TABLE explanation ADD COLUMN warnings TEXT")
-        if "answer" not in columns:  # stores created before structured answers
-            connection.execute("ALTER TABLE explanation ADD COLUMN answer TEXT")
         return connection
 
     def request(self, context: dict[str, Any], *, model: str, owner: str) -> str:

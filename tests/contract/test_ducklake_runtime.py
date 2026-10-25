@@ -867,39 +867,6 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     assert _meaning(changed.interpretation_json)[:2] == ("unresolved", "unknown")
 
 
-def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
-    _require_duckdb()
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
-    )
-    event = _event(channel_id="power", event_at=BASE, event_index=0)
-    history.append_opcua_batch((event,), batch_id="before")
-    # Recreate a catalog whose OPC UA table predates semantic snapshots.
-    connection = history._connect()
-    try:
-        connection.execute(
-            "ALTER TABLE phm_history.raw.opcua_data_change DROP COLUMN semantic_binding_json"
-        )
-        (old_snapshot,) = connection.execute(
-            "SELECT max(snapshot_id) FROM phm_history.snapshots()"
-        ).fetchone()
-    finally:
-        connection.close()
-
-    # Reopening migrates once; the pre-migration snapshot stays readable.
-    assert history.query_opcua_events("source-a") == (event,)
-    observations = history.query_channel_observations(
-        "pump-01",
-        source_id="source-a",
-        channel_ids=("power",),
-        start_at=BASE,
-        end_at=BASE + timedelta(minutes=1),
-        snapshot_id=old_snapshot,
-    )
-    assert [(o.value, o.observed_property) for o in observations] == [(1.25, None)]
-    assert history.current_snapshot_id() > old_snapshot
-
-
 def test_opcua_batch_identity_binds_its_semantic_snapshot(tmp_path, monkeypatch):
     """A batch is recovered only as it was committed, semantic snapshot included; a commit
     without the fingerprint version is refused rather than reinterpreted."""

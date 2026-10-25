@@ -18,7 +18,7 @@ from industrial_phm.application.operational import OperationalFinding
 _FINDING_REVIEW_SCHEMA_V1 = "industrial-phm-finding-review-v1"
 _ROOT_KEYS = frozenset({"schema", "events"})
 _EVENT_KEYS = frozenset({"event_id", "finding_id", "action", "recorded_at", "note"})
-# Events written before decisions existed have no decision key; it is optional, never invented.
+# Only a confirm or close with a decision writes this key; a note never carries one.
 _DECISION_KEY = "decision"
 
 

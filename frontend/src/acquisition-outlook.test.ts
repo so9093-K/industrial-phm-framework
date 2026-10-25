@@ -15,7 +15,7 @@ const forecast=()=>({
   axis:"acquisition",source_id:"wave-source",binding_id:"anomaly-a",
   measurement_point_id:null,measurement_version:version,time_basis:"recorded",
   period_seconds:60,recorded_period_seconds:60,assumed_period_seconds:null,
-  series:"feature.rms",horizon:"count",horizon_count:20,
+  series:"feature.rms",horizon:"count",horizon_count:20,history:[],
   meaning:"stored-flow-continued-not-failure-time-or-remaining-life",
   forecast:[[64,2.1,2,2.2],[65,2.2,2.1,2.3],[84,3,2.8,3.2]],
 });

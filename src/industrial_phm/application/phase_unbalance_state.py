@@ -461,8 +461,7 @@ def _serialize_reference(
 
 
 def _parse_reference(ref: Mapping[str, Any]) -> HistoricalInputReference | WindowInputReference:
-    # Records written before live input have no kind and are history snapshots.
-    if ref.get("kind", "history-snapshot") == "history-snapshot":
+    if ref["kind"] == "history-snapshot":
         return HistoricalInputReference(
             snapshot_id=ref["snapshot_id"],
             asset_id=ref["asset_id"],
@@ -571,19 +570,11 @@ def _parse(raw: Mapping[str, Any]) -> PhaseUnbalanceAnalysis:
                 buckets=tuple(
                     UnbalanceBucket(_dt(b[0]), _dt(b[1]), b[2], b[3], b[4]) for b in r["buckets"]
                 ),
-                # Records written before role resolution named channels explicitly.
-                channels=tuple(
-                    r["channels"]
-                    if "channels" in r
-                    else cfg[
-                        "voltage_channels" if r["quantity"] == "voltage" else "current_channels"
-                    ]
-                ),
-                channel_selection=ChannelSelection(r.get("channel_selection", "explicit")),
-                # Results recorded before alignment policies used strict alignment.
-                carried_values=r.get("carried_values", 0),
-                max_carry_age_seconds=r.get("max_carry_age_seconds"),
-                p95_carry_age_seconds=r.get("p95_carry_age_seconds"),
+                channels=tuple(r["channels"]),
+                channel_selection=ChannelSelection(r["channel_selection"]),
+                carried_values=r["carried_values"],
+                max_carry_age_seconds=r["max_carry_age_seconds"],
+                p95_carry_age_seconds=r["p95_carry_age_seconds"],
             )
             for r in ev["results"]
         ),
