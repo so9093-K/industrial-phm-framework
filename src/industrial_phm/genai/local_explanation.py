@@ -10,10 +10,35 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from industrial_phm.genai.analysis_explanation import (
-    AnalysisExplanationError,
-    _response_output_text,
-)
+
+class AnalysisExplanationError(RuntimeError):
+    """Raised when analysis explanation input or generation fails."""
+
+
+def response_output_text(document: object) -> str:
+    """The output text of a Responses API document; anything else is an error."""
+    if not isinstance(document, dict):
+        raise AnalysisExplanationError("OpenAI Responses API response must be a JSON object")
+    output = document.get("output")
+    if not isinstance(output, list):
+        raise AnalysisExplanationError("OpenAI Responses API response requires output items")
+
+    texts: list[str] = []
+    for item in output:
+        if not isinstance(item, dict) or item.get("type") != "message":
+            continue
+        content = item.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict) or part.get("type") != "output_text":
+                continue
+            text = part.get("text")
+            if isinstance(text, str) and text.strip():
+                texts.append(text.strip())
+    if not texts:
+        raise AnalysisExplanationError("OpenAI Responses API response contained no output text")
+    return "\n".join(texts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +165,7 @@ def complete_json(
                         "text": {"format": {"type": "json_schema", **named}},
                     },
                 )
-                text = _response_output_text(data)
+                text = response_output_text(data)
             except HTTPError as fallback:
                 # A model profile without structured output still answers plain Chat. The
                 # schema becomes an instruction; callers still check every returned field.

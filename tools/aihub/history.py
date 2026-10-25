@@ -11,11 +11,10 @@ from pathlib import Path
 
 from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
-    AIHUB_239_DEFAULT_HISTORY_SCHEMA,
-    AIHUB_239_HISTORY_SCHEMAS,
+    AIHUB_239_HISTORY_SCHEMA,
     AIHUB_239_SEMANTICS_DIGESTS,
+    AIHUB_239_SEMANTICS_V3,
     PowerHistoryBinding,
-    history_schema_semantics,
     project_power_observation,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
@@ -56,7 +55,6 @@ def import_history(
     history: DuckLakeAssetHistory,
     *,
     batch_size: int = 2000,
-    metadata_schema: str = AIHUB_239_DEFAULT_HISTORY_SCHEMA,
     flush_every_batches: int = 10,
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
@@ -65,20 +63,16 @@ def import_history(
     boundaries fail on existing raw identity; they never silently duplicate rows.
     Newly appended rows are flushed from the SQLite catalog to Parquet every
     flush_every_batches batches and at the end; recovered batches need no flush.
-    A legacy metadata schema only continues an import whose first batch already
-    exists; a new selection always uses the default schema.
     """
     if start.tzinfo is not None or end.tzinfo is not None or end <= start:
         raise ValueError("selection must be an increasing naive source-local time range")
     if isinstance(batch_size, bool) or not 1 <= batch_size <= 10000:
         raise ValueError("batch_size must be between 1 and 10000")
-    version = history_schema_semantics(metadata_schema)
     if isinstance(flush_every_batches, bool) or not 1 <= flush_every_batches <= 10000:
         raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
     archive_bytes = archive.stat().st_size
     selection, selection_id = selection_identity(digest, member, binding, start, end, batch_size)
-    retry_only = metadata_schema != AIHUB_239_DEFAULT_HISTORY_SCHEMA
     batch: list[FileBackfillEvent] = []
     count, batches, recovered, unflushed, flushed_rows = 0, 0, 0, 0, 0
 
@@ -94,13 +88,6 @@ def import_history(
         if existing is not None:
             recovered += 1
         else:
-            if retry_only and batches == 0:
-                # Older schemas would apply open-by-default semantics to an archive
-                # nobody profiled; they exist only to finish an earlier import.
-                raise ValueError(
-                    f"metadata schema {metadata_schema} is retry-only and this selection has "
-                    f"no existing import; new imports use {AIHUB_239_DEFAULT_HISTORY_SCHEMA}"
-                )
             history.append_file_batch(batch, batch_id=current)
             unflushed += 1
         count += len(batch)
@@ -125,7 +112,6 @@ def import_history(
                 archive_digest=digest,
                 archive_bytes=archive_bytes,
                 binding=binding,
-                metadata_schema=metadata_schema,
             )
         )
         if len(batch) == batch_size:
@@ -134,15 +120,14 @@ def import_history(
         commit()
     if unflushed:
         flush()
-    # The schema is not part of selection_id, so batch ids of earlier imports
-    # stay resumable; the result states which interpretation was written.
+    # The result states which interpretation was written.
     semantics = {
-        "semantic_binding_version": version or binding.version,
-        "semantic_dictionary_sha256": AIHUB_239_SEMANTICS_DIGESTS.get(version or ""),
+        "semantic_binding_version": AIHUB_239_SEMANTICS_V3,
+        "semantic_dictionary_sha256": AIHUB_239_SEMANTICS_DIGESTS[AIHUB_239_SEMANTICS_V3],
     }
     return {
         **selection,
-        "metadata_schema": f"aihub-239-history-{metadata_schema}",
+        "metadata_schema": f"aihub-239-history-{AIHUB_239_HISTORY_SCHEMA}",
         **semantics,
         "event_count": count,
         "batch_count": batches,
@@ -162,15 +147,6 @@ def main() -> None:
     parser.add_argument("--end", type=datetime.fromisoformat, required=True)
     parser.add_argument("--ducklake-catalog", type=Path, required=True)
     parser.add_argument("--ducklake-data", type=Path, required=True)
-    parser.add_argument(
-        "--metadata-schema",
-        choices=AIHUB_239_HISTORY_SCHEMAS,
-        default=AIHUB_239_DEFAULT_HISTORY_SCHEMA,
-        help=(
-            "v1-v4 only for exact retry of an earlier import; "
-            f"new imports use {AIHUB_239_DEFAULT_HISTORY_SCHEMA}"
-        ),
-    )
     parser.add_argument(
         "--flush-every-batches",
         type=int,
@@ -193,7 +169,6 @@ def main() -> None:
             args.start,
             args.end,
             history,
-            metadata_schema=args.metadata_schema,
             flush_every_batches=args.flush_every_batches,
         )
     except (ValueError, OSError, RuntimeError) as error:

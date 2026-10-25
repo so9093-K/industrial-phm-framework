@@ -45,10 +45,7 @@ class SqliteObservationWindowRepository:
             with path.open("rb") as stream:
                 header = stream.read(16)
             if header and header != b"SQLite format 3\x00":
-                raise ValueError(
-                    "window state is not SQLite; choose a new --window-state path "
-                    "instead of reusing legacy JSON state"
-                )
+                raise ValueError("window state is not SQLite; choose a new --window-state path")
 
     @property
     def path(self) -> Path:

@@ -494,11 +494,6 @@ class CollectionServiceRuntimeRecorder(Protocol):
 
 
 @runtime_checkable
-class CollectionServiceRuntimeRepository(Protocol):
-    def get_collection_service_runtime(self) -> CollectionServiceRuntimeTelemetry | None: ...
-
-
-@runtime_checkable
 class AcquisitionSpoolTelemetryReader(Protocol):
     def telemetry_snapshot(
         self,

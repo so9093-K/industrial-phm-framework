@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import random
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -538,21 +538,8 @@ def evaluate_injection(
     }
 
 
-def device_contributions(
-    package: LoadedModelPackage, rows: Sequence[WindowRow]
-) -> list[dict[str, float]] | None:
-    evaluated = [row for row in rows if row.features]
-    if not evaluated:
-        return None
-    result = package.feature_contributions(feature_matrix(evaluated))
-    return None if result is None else list(result)
-
-
 def choose_development_members(eligible: Sequence[str], reference: str) -> list[str]:
     others = sorted(m for m in eligible if m != reference)
     if reference not in eligible or len(others) < 5:
         raise ValueError("six fixed development devices, including the reference, are required")
     return [reference, *random.Random(SEED).sample(others, 5)]
-
-
-ProgressCallback = Callable[[str], None]

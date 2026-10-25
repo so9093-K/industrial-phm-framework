@@ -160,11 +160,6 @@ class OperationsWorkspace:
             self.history_catalog_path,
         )
 
-    @property
-    def managed_directories(self) -> tuple[Path, ...]:
-        """Return directories whose creation is owned by workspace initialization."""
-        return (self.root, self.history_data_path, self.logs_path)
-
 
 class OperationsWorkspaceState(StrEnum):
     """User-facing classification used before mutating one workspace root."""

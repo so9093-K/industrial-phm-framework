@@ -66,10 +66,6 @@ class SpoolHistoryBatchWriteResult:
     def snapshot_id(self) -> int:
         return self.commit.snapshot_id
 
-    @property
-    def elapsed_seconds(self) -> float:
-        return (self.acknowledged_at - self.write_started_at).total_seconds()
-
 
 @dataclass(frozen=True, slots=True)
 class SpoolHistoryWriterResult:

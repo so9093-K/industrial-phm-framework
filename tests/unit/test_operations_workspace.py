@@ -41,11 +41,6 @@ def test_operations_workspace_state_files_are_distinct_and_under_root(tmp_path: 
 
     assert len(state_files) == len(set(state_files))
     assert all(path.parent == workspace.root for path in state_files)
-    assert workspace.managed_directories == (
-        workspace.root,
-        workspace.history_data_path,
-        workspace.logs_path,
-    )
 
 
 def test_operations_workspace_path_projection_has_no_filesystem_side_effect(tmp_path: Path) -> None:

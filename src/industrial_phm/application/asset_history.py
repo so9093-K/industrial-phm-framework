@@ -8,7 +8,6 @@ from datetime import datetime
 from enum import StrEnum
 from math import isfinite
 from numbers import Real
-from typing import Protocol, runtime_checkable
 
 from industrial_phm.application.source_registration import SourceType
 
@@ -161,21 +160,6 @@ class HistoricalInputReference:
         if len(set(channel_ids)) != len(channel_ids):
             raise ValueError("channel_ids must contain unique values")
         object.__setattr__(self, "channel_ids", channel_ids)
-
-
-@runtime_checkable
-class AssetHistoryReader(Protocol):
-    """Read boundary for normalized Asset History measurements."""
-
-    def query_measurements(
-        self,
-        asset_id: str,
-        *,
-        start_at: datetime,
-        end_at: datetime,
-    ) -> tuple[HistoricalMeasurement, ...]:
-        """Return event-time-addressable measurements in [start_at, end_at)."""
-        ...
 
 
 def validate_asset_history_query(

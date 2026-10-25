@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 from datetime import UTC, datetime
 
 from industrial_phm.application.analysis_input import WindowInputReference
@@ -11,7 +10,6 @@ from industrial_phm.application.phase_unbalance import (
     PhaseUnbalanceAnalysis,
     UnbalanceSeriesResult,
 )
-from industrial_phm.presentation.svg_chart import figure_svg
 
 _QUANTITY_LABEL = {"voltage": "전압 (상전압 기준)", "current": "전류"}
 
@@ -58,14 +56,6 @@ def _series_note(series: UnbalanceSeriesResult) -> str:
     return ""
 
 
-def phase_unbalance_exclusion_rows(result: PhaseUnbalanceAnalysis) -> list[dict[str, object]]:
-    return [
-        {"quantity": _QUANTITY_LABEL[r.quantity.value], "reason": reason, "timestamps": count}
-        for r in result.evidence.results
-        for reason, count in sorted(r.excluded_samples.items())
-    ]
-
-
 def phase_unbalance_provenance_rows(result: PhaseUnbalanceAnalysis) -> list[dict[str, object]]:
     evidence, run = result.evidence, result.run
     reference, config = evidence.input_reference, evidence.config
@@ -103,50 +93,6 @@ def phase_unbalance_provenance_rows(result: PhaseUnbalanceAnalysis) -> list[dict
         ("interpretation", evidence.interpretation),
     ]
     return [{"field": key, "value": str(value)} for key, value in facts]
-
-
-def render_phase_unbalance_svg(result: PhaseUnbalanceAnalysis) -> str:
-    """Per time bucket: median as points, max as a vertical extent; gaps stay empty."""
-    figure_module = importlib.import_module("matplotlib.figure")
-    figure = figure_module.Figure(figsize=(11, 4.6), layout="constrained")
-    figure.patch.set_alpha(0)
-    reference = result.evidence.input_reference
-    axes_list = figure.subplots(2, 1, sharex=True)
-    titles = {"voltage": "Voltage unbalance (phase-voltage basis)", "current": "Current unbalance"}
-    for axes, series in zip(axes_list, result.evidence.results, strict=True):
-        axes.patch.set_alpha(0)
-        axes.tick_params(colors="#aaa7a2")
-        axes.xaxis.label.set_color("#aaa7a2")
-        axes.yaxis.label.set_color("#aaa7a2")
-        for spine in axes.spines.values():
-            spine.set_color("#aaa7a2")
-        times = [b.start_at + (b.end_at - b.start_at) / 2 for b in series.buckets]
-        if series.buckets:
-            axes.vlines(
-                times,
-                [b.median_percent for b in series.buckets],
-                [b.max_percent for b in series.buckets],
-                color="C0",
-                alpha=0.35,
-                label="bucket max",
-            )
-            axes.scatter(
-                times, [b.median_percent for b in series.buckets], s=10, color="C0", label="median"
-            )
-            axes.legend(fontsize="small", loc="upper right")
-        else:
-            axes.text(0.5, 0.5, "no eligible samples", transform=axes.transAxes, ha="center")
-        axes.set_title(
-            f"{titles[series.quantity.value]} · n={series.evaluated_samples}",
-            fontsize=10,
-            color="#f2f1ef",
-        )
-        axes.set_ylabel("%")
-        axes.grid(alpha=0.2)
-    axes_list[-1].set_xlim(reference.start_at.astimezone(UTC), reference.end_at.astimezone(UTC))
-    axes_list[-1].set_xlabel("Requested event-time range (UTC)")
-    figure.autofmt_xdate()
-    return figure_svg(figure, transparent=True)
 
 
 def _alignment_label(identity: dict[str, object]) -> str:

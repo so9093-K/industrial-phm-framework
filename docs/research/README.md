@@ -22,14 +22,11 @@
 - [MIMII DUE Experiment Protocol](mimii-due-experiment-protocol.md)
 - [MIMII DUE Development Evidence Execution Runbook](mimii-due-development-execution-runbook.md)
 - [Prepared FILE Source Conformance Runbook](prepared-file-source-conformance.md)
-- [XJTU-SY RUL / Prognostics Protocol v1](xjtu-rul-prognostics-protocol.md)
-- [XJTU-SY RUL v1 Held-out Benchmark Execution Runbook](xjtu-rul-benchmark-execution-runbook.md)
 - [Operational Inference Acceptance Protocol v1](operational-inference-acceptance-protocol.md)
 
 ## Measured evidence and decisions
 
 - [XJTU-SY Feature & Degradation Characterization](xjtu-feature-characterization.md)
-- [XJTU-SY RUL v1 Finalization Decision](xjtu-rul-v1-finalization.md)
 - [Live Acquisition Queue-pressure and Fault/Recovery Evidence](live-acquisition-fault-evidence.md)
 - [History Append Scaling Evidence](history-append-scaling-evidence.md)
 - [DuckLake Non-destructive Compaction Evidence](history-compaction-evidence.md)

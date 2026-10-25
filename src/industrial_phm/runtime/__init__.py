@@ -93,7 +93,6 @@ from industrial_phm.runtime.operations_workspace import (
     inspect_operations_workspace,
 )
 from industrial_phm.runtime.window_coordinator import (
-    rebuild_registered_opcua_observation_windows,
     run_continuous_registered_opcua_observation_windows,
 )
 
@@ -153,7 +152,6 @@ __all__ = [
     "inspect_operations_workspace",
     "load_operations_runtime_config",
     "port_in_use",
-    "rebuild_registered_opcua_observation_windows",
     "request_operations_supervisor_stop",
     "restore_operations_backup",
     "run_collection_service",

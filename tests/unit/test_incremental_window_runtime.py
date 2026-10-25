@@ -173,13 +173,13 @@ def test_incremental_coordinator_restores_active_buffer_and_reads_after_cursor(t
     assert persisted[1].window_end == BASE + timedelta(minutes=2)
 
 
-def test_sqlite_window_repository_rejects_legacy_json_state(tmp_path):
+def test_sqlite_window_repository_refuses_a_file_that_is_not_sqlite(tmp_path):
     path = tmp_path / "windows.json"
-    path.write_text('{"schema": "legacy"}\n', encoding="utf-8")
+    path.write_text('{"schema": "other"}\n', encoding="utf-8")
 
     try:
         SqliteObservationWindowRepository(path)
     except ValueError as error:
-        assert "legacy JSON state" in str(error)
+        assert "not SQLite" in str(error)
     else:
-        raise AssertionError("legacy JSON window state must not be opened as SQLite")
+        raise AssertionError("a non-SQLite window state must not be opened as SQLite")

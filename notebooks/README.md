@@ -135,10 +135,8 @@ semantics를 함께 보여줍니다. Acquisition-aligned trajectory나 feature r
 
 ## Operations transition
 
-정비 역할의 low-fidelity evidence prototype은 실제 `apps/operations.py` surface가 생기면서 제거했습니다.
-Retrospective experiment evidence는 Analysis Explorer/Developer Workbench에서 계속 검토하고, operational
-identity·observation·quality·finding·maintenance 요구는 Operations application에서 실제 field boundary와 함께
-검증합니다.
+Retrospective experiment evidence는 Developer Workbench와 연구 결과 JSON에서 검토하고, operational
+identity·observation·quality·finding·maintenance 요구는 운영 Web에서 실제 field boundary와 함께 검증합니다.
 
 ## 운영 규칙
 
@@ -164,7 +162,3 @@ identity·observation·quality·finding·maintenance 요구는 Operations applic
 초기 수동 구조 검사는 `data validate`로 승격했으므로 같은 directory/schema 검증을 새 Notebook에서 반복하지
 않습니다. Interactive analysis는 split-aware characterization artifacts와 production API를 소비하고, 실제
 사용에서 확인된 분석 요구만 reusable code로 승격하는 방향으로 진행합니다.
-
-## 저장된 분석 결과 탐색
-
-`03_analysis_explorer.py`는 저장된 연구 분석과 선택적 새 분석을 탐색합니다. 실행은 [Saved Analysis Explorer](saved-analysis-explorer.md)를 따릅니다. 운영 Web에서는 실행하거나 의존하지 않습니다.

@@ -11,16 +11,12 @@ delivery, valid asset condition, or analysis readiness.
 
 from __future__ import annotations
 
-import json
-import os
-import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from math import isfinite
 from numbers import Real
-from pathlib import Path
 from typing import Protocol, cast, runtime_checkable
 
 from industrial_phm.application.measurement_semantics import (
@@ -40,8 +36,6 @@ from industrial_phm.connectors import (
     OpcUaSubscriptionNotification,
 )
 
-_WINDOW_SCHEMA = "industrial-phm-observation-window-v1"
-_ROOT_KEYS = frozenset({"schema", "windows"})
 _WINDOW_KEYS = frozenset(
     {
         "window_id",
@@ -502,10 +496,6 @@ class ObservationWindowBuffer:
     def watermark(self) -> datetime | None:
         return self._watermark
 
-    @property
-    def buffered_event_count(self) -> int:
-        return len(self._events)
-
     def advance_watermark(self, watermark: datetime) -> None:
         """Advance caller-owned event-time progress monotonically."""
         if self._finalized:
@@ -669,138 +659,6 @@ class ObservationWindowRepository(Protocol):
         ...
 
 
-class JsonObservationWindowRepository:
-    """Single-writer local JSON history for finalized observation windows only."""
-
-    def __init__(self, path: Path) -> None:
-        if not isinstance(path, Path):
-            raise ValueError("path must be pathlib.Path")
-        self._path = path
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    def get(self, window_id: str) -> DurableObservationWindow:
-        _validate_identifier(window_id, "window_id")
-        windows = {item.window_id: item for item in self._read_windows()}
-        try:
-            return windows[window_id]
-        except KeyError as error:
-            raise KeyError(f"observation window does not exist: {window_id}") from error
-
-    def list_windows(self) -> tuple[DurableObservationWindow, ...]:
-        return self._read_windows()
-
-    def record_window(self, window: DurableObservationWindow) -> None:
-        if not isinstance(window, DurableObservationWindow):
-            raise ValueError("window must be DurableObservationWindow")
-
-        windows = {item.window_id: item for item in self._read_windows()}
-        current = windows.get(window.window_id)
-        if current is not None:
-            if current != window:
-                raise ValueError(
-                    "observation window with the same window_id must match persisted evidence"
-                )
-            return
-
-        new_identities = {event.local_delivery_identity for event in window.events}
-        for existing in windows.values():
-            if existing.source_id != window.source_id:
-                continue
-            existing_identities = {event.local_delivery_identity for event in existing.events}
-            overlap = new_identities & existing_identities
-            if overlap:
-                raise ValueError(
-                    "local delivery identity must not be persisted in multiple windows "
-                    f"for one source: {sorted(overlap)!r}"
-                )
-
-        windows[window.window_id] = window
-        self._write_windows(tuple(windows.values()))
-
-    def _read_windows(self) -> tuple[DurableObservationWindow, ...]:
-        if not self._path.exists():
-            return ()
-        if not self._path.is_file():
-            raise OSError(f"observation-window path is not a file: {self._path}")
-
-        try:
-            raw = json.loads(self._path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
-            raise ObservationWindowFormatError(
-                "observation-window state must contain valid JSON"
-            ) from error
-
-        root = _require_mapping(raw, "observation-window root")
-        _require_exact_keys(root, _ROOT_KEYS, "observation-window root")
-        schema = _require_string(root["schema"], "observation-window schema")
-        if schema != _WINDOW_SCHEMA:
-            raise ObservationWindowFormatError(f"unsupported observation-window schema: {schema!r}")
-
-        raw_windows = root["windows"]
-        if not isinstance(raw_windows, list):
-            raise ObservationWindowFormatError("observation-window windows must be a JSON array")
-        windows = tuple(_parse_window(item, index=index) for index, item in enumerate(raw_windows))
-        ids = tuple(item.window_id for item in windows)
-        if len(set(ids)) != len(ids):
-            raise ObservationWindowFormatError("observation-window window_id values must be unique")
-
-        delivery_owners: dict[tuple[str, tuple[str, int, int]], str] = {}
-        for window in windows:
-            for event in window.events:
-                key = (window.source_id, event.local_delivery_identity)
-                previous = delivery_owners.get(key)
-                if previous is not None and previous != window.window_id:
-                    raise ObservationWindowFormatError(
-                        "local delivery identity appears in multiple persisted windows"
-                    )
-                delivery_owners[key] = window.window_id
-
-        return tuple(sorted(windows, key=_window_sort_key))
-
-    def _write_windows(
-        self,
-        windows: Sequence[DurableObservationWindow],
-    ) -> None:
-        ordered = tuple(sorted(windows, key=_window_sort_key))
-        payload = {
-            "schema": _WINDOW_SCHEMA,
-            "windows": [_serialize_window(window) for window in ordered],
-        }
-        rendered = (
-            json.dumps(
-                payload,
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            )
-            + "\n"
-        )
-
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path: Path | None = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=self._path.parent,
-                prefix=f".{self._path.name}.",
-                suffix=".tmp",
-                delete=False,
-            ) as handle:
-                temporary_path = Path(handle.name)
-                handle.write(rendered)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary_path, self._path)
-            temporary_path = None
-        finally:
-            if temporary_path is not None:
-                temporary_path.unlink(missing_ok=True)
-
-
 def _accepted_event_sort_key(
     event: OpcUaPersistentDataChangeEvent,
 ) -> tuple[datetime, int, int, str]:
@@ -808,10 +666,6 @@ def _accepted_event_sort_key(
     if event_at is None:
         raise ValueError("accepted event must have event time")
     return event_at, event.connection_epoch, event.event_index, event.channel_id
-
-
-def _window_sort_key(window: DurableObservationWindow) -> tuple[str, datetime, str]:
-    return window.source_id, window.window_start, window.window_id
 
 
 def _serialize_window(window: DurableObservationWindow) -> dict[str, object]:

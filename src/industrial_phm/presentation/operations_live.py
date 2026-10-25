@@ -2,59 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
 from datetime import datetime
 from math import isfinite
 from numbers import Real
 
-from industrial_phm.application.measurement_history import MeasurementHistoryPage
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionState
-from industrial_phm.application.operations_live import LiveObservationSeries, LiveObservationView
-
-
-def initial_signal_channel(
-    channel_ids: Sequence[str],
-    *,
-    confirmed_channel_ids: Collection[str],
-    selected: str | None,
-) -> str:
-    """Keep the user's explicit choice; otherwise open on a signal with confirmed meaning.
-
-    Alphabetical order alone opened AI-Hub assets on an unresolved power channel.
-    """
-    if not channel_ids:
-        raise ValueError("channel_ids must not be empty")
-    if selected is not None and selected in channel_ids:
-        return selected
-    return next(
-        (channel for channel in channel_ids if channel in confirmed_channel_ids),
-        channel_ids[0],
-    )
-
-
-def live_observation_recent_page(view: LiveObservationView) -> MeasurementHistoryPage:
-    """Flatten live-series points for the existing no-interpolation trend presenter."""
-    if not isinstance(view, LiveObservationView):
-        raise ValueError("view must be a LiveObservationView")
-    points = tuple(
-        sorted(
-            (point for series in view.series for point in series.recent_points),
-            key=lambda point: (
-                point.measurement.event_at is None,
-                (
-                    0.0
-                    if point.measurement.event_at is None
-                    else point.measurement.event_at.timestamp()
-                ),
-                point.measurement.raw_evidence_id,
-            ),
-        )
-    )
-    return MeasurementHistoryPage(
-        points=points,
-        truncated=view.truncated,
-        point_budget=view.point_budget,
-    )
+from industrial_phm.application.operations_live import LiveObservationSeries
 
 
 def live_source_flow_label(

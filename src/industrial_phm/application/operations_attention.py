@@ -123,10 +123,6 @@ class OperationsAttentionQueue:
             raise ValueError("kind must be an AttentionKind")
         return sum(item.kind == kind for item in self.items)
 
-    @property
-    def unhandled_count(self) -> int:
-        return sum(item.handling_state == AttentionHandlingState.UNHANDLED for item in self.items)
-
 
 def build_operations_attention_queue(
     *,

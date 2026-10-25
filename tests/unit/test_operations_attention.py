@@ -222,7 +222,6 @@ def test_attention_queue_projects_supported_factual_categories_without_severity(
         system_errors=(system_error,),
     )
 
-    assert queue.unhandled_count == 1
     assert queue.count(AttentionKind.SOURCE_ERROR) == 1
     assert queue.count(AttentionKind.NO_RECEIPT) == 1
     assert queue.count(AttentionKind.STALE) == 1

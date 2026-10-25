@@ -36,7 +36,6 @@ htmlcov/
 # Notebooks
 .ipynb_checkpoints/
 /notebooks/__marimo__/
-/apps/__marimo__/
 
 # Generated Operations frontend assets
 /frontend/node_modules

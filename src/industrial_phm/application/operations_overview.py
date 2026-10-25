@@ -24,7 +24,6 @@ from industrial_phm.application.maintenance_review import (
 from industrial_phm.application.operational import AnalysisRun, OperationalFinding
 from industrial_phm.application.source_freshness import SourceFreshnessPolicy
 from industrial_phm.application.source_health import (
-    SourceDataFlowState,
     SourceHealthAssessment,
     assess_source_health,
 )
@@ -124,12 +123,6 @@ class OperationsOverview:
             for item in self.source_health_assessments
         )
 
-    def source_data_flow_count(self, state: SourceDataFlowState) -> int:
-        """Count sources in one factual data-flow state."""
-        if not isinstance(state, SourceDataFlowState):
-            raise ValueError("state must be a SourceDataFlowState")
-        return sum(item.data_flow_state == state for item in self.source_health_assessments)
-
     @property
     def pending_review_count(self) -> int:
         """Return explicit review requests whose human workflow is not closed."""
@@ -138,16 +131,6 @@ class OperationsOverview:
     @property
     def open_review_count(self) -> int:
         return sum(item.status == FindingReviewStatus.OPEN for item in self.review_summaries)
-
-    @property
-    def acknowledged_review_count(self) -> int:
-        return sum(
-            item.status == FindingReviewStatus.ACKNOWLEDGED for item in self.review_summaries
-        )
-
-    @property
-    def closed_review_count(self) -> int:
-        return sum(item.status == FindingReviewStatus.CLOSED for item in self.review_summaries)
 
 
 def build_operations_overview(

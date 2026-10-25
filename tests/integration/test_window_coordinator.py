@@ -4,7 +4,6 @@ from pathlib import Path
 
 from industrial_phm.application import (
     InMemorySourceRepository,
-    JsonObservationWindowRepository,
     ObservationWindowCompleteness,
     ObservationWindowCoordinatorPolicy,
     ObservationWindowEventDisposition,
@@ -22,9 +21,9 @@ from industrial_phm.connectors import (
 )
 from industrial_phm.runtime import (
     SqliteAcquisitionTelemetryRepository,
-    rebuild_registered_opcua_observation_windows,
     run_continuous_registered_opcua_observation_windows,
 )
+from industrial_phm.runtime.window_coordinator import IncrementalRegisteredOpcUaWindowCoordinator
 
 BASE = datetime(2026, 9, 28, 0, 0, tzinfo=UTC)
 
@@ -37,7 +36,13 @@ class _History:
         return tuple(event for event in self.events if event.source_id == source_id)
 
     def query_opcua_events_after(self, source_id: str, *, cursor, limit: int):
-        values = tuple(event for event in self.events if event.source_id == source_id)
+        # Durable history is read in ingestion order, as Asset History returns it.
+        values = tuple(
+            sorted(
+                (event for event in self.events if event.source_id == source_id),
+                key=lambda e: (e.event_time.ingested_at, e.connection_epoch, e.event_index),
+            )
+        )
         if cursor is not None:
             key = (cursor.ingested_at, cursor.connection_epoch, cursor.event_index)
             values = tuple(
@@ -113,6 +118,13 @@ def _event(
     )
 
 
+def _cycle(repository, events, **policy):
+    """One cycle of the coordinator the collection service runs; a new one per call is a restart."""
+    return IncrementalRegisteredOpcUaWindowCoordinator(
+        _source_repository(), _History(events), repository, "source-a", policy=_policy(**policy)
+    ).run_cycle()
+
+
 def _policy(*, max_buffered_events: int = 100) -> ObservationWindowCoordinatorPolicy:
     return ObservationWindowCoordinatorPolicy(
         window_duration_seconds=10.0,
@@ -124,7 +136,7 @@ def _policy(*, max_buffered_events: int = 100) -> ObservationWindowCoordinatorPo
     )
 
 
-def test_coordinator_rotates_windows_and_preserves_dispositions_across_rebuild(
+def test_coordinator_rotates_windows_and_preserves_dispositions_across_restart(
     tmp_path: Path,
 ) -> None:
     events = (
@@ -189,16 +201,9 @@ def test_coordinator_rotates_windows_and_preserves_dispositions_across_rebuild(
             ingested_at=BASE + timedelta(seconds=25.5),
         ),
     )
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
-    source_repository = _source_repository()
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
 
-    first = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        _History(events),
-        repository,
-        "source-a",
-        policy=_policy(),
-    )
+    first = _cycle(repository, events)
 
     assert first.watermark == BASE + timedelta(seconds=22)
     assert first.finalized_window_count == 2
@@ -237,14 +242,9 @@ def test_coordinator_rotates_windows_and_preserves_dispositions_across_rebuild(
     assert second_window.completeness == ObservationWindowCompleteness.PARTIAL
     assert second_window.accepted_event_count == 1
 
-    second = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        _History(events),
-        repository,
-        "source-a",
-        policy=_policy(),
-    )
-    assert second.finalized_windows == first.finalized_windows
+    # A restarted coordinator resumes from its stored cursor and finalizes nothing twice.
+    second = _cycle(repository, events)
+    assert second.finalized_windows == ()
     assert repository.list_windows() == windows
 
 
@@ -275,15 +275,9 @@ def test_coordinator_preserves_buffer_full_disposition(tmp_path: Path) -> None:
             ingested_at=BASE + timedelta(seconds=20.1),
         ),
     )
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
 
-    result = rebuild_registered_opcua_observation_windows(
-        _source_repository(),
-        _History(events),
-        repository,
-        "source-a",
-        policy=_policy(max_buffered_events=2),
-    )
+    result = _cycle(repository, events, max_buffered_events=2)
 
     assert result.disposition_count(ObservationWindowEventDisposition.BUFFER_FULL) == 1
     window = repository.list_windows()[0]
@@ -375,23 +369,17 @@ def test_unexpected_channel_does_not_advance_watermark_or_create_future_window(
             ingested_at=BASE + timedelta(seconds=15.1),
         ),
     )
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
-    source_repository = _source_repository()
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
 
-    first = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        _History(events),
-        repository,
-        "source-a",
-        policy=_policy(),
-    )
+    first = _cycle(repository, events)
 
+    # Ingestion order puts the unexpected far-future value last; it moves nothing.
     assert [result.disposition for result in first.event_results] == [
         ObservationWindowEventDisposition.IN_ORDER,
-        ObservationWindowEventDisposition.UNEXPECTED_CHANNEL,
         ObservationWindowEventDisposition.IN_ORDER,
+        ObservationWindowEventDisposition.UNEXPECTED_CHANNEL,
     ]
-    assert first.event_results[1].watermark_at_ingest == BASE - timedelta(seconds=1)
+    assert first.event_results[2].watermark_at_ingest == BASE + timedelta(seconds=12)
     assert first.watermark == BASE + timedelta(seconds=12)
     assert first.finalized_window_count == 1
     assert first.active_window_count == 1
@@ -403,14 +391,8 @@ def test_unexpected_channel_does_not_advance_watermark_or_create_future_window(
     assert windows[0].finalized_at == BASE + timedelta(seconds=15.1)
     assert windows[0].watermark_at_close == BASE + timedelta(seconds=12)
 
-    second = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        _History(events),
-        JsonObservationWindowRepository(tmp_path / "windows.json"),
-        "source-a",
-        policy=_policy(),
-    )
-    assert second.event_results == first.event_results
-    assert second.finalized_windows == first.finalized_windows
+    second = _cycle(SqliteObservationWindowRepository(tmp_path / "windows.sqlite"), events)
+    assert second.event_results == ()
+    assert second.finalized_windows == ()
     assert second.watermark == first.watermark
-    assert JsonObservationWindowRepository(tmp_path / "windows.json").list_windows() == windows
+    assert SqliteObservationWindowRepository(tmp_path / "windows.sqlite").list_windows() == windows

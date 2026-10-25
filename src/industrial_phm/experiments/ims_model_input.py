@@ -47,22 +47,6 @@ def fit_ims_preprocessing_and_prepare_model_input(
     return preprocessing_state, _prepare_model_fit_input(config, preprocessing_state, vectors)
 
 
-def prepare_ims_model_fit_input(
-    config: ExperimentConfig,
-    preprocessing_state: PreprocessingState,
-    vectors: Sequence[VibrationFeatureVector],
-) -> ModelFitInput:
-    """Prepare complete Set 2 after preprocessing without reference filtering or resampling."""
-    _validate_fixed_config(config)
-    _validate_shared_context(config, preprocessing_state, vectors)
-    _validate_partition_coverage(vectors, partition="train")
-    if len(vectors) != preprocessing_state.observation_count:
-        raise ImsModelInputError(
-            "IMS train feature-vector count must match preprocessing fit observation count"
-        )
-    return _prepare_model_fit_input(config, preprocessing_state, vectors)
-
-
 def prepare_ims_model_scoring_input(
     config: ExperimentConfig,
     preprocessing_state: PreprocessingState,

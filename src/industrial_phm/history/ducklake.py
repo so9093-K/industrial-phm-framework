@@ -66,9 +66,8 @@ from industrial_phm.connectors import OpcUaNodeObservation, OpcUaSubscriptionNot
 _CATALOG_NAME = "phm_history"
 _COMMIT_AUTHOR = "industrial-phm"
 _COMMIT_EXTRA_SCHEMA = "industrial-phm-history-batch-v1"
-# OPC UA commits written with this version fingerprint the semantic snapshot too.
-# Commits without a version (before it existed, including semantics-bearing spool
-# batches) are verified with the legacy fingerprint that excludes semantics.
+# OPC UA commits fingerprint the semantic snapshot too and record this version; an OPC UA
+# batch whose stored commit has no version conflicts instead of being recovered.
 _OPCUA_FINGERPRINT_VERSION = "opcua-semantic-v2"
 _BATCH_PROVENANCE_INDEX_SCHEMA = 1
 # Measured expiry cost is about 55 microseconds per snapshot, so a chunk holds the
@@ -304,7 +303,6 @@ class DuckLakeAssetHistory:
                 event_count=len(batch),
                 fingerprint=fingerprint,
                 fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-                legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
             )
         finally:
             connection.close()
@@ -381,11 +379,8 @@ class DuckLakeAssetHistory:
             event_count=len(batch),
             fingerprint=fingerprint,
             fingerprint_version=_OPCUA_FINGERPRINT_VERSION,
-            legacy_fingerprint=_opcua_batch_fingerprint(batch, include_semantics=False),
         )
         if existing is not None:
-            # A legacy commit is recovered as stored: its raw rows keep no semantic
-            # snapshot and are never backfilled with the current binding.
             return HistoricalBatchAppendResult(
                 commit=existing,
                 recovered_existing_commit=True,
@@ -1576,25 +1571,6 @@ class DuckLakeAssetHistory:
             )
             for (source, point), items in streams.items()
         )
-
-    def list_history_sources(self, asset_id: str) -> tuple[str, ...]:
-        """Sources that recorded history for one asset, for explicit analysis selection."""
-        _validate_identifier(asset_id, "asset_id")
-        connection = self._connect()
-        try:
-            self._ensure_initialized(connection)
-            rows = connection.execute(
-                f"""
-                SELECT DISTINCT source_id FROM {_CATALOG_NAME}.history.measurement
-                WHERE asset_id = ? ORDER BY source_id LIMIT 1001
-            """,
-                [asset_id],
-            ).fetchall()
-        finally:
-            connection.close()
-        if len(rows) > 1000:
-            raise ValueError("history source discovery exceeds 1000 sources")
-        return tuple(_require_str(row[0], "source_id") for row in rows)
 
     def query_measurement_page(
         self,
@@ -3063,7 +3039,6 @@ class DuckLakeAssetHistory:
         event_count: int,
         fingerprint: str,
         fingerprint_version: str | None = None,
-        legacy_fingerprint: str | None = None,
     ) -> HistoricalBatchCommit | None:
         batch_rows = connection.execute(
             f"""
@@ -3093,7 +3068,8 @@ class DuckLakeAssetHistory:
                 return False
             stored_version = extra.get("fingerprint_version")
             if stored_version is None:
-                expected = fingerprint if legacy_fingerprint is None else legacy_fingerprint
+                # Only unversioned kinds (FILE) commit without a fingerprint version.
+                expected = fingerprint if fingerprint_version is None else None
             elif stored_version == fingerprint_version:
                 expected = fingerprint
             else:
@@ -3272,11 +3248,7 @@ def _parse_commit_extra_info(value: object) -> dict[str, object] | None:
     return parsed
 
 
-def _opcua_batch_fingerprint(
-    events: Sequence[OpcUaPersistentDataChangeEvent],
-    *,
-    include_semantics: bool = True,
-) -> str:
+def _opcua_batch_fingerprint(events: Sequence[OpcUaPersistentDataChangeEvent]) -> str:
     payload: list[dict[str, object]] = []
     for event in events:
         registered = event.event
@@ -3305,11 +3277,10 @@ def _opcua_batch_fingerprint(
                 "connection_epoch": event.connection_epoch,
                 "event_index": event.event_index,
                 "replayed": registered.notification.replayed,
-                # Versioned fingerprints include the snapshot; the legacy variant
-                # (include_semantics=False) verifies commits made before the version.
+                # The fingerprint includes the semantic snapshot the rows were stored with.
                 **(
                     {"semantic_binding": serialize_channel_semantic_binding(binding)}
-                    if include_semantics and (binding := registered.semantic_binding) is not None
+                    if (binding := registered.semantic_binding) is not None
                     else {}
                 ),
             }

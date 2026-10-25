@@ -20,8 +20,8 @@ from industrial_phm.application.outlook_text import (
     condition_reach,
     difference_sentences,
 )
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.genai.local_explanation import (
+    AnalysisExplanationError,
     ExplanationProvider,
     complete_json,
     verdict_phrases,

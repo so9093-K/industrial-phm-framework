@@ -22,23 +22,12 @@ from industrial_phm.application.measurement_semantics import (
 # is a new version; a published version is never edited. Generic explanatory wording
 # written into interpretation_evidence is serialization, not dictionary payload.
 # Pinned digests make an accidental in-place edit fail the contract test. History
-# metadata v3 writes semantics-v1, v4 writes semantics-v2 and v5 writes semantics-v3.
-AIHUB_239_SEMANTICS_V1 = "aihub-239-semantics-v1"
-AIHUB_239_SEMANTICS_V2 = "aihub-239-semantics-v2"
+# metadata v5 writes semantics-v3; earlier schemas and dictionaries live in git history.
 AIHUB_239_SEMANTICS_V3 = "aihub-239-semantics-v3"
 AIHUB_239_SEMANTICS_DIGESTS = {
-    AIHUB_239_SEMANTICS_V1: "a90327d6d885480ca7b044dc704fb95aa14677b8713f75a4d9401b80178a054d",
-    AIHUB_239_SEMANTICS_V2: "4cc29be9d2fc98e7f4531e0504414a848329794ac049c78b3d097fda7da0db7c",
     AIHUB_239_SEMANTICS_V3: "2df8cf5bfaeab39f22396ab1dc849db23483c4c4676d8515139b6a10c4d130b1",
 }
-_SCHEMA_SEMANTICS = {
-    "v3": AIHUB_239_SEMANTICS_V1,
-    "v4": AIHUB_239_SEMANTICS_V2,
-    "v5": AIHUB_239_SEMANTICS_V3,
-}
-# Earlier schemas stay accepted only for exact retry of imports that used them.
-AIHUB_239_HISTORY_SCHEMAS = ("v1", "v2", "v3", "v4", "v5")
-AIHUB_239_DEFAULT_HISTORY_SCHEMA = "v5"
+AIHUB_239_HISTORY_SCHEMA = "v5"
 _GUIDE = (
     "AI-Hub 239 construction/usage guideline v1.5 section 1.6.3 unit table "
     "(sha256 dfad9cd6d9451f571048813ae394923faec165519cc6eab84babee9c2f66560a)"
@@ -168,10 +157,6 @@ _V3_MEMBER_EXCEPTIONS: dict[tuple[str, str], tuple[frozenset[str], str]] = {
         )
     },
 }
-_MEMBER_EXCEPTIONS = {
-    AIHUB_239_SEMANTICS_V2: _V2_MEMBER_EXCEPTIONS,
-    AIHUB_239_SEMANTICS_V3: _V3_MEMBER_EXCEPTIONS,
-}
 
 
 def _exception_payload(
@@ -187,14 +172,7 @@ def semantics_dictionary_digest(version: str) -> str:
     """SHA-256 of the canonical dictionary payload of one semantics version."""
     definitions = {name: asdict(d) for name, d in _CONFIRMED_DEFINITIONS.items()}
     payload: object
-    if version == AIHUB_239_SEMANTICS_V1:
-        payload = definitions
-    elif version == AIHUB_239_SEMANTICS_V2:
-        payload = {
-            "definitions": definitions,
-            "member_exceptions": _exception_payload(_V2_MEMBER_EXCEPTIONS),
-        }
-    elif version == AIHUB_239_SEMANTICS_V3:
+    if version == AIHUB_239_SEMANTICS_V3:
         # Scope membership decides meaning, so the SHA-256 set is part of the payload;
         # the archive descriptions are documentation and stay out of it.
         payload = {
@@ -222,14 +200,12 @@ def interpret_channel(
     """Return the evidenced definition, or an unresolved one with its reason."""
     if version not in AIHUB_239_SEMANTICS_DIGESTS:
         raise ValueError(f"unknown AI-Hub 239 semantics version: {version}")
-    if version == AIHUB_239_SEMANTICS_V3 and archive_sha256 not in _V3_PROFILED_ARCHIVES:
+    if archive_sha256 not in _V3_PROFILED_ARCHIVES:
         return ChannelInterpretation(
             MeasurementDefinition(),
             f"archive sha256 is outside the {version} profiled evidence scope",
         )
-    channels, reason = _MEMBER_EXCEPTIONS.get(version, {}).get(
-        (archive_sha256, member), (frozenset(), "")
-    )
+    channels, reason = _V3_MEMBER_EXCEPTIONS.get((archive_sha256, member), (frozenset(), ""))
     if channel_name in channels:
         return ChannelInterpretation(
             MeasurementDefinition(), f"{version} member exception: {reason}"
@@ -250,13 +226,6 @@ def channel_definition(
     return interpret_channel(
         version, channel_name, archive_sha256=archive_sha256, member=member
     ).definition
-
-
-def history_schema_semantics(metadata_schema: str) -> str | None:
-    """Return the semantics version a history metadata schema writes, if any."""
-    if metadata_schema not in AIHUB_239_HISTORY_SCHEMAS:
-        raise ValueError(f"metadata_schema must be one of {', '.join(AIHUB_239_HISTORY_SCHEMAS)}")
-    return _SCHEMA_SEMANTICS.get(metadata_schema)
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,9 +253,8 @@ def project_power_observation(
     archive_digest: str,
     archive_bytes: int,
     binding: PowerHistoryBinding,
-    metadata_schema: str = AIHUB_239_DEFAULT_HISTORY_SCHEMA,
 ) -> FileBackfillEvent:
-    semantics_version = history_schema_semantics(metadata_schema)
+    semantics_version = AIHUB_239_SEMANTICS_V3
     if (record.device_id, record.device_board_id) != (binding.device_id, binding.device_board_id):
         raise ValueError("source device identifiers do not match the explicit asset binding")
     local = datetime.fromisoformat(record.timestamp_text)
@@ -298,27 +266,20 @@ def project_power_observation(
         )
     if aware.astimezone(UTC).astimezone(zone).replace(tzinfo=None) != local:
         raise ValueError("nonexistent local source time")
-    # v1/v2 assert only the source's name; v3+ apply an evidenced dictionary.
-    # Earlier schemas remain available for exact retry; channel identity is unchanged.
-    interpretation = (
-        interpret_channel(
-            semantics_version,
-            record.channel_name,
-            archive_sha256=archive_digest,
-            member=record.member,
-        )
-        if semantics_version is not None
-        else ChannelInterpretation(MeasurementDefinition())
+    interpretation = interpret_channel(
+        semantics_version,
+        record.channel_name,
+        archive_sha256=archive_digest,
+        member=record.member,
     )
     definition = interpretation.definition
     unresolved_evidence = "source ITEM_NAME; canonical property and unit unresolved"
-    if metadata_schema == "v5" and interpretation.unresolved_reason is not None:
-        # v5 records why a meaning is unresolved; v1-v4 keep their exact text for retry.
+    if interpretation.unresolved_reason is not None:
         unresolved_evidence += f": {interpretation.unresolved_reason}"
     semantic = ChannelSemanticBinding(
         source_id=binding.source_id,
         channel_id=record.channel_name,
-        version=semantics_version or binding.version,
+        version=semantics_version,
         definition=definition,
         interpretation_evidence=(
             "source ITEM_NAME; provider unit table and observed data agree; "
@@ -328,13 +289,8 @@ def project_power_observation(
         ),
     )
     semantic_metadata = asdict(semantic)
-    if metadata_schema == "v1":
-        # Exact legacy serialization for resuming an existing import. Readers must
-        # not promote this source label to an interpreted observed property.
-        semantic_metadata["definition"].pop("observed_property")
-        semantic_metadata["definition"]["property_name"] = record.channel_name
     metadata = {
-        "schema": f"aihub-239-history-{metadata_schema}",
+        "schema": f"aihub-239-history-{AIHUB_239_HISTORY_SCHEMA}",
         "archive_name": archive.name,
         "member": record.member,
         "record_index": record.record_index,

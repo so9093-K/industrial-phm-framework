@@ -5,7 +5,6 @@ import pytest
 
 from industrial_phm.application import (
     InMemorySourceRepository,
-    JsonObservationWindowRepository,
     ObservationWindowCoordinatorPolicy,
     OpcUaEventTimePolicy,
     OpcUaSourceConfig,
@@ -13,13 +12,14 @@ from industrial_phm.application import (
     RegisteredSource,
     project_opcua_persistent_data_change_event,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
     OpcUaNodeObservation,
     OpcUaSubscriptionNotification,
 )
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from industrial_phm.runtime import rebuild_registered_opcua_observation_windows
+from industrial_phm.runtime.window_coordinator import IncrementalRegisteredOpcUaWindowCoordinator
 
 BASE = datetime(2026, 9, 28, 5, 0, tzinfo=UTC)
 
@@ -129,7 +129,7 @@ def test_ducklake_history_rebuilds_same_finalized_windows_after_restart(tmp_path
     assert restored == events
 
     source_repository = _source_repository()
-    window_repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    window_repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
     policy = ObservationWindowCoordinatorPolicy(
         window_duration_seconds=10.0,
         allowed_lateness_seconds=3.0,
@@ -139,26 +139,20 @@ def test_ducklake_history_rebuilds_same_finalized_windows_after_restart(tmp_path
         alignment_origin=BASE,
     )
 
-    first = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        history,
-        window_repository,
-        "source-a",
-        policy=policy,
-    )
+    first = IncrementalRegisteredOpcUaWindowCoordinator(
+        source_repository, history, window_repository, "source-a", policy=policy
+    ).run_cycle()
     assert first.finalized_window_count == 1
     persisted = window_repository.list_windows()
     assert len(persisted) == 1
     assert persisted[0].accepted_event_count == 3
     assert persisted[0].out_of_order_accepted_count == 1
 
-    # Simulate coordinator restart: no in-memory state survives.
-    second = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        history,
-        JsonObservationWindowRepository(tmp_path / "windows.json"),
-        "source-a",
-        policy=policy,
-    )
-    assert second.finalized_windows == first.finalized_windows
-    assert JsonObservationWindowRepository(tmp_path / "windows.json").list_windows() == persisted
+    # Simulate coordinator restart: only the stored cursor and buffers survive.
+    reopened = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
+    second = IncrementalRegisteredOpcUaWindowCoordinator(
+        source_repository, history, reopened, "source-a", policy=policy
+    ).run_cycle()
+    assert second.finalized_windows == ()
+    assert second.watermark == first.watermark
+    assert reopened.list_windows() == persisted

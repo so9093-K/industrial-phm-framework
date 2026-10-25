@@ -52,8 +52,7 @@ CSV 점검·등록·이력 저장과 FILE/OPC UA 소스 제어의 정확한 절�
 저장 작업은 Supervisor가 소유하며, 상태 조회 실패는 저장 실패와 구별합니다.
 현재 지원 범위·제한은 [프로젝트 상태](../docs/status.md)를 기준으로 합니다.
 
-개별 OPC UA replay와 fault/recovery 실험은 [도구 안내](../tools/opcua/README.md)를
-따르며, 연구 화면은 아래 Analysis Explorer 실행 지침을 따릅니다.
+개별 OPC UA replay와 fault/recovery 실험은 [도구 안내](../tools/opcua/README.md)를 따릅니다.
 
 ### Web 업무 화면 안내
 
@@ -100,4 +99,4 @@ uv run --no-sync industrial-phm operations phm replay-xjtu artifacts/operations 
 
 ## 연구 도구
 
-저장된 연구 결과 탐색은 [notebooks의 Analysis Explorer](../notebooks/saved-analysis-explorer.md)에서 별도로 실행합니다. 운영 제품의 모델 연결·수신·설비 관측 경로와 분리합니다.
+저장된 연구 결과는 [연구 결과 JSON](../docs/research/results/README.md)과 `industrial-phm analysis report`로 확인하고, 탐색용 노트북은 [notebooks](../notebooks/README.md)에서 별도로 실행합니다. 운영 제품의 모델 연결·수신·설비 관측 경로와 분리합니다.

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zipfile import ZipFile
@@ -12,7 +13,7 @@ from industrial_phm.application.finding_review import (
     create_human_review_finding,
 )
 from industrial_phm.application.phase_unbalance import run_phase_unbalance_analysis
-from industrial_phm.application.phase_unbalance_state import JsonPhaseUnbalanceRepository
+from industrial_phm.application.phase_unbalance_state import SqlitePhaseUnbalanceRepository
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.aihub import treat_archive_as_profiled
 
@@ -75,19 +76,24 @@ def test_recorded_snapshot_recomputes_identical_evidence_after_more_history(tmp_
     assert first.evidence.semantic_versions == ("aihub-239-semantics-v3",)
     assert voltage.max_at.utcoffset() == timedelta(0)
 
-    repository = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
+    repository = SqlitePhaseUnbalanceRepository(tmp_path / "unbalance.sqlite")
     repository.record(first)
     assert repository.list_results() == (first,)
     assert first.evidence.results[0].channel_selection == "semantic-role"
     assert first.evidence.results[0].channels == ("R상전압", "S상전압", "T상전압")
 
     # Records written before role resolution have no per-series channel fields.
-    legacy_path = tmp_path / "legacy-unbalance.json"
-    stored = json.loads(repository.path.read_text())
-    for series in stored["results"][0]["evidence"]["results"]:
-        del series["channels"], series["channel_selection"]
-    legacy_path.write_text(json.dumps(stored, ensure_ascii=False))
-    (legacy,) = JsonPhaseUnbalanceRepository(legacy_path).list_results()
+    with sqlite3.connect(repository.path) as connection:
+        (payload,) = connection.execute(
+            "SELECT payload_json FROM phase_unbalance_result"
+        ).fetchone()
+        stored = json.loads(payload)
+        for series in stored["evidence"]["results"]:
+            del series["channels"], series["channel_selection"]
+        connection.execute(
+            "UPDATE phase_unbalance_result SET payload_json = ?", (json.dumps(stored),)
+        )
+    (legacy,) = SqlitePhaseUnbalanceRepository(repository.path).list_results()
     assert legacy.evidence.results[0].channels == first.evidence.results[0].channels
     assert legacy.evidence.results[0].channel_selection == "explicit"
 

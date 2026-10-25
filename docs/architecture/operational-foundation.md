@@ -130,7 +130,7 @@ artifact schema를 직접 해석하거나 numerical PHM 의미를 새로 만드�
 
 현재 presentation 책임은 두 축으로 분리합니다.
 
-- Analysis Explorer / Developer Workbench: version-controlled experiment evidence, pipeline, evaluation과 provenance 검토
+- 연구 노트북(Developer Workbench)과 분석 보고서: version-controlled experiment evidence, pipeline, evaluation과 provenance 검토
 - Operations surface: asset/source/measurement point의 관측 상태, data quality, operational finding/evidence 검토
 
 첫 Operations slice는 관측 사실을 먼저 닫습니다. asset_id, source_id, optional measurement_point_id,
@@ -169,7 +169,7 @@ Operations 제품 UI는 `runtime/operations_app_composition.py`의 bounded read 
 변경 명령은 Supervisor-owned IPC 또는 명시된 독립 preview writer lease를 따라야 하며,
 Web에서 저장소 상태를 임의로 다시 계산하거나 writer 잠금을 우회하지 않습니다.
 기존 marimo Operations 앱과 anywidget Monitor 조립, HTML presenter 및 해당 브라우저 도구는
-#480 이후 제품 실행 경로가 아닙니다. 연구용 Analysis Explorer와 노트북의 marimo는 별개입니다.
+#480 이후 제품 실행 경로가 아닙니다. 연구 노트북의 marimo는 별개입니다.
 UI acceptance는 실제 Web의 데이터 근거와 저장 후 재조회까지 확인해야 하며,
 문구·CSS 선택자만 존재한다는 이유로 수집·분석·Review가 성공했다고 판단하지 않습니다.
 
@@ -204,8 +204,8 @@ Durable observation/window reference boundary는 explicit window range와 caller
 사용합니다. `ObservationWindowBuffer`는 accepted event 수를 bounded하고 event를 in-order/out-of-order,
 late, duplicate(local delivery identity 기준), timing unavailable, unexpected channel, outside-window,
 future clock-skew, buffer-full로 구분합니다. Watermark가 window end에 도달한 뒤에만
-`DurableObservationWindow`로 finalize하며 `JsonObservationWindowRepository`는 finalized window와
-protocol/timing evidence를 current v1 schema로 저장합니다. Durable repository는 finalized window를 소유하고 partial in-memory assembly는 finalized-window persistence
+`DurableObservationWindow`로 finalize하며 `SqliteObservationWindowRepository`는 finalized window와
+protocol/timing evidence를 창마다 한 행으로 저장합니다. Durable repository는 finalized window를 소유하고 partial in-memory assembly는 finalized-window persistence
 contract에 포함하지 않습니다. COMPLETE는 expected channel coverage만 뜻하며 synchronization,
 gap-free/exactly-once delivery, analysis readiness 또는 asset condition을 의미하지 않습니다.
 

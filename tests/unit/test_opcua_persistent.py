@@ -7,7 +7,6 @@ from industrial_phm.application import (
     OpcUaEventTimeEvidence,
     OpcUaEventTimePolicy,
     OpcUaPersistentSessionEvidence,
-    OpcUaPersistentSessionPolicy,
     OpcUaPersistentSessionState,
     RegisteredOpcUaDataChangeEvent,
     project_opcua_persistent_data_change_event,
@@ -50,23 +49,6 @@ def _registered_event(
             observation=observation,
             replayed=replayed,
         ),
-    )
-
-
-def test_persistent_session_policy_caps_reconnect_backoff() -> None:
-    policy = OpcUaPersistentSessionPolicy(
-        reconnect_initial_delay_seconds=1.0,
-        reconnect_max_delay_seconds=5.0,
-        reconnect_backoff_multiplier=2.0,
-    )
-
-    assert tuple(policy.reconnect_delay_seconds(index) for index in range(6)) == (
-        1.0,
-        2.0,
-        4.0,
-        5.0,
-        5.0,
-        5.0,
     )
 
 
