@@ -14,8 +14,8 @@ from typing import Any
 
 from industrial_phm.application.phm_explanation import operator_explanation_context
 from industrial_phm.application.phm_signal_comparison import feature_label
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
 from industrial_phm.genai.local_explanation import (
+    AnalysisExplanationError,
     ExplanationProvider,
     complete_json,
     verdict_phrases,

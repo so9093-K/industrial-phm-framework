@@ -16,7 +16,6 @@ from industrial_phm.application import (
 )
 from industrial_phm.application.measurement_history import (
     HistoryAssetSummary,
-    MeasurementHistoryAggregation,
     MeasurementHistoryPage,
     MeasurementHistoryPoint,
     MultiSignalMeasurementHistoryAggregation,
@@ -124,26 +123,6 @@ def query_operations_multi_signal_measurement_aggregation(
         lambda: history.query_multi_signal_measurement_aggregation(
             asset_id,
             channel_ids=channel_ids,
-            start_at=start_at,
-            end_at=end_at,
-            bucket_count=bucket_count,
-        )
-    )
-
-
-def query_operations_measurement_aggregation(
-    history: DuckLakeAssetHistory,
-    asset_id: str,
-    *,
-    channel_id: str,
-    start_at: datetime,
-    end_at: datetime,
-    bucket_count: int,
-) -> MeasurementHistoryAggregation:
-    return _history_read(
-        lambda: history.query_measurement_aggregation(
-            asset_id,
-            channel_id=channel_id,
             start_at=start_at,
             end_at=end_at,
             bucket_count=bucket_count,

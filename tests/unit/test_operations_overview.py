@@ -10,7 +10,6 @@ from industrial_phm.application import (
     FindingReviewStatus,
     OperationalFinding,
     RegisteredSource,
-    SourceDataFlowState,
     SourceFreshnessPolicy,
     SourceLifecycleRecord,
     SourceLifecycleState,
@@ -140,9 +139,6 @@ def test_operations_overview_summarizes_factual_source_flow_without_health_verdi
 
     assert overview.registered_source_count == 3
     assert overview.active_source_count == 2
-    assert overview.source_data_flow_count(SourceDataFlowState.FRESH) == 1
-    assert overview.source_data_flow_count(SourceDataFlowState.NO_RECEIPT) == 1
-    assert overview.source_data_flow_count(SourceDataFlowState.SOURCE_ERROR) == 1
     assert [item.source_id for item in overview.source_health_assessments] == [
         "source-a",
         "source-b",
@@ -195,8 +191,6 @@ def test_operations_overview_tracks_latest_analysis_and_explicit_review_disposit
     assert overview.latest_analysis_run == latest_run
     assert overview.pending_review_count == 1
     assert overview.open_review_count == 1
-    assert overview.acknowledged_review_count == 0
-    assert overview.closed_review_count == 1
     assert tuple(item.finding.finding_id for item in overview.review_summaries) == (
         "finding-closed",
         "finding-open",

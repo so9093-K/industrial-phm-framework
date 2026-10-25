@@ -29,33 +29,29 @@ def test_unresolved_property_is_not_a_raw_channel_label():
 
 def test_aihub_dictionary_confirms_only_items_where_document_and_data_agree():
     from industrial_phm.adapters.aihub_power_history import (
-        AIHUB_239_SEMANTICS_V1,
-        AIHUB_239_SEMANTICS_V2,
+        AIHUB_239_SEMANTICS_V3,
         channel_definition,
     )
 
     def definition(version, channel, member="7.압출기/SourceData_127.json"):
         return channel_definition(version, channel, archive_sha256=EXTRUDER, member=member)
 
-    frequency = definition(AIHUB_239_SEMANTICS_V2, "주파수")
+    frequency = definition(AIHUB_239_SEMANTICS_V3, "주파수")
     assert (frequency.observed_property, frequency.unit) == ("frequency", "Hz")
-    assert definition(AIHUB_239_SEMANTICS_V2, "전류평균").statistic == (
+    assert definition(AIHUB_239_SEMANTICS_V3, "전류평균").statistic == (
         "arithmetic mean of phases R, S and T"
     )
     # Power, power factor and energy contradict their documented scale (and
     # power "평균" is a three-phase sum); temperature has no independent check.
     for channel in ("유효전력평균", "R상유효전력", "역률평균", "누적전력량", "온도"):
-        assert definition(AIHUB_239_SEMANTICS_V2, channel) == MeasurementDefinition()
-    # v2 leaves a channel unresolved where its supporting relation fails in that
-    # member; v1 is kept unchanged for exact retry of imports that used it.
+        assert definition(AIHUB_239_SEMANTICS_V3, channel) == MeasurementDefinition()
+    # A channel stays unresolved where its supporting relation fails in that member.
     failing = "7.압출기/SourceData_130.json"
-    assert definition(AIHUB_239_SEMANTICS_V2, "R상전류", failing) == MeasurementDefinition()
-    assert definition(AIHUB_239_SEMANTICS_V1, "R상전류", failing).unit == "A"
+    assert definition(AIHUB_239_SEMANTICS_V3, "R상전류", failing) == MeasurementDefinition()
 
 
 def test_semantics_v3_applies_meaning_only_inside_its_profiled_archive_scope():
     from industrial_phm.adapters.aihub_power_history import (
-        AIHUB_239_SEMANTICS_V2,
         AIHUB_239_SEMANTICS_V3,
         interpret_channel,
     )
@@ -65,7 +61,7 @@ def test_semantics_v3_applies_meaning_only_inside_its_profiled_archive_scope():
 
     confirmed = interpret("R상전류", COMPRESSOR, "3.공기압축기/SourceData_112.json")
     assert (confirmed.definition.unit, confirmed.unresolved_reason) == ("A", None)
-    # v2 exceptions are carried into v3 unchanged.
+    # Extruder member exceptions apply as well.
     assert interpret("R상전류", EXTRUDER, "7.압출기/SourceData_130.json").definition.unit is None
 
     # Compressor members whose relation median falls outside its tolerance.
@@ -85,9 +81,6 @@ def test_semantics_v3_applies_meaning_only_inside_its_profiled_archive_scope():
     assert unknown.unresolved_reason == (
         "archive sha256 is outside the aihub-239-semantics-v3 profiled evidence scope"
     )
-    # Published v2 is never edited, so it still lacks the compressor exceptions.
-    member = "3.공기압축기/SourceData_135.json"
-    assert interpret("R상전류", COMPRESSOR, member, AIHUB_239_SEMANTICS_V2).definition.unit == "A"
 
     power = interpret("R상유효전력", COMPRESSOR, "3.공기압축기/SourceData_112.json")
     assert power.definition == MeasurementDefinition()
@@ -106,12 +99,6 @@ def test_published_semantics_versions_are_immutable():
     # Stored observations keep their version forever. Changing a dictionary payload
     # requires a new version and a new pinned digest, never an edit.
     assert AIHUB_239_SEMANTICS_DIGESTS == {
-        "aihub-239-semantics-v1": (
-            "a90327d6d885480ca7b044dc704fb95aa14677b8713f75a4d9401b80178a054d"
-        ),
-        "aihub-239-semantics-v2": (
-            "4cc29be9d2fc98e7f4531e0504414a848329794ac049c78b3d097fda7da0db7c"
-        ),
         "aihub-239-semantics-v3": (
             "2df8cf5bfaeab39f22396ab1dc849db23483c4c4676d8515139b6a10c4d130b1"
         ),

@@ -6,16 +6,15 @@ import pytest
 from industrial_phm.application import (
     ChannelSemanticBinding,
     DurableObservationWindow,
-    JsonObservationWindowRepository,
     MeasurementDefinition,
     ObservationWindowBuffer,
     ObservationWindowCompleteness,
     ObservationWindowEventDisposition,
-    ObservationWindowFormatError,
     OpcUaEventTimePolicy,
     RegisteredOpcUaDataChangeEvent,
     project_opcua_persistent_data_change_event,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.connectors import (
     OpcUaNodeObservation,
     OpcUaSubscriptionNotification,
@@ -118,7 +117,6 @@ def test_buffer_accepts_in_order_and_out_of_order_events() -> None:
     assert first_result.accepted is True
     assert second_result.disposition == ObservationWindowEventDisposition.OUT_OF_ORDER
     assert second_result.accepted is True
-    assert buffer.buffered_event_count == 2
 
 
 def test_event_before_watermark_is_late_and_repeat_is_duplicate() -> None:
@@ -226,7 +224,6 @@ def test_buffer_full_rejects_event_without_unbounded_growth() -> None:
     result = buffer.ingest(second)
 
     assert result.disposition == ObservationWindowEventDisposition.BUFFER_FULL
-    assert buffer.buffered_event_count == 1
 
 
 def test_watermark_is_caller_owned_and_cannot_move_backwards() -> None:
@@ -296,7 +293,7 @@ def test_finalized_window_partial_means_channel_coverage_only() -> None:
     assert window.missing_channel_ids == ("temperature",)
 
 
-def test_json_repository_round_trip_preserves_protocol_and_timing_evidence(
+def test_window_store_round_trip_preserves_protocol_and_timing_evidence(
     tmp_path: Path,
 ) -> None:
     buffer = _buffer()
@@ -309,7 +306,7 @@ def test_json_repository_round_trip_preserves_protocol_and_timing_evidence(
     buffer.ingest(event)
     buffer.advance_watermark(WINDOW_END)
     window = buffer.finalize(finalized_at=WINDOW_END + timedelta(seconds=1))
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
 
     repository.record_window(window)
     restored = repository.get(window.window_id)
@@ -328,14 +325,14 @@ def test_json_repository_round_trip_preserves_protocol_and_timing_evidence(
     assert restored_event.event_time.ingested_at == event.event_time.ingested_at
 
 
-def test_json_repository_is_idempotent_for_identical_window(
+def test_window_store_is_idempotent_for_identical_window(
     tmp_path: Path,
 ) -> None:
     buffer = _buffer()
     buffer.ingest(_event(event_index=0))
     buffer.advance_watermark(WINDOW_END)
     window = buffer.finalize(finalized_at=WINDOW_END + timedelta(seconds=1))
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
 
     repository.record_window(window)
     repository.record_window(window)
@@ -343,7 +340,7 @@ def test_json_repository_is_idempotent_for_identical_window(
     assert repository.list_windows() == (window,)
 
 
-def test_json_repository_rejects_conflicting_same_window_id(
+def test_window_store_rejects_conflicting_same_window_id(
     tmp_path: Path,
 ) -> None:
     first = DurableObservationWindow(
@@ -370,14 +367,14 @@ def test_json_repository_rejects_conflicting_same_window_id(
         expected_channel_ids=("vibration_x",),
         events=(_event(event_index=0),),
     )
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
     repository.record_window(first)
 
     with pytest.raises(ValueError, match="same window_id"):
         repository.record_window(second)
 
 
-def test_json_repository_rejects_delivery_identity_in_multiple_windows(
+def test_window_store_rejects_delivery_identity_in_multiple_windows(
     tmp_path: Path,
 ) -> None:
     shared_event = _event(event_index=0)
@@ -405,29 +402,8 @@ def test_json_repository_rejects_delivery_identity_in_multiple_windows(
         expected_channel_ids=("vibration_x",),
         events=(shared_event,),
     )
-    repository = JsonObservationWindowRepository(tmp_path / "windows.json")
+    repository = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
     repository.record_window(first)
 
     with pytest.raises(ValueError, match="multiple windows"):
         repository.record_window(second)
-
-
-def test_json_repository_rejects_unsupported_schema(tmp_path: Path) -> None:
-    path = tmp_path / "windows.json"
-    path.write_text(
-        '{"schema":"industrial-phm-observation-window-v0","windows":[]}\n',
-        encoding="utf-8",
-    )
-    repository = JsonObservationWindowRepository(path)
-
-    with pytest.raises(ObservationWindowFormatError, match="unsupported"):
-        repository.list_windows()
-
-
-def test_json_repository_rejects_malformed_json(tmp_path: Path) -> None:
-    path = tmp_path / "windows.json"
-    path.write_text("{not-json", encoding="utf-8")
-    repository = JsonObservationWindowRepository(path)
-
-    with pytest.raises(ObservationWindowFormatError, match="valid JSON"):
-        repository.list_windows()

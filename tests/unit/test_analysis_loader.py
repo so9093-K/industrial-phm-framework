@@ -42,7 +42,6 @@ def test_surface_keeps_inspection_when_detailed_projector_is_unavailable(
     assert surface.artifact_path == artifact
     assert surface.inspection.schema_id == schema_id
     assert surface.analysis is None
-    assert surface.has_detailed_analysis is False
 
 
 def test_surface_includes_detailed_analysis_when_projector_exists() -> None:
@@ -51,4 +50,3 @@ def test_surface_includes_detailed_analysis_when_projector_exists() -> None:
     assert surface.inspection.schema_id == "xjtu-lstm-development-result-v1"
     assert surface.analysis is not None
     assert surface.analysis.anomaly_evidence is not None
-    assert surface.has_detailed_analysis is True

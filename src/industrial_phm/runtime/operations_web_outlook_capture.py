@@ -44,8 +44,6 @@ from industrial_phm.runtime.operations_web_review import (
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 CAPTURES_ROUTE = "/api/v1/outlook/captures"
-CAPTURE_ACTION_ROUTE = "/api/v1/outlook/captures/confirm"
-REVIEW_ACTION_ROUTE = "/api/v1/outlook/captures/review/action"
 _SELECTION = frozenset(
     {
         "asset_id",

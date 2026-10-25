@@ -20,7 +20,7 @@ from uuid import uuid4
 
 from industrial_phm.application.forecast import ForecastUnavailable
 from industrial_phm.application.phm_analysis import PhmAnalysisError
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
+from industrial_phm.genai.local_explanation import AnalysisExplanationError
 from industrial_phm.genai.outlook_answer import DEFAULT_QUESTION, generate_outlook_briefing
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_outlook import (
@@ -32,7 +32,6 @@ from industrial_phm.runtime.operations_web_phm_explanation import configured_pro
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 BRIEFINGS_ROUTE = "/api/v1/outlook/briefings"
-REQUEST_ROUTE = "/api/v1/outlook/briefings/request"
 SELECTION_FIELDS = (
     "asset_id",
     "kind",

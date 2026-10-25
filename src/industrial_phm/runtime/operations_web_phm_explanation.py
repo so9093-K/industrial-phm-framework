@@ -16,8 +16,7 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import ExplanationProvider
+from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 

@@ -51,7 +51,6 @@ if TYPE_CHECKING:
     from industrial_phm.experiments.ims_model_input import (
         ImsModelInputError,
         fit_ims_preprocessing_and_prepare_model_input,
-        prepare_ims_model_fit_input,
         prepare_ims_model_scoring_input,
     )
     from industrial_phm.experiments.mimii import (
@@ -118,7 +117,6 @@ if TYPE_CHECKING:
     from industrial_phm.experiments.mimii_model_input import (
         MimiiModelInputError,
         fit_mimii_preprocessing_and_prepare_model_input,
-        prepare_mimii_model_fit_input,
         prepare_mimii_model_scoring_input,
     )
     from industrial_phm.experiments.result_inspection import (
@@ -411,9 +409,7 @@ _EXPORT_MODULES: dict[str, str] = {
     "load_packaged_xjtu_experiment_configs": ".xjtu",
     "mimii_development_context": ".mimii",
     "mimii_expected_train_domain_counts": ".mimii",
-    "prepare_ims_model_fit_input": ".ims_model_input",
     "prepare_ims_model_scoring_input": ".ims_model_input",
-    "prepare_mimii_model_fit_input": ".mimii_model_input",
     "prepare_mimii_model_scoring_input": ".mimii_model_input",
     "prepare_xjtu_lstm_sequence_inputs": ".xjtu_sequence",
     "prepare_xjtu_model_fit_input": ".xjtu_model_input",
@@ -619,9 +615,7 @@ __all__ = [
     "load_packaged_xjtu_experiment_configs",
     "mimii_development_context",
     "mimii_expected_train_domain_counts",
-    "prepare_ims_model_fit_input",
     "prepare_ims_model_scoring_input",
-    "prepare_mimii_model_fit_input",
     "prepare_mimii_model_scoring_input",
     "prepare_xjtu_lstm_sequence_inputs",
     "prepare_xjtu_model_fit_input",

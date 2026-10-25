@@ -116,11 +116,6 @@ class SourceHealthAssessment:
         return None if self.receipt is None else self.receipt.received_at
 
     @property
-    def latest_observed_at(self) -> datetime | None:
-        """Return the latest source observation time when evidence exists."""
-        return None if self.receipt is None else self.receipt.observed_at
-
-    @property
     def delivery_lag_seconds(self) -> float | None:
         """Return observed-to-received delivery lag when timestamps are comparable."""
         return None if self.receipt is None else self.receipt.lag_seconds

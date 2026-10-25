@@ -76,7 +76,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 
 | 영역 | 상태 | 현재 경계 |
 | --- | --- | --- |
-| XJTU/IMS/MIMII anomaly experiment evidence | **Research only** | Analysis Explorer에서 연구 결과·pipeline·provenance 검토. XJTU RUL 실험 코드는 폐기했고 결과 문서(`docs/research/results`)만 기록으로 보존 |
+| XJTU/IMS/MIMII anomaly experiment evidence | **Research only** | 연구 결과 JSON(`docs/research/results`)과 `industrial-phm analysis report`로 결과·pipeline·provenance 검토. RUL 실험 코드·결과·프로토콜은 삭제([ADR-0026](adr/0026-retire-remaining-life-estimation.md)) |
 | provider label을 production 분석 입력으로 사용 | **미제공** | label은 research evaluation에만 사용 |
 | validated fault diagnosis | **미제공** | 관측·분석 evidence를 진단으로 자동 승격하지 않음 |
 | operational alarm / fleet risk scoring | **미제공** | source 상태나 analysis output을 alarm/risk verdict로 자동 승격하지 않음 |
@@ -120,7 +120,7 @@ README·Architecture·Product 문서는 아래 지원 표를 다시 복사하지
 | Local Operations logs | **지원** | `operations logs <root>`가 collection/analysis/ui의 workspace-owned log를 component별 최대 10,000줄 bounded tail로 표시. 내부 log path를 정상 사용자가 직접 지정하지 않음 |
 | stopped workspace backup/restore | **지원** | `maintenance backup <workspace> <backup>`이 stopped local node의 durable workspace state/history를 manifest+SHA-256으로 capture. SQLite는 backup API 사용. logs/supervisor identity/locks/rebuildable batch index는 제외. `maintenance restore <backup> <new-root>`는 검증 후 새 root에 atomic restore하며 기존 workspace는 덮어쓰지 않음 |
 | deployment preflight / systemd reference | **지원** | `validate deployment <absolute-root>`가 실제 service user 기준 runtime dependency, config/plan, workspace access, supervisor/history lock, UI port를 검증. reference unit은 foreground `operations start`, `Restart=on-failure`, `KillMode=mixed`, bounded restart/stop policy를 사용 |
-| installable Operations application | **지원** | 기본 `make up`/`operations up/start`는 wheel 내 **supervised Web**를 실행하며 `operations` extra는 history/OPC UA·예측(Prophet)·LSTM 실행(torch CPU) 런타임을 포함. 운영용 marimo·anywidget 및 `--ui marimo` 실행은 제거. 연구용 marimo/Matplotlib과 Analysis Explorer는 `notebooks/`·`research` group에서 별도로 관리·설치. Web는 loopback `127.0.0.1` 로컬 단일 사용자 파일럿이며 원격 인증/TLS·다중 사용자 운영은 미지원 |
+| installable Operations application | **지원** | 기본 `make up`/`operations up/start`는 wheel 내 **supervised Web**를 실행하며 `operations` extra는 history/OPC UA·예측(Prophet)·LSTM 실행(torch CPU) 런타임을 포함. 운영용 marimo·anywidget 및 `--ui marimo` 실행은 제거. 연구용 marimo/Matplotlib 노트북은 `notebooks/`·`research` group에서 별도로 관리·설치. Web는 loopback `127.0.0.1` 로컬 단일 사용자 파일럿이며 원격 인증/TLS·다중 사용자 운영은 미지원 |
 | operational CLI taxonomy | **지원** | normal node lifecycle=`operations`, recovery/history=`maintenance`, deployment gates=`validate`, service/source plumbing=`internal`. 이동 전 `operations` spelling은 더 이상 rewrite하지 않음 |
 | local multi-process coordination | **조건부 지원** | SQLite WAL과 local file lock 기반. 같은 state/catalog에 대한 협조 프로세스 전제 |
 | HA / distributed coordination / leader election | **미제공** | local-first runtime 경계 |

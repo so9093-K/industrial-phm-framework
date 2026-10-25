@@ -68,24 +68,6 @@ class OpcUaPersistentSessionPolicy:
         if self.reconnect_backoff_multiplier < 1.0:
             raise ValueError("reconnect_backoff_multiplier must be at least 1")
 
-    def reconnect_delay_seconds(self, reconnect_attempt_index: int) -> float:
-        """Return capped backoff for a zero-based reconnect attempt index."""
-        if isinstance(reconnect_attempt_index, bool) or not isinstance(
-            reconnect_attempt_index, int
-        ):
-            raise ValueError("reconnect_attempt_index must be an integer")
-        if reconnect_attempt_index < 0:
-            raise ValueError("reconnect_attempt_index must not be negative")
-
-        delay = float(self.reconnect_initial_delay_seconds)
-        maximum = float(self.reconnect_max_delay_seconds)
-        multiplier = float(self.reconnect_backoff_multiplier)
-        for _ in range(reconnect_attempt_index):
-            if delay >= maximum:
-                return maximum
-            delay = min(maximum, delay * multiplier)
-        return delay
-
 
 @dataclass(frozen=True, slots=True)
 class OpcUaPersistentSessionEvidence:

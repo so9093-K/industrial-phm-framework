@@ -10,7 +10,7 @@ import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.genai import phm_answer
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
+from industrial_phm.genai.local_explanation import AnalysisExplanationError
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 from tests.support.web_next import asset_list, expect_place, start_web, stop_web

@@ -9,8 +9,11 @@ from threading import Thread
 import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import ExplanationProvider, complete_json
+from industrial_phm.genai.local_explanation import (
+    AnalysisExplanationError,
+    ExplanationProvider,
+    complete_json,
+)
 from industrial_phm.runtime.operations_web_phm_explanation import (
     ExplanationManager,
     request_phm_review,

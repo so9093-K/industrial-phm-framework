@@ -11,12 +11,15 @@ semantics-v3의 Training/raw 근거 범위를 반영합니다. v3는 v2의 AI-Hu
 이 문서는 연구에서 검증한 모델을 운영 분석 경로(순차 입력 → 모델 추론 → 결과 저장 → 화면)로 옮길 때
 **무엇을 보면 합격인지**를 결과를 보기 전에 고정합니다. 대상은 두 검증 사례입니다.
 
-- **XJTU-SY 베어링** — 획득(acquisition) 순차 입력의 이상 점수와 RUL 추정
+- **XJTU-SY 베어링** — 획득(acquisition) 순차 입력의 이상 점수
 - **AI-Hub 239 공기압축기** — 1분 다변량 전력 시계열의 이상 탐지
 
 이 문서는 합격 기준만 소유합니다. 모델 패키지·분석 입력·결과의 계약은 운영 분석 ADR이, 원본 데이터 사실은
-[XJTU source profile](xjtu-source-profile.md)과 [AI-Hub source profile](aihub-239-source-profile.md)이,
-RUL target·split·leakage 규칙은 [XJTU RUL protocol](xjtu-rul-prognostics-protocol.md)이 소유합니다.
+[XJTU source profile](xjtu-source-profile.md)과 [AI-Hub source profile](aihub-239-source-profile.md)이 소유합니다.
+
+v1~v3에는 XJTU 잔여수명(RUL) 패키지(Ridge·LSTM)의 기준과 판정도 있었습니다. RUL은
+[ADR-0026](../adr/0026-retire-remaining-life-estimation.md)으로 폐기되어 그 기준·결과와 RUL 연구 문서를 이
+저장소에서 지웠습니다. 이전 판본은 git 기록에 남아 있습니다.
 
 갱신 규칙: 결과를 본 뒤 임계값·평가 집단·주입 조건을 바꾸지 않습니다. 바꿔야 하면 다음 버전을 만들고 이전 결과를
 그대로 보존합니다.
@@ -42,9 +45,7 @@ RUL target·split·leakage 규칙은 [XJTU RUL protocol](xjtu-rul-prognostics-pr
 | 패키지 | 연구 설정 | 출력 |
 | --- | --- | --- |
 | Isolation Forest 이상 점수 | `xjtu-sy-iforest-fold-1-finalized-v1` | 획득별 이상 점수 |
-| Ridge RUL | `xjtu-sy-rul-feature-ridge-fold-1-v1` | 획득별 RUL (acquisition-interval) |
 | LSTM Autoencoder | `xjtu-sy-lstm-autoencoder-fold-1-development-v1` | 시퀀스 오른쪽 끝 획득의 재구성 점수 |
-| LSTM RUL | `xjtu-sy-rul-lstm-fold-1-v1` | 시퀀스 오른쪽 끝 획득의 RUL |
 
 재생 대상은 fit에 쓰지 않은 fold-1 validation(`Bearing1_2`, `Bearing2_2`, `Bearing3_2`)과 held-out
 (`Bearing1_1`, `Bearing2_1`, `Bearing3_1`) 베어링뿐입니다. train 베어링 재생은 in-sample이므로 합격 근거로
@@ -55,11 +56,9 @@ RUL target·split·leakage 규칙은 [XJTU RUL protocol](xjtu-rul-prognostics-pr
 | 패키지 | 비교 대상 | 허용오차 |
 | --- | --- | --- |
 | Isolation Forest | `xjtu-sy-iforest-fold-1-holdout-v1.json`의 베어링별 Spearman ρ, late-vs-middle 확률 (운영 단계 출력으로 다시 계산) | 절대 차이 ≤ 1e-9 |
-| Ridge RUL | `xjtu-sy-rul-three-model-fold-1-validation-v1.json`의 획득별 예측 | 획득별 절대 차이 ≤ 1e-6 acquisition-interval |
-| LSTM RUL | 같은 validation 결과와 `xjtu-sy-rul-lstm-fold-1-benchmark-v1.json`의 베어링별 MAE | 상대 차이 ≤ 2% (§2.3) |
 | LSTM Autoencoder | `xjtu-sy-lstm-autoencoder-fold-1-development-v1.json`의 베어링별 Spearman ρ | 절대 차이 ≤ 0.05 (§2.3) |
 
-Isolation Forest와 Ridge는 같은 코드·seed로 결정적으로 재학습되므로 저장 결과와 거의 정확히 일치해야 합니다.
+Isolation Forest는 같은 코드·seed로 결정적으로 재학습되므로 저장 결과와 거의 정확히 일치해야 합니다.
 허용오차를 넘으면 허용오차를 늘리지 않고 원인을 찾아 기록합니다.
 
 ### 2.3 LSTM 재학습 재현성 (2026-10-12 측정)
@@ -70,9 +69,6 @@ Isolation Forest와 Ridge는 같은 코드·seed로 결정적으로 재학습되
 | 연구 결과 | 재실행 결과 |
 | --- | --- |
 | Isolation Forest holdout | 모든 값이 비트 단위로 일치 |
-| age-only · Ridge RUL validation | 획득별 최대 차이 3.8e-12 |
-| LSTM RUL validation | 첫 epoch 손실부터 상대 차이 약 3e-9, 획득별 최대 차이 55.8, 베어링 평균 MAE 415.97 → 415.12 (0.2%) |
-| LSTM RUL benchmark | 베어링 평균 MAE 458.25 → 458.03 (0.05%), 정규화 MAE 0.3313 → 0.3298 |
 | LSTM Autoencoder development | 베어링별 Spearman ρ 최대 차이 0.026 (Bearing2_2 0.7413 → 0.7669), 평균 ρ 0.6276 → 0.6380 |
 
 같은 torch `2.14.0` CPU, deterministic algorithms, 1 thread였습니다. MKL/oneDNN 명령어 집합을 AVX2로 제한한
@@ -82,8 +78,7 @@ Isolation Forest와 Ridge는 같은 코드·seed로 결정적으로 재학습되
 
 따라서 LSTM 패키지는 다음 두 가지로 판정합니다.
 
-1. **재학습 패키지의 성능 동등성**: 위 표의 베어링별 지표 허용오차. LSTM RUL은 측정된 환경 차이(0.05–0.2%)의
-   약 10배 여유입니다. LSTM Autoencoder 기준은 처음 0.02로 적었다가, 연구 코드를 그대로 재실행한 결과 자체가
+1. **재학습 패키지의 성능 동등성**: 위 표의 베어링별 지표 허용오차. LSTM Autoencoder 기준은 처음 0.02로 적었다가, 연구 코드를 그대로 재실행한 결과 자체가
    0.026 차이를 보여 0.05(측정값의 약 2배)로 고쳤습니다. 이 수정은 운영 결과가 없는 상태에서 연구 재실행
    측정만 보고 한 것이며, 순위 지표인 ρ가 재학습 잡음에 민감하다는 사실을 그대로 기록합니다.
 2. **패키지 고정 후의 결정성**: 같은 패키지(저장된 가중치)로 순차 추론한 출력과 일괄 추론한 출력의 획득별
@@ -97,15 +92,6 @@ Isolation Forest와 Ridge는 같은 코드·seed로 결정적으로 재학습되
 reference 행(train 베어링 초기 1/3) 점수의 99.5% 분위수**로 정하고, 검토 구간은 임계값 초과 2개 획득 연속 시
 열고 1개 획득 이하의 틈은 같은 구간으로 잇습니다. 재생 베어링의 점수로 임계값을 조정하지 않습니다.
 
-### 2.5 RUL 표시 범위
-
-- 단위는 `acquisition-interval`로 저장합니다. XJTU-SY의 공식 획득 주기(1분)로 분 단위를 함께 표시할 수 있지만
-  별도 target을 만들지 않습니다.
-- 종료점 의미는 `last-recorded-acquisition`이며 물리 고장 시각이 아닙니다.
-- 검증 오차는 연구 결과의 베어링별 MAE·편향을 그대로 표시합니다. RUL v1은 불확실성 구간을 검증하지 않았으므로
-  신뢰구간을 표시하지 않습니다.
-- 학습 조건(35Hz12kN, 37.5Hz11kN, 40Hz10kN) 밖의 입력은 적용 범위 밖으로 표시합니다.
-
 ## 3. AI-Hub 239 공기압축기
 
 ### 3.1 정답이 없다는 사실에서 출발
@@ -117,8 +103,6 @@ AI-Hub 239에는 이상·고장의 정답이 없습니다. SOH 라벨은 역률�
 1. **주입 없는 보류 기간의 경보 비율** — 원본을 바꾸지 않은 보류 기간에서 검토 구간으로 판정된 윈도우 비율.
    실제 이상이 섞여 있을 수 있으므로 "오경보율"이라고 부르지 않습니다.
 2. **주입 이상 탐지율과 지연** — 보류 기간 원본에 알려진 변화를 넣었을 때 검토 구간이 생기는지와 그 지연.
-
-AI-Hub RUL은 수명·고장 사건 정보가 없으므로 제공하지 않습니다.
 
 ### 3.2 데이터 분할
 
@@ -189,40 +173,25 @@ AI-Hub RUL은 수명·고장 사건 정보가 없으므로 제공하지 않습�
 | 구간 | 기준 |
 | --- | --- |
 | 윈도우 확정 → 분석 결과 커밋 (AI-Hub, 통상 재생 속도) | p95 ≤ 10초 |
-| 획득 공급 → 분석 결과 커밋 (XJTU, Isolation Forest·Ridge) | p95 ≤ 2초 |
+| 획득 공급 → 분석 결과 커밋 (XJTU, Isolation Forest) | p95 ≤ 2초 |
 | 분석 결과 커밋 → 화면 반영 | polling 주기 + 2초 이하 |
 
 화면에는 최신 관측 시각과 최신 분석 시각을 함께 표시해 사용자가 지연을 직접 볼 수 있어야 합니다.
 
 ## 5. v3 변경: LSTM 재학습 패키지 판정 (2026-10-12)
 
-§2.3의 LSTM RUL 기준(베어링별 MAE 상대 2%, v1·v2 공통)으로 운영 패키지를 판정한 결과 **FAIL**입니다. 이 결과는
-그대로 보존합니다.
+§2.3의 재학습 성능 기준은 연구 코드를 같은 머신에서 그대로 재실행해도 일부 베어링에서 불합격했습니다. 학습 환경
+차이가 베어링별 지표에 주는 변동을 과소평가한 기준의 결함이며, 결과를 본 뒤 정한 기준이므로 v3로 분리합니다.
 
-| 베어링 | 저장된 연구 MAE | 같은 머신의 연구 코드 재실행 | 운영 패키지 |
-| --- | ---: | ---: | ---: |
-| Bearing1_2 | 37.302 | 37.753 (1.21%) | 37.753 (1.21%) |
-| Bearing2_2 | 44.561 | 42.020 (**5.70%**) | 42.020 (**5.70%**) |
-| Bearing3_2 | 1166.034 | 1165.599 (0.04%) | 1165.599 (0.04%) |
-| Bearing1_1 | 21.927 | 21.395 (**2.42%**) | 21.395 (**2.42%**) |
-| Bearing2_1 | 170.636 | 170.541 (0.06%) | 170.541 (0.06%) |
-| Bearing3_1 | 1182.190 | 1182.167 (0.00%) | 1182.167 (0.00%) |
+**v3 LSTM 판정** — 운영 경로가 연구 모델을 그대로 실행하는지를 묻습니다. 환경 간 학습 변동은 판정하지 않습니다.
 
-§2.3 기준은 **연구 코드를 그대로 재실행해도** 같은 두 베어링에서 불합격합니다. 2%는 §2.3에서 집계 지표 차이
-(0.05–0.2%)만 보고 정했고, 학습 환경 차이가 베어링별 지표에 주는 변동을 과소평가했습니다. 운영 경로의 결함이
-아니라 기준의 결함입니다. 결과를 본 뒤 정한 기준이므로 v3로 분리합니다.
-
-**v3 LSTM 판정** — 운영 경로가 연구 모델을 그대로 실행하는지를 묻습니다. 환경 간 학습 변동은 판정하지 않고 보고합니다.
-
-1. **같은 실행 환경의 연구 재실행과 획득별 일치**: 같은 코드·torch 버전·CPU에서 연구 명령(`rul-validation`,
-   `rul-benchmark`, `lstm-development`)을 실행한 예측·점수와 운영 패키지의 step 출력이 획득별 ≤ 1e-4.
+1. **같은 실행 환경의 연구 재실행과 획득별 일치**: 같은 코드·torch 버전·CPU에서 연구 명령(`lstm-development`)을
+   실행한 점수와 운영 패키지의 step 출력이 획득별 ≤ 1e-4.
 2. **결정성**: 순차 출력 = 같은 패키지의 일괄 출력(≤ 1e-4), runner를 매 주기 새로 만들어도 준비 구간이
    베어링마다 정확히 시퀀스 길이 − 1개이고 입력 시퀀스가 끊기지 않음.
 3. **AE 순위 지표**: §2.3과 같이 베어링별 Spearman ρ 차이 ≤ 0.05.
-4. **보고만**: 저장된 연구 결과와의 베어링별 MAE 차이(환경 간 학습 변동).
 
-v3 판정 결과(커밋 `1df49a3` 패키지, 학습에 쓰지 않은 6개 베어링): **PASS**. RUL 5,928개 획득 최대 차이
-2.3e-5, AE 2,797개 최대 7.4e-7. 순차 = 일괄 차이 0, runner 14회 재생성 동안 준비 구간 정확히 7개. AE ρ 최대 차이
-0.026. 판정 도구: `tools/phm/verify_xjtu_lstm.py --research-rerun <같은 환경 연구 결과 디렉터리>`.
-도구의 `pass`와 종료 코드는 §5 판정 하나만 뜻합니다. §2.3 결과는 `pass_section_2_3`로 따로 기록하며 성능 합격과
-합치지 않습니다. `--research-rerun` 없이는 §5를 판정할 수 없어 실패로 끝납니다.
+v3 판정 결과(커밋 `1df49a3` 패키지, 학습에 쓰지 않은 6개 베어링): **PASS**. AE 2,797개 획득 최대 차이 7.4e-7,
+순차 = 일괄 차이 0, runner 14회 재생성 동안 준비 구간 정확히 7개, AE ρ 최대 차이 0.026.
+판정 도구: `tools/phm/verify_xjtu_lstm.py --research-rerun <같은 환경 연구 결과 디렉터리>`.
+도구의 `pass`와 종료 코드는 §5 판정 하나만 뜻합니다. `--research-rerun` 없이는 §5를 판정할 수 없어 실패로 끝납니다.

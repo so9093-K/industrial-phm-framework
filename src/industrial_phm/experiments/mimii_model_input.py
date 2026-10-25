@@ -46,23 +46,6 @@ def fit_mimii_preprocessing_and_prepare_model_input(
     return state, _prepare_model_fit_input(config, state, ordered)
 
 
-def prepare_mimii_model_fit_input(
-    config: ExperimentConfig,
-    preprocessing_state: PreprocessingState,
-    vectors: Sequence[AudioFeatureVector],
-) -> ModelFitInput:
-    """Prepare one complete section train population using an existing fitted state."""
-    scope = _validate_config(config)
-    ordered = _ordered_vectors(vectors)
-    _validate_state(config, preprocessing_state)
-    _validate_train_population(scope, config, ordered)
-    if len(ordered) != preprocessing_state.observation_count:
-        raise MimiiModelInputError(
-            "MIMII train feature-vector count must match preprocessing fit observation count"
-        )
-    return _prepare_model_fit_input(config, preprocessing_state, ordered)
-
-
 def prepare_mimii_model_scoring_input(
     config: ExperimentConfig,
     preprocessing_state: PreprocessingState,

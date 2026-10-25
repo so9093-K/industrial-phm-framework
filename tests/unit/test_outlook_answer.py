@@ -10,8 +10,7 @@ import pytest
 
 from industrial_phm.application.outlook_text import outlook_facts, outlook_sentences
 from industrial_phm.genai import outlook_answer
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import ExplanationProvider
+from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from tests.support.phm import ScriptedModel
 
 

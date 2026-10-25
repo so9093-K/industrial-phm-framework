@@ -7,7 +7,6 @@ import pytest
 
 from industrial_phm.application import (
     InMemorySourceRepository,
-    JsonObservationWindowRepository,
     ObservationWindowCoordinatorPolicy,
     ObservationWindowEventDisposition,
     OpcUaPersistentSessionEvidence,
@@ -22,6 +21,7 @@ from industrial_phm.application import (
     SpoolToHistoryWriterPolicy,
     assess_source_health,
 )
+from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
 from industrial_phm.connectors import (
     OpcUaNodeMapping,
     OpcUaNodeObservation,
@@ -32,10 +32,10 @@ from industrial_phm.runtime import (
     SqliteAcquisitionSpool,
     SqliteAcquisitionSpoolConfig,
     SqliteAcquisitionTelemetryRepository,
-    rebuild_registered_opcua_observation_windows,
     run_spool_to_history_writer,
     write_next_spool_batch,
 )
+from industrial_phm.runtime.window_coordinator import IncrementalRegisteredOpcUaWindowCoordinator
 
 BASE = datetime(2026, 9, 28, 9, 0, tzinfo=UTC)
 EVENT_COUNT = 192
@@ -338,8 +338,8 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
     assert {event.connection_epoch for event in raw} == {1, 2}
 
     source_repository = _source_repository()
-    window_path = tmp_path / "windows.json"
-    window_repository = JsonObservationWindowRepository(window_path)
+    window_path = tmp_path / "windows.sqlite"
+    window_repository = SqliteObservationWindowRepository(window_path)
     window_policy = ObservationWindowCoordinatorPolicy(
         window_duration_seconds=10.0,
         allowed_lateness_seconds=2.0,
@@ -348,26 +348,23 @@ def test_bounded_live_acquisition_soak_survives_restart_and_writer_failure(
         poll_interval_seconds=0.01,
         alignment_origin=BASE,
     )
-    first = rebuild_registered_opcua_observation_windows(
-        source_repository,
-        history,
-        window_repository,
-        "source-a",
-        policy=window_policy,
-    )
+    first = IncrementalRegisteredOpcUaWindowCoordinator(
+        source_repository, history, window_repository, "source-a", policy=window_policy
+    ).run_cycle()
     assert first.finalized_window_count >= 8
     assert first.disposition_count(ObservationWindowEventDisposition.OUT_OF_ORDER) > 0
 
+    # A restarted coordinator over reopened stores resumes and finalizes nothing twice.
     persisted = window_repository.list_windows()
-    second = rebuild_registered_opcua_observation_windows(
+    second = IncrementalRegisteredOpcUaWindowCoordinator(
         source_repository,
         DuckLakeAssetHistory(history_config),
-        JsonObservationWindowRepository(window_path),
+        SqliteObservationWindowRepository(window_path),
         "source-a",
         policy=window_policy,
-    )
-    assert second.finalized_windows == first.finalized_windows
-    assert JsonObservationWindowRepository(window_path).list_windows() == persisted
+    ).run_cycle()
+    assert second.finalized_windows == ()
+    assert SqliteObservationWindowRepository(window_path).list_windows() == persisted
 
     snapshot = SqliteAcquisitionTelemetryRepository(telemetry_path).get("source-a")
     assert snapshot.session is not None

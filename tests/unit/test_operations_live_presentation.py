@@ -12,8 +12,6 @@ from industrial_phm.application.operations_monitor import OperationsMonitorStatu
 from industrial_phm.application.source_registration import SourceType
 from industrial_phm.presentation.operations_live import (
     channel_event_lag_label,
-    initial_signal_channel,
-    live_observation_recent_page,
     live_source_flow_label,
 )
 
@@ -113,34 +111,6 @@ def test_channel_event_lag_is_factual_relative_to_latest_source_timestamp() -> N
     )
 
     assert channel_event_lag_label(series) == "12.0s behind latest source timestamp"
-
-
-def test_live_recent_page_preserves_raw_point_without_interpolation() -> None:
-    view = _view()
-    page = live_observation_recent_page(view)
-
-    assert page.points == (view.series[0].latest_point,)
-    assert page.point_budget == 600
-    assert page.truncated is False
-
-
-def test_signals_open_on_confirmed_meaning_and_keep_an_explicit_choice() -> None:
-    channels = ("R상무효전력", "R상전류", "R상전압", "온도")
-    confirmed = {"R상전류", "R상전압"}
-
-    assert initial_signal_channel(channels, confirmed_channel_ids=confirmed, selected=None) == (
-        "R상전류"
-    )
-    # An explicit choice survives a refresh, even for an unresolved channel.
-    assert (
-        initial_signal_channel(channels, confirmed_channel_ids=confirmed, selected="온도") == "온도"
-    )
-    # A choice from another asset that this asset lacks falls back to the default.
-    assert (
-        initial_signal_channel(channels, confirmed_channel_ids=confirmed, selected="T상전류")
-        == "R상전류"
-    )
-    assert initial_signal_channel(("a", "b"), confirmed_channel_ids=set(), selected=None) == "a"
 
 
 def test_session_ended_by_worker_error_is_disconnected_not_stopped() -> None:

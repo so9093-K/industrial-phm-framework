@@ -7,7 +7,7 @@ this module owns one bounded, error-tolerant operational read snapshot.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -108,34 +108,6 @@ class OperationsReviewProjection:
 
     overview: OperationsOverview
     monitor: OperationsMonitorView
-
-
-def project_review_workflow(
-    snapshot: OperationsAppSnapshot,
-    *,
-    findings: Sequence[OperationalFinding],
-    review_events: Sequence[FindingReviewEvent],
-) -> OperationsReviewProjection:
-    """Recompute review-dependent projections after an in-session review action.
-
-    Every other input comes from the snapshot at its own assessment time. Nothing is
-    read from a repository, so source, collection and analysis state are not refreshed.
-    """
-    return _review_projection(
-        sources=snapshot.registered_sources,
-        lifecycle_records=snapshot.lifecycle_records,
-        receipts=snapshot.receipts,
-        freshness_policies=snapshot.freshness_policies,
-        connection_attempts=snapshot.connection_attempts,
-        analysis_results=snapshot.analysis_results,
-        findings=tuple(findings),
-        review_events=tuple(review_events),
-        acquisition_surfaces=snapshot.acquisition_surfaces,
-        analysis_runtime=snapshot.analysis_runtime,
-        collection_service=snapshot.collection_service,
-        system_errors=snapshot.system_errors,
-        as_of=snapshot.assessed_at,
-    )
 
 
 def _review_projection(

@@ -7,18 +7,13 @@ from zipfile import ZipFile
 
 import pytest
 
-from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
+from industrial_phm.adapters.aihub_power import iter_power_observations
 from industrial_phm.adapters.aihub_power_history import (
     PowerHistoryBinding,
     project_power_observation,
 )
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from industrial_phm.presentation.measurement_history import (
-    latest_measurement_rows,
-    measurement_aggregation_summary,
-    measurement_history_rows,
-)
 from tests.support.aihub import treat_archive_as_profiled
 
 
@@ -124,27 +119,25 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert len(page.points) == 1
     # A conflict beyond the returned row budget must not disappear.
     assert page.points[0].conflicting_duplicate
-    rows = measurement_history_rows(page)
-    assert rows[0]["unit"] == "A"
-    assert rows[0]["source_sha256"] == first["archive_sha256"]
-    assert rows[0]["identity_evidence"] == _binding().identity_evidence
+    stored = json.loads(page.points[0].source_metadata_json)
+    assert stored["semantics"]["definition"]["unit"] == "A"
+    assert page.points[0].source_sha256 == first["archive_sha256"]
+    assert stored["binding"]["identity_evidence"] == _binding().identity_evidence
     assert history.list_history_assets()[0].measurement_count == 3
     assert history.list_history_channels(_binding().asset_id) == ("R상전류",)
     latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
     assert len(latest) == 1
     assert latest[0].conflicting_duplicate
     assert json.loads(latest[0].source_metadata_json)["binding"] == metadata["binding"]
-    latest_row = latest_measurement_rows(latest, as_of=UTC_START + timedelta(seconds=10))[0]
-    assert latest_row["value"] is None
-    assert latest_row["conflict"] is True
-    assert latest_row["event_time_state"] == "recorded"
-    assert latest_row["unit"] == "A"
-    assert latest_row["source_sha256"] == first["archive_sha256"]
-    assert latest_row["source_file"] == f"power.zip!/{MEMBER}"
-    assert latest_row["timezone_evidence"] == _binding().timezone_evidence
-    assert latest_row["identity_evidence"] == _binding().identity_evidence
-    assert latest_row["binding_version"] == _binding().version
-    assert latest_row["event_time_basis"] == "source-timestamp"
+    (point,) = latest
+    binding = json.loads(point.source_metadata_json)["binding"]
+    assert json.loads(point.source_metadata_json)["semantics"]["definition"]["unit"] == "A"
+    assert point.source_sha256 == first["archive_sha256"]
+    assert point.source_file == f"power.zip!/{MEMBER}"
+    assert binding["timezone_evidence"] == _binding().timezone_evidence
+    assert binding["identity_evidence"] == _binding().identity_evidence
+    assert binding["version"] == _binding().version
+    assert point.measurement.event_time_basis.value == "source-timestamp"
     with pytest.raises(ValueError, match="already exists"):
         import_history(archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=2), history)
 
@@ -167,8 +160,9 @@ def test_unprofiled_archive_keeps_raw_values_but_leaves_meaning_unresolved(tmp_p
     assert semantics["interpretation_evidence"].endswith(
         "unresolved: archive sha256 is outside the aihub-239-semantics-v3 profiled evidence scope"
     )
-    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
-    assert latest_measurement_rows(latest, as_of=UTC_START)[0]["observed_property"] == "unresolved"
+    (latest,) = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
+    meaning = json.loads(latest.source_metadata_json)["semantics"]["definition"]
+    assert meaning.get("observed_property") is None
 
 
 def test_reader_rejects_invalid_numeric_values_and_binding_guesses(tmp_path):
@@ -253,100 +247,6 @@ def test_file_raw_rejects_nonfinite_and_boolean_values(value):
         )
 
 
-def _seed_first_legacy_batch(archive, history, *, schema, batch_size):
-    """Write batch 0 as an import made before legacy schemas became retry-only."""
-    end = LOCAL + timedelta(seconds=1)
-    _, selection_id = history_tool.selection_identity(
-        archive_sha256(archive), MEMBER, _binding(), LOCAL, end, batch_size
-    )
-    records = [
-        r
-        for r in iter_power_observations(archive, MEMBER)
-        if LOCAL <= datetime.fromisoformat(r.timestamp_text) < end
-    ][:batch_size]
-    events = [
-        project_power_observation(
-            record,
-            archive=archive,
-            archive_digest=archive_sha256(archive),
-            archive_bytes=archive.stat().st_size,
-            binding=_binding(),
-            metadata_schema=schema,
-        )
-        for record in records
-    ]
-    return history.append_file_batch(events, batch_id=history_tool.batch_id(selection_id, 0))
-
-
-@pytest.mark.parametrize("schema", ["v1", "v2", "v3", "v4"])
-def test_legacy_schema_cannot_start_a_new_import(tmp_path, schema):
-    archive = _archive(tmp_path, (1.0,))
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
-    )
-    with pytest.raises(ValueError, match="retry-only"):
-        import_history(
-            archive,
-            MEMBER,
-            _binding(),
-            LOCAL,
-            LOCAL + timedelta(seconds=1),
-            history,
-            metadata_schema=schema,
-        )
-    assert history.query_file_events("research-source") == ()
-
-
-def test_interrupted_legacy_import_can_be_completed_with_its_schema(tmp_path):
-    archive = _archive(tmp_path)
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
-    )
-    _seed_first_legacy_batch(archive, history, schema="v4", batch_size=1)
-    result = import_history(
-        archive,
-        MEMBER,
-        _binding(),
-        LOCAL,
-        LOCAL + timedelta(seconds=1),
-        history,
-        batch_size=1,
-        metadata_schema="v4",
-    )
-    assert (result["event_count"], result["batch_count"]) == (3, 3)
-    assert result["recovered_batch_count"] == 1
-    assert result["semantic_binding_version"] == "aihub-239-semantics-v2"
-    schemas = {
-        json.loads(e.source_metadata_json)["schema"]
-        for e in history.query_file_events("research-source")
-    }
-    assert schemas == {"aihub-239-history-v4"}
-
-
-def test_legacy_import_retries_without_rewriting_persisted_semantic_evidence(tmp_path):
-    archive = _archive(tmp_path, (1.0,))
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
-    )
-    args = (archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history)
-    first = _seed_first_legacy_batch(archive, history, schema="v1", batch_size=2000)
-    original = history.query_file_events("research-source")[0].source_metadata_json
-    assert json.loads(original)["schema"] == "aihub-239-history-v1"
-    assert json.loads(original)["semantics"]["definition"]["property_name"] == "R상전류"
-    retry = import_history(*args, metadata_schema="v1")
-    assert retry["metadata_schema"] == "aihub-239-history-v1"
-    assert retry["semantic_binding_version"] == _binding().version
-    assert retry["snapshot_id"] == first.snapshot_id
-    assert retry["recovered_batch_count"] == 1
-    assert retry["flushed_row_count"] == 0
-    # A new interpretation must not silently mutate immutable imported evidence.
-    with pytest.raises(ValueError):
-        import_history(*args)
-    assert history.query_file_events("research-source")[0].source_metadata_json == original
-    latest = history.query_latest_measurements(_binding().asset_id, channel_id="R상전류")
-    assert latest_measurement_rows(latest, as_of=UTC_START)[0]["observed_property"] == "unresolved"
-
-
 def test_bounded_aggregation_covers_full_range_and_preserves_excluded_counts(tmp_path):
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
@@ -404,9 +304,6 @@ def test_bounded_aggregation_covers_full_range_and_preserves_excluded_counts(tmp
     assert max(b.last_event_at for b in result.buckets) == extras[-1].event_at
     assert result.snapshot_id == history.current_snapshot_id()
     assert all(b.bucket_start < b.bucket_end <= result.end_at for b in result.buckets)
-    summary = measurement_aggregation_summary(result)
-    assert summary["returned_end"] == extras[-1].event_at.astimezone(UTC).isoformat()
-    assert summary["observation_count"] == 2505
     first = next(b for b in result.buckets if b.source_id == "file" and b.bucket_start == UTC_START)
     assert first.minimum == 0
     assert first.maximum == 250

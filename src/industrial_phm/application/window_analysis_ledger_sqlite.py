@@ -27,10 +27,7 @@ class SqliteWindowAnalysisLedger:
             with path.open("rb") as stream:
                 header = stream.read(16)
             if header and header != b"SQLite format 3\x00":
-                raise ValueError(
-                    "analysis ledger is not SQLite; choose a new --ledger-state path "
-                    "instead of reusing legacy JSON state"
-                )
+                raise ValueError("analysis ledger is not SQLite; choose a new --ledger-state path")
 
     @property
     def path(self) -> Path:

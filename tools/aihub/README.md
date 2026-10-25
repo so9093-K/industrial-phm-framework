@@ -229,21 +229,17 @@ filename을 shell-quoted 문자열로 바꿔 `find -name`이 part 파일을 찾�
 patch하지 않습니다. 선택한 archive들에서 검증한 우회이며 임의 filename/다른 OS의 지원 보장이 아닙니다.
 공식 원본과 설치 안내: [AI-Hub Shell](https://www.aihub.or.kr/devsport/apishell/list.do).
 
-New imports use metadata schema `aihub-239-history-v5`: raw ITEM_NAME remains channel identity, and
+Imports use metadata schema `aihub-239-history-v5`: raw ITEM_NAME remains channel identity, and
 only items confirmed by both the provider unit table and the full-archive relation profile carry
 `aihub-239-semantics-v3` meaning, unit and evidence, except in members where a supporting relation fails
 ([source profile](../../docs/research/aihub-239-source-profile.md)). Semantics-v3 applies meaning only to
 archives inside its profiled scope (the Training/raw boiler, extruder and air-compressor archives by
 SHA-256). Any other archive is imported with raw values intact but every item unresolved, and v5 records
 why in `interpretation_evidence`. All other items keep `observed_property` null and unit unknown.
-Existing v1-v4 rows are read without rewriting their JSON; the v1 `property_name` is shown only as a
-legacy source label. To resume an exact earlier selection, use `--metadata-schema v1`, `v2`, `v3` or
-`v4` with its original binding/range/batch size. Retrying it with
-another schema fails on immutable batch/row evidence rather than silently rewriting interpretation.
-A legacy schema is retry-only: the importer accepts it only when the selection's first batch already
-exists, so an interrupted earlier import can be finished but a new selection cannot use v1-v4.
-The import result reports `metadata_schema`, `semantic_binding_version` and
-`semantic_dictionary_sha256`. Use v5 for new selections.
+Rows stored by earlier schemas are read as stored and never rewritten; an earlier import is not
+resumed with them, and retrying a selection whose batches were written by another schema fails on
+immutable batch/row evidence. The import result reports `metadata_schema`, `semantic_binding_version`
+and `semantic_dictionary_sha256`.
 
 Recompute the semantic evidence with `python -m tools.aihub.relation_profile <raw zip> --output …`.
 

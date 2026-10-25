@@ -45,12 +45,10 @@ def test_display_name_is_used_only_when_declaring_sources_agree() -> None:
     )
 
     assert names.label("compressor-1338") == "공기압축기 · reference asset"
-    assert names.option_label("compressor-1338") == "공기압축기 · reference asset · compressor-1338"
     # Disagreement is not resolved by guessing; the stable ID is shown and reported.
     assert names.label("pump-7") == "pump-7"
     assert names.conflicts == {"pump-7": ("Pump A", "Pump B")}
     assert names.label("boiler-2297") == "boiler-2297"
-    assert names.option_label("boiler-2297") == "boiler-2297"
 
 
 @pytest.mark.parametrize("value", ["", " padded", "a" * 121, "tab\there"])

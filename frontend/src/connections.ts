@@ -25,8 +25,6 @@ export type SavedAnalysis={assetId:string;runId:string;evidenceId:string};
 export type Action="activate"|"pause"|"receive"|"store"|"analyze"|"phase"|"diagnose"|"collect"|"stop";
 export type Step={action:Action|null;text:string};
 
-export const ANALYSIS_MAX_BYTES=1024*1024;
-
 /** Server refusals, in what the person can do about them. */
 export function explainWrite(cause:unknown):string{
   if(cause instanceof WriteForbidden)return cause.message;

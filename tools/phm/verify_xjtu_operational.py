@@ -23,7 +23,7 @@ from industrial_phm.application.phm_runner import PackageCache, run_snapshot_bin
 from industrial_phm.demo.xjtu_snapshot_replay import replay_xjtu_bearing
 from industrial_phm.experiments.xjtu_evaluation import late_vs_middle_rank_probability, spearman_rho
 from industrial_phm.experiments.xjtu_lifecycle import LATE_THIRD, MIDDLE_THIRD, lifecycle_segment
-from industrial_phm.models.package import ModelTask, is_retired_package, load_model_package
+from industrial_phm.models.package import SUPPORTED_TASKS, ModelTask, load_model_package
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 VALIDATION = ("Bearing1_2", "Bearing2_2", "Bearing3_2")
@@ -31,6 +31,12 @@ HOLDOUT = ("Bearing1_1", "Bearing2_1", "Bearing3_1")
 RHO_TOLERANCE = 1e-9
 SEQUENTIAL_BATCH_TOLERANCE = 0.0
 _RESULTS = Path("docs/research/results")
+
+
+def _declared_task(package_dir: Path) -> object:
+    """The task a package declares; packages of other tasks are left out of the verdict."""
+    body = json.loads((package_dir / "package.json").read_text(encoding="utf-8"))
+    return (body.get("output") or {}).get("task") if isinstance(body, dict) else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     packages = {
         load_model_package(path).manifest.output.task: path.name
         for path in sorted(workspace.models_path.iterdir())
-        if (path / "package.json").is_file() and not is_retired_package(path.parent, path.name)
+        if (path / "package.json").is_file() and _declared_task(path) in SUPPORTED_TASKS
     }
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)

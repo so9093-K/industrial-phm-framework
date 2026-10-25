@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -26,6 +27,17 @@ from industrial_phm.connectors import (
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 
 BASE = datetime(2026, 9, 28, 1, 0, tzinfo=UTC)
+
+
+def _meaning(metadata_json: str | None) -> tuple[str, str, str | None]:
+    """The observed property, unit and semantic version a stored history row carries."""
+    semantics = (json.loads(metadata_json) if metadata_json else {}).get("semantics") or {}
+    definition = semantics.get("definition") or {}
+    return (
+        definition.get("observed_property") or "unresolved",
+        definition.get("unit") or "unknown",
+        semantics.get("version"),
+    )
 
 
 def _require_duckdb() -> None:
@@ -779,23 +791,14 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     assert role_voltage.median_percent == voltage.median_percent
     assert role_current.channel_selection == "unresolved"
 
-    # History screens show the same OPC UA meaning the analysis used.
-    from industrial_phm.presentation.measurement_history import (
-        latest_measurement_rows,
-        measurement_aggregation_rows,
-        measurement_history_rows,
-    )
-
+    # History reads carry the same OPC UA meaning the analysis used.
     latest_asset = history.query_latest_asset_measurements("pump-01")
     assert tuple(point.measurement.channel_id for point in latest_asset) == tuple(sorted(channels))
-    latest_asset_rows = latest_measurement_rows(
-        latest_asset,
-        as_of=BASE + timedelta(minutes=1),
-    )
-    assert {row["channel"]: row["unit"] for row in latest_asset_rows}["va"] == "V"
-    assert {row["channel"]: row["observed_property"] for row in latest_asset_rows}["ic"] == (
-        "unresolved"
-    )
+    latest_meaning = {
+        point.measurement.channel_id: _meaning(point.source_metadata_json) for point in latest_asset
+    }
+    assert latest_meaning["va"][1] == "V"
+    assert latest_meaning["ic"][0] == "unresolved"
 
     multi_signal = history.query_multi_signal_measurement_aggregation(
         "pump-01",
@@ -811,16 +814,15 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
     assert {bucket.bucket_start for bucket in multi_signal.buckets} == {BASE}
 
     def shown(channel):
-        latest = history.query_latest_measurements("pump-01", channel_id=channel)
-        (row,) = latest_measurement_rows(latest, as_of=BASE + timedelta(minutes=1))
-        return row["observed_property"], row["unit"], row["semantic_version"]
+        (latest,) = history.query_latest_measurements("pump-01", channel_id=channel)
+        return _meaning(latest.source_metadata_json)
 
     assert shown("va") == ("phase voltage", "V", "site-semantics-v1")
     assert shown("ic")[:2] == ("unresolved", "unknown")
     page = history.query_measurement_page(
         "pump-01", start_at=BASE, end_at=BASE + timedelta(minutes=1), channel_id="ia"
     )
-    assert measurement_history_rows(page)[0]["unit"] == "A"
+    assert _meaning(page.points[0].source_metadata_json)[1] == "A"
     aggregation = history.query_measurement_aggregation(
         "pump-01",
         channel_id="va",
@@ -828,10 +830,8 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         end_at=BASE + timedelta(minutes=1),
         bucket_count=1,
     )
-    aggregation_rows = measurement_aggregation_rows(aggregation)
-    assert len(aggregation_rows) == 1
-    assert aggregation_rows[0]["observed_property"] == "phase voltage"
-    assert aggregation_rows[0]["unit"] == "V"
+    (bucket,) = aggregation.buckets
+    assert _meaning(bucket.interpretation_json)[:2] == ("phase voltage", "V")
 
     # A stored snapshot naming another channel must not lend its meaning to this row.
     connection = history._connect()
@@ -863,10 +863,8 @@ def test_opcua_semantic_snapshot_reaches_raw_evidence_and_analysis_input(tmp_pat
         end_at=BASE + timedelta(minutes=1),
         bucket_count=1,
     )
-    changed_rows = measurement_aggregation_rows(changed_aggregation)
-    assert len(changed_rows) == 1
-    assert changed_rows[0]["observed_property"] == "unresolved"
-    assert changed_rows[0]["unit"] == "unknown"
+    (changed,) = changed_aggregation.buckets
+    assert _meaning(changed.interpretation_json)[:2] == ("unresolved", "unknown")
 
 
 def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
@@ -902,40 +900,16 @@ def test_snapshot_before_semantic_column_reads_as_unresolved(tmp_path):
     assert history.current_snapshot_id() > old_snapshot
 
 
-def test_semantics_bearing_batch_committed_before_fingerprint_version_recovers(
-    tmp_path, monkeypatch
-):
-    """#303 wrote spool events with semantics but a semantics-free DuckLake fingerprint.
-
-    A batch committed that way and not acknowledged before a crash must recover after
-    upgrade, and its raw rows must not be backfilled with the current semantics.
-    """
+def test_opcua_batch_identity_binds_its_semantic_snapshot(tmp_path, monkeypatch):
+    """A batch is recovered only as it was committed, semantic snapshot included; a commit
+    without the fingerprint version is refused rather than reinterpreted."""
     from industrial_phm.history import ducklake
 
     _require_duckdb()
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog.sqlite", tmp_path / "data")
     )
-    binding = _phase_binding("va", "R", "phase voltage", "V")
-    events = (_event(channel_id="va", event_at=BASE, event_index=0, semantic_binding=binding),)
-    fingerprint = ducklake._opcua_batch_fingerprint
-    with monkeypatch.context() as legacy:
-        legacy.setattr(ducklake, "_OPCUA_FINGERPRINT_VERSION", None)
-        legacy.setattr(
-            ducklake,
-            "_opcua_batch_fingerprint",
-            lambda batch, include_semantics=True: fingerprint(batch, include_semantics=False),
-        )
-        legacy.setattr(ducklake, "_semantic_binding_json", lambda _binding: None)
-        commit = history.append_opcua_batch(events, batch_id="committed-before-ack")
-
-    assert history.get_opcua_batch_commit(events, batch_id="committed-before-ack") == commit
-    assert history.append_opcua_batch(events, batch_id="committed-before-ack") == commit
-    (restored,) = history.query_opcua_events("source-a")
-    assert restored.event.semantic_binding is None
-
-    # Versioned commits still bind the snapshot into the batch identity.
-    later = (
+    events = (
         _event(
             channel_id="vb",
             event_at=BASE,
@@ -943,7 +917,8 @@ def test_semantics_bearing_batch_committed_before_fingerprint_version_recovers(
             semantic_binding=_phase_binding("vb", "R", "phase voltage", "V"),
         ),
     )
-    history.append_opcua_batch(later, batch_id="versioned")
+    commit = history.append_opcua_batch(events, batch_id="versioned")
+    assert history.append_opcua_batch(events, batch_id="versioned") == commit
     changed = (
         _event(
             channel_id="vb",
@@ -954,6 +929,13 @@ def test_semantics_bearing_batch_committed_before_fingerprint_version_recovers(
     )
     with pytest.raises(HistoricalBatchConflictError):
         history.get_opcua_batch_commit(changed, batch_id="versioned")
+
+    unversioned = (_event(channel_id="va", event_at=BASE, event_index=0),)
+    with monkeypatch.context() as patch:
+        patch.setattr(ducklake, "_OPCUA_FINGERPRINT_VERSION", None)
+        history.append_opcua_batch(unversioned, batch_id="unversioned")
+    with pytest.raises(HistoricalBatchConflictError):
+        history.get_opcua_batch_commit(unversioned, batch_id="unversioned")
 
 
 def _file_event(source_id: str, sample_index: int, *, sha: str = "a" * 64) -> FileBackfillEvent:

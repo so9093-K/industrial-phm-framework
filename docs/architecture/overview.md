@@ -147,8 +147,8 @@ AI 해설은 저장된 분석 또는 현재 전망의 계산 근거를 사용합
 
 현재 presentation loading 경계는 두 단계입니다. 모든 supported artifact는 schema-specific inspector를 통해
 `ExperimentInspection`으로 검증되고, `AnalysisSurface`는 이 inspection과 optional detailed `AnalysisView`를
-함께 전달합니다. observation-level anomaly trajectory나 RUL evidence를 실제 artifact가 보존하고 projector가
-존재할 때만 `AnalysisView`가 구성됩니다.
+함께 전달합니다. observation-level anomaly trajectory를 실제 artifact가 보존하고 projector가 존재할 때만
+`AnalysisView`가 구성됩니다.
 
 ```text
 versioned evidence artifact
@@ -156,14 +156,14 @@ versioned evidence artifact
   -> ExperimentInspection
   -> AnalysisSurface
        ├ inspection
-       └ AnalysisView? -> report / GenAI / detailed Explorer
+       └ AnalysisView? -> report
 ```
 
-따라서 Analysis Explorer는 IMS/MIMII처럼 detailed projector가 없는 artifact도 inspection-only surface로 열 수
-있지만, artifact에 없는 trajectory·RUL·진단 근거를 재구성하지 않습니다. report/GenAI처럼 detailed numerical
-evidence가 필요한 consumer는 validated `AnalysisView`를 요구합니다.
+IMS/MIMII처럼 detailed projector가 없는 artifact는 inspection까지만 열고, artifact에 없는 trajectory·진단
+근거를 재구성하지 않습니다. report처럼 detailed numerical evidence가 필요한 consumer는 validated
+`AnalysisView`를 요구합니다.
 
-Experiment/anomaly/prognostics evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
+Experiment/anomaly evidence는 capability-specific artifact와 read model로 유지합니다. 서로 다른 실제
 operational output을 하나의 universal `PHMResult`로 합치지 않습니다.
 
 Prepared FILE source에는 observation data plane과 분리된 source-registration control-plane contract를 두고,

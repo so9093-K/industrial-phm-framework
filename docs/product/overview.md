@@ -1104,8 +1104,7 @@ Asset Detail이 만들지 않습니다.
 ### Investigation Workspace
 
 Operations Investigation은 **"왜 이 operational evidence를 사람이 확인해야 하는가?"** 에 답합니다.
-Analysis Explorer는 **"이 research/analysis evidence가 어떤 pipeline과 provenance에서 만들어졌는가?"** 에 답합니다.
-두 application의 책임을 합치지 않습니다.
+연구 결과의 pipeline·provenance 검토는 Operations의 책임이 아니며 연구 결과 JSON과 분석 보고서에 둡니다.
 
 Operations Investigation의 우선 정보 순서는 다음과 같습니다.
 
@@ -1118,8 +1117,8 @@ Context
   -> optional technical drill-down
 ```
 
-고급 pipeline/model detail이 필요하면 Analysis Explorer 또는 동일한 provenance/evidence read model을 사용하는 technical detail surface로
-drill-down합니다. Research RUL/anomaly evidence를 operational asset state로 복사하지 않습니다.
+모델·패키지 상세는 같은 화면의 기술 상세로 drill-down합니다. Research anomaly evidence를 operational asset state로
+복사하지 않습니다.
 
 ### Evidence Timeline
 

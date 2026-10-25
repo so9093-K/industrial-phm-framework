@@ -2,16 +2,12 @@
 
 `SqlitePhaseUnbalanceRepository` is the store for live window analysis and Operations:
 one row per analysis run, so recording a result never rereads or rewrites earlier ones.
-`JsonPhaseUnbalanceRepository` rewrites the whole file per result and remains only for
-small offline histories.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
-import tempfile
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -55,111 +51,12 @@ class PhaseUnbalanceHistoryFormatError(ValueError):
     """Raised when persisted unbalance history is invalid."""
 
 
-class JsonPhaseUnbalanceRepository:
-    """Append-only-by-run local repository; a replay must be identical."""
-
-    def __init__(self, path: Path) -> None:
-        if not isinstance(path, Path):
-            raise ValueError("path must be a pathlib.Path")
-        self._path = path
-
-    @property
-    def path(self) -> Path:
-        return self._path
-
-    def list_results(self) -> tuple[PhaseUnbalanceAnalysis, ...]:
-        if not self._path.exists():
-            return ()
-        try:
-            root = json.loads(self._path.read_text(encoding="utf-8"))
-            if not isinstance(root, dict) or root.get("schema") != _SCHEMA:
-                raise PhaseUnbalanceHistoryFormatError(
-                    f"unsupported phase unbalance history schema in {self._path}"
-                )
-            results = tuple(_parse(item) for item in root["results"])
-        except (KeyError, TypeError, ValueError) as error:
-            if isinstance(error, PhaseUnbalanceHistoryFormatError):
-                raise
-            raise PhaseUnbalanceHistoryFormatError(
-                f"invalid phase unbalance history: {error}"
-            ) from error
-        run_ids = [r.run.analysis_run_id for r in results]
-        if len(set(run_ids)) != len(run_ids):
-            raise PhaseUnbalanceHistoryFormatError("duplicate analysis_run_id in history")
-        return results
-
-    def record(self, result: PhaseUnbalanceAnalysis) -> None:
-        """Append one result; an identical replay is accepted."""
-        self._record(result, once_per_window=False)
-
-    def record_window_result(self, result: PhaseUnbalanceAnalysis) -> PhaseUnbalanceAnalysis:
-        """Record one result per window, capability, algorithm and requested policy.
-
-        Returns the result already stored for the same identity when another writer
-        recorded it first. Concurrent writers may compute concurrently; persistence
-        is deduplicated under the repository lock.
-        """
-        if not isinstance(result.evidence.input_reference, WindowInputReference):
-            raise ValueError("record_window_result requires a finalized-window input reference")
-        return self._record(result, once_per_window=True)
-
-    def _record(
-        self, result: PhaseUnbalanceAnalysis, *, once_per_window: bool
-    ) -> PhaseUnbalanceAnalysis:
-        if not isinstance(result, PhaseUnbalanceAnalysis):
-            raise ValueError("result must be PhaseUnbalanceAnalysis")
-        with _exclusive(self._path):
-            results = {r.run.analysis_run_id: r for r in self.list_results()}
-            existing = results.get(result.run.analysis_run_id)
-            if existing is not None:
-                if existing != result:
-                    raise ValueError("analysis_run_id already exists with different evidence")
-                return existing
-            if once_per_window:
-                earlier = next(
-                    (
-                        r
-                        for r in results.values()
-                        if window_result_key(r) == window_result_key(result)
-                    ),
-                    None,
-                )
-                if earlier is not None:
-                    return earlier
-            if any(r.evidence.evidence_id == result.evidence.evidence_id for r in results.values()):
-                raise ValueError("evidence_id already exists for a different analysis run")
-            results[result.run.analysis_run_id] = result
-            self._write(results.values())
-        return result
-
-    def _write(self, results: Iterable[PhaseUnbalanceAnalysis]) -> None:
-        ordered = sorted(results, key=lambda r: (r.run.completed_at, r.run.analysis_run_id))
-        payload = {"schema": _SCHEMA, "results": [_serialize(r) for r in ordered]}
-        rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=self._path.parent,
-            prefix=f".{self._path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            handle.write(rendered)
-            handle.flush()
-            os.fsync(handle.fileno())
-        try:
-            os.replace(handle.name, self._path)
-        finally:
-            Path(handle.name).unlink(missing_ok=True)
-
-
 class SqlitePhaseUnbalanceRepository:
     """WAL-backed result store: one row per analysis run.
 
     Recording looks up only the run, window and evidence identities it must check,
-    so the cost of one more result does not grow with the results already stored.
-    The identity rules are those of `JsonPhaseUnbalanceRepository`.
+    so the cost of one more result does not grow with the results already stored. A run ID
+    and an evidence ID are each recorded once, and a finalized window once per analysis policy.
     """
 
     def __init__(self, path: Path) -> None:

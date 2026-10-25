@@ -10,8 +10,7 @@ from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSna
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import explanation_context
 from industrial_phm.genai import phm_answer
-from industrial_phm.genai.analysis_explanation import AnalysisExplanationError
-from industrial_phm.genai.local_explanation import ExplanationProvider
+from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import (
     answer_input,
     check_answer,

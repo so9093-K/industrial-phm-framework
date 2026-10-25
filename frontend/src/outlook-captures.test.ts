@@ -1,13 +1,26 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  capturePayload,compareReobservation,factsOf,parseCapturePage,parseCurrentOutlook,positionText,
+  capturePayload,compareReobservation,parseCapturePage,parseCurrentOutlook,positionText,
   reobservationUrl,captureUrl,CaptureNotFound,CaptureRejected,
 } from "./outlook-captures.ts";
 import type {Projection} from "./projections.ts";
 import type {AcquisitionProjection} from "./acquisition-outlook.ts";
-import type {CapturedOutlook} from "./outlook-captures.ts";
+import type {CapturedOutlook, OutlookFacts} from "./outlook-captures.ts";
 import type {BriefingProjection} from "./outlook-briefings.ts";
+/** A projection the user is looking at, in the comparable shape the server's recompute returns. */
+function factsOf(projection:BriefingProjection):OutlookFacts{
+  const acquisition="featureId" in projection;
+  return {assetId:projection.assetId,kind:acquisition?"acquisition":"history",
+    series:acquisition?projection.featureId:projection.channel,sourceId:projection.sourceId,
+    pointId:acquisition?null:projection.pointId,bindingId:acquisition?projection.bindingId:null,
+    timeBasis:acquisition?projection.timeBasis:null,period:acquisition?projection.effectivePeriod:null,
+    assumedPeriod:acquisition?projection.assumedPeriod:null,
+    record:{first:projection.record.first,last:projection.record.last,points:projection.record.points},
+    conditions:projection.conditions,settings:projection.outlookSettings??null,
+    scenarios:projection.scenarios,measurementVersion:projection.measurementVersion,
+    dataVersion:projection.dataVersion,sentences:[]};
+}
 const compare=(saved:CapturedOutlook,current:BriefingProjection)=>compareReobservation(saved,factsOf(current));
 
 const measured="a".repeat(64),evidence="b".repeat(64);

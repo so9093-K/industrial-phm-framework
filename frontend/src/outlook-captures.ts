@@ -176,19 +176,6 @@ export async function recomputeForComparison(saved:CapturedOutlook,signal:AbortS
   }
   return parseCurrentOutlook(await response.json() as unknown,saved);
 }
-/** A projection the user is looking at, in the same comparable shape. */
-export function factsOf(projection:BriefingProjection):OutlookFacts{
-  const acquisition=isAcquisition(projection);
-  return {assetId:projection.assetId,kind:acquisition?"acquisition":"history",
-    series:acquisition?projection.featureId:projection.channel,sourceId:projection.sourceId,
-    pointId:acquisition?null:projection.pointId,bindingId:acquisition?projection.bindingId:null,
-    timeBasis:acquisition?projection.timeBasis:null,period:acquisition?projection.effectivePeriod:null,
-    assumedPeriod:acquisition?projection.assumedPeriod:null,
-    record:{first:projection.record.first,last:projection.record.last,points:projection.record.points},
-    conditions:projection.conditions,settings:projection.outlookSettings??null,
-    scenarios:projection.scenarios,measurementVersion:projection.measurementVersion,
-    dataVersion:projection.dataVersion,sentences:[]};
-}
 
 function parseReview(raw:unknown):Capture["review"]{
   const review=object(raw);

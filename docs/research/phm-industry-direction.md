@@ -74,7 +74,6 @@ interactive human involvement를 중요한 문제로 다룹니다.
 
 현재 project에서의 대응:
 
-- Analysis Explorer가 결과 → supporting evidence → pipeline/provenance 순서로 drill-down 제공
 - threshold/RUL/diagnosis 의미를 UI에서 명시적으로 분리
 - unsupported capability를 숨기지 않고 표시
 - deterministic report가 같은 read model을 사용

@@ -25,11 +25,6 @@ class AssetDisplayNames:
         """Display name when one is agreed, otherwise the asset ID itself."""
         return self.names.get(asset_id, asset_id)
 
-    def option_label(self, asset_id: str) -> str:
-        """Unambiguous selector label: two assets may share a display name."""
-        name = self.names.get(asset_id)
-        return asset_id if name is None else f"{name} · {asset_id}"
-
 
 def resolve_asset_display_names(sources: Sequence[RegisteredSource]) -> AssetDisplayNames:
     """Use a name only when every source that declares one for the asset agrees."""

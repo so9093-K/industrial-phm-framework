@@ -34,11 +34,6 @@ class AnalysisSurface:
     inspection: ExperimentInspection
     analysis: AnalysisView | None
 
-    @property
-    def has_detailed_analysis(self) -> bool:
-        """Return whether a schema-specific AnalysisView projector is available."""
-        return self.analysis is not None
-
 
 def load_analysis_surface(path: Path) -> AnalysisSurface:
     """Load any inspectable artifact without inventing evidence missing from its schema."""

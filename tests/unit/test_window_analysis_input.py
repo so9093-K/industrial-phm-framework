@@ -5,9 +5,9 @@ from datetime import timedelta
 import pytest
 
 from industrial_phm.application import (
-    JsonObservationWindowRepository,
     ObservationWindowBuffer,
     ObservationWindowEventDisposition,
+    SqliteObservationWindowRepository,
 )
 from industrial_phm.application.alignment import AlignmentPolicyKind, TemporalAlignmentPolicy
 from industrial_phm.application.analysis_input import (
@@ -22,7 +22,6 @@ from industrial_phm.application.phase_unbalance import (
     run_phase_unbalance_on_window,
 )
 from industrial_phm.application.phase_unbalance_state import (
-    JsonPhaseUnbalanceRepository,
     PhaseUnbalanceHistoryFormatError,
     SqlitePhaseUnbalanceRepository,
     window_result_key,
@@ -89,12 +88,12 @@ def test_window_analysis_reads_only_accepted_events_with_their_own_semantics(tmp
     assert window_input_reference(_window(late_value=1.0)).input_digest == reference.input_digest
 
     # Durable window evidence recomputes the same result; the record round-trips.
-    windows = JsonObservationWindowRepository(tmp_path / "windows.json")
+    windows = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
     windows.record_window(window)
     again = run_phase_unbalance_on_window(windows.get(window.window_id))
     assert again.evidence.results == analysis.evidence.results
     assert again.evidence.input_reference == reference
-    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "unbalance.sqlite")
     results.record(analysis)
     assert results.list_results() == (analysis,)
 
@@ -120,12 +119,12 @@ def test_window_events_without_snapshot_are_not_reinterpreted():
 
 def test_runner_analyzes_each_window_once_and_remembers_unanalyzable_windows(tmp_path):
     from industrial_phm.application import (
-        JsonWindowAnalysisLedger,
+        SqliteWindowAnalysisLedger,
         WindowAnalysisState,
-        analyze_finalized_windows,
+        analyze_finalized_windows_incremental,
     )
 
-    windows = JsonObservationWindowRepository(tmp_path / "windows.json")
+    windows = SqliteObservationWindowRepository(tmp_path / "windows.sqlite")
     windows.record_window(_window())
     unbound = ObservationWindowBuffer(
         window_id="unbound",
@@ -141,18 +140,18 @@ def test_runner_analyzes_each_window_once_and_remembers_unanalyzable_windows(tmp
     unbound.ingest(_event("va", 70, 220.0, 50, bound=False))
     unbound.advance_watermark(END + timedelta(minutes=1))
     windows.record_window(unbound.finalize(finalized_at=END + timedelta(minutes=1)))
-    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance.json")
-    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "unbalance.sqlite")
+    ledger = SqliteWindowAnalysisLedger(tmp_path / "ledger.sqlite")
 
-    first = analyze_finalized_windows(windows, results, ledger)
+    first = analyze_finalized_windows_incremental(windows, results, ledger)
     assert [(o.window_id, o.state) for o in first] == [
         (_window().window_id, WindowAnalysisState.ANALYZED),
         ("unbound", WindowAnalysisState.SKIPPED),
     ]
     assert "no three-phase" in first[1].reason
     # A restart finds both windows handled: nothing is analyzed or recorded again.
-    restarted = JsonWindowAnalysisLedger(tmp_path / "ledger.json")
-    assert analyze_finalized_windows(windows, results, restarted) == ()
+    restarted = SqliteWindowAnalysisLedger(tmp_path / "ledger.sqlite")
+    assert analyze_finalized_windows_incremental(windows, results, restarted) == ()
     assert len(results.list_results()) == 1
 
 
@@ -167,17 +166,17 @@ def test_phase_unbalance_policy_digest_tracks_requested_analysis_policy():
 
 def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
     from industrial_phm.application import (
-        JsonWindowAnalysisLedger,
+        SqliteWindowAnalysisLedger,
         WindowAnalysisState,
-        analyze_finalized_windows,
+        analyze_finalized_windows_incremental,
     )
 
-    windows = JsonObservationWindowRepository(tmp_path / "windows-policy.json")
+    windows = SqliteObservationWindowRepository(tmp_path / "windows-policy.sqlite")
     windows.record_window(_window())
-    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance-policy.json")
-    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger-policy.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "unbalance-policy.sqlite")
+    ledger = SqliteWindowAnalysisLedger(tmp_path / "ledger-policy.sqlite")
 
-    blocked = analyze_finalized_windows(
+    blocked = analyze_finalized_windows_incremental(
         windows,
         results,
         ledger,
@@ -189,7 +188,7 @@ def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
     assert len(blocked) == 1
     assert blocked[0].state == WindowAnalysisState.SKIPPED
 
-    retried = analyze_finalized_windows(windows, results, ledger)
+    retried = analyze_finalized_windows_incremental(windows, results, ledger)
     assert len(retried) == 1
     assert retried[0].state == WindowAnalysisState.ANALYZED
     assert blocked[0].analysis_policy_digest != retried[0].analysis_policy_digest
@@ -198,21 +197,21 @@ def test_runner_skip_is_scoped_to_analysis_policy(tmp_path):
 
 def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
     from industrial_phm.application import (
-        JsonWindowAnalysisLedger,
+        SqliteWindowAnalysisLedger,
         WindowAnalysisState,
-        analyze_finalized_windows,
+        analyze_finalized_windows_incremental,
     )
 
-    windows = JsonObservationWindowRepository(tmp_path / "windows-result-policy.json")
+    windows = SqliteObservationWindowRepository(tmp_path / "windows-result-policy.sqlite")
     windows.record_window(_window())
-    results = JsonPhaseUnbalanceRepository(tmp_path / "unbalance-result-policy.json")
-    ledger = JsonWindowAnalysisLedger(tmp_path / "ledger-result-policy.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "unbalance-result-policy.sqlite")
+    ledger = SqliteWindowAnalysisLedger(tmp_path / "ledger-result-policy.sqlite")
 
-    first = analyze_finalized_windows(windows, results, ledger)
+    first = analyze_finalized_windows_incremental(windows, results, ledger)
     assert len(first) == 1
     assert first[0].state == WindowAnalysisState.ANALYZED
 
-    changed = analyze_finalized_windows(
+    changed = analyze_finalized_windows_incremental(
         windows,
         results,
         ledger,
@@ -224,7 +223,7 @@ def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
     assert len(results.list_results()) == 2
 
     assert (
-        analyze_finalized_windows(
+        analyze_finalized_windows_incremental(
             windows,
             results,
             ledger,
@@ -236,19 +235,19 @@ def test_runner_result_identity_changes_with_analysis_policy(tmp_path):
 
 def test_runner_result_identity_distinguishes_alignment_and_survives_reload(tmp_path):
     from industrial_phm.application import (
-        JsonWindowAnalysisLedger,
+        SqliteWindowAnalysisLedger,
         WindowAnalysisState,
-        analyze_finalized_windows,
+        analyze_finalized_windows_incremental,
     )
 
-    windows = JsonObservationWindowRepository(tmp_path / "windows-alignment-policy.json")
+    windows = SqliteObservationWindowRepository(tmp_path / "windows-alignment-policy.sqlite")
     windows.record_window(_window())
-    result_path = tmp_path / "unbalance-alignment-policy.json"
-    ledger_path = tmp_path / "ledger-alignment-policy.json"
-    results = JsonPhaseUnbalanceRepository(result_path)
-    ledger = JsonWindowAnalysisLedger(ledger_path)
+    result_path = tmp_path / "unbalance-alignment-policy.sqlite"
+    ledger_path = tmp_path / "ledger-alignment-policy.sqlite"
+    results = SqlitePhaseUnbalanceRepository(result_path)
+    ledger = SqliteWindowAnalysisLedger(ledger_path)
 
-    strict = analyze_finalized_windows(windows, results, ledger)
+    strict = analyze_finalized_windows_incremental(windows, results, ledger)
     assert len(strict) == 1
     assert strict[0].state == WindowAnalysisState.ANALYZED
 
@@ -258,16 +257,16 @@ def test_runner_result_identity_distinguishes_alignment_and_survives_reload(tmp_
         basis="test fixture permits 30 s state reconstruction",
     )
     bounded_config = PhaseUnbalanceConfig(alignment=bounded_policy)
-    bounded = analyze_finalized_windows(windows, results, ledger, config=bounded_config)
+    bounded = analyze_finalized_windows_incremental(windows, results, ledger, config=bounded_config)
     assert len(bounded) == 1
     assert bounded[0].state == WindowAnalysisState.ANALYZED
     assert bounded[0].analysis_policy_digest != strict[0].analysis_policy_digest
     assert len(results.list_results()) == 2
 
-    reloaded_results = JsonPhaseUnbalanceRepository(result_path)
-    reloaded_ledger = JsonWindowAnalysisLedger(ledger_path)
+    reloaded_results = SqlitePhaseUnbalanceRepository(result_path)
+    reloaded_ledger = SqliteWindowAnalysisLedger(ledger_path)
     assert (
-        analyze_finalized_windows(
+        analyze_finalized_windows_incremental(
             windows,
             reloaded_results,
             reloaded_ledger,
@@ -303,7 +302,7 @@ def test_incremental_runner_pages_forward_and_restores_policy_cursor(tmp_path):
     unbound.advance_watermark(END + timedelta(minutes=1))
     windows.record_window(unbound.finalize(finalized_at=END + timedelta(minutes=1)))
 
-    results = JsonPhaseUnbalanceRepository(tmp_path / "incremental-results.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "incremental-results.sqlite")
     ledger_path = tmp_path / "incremental-ledger.sqlite"
     ledger = SqliteWindowAnalysisLedger(ledger_path)
 
@@ -351,7 +350,7 @@ def test_incremental_runner_uses_independent_cursor_per_analysis_policy(tmp_path
 
     windows = SqliteObservationWindowRepository(tmp_path / "policy-windows.sqlite")
     windows.record_window(_window())
-    results = JsonPhaseUnbalanceRepository(tmp_path / "policy-results.json")
+    results = SqlitePhaseUnbalanceRepository(tmp_path / "policy-results.sqlite")
     ledger = SqliteWindowAnalysisLedger(tmp_path / "policy-ledger.sqlite")
 
     strict = analyze_finalized_windows_incremental(windows, results, ledger)
