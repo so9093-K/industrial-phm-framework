@@ -166,3 +166,84 @@ def test_reference_model_scores_each_later_window_and_shows_its_exact_input(
     assert rebuilt["built"] is True and rebuilt["reused"] is False
     assert rebuilt["package_id"] != built["package_id"]
     assert len(list(workspace.models_path.glob("*/package.json"))) == 2
+
+
+def _stream(
+    source: str, start: datetime, minutes: int, *, point: str | None, first_index: int = 0
+) -> tuple[FileBackfillEvent, ...]:
+    """Steady one-minute vibration of one source and measurement point."""
+    rng = random.Random(first_index)
+    return tuple(
+        FileBackfillEvent(
+            raw_evidence_id=f"file:{source}:{'e' * 64}:{first_index + minute}",
+            source_id=source,
+            asset_id="pump-01",
+            channel_id="vibration",
+            source_file=f"{source}.csv",
+            source_sha256="e" * 64,
+            source_size_bytes=10,
+            sample_index=first_index + minute,
+            event_at=start + timedelta(minutes=minute),
+            value=2.1 + rng.gauss(0, 0.08),
+            measurement_point_id=point,
+            source_metadata_json=json.dumps({"binding": {"definition": {"unit": "mm/s"}}}),
+        )
+        for minute in range(minutes)
+    )
+
+
+def test_progress_follows_the_bound_streams_own_observations_across_a_long_gap(
+    tmp_path: Path,
+) -> None:
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    resumed = BASE + timedelta(days=20)
+    history.append_file_batch(
+        _stream("pump-opc", BASE, 360, point="drive-end")
+        + _stream("pump-opc", resumed, 120, point="drive-end", first_index=360),
+        batch_id="drive-end",
+    )
+    # Another source of the same asset and signal keeps recording long after.
+    history.append_file_batch(
+        _stream("other", resumed + timedelta(days=5), 60, point=None), batch_id="other"
+    )
+    request = {
+        "asset_id": "pump-01",
+        "source_id": "pump-opc",
+        "channels": ["vibration"],
+        "reference_start": BASE.isoformat(),
+        "reference_end": (BASE + timedelta(hours=4)).isoformat(),
+        "window_seconds": 300,
+    }
+    # Without its measurement point the stream holds no reference values at all.
+    assert build_web_history_model(workspace.root, request)["reference_windows"] == 0
+    built = build_web_history_model(
+        workspace.root, {**request, "measurement_point_id": "drive-end"}
+    )
+    assert built["built"] is True and built["reference_windows"] == 48
+
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    packages = PackageCache(workspace.models_path)
+    results = []
+    for _ in range(5):
+        found = [
+            r
+            for cycle in run_history_window_bindings(store, history, packages)
+            for r in cycle.results
+        ]
+        if not found:
+            break
+        results += found
+    # 72 windows before the 20-day gap, then 24 after it; the one holding the stream's latest
+    # value waits even though the other source has later observations.
+    assert len(results) == 72 + 23
+    assert results[-1].event_end == resumed + timedelta(minutes=115)
+    preview = project_history_window(
+        store, history, binding_id=str(built["binding_id"]), position=results[-1].position
+    )
+    assert preview["available"] is True

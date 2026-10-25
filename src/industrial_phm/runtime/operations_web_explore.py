@@ -33,7 +33,7 @@ from industrial_phm.application.signal_exploration import (
 from industrial_phm.application.source_registry import JsonSourceRepository
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
-from industrial_phm.models.package import RETIRED_TASKS
+from industrial_phm.models.package import SUPPORTED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -57,7 +57,8 @@ MAX_ATTENTION_ASSETS = 50
 _ATTENTION_CHANNELS = 6
 _ATTENTION_REUSE_SECONDS = 30.0
 # (root, asset) → (record end, record count, computed at, result)
-_attention_cache: dict[tuple[str, str], tuple[str, int, float, dict[str, Any] | None]] = {}
+# (record end judged, measurement count, monotonic time, result) per workspace and asset.
+_attention_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any] | None]] = {}
 _MAX_ID_LENGTH = 512
 
 
@@ -235,7 +236,18 @@ def explore_sources(
         if summary is not None:
             history = {
                 "channels": list(reader.list_history_channels(asset_id))[:200],
-                "sources": list(reader.list_history_sources(asset_id))[:20],
+                # Each source and measurement point with what it actually holds, so a model is
+                # built from one stream's own signals and period.
+                "streams": [
+                    {
+                        "source_id": stream.source_id,
+                        "measurement_point_id": stream.measurement_point_id,
+                        "channels": list(stream.channels),
+                        "start_at": stream.start_at.isoformat(),
+                        "end_at": stream.end_at.isoformat(),
+                    }
+                    for stream in reader.list_history_streams(asset_id)[:20]
+                ],
                 "start_at": summary.start_at.isoformat(),
                 "end_at": summary.end_at.isoformat(),
                 "measurement_count": summary.measurement_count,
@@ -251,7 +263,7 @@ def explore_sources(
             for item in store.list_bindings()
             if item.asset_id == asset_id
             and item.source_id == binding.source_id
-            and (task := package_task(workspace, item.package_id)) not in RETIRED_TASKS
+            and (task := package_task(workspace, item.package_id)) in SUPPORTED_TASKS
         ]
     return {
         "schema_version": 1,
@@ -369,7 +381,7 @@ def departure_attention(
         _attention_cache.clear()
     for summary in assets[:MAX_ATTENTION_ASSETS]:
         key = (str(workspace.root), summary.asset_id)
-        end, count, now = summary.end_at.isoformat(), summary.measurement_count, time.monotonic()
+        end, count, now = summary.end_at, summary.measurement_count, time.monotonic()
         held = _attention_cache.get(key)
         if held is None or (
             (held[0], held[1]) != (end, count) and now - held[2] >= _ATTENTION_REUSE_SECONDS
@@ -391,7 +403,8 @@ def departure_attention(
                 "distance": found["distance"],
                 "direction": found["direction"],
                 "since": found["since"].astimezone(UTC).isoformat(),
-                "last_at": summary.end_at.astimezone(UTC).isoformat(),
+                # The record end this check judged; a reused check never borrows a newer time.
+                "last_at": held[0].astimezone(UTC).isoformat(),
             }
         )
     return body

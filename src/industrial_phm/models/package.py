@@ -41,24 +41,8 @@ class ModelTask(StrEnum):
     ANOMALY_SCORE = "anomaly-score"
 
 
-# Tasks this product no longer runs. Packages and bindings that declare one stay on disk
-# untouched but are neither loaded nor listed.
-RETIRED_TASKS = frozenset({"rul-estimate"})
-
-
-def declared_task(package_dir: Path) -> str | None:
-    """The output task a package's manifest declares, read without verifying the package."""
-    try:
-        body = json.loads((package_dir / _MANIFEST_NAME).read_text(encoding="utf-8"))
-    except OSError, ValueError:
-        return None
-    output = body.get("output") if isinstance(body, dict) else None
-    task = output.get("task") if isinstance(output, dict) else None
-    return task if isinstance(task, str) else None
-
-
-def is_retired_package(models_root: Path, package_id: str) -> bool:
-    return declared_task(models_root / package_id) in RETIRED_TASKS
+# The tasks this product runs; a package declaring any other is refused when loaded.
+SUPPORTED_TASKS = frozenset(task.value for task in ModelTask)
 
 
 class StepKind(StrEnum):
@@ -559,8 +543,8 @@ def _output_to_json(spec: PackageOutputSpec) -> dict[str, Any]:
             "min_consecutive_steps": rule.min_consecutive_steps,
             "max_gap_steps": rule.max_gap_steps,
         },
-        # Always null since remaining-life packages were retired; kept so manifests, and the
-        # package IDs derived from them, stay byte-identical.
+        # Always null (no supported task has a unit); kept so manifests, and the package IDs
+        # derived from them, stay byte-identical.
         "unit": None,
         "endpoint_semantics": None,
         "step_period_seconds": spec.step_period_seconds,
@@ -569,8 +553,8 @@ def _output_to_json(spec: PackageOutputSpec) -> dict[str, Any]:
 
 
 def _output_from_json(raw: Mapping[str, Any]) -> PackageOutputSpec:
-    if raw["task"] in RETIRED_TASKS or raw.get("unit") is not None:
-        raise ModelPackageError(f"retired model task: {raw['task']}")
+    if raw["task"] not in SUPPORTED_TASKS or raw.get("unit") is not None:
+        raise ModelPackageError(f"unsupported model task: {raw['task']}")
     rule = raw["review_interval"]
     return PackageOutputSpec(
         task=ModelTask(raw["task"]),

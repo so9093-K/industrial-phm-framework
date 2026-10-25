@@ -27,7 +27,7 @@ from industrial_phm.application.phm_analysis import (
     StepResult,
     StepState,
 )
-from industrial_phm.models.package import StepKind, is_retired_package
+from industrial_phm.models.package import StepKind
 
 PHM_READ_SCHEMA_VERSION = 1
 _MAX_PREVIEW_BINS = 2000
@@ -51,7 +51,7 @@ def project_phm_monitor(
     A skipped/latest input never replaces the last successful model output. Absence of a
     newer input is not evidence of a stopped sensor; transport freshness is a separate fact.
     """
-    bindings = _active(store, models_root)
+    bindings = _active(store)
     manifests: dict[str, dict[str, Any] | None] = {}
     items = []
     for binding in sorted(bindings, key=lambda b: (b.asset_id, b.source_id, b.binding_id))[
@@ -156,7 +156,7 @@ def project_phm_bindings(
     if not store.path.exists():
         return {"schema_version": PHM_READ_SCHEMA_VERSION, "change_seq": 0, "bindings": []}
     items = []
-    for binding in _active(store, models_root):
+    for binding in _active(store):
         progress = store.progress(binding.binding_id)
         latest = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
         processed = store.latest_result(binding.binding_id)
@@ -310,11 +310,11 @@ def project_snapshot_preview(
     }
 
 
-def _active(store: SqlitePhmAnalysisStore, models_root: Path) -> list[PhmBinding]:
-    """Bindings of packages this product still runs; retired ones stay stored but unlisted."""
+def _active(store: SqlitePhmAnalysisStore) -> list[PhmBinding]:
+    """Every binding; one whose package cannot be loaded is listed with that reason, not hidden."""
     if not store.path.exists():
         return []
-    return [b for b in store.list_bindings() if not is_retired_package(models_root, b.package_id)]
+    return list(store.list_bindings())
 
 
 def _binding(store: SqlitePhmAnalysisStore, binding_id: str) -> PhmBinding:

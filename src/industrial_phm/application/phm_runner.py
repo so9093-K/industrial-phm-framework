@@ -50,7 +50,6 @@ from industrial_phm.models.package import (
     ModelPackageError,
     PackageInputSpec,
     StepKind,
-    is_retired_package,
     load_model_package,
 )
 
@@ -157,13 +156,6 @@ class PackageCache:
     def __init__(self, models_root: Path) -> None:
         self._root = models_root
         self._loaded: dict[str, LoadedModelPackage] = {}
-        self._retired: dict[str, bool] = {}
-
-    def retired(self, package_id: str) -> bool:
-        """Whether the package declares a task this product no longer runs (left untouched)."""
-        if package_id not in self._retired:
-            self._retired[package_id] = is_retired_package(self._root, package_id)
-        return self._retired[package_id]
 
     def get(self, package_id: str) -> LoadedModelPackage:
         package = self._loaded.get(package_id)
@@ -187,9 +179,7 @@ def run_snapshot_bindings(
     cycles = []
     memo: FeatureMemo = {}
     for binding in store.list_bindings():
-        if binding.step_kind is not StepKind.ACQUISITION_SNAPSHOT or packages.retired(
-            binding.package_id
-        ):
+        if binding.step_kind is not StepKind.ACQUISITION_SNAPSHOT:
             continue
         cycles.append(_run_one(store, snapshots, packages, binding, page_size, now, memo))
     return tuple(cycles)
@@ -335,9 +325,7 @@ def run_window_bindings(
     """Process new finalized windows of each window binding's (source, asset) stream."""
     cycles = []
     for binding in store.list_bindings():
-        if binding.step_kind is not StepKind.OBSERVATION_WINDOW or packages.retired(
-            binding.package_id
-        ):
+        if binding.step_kind is not StepKind.OBSERVATION_WINDOW:
             continue
         try:
             package = packages.get(binding.package_id)

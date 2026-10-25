@@ -2,7 +2,8 @@
  * fits the model and binds it; the browser only says which signals and which period. */
 import {object, postWrite} from "./writes.ts";
 
-export type HistoryFacts = {channels: string[]; sources: string[]; startAt: string; endAt: string};
+/** One source and measurement point of the asset's record: the signals and period it holds. */
+export type HistoryStream = {sourceId: string; pointId: string | null; channels: string[]; startAt: string; endAt: string};
 export type ReferenceChoice = "first-30" | "first-50" | "custom";
 export const WINDOW_CHOICES = [
   {seconds: 300, label: "5분"}, {seconds: 600, label: "10분"},
@@ -13,28 +14,39 @@ export const MAX_SIGNALS = 8;
 const strings = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 
-/** The stored record's signals, sources and extent; null when the asset has no stored history. */
-export function parseHistoryFacts(raw: unknown): HistoryFacts | null {
-  const history = object(object(raw)?.history);
-  if (!history || typeof history.start_at !== "string" || typeof history.end_at !== "string") return null;
-  if (!Number.isFinite(Date.parse(history.start_at)) || !Number.isFinite(Date.parse(history.end_at))) return null;
-  const channels = strings(history.channels), sources = strings(history.sources);
-  return channels.length && sources.length
-    ? {channels, sources, startAt: history.start_at, endAt: history.end_at} : null;
+const instant = (raw: unknown): raw is string => typeof raw === "string" && Number.isFinite(Date.parse(raw));
+
+/** The stored record's streams; empty when the asset has no stored history. */
+export function parseHistoryStreams(raw: unknown): HistoryStream[] {
+  const root = object(raw);
+  if (!root || root.schema_version !== 1) throw new Error("저장된 기록 정보의 형식이 올바르지 않습니다.");
+  const history = object(root.history);
+  if (!history || !Array.isArray(history.streams)) return [];
+  return history.streams.flatMap((item: unknown): HistoryStream[] => {
+    const row = object(item);
+    const channels = strings(row?.channels), point = row?.measurement_point_id;
+    if (!row || typeof row.source_id !== "string" || !row.source_id || !channels.length
+      || !instant(row.start_at) || !instant(row.end_at) || (point !== null && (typeof point !== "string" || !point))) return [];
+    return [{sourceId: row.source_id, pointId: point, channels, startAt: row.start_at, endAt: row.end_at}];
+  });
 }
 
-export async function readHistoryFacts(assetId: string, signal: AbortSignal): Promise<HistoryFacts | null> {
+/** How a stream is named when an asset has more than one. */
+export const streamLabel = (stream: HistoryStream) =>
+  stream.sourceId + (stream.pointId ? " · 측정 위치 " + stream.pointId : "");
+
+export async function readHistoryStreams(assetId: string, signal: AbortSignal): Promise<HistoryStream[]> {
   const response = await fetch("/api/v1/explore/sources?" + new URLSearchParams({asset_id: assetId}),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
     throw new Error("저장된 기록 정보를 읽지 못했습니다.");
   }
-  return parseHistoryFacts(await response.json() as unknown);
+  return parseHistoryStreams(await response.json() as unknown);
 }
 
-/** The reference period as two instants: the first share of the record, or what was entered. */
-export function referencePeriod(choice: ReferenceChoice, facts: HistoryFacts,
+/** The reference period as two instants: the first share of the stream's record, or what was entered. */
+export function referencePeriod(choice: ReferenceChoice, facts: Pick<HistoryStream, "startAt" | "endAt">,
   custom: {from: string; to: string} | null = null): {from: string; to: string} {
   if (choice === "custom") {
     if (!custom || !custom.from || !custom.to) throw new Error("기준 기간의 시작과 끝을 입력하세요.");
@@ -64,13 +76,21 @@ export function parseBuildResult(raw: unknown): BuildResult {
   throw new Error("모델 만들기 응답을 해석하지 못했습니다.");
 }
 
-export async function buildHistoryModel(request: {
-  assetId: string; sourceId: string; channels: string[]; from: string; to: string; windowSeconds: number;
-}, signal: AbortSignal): Promise<BuildResult> {
-  return parseBuildResult(await postWrite("/api/v1/phm/models/build", {
-    asset_id: request.assetId, source_id: request.sourceId, channels: request.channels,
+export type BuildRequest = {
+  assetId: string; stream: HistoryStream; channels: string[]; from: string; to: string; windowSeconds: number;
+};
+/** The build request names the stream exactly: its source and, when it has one, its measurement point. */
+export function buildPayload(request: BuildRequest): Record<string, unknown> {
+  return {
+    asset_id: request.assetId, source_id: request.stream.sourceId,
+    ...(request.stream.pointId ? {measurement_point_id: request.stream.pointId} : {}),
+    channels: request.channels,
     reference_start: request.from, reference_end: request.to, window_seconds: request.windowSeconds,
-  }, signal));
+  };
+}
+
+export async function buildHistoryModel(request: BuildRequest, signal: AbortSignal): Promise<BuildResult> {
+  return parseBuildResult(await postWrite("/api/v1/phm/models/build", buildPayload(request), signal));
 }
 
 const STATS: Record<string, string> = {mean: "평균", std: "표준편차", min: "최소", max: "최대",

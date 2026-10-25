@@ -7,7 +7,7 @@
   import {seriesName} from "../series-names";
   import {findingUrl, readFindingReview, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
-  import {filterReviewItems, selectReviewItem, selectReviewAssets} from "../review-selection";
+  import {filterReviewItems, selectReviewItem} from "../review-selection";
   import {readReviewAssetIndex} from "../review-index";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
@@ -254,16 +254,10 @@
           partialAssetScope = nextAsset !== null;
         } catch {
           if (request.signal.aborted) return;
-          // Preserve historical standalone/static read-only demos whose server
-          // snapshot predates the new discovery route; never call this complete.
+          // The server's review index is the only complete list; a failure is said, not
+          // replaced by a partial list from elsewhere. An exact asset ID still opens directly.
           assetIndexProblem = true;
-          const scope = selectReviewAssets([
-            ...(snapshot?.assets.map((asset) => asset.assetId) ?? []),
-            ...(snapshot?.reviewInbox.reviews.map((review) => review.assetId) ?? []),
-            ...(snapshot?.analyses.records.map((item) => item.assetId) ?? []),
-          ], "", 20);
-          assets = scope.assets;
-          partialAssetScope = true;
+          assets = [];
         }
       }
       if ((focusCaptureId || focusFindingId) && !focusAssetId) missingFocus = true;
@@ -284,7 +278,8 @@
         <StatusNotice kind="uncertain" message="검토 대상을 불러오는 사이 목록이 바뀌었습니다. 다시 불러와 전체 목록을 확인하세요."
           actionLabel="다시 불러오기" onAction={() => location.reload()} />
       {:else if assetIndexProblem}
-        <StatusNotice kind="uncertain" message="서버의 검토 대상 목록을 확인하지 못해 관측 요약에 있는 설비만 임시 조회했습니다. 전체 목록이 아닙니다."
+        <StatusNotice kind="failure" title="검토 대상 목록을 불러오지 못했습니다"
+          message="검토 기록이 없다는 뜻은 아닙니다. 다시 불러오거나 아래에 설비 ID를 넣어 그 설비의 검토를 직접 여세요."
           actionLabel="다시 불러오기" onAction={() => location.reload()} />
       {:else if partialAssetScope}
         <StatusNotice kind="uncertain" message="검토 대상 설비를 일부만 불러왔습니다. 계속 불러오거나 설비 ID로 직접 조회할 수 있습니다." />
@@ -339,7 +334,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
+        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}
         <button type="button" class="ui-button" disabled={loadingMore} onclick={() => void loadOlderCaptures()}>

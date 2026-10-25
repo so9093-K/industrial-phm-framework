@@ -55,8 +55,15 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 class HistoryReader(Protocol):
     def current_snapshot_id(self) -> int: ...
 
-    def history_channel_extent(
-        self, asset_id: str, channel_ids: Sequence[str]
+    def history_stream_extent(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        measurement_point_id: str | None,
+        channel_ids: Sequence[str],
+        after: datetime | None,
+        snapshot_id: int,
     ) -> tuple[datetime, datetime] | None: ...
 
     def query_channel_observations(
@@ -141,10 +148,54 @@ def _usable(item: ChannelObservation) -> bool:
     )
 
 
-def window_features(
+Meaning = tuple[str | None, str | None, str | None, str | None]
+
+
+def _meaning(item: ChannelObservation) -> Meaning:
+    return (item.observed_property, item.scope, item.unit, item.semantic_version)
+
+
+def channel_meanings(
     window: HistoryWindow, channels: Sequence[str]
+) -> tuple[dict[str, Meaning], str | None]:
+    """The one property, scope, unit and semantic version of each channel's good values here.
+
+    Values recorded with different units or meanings are not one feature; such a window is a skip.
+    """
+    found: dict[str, set[Meaning]] = {channel: set() for channel in channels}
+    for item in window.observations:
+        if item.channel_id in found and _usable(item):
+            found[item.channel_id].add(_meaning(item))
+    for channel, kinds in found.items():
+        if len(kinds) > 1:
+            return {}, f"{channel}: values with different units or meanings in one window"
+    return {channel: next(iter(kinds)) for channel, kinds in found.items() if kinds}, None
+
+
+def _say(meaning: Sequence[str | None]) -> str:
+    return "/".join(part or "-" for part in meaning[:3])
+
+
+def window_features(
+    window: HistoryWindow,
+    channels: Sequence[str],
+    reference: Mapping[str, Sequence[str | None]] | None = None,
 ) -> tuple[dict[str, float] | None, str | None]:
-    """Mean, population standard deviation, minimum and maximum of each channel's good values."""
+    """Mean, population standard deviation, minimum and maximum of each channel's good values.
+
+    With `reference` (what the model learned), a channel recorded with another unit or meaning
+    is a skip rather than a comparable feature.
+    """
+    meanings, reason = channel_meanings(window, channels)
+    if reason is not None:
+        return None, reason
+    for channel, meaning in meanings.items():
+        learned = None if reference is None else reference.get(channel)
+        if learned is not None and tuple(learned) != meaning:
+            return None, (
+                f"{channel}: unit or meaning differs from the reference period "
+                f"({_say(learned)} -> {_say(meaning)})"
+            )
     by_channel: dict[str, list[float]] = {channel: [] for channel in channels}
     for item in window.observations:
         if item.channel_id in by_channel and _usable(item):
@@ -174,8 +225,14 @@ def window_digest(window: HistoryWindow, channels: Sequence[str]) -> str:
 
 
 def prepare_history_step(
-    window: HistoryWindow, spec: PackageInputSpec, *, binding: PhmBinding, snapshot_id: int
+    window: HistoryWindow,
+    spec: PackageInputSpec,
+    *,
+    binding: PhmBinding,
+    snapshot_id: int,
+    learned: Mapping[str, Sequence[str | None]] | None = None,
 ) -> PreparedStep:
+    """One window as a model step; `learned` is the unit and meaning per channel the model saw."""
     reference = {
         "kind": StepKind.HISTORY_WINDOW.value,
         "source_id": binding.source_id,
@@ -198,7 +255,7 @@ def prepare_history_step(
     elif (window.end - window.start).total_seconds() != seconds:
         reason = "window length differs from the package"
     else:
-        values, reason = window_features(window, spec.channels)
+        values, reason = window_features(window, spec.channels, learned)
         if values is not None:
             missing = [name for name in spec.feature_names if name not in values]
             if missing:
@@ -223,17 +280,17 @@ def run_history_window_bindings(
     packages: PackageCache,
     *,
     page_windows: int = 200,
-    max_spans: int = 24,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
 ) -> tuple[BindingCycle, ...]:
     """Score each history-window binding's next complete windows, at most a page per cycle.
 
-    A window is complete once the stream has a later observation; the window holding the latest
-    stored value waits. Gaps without observations are passed over without a step.
+    Progress is judged by the same (source, point, channels) stream the steps read, at the same
+    snapshot: a window is complete once that stream has a later observation, and the next page
+    starts at its first observation after the cursor, so a gap of any length is passed over.
     """
     cycles = []
     for binding in store.list_bindings():
-        if binding.step_kind is not StepKind.HISTORY_WINDOW or packages.retired(binding.package_id):
+        if binding.step_kind is not StepKind.HISTORY_WINDOW:
             continue
         try:
             package = packages.get(binding.package_id)
@@ -249,39 +306,48 @@ def run_history_window_bindings(
             cycles.append(BindingCycle(binding.binding_id, (), reason))
             continue
         store.set_binding_health(binding.binding_id, healthy=True, reason=None, at=now())
-        extent = history.history_channel_extent(binding.asset_id, spec.channels)
-        if extent is None:
-            continue
-        progress = store.progress(binding.binding_id)
-        start = (
-            window_start(extent[0], seconds)
-            if progress.cursor_position is None
-            else datetime.fromtimestamp(progress.cursor_position / 1_000_000, tz=UTC)
-        )
-        complete_until = window_start(extent[1], seconds)
+        cursor = store.progress(binding.binding_id).cursor_position
         snapshot = history.current_snapshot_id()
+        extent = history.history_stream_extent(
+            binding.asset_id,
+            source_id=binding.source_id,
+            measurement_point_id=binding.measurement_point_id,
+            channel_ids=list(spec.channels),
+            after=None if cursor is None else datetime.fromtimestamp(cursor / 1_000_000, tz=UTC),
+            snapshot_id=snapshot,
+        )
         windows: list[HistoryWindow] = []
-        span_start, spans = start, 0
-        while not windows and span_start < complete_until and spans < max_spans:
-            span_end = min(complete_until, span_start + timedelta(seconds=seconds * page_windows))
-            rows = history.query_channel_observations(
-                binding.asset_id,
-                source_id=binding.source_id,
-                channel_ids=list(spec.channels),
-                start_at=span_start,
-                end_at=span_end,
-                snapshot_id=snapshot,
+        if extent is not None:
+            start, complete_until = (
+                window_start(extent[0], seconds),
+                window_start(extent[1], seconds),
             )
-            windows = [
-                window
-                for window in group_windows(
-                    rows, seconds=seconds, measurement_point_id=binding.measurement_point_id
+            end = min(complete_until, start + timedelta(seconds=seconds * page_windows))
+            if start < end:
+                rows = history.query_channel_observations(
+                    binding.asset_id,
+                    source_id=binding.source_id,
+                    channel_ids=list(spec.channels),
+                    start_at=start,
+                    end_at=end,
+                    snapshot_id=snapshot,
                 )
-                if window.start >= span_start and window.end <= span_end
-            ]
-            span_start, spans = span_end, spans + 1
+                windows = [
+                    window
+                    for window in group_windows(
+                        rows, seconds=seconds, measurement_point_id=binding.measurement_point_id
+                    )
+                    if window.end <= end
+                ]
+        learned = package.manifest.training_scope.get("channel_meanings")
         steps = (
-            prepare_history_step(window, spec, binding=binding, snapshot_id=snapshot)
+            prepare_history_step(
+                window,
+                spec,
+                binding=binding,
+                snapshot_id=snapshot,
+                learned=learned if isinstance(learned, Mapping) else None,
+            )
             for window in windows
         )
         cycles.append(
@@ -331,7 +397,11 @@ def _reference_digest(reference: Sequence[tuple[float, ...]]) -> str:
 
 
 def _same_model(
-    models_root: Path, request: HistoryModelRequest, digest: str, skipped: int
+    models_root: Path,
+    request: HistoryModelRequest,
+    digest: str,
+    learned: Mapping[str, list[str | None]],
+    skipped: int,
 ) -> HistoryModelBuild | None:
     """A package already built from these choices and the same reference values; pressing twice
     reuses it, while values changed inside the period (a later backfill) build a new one."""
@@ -344,6 +414,7 @@ def _same_model(
         "reference_start": request.reference_start.isoformat(),
         "reference_end": request.reference_end.isoformat(),
         "reference_digest": digest,
+        "channel_meanings": dict(learned),
     }
     for path in sorted(models_root.glob("*/package.json")):
         try:
@@ -389,6 +460,7 @@ def build_history_model(
         snapshot_id=snapshot,
     )
     reference: list[tuple[float, ...]] = []
+    meanings: dict[str, set[Meaning]] = {channel: set() for channel in request.channels}
     skipped = 0
     names = feature_names(request.channels)
     for window in group_windows(
@@ -401,6 +473,18 @@ def build_history_model(
             skipped += 1
         else:
             reference.append(tuple(values[name] for name in names))
+            for channel, meaning in channel_meanings(window, request.channels)[0].items():
+                meanings[channel].add(meaning)
+    changed = [channel for channel, kinds in meanings.items() if len(kinds) > 1]
+    if changed:
+        return HistoryModelBuild(
+            None,
+            len(reference),
+            skipped,
+            reason=f"기준 기간 안에서 {', '.join(changed)} 신호의 단위나 의미가 바뀝니다. "
+            "바뀌기 전이나 후로 기간을 좁히세요.",
+        )
+    learned = {channel: list(next(iter(kinds))) for channel, kinds in meanings.items() if kinds}
     if len(reference) < MIN_REFERENCE_WINDOWS:
         return HistoryModelBuild(
             None,
@@ -410,7 +494,7 @@ def build_history_model(
             f"최소 {MIN_REFERENCE_WINDOWS}개가 필요하니 기간을 늘리거나 구간 길이를 줄이세요.",
         )
     digest = _reference_digest(reference)
-    if (existing := _same_model(models_root, request, digest, skipped)) is not None:
+    if (existing := _same_model(models_root, request, digest, learned, skipped)) is not None:
         return existing
     array = np.asarray(reference)
     center = np.median(array, axis=0)
@@ -442,7 +526,7 @@ def build_history_model(
         },
         fit_rows=preprocessing.transform(reference),
         probe_rows=reference[:8],
-        training_scope=_scope(request, snapshot, len(reference), digest),
+        training_scope=_scope(request, snapshot, len(reference), digest, learned),
         validation={"evidence_class": "operator-reference-not-validated"},
         applicability={"source_id": [request.source_id], "asset_id": [request.asset_id]},
         created_at=created_at.isoformat(),
@@ -460,7 +544,11 @@ def build_history_model(
 
 
 def _scope(
-    request: HistoryModelRequest, snapshot: int, windows: int, digest: str
+    request: HistoryModelRequest,
+    snapshot: int,
+    windows: int,
+    digest: str,
+    learned: Mapping[str, list[str | None]],
 ) -> Mapping[str, Any]:
     return {
         "dataset_id": request.source_id,
@@ -472,6 +560,7 @@ def _scope(
         "snapshot_id": snapshot,
         "reference_windows": windows,
         "reference_digest": digest,
+        "channel_meanings": dict(learned),
     }
 
 

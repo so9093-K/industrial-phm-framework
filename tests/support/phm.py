@@ -123,13 +123,13 @@ def phm_workspace(root: Path, *, bind: bool = True) -> OperationsWorkspace:
     return workspace
 
 
-def retire_into(workspace: OperationsWorkspace, binding_id: str = "rul-old") -> str:
-    """A leftover remaining-life package and binding, as an older workspace still holds them."""
-    package_id = "old-rul-package"
+def unsupported_into(workspace: OperationsWorkspace, binding_id: str = "odd-task") -> str:
+    """A package and binding declaring a task this product does not run."""
+    package_id = "odd-task-package"
     folder = workspace.models_path / package_id
     folder.mkdir(parents=True)
     (folder / "package.json").write_text(
-        '{"package_id": "old-rul-package", "input": {"step_kind": "acquisition-snapshot"},'
+        '{"package_id": "odd-task-package", "input": {"step_kind": "acquisition-snapshot"},'
         ' "output": {"task": "rul-estimate", "unit": "acquisition-interval"}}'
     )
     SqlitePhmAnalysisStore(workspace.phm_analysis_path).create_binding(

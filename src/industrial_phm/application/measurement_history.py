@@ -16,6 +16,17 @@ class HistoryAssetSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class HistoryStream:
+    """One (source, measurement point) stream of an asset: its channels and stored extent."""
+
+    source_id: str
+    measurement_point_id: str | None
+    channels: tuple[str, ...]
+    start_at: datetime
+    end_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class MeasurementHistoryPoint:
     measurement: HistoricalMeasurement
     conflicting_duplicate: bool

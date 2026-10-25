@@ -17,7 +17,6 @@ from industrial_phm.models.package import (
     PackageOutputSpec,
     ReviewIntervalRule,
     StepKind,
-    is_retired_package,
     load_model_package,
     write_model_package,
 )
@@ -172,16 +171,14 @@ def test_anomaly_output_requires_threshold_and_interval_rule() -> None:
         )
 
 
-def test_retired_remaining_life_packages_are_refused_and_recognised(tmp_path: Path) -> None:
+def test_a_package_of_an_unsupported_task_is_refused(tmp_path: Path) -> None:
     manifest = write_model_package(tmp_path, _linear_build())
     path = tmp_path / manifest.package_id / "package.json"
     body = json.loads(path.read_text())
     body["output"] = {**body["output"], "task": "rul-estimate", "unit": "acquisition-interval"}
     path.write_text(json.dumps(body))
-    with pytest.raises(ModelPackageError, match="retired model task"):
+    with pytest.raises(ModelPackageError, match="unsupported model task"):
         load_model_package(tmp_path / manifest.package_id)
-    assert is_retired_package(tmp_path, manifest.package_id)
-    assert not is_retired_package(tmp_path, "missing")
 
 
 def test_feature_width_mismatch_is_rejected(tmp_path: Path) -> None:

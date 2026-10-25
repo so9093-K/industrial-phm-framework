@@ -19,7 +19,6 @@ from industrial_phm.application.phm_signal_comparison import (
     feature_label,
     raw_signal_summary,
 )
-from industrial_phm.models.package import is_retired_package
 
 
 class PhmExplanationStore:
@@ -220,8 +219,6 @@ def explanation_context(
         )
     related = []
     for other in store.list_bindings()[:100]:
-        if is_retired_package(models_root, other.package_id):
-            continue
         if other.binding_id == binding_id or (
             other.asset_id,
             other.source_id,
