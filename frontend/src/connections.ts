@@ -337,6 +337,15 @@ export function parseSample(raw:Record<string,unknown>):Sample{
     ...(raw.scenario?{scenario:raw.scenario as "bearing"|"live"|"xjtu"}:{})};
 }
 
+/** The example opens on this page's own loopback name. Browsers treat localhost and 127.0.0.1
+ * as different sites, and the example server refuses cross-site requests. */
+export function exampleOpenUrl(sampleUrl:string,pageHostname:string,params:Record<string,string>):string{
+  const url=new URL(sampleUrl);
+  if(pageHostname==="localhost"||pageHostname==="127.0.0.1")url.hostname=pageHostname;
+  url.search=new URLSearchParams(params).toString();
+  return url.toString();
+}
+
 export async function sampleCommand(action:"status"|"start"|"stop",signal:AbortSignal,scenario:"bearing"|"live"|"xjtu"="live"):Promise<Sample>{
   const sample=parseSample(await postWrite("/api/v1/demo/"+(scenario==="live"?"synthetic":scenario)+"/"+action,{},signal));
   return sample.state==="running"?{...sample,scenario:sample.scenario??scenario}:sample;
