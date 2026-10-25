@@ -102,6 +102,7 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
                 "direction": "upper",
                 "measurement_version": body["measurement_version"],
                 "data_version": body["data_version"],
+                "source_id": body["source_id"],
             },
         )
         assert captured["schema_version"] == 1
@@ -115,6 +116,7 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
                 "direction": "upper",
                 "measurement_version": body["measurement_version"],
                 "data_version": body["data_version"],
+                "source_id": body["source_id"],
             },
         )
         assert same["capture_id"] == captured["capture_id"]
@@ -152,6 +154,7 @@ def test_stored_history_reports_its_change_and_margin_to_both_conditions(tmp_pat
                     "end_limit": "18",
                     "measurement_version": "0" * 64,
                     "data_version": body["data_version"],
+                    "source_id": body["source_id"],
                 },
             )
 

@@ -1,6 +1,11 @@
 # 0022. Retire pre-release persisted migration paths
 
-Status: Accepted
+Status: Accepted · 2026-10-25 개정
+
+> 2026-10-25 개정: 같은 원칙을 남은 저장소 전체로 넓혔습니다. `JsonPhaseUnbalanceRepository`를 포함한 JSON 창·장부·결과
+> 저장소, DuckLake 카탈로그의 열 추가·버전 이전 스냅샷 읽기, PHM 분석 SQLite v1→v2, AI 해설·전망 검토 SQLite의 열 추가,
+> 불평형 결과의 예전 필드 기본값, AI-Hub 가져오기 v1~v4 이어받기와 OPC UA 배치의 버전 이전 지문 복구를 지웠습니다.
+> 저장소는 현재 형식만 열고, 저장 형식이 바뀐 출시 전 작업공간은 새로 만듭니다.
 
 ## Context
 

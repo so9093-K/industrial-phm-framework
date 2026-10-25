@@ -240,7 +240,7 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
         "industrial_phm.runtime.operations_web_outlook_capture.condition_outlook",
         lambda workspace, **arguments: dict(recomputed),
     )
-    legacy = {
+    unnamed = {
         "asset_id": "bearing-a",
         "kind": "acquisition",
         "series": "rms",
@@ -249,6 +249,13 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
         "data_version": "b" * 64,
     }
     store = OutlookCaptureStore(workspace.outlook_capture_path)
+    exact = {
+        **unnamed,
+        "source_id": "bench",
+        "binding_id": "anomaly-a",
+        "time_basis": "recorded",
+        "recorded_period_seconds": "60",
+    }
     for name, displayed in (
         ("binding_id", "anomaly-b"),
         ("source_id", "other-bench"),
@@ -256,18 +263,14 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
         ("recorded_period_seconds", "30"),
     ):
         with pytest.raises(ValueError, match="evidence changed"):
-            capture_outlook(workspace.root, {**legacy, name: displayed})
+            capture_outlook(workspace.root, {**exact, name: displayed})
         assert store.list_for("bearing-a") == []
-    exact = {
-        **legacy,
-        "source_id": "bench",
-        "binding_id": "anomaly-a",
-        "time_basis": "recorded",
-        "recorded_period_seconds": "60",
-    }
     with_provenance = capture_outlook(workspace.root, exact)
-    # Provenance selectors are checks only: the legacy request names the same capture.
-    assert capture_outlook(workspace.root, legacy)["capture_id"] == with_provenance["capture_id"]
+    # A request that does not name the source and model it saw is refused.
+    with pytest.raises(ValueError, match="unexpected capture fields"):
+        capture_outlook(workspace.root, unnamed)
+    assert len(store.list_for("bearing-a")) == 1
+    assert with_provenance["capture_id"]
     (saved,) = store.list_for("bearing-a")
     assert "binding_id" not in saved["snapshot"]["selection"]
     assert saved["snapshot"]["outlook"]["binding_id"] == "anomaly-a"
@@ -275,10 +278,9 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
         capture_outlook(workspace.root, {**exact, "package_id": "model-a"})
 
 
-def test_capture_review_keeps_the_decision_and_reads_stores_from_before_it(
+def test_capture_review_keeps_the_decision_a_confirm_carries(
     tmp_path: Path,
 ) -> None:
-    import sqlite3
 
     from industrial_phm.application.maintenance_review import ReviewDecision
 
@@ -295,11 +297,7 @@ def test_capture_review_keeps_the_decision_and_reads_stores_from_before_it(
     )
     events = store.list_for("bearing-a", capture_id=capture)[0]["review"]["events"]
     assert [row["decision"] for row in events] == ["observe"]
-    # A store written before decisions existed: no column until the next write, read as none.
-    old = tmp_path / "old.sqlite"
-    previous = OutlookCaptureStore(old)
-    kept = previous.save(_snapshot())["capture_id"]
-    previous.write_review("bearing-a", kept, FindingReviewAction.NOTE, "확인", str(uuid4()))
-    with sqlite3.connect(old) as connection:
-        connection.execute("ALTER TABLE review_event DROP COLUMN decision")
-    assert [row["decision"] for row in previous.read_review(kept)["events"]] == [None]
+    # A note carries no decision.
+    store.write_review("bearing-a", capture, FindingReviewAction.NOTE, "확인", str(uuid4()))
+    events = store.list_for("bearing-a", capture_id=capture)[0]["review"]["events"]
+    assert [row["decision"] for row in events] == ["observe", None]

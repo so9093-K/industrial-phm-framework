@@ -182,9 +182,10 @@ export function parseAcquisitionPair(
       lower:numberOrNull(raw[2]??null),upper:numberOrNull(raw[3]??null)};
   });
   if(!future.length)throw new Error("예측값이 없습니다.");
-  // The stored feature values the forecast continues; older servers send none.
+  // The stored feature values the forecast continues.
+  if(!Array.isArray(forecast.history))throw new Error("저장된 특징값의 형식이 올바르지 않습니다.");
   let before=0;
-  const history=(Array.isArray(forecast.history)?forecast.history:[]).map((raw:unknown)=>{
+  const history=forecast.history.map((raw:unknown)=>{
     if(!Array.isArray(raw)||raw.length!==2)throw new Error("저장된 특징값의 형식이 올바르지 않습니다.");
     const position=finite(raw[0]);
     if(position<first||position>last||position<=before)

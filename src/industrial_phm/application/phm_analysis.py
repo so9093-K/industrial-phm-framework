@@ -629,22 +629,6 @@ class SqlitePhmAnalysisStore:
                 "INSERT OR IGNORE INTO phm_meta VALUES ('schema_version', ?)",
                 (str(_SCHEMA_VERSION),),
             )
-        elif current[0] == "1":
-            # Older M1 stores have neither field; unmerged M3 stores may have replay only.
-            # Serialize migration and re-read under the write lock for concurrent readers.
-            with connection:
-                connection.execute("BEGIN IMMEDIATE")
-                columns = {row[1] for row in connection.execute("PRAGMA table_info(binding)")}
-                if "recorded_replay" not in columns:
-                    connection.execute(
-                        "ALTER TABLE binding ADD COLUMN recorded_replay INTEGER NOT NULL DEFAULT 0"
-                    )
-                if "measurement_point_id" not in columns:
-                    connection.execute("ALTER TABLE binding ADD COLUMN measurement_point_id TEXT")
-                connection.execute(
-                    "UPDATE phm_meta SET value = ? WHERE key = 'schema_version'",
-                    (str(_SCHEMA_VERSION),),
-                )
         elif current[0] != str(_SCHEMA_VERSION):
             connection.close()
             raise PhmAnalysisError(f"unsupported PHM analysis schema: {current[0]!r}")

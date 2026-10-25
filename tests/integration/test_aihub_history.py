@@ -193,43 +193,6 @@ def test_profile_counts_null_as_conflicting_value_and_keeps_scope(tmp_path):
     assert result["timezone"] is None
 
 
-def test_existing_catalog_migration_preserves_retry_and_accepts_null(tmp_path):
-    history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
-    )
-    event = FileBackfillEvent(
-        raw_evidence_id="old",
-        source_id="file",
-        asset_id="asset",
-        channel_id="channel",
-        source_file="old.csv",
-        source_sha256="b" * 64,
-        source_size_bytes=10,
-        sample_index=0,
-        event_at=UTC_START,
-        value=1.0,
-    )
-    old_commit = history.append_file_batch((event,), batch_id="old-batch")
-    # Recreate the previous persisted schema, not a second validator.
-    connection = history._connect()
-    try:
-        connection.execute(
-            "ALTER TABLE phm_history.raw.file_measurement DROP COLUMN source_metadata_json"
-        )
-        connection.execute(
-            "ALTER TABLE phm_history.raw.file_measurement ALTER COLUMN value SET NOT NULL"
-        )
-    finally:
-        connection.close()
-    assert history.get_file_batch_commit((event,), batch_id="old-batch") == old_commit
-    history.append_file_batch(
-        (replace(event, raw_evidence_id="null", sample_index=1, value=None),),
-        batch_id="nullable-batch",
-    )
-    assert len(history.query_file_events("file")) == 2
-    assert history.query_file_events("file")[1].value is None
-
-
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), True])
 def test_file_raw_rejects_nonfinite_and_boolean_values(value):
     with pytest.raises(ValueError, match="finite numeric"):

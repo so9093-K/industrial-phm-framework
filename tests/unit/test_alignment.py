@@ -93,10 +93,10 @@ def test_bounded_policy_requires_explicit_age_and_basis():
         TemporalAlignmentPolicy(max_age=MS)
 
 
-def test_alignment_policy_is_part_of_analysis_identity_without_changing_strict():
-    # Pinned: identity of the default policy recorded before alignment policies.
+def test_alignment_policy_is_part_of_analysis_identity():
+    # Pinned: stored results are found by this identity, so it must not drift by accident.
     assert phase_unbalance_policy_digest() == (
-        "054fb3002dd2e0a4883222f80b140d083cc1b80f8ffdb31ee360749007ddf1eb"
+        "38237d4845d0910656835df6ebbe874e07e03602317a5f2c76428425bcb180af"
     )
     bounded_digest = phase_unbalance_policy_digest(PhaseUnbalanceConfig(alignment=BOUNDED))
     assert bounded_digest != phase_unbalance_policy_digest()

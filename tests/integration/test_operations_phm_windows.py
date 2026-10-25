@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import timedelta
 from pathlib import Path
-
-import pytest
 
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
@@ -74,29 +71,3 @@ def test_real_finalized_windows_are_point_isolated_scored_and_read_as_raw_signal
         series["steps"][-1]["reason"]
         == "electrical-window-v1 requires a 300-second finalized window"
     )
-
-
-@pytest.mark.parametrize("had_replay", [False, True])
-def test_m1_store_is_migrated_without_discarding_binding_or_state(
-    tmp_path: Path, had_replay: bool
-) -> None:
-    path = tmp_path / "old.sqlite"
-    with sqlite3.connect(path) as connection:
-        connection.executescript("""
-            CREATE TABLE phm_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-            INSERT INTO phm_meta VALUES('schema_version','1');
-            CREATE TABLE binding(binding_id TEXT PRIMARY KEY, package_id TEXT, source_id TEXT,
-                asset_id TEXT, step_kind TEXT, created_at TEXT, cursor_position INTEGER,
-                cursor_step_key TEXT, state TEXT, health TEXT, health_reason TEXT, health_at TEXT);
-            INSERT INTO binding VALUES('old','package','source','asset','acquisition-snapshot',
-                '2026-10-12T00:00:00+00:00',3,'s3','{"last_estimate":42}','ok',NULL,NULL);
-        """)
-        if had_replay:
-            connection.execute("ALTER TABLE binding ADD COLUMN recorded_replay INTEGER DEFAULT 0")
-            connection.execute("UPDATE binding SET recorded_replay = 1")
-    store = SqlitePhmAnalysisStore(path)
-    (binding,) = store.list_bindings()
-    assert binding.binding_id == "old" and binding.recorded_replay == had_replay
-    assert binding.measurement_point_id is None
-    progress = store.progress("old")
-    assert progress.cursor_position == 3 and progress.state["last_estimate"] == 42

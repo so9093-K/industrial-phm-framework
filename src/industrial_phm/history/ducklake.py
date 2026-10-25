@@ -2210,14 +2210,13 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            semantic = _snapshot_semantic_column(connection, at)
             rows = connection.execute(
                 f"""
                 WITH m AS (
                     SELECT raw_evidence_id, source_type, measurement_point_id, channel_id
                     FROM {_CATALOG_NAME}.history.measurement {at}
                     WHERE asset_id = ? AND source_id = ? AND event_at >= ? AND event_at < ?
-                ), {_semantic_ctes(at, semantic, channel_filter=False)}
+                ), {_semantic_ctes(at, channel_filter=False)}
                 SELECT m.measurement_point_id, m.channel_id, f.prop, f.scope, f.unit, f.ver,
                     count(*)
                 FROM m JOIN f
@@ -2277,7 +2276,6 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            semantic = _snapshot_semantic_column(connection, at)
             with _cache_absent_pandas_import():
                 rows = connection.execute(
                     f"""
@@ -2288,7 +2286,7 @@ class DuckLakeAssetHistory:
                         WHERE asset_id = ? AND source_id = ?
                             AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                             AND event_at >= ? AND event_at < ?
-                    ), {_semantic_ctes(at, semantic, channel_filter=True)}, joined AS (
+                    ), {_semantic_ctes(at, channel_filter=True)}, joined AS (
                         SELECT m.*, f.ver, f.prop, f.scope, f.unit,
                             concat_ws('|', f.ver, f.prop, f.scope, f.unit) AS interpretation
                         FROM m LEFT JOIN f
@@ -2577,22 +2575,6 @@ class DuckLakeAssetHistory:
             )
             """
         )
-        # Catalogs created before semantic snapshots gain a nullable column once;
-        # existing rows stay without semantics rather than being reinterpreted.
-        opcua_columns = {
-            row[0]
-            for row in connection.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_catalog = ? AND table_schema = 'raw' "
-                "AND table_name = 'opcua_data_change'",
-                [_CATALOG_NAME],
-            ).fetchall()
-        }
-        if "semantic_binding_json" not in opcua_columns:
-            connection.execute(
-                f"ALTER TABLE {_CATALOG_NAME}.raw.opcua_data_change "
-                "ADD COLUMN semantic_binding_json VARCHAR"
-            )
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.raw.file_measurement (
@@ -2613,25 +2595,6 @@ class DuckLakeAssetHistory:
             )
             """
         )
-        # Existing v1 catalogs keep their rows and commit fingerprints. Migrate
-        # only when necessary; read calls must not create fresh schema snapshots.
-        columns = dict(
-            connection.execute(
-                "SELECT column_name, is_nullable FROM information_schema.columns "
-                "WHERE table_catalog = ? AND table_schema = 'raw' "
-                "AND table_name = 'file_measurement'",
-                [_CATALOG_NAME],
-            ).fetchall()
-        )
-        if columns.get("value") == "NO":
-            connection.execute(
-                f"ALTER TABLE {_CATALOG_NAME}.raw.file_measurement ALTER COLUMN value DROP NOT NULL"
-            )
-        if "source_metadata_json" not in columns:
-            connection.execute(
-                f"ALTER TABLE {_CATALOG_NAME}.raw.file_measurement "
-                "ADD COLUMN source_metadata_json VARCHAR"
-            )
         connection.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {_CATALOG_NAME}.history.measurement (
@@ -3750,22 +3713,7 @@ def _opcua_display_metadata_sql(*, upper_bound: bool) -> str:
                     WHERE asset_id = ? AND channel_id = ? {time_filter}"""
 
 
-def _snapshot_semantic_column(connection: Any, at: str) -> str:
-    """OPC UA semantic column expression valid at a (possibly old) snapshot.
-
-    A snapshot recorded before the column existed has no OPC UA snapshots; read it
-    as unresolved instead of failing time travel.
-    """
-    columns = {
-        column[0]
-        for column in connection.execute(
-            f"SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at} LIMIT 0"
-        ).description
-    }
-    return "semantic_binding_json" if "semantic_binding_json" in columns else "NULL::VARCHAR"
-
-
-def _semantic_ctes(at: str, semantic: str, *, channel_filter: bool) -> str:
+def _semantic_ctes(at: str, *, channel_filter: bool) -> str:
     """`bound` and `f` CTEs: FILE and OPC UA bindings in one identity-verified shape.
 
     Parameters per branch: asset_id, source_id, [channel list,] start_at, end_at.
@@ -3779,7 +3727,7 @@ def _semantic_ctes(at: str, semantic: str, *, channel_filter: bool) -> str:
                             AND source_timestamp >= ? AND source_timestamp < ?
                         UNION ALL
                         SELECT raw_evidence_id, 'opcua' AS source_type, source_id, channel_id,
-                            json({semantic}) AS b
+                            json(semantic_binding_json) AS b
                         FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
                         WHERE asset_id = ? AND source_id = ? {channels}
                             AND event_at >= ? AND event_at < ?
