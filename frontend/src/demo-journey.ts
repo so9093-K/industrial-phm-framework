@@ -86,7 +86,7 @@ export function bearingSteps(journey: DemoJourney, search = "") {
         acq_b_from: spans.bFrom, acq_b_to: spans.bTo}),
       evidence: "같은 측정 번호의 두 특징만 비교합니다. 함께 증가하는 관계는 고장의 원인을 입증하지 않습니다."},
     {id: "spectrum", label: "6. 주파수 비교", title: "어떤 주파수 성분이 달라졌나요?",
-      question: "같은 A/B 구간의 원본 파형을 주파수별로 비교하세요. 세로축을 dB로 바꾸면 세기가 작은 주파수의 변화도 보입니다.",
+      question: "같은 A/B 구간의 원본 파형을 주파수별로 비교하세요. 세로축은 가장 센 주파수 대비 dB이며, 끄면 실제 세기로 봅니다.",
       href: url({tab: "change", method: "spectrum", spectrum_a_from: spans.aFrom,
         spectrum_a_to: spans.aTo, spectrum_b_from: spans.bFrom, spectrum_b_to: spans.bTo}),
       evidence: "원본 파형으로 계산한 Welch 스펙트럼입니다. 각 구간에서 최대 8회를 표본으로 사용하며 결함 주파수를 자동 진단하지 않습니다."},

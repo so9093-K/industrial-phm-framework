@@ -48,6 +48,11 @@
   // How each saved column reads on screens; empty keeps the column name.
   let labels: Record<string, {label: string; unit: string}> = $state({});
   const shown = (name: string) => labels[name]?.label.trim() || name;
+  // Columns whose quantity has an example unit and whose unit field is still empty.
+  const unfilledExamples = $derived(channels.filter((name) => unitExample(name) && !labels[name]?.unit.trim()));
+  function fillExampleUnits() {
+    for (const name of unfilledExamples) rename(name, "unit", unitExample(name) ?? "");
+  }
   let assetId = $state("");
   let pointId = $state("");
   let sourceId = $state("");
@@ -360,7 +365,12 @@
       {#if channels.length}
         <fieldset class="names">
           <legend>화면에 보일 이름·단위 (선택)</legend>
-          <p class="context">비워 두면 열 이름이 그대로 보입니다.</p>
+          <p class="context">비워 두면 열 이름이 그대로 보이고, 단위가 없으면 그래프에 ‘단위 미확인’으로 표시합니다.</p>
+          {#if unfilledExamples.length && !locked}
+            <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
+            <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
+              {unfilledExamples.map((name) => shown(name) + " " + unitExample(name)).join(" · ")} · 실제 계측 단위와 다르면 고치세요.</p>
+          {/if}
           {#each channels as name (name)}
             <div class="name-row">
               <span class="column">{name}</span>

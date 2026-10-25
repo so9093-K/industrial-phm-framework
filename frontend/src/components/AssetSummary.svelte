@@ -52,6 +52,13 @@
     void readNotes();
     return () => {request.abort();noteRequest?.abort();};
   });
+  // Models reading the same asset can disagree; a "기준 이하" beside a "기준 초과" is not a clean bill.
+  const split = $derived.by(() => {
+    const read = scores.map((item) => ({name: modelName(item.binding), exceeds: item.run ? scoreSummary(item.run.output).exceeds : null}));
+    const over = read.filter((item) => item.exceeds === true).map((item) => item.name);
+    const under = read.filter((item) => item.exceeds === false).map((item) => item.name);
+    return over.length && under.length ? {over, under} : null;
+  });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
   }
@@ -93,6 +100,10 @@
         </li>
       {/each}
     </ul>
+    {#if split}
+      <p class="split">최근 결과에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
+        기준 이하가 정상이라는 뜻은 아니므로 측정별 점수와 원본을 함께 확인하세요.</p>
+    {/if}
     <p class="context"><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정별 모델 점수 보기 →</a></p>
   {/if}
 </section>
@@ -140,6 +151,7 @@
   .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
   .scores li { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
   .scores .verdict { font-size: var(--font-section); }
+  .split { margin: 0; padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); overflow-wrap: anywhere; }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
   .departure, .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
   .departure span, .others span { color: var(--color-ink-muted); font-size: var(--font-small); }

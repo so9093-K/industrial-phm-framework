@@ -12,6 +12,8 @@
     type ChannelList, type HistoryTrend, type RangePreset, type TimeAnchor,
   } from "../history";
   import { defaultChannel } from "../monitor-attention";
+  // The source's own quality code, said in words; an unknown code stays as recorded.
+  const QUALITY: Record<string, string> = {good: "양호", bad: "불량", uncertain: "불확실", unknown: "기록 없음"};
 
   type LoadState = "idle" | "loading" | "ready" | "empty" | "failed";
   type Props = {assetId: string};
@@ -243,9 +245,9 @@
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
-              <li>{sourceLabel(sources, item.sourceId)} / {item.pointId ?? "미등록"}
+              <li>{sourceLabel(sources, item.sourceId)}{item.pointId ? " · 측정 위치 " + item.pointId : ""}
                 · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
-                · 원본 품질 {item.quality === "unknown" ? "기록 없음" : item.quality}</li>
+                · 원본 품질 {QUALITY[item.quality] ?? item.quality}</li>
             {/each}
           </ul>
         </section>

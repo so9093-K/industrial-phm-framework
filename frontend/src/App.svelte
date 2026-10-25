@@ -6,6 +6,7 @@
   import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
+  import ReviewEntry from "./components/ReviewEntry.svelte";
   import { readAttention, type AttentionState } from "./monitor-attention";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -318,6 +319,7 @@
           </div>
         </section>
       {/if}
+      {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}
       {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state) => {notes = counts; notesState = state;}} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
