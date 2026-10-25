@@ -83,8 +83,12 @@ address and configure that server's listener accordingly. Remote industrial sour
 are not provisioned automatically.
 
 AI explanation is optional and still requires a separately provisioned compatible model server. The
-default endpoint `http://127.0.0.1:9400/v1` means this container network namespace. A Mac-hosted server is
-not automatically connected. The existing provider accepts a loopback endpoint, or an explicitly enabled
+default endpoint `http://127.0.0.1:9400/v1` means this container network namespace; the `web` proxy listens
+there (not published) and forwards to port 9400 on the host through `host.docker.internal`, so a model
+server on this computer is used without changing the provider's loopback rule. Without such a server the
+proxy answers 502 and the explanation falls back to the stored comparison. A model without structured
+output is asked in plain Chat and its answer is still checked against the stored comparison.
+The existing provider accepts a loopback endpoint, or an explicitly enabled
 HTTPS remote endpoint (`INDUSTRIAL_PHM_GENAI_BASE_URL`, `INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE=1`, model and
 optional API key). Supply these to `operations` using a local Compose override; do not bake credentials
 into the image. Arbitrary plain HTTP remote endpoints, including `http://host.docker.internal:9400`,

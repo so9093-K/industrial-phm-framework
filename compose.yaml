@@ -8,6 +8,10 @@ services:
     init: true
     environment:
       INDUSTRIAL_PHM_SAMPLE_UI_PORT: "2719"
+    # The web proxy forwards loopback :9400 (AI explanations) to a model server on the host.
+    # Docker Desktop resolves this name already; Linux Docker needs the mapping.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     stop_grace_period: 60s
     volumes:
       - workspace:/var/lib/industrial-phm

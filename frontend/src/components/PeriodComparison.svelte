@@ -212,7 +212,7 @@
           {:else}
             <StatusNotice kind="uncertain" message="두 기간을 비교할 대표값이 부족합니다. 0으로 채우지 않습니다." />
           {/if}
-          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} unit={row.unit} label={row.channel} />
+          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
           <div class="table-wrap">
             <table>
               <caption>이 출처·측정 위치의 기간별 통계 (개별 측정값 아님)</caption>

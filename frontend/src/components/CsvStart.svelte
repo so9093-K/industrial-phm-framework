@@ -81,6 +81,11 @@
     return current !== null && checkedRevision === revision && current.status === "ready";
   });
   const locked = $derived(progress !== null || saving);
+  // What the person still has to do before the server check, said next to the disabled button.
+  const checkNeeds = $derived([
+    ...(!timeZoneReady ? ["위의 시간대 확인"] : []),
+    ...(!assetId.trim() ? ["설비 이름·번호 입력"] : []),
+  ]);
   const declared = $derived(declaredRoles(roles));
   const roleProblem = $derived(phaseRoleProblem(declared, channels));
 
@@ -436,7 +441,9 @@
         <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
       {:else}
         <button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
+          aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
           onclick={() => void check()}>서버에서 점검 (저장 안 함)</button>
+        {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
       {/if}
       {#if checkMessage}
         <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}{#if report?.status === "ready" && !checking}{stored ? " · 저장했습니다." : " · 아직 저장하지 않았습니다."}{/if}</p>

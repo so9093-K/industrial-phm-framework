@@ -103,6 +103,9 @@
     open: items.filter((item) => item.status === "open").length,
     acknowledged: items.filter((item) => item.status === "acknowledged").length,
   });
+  // Counts are of what was read; say so only when that is not everything.
+  const partialCounts = $derived(partialAssetScope || hiddenFindings || moreAvailable || failedAssets.length > 0);
+  const countText = (count: number) => String(count) + (partialCounts ? " (불러온 범위)" : "");
   const shown = $derived(filterReviewItems(items, statusFilter, typeFilter));
   const selected = $derived(selectReviewItem(
     shown,
@@ -295,7 +298,7 @@
       </form>
     {/if}
     <div class="filters" role="group" aria-label="검토 상태">
-      {#each [["open", "검토 대기 " + counts.open + " (조회됨)"], ["acknowledged", "확인함 " + counts.acknowledged + " (조회됨)"], ["closed", "검토 종료"], ["all", "전체"]] as [value, label] (value)}
+      {#each [["open", "검토 대기 " + countText(counts.open)], ["acknowledged", "확인함 " + countText(counts.acknowledged)], ["closed", "검토 종료"], ["all", "전체"]] as [value, label] (value)}
         <button type="button" class="chip" aria-pressed={statusFilter === value}
           onclick={() => { statusFilter = value as Status | "all"; keptKey = null; ignoreFocus = true; }}>{label}</button>
       {/each}
@@ -312,12 +315,14 @@
         <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."}
           actionLabel="검토 목록 다시 읽기" onAction={() => location.reload()} />
       {/if}
-      <p class="context">{focusAssetId ? "선택한 설비 1곳" : "설비 " + loadedAssets + "곳"}의 검토 기록 조회를 시도했습니다.
-        {#if partialAssetScope || hiddenFindings || moreAvailable}
-          전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망은 한 번에 20건씩 읽습니다.
-        {:else if failedAssets.length} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
-        {/if}
-      </p>
+      {#if partialCounts}
+        <p class="context">{focusAssetId ? "선택한 설비 1곳" : "설비 " + loadedAssets + "곳"}의 검토 기록을 불러왔습니다.
+          {#if partialAssetScope || hiddenFindings || moreAvailable}
+            전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망은 한 번에 20건씩 읽습니다.
+          {:else} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
+          {/if}
+        </p>
+      {/if}
       {#if nextAsset}
         <button type="button" class="ui-button" disabled={loadingAssets} onclick={loadMoreAssets}>
           {loadingAssets ? "다음 설비의 검토를 읽고 있습니다." : "다음 설비의 검토 더 보기"}
@@ -357,7 +362,7 @@
         message="이 설비의 조회에 실패했습니다. 기록이 없다고 판단하지 않습니다."
         actionLabel="다시 불러오기" onAction={() => location.reload()} />
     {:else if !selected}
-      <p class="context">왼쪽에서 검토 항목을 고르세요.</p>
+      <p class="context">목록에서 검토 항목을 고르세요.</p>
     {:else if selected.kind === "outlook"}
       {#key selected.capture.id}
         <OutlookReviewDetail capture={selected.capture} {writable} onUpdated={replaceCapture} />

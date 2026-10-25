@@ -306,7 +306,7 @@
       {#if snapshot.truncated}
         <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
       {/if}
-      {#if route.page === "monitor" && loadState === "empty"}
+      {#if (route.page === "monitor" || route.page === "assets") && loadState === "empty"}
         <!-- A first visit starts with how to get data in, not with panels about data that is not there. -->
         <section class="ui-panel start" aria-labelledby="start-title">
           <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "아직 연결된 데이터가 없습니다"}</h2>
@@ -328,16 +328,7 @@
         <InvestigationRecords {snapshot} writable={writable === true} assetId={route.assetId} />
 
       {:else if loadState === "empty"}
-        {#if route.page !== "monitor"}
-          <StatusNotice
-            title="등록된 설비가 없습니다"
-            message={snapshot.systemReadUncertain
-              ? "일부 저장소를 읽지 못해 설비가 빠졌을 수 있습니다."
-              : "아직 연결된 데이터가 없습니다. CSV 파일을 올리거나 예시로 둘러보세요."}
-            actionLabel="데이터 연결하기"
-            actionHref={systemUrl("connections")}
-          />
-        {/if}
+        <!-- Monitor and the asset list share the start panel above. -->
       {:else}
         {#if route.page === "assets" && route.assetId}
           <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
