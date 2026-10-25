@@ -1,12 +1,31 @@
 /** Read-only PHM model run provenance; never manufacture Operational Evidence IDs. */
-export type StepKind="acquisition-snapshot"|"observation-window";
+export type StepKind="acquisition-snapshot"|"observation-window"|"history-window";
+/** Steps that cover a time interval (finalized live windows, stored-history windows). */
+export const isTimeWindow=(kind:StepKind)=>kind!=="acquisition-snapshot";
+/** A time-window step is named by when its window ends (its position, in microseconds). */
+export function windowLabel(position:number):string{
+  return new Date(position/1000).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})+"까지 구간";
+}
 export type ModelBinding={
   assetId:string;sourceId:string;pointId:string|null;bindingId:string;packageId:string;
   stepKind:StepKind;recordedReplay:boolean;health:string;
   task:string|null;recipeId:string|null;estimatorKind?:string|null;packageAvailable:boolean;
   lastAnalyzed:number|null;lastProcessed:number|null;
   minimumIntervalSteps?:number;
+  /** For a model someone built from their own record: the period it learned from. */
+  reference?:string;
 };
+const kstShort=(iso:string)=>new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+/** "기준 10. 15. 00:00~10. 16. 06:36 · 신호 2개": the period an operator-built model learned (ADR-0032). */
+export function referenceLabel(start:string,end:string,channels:number):string{
+  return "기준 "+kstShort(start)+"~"+kstShort(end)+" · 신호 "+channels+"개";
+}
+function referenceOf(summary:Record<string,unknown>|null):string|undefined{
+  const scope=obj(summary?.training_scope),channels=obj(summary?.input)?.channels;
+  if(summary?.recipe_id!=="operator-history-iforest-v1"||typeof scope?.reference_start!=="string"
+    ||typeof scope?.reference_end!=="string"||!Array.isArray(channels))return undefined;
+  return referenceLabel(scope.reference_start,scope.reference_end,channels.length);
+}
 const METHOD:Record<string,string>={
   "lstm-autoencoder-v1":"LSTM 오토인코더","isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
 };
@@ -21,8 +40,10 @@ export function modelNames(bindings:ModelBinding[]):Map<string,string>{
   const names=new Map(bindings.map(binding=>[binding.bindingId,modelName(binding)]));
   for(const binding of bindings){
     const name=names.get(binding.bindingId)!;
-    if(bindings.some(other=>other.bindingId!==binding.bindingId&&modelName(other)===name)&&binding.recipeId&&binding.recipeId!==name)
-      names.set(binding.bindingId,name+" · "+binding.recipeId);
+    if(!bindings.some(other=>other.bindingId!==binding.bindingId&&modelName(other)===name))continue;
+    // Models built from the same recipe differ by the period they learned from.
+    if(binding.reference)names.set(binding.bindingId,name+" ("+binding.reference+")");
+    else if(binding.recipeId&&binding.recipeId!==name)names.set(binding.bindingId,name+" · "+binding.recipeId);
   }
   return names;
 }
@@ -59,7 +80,7 @@ function sequence(v:unknown):number{
   return v;
 }
 function axis(v:unknown):StepKind {
-  if(v!=="acquisition-snapshot"&&v!=="observation-window")
+  if(v!=="acquisition-snapshot"&&v!=="observation-window"&&v!=="history-window")
     throw new Error("모델 입력 축을 확인할 수 없습니다.");
   return v;
 }
@@ -124,7 +145,8 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
       recipeId:typeof packageSummary?.recipe_id==="string"?packageSummary.recipe_id:null,
       estimatorKind:typeof packageSummary?.estimator_kind==="string"?packageSummary.estimator_kind:null,
       lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed"),
-      ...(typeof minimum==="number"&&Number.isSafeInteger(minimum)&&minimum>0?{minimumIntervalSteps:minimum}:{})};
+      ...(typeof minimum==="number"&&Number.isSafeInteger(minimum)&&minimum>0?{minimumIntervalSteps:minimum}:{}),
+      ...(referenceOf(packageSummary)?{reference:referenceOf(packageSummary)}:{})};
   }).filter(binding=>assetId===null||binding.assetId===assetId);
 }
 function pointer(raw:unknown):StepPointer{
@@ -168,6 +190,12 @@ export function parseModelRun(raw:unknown,binding:ModelBinding,expected:StepPoin
     if(ref.ordinal!==step.position||typeof ref.sha256!=="string"
       ||!/^[a-f0-9]{64}$/i.test(ref.sha256))
       throw new Error("모델 입력 파일이 고른 측정과 맞지 않아 표시하지 않았습니다.");
+  }else if(binding.stepKind==="history-window"){
+    // A stored-history window names its period and the snapshot it was read at, not a window ID.
+    if(ref.measurement_point_id!==point||typeof ref.window_start!=="string"||typeof ref.window_end!=="string"
+      ||!Number.isSafeInteger(ref.snapshot_id)||typeof ref.input_digest!=="string"
+      ||!/^[a-f0-9]{64}$/i.test(ref.input_digest))
+      throw new Error("모델 입력 구간이 고른 측정 위치와 맞지 않아 표시하지 않았습니다.");
   }else{
     if(ref.measurement_point_id!==point||typeof ref.window_id!=="string"
       ||!ref.window_id||typeof ref.input_digest!=="string"

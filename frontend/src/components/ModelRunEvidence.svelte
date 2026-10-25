@@ -3,6 +3,7 @@
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import ModelConnect from "./ModelConnect.svelte";
+  import ModelBuild from "./ModelBuild.svelte";
   import ModelExplanation from "./ModelExplanation.svelte";
   import ModelInput from "./ModelInput.svelte";
   import ScoreTrend from "./ScoreTrend.svelte";
@@ -12,7 +13,7 @@
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,
+    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
@@ -81,9 +82,9 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
-  const place=(position:number)=>binding?.stepKind==="observation-window"
-    ?"시간 구간 #"+position:measurementLabel(position);
-  const timelinePlace=(position:number)=>binding?.stepKind==="observation-window" ? place(position) : measurementLabel(position,period);
+  const place=(position:number)=>binding&&isTimeWindow(binding.stepKind)
+    ?windowLabel(position):measurementLabel(position);
+  const timelinePlace=(position:number)=>binding&&isTimeWindow(binding.stepKind) ? place(position) : measurementLabel(position,period);
   // The review sits below the explanation; it names the result it would leave for review.
   const reviewSubject=(current:ModelBinding,run:ModelRun)=>{
     const exceeds=scoreSummary(run.output).exceeds;
@@ -221,9 +222,10 @@
     if(step){followLatest=false;void chooseStep(step);}
   }
   let connectedNotice=$state("");
-  function connected(bindingId:string){
+  // The notice outlives the panel that asked, since the model list is read again right after.
+  function connected(bindingId:string,notice="모델을 연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다."){
     selectedBinding=bindingId;selectedPosition="";followLatest=true;
-    connectedNotice="모델을 연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다.";
+    connectedNotice=notice;
     void loadBindings();
   }
   onMount(()=>{
@@ -253,7 +255,8 @@
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
       message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
       actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
-    {#if !example}<ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>{/if}
+    {#if !example}<ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
+      <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>{/if}
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
@@ -370,7 +373,8 @@
         {/if}
       {/if}
     {/if}
-    {#if !example}<ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>{/if}
+    {#if !example}<ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
+      <ModelBuild {assetId} {writable} hasModel={true} onBuilt={connected}/>{/if}
   {/if}
 </section>
 <style>

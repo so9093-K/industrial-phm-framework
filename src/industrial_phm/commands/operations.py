@@ -34,6 +34,7 @@ from industrial_phm.application import (
     validate_distinct_source_state_paths,
 )
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+from industrial_phm.application.history_window import run_history_window_bindings
 from industrial_phm.application.opcua_persistent import OpcUaPersistentSessionPolicy
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_runner import (
@@ -608,6 +609,7 @@ def _run_operations_window_analysis(args: argparse.Namespace) -> int:
                 SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
                 PackageCache(workspace.models_path),
                 windows,
+                workspace,
             )
         while True:
             outcomes = analyze_finalized_windows_incremental(
@@ -662,6 +664,7 @@ def _run_phm_bindings_cycle(
     snapshots: SqliteAcquisitionSnapshotRepository,
     packages: PackageCache,
     windows: WindowReader,
+    workspace: OperationsWorkspace,
 ) -> None:
     """Advance PHM model bindings without letting their failures stop window analysis."""
     if not store.path.exists():
@@ -669,6 +672,13 @@ def _run_phm_bindings_cycle(
     try:
         cycles = run_snapshot_bindings(store, snapshots, packages)
         cycles += run_window_bindings(store, windows, packages)
+        if workspace.history_catalog_path.is_file():
+            history = DuckLakeAssetHistory(
+                DuckLakeAssetHistoryConfig(
+                    workspace.history_catalog_path, workspace.history_data_path
+                )
+            )
+            cycles += run_history_window_bindings(store, history, packages)
     except (OSError, ValueError, sqlite3.Error) as error:
         print(f"phm analysis cycle failed: {error}", file=sys.stderr, flush=True)
         return

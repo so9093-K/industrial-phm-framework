@@ -46,3 +46,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0029: Axis-aware reviewed outlook and reobservation](0029-axis-aware-reviewed-outlook-and-reobservation.md)
 - [ADR-0030: Build Operations Web with Svelte and packaged static assets](0030-svelte-typescript-operations-web.md)
 - [ADR-0031: Separate default source CI from targeted product acceptance](0031-separate-default-ci-from-targeted-product-acceptance.md)
+- [ADR-0032: Score stored measurement history with operator-built models over fixed windows](0032-history-window-steps-and-operator-built-models.md)

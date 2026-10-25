@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {readSignalNames, type SignalNames} from "../history";
+  import {historyFeatureLabel} from "../history-model";
   import {assetTabUrl} from "../routes";
   import {num} from "../format";
   import type {ModelBinding,ModelRun} from "../model-evidence";
@@ -7,6 +9,13 @@
   import StatusNotice from "./StatusNotice.svelte";
   let {binding,run,compare,place,onFocus}: {binding:ModelBinding;run:ModelRun;compare:number|null;
     place:(at:number)=>string;onFocus:(focus:Focus)=>void}=$props();
+  // A stored-history model's features are named by the asset's signal names (ADR-0032).
+  let signalNames: SignalNames | null = $state(null);
+  $effect(() => {
+    if (binding.stepKind !== "history-window") return;
+    void readSignalNames(binding.assetId).then((value) => { signalNames = value; }).catch(() => {});
+  });
+  const shown = (label: string) => historyFeatureLabel(label, signalNames);
   let comparison:Comparison|null=$state(null),range:ModelRange|null=$state(null);
   let exploreFeature=$state("");
   let failed=$state(false),rangeFailed=$state(false),loading=$state(false);
@@ -81,19 +90,19 @@
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th></tr></thead>
       <tbody>{#each visible as feature(feature.feature)}
-        <tr><th scope="row"><button class="text-button" aria-label={feature.label + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{feature.label}</button></th>
+        <tr><th scope="row"><button class="text-button" aria-label={shown(feature.label) + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{shown(feature.label)}</button></th>
           <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td></tr>
       {/each}</tbody>
     </table></div>
     {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}
-    {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{feature.label}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
+    {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{shown(feature.label)}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>
     {:else if range && compare !== null && rows.some(row=>row.shape.trend!=="insufficient")}
       <p class="context">구간 흐름 · {place(compare)} → {place(run.position)} · 분석 {range.steps}개{range.sampled?" · 흐름은 "+range.points+"개 표본, 최대 변화는 전체 기록":""}</p>
       <div class="flow" role="table" aria-label="구간 흐름">
         {#each marked as row(row.name)}
-          <div class="flow-row" role="row"><div role="rowheader"><strong>{row.label}</strong></div>
+          <div class="flow-row" role="row"><div role="rowheader"><strong>{shown(row.label)}</strong></div>
             <span role="cell">{shapeText(row.shape)}</span>
             <div role="cell">
               {#if row.shape.shift}<button class="ui-button" onclick={()=>open(row.shape.shift!.at,row.name,true)}>수준 변화 {place(row.shape.shift.at)} · 원본 확인</button>{/if}
@@ -102,11 +111,11 @@
           </div>
         {/each}
       </div>
-      {#if quiet.length}<p class="context">변화 지점이 없거나 계산할 기록이 부족한 값 {quiet.length}개 · {quiet.map(row=>row.label).join(", ")}</p>{/if}
+      {#if quiet.length}<p class="context">변화 지점이 없거나 계산할 기록이 부족한 값 {quiet.length}개 · {quiet.map(row=>shown(row.label)).join(", ")}</p>{/if}
       <p class="context">변화 지점을 누르면 그 지점의 원본을 열고 다음 질문의 기준으로 지정합니다.</p>
     {/if}
   {/if}
-  {#if contributions.length}<details><summary>모델이 반영한 특징 ({contributions.length}개)</summary><p class="context">모델 출력의 특징별 기여도입니다. 설비 고장의 원인이나 확률이 아닙니다.</p><dl>{#each contributions as [name,value] (name)}<div><dt>{comparison?.features.find(item=>item.feature===name)?.label??name}</dt><dd>{num(value)}</dd></div>{/each}</dl></details>{/if}
+  {#if contributions.length}<details><summary>모델이 반영한 특징 ({contributions.length}개)</summary><p class="context">모델 출력의 특징별 기여도입니다. 설비 고장의 원인이나 확률이 아닙니다.</p><dl>{#each contributions as [name,value] (name)}<div><dt>{shown(comparison?.features.find(item=>item.feature===name)?.label??name)}</dt><dd>{num(value)}</dd></div>{/each}</dl></details>{/if}
   {#if preview}
     {#key preview.position+":"+preview.feature}<ModelInput {binding} position={preview.position} feature={preview.feature} {place}/>{/key}
   {/if}

@@ -39,6 +39,8 @@ _TIMEOUT_SECONDS = 5.0
 # enough time for that actual readiness probe (no speculative retry).
 _DEMO_TIMEOUT_SECONDS = 90.0
 _PHASE_FILE_TIMEOUT_SECONDS = 30.0
+# Commands that read stored records and compute before they answer.
+_LONG_ROUTES = frozenset({"/api/v1/analysis/phase-file", "/api/v1/phm/models/build"})
 
 
 class WebCommandRejected(RuntimeError):
@@ -84,7 +86,7 @@ class WebCommandClient:
                         ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
                     )
                     else _PHASE_FILE_TIMEOUT_SECONDS
-                    if route == "/api/v1/analysis/phase-file"
+                    if route in _LONG_ROUTES
                     else _TIMEOUT_SECONDS
                 )
                 connection.settimeout(timeout)
@@ -188,7 +190,7 @@ class SupervisorWebCommandBroker:
                 ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
             ):
                 connection.settimeout(_DEMO_TIMEOUT_SECONDS)
-            elif route == "/api/v1/analysis/phase-file":
+            elif route in _LONG_ROUTES:
                 connection.settimeout(_PHASE_FILE_TIMEOUT_SECONDS)
             with self._lock:
                 cached = self._seen.get(identifier)

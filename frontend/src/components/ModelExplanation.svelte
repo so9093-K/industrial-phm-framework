@@ -10,6 +10,8 @@
   import type {Focus} from "../model-comparison";
   import ModelComparison from "./ModelComparison.svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import {readSignalNames, type SignalNames} from "../history";
+  import {historyFeatureLabel} from "../history-model";
 
   /** AI explanation of one stored model result against an earlier analyzed measurement.
    * The table shows the comparison the server stored and checked the answer against.
@@ -19,6 +21,12 @@
     place: (position: number) => string; onInteract?: () => void; onExplained: (explanationId: string | null) => void;
   };
   let {binding, run, earlier, suggested = null, writable, place, onExplained, onInteract}: Props = $props();
+  let signalNames: SignalNames | null = $state(null);
+  $effect(() => {
+    if (binding.stepKind !== "history-window") return;
+    void readSignalNames(binding.assetId).then((value) => { signalNames = value; }).catch(() => {});
+  });
+  const shown = (label: string) => historyFeatureLabel(label, signalNames);
   let compare: number | null = $state(null);
   let focus: Focus | null = $state(null);
   let records: ModelExplanation[] = $state([]);
@@ -181,7 +189,7 @@
         <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화</th></tr></thead>
         <tbody>
           {#each mentioned as {change, relation} (change.feature)}
-            <tr><th scope="row">{change.label}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
+            <tr><th scope="row">{shown(change.label)}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
               <td>{RELATION[relation]} {percent(change.relativePercent)}</td></tr>
           {/each}
         </tbody>
@@ -197,7 +205,7 @@
           <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화율</th></tr></thead>
           <tbody>
             {#each latest.features as row (row.feature)}
-              <tr><th scope="row">{row.label}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
+              <tr><th scope="row">{shown(row.label)}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
                 <td>{percent(row.relativePercent)}</td></tr>
             {/each}
           </tbody>
