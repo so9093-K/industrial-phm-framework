@@ -32,6 +32,7 @@ from industrial_phm.models.package import (
     load_model_package,
     write_model_package,
 )
+from industrial_phm.models.package_lstm import LSTM_PROBE_TOLERANCE
 from industrial_phm.sequences import (
     SequenceFeatureObservation,
     SequenceWindowSpec,
@@ -94,6 +95,7 @@ def build_package(root: Path):
             },
             fit_rows=None,
             probe_rows=flat[:2],
+            probe_tolerance=LSTM_PROBE_TOLERANCE,
             training_scope={"dataset_id": "synthetic"},
             validation={},
             applicability={"operating_condition": ["c1"]},
@@ -102,6 +104,30 @@ def build_package(root: Path):
         ),
     )
     return load_model_package(root / manifest.package_id), model, construction, rows, flat
+
+
+def test_a_package_fitted_on_one_machine_loads_on_another_but_not_with_other_weights(
+    tmp_path, monkeypatch
+) -> None:
+    import industrial_phm.models.package as packages
+
+    package, *_ = build_package(tmp_path / "models")
+    root = tmp_path / "models" / package.package_id
+    restore = packages._restore
+
+    def scored_with(offset: float):
+        def restored(kind, state, payload):
+            evaluate, contributions = restore(kind, state, payload)
+            return (lambda rows: evaluate(rows) + offset), contributions
+
+        return restored
+
+    # Another CPU build of torch reorders float operations: about 4e-9 on the XJTU probes.
+    monkeypatch.setattr(packages, "_restore", scored_with(4e-9))
+    assert load_model_package(root).manifest.probe_tolerance == LSTM_PROBE_TOLERANCE
+    monkeypatch.setattr(packages, "_restore", scored_with(1e-3))
+    with pytest.raises(ModelPackageError, match="probe outputs differ"):
+        load_model_package(root)
 
 
 def test_same_fitted_weights_reload_and_batching_cannot_change_outputs(tmp_path) -> None:

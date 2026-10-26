@@ -32,6 +32,7 @@ from industrial_phm.models.package import (
     load_model_package,
     write_model_package,
 )
+from industrial_phm.models.package_lstm import LSTM_PROBE_TOLERANCE
 from industrial_phm.preprocessing import PreprocessingFitProvenance, fit_preprocessing_state
 
 
@@ -88,6 +89,7 @@ def build_xjtu_lstm_packages(
         },
         fit_rows=None,
         probe_rows=reference_raw[:16],
+        probe_tolerance=LSTM_PROBE_TOLERANCE,
         training_scope=_scope(config, autoencoder.training),
         validation=_validation(
             evidence_root, "xjtu-sy-lstm-autoencoder-fold-1-development-v1.json"

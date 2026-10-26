@@ -10,6 +10,11 @@ import numpy as np
 
 from industrial_phm.models.package import EstimatorKind, ModelPackageError
 
+# Stored weights score the same on any machine up to the order of float kernel operations:
+# macOS and Linux torch CPU builds differ by about 4e-9 on the XJTU probe rows. A changed or
+# damaged model differs by far more, so a package fitted on one machine runs on another.
+LSTM_PROBE_TOLERANCE = 1e-6
+
 
 def restore_lstm_estimator(
     kind: EstimatorKind, state: Mapping[str, Any]
