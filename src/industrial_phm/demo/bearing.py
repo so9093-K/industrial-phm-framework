@@ -47,6 +47,7 @@ from industrial_phm.models.package import (
     load_model_package,
     write_model_package,
 )
+from industrial_phm.models.package_lstm import LSTM_PROBE_TOLERANCE
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 from industrial_phm.runtime.operations_web_phm_models import create_phm_binding
 from industrial_phm.sequences import (
@@ -216,6 +217,7 @@ def _models(workspace: OperationsWorkspace) -> tuple[str, ...]:
             estimator_state=state,
             fit_rows=transformed if index == 0 else None,
             probe_rows=probes[:8],
+            probe_tolerance=0.0 if index == 0 else LSTM_PROBE_TOLERANCE,
             training_scope={
                 "dataset_id": SOURCE,
                 "partition": "train",
