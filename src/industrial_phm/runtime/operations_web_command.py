@@ -34,10 +34,6 @@ from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 _MAX_MESSAGE_BYTES = 8192
 _MAX_REQUESTS_PER_GENERATION = 512
 _TIMEOUT_SECONDS = 5.0
-# A packaged cold start can need the full 60 seconds allowed to bring up
-# the synthetic demo's Web. The command reply must remain bounded yet have
-# enough time for that actual readiness probe (no speculative retry).
-_DEMO_TIMEOUT_SECONDS = 90.0
 _PHASE_FILE_TIMEOUT_SECONDS = 30.0
 # Commands that read stored records and compute before they answer.
 _LONG_ROUTES = frozenset({"/api/v1/analysis/phase-file", "/api/v1/phm/models/build"})
@@ -80,15 +76,7 @@ class WebCommandClient:
             if len(encoded) > _MAX_MESSAGE_BYTES:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                timeout = (
-                    _DEMO_TIMEOUT_SECONDS
-                    if route.startswith(
-                        ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
-                    )
-                    else _PHASE_FILE_TIMEOUT_SECONDS
-                    if route in _LONG_ROUTES
-                    else _TIMEOUT_SECONDS
-                )
+                timeout = _PHASE_FILE_TIMEOUT_SECONDS if route in _LONG_ROUTES else _TIMEOUT_SECONDS
                 connection.settimeout(timeout)
                 connection.connect(self.socket_path)
                 connection.sendall(encoded)
@@ -186,11 +174,7 @@ class SupervisorWebCommandBroker:
             ):
                 raise ValueError("invalid bounded command")
             identity = json.dumps([route, payload], sort_keys=True, allow_nan=False)
-            if route.startswith(
-                ("/api/v1/demo/synthetic/", "/api/v1/demo/bearing/", "/api/v1/demo/xjtu/")
-            ):
-                connection.settimeout(_DEMO_TIMEOUT_SECONDS)
-            elif route in _LONG_ROUTES:
+            if route in _LONG_ROUTES:
                 connection.settimeout(_PHASE_FILE_TIMEOUT_SECONDS)
             with self._lock:
                 cached = self._seen.get(identifier)
