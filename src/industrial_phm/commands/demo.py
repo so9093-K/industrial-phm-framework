@@ -7,27 +7,9 @@ import sys
 
 from industrial_phm.demo import (
     AihubBoilerDemoConfig,
-    SyntheticDemoConfig,
     run_aihub_boiler_demo,
-    run_synthetic_demo,
 )
 from industrial_phm.demo.xjtu_models import XjtuModelDemoConfig, prepare_xjtu_model_demo
-
-
-def _run_demo_bearing(args: argparse.Namespace) -> int:
-    from industrial_phm.commands.operations import _start_operations_workspace
-    from industrial_phm.demo.bearing import prepare_bearing_demo
-    from industrial_phm.runtime.operations_config import load_operations_runtime_config
-
-    try:
-        workspace = prepare_bearing_demo(args.workspace, port=args.ui_port)
-        print(f"Bearing example ready: http://127.0.0.1:{args.ui_port}/web/", flush=True)
-        return _start_operations_workspace(
-            workspace, load_operations_runtime_config(workspace.config_path)
-        )
-    except (OSError, RuntimeError, ValueError) as error:
-        print(f"bearing example failed: {error}", file=sys.stderr)
-        return 1
 
 
 def _run_demo_aihub_boiler(args: argparse.Namespace) -> int:
@@ -43,21 +25,6 @@ def _run_demo_aihub_boiler(args: argparse.Namespace) -> int:
         return run_aihub_boiler_demo(preset)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"AI-Hub boiler demo failed: {error}", file=sys.stderr)
-        return 1
-
-
-def _run_demo_synthetic(args: argparse.Namespace) -> int:
-    try:
-        preset = SyntheticDemoConfig(
-            workspace=args.workspace,
-            opcua_port=args.opcua_port,
-            ui_port=args.ui_port,
-            publish_interval_seconds=args.publish_interval_seconds,
-            startup_timeout_seconds=args.startup_timeout_seconds,
-        )
-        return run_synthetic_demo(preset)
-    except (OSError, RuntimeError, ValueError) as error:
-        print(f"synthetic demo failed: {error}", file=sys.stderr)
         return 1
 
 

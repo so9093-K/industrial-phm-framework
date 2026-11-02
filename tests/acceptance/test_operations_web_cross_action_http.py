@@ -25,12 +25,60 @@ from industrial_phm.runtime import (
     initialize_operations_workspace,
 )
 from industrial_phm.runtime.operations_config import write_operations_runtime_config
-from tests.acceptance.test_operations_web_controlled_journey_browser import (
-    _port,
-    _start,
-    _stop,
-)
 from tests.support.window_analysis import phase_unbalance_analysis
+
+_RUN = "from industrial_phm.cli import main; raise SystemExit(main())"
+
+
+def _cmd(*args: str) -> list[str]:
+    return [sys.executable, "-c", _RUN, *args]
+
+
+def _port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _stop(proc: subprocess.Popen[bytes], root: Path) -> None:
+    if proc.poll() is not None:
+        return
+    subprocess.run(_cmd("operations", "stop", str(root)), capture_output=True, timeout=15)
+    try:
+        proc.wait(timeout=25)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=10)
+
+
+def _start(root: Path, port: int, log: Path) -> subprocess.Popen[bytes]:
+    with log.open("wb") as output:
+        proc = subprocess.Popen(
+            _cmd("operations", "start", str(root)),
+            stdin=subprocess.DEVNULL,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
+    until = time.monotonic() + 55
+    while time.monotonic() < until:
+        if proc.poll() is not None:
+            pytest.fail(f"Web exited early: {log.read_text(errors='replace')[-4000:]}")
+        try:
+            conn = HTTPConnection("127.0.0.1", port, timeout=2)
+            try:
+                conn.request("GET", "/api/v1/session", headers={"Host": f"127.0.0.1:{port}"})
+                response = conn.getresponse()
+                if response.status == 200:
+                    response.read()
+                    return proc
+            finally:
+                conn.close()
+        except OSError:
+            pass
+        time.sleep(0.2)
+    _stop(proc, root)
+    pytest.fail("supervised Web not ready: " + log.read_text(errors="replace")[-4000:])
+
 
 _CLIENT = """
 import json

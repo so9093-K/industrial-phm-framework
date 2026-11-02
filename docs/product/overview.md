@@ -781,7 +781,7 @@ Operations Web의 설계 단위는 기존 탭이나 API endpoint가 아니라 **
 
 | 사용자 상황 | 첫 질문 | 주된 결과 | 근거로 이동할 경로 |
 | --- | --- | --- | --- |
-| 처음 시작 | 무엇부터 연결하거나 살펴볼까? | 샘플 체험 또는 실제 연결 경로 선택 | first-run → source 등록/샘플 Monitor |
+| 처음 시작 | 무엇부터 연결하거나 살펴볼까? | CSV·OPC UA 또는 실제 공개 데이터 준비 | first-run → source 등록/실측 이력 확인 |
 | 운영 관측 | 어떤 설비 데이터가 언제 들어왔나? | 측정값, 마지막 시각, 품질, 최근 변화 | Monitor → Asset Signal/History |
 | 데이터 확인 | 왜 원하는 값이 보이지 않는가? | source/measurement point/channel 매핑 및 수신 상태 확인 | Asset → Source/Data Flow |
 | 분석 검토 | 어떤 관측 범위와 근거에서 결과가 나왔나? | capability-specific evidence, 적용 한계, 기록 | Asset/Monitor → Investigation |

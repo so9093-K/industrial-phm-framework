@@ -8,7 +8,7 @@ WORKSPACE ?= artifacts/operations
 OPERATIONS_BACKEND ?= $(if $(filter Darwin,$(shell uname -s)),container,native)
 COMPOSE = docker compose --env-file /dev/null -f compose.yaml
 
-.PHONY: help up down status logs demo showcase _require-uv _require-npm frontend _prepare \
+.PHONY: help up down status logs _require-uv _require-npm frontend _prepare \
 	_require-linux _require-docker container-up container-down container-status container-logs
 
 help:
@@ -19,8 +19,6 @@ help:
 		'  make down     Stop local Operations' \
 		'  make status   Show local Operations status' \
 		'  make logs     Show component logs' \
-		'  make demo     Start the synthetic Operations demo' \
-		'  make showcase Open the guided read-only product experience (Node/npm only)' \
 		'  make frontend Build the Operations Web static assets (needs Node.js and npm)' \
 		'  make container-up/down/status/logs  Explicit Docker Compose lifecycle' \
 		'' \
@@ -44,10 +42,6 @@ _require-npm:
 frontend: _require-npm
 	npm ci --prefix frontend --no-audit --no-fund
 	npm run --prefix frontend build
-
-showcase: _require-npm
-	npm ci --prefix frontend --no-audit --no-fund
-	npm run --prefix frontend showcase
 
 _prepare: _require-uv frontend
 	$(UV) python install $(PYTHON_VERSION)
@@ -99,7 +93,4 @@ container-status: _require-docker
 container-logs: _require-docker
 	$(COMPOSE) logs --tail 100
 	$(COMPOSE) run --rm --no-deps operations operations logs /var/lib/industrial-phm/operations
-
-demo: _prepare
-	$(UV) run --no-sync industrial-phm demo synthetic
 

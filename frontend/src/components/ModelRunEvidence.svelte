@@ -39,8 +39,6 @@
   let result:ModelRun|null=$state(null);
   let error=$state("");
   let writable=$state(false);
-  // A prepared example keeps its models; connecting another one belongs to the user's workspace.
-  let example=$state(false);
   let explanationId:string|null=$state(null);
   let reviewRun:string|null=$state(null);
   let reviewPanel: HTMLDetailsElement | null = $state(null);
@@ -231,7 +229,7 @@
   onMount(()=>{
     const permission=new AbortController();
     void readWriteSession(permission.signal).then(session=>{
-      if(!permission.signal.aborted){writable=session.writable;example=session.example;}
+      if(!permission.signal.aborted) writable=session.writable;
     }).catch(()=>{});
     void loadBindings();
     const timer=setInterval(()=>void poll(),3000);
@@ -255,8 +253,8 @@
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
       message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
       actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
-    {#if !example}<ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
-      <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>{/if}
+    <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
+      <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
@@ -373,8 +371,8 @@
         {/if}
       {/if}
     {/if}
-    {#if !example}<ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
-      <ModelBuild {assetId} {writable} hasModel={true} onBuilt={connected}/>{/if}
+    <ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
+      <ModelBuild {assetId} {writable} hasModel={true} onBuilt={connected}/>
   {/if}
 </section>
 <style>

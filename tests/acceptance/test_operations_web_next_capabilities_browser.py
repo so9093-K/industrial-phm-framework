@@ -90,7 +90,6 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
-                page.screenshot(path=str(tmp_path / f"options-{width}.png"), full_page=True)
 
                 # Ready analyses open for the same asset and data kind.
                 options.get_by_role("link", name="두 기간 비교 열기").click()

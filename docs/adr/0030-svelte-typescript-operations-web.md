@@ -1,7 +1,7 @@
 # 0030. Build the next Operations Web UI with Svelte, TypeScript and a packaged static bundle
 
 Status: Accepted (2026-10-16); required distribution build added 2026-10-17.
-Default automated verification scope in §6 was superseded by [ADR-0031](0031-separate-default-ci-from-targeted-product-acceptance.md) (2026-10-19). The product build and acceptance requirements remain.
+Default automated verification is owned by the current [testing policy](../testing-policy.md). Build and runtime security requirements remain; expensive end-to-end acceptance is selected only for changes that need it.
 The user explicitly requested the default `/web/` cutover and old-UI removal on
 2026-10-17. The workflow mapping and verification boundary are recorded in
 [2026-10-17 Web 전환 기록](https://github.com/so9093-K/industrial-phm-framework/blob/fddf4b400ec68a74704b6143c994aa6bdce0042c/docs/product/web-migration.md).
@@ -44,8 +44,8 @@ assertion that all dedicated screens, review queues or multi-user workflows exis
    when Node/npm or a complete, safe manifest is unavailable. A leftover local
    bundle is not sufficient. The sdist includes the frontend sources and lockfile
    so a wheel built from that archive obeys the same contract. Python editable
-   installation skips this build; repository-local `make up` and `make demo`
-   prepare the frontend before starting services. The Python
+   installation skips this build; repository-local `make up` prepares the frontend
+   before starting services. The Python
    loopback server serves the requested asset only when its path is in the compiled
    manifest and has an allowed extension. Keep CSP, Host/Origin, no-store,
    anti-frame, same-origin and CSRF contracts. Installing/running a prebuilt
@@ -59,11 +59,11 @@ assertion that all dedicated screens, review queues or multi-user workflows exis
    selections, and remove the old DOM implementation. Automated workflow and
    permission/recovery evidence is required; actual operator usability remains
    a separate, unclaimed validation boundary.
-6. Require TypeScript/Svelte checks, reproducible static build, sdist-to-wheel
-   reconstruction, exact wheel manifest contents, installed-wheel static serving
-   without Node or checkout imports, safe static routing, actual Chromium user interactions at 390,
-   1024 and 1440px, plus existing runtime/Python/forecast tests. Automated
-   tests do not substitute for actual user observation or field-model validation.
+6. Keep TypeScript/Svelte checks, a reproducible static build and fundamental runtime/data
+   contracts in fast PR checks. Verify sdist/wheel manifests, installed-wheel serving,
+   actual browser workflows and container restart **when the corresponding code changes**;
+   do not run a weekly blanket acceptance suite. Automated checks do not substitute
+   for actual user observation or field-model validation.
 
 ## Alternatives considered
 

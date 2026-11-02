@@ -31,7 +31,6 @@ from industrial_phm.runtime.operations_app_composition import load_operations_ap
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_status import inspect_operations_runtime_status
 from industrial_phm.runtime.operations_web_actions import (
-    WEB_EXAMPLE_RECORD_ROUTES,
     WEB_SOURCE_ACTION_ROUTES,
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
@@ -131,22 +130,6 @@ def create_operations_web_read_server(
     if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
         raise ValueError("port must be an integer between 0 and 65535")
     root = workspace_root.resolve()
-    context_path = OperationsWorkspace(root).web_context_path
-    try:
-        synthetic_demo = (
-            not context_path.is_symlink()
-            and context_path.stat().st_size <= 4096
-            and json.loads(context_path.read_text(encoding="utf-8"))
-            == {"schema_version": 1, "kind": "synthetic-demo"}
-        )
-    except OSError, ValueError:
-        synthetic_demo = False
-    from industrial_phm.runtime.operations_demo_context import (
-        order_by_exceedance,
-        read_bearing_journey,
-    )
-
-    bearing_journey = read_bearing_journey(root)
     csrf_token = secrets.token_urlsafe(32)
     mutation_lock = Lock()
 
@@ -397,7 +380,7 @@ def create_operations_web_read_server(
                 status, capabilities = handle_capabilities_read(
                     OperationsWorkspace(root),
                     parts.query,
-                    can_ask=command_client is not None and not synthetic_demo,
+                    can_ask=command_client is not None,
                 )
                 self._send_json(status, capabilities)
                 return
@@ -451,28 +434,14 @@ def create_operations_web_read_server(
                         "schema_version": 1,
                         "csrf_token": csrf_token,
                         "write_scope": (
-                            "read-only-synthetic-demo"
-                            if synthetic_demo
-                            else "supervisor-owned-source-control"
+                            "supervisor-owned-source-control"
                             if command_client is not None
                             else "local-source-control-and-opcua-preview"
                         ),
-                        "workspace_kind": "synthetic-demo"
-                        if synthetic_demo
-                        else "bearing-demo"
-                        if bearing_journey is not None
-                        else "operations",
-                        "journey": None
-                        if bearing_journey is None
-                        else order_by_exceedance(root, bearing_journey),
                         # One Web: what changes are available follows whether operations
                         # (the supervisor and its command broker) runs behind this server.
-                        "mode": "example"
-                        if synthetic_demo
-                        else "operations"
-                        if command_client is not None
-                        else "view-only",
-                        "can_change": command_client is not None and not synthetic_demo,
+                        "mode": "operations" if command_client is not None else "view-only",
+                        "can_change": command_client is not None,
                     },
                 )
                 return
@@ -530,14 +499,8 @@ def create_operations_web_read_server(
             self._send_json(HTTPStatus.OK, payload)
 
         def do_POST(self) -> None:
-            if synthetic_demo:
-                self._error(HTTPStatus.FORBIDDEN, "synthetic_demo_read_only")
-                return
             if self.path not in WEB_SOURCE_ACTION_ROUTES:
                 self._error(HTTPStatus.METHOD_NOT_ALLOWED, "read_only")
-                return
-            if bearing_journey is not None and self.path not in WEB_EXAMPLE_RECORD_ROUTES:
-                self._error(HTTPStatus.FORBIDDEN, "example_records_only")
                 return
             if not self._allowed():
                 self._error(HTTPStatus.FORBIDDEN, "origin_not_allowed")

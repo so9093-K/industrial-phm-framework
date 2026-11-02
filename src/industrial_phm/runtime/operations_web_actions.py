@@ -32,7 +32,6 @@ from industrial_phm.runtime.operations_web_review import (
     record_web_review_action,
     request_web_analysis_review,
 )
-from industrial_phm.runtime.operations_web_sample import execute_web_sample_action
 from industrial_phm.runtime.operations_web_setup import (
     analyze_workspace_file_phase,
     analyze_workspace_file_source,
@@ -70,35 +69,10 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/outlook/captures/review/action",
         "/api/v1/reviews/request",
         "/api/v1/reviews/action",
-        "/api/v1/demo/synthetic/start",
-        "/api/v1/demo/synthetic/stop",
-        "/api/v1/demo/synthetic/status",
-        "/api/v1/demo/bearing/start",
-        "/api/v1/demo/bearing/stop",
-        "/api/v1/demo/bearing/status",
-        "/api/v1/demo/xjtu/start",
-        "/api/v1/demo/xjtu/stop",
-        "/api/v1/demo/xjtu/status",
     }
 )
 
-# A prepared investigation example keeps what people leave while investigating (AI
-# explanations, review requests and decisions) but never takes new data, models or a nested
-# example. Its prepared records are reused across restarts, so a stray upload would stay.
-WEB_EXAMPLE_RECORD_ROUTES: frozenset[str] = frozenset(
-    {
-        "/api/v1/phm/explanations/request",
-        "/api/v1/phm/reviews/request",
-        "/api/v1/outlook/briefings/request",
-        "/api/v1/outlook/captures/confirm",
-        "/api/v1/outlook/captures/review/action",
-        "/api/v1/reviews/request",
-        "/api/v1/reviews/action",
-    }
-)
-
-# These may spawn or stop an entire process tree. The standalone Web
-# preview must never acquire this capability through its local writer path.
+# Supervisor-only actions require an active Operations supervisor.
 WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
     {
         "/api/v1/sources/file/upload",
@@ -116,15 +90,6 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
         # Model connection changes what the supervisor's analysis runner executes.
         "/api/v1/phm/bindings/create",
         HISTORY_MODEL_BUILD_ROUTE,
-        "/api/v1/demo/synthetic/start",
-        "/api/v1/demo/synthetic/stop",
-        "/api/v1/demo/synthetic/status",
-        "/api/v1/demo/bearing/start",
-        "/api/v1/demo/bearing/stop",
-        "/api/v1/demo/bearing/status",
-        "/api/v1/demo/xjtu/start",
-        "/api/v1/demo/xjtu/stop",
-        "/api/v1/demo/xjtu/status",
     }
 )
 
@@ -149,7 +114,6 @@ def execute_web_source_action(
         return analyze_workspace_file_source(root, payload)
     if route == "/api/v1/analysis/phase-file":
         return analyze_workspace_file_phase(root, payload)
-    # PHM writes are supervisor-only too; dispatch them before the sample catch-all.
     if route == "/api/v1/phm/explanations/request":
         return request_phm_explanation(root, payload)
     if route == "/api/v1/phm/reviews/request":
@@ -164,8 +128,6 @@ def execute_web_source_action(
         return capture_outlook(root, payload)
     if route == "/api/v1/outlook/captures/review/action":
         return review_captured_outlook(root, payload)
-    if route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES:
-        return execute_web_sample_action(root, route, payload)
     if route == "/api/v1/sources/file":
         return register_workspace_csv_source(root, payload)
     if route == "/api/v1/sources/file/receive":
