@@ -24,14 +24,3 @@ export async function readWriteSession(signal:AbortSignal):Promise<WriteSession>
   }
   return parseWriteSession(await response.json() as unknown);
 }
-
- only a page of the same app on a local port. */
-export function sampleReturn(search:string):string|null{
-  const raw=new URLSearchParams(search).get("return_to");
-  if(!raw)return null;
-  let url:URL;
-  try{url=new URL(raw);}catch{return null;}
-  if(url.protocol!=="http:"||(url.hostname!=="127.0.0.1"&&url.hostname!=="localhost")||!/^\d{2,5}$/.test(url.port)
-    ||!["/web/","/web/"].includes(url.pathname))return null;
-  return url.origin+url.pathname+"?page=system";
-}

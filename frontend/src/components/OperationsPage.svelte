@@ -50,7 +50,7 @@
   {/each}
 </nav>
 
-{#if section === "connections"}{:else if section === "connections"}
+{#if section === "connections"}
   <CsvStart {writable} onSaved={reload} />
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
     onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />

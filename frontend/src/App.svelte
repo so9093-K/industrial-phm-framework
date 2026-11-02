@@ -249,7 +249,7 @@
 </header>
 
 <main id="main" tabindex="-1">
-  {#if quietError  {#if quietError && (loadState === "ready" || loadState === "empty")}
+  {#if quietError && (loadState === "ready" || loadState === "empty")}
     <StatusNotice kind="uncertain" title="설비 목록 갱신 실패"
       message={"이전 조회 시점의 목록만 표시합니다. 새로운 데이터를 확인하지 못했습니다. " + quietError}
       actionLabel="다시 시도" onAction={() => void quietRefresh()} />

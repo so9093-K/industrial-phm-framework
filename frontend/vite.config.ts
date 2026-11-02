@@ -17,13 +17,13 @@ function packagedAssetManifest(): Plugin {
   };
 }
 
-export default defineConfig(({mode})=>({
+export default defineConfig({
   base: "/web/",
   plugins: [svelte(), packagedAssetManifest()],
   build: {
-    outDir: mode==="showcase"?"../dist/showcase/web":"../src/industrial_phm/apps/web_next",
-    emptyOutDir: mode === "showcase",
+    outDir: "../src/industrial_phm/apps/web_next",
+    emptyOutDir: false,
     assetsDir: "assets",
     sourcemap: false,
   },
-}));
+});
