@@ -1,147 +1,32 @@
-# Testing Policy
+# 개발·테스트 정책
 
-테스트의 목적은 줄 수나 coverage percentage를 늘리는 것이 아니라, public behavior·명시적 contract·이미
-발견된 regression이 다시 깨지는 것을 방지하는 것입니다.
+**목표는 빠른 피드백과 실제 데이터 분석의 안정성입니다.** 테스트 개수·커버리지·데모 시연 결과를 늘리기 위한 검증은 유지하지 않습니다.
 
-## 1. Every Test Protects a Failure
+## 기본 PR 검사
 
-모든 테스트는 다음 질문에 한 문장으로 답할 수 있어야 합니다.
+`.github/workflows/ci.yml`은 잠금 파일·Ruff·기본 데이터 계약 테스트·Svelte/TypeScript 검사·프런트엔드 빌드만 수행합니다. 외부 대형 데이터 다운로드, 브라우저 촬영, 주간 전체 제품 수용, 컨테이너/설치 패키지의 반복 검증은 자동 PR gate가 아닙니다.
 
-> 이 테스트가 없을 때 어떤 의미 있는 실패가 회귀할 수 있는가?
+## 테스트를 남기는 기준
 
-명확한 답이 없다면 테스트를 추가하지 않습니다. implementation detail만 고정하거나 coverage를 올리기 위한
-테스트는 유지보수 비용만 증가시키므로 피합니다.
+- 실제 원본의 시각·단위·채널·출처·SHA-256이 잘못 연결되는 오류
+- 저장된 관측의 손실·중복·순서 역전·재시작 후 잘못된 복구
+- 수집·분석 계약, 모델 패키지 입력/출력 불일치, 무단 변경
+- 실제 사용자에게 이미 발생했던 중요한 결함의 재발
 
-## 2. Test Public Behavior and Contracts
+같은 실패를 중복 검증하거나 내부 함수의 구현 형태를 고정하는 테스트는 제거합니다. 작은 인공 입력을 활용한 단위 테스트는 허용하지만, **별도의 합성 제품 시연·캡처·수용 시스템을 만들지 않습니다.**
 
-우선순위는 다음과 같습니다.
+## 변경 영역의 추가 확인
 
-1. public contract와 invariant
-2. known regression
-3. 데이터 손상·leakage·잘못된 artifact 같은 critical failure path
-4. 사용자에게 노출되는 CLI/API behavior
+관련 기능을 바꿨을 때만 해당 테스트를 선택하여 실행합니다. 예:
 
-private helper 호출 횟수, 내부 collection 종류, refactor 가능한 구현 순서처럼 외부 동작과 무관한 세부사항은
-직접 검증하지 않습니다.
-
-## 3. Test Layers Grow with Real Features
-
-현재 repository는 unit과 contract에 더해, 실제로 생긴 adapter → application 경계를 보호하는 최소
-integration test를 유지합니다. Local Operations service/browser workflow가 생긴 뒤에는 clean-workspace
-product lifecycle을 `tests/acceptance/`에서 보호합니다.
-
-```text
-tests/
-├── unit/          # 한 component의 작은 behavior/invariant
-├── contract/      # adapter/result/artifact 등 공유 경계
-├── integration/   # 실제 component/application 경계
-└── acceptance/    # service/browser user workflow가 생긴 뒤 추가
+```bash
+uv run --locked --extra operations pytest tests/integration/test_file_backfill.py
+uv run --locked --extra operations pytest tests/contract/test_opcua_persistent_runtime.py
+npm run --prefix frontend check
 ```
 
-Integration test도 concrete boundary를 보호해야 하며 미래용 directory나 fixture framework를 미리 만들지
-않습니다.
+데이터 소스가 있다면 XJTU-SY 또는 AI-Hub 실기록을 실제로 준비해 핵심 흐름을 확인합니다. 원본이 없어 실행하지 못한 실측 검사는 통과로 적지 않고 **미실행**으로 기록합니다.
 
-Operations 수용 테스트는 실제 synthetic workspace에서 subprocess·저장 이력·Web 동작과
-재시작 후 상태 보존 등을 검증합니다. 별도 optional 런타임·브라우저가 필요한 테스트는
-기본 CI의 단위·계약 검사와 구별하여 해당 변경을 검토할 때 명시적으로 실행합니다.
-의존성이 없어 skip된 테스트를 실행 성공으로 간주하지 않습니다.
+실제 배포, 수집 복구, 패키징 변경에서 필요한 통합·컨테이너 검사는 해당 변경에서만 별도로 수행합니다. 기본 PR 통과를 현장 성능 검증·실제 고장 진단 또는 전체 배포 수용으로 확대 해석하지 않습니다.
 
-## 4. Do Not Reimplement Validation in Tests
-
-checksum, schema, split rule, artifact compatibility 같은 validation은 production code에 한 번 구현합니다.
-테스트는 그 validator를 호출하여 기대 behavior를 검증합니다. 같은 validation logic을 test helper에서 다시
-계산해 서로 같은 버그를 공유하는 구조를 만들지 않습니다.
-
-## 5. External Data and Network Tests
-
-PR 기본 test suite는 대형 공개 데이터셋을 내려받지 않습니다.
-
-- unit: 작은 synthetic input
-- contract: hand-written representative fixture
-- integration: 필요한 최소 real sample 또는 명시적 opt-in local data
-- full benchmark: 필요한 원본 데이터가 있을 때 명시적으로 실행하는 연구 평가
-
-remote endpoint availability는 unit test가 아닙니다. 실제 provider smoke check가 필요하면 PR gate와 분리하고
-실패가 코드 regression인지 외부 서비스 문제인지 구분할 수 있게 합니다.
-
-## 6. Fixtures and Helpers
-
-fixture/helper 추상화는 실제 중복이 반복된 이후 도입합니다. 단순한 테스트 input을 숨기는 과도한 fixture
-계층은 읽기 어려운 테스트를 만들기 때문에 피합니다.
-
-작은 contract example은 테스트 안에서 직접 보이는 편을 우선합니다.
-
-## 7. Coverage
-
-기본 CI는 coverage 비율을 측정하거나 합격 기준으로 사용하지 않습니다. 누락 경로를
-조사할 필요가 있을 때만 별도로 분석하며, 테스트 추가 여부는 실제 회귀 위험으로 판단합니다.
-
-## 8. Property and Mutation Testing
-
-property-based testing이나 mutation testing은 기본 도구가 아닙니다. invariant 공간이 넓거나 기존 테스트의
-실효성을 검증할 가치가 확인된 component에 선택적으로 적용합니다.
-
-대표 후보는 canonical contract, split logic, serialization, artifact validation입니다.
-
-## 9. Critical Regression Ownership
-
-같은 failure를 여러 layer가 중복해서 보호하지 않도록 대표 regression의 primary owner를 명시합니다.
-보조 smoke나 integration coverage가 존재할 수 있지만, 아래 owner가 해당 failure 의미의 기준입니다.
-
-| Failure | Primary owner |
-| --- | --- |
-| OPC UA reconnect / delivery loss | live acquisition runtime contract / fault-recovery test |
-| spool → DuckLake recovery와 idempotent replay | runtime contract |
-| observation window cursor / restart | window contract |
-| Operations first-run / navigation / isolated sample | Operations browser acceptance (해당 UI 변경 시 실행) |
-| 실제 browser에서 Live observation 가시성 | browser acceptance / recorded fault-recovery test |
-| 연구용 marimo same-cell `.value` runtime regression | 연구 marimo structural contract (Operations 제품 UI와 별개) |
-| Operations Web의 read model·HTTP·Supervisor writer 경계 | Operations runtime/API integration 및 Chromium acceptance |
-| presenter의 단순 문구·HTML 모양 | 기본적으로 regression owner를 두지 않음 |
-
-새 회귀 테스트를 추가할 때는 먼저 이 표 또는 기존 테스트에서 같은 failure owner가 있는지 확인합니다.
-
-## 선택 실행 테스트와 skip
-
-Operations 의존성·Chromium·실제 데이터가 필요한 테스트는 해당 범위 검증 시 명시적으로 실행합니다.
-실행 환경에 필요한 의존성이 준비됐는데 관련 테스트가 skip된다면 통과로 간주하지 않습니다.
-원본 기록이 없어 실행하지 못한 실측 replay 역시 미실행으로 표시합니다.
-
-소스 파일에 CSS selector나 함수 이름이 있다는 문자열 검사만으로 UI의 실제 동작을
-증명하지 않습니다. 실제 브라우저 검증에서는 HTTP 상태, 화면 및 저장된 근거를 확인합니다.
-
-## 10. 자동화 비용과 검증 자산 삭제
-
-일반 PR은 Source 검사 한 job만 자동 실행합니다. 보호할 가치가 있는 통합·브라우저·실제 노드·wheel·컨테이너 검증은
-같은 `.github/workflows/ci.yml`의 **Product acceptance**에서 매주 1회와 명시적 `workflow_dispatch` 시
-실제 실행합니다. 배포 또는 관련 기능 변경 시에는 제품 수용을 해당 PR에서도 실행해 결과·skip·미실행 범위를
-기록해야 합니다. Product acceptance가 실패하면 영향받는 배포·기능의 검증은 완료되지 않은 것입니다.
-기본 Source CI 성공을 다른 제품 수용 성공으로 해석하지 않습니다. 외부 기록 데이터가 필요한 별도 opt-in
-실측 연구 테스트는 입력이 없으면 skip되고, 현장 평가 PASS의 근거로 사용할 수 없습니다.
-
-검증은 개발의 수단입니다. 실제 사용자 경험을 통한 빠른 피드백과 개선을 우선하고, 중요한 안전성과 계약을
-지키는 범위에서 검증 비용과 복잡성을 줄입니다. 브라우저 수용 테스트는 실제 서버·프로세스로 데이터 보존,
-쓰기 권한, 예시 격리, 검토 근거의 정확성처럼 깨지면 되돌리기 어려운 계약만 맡습니다. API 응답을 흉내 내
-화면 문구·차트 모양을 확인하는 테스트는 두지 않고, 그런 변경은 실제 화면으로 확인합니다.
-
-같은 실패를 여러 CI에서 반복 실행하지 않습니다. **워크플로를 제거할 때는**
-그 실행을 위해서만 존재하던 테스트·helper·환경 설치 스크립트·설정·문서 참조도 감사해 삭제합니다.
-기존 gate를 다른 Makefile target이나 별도 스크립트로 그대로 옮기지 않습니다.
-CI를 다시 추가하려면 실제로 상시 보호해야 하는 실패와 유지보수 비용을 먼저 설명합니다.
-
-## 11. Review Checklist
-
-테스트 PR 리뷰에서는 다음을 확인합니다.
-
-- 새로운 production behavior 또는 regression과 연결되는가?
-- 같은 failure를 이미 다른 test가 보호하고 있지 않은가?
-- public behavior 대신 implementation detail을 고정하지 않는가?
-- network/대용량 dataset을 기본 suite에 끌어들이지 않는가?
-- production validator를 test에서 복제하지 않는가?
-- 새로운 helper/fixture가 실제 중복을 줄이는가?
-
-## References
-
-- pytest good integration practices: https://docs.pytest.org/en/stable/explanation/goodpractices.html
-- Google Testing Blog, test behavior rather than implementation: https://testing.googleblog.com/2013/08/testing-on-toilet-test-behavior-not.html
-- Hypothesis documentation: https://hypothesis.readthedocs.io/
+테스트를 새로 추가하기 전에는 **어떤 실제 고장 또는 데이터 오류를 막는지**와 유지 비용을 설명해야 합니다.

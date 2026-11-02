@@ -1,6 +1,8 @@
 # 0031. Separate default source CI from targeted product acceptance
 
-Status: Accepted (2026-10-19).
+Status: Superseded (2026-11-02) by the streamlined CI and current [Testing Policy](../testing-policy.md).
+
+> 이 문서는 2026-10-19 당시의 검증 설계를 기록합니다. 이후 주간 Product acceptance와 합성 쇼케이스 검증을 제거하고 짧은 소스·데이터 계약·Web 빌드 검사만 기본 CI에 남겼습니다. 실제 배포·수집 복구 변경의 추가 확인은 변경별로 선택합니다.
 
 Supersedes **only the default automated verification scope** of
 [ADR-0030 §6](0030-svelte-typescript-operations-web.md). It does not supersede
