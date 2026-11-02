@@ -490,7 +490,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                             "write_scope": (
                                 "supervisor-owned-source-control"
                                 if state["writable"]
-                                else "read-only-synthetic-demo"
+                                else "local-source-control-and-opcua-preview"
                             ),
                         },
                     ),
