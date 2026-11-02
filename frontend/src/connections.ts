@@ -318,7 +318,7 @@ export function channelIdFrom(name:string,taken:string[]):string{
   return candidate;
 }
 
-export type Sample={state:"running"|"stopped";url:string|null;scenario?:"bearing"|"live"|"xjtu";assetId?:string;xjtuAvailable?:boolean};
+state:"running"|"stopped";url:string|null;scenario?:"bearing"|"live"|"xjtu";assetId?:string;xjtuAvailable?:boolean};
 const SAMPLE_URL=/^http:\/\/127\.0\.0\.1:(\d{2,5})\/web\/$/;
 
 /** The isolated synthetic sample runs in its own workspace; only its local address is used. */
