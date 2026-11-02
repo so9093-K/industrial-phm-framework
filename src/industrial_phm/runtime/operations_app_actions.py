@@ -59,6 +59,8 @@ from industrial_phm.runtime.operations_app_wiring import (
     operations_source_registry_state,
     run_async_in_worker,
 )
+
+
 class OperationsActionError(RuntimeError):
     """Expected operator-facing failure from one bounded Operations action."""
 

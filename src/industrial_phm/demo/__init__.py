@@ -10,6 +10,7 @@ from industrial_phm.demo.aihub_boiler import (
     prepare_aihub_boiler_demo,
     run_aihub_boiler_demo,
 )
+
 __all__ = [
     "AIHUB_BOILER_DEMO_ASSET_ID",
     "AIHUB_BOILER_DEMO_DEFAULT_ARCHIVE",

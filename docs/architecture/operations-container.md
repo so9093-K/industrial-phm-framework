@@ -31,9 +31,7 @@ supervisor to coordinate child shutdown. No automatic restart policy hides a fai
 The default Compose project is `industrial-phm`. Its named volume `industrial-phm_workspace` contains:
 
 ```text
-/var/lib/industrial-phm/operations/             real Operations workspace
-/var/lib/industrial-phm/demo-synthetic-*/       isolated first-run sample
-/var/lib/industrial-phm/demo-bearing-v1-*/      isolated bearing investigation
+/var/lib/industrial-phm/operations/             persistent Operations workspace
 ```
 
 The runtime runs as UID 10001. The new volume inherits the image directory's ownership. `down` removes
