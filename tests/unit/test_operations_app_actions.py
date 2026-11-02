@@ -241,5 +241,3 @@ def test_actions_persist_review_request_and_review_event(tmp_path: Path) -> None
     assert event.finding_id == finding.finding_id
     assert event.action == FindingReviewAction.ACKNOWLEDGE
     assert event.note == "accepted for review"
-
-

@@ -433,9 +433,11 @@ def create_operations_web_read_server(
                     {
                         "schema_version": 1,
                         "csrf_token": csrf_token,
-                        "write_scope": ("supervisor-owned-source-control"
-                                        if command_client is not None
-                                        else "local-source-control-and-opcua-preview"),
+                        "write_scope": (
+                            "supervisor-owned-source-control"
+                            if command_client is not None
+                            else "local-source-control-and-opcua-preview"
+                        ),
                         # One Web: what changes are available follows whether operations
                         # (the supervisor and its command broker) runs behind this server.
                         "mode": "operations" if command_client is not None else "view-only",

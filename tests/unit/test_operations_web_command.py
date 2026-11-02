@@ -290,5 +290,3 @@ def test_command_replay_cache_reaches_bounded_capacity_without_eviction(
         with pytest.raises(command.WebCommandRejected, match="command_request_conflict"):
             client.execute(route, second, request_id="a" * 32)
     assert calls == [first, second]
-
-
