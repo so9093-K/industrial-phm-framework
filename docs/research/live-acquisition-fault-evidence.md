@@ -2,6 +2,8 @@
 
 Measured: 2026-10-01
 
+> 과거 측정·실험 기록입니다. 당시 사용한 통합 fault harness는 현재 제품 개발 흐름을 단순화하면서 제거했습니다. 아래 명령은 역사적 재현 조건의 기록이며 현행 실행 명령은 아닙니다. 현재 AI-Hub 실측 재생과 원본 기록 대조는 `tools/opcua/aihub_replay.py` 및 `tools/opcua/replay_audit.py`를 사용합니다.
+
 Local AI-Hub 239 replay (device 2297, 35 channels, 60x: one record per second) → instrumented collector
 (`--pipeline-metrics`) → DuckLake. Faults were injected with SIGSTOP/SIGCONT and loss was audited against the
 replay publish ledger (`tools/opcua/replay_audit.py`). macOS idle sleep was blocked with `caffeinate`.
