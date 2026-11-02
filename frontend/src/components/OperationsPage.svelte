@@ -60,9 +60,6 @@
 {/if}
 
 <style>
-  section { display: grid; gap: var(--space-3); }
-  section h2, section p { margin: 0; }
-  .context { color: var(--color-ink-muted); }
   .sections { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-block: var(--space-2) var(--space-4);
     padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
   .sections a { padding: var(--space-2) var(--space-4); border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; font-weight: 650; }

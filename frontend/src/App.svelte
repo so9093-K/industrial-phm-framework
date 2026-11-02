@@ -61,7 +61,6 @@
   async function navigate(url: string) {
     const before = route;
     const destination = new URL(url, location.href);
-    if (returnTo) destination.searchParams.set("return_to", returnTo);
     history.pushState(history.state, "", destination.pathname + destination.search + destination.hash);
     route = parseRoute(location.search);
     focus = reviewFocus(location.search);
