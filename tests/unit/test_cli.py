@@ -18,7 +18,7 @@ def test_doctor_reports_environment_and_next_action(
     assert "next:" in output
     assert "start Operations: make up" in output
     assert "open the printed operations_url" in output
-    assert "first use: register your CSV or start the isolated sample in Web" in output
+    assert "first use: connect a CSV or OPC UA source in Web" in output
     assert "marimo run" not in output
 
 

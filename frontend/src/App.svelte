@@ -74,7 +74,7 @@
     // after its keyed workspace is replaced, instead of leaving focus on the body.
     if (before.page !== route.page) {
       await tick();
-      // A link to a part of the new page (e.g. #sample) scrolls there; focus still starts at main.
+      // Hash navigation on the current page keeps native scrolling; focus still starts at main.
       const part = location.hash ? document.getElementById(location.hash.slice(1)) : null;
       document.getElementById("main")?.focus({preventScroll: part !== null});
       part?.scrollIntoView({block: "start"});

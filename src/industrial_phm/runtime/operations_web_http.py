@@ -436,8 +436,6 @@ def create_operations_web_read_server(
                         "write_scope": ("supervisor-owned-source-control"
                                         if command_client is not None
                                         else "local-source-control-and-opcua-preview"),
-                        "workspace_kind": "operations",
-                        "journey": None,
                         # One Web: what changes are available follows whether operations
                         # (the supervisor and its command broker) runs behind this server.
                         "mode": "operations" if command_client is not None else "view-only",

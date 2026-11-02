@@ -641,7 +641,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
     if checkout_detected:
         print("  start Operations: make up")
         print("  open the printed operations_url in a local browser")
-        print("  first use: register your CSV or start the isolated sample in Web")
+        print("  first use: connect a CSV or OPC UA source in Web")
     else:
         print("  start installed Operations: industrial-phm operations up artifacts/operations")
         print("  requires the operations extra and a local Linux host")
