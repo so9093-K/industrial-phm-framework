@@ -22,8 +22,6 @@ from industrial_phm.commands.data import (
 )
 from industrial_phm.commands.demo import (
     _run_demo_aihub_boiler,
-    _run_demo_bearing,
-    _run_demo_synthetic,
     _run_demo_xjtu,
 )
 from industrial_phm.commands.experiment import (
@@ -205,7 +203,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo = subcommands.add_parser(
         "demo",
-        help="run packaged local product demos (synthetic, or with local recorded datasets)",
+        help="replay recorded industrial datasets in a local Operations workspace",
     )
     demo_commands = demo.add_subparsers(dest="demo_command", required=True)
     demo_aihub_boiler = demo_commands.add_parser(
@@ -252,49 +250,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum wait for replay OPC UA listener readiness (default: 15)",
     )
     demo_aihub_boiler.set_defaults(handler=_run_demo_aihub_boiler)
-
-    demo_synthetic = demo_commands.add_parser(
-        "synthetic",
-        help="run the synthetic three-phase local Operations node",
-    )
-    demo_synthetic.add_argument(
-        "--workspace",
-        type=Path,
-        default=Path("artifacts/demo-synthetic"),
-        help="dedicated demo workspace root (default: artifacts/demo-synthetic)",
-    )
-    demo_synthetic.add_argument(
-        "--opcua-port",
-        type=int,
-        default=4841,
-        help="loopback OPC UA simulator port (default: 4841)",
-    )
-    demo_synthetic.add_argument(
-        "--ui-port",
-        type=int,
-        default=2718,
-        help="loopback Operations UI port (default: 2718)",
-    )
-    demo_synthetic.add_argument(
-        "--publish-interval-seconds",
-        type=float,
-        default=1.0,
-        help="synthetic source update interval (default: 1.0)",
-    )
-    demo_synthetic.add_argument(
-        "--startup-timeout-seconds",
-        type=float,
-        default=10.0,
-        help="maximum wait for synthetic OPC UA listener readiness (default: 10)",
-    )
-    demo_synthetic.set_defaults(handler=_run_demo_synthetic)
-
-    demo_bearing = demo_commands.add_parser(
-        "bearing", help="investigate synthetic bearing signals with Isolation Forest and LSTM"
-    )
-    demo_bearing.add_argument("--workspace", type=Path, default=Path("artifacts/demo-bearing"))
-    demo_bearing.add_argument("--ui-port", type=int, default=2719)
-    demo_bearing.set_defaults(handler=_run_demo_bearing)
 
     demo_xjtu = demo_commands.add_parser(
         "xjtu",
