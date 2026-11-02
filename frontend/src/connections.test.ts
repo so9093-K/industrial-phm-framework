@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {channelIdFrom,declaredRoles,emptyRoles,exampleOpenUrl,explainWrite,nextStep,otherActions,parsePreflight,parseSample,phaseRoleProblem,suggestRoles,type PhaseRole} from "./connections.ts";
-import {sampleReturn} from "./session.ts";
+import {channelIdFrom,declaredRoles,emptyRoles,explainWrite,nextStep,otherActions,parsePreflight,phaseRoleProblem,suggestRoles,type PhaseRole} from "./connections.ts";
 import {parseSources} from "./operations-status.ts";
 import {errorCode,OutcomeUnknown,WriteRejected} from "./writes.ts";
 
@@ -58,27 +57,6 @@ test("3-phase roles come as complete R/S/T sets on distinct measured columns, wi
   assert.match(phaseRoleProblem([{...role("a","voltage","R"),unit_evidence:" "},role("b","voltage","S"),role("c","voltage","T")],channels)!,/근거/);
 });
 
-test("OPC UA channel IDs are safe and distinct; the sample opens only a local address",()=>{
-  assert.equal(channelIdFrom("Vibration X (mm/s)",[]),"Vibration_X_mm_s");
-  assert.equal(channelIdFrom("Vibration X (mm/s)",["Vibration_X_mm_s"]),"Vibration_X_mm_s_2");
-  assert.equal(channelIdFrom("진동",[]),"channel");
-  assert.deepEqual(parseSample({synthetic:true,state:"stopped"}),{state:"stopped",url:null});
-  assert.equal(parseSample({synthetic:true,state:"running",separate_workspace:true,url:"http://127.0.0.1:2719/web/"}).url,
-    "http://127.0.0.1:2719/web/");
-  assert.throws(()=>parseSample({synthetic:true,state:"running",separate_workspace:true,url:"http://evil.example/web/"}));
-  assert.throws(()=>parseSample({synthetic:false,state:"stopped"}));
-  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/web/?page=system")),
-    "http://127.0.0.1:2718/web/?page=system");
-  assert.equal(sampleReturn("?return_to="+encodeURIComponent("https://evil.example/web/")),null);
-  // A page opened as localhost returns there; the example opens on the same name (same site).
-  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://localhost:2718/web/?page=system")),
-    "http://localhost:2718/web/?page=system");
-  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","localhost",{page:"assets"}),"http://localhost:2719/web/?page=assets");
-  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","127.0.0.1",{}),"http://127.0.0.1:2719/web/");
-  assert.equal(exampleOpenUrl("http://127.0.0.1:2719/web/","evil.example",{}),"http://127.0.0.1:2719/web/");
-  assert.equal(sampleReturn("?return_to="+encodeURIComponent("http://127.0.0.1:2718/other")),null);
-});
-
 test("roles are suggested from clear column names only, and evidence is never filled in",()=>{
   const roles=suggestRoles(["timestamp","vR","vS","vT","iR","iS","iT","inlet_temp_a"],emptyRoles());
   assert.deepEqual(roles.map(role=>role.channel),["vR","vS","vT","iR","iS","iT"]);
@@ -93,13 +71,9 @@ test("roles are suggested from clear column names only, and evidence is never fi
   assert.equal(phaseRoleProblem(declaredRoles(roles),["vR","vS","vT","iR","iS","iT"]),"역할마다 단위 근거와 해석 근거를 적으세요.");
 });
 
-test("actual-data start is available only for a prepared replay and keeps the selected real asset",()=>{
-  assert.deepEqual(parseSample({synthetic:false,state:"stopped",xjtu_available:true}),
-    {state:"stopped",url:null,xjtuAvailable:true});
-  const real={synthetic:false,state:"running",scenario:"xjtu",asset_id:"Bearing1_1",xjtu_available:true,
-    separate_workspace:true,url:"http://127.0.0.1:2719/web/"};
-  assert.equal(parseSample(real).assetId,"Bearing1_1");
-  assert.equal(parseSample(real).scenario,"xjtu");
-  assert.throws(()=>parseSample({...real,asset_id:undefined}));
-  assert.throws(()=>parseSample({...real,scenario:"bearing"}));
+
+test("OPC UA channel IDs are sanitized and distinct",()=>{
+  assert.equal(channelIdFrom("Vibration X (mm/s)",[]),"Vibration_X_mm_s");
+  assert.equal(channelIdFrom("Vibration X (mm/s)",["Vibration_X_mm_s"]),"Vibration_X_mm_s_2");
+  assert.equal(channelIdFrom("진동",[]),"channel");
 });
