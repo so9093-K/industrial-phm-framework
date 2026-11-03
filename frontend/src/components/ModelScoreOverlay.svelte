@@ -4,6 +4,9 @@
   import type {ModelBinding} from "../model-evidence";
   import {exceedanceText, measurementTime, overlayModels, readScoreTrend, thresholdRatios, type RatioLine} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {modelMessage, modelOnset, type ModelRead} from "../analysis-messages";
+  import {measurementLinks} from "../measurement-links";
 
   /** The models of one measurement stream on one axis: each score divided by that model's own
    * threshold, so whether the models agree, and since when, is one look. Every model has a row
@@ -24,6 +27,23 @@
   // Where the chosen model's state starts: its run still going on, else its latest crossing.
   const first = $derived(lines.get(selected)?.story.anchor ?? null);
   const told = $derived.by(() => { const read = lines.get(selected); return read ? exceedanceText(read.story, place) : null; });
+  // Which models cross, which do not, and since when; vibration models then lead to that measurement.
+  const ONSET: Record<string, string> = {trend: "을 특징 추이에서 보기", spectrum: "을 바로 앞 측정과 주파수 비교",
+    features: " 앞뒤 10회 특징 비교"};
+  const message = $derived.by(() => {
+    if (loadState !== "ready") return null;
+    const reads: ModelRead[] = bindings.flatMap((binding) => {
+      const read = lines.get(binding.bindingId);
+      return read ? [{name: names.get(binding.bindingId) ?? binding.bindingId, line: read}] : [];
+    });
+    const onset = modelOnset(reads), all = reads.flatMap((read) => read.line.points.map((p) => p.position));
+    const vibration = bindings.every((binding) => binding.stepKind === "acquisition-snapshot");
+    const next = onset !== null && vibration && all.length
+      ? measurementLinks(bindings[0].assetId, onset, {first: Math.min(...all), last: Math.max(...all), bindingId: selected})
+        .filter((link) => link.key in ONSET).map((link) => ({label: onset + "번째 측정" + ONSET[link.key], href: link.href}))
+      : [];
+    return modelMessage(reads, place, next);
+  });
   let hover: number | null = $state(null);
   // Drawn in real pixels so text stays readable on a phone; end labels only where there is room.
   let width = $state(720);
@@ -114,6 +134,7 @@
     <StatusNotice message="모델별 점수 기록을 불러오고 있습니다." />
   {:else}
     {#if loadState === "ready"}
+      {#if message}<AnalysisMessage {message} />{/if}
 
       <p class="readout" aria-live="polite">
         {#if hover !== null}

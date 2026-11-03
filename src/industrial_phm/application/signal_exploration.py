@@ -520,6 +520,23 @@ def acquisition_spectrum(
                     }
                 )
         changes.sort(key=lambda item: -abs(item["change_db"]))
+        # Where the energy sits, as a share of each range's total, so a reader can see where
+        # added energy went and not only which band changed the most in decibels.
+        total = {name: float(mean[name].sum()) for name in mean}
+        shares = (
+            [
+                {
+                    "from_hz": float(frequencies[a]),
+                    "to_hz": float(frequencies[b - 1]),
+                    "a": float(mean["a"][a:b].sum()) / total["a"],
+                    "b": float(mean["b"][a:b].sum()) / total["b"],
+                }
+                for a, b in pairwise(bands)
+                if b > a
+            ]
+            if total.get("a", 0) > 0 and total.get("b", 0) > 0
+            else []
+        )
         result.append(
             {
                 "channel": channel,
@@ -530,6 +547,8 @@ def acquisition_spectrum(
                     for name in mean
                 },
                 "band_changes": changes[:3],
+                "power_ratio": total["b"] / total["a"] if shares else None,
+                "band_shares": shares,
             }
         )
     return {

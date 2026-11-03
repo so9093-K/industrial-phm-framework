@@ -17,6 +17,10 @@ export type FeatureProfile = {
   assetId:string;sourceId:string;bindingId:string;featureId:string;label:string;
   unit?:string|null;spans:Spans;a:FeaturePeriod;b:FeaturePeriod;
   medianChange:number|null;outsidePercent:number|null;
+  /** B's median over A's as a percent change; null for signed or shape features. */
+  medianChangePercent:number|null;
+  /** How many of B's values fall outside A's 5–95% range. */
+  outsideCount:number|null;
 };
 export class FeatureEvidenceUnavailable extends Error {}
 
@@ -110,9 +114,14 @@ export function parseFeatureProfile(
     finiteOrNull(compare.b_outside_a_band_percent);
   if(outside!==null&&(outside<0||outside>100))
     throw new Error("기준 분포 이탈 비율이 유효하지 않습니다.");
+  const outsideCount=compare.b_outside_a_band===undefined?null:maybeCount(compare.b_outside_a_band);
+  if(outsideCount!==null&&outsideCount>b.usable)
+    throw new Error("기준 분포 밖 측정 수가 쓸 수 있는 값보다 많습니다.");
+  const percent=compare.median_change_percent===undefined?null:finiteOrNull(compare.median_change_percent);
   return {assetId,sourceId:source.sourceId,bindingId:source.bindingId,
     featureId,label:typeof row.label==="string"?row.label:featureId,
-    unit:typeof row.unit==="string"?row.unit:null,spans,a,b,medianChange:change,outsidePercent:outside};
+    unit:typeof row.unit==="string"?row.unit:null,spans,a,b,medianChange:change,outsidePercent:outside,
+    medianChangePercent:percent,outsideCount};
 }
 async function get(path:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(path,{signal,cache:"no-store",credentials:"same-origin"});

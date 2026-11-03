@@ -8,7 +8,8 @@ const spectrum=()=>({
  frequencies:[0,100,200],
  acquisitions:{a:[1,15],b:[16,30]},
  channels:[{channel:"R",label:"vibration R",a:[0.1,0.2,0.3],b:[0.1,0.3,0.5],
-   band_changes:[{from_hz:0,to_hz:100,change_db:3.2}]}],
+   band_changes:[{from_hz:0,to_hz:100,change_db:3.2}],power_ratio:1.8,
+   band_shares:[{from_hz:0,to_hz:100,a:0.4,b:0.3},{from_hz:100,to_hz:200,a:0.6,b:0.7}]}],
 });
 test("source identity and acquisition ordinal boundaries",()=>{
  const opts={schema_version:1,asset_id:"motor",history:null,

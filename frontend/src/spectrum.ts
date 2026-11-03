@@ -3,7 +3,11 @@ export type Span={from:number;to:number};
 export type Spans={a:Span;b:Span};
 export type Acquisition={source:string;binding:string;first:number;last:number;count:number};
 export type FrequencyBand={from:number;to:number;changeDb:number};
-export type SpectrumChannel={id:string;label:string;unit?:string|null;a:number[];b:number[];bands:FrequencyBand[]};
+/** One fixed band's share of each range's total energy (0–1). */
+export type BandShare={from:number;to:number;a:number;b:number};
+export type SpectrumChannel={id:string;label:string;unit?:string|null;a:number[];b:number[];bands:FrequencyBand[];
+  /** Total energy of B over A, from the full-resolution spectrum; null when either is zero. */
+  ratio:number|null;shares:BandShare[]};
 export type Spectrum={asset:string;source:string;samplingRate:number;segment:number;
   frequencies:number[];used:{a:number[];b:number[]};channels:SpectrumChannel[]};
 export class SpectrumUnavailable extends Error {}
@@ -77,7 +81,7 @@ export function parseSpectrum(
   const channels=data.channels.map((raw:unknown):SpectrumChannel=>{
     const channel=record(raw);
     if(!channel || !Array.isArray(channel.a)||!Array.isArray(channel.b)
-      || !Array.isArray(channel.band_changes))
+      || !Array.isArray(channel.band_changes)||!Array.isArray(channel.band_shares))
       throw new Error("파형별 스펙트럼 구조가 올바르지 않습니다.");
     const name=id(channel.channel);
     if(keys.has(name))throw new Error("같은 진동 채널이 두 번 들어 있습니다.");
@@ -93,8 +97,19 @@ export function parseSpectrum(
         throw new Error("파워 대역 범위가 유효하지 않습니다.");
       return {from,to,changeDb};
     });
+    const shares=channel.band_shares.map((item:unknown):BandShare=>{
+      const row=record(item);
+      if(!row)throw new Error("대역별 에너지 비중이 올바르지 않습니다.");
+      const from=num(row.from_hz),to=num(row.to_hz),shareA=num(row.a),shareB=num(row.b);
+      if(from<0||to<from||to>nyquist||shareA<0||shareA>1||shareB<0||shareB>1)
+        throw new Error("대역별 에너지 비중이 유효하지 않습니다.");
+      return {from,to,a:shareA,b:shareB};
+    });
+    const ratio=channel.power_ratio===null?null:num(channel.power_ratio);
+    if(ratio!==null&&(ratio<=0||!shares.length))
+      throw new Error("두 기간의 에너지 배수가 올바르지 않습니다.");
     return {id:name,label:typeof channel.label==="string"?channel.label:name,
-      unit:typeof channel.unit==="string"?channel.unit:null,a,b,bands};
+      unit:typeof channel.unit==="string"?channel.unit:null,a,b,bands,ratio,shares};
   });
   return {asset,source:acq.source,samplingRate:rate,segment,frequencies:frequency,
     used:usedOrdinal,channels};

@@ -9,7 +9,9 @@
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
 
-  let {source,feature,spans}:{source:FeatureSource;feature:string;spans:Spans}=$props();
+  let {source,feature,spans,onLoad}:{source:FeatureSource;feature:string;spans:Spans;
+    /** Every stored value once read, so the comparison can say where B first changed. */
+    onLoad?:(trend:AcquisitionTrend)=>void}=$props();
   let trend:AcquisitionTrend|null=$state(null);
   let loadState:"loading"|"ready"|"failed"=$state("loading");
   let error=$state("");
@@ -36,7 +38,7 @@
       if(pending.signal.aborted)return;
       if(read.sourceId!==source.sourceId||read.bindingId!==source.bindingId)
         throw new Error("구간 비교와 다른 출처·모델의 시간 추이는 표시하지 않습니다.");
-      trend=read;loadState="ready";
+      trend=read;loadState="ready";onLoad?.(read);
     }catch(cause:unknown){
       if(pending.signal.aborted)return;
       loadState="failed";error=cause instanceof Error?cause.message:"시간 추이를 읽지 못했습니다.";
