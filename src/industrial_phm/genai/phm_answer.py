@@ -23,6 +23,8 @@ from industrial_phm.genai.local_explanation import (
 
 RELATION_WORD = {"increased": "증가", "decreased": "감소", "unchanged": "거의 같음"}
 _MAX_CANDIDATES = 24
+# Two features are the same value when they differ by at most this share at both measurements.
+SAME_VALUE_SHARE = 0.01
 _SHAPE = (".mean", ".skewness", ".excess_kurtosis")
 
 
@@ -133,6 +135,29 @@ def _channel_name(channel: str) -> str:
     return feature_label(f"feature.{channel}.rms").removesuffix(" RMS")
 
 
+def same_value_features(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Features that carry the same number at both measurements: a vibration's standard
+    deviation equals its RMS when its mean is about zero. Kept: RMS; folded in: the twin."""
+    by_name = {row["feature"]: row for row in rows}
+    twins: dict[str, list[str]] = {}
+    for name, row in by_name.items():
+        if not name.endswith(".rms"):
+            continue
+        twin = by_name.get(name.removesuffix(".rms") + ".standard_deviation")
+        if twin is None:
+            continue
+        pairs = [(row[key], twin[key]) for key in ("previous", "current")]
+        if all(
+            isinstance(a, (int, float))
+            and isinstance(b, (int, float))
+            and a > 0
+            and abs(a - b) <= SAME_VALUE_SHARE * a
+            for a, b in pairs
+        ):
+            twins[name] = [twin["feature"]]
+    return twins
+
+
 def answer_input(context: dict[str, Any]) -> dict[str, Any]:
     """The bounded payload the model reads: names, directions and meanings chosen by code."""
     operator = operator_explanation_context(context)
@@ -153,15 +178,24 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
             "초과" if output.get("exceeds_threshold") else "이하"
         )
         primary["threshold_ratio"] = _ratio(output)
+    rows = [
+        row for row in signals.get("features", []) if isinstance(row.get("previous"), (int, float))
+    ]
+    twins = same_value_features(rows)
     candidates = [
         {
             "id": row["feature"],
             "label": row["label"],
             "change": _word(relation(row["previous"], row["current"])),
             "size": _size(row),
+            **(
+                {"same_as": [feature_label(name) for name in twins[row["feature"]]]}
+                if row["feature"] in twins
+                else {}
+            ),
         }
-        for row in signals.get("features", [])
-        if isinstance(row.get("previous"), (int, float))
+        for row in rows
+        if row["feature"] not in {name for names in twins.values() for name in names}
     ][:_MAX_CANDIDATES]
     contributions = output.get("feature_contributions")
     related = []
@@ -364,8 +398,9 @@ _INSTRUCTIONS = (
 _TASK = {
     "anomaly-score": (
         "primary는 이상 점수입니다. 학습 기준과 얼마나 다른지를 나타내며 고장 확률이 아닙니다. "
-        "primary.name이 재구성 오차이면 재구성 오차가 곧 이 모델의 점수입니다. 운영자가 읽는 "
-        "문장이므로 '재구성 오차' 대신 '모델 점수'라고 쓰고, 같은 값을 원인처럼 반복하지 마세요. "
+        "'재구성 오차' 같은 계산 방식 이름 대신 primary.name대로 쓰고, 같은 "
+        "값을 원인처럼 반복하지 마세요. candidates의 same_as는 계산상 같은 값이라 따로 세지 "
+        "않은 특징입니다. 여러 특징이 함께 변했다고 말할 때 같은 값을 두 근거로 세지 마세요. "
         "기준 비교는 primary.reference와 related_models의 reference에 맞게 쓰세요. "
         "'기준을 넘었습니다', '기준 아래입니다'처럼 자연스럽게 써도 되지만 "
         "방향이 달라서는 안 됩니다."

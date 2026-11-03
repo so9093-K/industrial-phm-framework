@@ -53,7 +53,15 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
         "threshold_ratio": 1.79,
     }
     rows = {item["id"]: item for item in payload["candidates"]}
-    assert rows[RMS] == {"id": RMS, "label": "수평 진동 RMS", "change": "증가", "size": "뚜렷함"}
+    # A vibration's standard deviation is its RMS when the mean is about zero: one fact, not two.
+    assert rows[RMS] == {
+        "id": RMS,
+        "label": "수평 진동 RMS",
+        "change": "증가",
+        "size": "뚜렷함",
+        "same_as": ["수평 진동 표준편차"],
+    }
+    assert "feature.Horizontal_vibration_signals.standard_deviation" not in rows
     assert rows[VERTICAL]["change"] == "거의 같음"
     assert rows["feature.Horizontal_vibration_signals.skewness"]["size"] is None
     # The other model on the same input carries its direction and its own threshold verdict,

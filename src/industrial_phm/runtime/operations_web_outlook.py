@@ -16,6 +16,8 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs
 
+import numpy as np
+
 from industrial_phm.application.condition_outlook import degradation, linear_reach
 from industrial_phm.application.forecast import (
     DEFAULT_CHANGEPOINT_PRIOR_SCALE,
@@ -23,6 +25,7 @@ from industrial_phm.application.forecast import (
     HISTORY_PER_HORIZON,
     MIN_POINTS,
     ForecastUnavailable,
+    backtest,
     limit_reach,
 )
 from industrial_phm.application.outlook_text import outlook_facts, outlook_sentences
@@ -250,6 +253,21 @@ def condition_outlook(
                         # The first whole acquisition at or after the reaching point.
                         reached[key] = math.ceil(reached[key] / period - 1e-6)
 
+    # How far the same reading can be trusted: hide the latest stretch it would have to
+    # foresee, predict it from what came before and compare. Only with conditions to reach.
+    trained = len(values) - used
+    check = (
+        backtest(
+            times[trained:],
+            np.asarray(values[trained:], dtype=float),
+            search_seconds,
+            seasonal,
+            changepoint_prior_scale=changepoint_prior_scale,
+            changepoint_range=changepoint_range,
+        )
+        if limits
+        else None
+    )
     models = anomaly_models(
         workspace,
         asset_id,
@@ -310,6 +328,7 @@ def condition_outlook(
         # is never the only model the briefing hears about.
         "anomaly_model": anomaly,
         "anomaly_models": models,
+        "check": check,
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
     # The screen's sentences and the facts an AI briefing may use, worded once.

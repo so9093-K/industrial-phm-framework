@@ -203,6 +203,48 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
     assert "배 거리" not in facts["departure"]
 
 
+def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how_to_read() -> None:
+    outlook = _outlook()
+    sustained = {
+        **outlook["anomaly_model"],
+        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "intervals": [{"start_position": 77, "end_position": 123, "open": True}],
+    }
+    quiet = {**outlook["anomaly_model"], "first_exceeding": None, "intervals": []}
+    outlook["anomaly_models"] = [sustained, quiet]
+    outlook["check"] = {
+        "points": 25,
+        "mean_absolute_error": 1.53,
+        "naive_mean_absolute_error": 1.62,
+        "inside_interval": 0.0,
+    }
+    facts = outlook_facts(outlook)
+    assert facts["links"] == (
+        "측정값이 초기 비교 범위를 벗어나기 시작 #76; "
+        "LSTM 기준 초과 시작 #77 (1회 차이, 같은 무렵); Isolation Forest 기준 초과 없음 · "
+        "같은 무렵을 가리키는 이상 탐지 모델과 기준을 넘지 않은 이상 탐지 모델이 함께 있음 "
+        "(이상 탐지 모델끼리 다르게 말함)"
+    )
+    assert facts["check"].startswith(
+        "기록의 마지막 25개를 가리고 같은 방법으로 예측: 실제 값이 예측"
+    )
+    assert facts["check"].endswith("대략의 범위로 읽어야 함")
+    assert facts["next"] == (
+        "다음 측정에서 값이 기준에 다가가는지 확인 · #76 전후 원본 파형과 주파수 비교 · "
+        "기준을 넘지 않은 이상 탐지 모델의 점수가 같은 무렵 어떻게 움직였는지 확인 · "
+        "판단과 근거를 검토 기록에 남기기"
+    )
+    # An answer that relays these facts in their own words passes the checks.
+    text = (
+        "마지막 기록 #123 기준으로 측정값은 #76부터 초기 비교 범위를 벗어났고 LSTM도 #77부터 "
+        "기준을 넘었지만 Isolation Forest는 기준을 넘지 않아 이상 탐지 모델끼리 다르게 말합니다."
+    )
+    assert outlook_answer.text_issues(text, facts) == []
+    alone = _outlook()
+    alone["anomaly_model"]["intervals"] = []
+    assert "다르게 말함" not in outlook_facts(alone)["links"]
+
+
 def test_models_that_disagree_are_all_in_the_facts() -> None:
     outlook = _outlook()
     quiet = {
@@ -216,7 +258,9 @@ def test_models_that_disagree_are_all_in_the_facts() -> None:
     text = outlook_facts(outlook)["model"]
     assert text.startswith("Isolation Forest · #123 점수 0.771 · 모델 기준 0.754 초과")
     assert "; LSTM" in text and "모델 기준 1.77 이하" in text
-    assert text.endswith("모델 2개 중 1개가 마지막 측정에서 기준 초과 (모델마다 다르게 말함)")
+    assert text.endswith(
+        "이상 탐지 모델 2개 중 1개가 마지막 측정에서 기준 초과 (이상 탐지 모델끼리 다르게 말함)"
+    )
 
 
 @pytest.mark.parametrize(
@@ -403,3 +447,35 @@ def test_ai_rejects_measurement_counts_as_elapsed_minutes_without_cadence() -> N
     assert outlook_answer.text_issues(
         "관리 상한 8까지 현재 설정으로 56분 후 도달할 것으로 계산됩니다.", facts, relations
     )
+
+
+def test_a_crossing_still_going_on_is_named_apart_from_an_earlier_one_off() -> None:
+    outlook = _outlook()
+    outlook["anomaly_model"] = {
+        **outlook["anomaly_model"],
+        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "first_exceeding": {"position": 30, "at": None},
+        "intervals": [{"start_position": 76, "end_position": 123, "open": True}],
+    }
+    text = outlook_facts(outlook)["model"]
+    assert "기준 초과가 이어지기 시작 #76 · 그 전에 처음 기준을 넘은 측정 #30" in text
+    assert "처음 초과 #30" not in text
+
+
+def test_a_margin_always_comes_with_how_far_the_past_check_lets_one_trust_it() -> None:
+    outlook = _outlook()
+    outlook["check"] = {
+        "points": 25,
+        "mean_absolute_error": 1.53,
+        "naive_mean_absolute_error": 1.62,
+        "inside_interval": 0.0,
+    }
+    cited = {
+        "text": "관리 상한 8까지 56분 뒤 도달할 것으로 계산했습니다.",
+        "evidence": ["management"],
+    }
+    answer = outlook_answer.with_check({"summary": "...", "points": [cited] * 4}, outlook)
+    assert len(answer["points"]) == 4 and answer["points"][-1]["evidence"] == ["check"]
+    assert answer["points"][-1]["text"].endswith("대략의 범위로 읽어야 합니다.")
+    plain = {"summary": "...", "points": [{"text": "변화", "evidence": ["change"]}]}
+    assert outlook_answer.with_check(plain, outlook)["points"] == plain["points"]

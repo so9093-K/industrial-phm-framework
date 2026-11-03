@@ -20,6 +20,10 @@ READING = {
     "responsive": "추세 변화에 민감",
     "linear": "최근 변화 속도 유지",
 }
+# Two places on the record are "the same moment" within this many acquisitions, or this share
+# of the record's length for a timestamped record.
+SAME_MOMENT_ACQUISITIONS = 3
+SAME_MOMENT_SHARE = 0.02
 FACT_LABEL = {
     "signal": "측정값",
     "time_basis": "시간 환산 조건",
@@ -35,6 +39,9 @@ FACT_LABEL = {
     "differences": "조건별 차이",
     "forecast": "Prophet 설정",
     "search": "계산 범위",
+    "links": "분석 간 연결",
+    "check": "과거 자료로 예측 확인",
+    "next": "다음에 확인할 것",
 }
 
 
@@ -343,15 +350,144 @@ def _model_text(model: dict[str, Any]) -> str:
         text += f" · 모델 기준 {num(latest['threshold'])} " + (
             "초과" if latest.get("exceeds") else "이하"
         )
-    if model.get("first_exceeding"):
-        first = model["first_exceeding"]
-        text += " · 처음 초과 " + (
-            _clock(first["at"])
-            if model["step_kind"] != "acquisition-snapshot" and first.get("at")
-            else "#" + str(first["position"])
+    acquisitions = model["step_kind"] == "acquisition-snapshot"
+    run = next((item for item in reversed(model.get("intervals") or []) if item.get("open")), None)
+    first = model.get("first_exceeding")
+
+    def where_first(item: dict[str, Any]) -> str:
+        return (
+            _clock(item["at"])
+            if not acquisitions and item.get("at")
+            else "#" + str(item["position"])
         )
+
+    # A crossing still going on is named apart from an earlier one-off crossing, so the two
+    # are never read as one "since".
+    if run is not None:
+        start = (
+            _clock(run["start_at"])
+            if not acquisitions and run.get("start_at")
+            else "#" + str(run["start_position"])
+        )
+        text += " · 기준 초과가 이어지기 시작 " + start
+        if first and first["position"] < run["start_position"]:
+            text += " · 그 전에 처음 기준을 넘은 측정 " + where_first(first)
+    elif first:
+        text += " · 처음 초과 " + where_first(first)
     recent = model["recent"]
     return text + f" · 최근 {recent['results']}개 중 {recent['exceeding']}개 초과"
+
+
+def _models(outlook: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        model
+        for model in outlook.get("anomaly_models") or [outlook.get("anomaly_model")]
+        if model and model.get("latest")
+    ]
+
+
+def _model_start(outlook: dict[str, Any], model: dict[str, Any]) -> Any:
+    """Where a model's crossing that is still going on starts, else its first crossing."""
+    acquisitions = outlook["axis"] == "acquisition"
+    run = next((item for item in reversed(model.get("intervals") or []) if item.get("open")), None)
+    if run is not None:
+        return run["start_position"] if acquisitions else run.get("start_at")
+    first = model.get("first_exceeding")
+    if first is None:
+        return None
+    return first["position"] if acquisitions else first.get("at")
+
+
+def _gap(outlook: dict[str, Any], one: Any, two: Any) -> tuple[str, bool]:
+    """How far apart two places on the record are, and whether that is the same moment."""
+    if outlook["axis"] == "acquisition":
+        steps = abs(int(one) - int(two))
+        return (f"{steps}회 차이" if steps else "같은 측정"), steps <= SAME_MOMENT_ACQUISITIONS
+    first, last = (datetime.fromisoformat(outlook["record"][k]) for k in ("first", "last"))
+    seconds = abs((datetime.fromisoformat(one) - datetime.fromisoformat(two)).total_seconds())
+    record = max(1.0, (last - first).total_seconds())
+    return span(seconds) + " 차이", seconds <= SAME_MOMENT_SHARE * record
+
+
+def _links(outlook: dict[str, Any]) -> str | None:
+    """Whether the measured values and every anomaly model point at the same moment."""
+    departure = outlook["degradation"].get("departure") or {}
+    since, models = departure.get("since"), _models(outlook)
+    if since is None or not models:
+        return None
+    parts = [f"측정값이 초기 비교 범위를 벗어나기 시작 {place(outlook, since)}"]
+    agreeing, quiet = 0, 0
+    for model in models:
+        name, start = model_label(model["package_id"]), _model_start(outlook, model)
+        if start is None:
+            quiet += 1
+            parts.append(f"{name} 기준 초과 없음")
+            continue
+        gap, same = _gap(outlook, start, since)
+        agreeing += same
+        parts.append(
+            f"{name} 기준 초과 시작 {place(outlook, start)} ({gap}"
+            + (", 같은 무렵)" if same else ")")
+        )
+    text = "; ".join(parts)
+    if agreeing and quiet:
+        text += (
+            " · 같은 무렵을 가리키는 이상 탐지 모델과 기준을 넘지 않은 이상 탐지 모델이 함께 있음"
+            " (이상 탐지 모델끼리 다르게 말함)"
+        )
+    elif agreeing == len(models):
+        text += " · 측정값과 모든 이상 탐지 모델이 같은 무렵을 가리킴"
+    return text
+
+
+def check_is_weak(check: dict[str, Any]) -> bool:
+    """Whether the hidden stretch mostly fell outside the band or a flat line did as well."""
+    return bool(
+        check["inside_interval"] < 0.5
+        or check["mean_absolute_error"] >= 0.8 * check["naive_mean_absolute_error"]
+    )
+
+
+def _check(outlook: dict[str, Any]) -> str | None:
+    check = outlook.get("check")
+    if not check:
+        return None
+    inside, error, naive = (
+        check["inside_interval"],
+        check["mean_absolute_error"],
+        check["naive_mean_absolute_error"],
+    )
+    weak = check_is_weak(check)
+    return (
+        f"기록의 마지막 {check['points']}개를 가리고 같은 방법으로 예측: 실제 값이 예측 범위 "
+        f"안에 든 비율 {round(inside * 100)}% · 평균 오차 {num(error)} (마지막 값을 그대로 "
+        f"이어 쓰면 {num(naive)})"
+        + (
+            " · 기준까지의 여유는 정확한 시각이 아니라 대략의 범위로 읽어야 함"
+            if weak
+            else " · 예측이 실제 값을 대체로 따라감"
+        )
+    )
+
+
+def _next(outlook: dict[str, Any]) -> str:
+    """The checks a person can make next on this screen and the ones it links to."""
+    items = []
+    if outlook["conditions"]["management"] is not None or outlook["conditions"]["end"] is not None:
+        items.append("다음 측정에서 값이 기준에 다가가는지 확인")
+    since = (outlook["degradation"].get("departure") or {}).get("since")
+    if since is not None:
+        items.append(
+            f"{place(outlook, since)} 전후 원본 파형과 주파수 비교"
+            if outlook["axis"] == "acquisition"
+            else f"{place(outlook, since)} 전후 원본 신호 확인"
+        )
+    models = _models(outlook)
+    over = [model for model in models if _model_start(outlook, model) is not None]
+    if over and len(over) < len(models):
+        items.append("기준을 넘지 않은 이상 탐지 모델의 점수가 같은 무렵 어떻게 움직였는지 확인")
+    items.append("판단과 근거를 검토 기록에 남기기")
+    return " · ".join(items)
 
 
 def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
@@ -397,17 +533,13 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
             else "초기 비교 범위 밖인 값 없음"
         ) + _departure_range(indicator, departure)
     # Every anomaly model on this input, so a model that stays quiet never speaks for all.
-    models = [
-        model
-        for model in outlook.get("anomaly_models") or [outlook.get("anomaly_model")]
-        if model and model.get("latest")
-    ]
+    models = _models(outlook)
     if models:
         text = "; ".join(_model_text(model) for model in models)
         if len(models) > 1:
             over = sum(model["latest"].get("exceeds") is True for model in models)
-            text += f" · 모델 {len(models)}개 중 {over}개가 마지막 측정에서 기준 초과" + (
-                " (모델마다 다르게 말함)" if 0 < over < len(models) else ""
+            text += f" · 이상 탐지 모델 {len(models)}개 중 {over}개가 마지막 측정에서 기준 초과" + (
+                " (이상 탐지 모델끼리 다르게 말함)" if 0 < over < len(models) else ""
             )
         facts["model"] = text
     scenarios = outlook["scenarios"]
@@ -461,6 +593,11 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
         )
     if note := interval_note(outlook):
         facts["time_basis"] = note
+    if links := _links(outlook):
+        facts["links"] = links
+    if check := _check(outlook):
+        facts["check"] = check
+    facts["next"] = _next(outlook)
     return facts
 
 

@@ -304,9 +304,9 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
         # Keep that output unchanged in storage; omit its delta from this comparison.
         output.pop("change_from_previous", None)
     task = output.get("task")
-    model = context.get("model") or {}
-    recipe = str(model.get("recipe_id") or "")
-    label = "재구성 오차" if "pca" in recipe or "autoencoder" in recipe else "이상 점수"
+    # One name for every anomaly model's output, as the screen shows it; how a model computes
+    # its score (reconstruction error, isolation depth) stays in the model details.
+    label = "이상 점수"
     facts = []
     if task == "anomaly-score":
         facts.append(

@@ -237,6 +237,10 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert [m["binding_id"] for m in body["anomaly_models"]] == ["anomaly-a", "anomaly-b"]
         assert body["anomaly_models"][0] == model
         assert body["facts"]["model"].count(" · 최근 10개 중 ") == 2
+        # With conditions to reach, the latest stretch is hidden and predicted from the rest.
+        assert body["check"]["points"] >= 5 and 0 <= body["check"]["inside_interval"] <= 1
+        assert body["facts"]["check"].startswith("기록의 마지막 ")
+        assert body["facts"]["next"].startswith("다음 측정에서 값이 기준에 다가가는지 확인")
         original_version = body["data_version"]
         # A long history is sampled by analyzed_between: tail and first crossing must
         # instead use exact database queries, including analyzed results past 2,000.
