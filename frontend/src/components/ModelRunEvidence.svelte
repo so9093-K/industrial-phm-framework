@@ -19,8 +19,11 @@
   import {beforeInterval,type Interval} from "../model-trend";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
+  import {measurementLinks} from "../measurement-links";
 
-  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
+  let {assetId,timing=null,measurements=null}:{assetId:string;timing?:AcquisitionTiming|null;
+    /** First and last stored vibration measurement, to continue from a chosen one. */
+    measurements?:{first:number;last:number}|null}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let listState:State=$state("loading");
   let traceState:State=$state("empty");
@@ -332,6 +335,11 @@
           {/if}
           <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
+          {#if measurements&&binding.stepKind==="acquisition-snapshot"}
+            {@const links=measurementLinks(assetId,result.position,{...measurements,bindingId:binding.bindingId},"model")}
+            {#if links.length}<p class="continue">같은 측정으로 이어서 보기
+              {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
+          {/if}
           {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
           {#if result.state!=="skipped"}
             {#key result.runId}
@@ -392,4 +400,5 @@
   pre{max-width:100%;overflow:auto;padding:var(--space-3);
     background:var(--color-surface-secondary,var(--color-surface));border:1px solid var(--color-border);
     border-radius:var(--radius-panel);white-space:pre-wrap;overflow-wrap:anywhere}
+  .continue{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;color:var(--color-ink-muted);font-size:var(--font-small)}
 </style>

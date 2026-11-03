@@ -267,6 +267,23 @@ def test_recorded_history_anchor_preserves_old_event_time_without_source_registr
         assert only["last_observed_at"] == "2020-11-12T15:59:04Z"
         assert _request(server.server_port, "GET", query + "&anchor=guess")[0] == 400
         assert _request(server.server_port, "GET", query + "&anchor=now&anchor=latest")[0] == 400
+        # A window chosen on the chart replaces the preset and reads only that span.
+        chosen = (
+            "/api/v1/history/trend?asset_id=old-asset&channel_id=voltage-R"
+            "&from=2020-11-12T15:30:00%2B00:00&to=2020-11-12T16:00:00Z"
+        )
+        status, _, window = _request(server.server_port, "GET", chosen)
+        assert status == 200
+        assert window["range"] == "window"
+        assert (window["start_at"], window["end_at"]) == (
+            "2020-11-12T15:30:00Z",
+            "2020-11-12T16:00:00Z",
+        )
+        assert sum(bucket["usable_count"] for bucket in window["buckets"]) == 1
+        assert _request(server.server_port, "GET", chosen + "&range=1h")[0] == 400
+        assert _request(server.server_port, "GET", chosen.split("&to=")[0])[0] == 400
+        naive = chosen.replace("%2B00:00", "")
+        assert _request(server.server_port, "GET", naive)[0] == 400
         newer = tmp_path / "newer.csv"
         newer.write_text(
             "timestamp,voltage-R\n2026-10-12T00:00:00Z,999\n2026-10-12T00:01:00Z,998\n",

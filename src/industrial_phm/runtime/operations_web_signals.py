@@ -36,6 +36,9 @@ RANGE_DURATIONS = {
 }
 # The whole stored record of the chosen signals, from its first to its last measurement.
 WHOLE_RECORD = "all"
+# An explicit start and end chosen on the chart, e.g. to look closer at one change.
+CHOSEN_WINDOW = "window"
+MAX_WINDOW = timedelta(days=31)
 
 
 def _time(value: datetime | None) -> str | None:
@@ -137,15 +140,25 @@ def project_signal_history(
     bucket_count: int = 60,
     time_anchor: str = "now",
     source_id: str | None = None,
+    window: tuple[datetime, datetime] | None = None,
 ) -> dict[str, object]:
-    """Read one bounded multi-signal time window plus stored per-source last points."""
+    """Read one bounded multi-signal time window plus stored per-source last points.
+
+    ``window`` replaces the preset with an explicit aware [start, end) of at most 31 days.
+    """
     if (
         not channel_ids
         or len(channel_ids) > MAX_CHANNELS
         or len(set(channel_ids)) != len(channel_ids)
     ):
         raise ValueError("channel_ids must be 1 to 6 distinct identifiers")
-    if range_preset not in RANGE_DURATIONS and range_preset != WHOLE_RECORD:
+    if window is not None:
+        if any(edge.utcoffset() is None for edge in window):
+            raise ValueError("window needs an explicit timezone")
+        if not timedelta(seconds=1) <= window[1] - window[0] <= MAX_WINDOW:
+            raise ValueError("window must span 1 second to 31 days")
+        range_preset = CHOSEN_WINDOW
+    elif range_preset not in RANGE_DURATIONS and range_preset != WHOLE_RECORD:
         raise ValueError("unsupported range")
     if isinstance(bucket_count, bool) or not 1 <= bucket_count <= MAX_BUCKETS:
         raise ValueError("bucket_count must be between 1 and 120")
@@ -186,7 +199,9 @@ def project_signal_history(
         end = max(datetime.fromisoformat(str(point["event_at"])) for point in latest) + timedelta(
             seconds=1
         )
-    if range_preset == WHOLE_RECORD:
+    if window is not None:
+        start, end = (edge.astimezone(UTC) for edge in window)
+    elif range_preset == WHOLE_RECORD:
         extent = query_operations_history_extent(reader, asset_id, channel_ids=channel_ids)
         if extent is None:
             start = end - RANGE_DURATIONS["1h"]

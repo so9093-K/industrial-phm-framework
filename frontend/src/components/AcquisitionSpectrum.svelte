@@ -2,6 +2,7 @@
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
+  import {measurementLinks} from "../measurement-links";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
   import {yTicks} from "../chart-axis";
@@ -205,6 +206,13 @@
           </details>
         </section>
       {/each}
+      {#if acquisition && result.used.b.length}
+        {@const last=Math.max(...result.used.b)}
+        <p class="continue">기간 B의 마지막 측정({place(last)})으로 이어서 보기
+          {#each measurementLinks(assetId,last,{first:acquisition.first,last:acquisition.last,bindingId:acquisition.binding},"spectrum") as item(item.key)}
+            <a href={item.href}>{item.label} →</a>
+          {/each}</p>
+      {/if}
       <CautionNote message="세기가 달라진 주파수는 결함 주파수나 고장 진단이 아닙니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
       <details>
         <summary>기술 상세</summary>
@@ -233,4 +241,5 @@
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
+  .continue{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;color:var(--color-ink-muted);font-size:var(--font-small)}
 </style>

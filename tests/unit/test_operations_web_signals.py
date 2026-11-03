@@ -104,3 +104,19 @@ def test_signal_query_validates_requested_groups_before_reading() -> None:
             channel_ids=("voltage-R",),
             bucket_count=10000,
         )
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    for window in ((start, start), (start, start + timedelta(days=32))):
+        with pytest.raises(ValueError, match="window must span"):
+            project_signal_history(
+                None,  # type: ignore[arg-type]
+                asset_id="asset-01",
+                channel_ids=("voltage-R",),
+                window=window,
+            )
+    with pytest.raises(ValueError, match="explicit timezone"):
+        project_signal_history(
+            None,  # type: ignore[arg-type]
+            asset_id="asset-01",
+            channel_ids=("voltage-R",),
+            window=(start.replace(tzinfo=None), start.replace(tzinfo=None) + timedelta(hours=1)),
+        )

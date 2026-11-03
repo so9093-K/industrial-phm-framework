@@ -239,12 +239,17 @@ export async function readChannels(assetId: string, signal: AbortSignal): Promis
   return parseChannels(await json("/api/v1/history/channels?" + params, signal), assetId);
 }
 
+/** A start and end chosen on the chart (ISO with offset); it replaces the preset. */
+export type TrendWindow = {from: string; to: string};
+
 export async function readTrend(
-  assetId: string, channelId: string, range: RangePreset, anchor: TimeAnchor, signal: AbortSignal,
+  assetId: string, channelId: string, range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,
+  sourceId: string | null = null,
 ): Promise<HistoryTrend> {
-  const params = new URLSearchParams({
-    asset_id: assetId, channel_id: channelId, range, anchor, buckets: "120",
-  });
+  const params = new URLSearchParams({asset_id: assetId, channel_id: channelId, buckets: "120"});
+  if (sourceId) params.set("source_id", sourceId);
+  if (typeof range === "string") {params.set("range", range); params.set("anchor", anchor);}
+  else {params.set("from", range.from); params.set("to", range.to);}
   return parseTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelId);
 }
 

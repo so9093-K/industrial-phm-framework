@@ -226,7 +226,16 @@ def create_operations_web_read_server(
             allowed = (
                 {"asset_id"}
                 if channels
-                else {"asset_id", "channel_id", "range", "buckets", "anchor", "source_id"}
+                else {
+                    "asset_id",
+                    "channel_id",
+                    "range",
+                    "buckets",
+                    "anchor",
+                    "source_id",
+                    "from",
+                    "to",
+                }
             )
             params = parse_qs(
                 parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=12
@@ -262,6 +271,16 @@ def create_operations_web_read_server(
             bucket_count = int(buckets[0])
             if not 1 <= bucket_count <= 120:
                 raise ValueError("buckets out of bounds")
+            # A chosen window replaces the preset; both edges carry an explicit offset.
+            window: tuple[datetime, datetime] | None = None
+            if "from" in params or "to" in params:
+                edges = params.get("from", []), params.get("to", [])
+                if any(len(values) != 1 for values in edges) or "range" in params:
+                    raise ValueError("one from and one to replace the range preset")
+                start, end = (datetime.fromisoformat(values[0]) for values in edges)
+                if start.utcoffset() is None or end.utcoffset() is None:
+                    raise ValueError("explicit timezone required")
+                window = (start, end)
             return {
                 "asset_id": asset_id,
                 "channel_ids": tuple(signal_ids),
@@ -269,6 +288,7 @@ def create_operations_web_read_server(
                 "bucket_count": bucket_count,
                 "time_anchor": anchors[0],
                 "source_id": sources[0] if sources else None,
+                "window": window,
             }
 
         def _condition_query(self) -> dict[str, object]:
@@ -488,6 +508,7 @@ def create_operations_web_read_server(
                         bucket_count=cast(int, query["bucket_count"]),
                         time_anchor=cast(str, query["time_anchor"]),
                         source_id=cast(str | None, query["source_id"]),
+                        window=cast(tuple[datetime, datetime] | None, query["window"]),
                     )
             except ConditionSelectionError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_selection")
