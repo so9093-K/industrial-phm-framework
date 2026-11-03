@@ -99,7 +99,9 @@ export async function readReviewEvidence(
     unread,
     name: names.get(binding.bindingId) ?? binding.bindingId, at: place(location.position), eventStart: run.eventStart,
     score: scoreSummary(run.output),
-    flow: story ? exceedanceText(story, position => isTimeWindow(binding.stepKind) ? place(position) : measurementLabel(position, period)) : null,
+    // The record is cut at the reviewed measurement, so its last measurement is that one, not today's.
+    flow: story ? exceedanceText(story, position => isTimeWindow(binding.stepKind) ? place(position) : measurementLabel(position, period),
+      "검토 대상 측정") : null,
     changes: against !== null && features?.length ? {against: place(against), rows: largestChanges(features)} : null,
     ai: explained?.answer ? {summary: explained.answer.summary,
       byAi: !explained.answer.modelUnavailable && explained.answer.source !== "verified-comparison"} : null,
