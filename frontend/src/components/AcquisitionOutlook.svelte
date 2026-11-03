@@ -1,6 +1,9 @@
 <script lang="ts">
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {outlookMessage} from "../analysis-messages";
+  import {featureTrendHref} from "../measurement-links";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
@@ -193,11 +196,15 @@
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const chart=acquisitionChart(outlook)}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
+      {@const told=outlookMessage({axis:"acquisition",period,unit:outlook.unit,conditions:outlook.conditions,
+        scenarios:outlook.scenarios,checks:outlook.checks??[]},
+        [{label:"다음 측정이 기준에 다가가는지 특징 추이에서 보기",href:featureTrendHref(outlook.assetId,outlook.featureId)}])}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
           <h3 id="acq-result-title">결과</h3>
           <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
         </div>
+        {#if told}<AnalysisMessage message={told}/>{/if}
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}

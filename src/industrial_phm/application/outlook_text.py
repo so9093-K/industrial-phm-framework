@@ -316,6 +316,44 @@ def difference_sentences(outlook: dict[str, Any]) -> list[str]:
     return sentences
 
 
+def _departure_range(indicator: dict[str, Any], departure: dict[str, Any]) -> str:
+    """The early comparison range as values, not as a multiple of a spread nobody sees."""
+    baseline, threshold = indicator["baseline"], departure["threshold"]
+    low = baseline["median"] - threshold * baseline["spread"]
+    high = baseline["median"] + threshold * baseline["spread"]
+    return (
+        f" · 초기 비교 범위 {num(low)}~{num(high)}"
+        f" (기준 구간 중앙값에서 변동폭의 {num(threshold)}배 안)"
+        f" · 마지막 측정 {num(indicator['latest'])}"
+        + (" (범위 밖)" if abs(departure["latest_distance"]) >= threshold else " (범위 안)")
+    )
+
+
+def _model_text(model: dict[str, Any]) -> str:
+    latest = model["latest"]
+    where = (
+        "#" + str(latest["position"])
+        if model["step_kind"] == "acquisition-snapshot"
+        else _clock(latest["at"])
+        if latest.get("at")
+        else "#" + str(latest["position"])
+    )
+    text = f"{model_label(model['package_id'])} · {where} 점수 {num(latest['score'])}"
+    if isinstance(latest.get("threshold"), (int, float)):
+        text += f" · 모델 기준 {num(latest['threshold'])} " + (
+            "초과" if latest.get("exceeds") else "이하"
+        )
+    if model.get("first_exceeding"):
+        first = model["first_exceeding"]
+        text += " · 처음 초과 " + (
+            _clock(first["at"])
+            if model["step_kind"] != "acquisition-snapshot" and first.get("at")
+            else "#" + str(first["position"])
+        )
+    recent = model["recent"]
+    return text + f" · 최근 {recent['results']}개 중 {recent['exceeding']}개 초과"
+
+
 def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
     """Every fact a briefing may use, keyed by what it is about, worded as the screen words it."""
     indicator = outlook["degradation"]
@@ -349,43 +387,28 @@ def outlook_facts(outlook: dict[str, Any]) -> dict[str, str]:
     departure = indicator["departure"]
     if departure is not None:
         facts["departure"] = (
-            (
-                place(outlook, departure["since"])
-                + " 이후 값의 "
-                + one(departure["since_share"] * 100)
-                + "%가 초기 비교 범위 밖"
-                if departure["since"] is not None
-                else f"초기 비교 범위 밖인 값 {num(departure['outside'])}개"
-                if departure["outside"]
-                else "초기 비교 범위 밖인 값 없음"
+            place(outlook, departure["since"])
+            + " 이후 값의 "
+            + one(departure["since_share"] * 100)
+            + "%가 초기 비교 범위 밖"
+            if departure["since"] is not None
+            else f"초기 비교 범위 밖인 값 {num(departure['outside'])}개"
+            if departure["outside"]
+            else "초기 비교 범위 밖인 값 없음"
+        ) + _departure_range(indicator, departure)
+    # Every anomaly model on this input, so a model that stays quiet never speaks for all.
+    models = [
+        model
+        for model in outlook.get("anomaly_models") or [outlook.get("anomaly_model")]
+        if model and model.get("latest")
+    ]
+    if models:
+        text = "; ".join(_model_text(model) for model in models)
+        if len(models) > 1:
+            over = sum(model["latest"].get("exceeds") is True for model in models)
+            text += f" · 모델 {len(models)}개 중 {over}개가 마지막 측정에서 기준 초과" + (
+                " (모델마다 다르게 말함)" if 0 < over < len(models) else ""
             )
-            + f" · 기준 범위는 기준 중앙값에서 변동폭의 {num(departure['threshold'])}배 안"
-            + f" · 마지막 측정은 기준 변동폭의 {one(abs(departure['latest_distance']))}배 거리"
-        )
-    model = outlook.get("anomaly_model")
-    if model and model.get("latest"):
-        latest = model["latest"]
-        where = (
-            "#" + str(latest["position"])
-            if model["step_kind"] == "acquisition-snapshot"
-            else _clock(latest["at"])
-            if latest.get("at")
-            else "#" + str(latest["position"])
-        )
-        text = f"{model_label(model['package_id'])} · {where} 점수 {num(latest['score'])}"
-        if isinstance(latest.get("threshold"), (int, float)):
-            text += f" · 모델 기준 {num(latest['threshold'])} " + (
-                "초과" if latest.get("exceeds") else "이하"
-            )
-        if model.get("first_exceeding"):
-            first = model["first_exceeding"]
-            text += " · 처음 초과 " + (
-                _clock(first["at"])
-                if model["step_kind"] != "acquisition-snapshot" and first.get("at")
-                else "#" + str(first["position"])
-            )
-        recent = model["recent"]
-        text += f" · 최근 {recent['results']}개 중 {recent['exceeding']}개 초과"
         facts["model"] = text
     scenarios = outlook["scenarios"]
     for name in ("management", "end"):

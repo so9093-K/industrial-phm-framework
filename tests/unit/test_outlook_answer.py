@@ -197,6 +197,26 @@ def test_the_screen_summary_joins_the_move_of_the_record_with_the_margin() -> No
     assert facts["management"].endswith("마지막 측정은 아직 도달하지 않음")
     assert facts["end"].startswith("잔여수명 · 종료 기준 15까지:")
     assert facts["model"].startswith("Isolation Forest · #123 점수 0.771 · 모델 기준 0.754 초과")
+    # The early range reads as values; a multiple of a spread nobody sees is not a fact.
+    assert "초기 비교 범위 0.432~1" in facts["departure"]
+    assert facts["departure"].endswith("· 마지막 측정 7.268 (범위 밖)")
+    assert "배 거리" not in facts["departure"]
+
+
+def test_models_that_disagree_are_all_in_the_facts() -> None:
+    outlook = _outlook()
+    quiet = {
+        **outlook["anomaly_model"],
+        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "latest": {"position": 123, "score": 0.9, "threshold": 1.77, "exceeds": False},
+        "first_exceeding": None,
+        "recent": {"results": 10, "exceeding": 0},
+    }
+    outlook["anomaly_models"] = [outlook["anomaly_model"], quiet]
+    text = outlook_facts(outlook)["model"]
+    assert text.startswith("Isolation Forest · #123 점수 0.771 · 모델 기준 0.754 초과")
+    assert "; LSTM" in text and "모델 기준 1.77 이하" in text
+    assert text.endswith("모델 2개 중 1개가 마지막 측정에서 기준 초과 (모델마다 다르게 말함)")
 
 
 @pytest.mark.parametrize(

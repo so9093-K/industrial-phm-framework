@@ -233,6 +233,10 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
         assert model["first_exceeding"]["position"] == 62
         assert model["recent"] == {"results": 10, "exceeding": 3}
         assert model["interval_count"] == 1 and model["intervals"][0]["open"] is True
+        # Both models on this input reach the briefing, the one with the most results first.
+        assert [m["binding_id"] for m in body["anomaly_models"]] == ["anomaly-a", "anomaly-b"]
+        assert body["anomaly_models"][0] == model
+        assert body["facts"]["model"].count(" · 최근 10개 중 ") == 2
         original_version = body["data_version"]
         # A long history is sampled by analyzed_between: tail and first crossing must
         # instead use exact database queries, including analyzed results past 2,000.
@@ -293,5 +297,6 @@ def test_acquisitions_report_margins_in_acquisitions_with_the_anomaly_model(
             series="feature.Horizontal_vibration_signals.rms",
         )
         assert status == 200 and unmatched["anomaly_model"] is None
+        assert unmatched["anomaly_models"] == [] and "model" not in unmatched["facts"]
     finally:
         stop()

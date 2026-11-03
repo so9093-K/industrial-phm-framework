@@ -1,6 +1,8 @@
 <script lang="ts">
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {outlookMessage} from "../analysis-messages";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
@@ -198,12 +200,16 @@
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
       {@const chart=outlookChart(projection)}
       {@const age=recordAgeText(projection.record.last, now)}
+      {@const told=outlookMessage({axis:"time",period:null,
+        unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
+        scenarios:projection.scenarios,checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">결과</h3>
           <span class="intro">{clock(projection.record.last)}까지의 기록으로 계산</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
+        {#if told}<AnalysisMessage message={told}/>{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}

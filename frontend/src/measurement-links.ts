@@ -22,6 +22,10 @@ function withParams(href: string, params: Record<string, string | number>): stri
 }
 
 type Range = {from: number; to: number};
+/** The vibration feature's measurement-by-measurement record, nothing chosen in it. */
+export function featureTrendHref(assetId: string, feature: string): string {
+  return withParams(assetTabUrl(assetId, "signals"), {vibration_feature: feature});
+}
 /** The feature comparison of one feature over two chosen ranges of measurements. */
 export function featureCompareHref(assetId: string, feature: string | null | undefined, spans: {a: Range; b: Range}): string {
   return withParams(assetTabUrl(assetId, "change", "compare", "vibration"), {

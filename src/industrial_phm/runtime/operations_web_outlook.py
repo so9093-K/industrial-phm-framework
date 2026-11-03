@@ -28,6 +28,7 @@ from industrial_phm.application.forecast import (
 from industrial_phm.application.outlook_text import outlook_facts, outlook_sentences
 from industrial_phm.application.phm_analysis import (
     PhmAnalysisError,
+    PhmBinding,
     SqlitePhmAnalysisStore,
     StepState,
 )
@@ -249,7 +250,7 @@ def condition_outlook(
                         # The first whole acquisition at or after the reaching point.
                         reached[key] = math.ceil(reached[key] / period - 1e-6)
 
-    anomaly = anomaly_evidence(
+    models = anomaly_models(
         workspace,
         asset_id,
         source_id=meta["source_id"],
@@ -257,6 +258,7 @@ def condition_outlook(
         kind=kind,
         feature=series,
     )
+    anomaly = models[0] if models else None
     # The AI briefing must be tied to the exact observations and anomaly evidence
     # that produced this outlook, not merely the same selected form fields.
     revision = hashlib.sha256(
@@ -266,7 +268,7 @@ def condition_outlook(
                 "measurements": [(t.isoformat(), v) for t, v in zip(times, values, strict=True)],
                 "source_id": meta["source_id"],
                 "measurement_point_id": meta.get("measurement_point_id"),
-                "anomaly": anomaly,
+                "anomaly": models,
             },
             sort_keys=True,
             ensure_ascii=False,
@@ -304,7 +306,10 @@ def condition_outlook(
         },
         "offset_unit": "acquisition" if acquisitions else "second",
         "scenarios": scenarios,
+        # The model with the most results first; every model is kept so one that stays quiet
+        # is never the only model the briefing hears about.
         "anomaly_model": anomaly,
+        "anomaly_models": models,
         "meaning": "remaining-margin-to-user-conditions-not-a-diagnosis",
     }
     # The screen's sentences and the facts an AI briefing may use, worded once.
@@ -322,10 +327,31 @@ def anomaly_evidence(
     kind: str,
     feature: str,
 ) -> dict[str, Any] | None:
+    """The model with the most results on the selected signal's source and input axis."""
+    models = anomaly_models(
+        workspace,
+        asset_id,
+        source_id=source_id,
+        measurement_point_id=measurement_point_id,
+        kind=kind,
+        feature=feature,
+    )
+    return models[0] if models else None
+
+
+def anomaly_models(
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    *,
+    source_id: str,
+    measurement_point_id: str | None,
+    kind: str,
+    feature: str,
+) -> list[dict[str, Any]]:
     """Only connect analysis evidence from the selected signal's source and input axis."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     if not store.path.exists():
-        return None
+        return []
     bindings = [
         binding
         for binding in store.list_bindings()
@@ -341,13 +367,15 @@ def anomaly_evidence(
         and package_task(workspace, binding.package_id) == ModelTask.ANOMALY_SCORE.value
         and (kind != "acquisition" or _package_uses_feature(workspace, binding.package_id, feature))
     ]
-    if not bindings:
-        return None
     counts = {
         binding.binding_id: store.count_between(binding.binding_id, 0, 2**62).get("analyzed", 0)
         for binding in bindings
     }
-    best = max(bindings, key=lambda binding: counts[binding.binding_id])
+    ordered = sorted(bindings, key=lambda binding: -counts[binding.binding_id])
+    return [_evidence(store, binding, counts[binding.binding_id]) for binding in ordered]
+
+
+def _evidence(store: SqlitePhmAnalysisStore, best: PhmBinding, count: int) -> dict[str, Any]:
     latest = store.latest_result(best.binding_id, state=StepState.ANALYZED)
     intervals = store.list_intervals(best.binding_id)
     exceeding_count, first_exceeding = store.analyzed_threshold_exceedance(best.binding_id)
@@ -361,8 +389,8 @@ def anomaly_evidence(
         "binding_id": best.binding_id,
         "package_id": best.package_id,
         "step_kind": best.step_kind,
-        "results": counts[best.binding_id],
-        "read": counts[best.binding_id],
+        "results": count,
+        "read": count,
         "exceeding": exceeding_count,
         "first_exceeding": None
         if first_exceeding is None

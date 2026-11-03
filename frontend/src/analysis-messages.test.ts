@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  coefficientGap, formulaLink, modelMessage, modelOnset, periodMessage, periodOnset, relationMessage, shiftedBand,
+  coefficientGap, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -109,4 +109,30 @@ test("models that disagree are named as disagreeing, with where each stands", ()
   assert.match(both.certainty!, /같은 무렵\(76번째 측정\)부터/);
   assert.equal(times(0.966), "0.97배");
   assert.equal(times(12.04), "12배");
+});
+
+test("the outlook gives every reading's reach and how far the past check lets one trust it", () => {
+  const reach = (state: string, expected: number | null = null) => ({state, expected, earliest: null, latest: null});
+  // Bearing1_1 at #100 with the user's 4 g and 6 g: four readings of the trend, the last 25 hidden for the check.
+  const facts = {axis: "acquisition" as const, period: 60, unit: "g", conditions: {management: 4, end: 6},
+    scenarios: [{id: "current", management: reach("expected", 6), end: reach("expected", 29)},
+      {id: "recent", management: reach("expected", 4), end: reach("expected", 25)},
+      {id: "responsive", management: reach("expected", 15), end: reach("possible")},
+      {id: "linear", management: reach("expected", 15), end: reach("beyond")}],
+    checks: [{points: 25, error: 1.53, naive: 1.62, coverage: 0}]};
+  const message = outlookMessage(facts)!;
+  assert.equal(message.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 4~15회(약 4분~15분) 남았습니다. "
+    + "종료 기준 6 g까지 추가 측정 25~29회(약 25분~29분) 남았습니다(계산 방식 4가지 중 2가지에서만 닿음).");
+  assert.equal(message.certainty, "기록의 마지막 25개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 0%였고, "
+    + "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다. 계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. "
+    + "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요.");
+  const good = outlookMessage({...facts, period: null, conditions: {management: 4, end: null},
+    scenarios: [{id: "current", management: reach("expected", 10), end: null}], checks: [{points: 20, error: 0.2, naive: 1, coverage: 0.9}]})!;
+  assert.equal(good.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 10회 남았습니다.");
+  assert.match(good.certainty!, /오차가 작았습니다. 과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다/);
+  const time = outlookMessage({...facts, axis: "time", period: null, conditions: {management: 4, end: 6},
+    scenarios: [{id: "current", management: reach("already"), end: reach("beyond")}], checks: []})!;
+  assert.equal(time.headline, "마지막 측정이 이미 관리 기준 4 g에 닿았습니다. 지금 추세가 이어진다고 가정하면 종료 기준 6 g에는 계산한 범위 안에서 닿지 않습니다.");
+  assert.match(time.certainty!, /과거 자료로 예측을 확인하지 못했습니다/);
+  assert.equal(outlookMessage({...facts, conditions: {management: null, end: null}}), null);
 });

@@ -3,6 +3,7 @@
  * guessed, and no sentence names a cause or a fault. */
 import type {BandShare} from "./spectrum.ts";
 import type {RatioLine} from "./model-trend.ts";
+import {elapsedText} from "./time-axis.ts";
 
 export type NextStep = {label: string; href: string};
 export type AnalysisMessage = {
@@ -247,5 +248,62 @@ export function modelMessage(reads: ModelRead[], place: (position: number) => st
       ? "서로 다른 모델이 같은 무렵(" + place(Math.min(...starts)) + ")부터 기준을 넘어, 한 모델만의 반응이 아닙니다."
       : "모델마다 기준을 넘기 시작한 때가 달라, 먼저 반응한 " + place(Math.min(...starts)) + "부터 확인하세요.";
   } else certainty = "모델 기준 아래라도 측정값 자체가 달라졌는지는 따로 확인하세요.";
+  return {headline, meaning: null, certainty, next};
+}
+
+export type OutlookReach = {state: string; expected: number | null; earliest: number | null; latest: number | null};
+export type OutlookFacts = {
+  /** Reaches count added measurements, or seconds after the last record. */
+  axis: "acquisition" | "time";
+  /** Seconds per measurement, recorded or assumed, so measurement counts can read as time. */
+  period: number | null;
+  unit: string | null;
+  conditions: {management: number | null; end: number | null};
+  scenarios: {id: string; management: OutlookReach | null; end: OutlookReach | null}[];
+  /** The latest backtest first: hidden points, mean errors and the share inside the band. */
+  checks: {points: number; error: number; naive: number; coverage: number}[];
+};
+
+function span(lo: number, hi: number, facts: OutlookFacts): string {
+  const time = (steps: number) => elapsedText(facts.axis === "time" ? steps : steps * facts.period!);
+  if (facts.axis === "time") return lo === hi ? "약 " + time(lo) : "약 " + time(lo) + "~" + time(hi);
+  const count = "추가 측정 " + (lo === hi ? lo : lo + "~" + hi) + "회";
+  return facts.period === null ? count : count + "(약 " + (lo === hi ? time(lo) : time(lo) + "~" + time(hi)) + ")";
+}
+
+/** How far each limit is across every reading of the trend, and how much past checks allow trusting it. */
+export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): AnalysisMessage | null {
+  const unit = facts.unit ? " " + facts.unit : "";
+  // What the record already shows comes first and is not an assumption; the first reach carries it.
+  const parts: string[] = [], already: string[] = [];
+  let spread = false;
+  for (const name of ["management", "end"] as const) {
+    const limit = facts.conditions[name];
+    if (limit === null || !facts.scenarios.length) continue;
+    const label = (name === "end" ? "종료 기준 " : "관리 기준 ") + short(limit) + unit;
+    const reaches = facts.scenarios.map((scenario) => scenario[name]);
+    if (reaches.some((reach) => reach?.state === "already")) { already.push("마지막 측정이 이미 " + label + "에 닿았습니다."); continue; }
+    const steps = reaches.flatMap((reach) => reach?.state === "expected" && reach.expected !== null ? [reach.expected] : []);
+    if (!steps.length) { parts.push(label + "에는 계산한 범위 안에서 닿지 않습니다."); continue; }
+    const lo = Math.min(...steps), hi = Math.max(...steps);
+    parts.push(label + "까지 " + span(lo, hi, facts) + " 남았습니다"
+      + (steps.length < reaches.length ? "(계산 방식 " + reaches.length + "가지 중 " + steps.length + "가지에서만 닿음)." : "."));
+    if (lo > 0 && hi / lo >= 2) spread = true;
+  }
+  if (!parts.length && !already.length) return null;
+  const headline = [...already, ...parts.map((part, i) => i ? part : "지금 추세가 이어진다고 가정하면 " + part)].join(" ");
+  const check = facts.checks[0];
+  let certainty: string;
+  if (!check) certainty = "기록이 짧아 과거 자료로 예측을 확인하지 못했습니다. 도달 시점은 대략의 범위로 읽으세요.";
+  else {
+    const versus = check.error < 0.8 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 작았습니다"
+      : check.error > 1.2 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 컸습니다" : "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다";
+    const weak = check.coverage < 0.5 || check.error >= 0.8 * check.naive || spread;
+    certainty = "기록의 마지막 " + check.points + "개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 "
+      + Math.round(check.coverage * 100) + "%였고, " + versus + ". "
+      + (spread ? "계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. " : "")
+      + (weak ? "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요."
+        : "과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다.");
+  }
   return {headline, meaning: null, certainty, next};
 }
