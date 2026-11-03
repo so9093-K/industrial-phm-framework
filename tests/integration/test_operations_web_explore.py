@@ -111,6 +111,10 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert len(horizontal["a"]) == len(horizontal["b"]) == len(spectrum["frequencies"])
         # B carries six times the amplitude of A: about 15 dB more power in its strongest band.
         assert max(band["change_db"] for band in horizontal["band_changes"]) > 10
+        # Six times the amplitude is about 36 times the energy; each range's shares add up to 1.
+        assert 25 < horizontal["power_ratio"] < 50
+        for name in ("a", "b"):
+            assert sum(band[name] for band in horizontal["band_shares"]) == pytest.approx(1)
 
         assert get("/api/v1/explore/profile", asset_id="bearing-a", kind="acquisition")[0] == 400
         bad = {"a_from": 4, "a_to": 1, "b_from": 5, "b_to": 8}

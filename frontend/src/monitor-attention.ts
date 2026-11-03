@@ -116,20 +116,20 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
       return model.reference&&list.some(other=>other!==model&&methodName(other)===name)?name+" ("+model.reference+")":name;
     };
     const vibration=list.some(model=>model.stepKind==="acquisition-snapshot");
-    // A run of crossings still going on is a change to look at; a latest crossing on its own is
-    // said as such, lower down, so the two never read alike.
+    // A run the model still holds open is a change to look at; a latest crossing outside any run is
+    // said lower down. Both are told by place and count, never as "continuous" or "not continuous":
+    // a run tolerates measurements below the threshold.
     const processed=list.filter(model=>model.state==="processed"&&model.analyzed);
     const sustained=processed.filter(model=>model.ongoing),lone=processed.filter(model=>!model.ongoing&&model.analyzed?.exceeds===true);
     // Say what kind of signal changed: vibration acquisitions, live electrical windows, or stored history.
     const subject=vibration?"진동":sustained.some(model=>model.stepKind==="observation-window")?"전기 신호":"측정 신호";
     if(sustained.length)add(assetId,{id:"threshold",kind:"threshold",label:subject+" 변화 확인 필요",
-      detail:sustained.map(model=>modelName(model)+" "+since(model)
-        +(model.analyzed?.exceeds===false?"부터 기준 초과 구간 · ":"부터 계속 기준 초과 · ")+model.ongoing!.steps+"회"
-        +(model.analyzed?.exceeds===false?" · 최근 측정은 기준 이하":"")).join(" / ")
-        +(lone.length?" · "+lone.map(model=>modelName(model)).join("·")+"는 최근 측정만 기준 초과":""),
+      detail:sustained.map(model=>modelName(model)+" "+since(model)+" 이후 기준 초과 "+model.ongoing!.steps+"회"
+        +" · 최근 측정은 "+(model.analyzed?.exceeds===false?"기준 이하":"기준 초과")).join(" / ")
+        +(lone.length?" · "+lone.map(model=>modelName(model)).join("·")+"는 최근 측정에서 기준 초과":""),
       href:at(sustained[0],sustained[0].analyzed!.position),action:"점수 추이 보기"});
     else if(lone.length)add(assetId,{id:"crossing",kind:"crossing",label:"최근 측정에서 모델 기준 초과",
-      detail:lone.map(model=>modelName(model)).join("·")+" · 연속 초과는 아님",
+      detail:lone.map(model=>modelName(model)).join("·")+" · 그 전 기준 초과 기록은 점수 추이에서 확인",
       href:at(lone[0],lone[0].analyzed!.position),action:"점수 추이 보기"});
     const refused=list.filter(model=>model.state==="rejected");
     if(refused.length)add(assetId,{id:"refusal",kind:"refusal",label:vibration?"최근 진동 파형을 분석하지 못함":"최근 측정 입력을 분석하지 못함",

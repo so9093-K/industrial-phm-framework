@@ -21,6 +21,19 @@ function withParams(href: string, params: Record<string, string | number>): stri
   return url.pathname + url.search;
 }
 
+type Range = {from: number; to: number};
+/** The vibration feature's measurement-by-measurement record, nothing chosen in it. */
+export function featureTrendHref(assetId: string, feature: string): string {
+  return withParams(assetTabUrl(assetId, "signals"), {vibration_feature: feature});
+}
+/** The feature comparison of one feature over two chosen ranges of measurements. */
+export function featureCompareHref(assetId: string, feature: string | null | undefined, spans: {a: Range; b: Range}): string {
+  return withParams(assetTabUrl(assetId, "change", "compare", "vibration"), {
+    feature_a_from: spans.a.from, feature_a_to: spans.a.to, feature_b_from: spans.b.from, feature_b_to: spans.b.to,
+    ...(feature ? {acquisition_feature: feature} : {}),
+  });
+}
+
 export function measurementLinks(assetId: string, ordinal: number, context: MeasurementContext,
   omit: MeasurementLink["key"] | null = null): MeasurementLink[] {
   const {first, last, feature, bindingId} = context;
@@ -38,11 +51,8 @@ export function measurementLinks(assetId: string, ordinal: number, context: Meas
       href: withParams(assetTabUrl(assetId, "change", "spectrum"),
         {spectrum_a_from: ordinal - 1, spectrum_a_to: ordinal - 1, spectrum_b_from: ordinal, spectrum_b_to: ordinal})});
     links.push({key: "features", label: "앞뒤 " + AROUND + "회 특징 비교",
-      href: withParams(assetTabUrl(assetId, "change", "compare", "vibration"), {
-        feature_a_from: Math.max(first, ordinal - AROUND), feature_a_to: ordinal - 1,
-        feature_b_from: ordinal, feature_b_to: Math.min(last, ordinal + AROUND - 1),
-        ...(feature ? {acquisition_feature: feature} : {}),
-      })});
+      href: featureCompareHref(assetId, feature, {a: {from: Math.max(first, ordinal - AROUND), to: ordinal - 1},
+        b: {from: ordinal, to: Math.min(last, ordinal + AROUND - 1)}})});
   }
   return links.filter((link) => link.key !== omit);
 }

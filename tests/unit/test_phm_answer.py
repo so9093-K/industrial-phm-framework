@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +54,15 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
         "threshold_ratio": 1.79,
     }
     rows = {item["id"]: item for item in payload["candidates"]}
-    assert rows[RMS] == {"id": RMS, "label": "수평 진동 RMS", "change": "증가", "size": "뚜렷함"}
+    # A vibration's standard deviation is its RMS when the mean is about zero: one fact, not two.
+    assert rows[RMS] == {
+        "id": RMS,
+        "label": "수평 진동 RMS",
+        "change": "증가",
+        "size": "뚜렷함",
+        "same_as": ["수평 진동 표준편차"],
+    }
+    assert "feature.Horizontal_vibration_signals.standard_deviation" not in rows
     assert rows[VERTICAL]["change"] == "거의 같음"
     assert rows["feature.Horizontal_vibration_signals.skewness"]["size"] is None
     # The other model on the same input carries its direction and its own threshold verdict,
@@ -369,3 +378,48 @@ def test_natural_threshold_negation_and_named_subjects(
     payload["primary"]["model"] = "LSTM 오토인코더"
     payload["related_models"] = [{"name": "Isolation Forest", "reference": "모델 기준 이하"}]
     assert (not phm_answer._threshold_issues(text, payload)) is valid
+
+
+def test_candidates_say_where_the_value_sits_against_the_assets_earlier_results(
+    contexts: dict[str, Any],
+) -> None:
+    context = deepcopy(contexts["anomaly-a"])
+    for row in context["signal_comparison"]["features"]:
+        row["usual"] = {"low": row["current"] - 1, "high": row["current"] + 1, "results": 40}
+        if row["feature"] == RMS:
+            row["usual"] = {"low": 0.0, "high": row["current"] / 2, "results": 40}
+    rows = {item["id"]: item for item in answer_input(context)["candidates"]}
+    assert rows[RMS]["usual"] == "평소보다 높음"
+    assert rows[VERTICAL]["usual"] == "평소 범위 안"
+    context["signal_comparison"]["features"][0]["learned"] = {"low": -1e9, "high": -1e8}
+    first = context["signal_comparison"]["features"][0]["feature"]
+    learned = {item["id"]: item for item in answer_input(context)["candidates"]}[first]
+    assert learned["learned"] == "학습값 주된 범위보다 높음"
+
+
+def test_the_range_reading_tells_an_unusual_value_from_one_the_model_never_learned() -> None:
+    from industrial_phm.genai.phm_answer import range_reading
+
+    def row(name: str, current: float, usual: tuple[float, float], learned: tuple[float, float]):
+        return {
+            "feature": name,
+            "label": name,
+            "current": current,
+            "previous": current,
+            "usual": {"low": usual[0], "high": usual[1], "results": 900},
+            "learned": {"low": learned[0], "high": learned[1]},
+        }
+
+    stopped = [
+        row("전류 평균", 0.0, (0.0, 69.0), (44.2, 69.1)),
+        row("전압", 225.0, (218, 226), (218, 226)),
+    ]
+    text = range_reading(stopped, {})
+    assert text is not None and text.startswith(
+        "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이지만"
+    )
+    assert "전류 평균(학습값 주된 범위보다 낮음)" in text and "전압(" not in text
+    assert "배운 적" not in text and "운전 조건을 먼저 확인" in text
+    first = [row("전류 평균", 0.0, (43.5, 68.8), (44.2, 69.1))]
+    assert range_reading(first, {}) == "이 설비의 평소 범위를 벗어난 값: 전류 평균(평소보다 낮음)"
+    assert range_reading([{**stopped[0], "usual": None}], {}) is None

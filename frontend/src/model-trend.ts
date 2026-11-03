@@ -28,8 +28,9 @@ export type ExceedanceStory = {
   /** Whether the latest analyzed measurement is over the threshold; a run stays open for the
    * model's allowed gap, so it can still be open while the latest one is below. */
   lastExceeds: boolean | null;
-  /** Before the anchor: runs that ended, measurements over the threshold outside any run. */
-  earlierRuns: number; earlierSingles: number;
+  /** Before the anchor: runs that ended, measurements over the threshold outside any run, and every
+   * measurement over the threshold, counted one by one. */
+  earlierRuns: number; earlierSingles: number; earlierCount: number;
   first: ThresholdExceedance | null;
 };
 export function exceedanceStory(trend: ScoreTrend): ExceedanceStory {
@@ -46,23 +47,27 @@ export function exceedanceStory(trend: ScoreTrend): ExceedanceStory {
   return {state, anchor, ongoing, lastExceeds: last?.exceeds ?? null,
     earlierRuns: trend.intervals.filter((run) => !run.open && run.end < before).length,
     earlierSingles: over.filter((point) => point.pointer.position < before && !inRun(point.pointer.position)).length,
+    earlierCount: over.filter((point) => point.pointer.position < before).length,
     first: over[0] ?? null};
 }
-/** The headline and the line under it for a story, in the words of the screen. */
-export function exceedanceText(story: ExceedanceStory, place: (position: number) => string):
-  {headline: string; earlier: string | null} | null {
+/** The headline and the line under it for a story, in the words of the screen. Only what was
+ * observed is said: where the measurements over the threshold are, how many, and how the latest
+ * analyzed one stands. The model's run rule tolerates measurements below the threshold inside a run,
+ * so a run is never called "continuous", and a lone crossing is never called "not continuous". */
+export function exceedanceText(story: ExceedanceStory, place: (position: number) => string,
+  /** What the last analyzed measurement is to the reader: the latest one, or the one a past review
+   * was about when the record is cut there. */
+  last = "최근 측정"): {headline: string; earlier: string | null} | null {
   if (story.state === "none" || !story.anchor) return null;
   const at = place(story.anchor.pointer.position);
   const headline = story.state === "ongoing"
-    ? story.lastExceeds === false ? at + "부터 기준 초과 구간 · " + story.ongoing!.steps + "회 · 최근 측정은 기준 이하"
-      : at + "부터 계속 기준 초과 · " + story.ongoing!.steps + "회"
-    : story.state === "latest" ? at + "에서 기준 초과 · 연속 초과는 아님"
-    : "지금은 기준 이하 · 마지막 기준 초과 " + at;
+    ? at + " 이후 기준 초과 " + story.ongoing!.steps + "회 · " + last + "은 " + (story.lastExceeds === false ? "기준 이하" : "기준 초과")
+    : story.state === "latest" ? last + "(" + at + ")에서 기준 초과"
+    : last + "은 기준 이하 · 마지막 기준 초과 " + at;
   const parts: string[] = [];
-  if (story.earlierRuns) parts.push("끝난 기준 초과 구간 " + story.earlierRuns + "개");
-  if (story.earlierSingles) parts.push("한 번만 넘은 측정 " + story.earlierSingles + "번");
+  if (story.earlierCount) parts.push("기준 초과 " + story.earlierCount + "회");
   if (story.first && story.first.pointer.position < story.anchor.pointer.position)
-    parts.push("처음 기준을 넘은 때 " + place(story.first.pointer.position));
+    parts.push("처음 기준 초과 " + place(story.first.pointer.position));
   return {headline, earlier: parts.length ? "그 전 · " + parts.join(" · ") : null};
 }
 

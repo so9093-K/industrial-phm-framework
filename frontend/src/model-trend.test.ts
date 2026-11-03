@@ -83,7 +83,7 @@ test("the first exceeded measurement is visible even without a sustained interva
   assert.equal(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00"}, null), null);
 });
 
-test("a run still going on is read first; one-off and ended crossings are counted, not led with", () => {
+test("a run still going on is read first; earlier crossings are counted one by one, not named by kind", () => {
   const point = (position: number, exceeds: boolean): TrendPoint => ({
     pointer: {position, runId: "run-" + position, state: "analyzed", stepKey: "k" + position, changeSeq: position, reason: null},
     score: exceeds ? 2 : 0.5, threshold: 1, exceeds, eventStart: null});
@@ -95,22 +95,23 @@ test("a run still going on is read first; one-off and ended crossings are counte
   const story = exceedanceStory(sustained);
   assert.equal(story.state, "ongoing");
   assert.equal(story.anchor?.pointer.position, 9);
-  assert.deepEqual(exceedanceText(story, place), {headline: "#9부터 계속 기준 초과 · 4회",
-    earlier: "그 전 · 끝난 기준 초과 구간 1개 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #2"});
+  assert.deepEqual(exceedanceText(story, place), {headline: "#9 이후 기준 초과 4회 · 최근 측정은 기준 초과",
+    earlier: "그 전 · 기준 초과 3회 · 처음 기준 초과 #2"});
   // A run still open within the model's allowed gap, with the latest measurement below.
   const gap = exceedanceStory({points: over([9, 10, 11]), truncated: false,
     intervals: [{start: 9, end: 11, steps: 3, peak: 2, open: true}]});
-  assert.equal(exceedanceText(gap, place)?.headline, "#9부터 기준 초과 구간 · 3회 · 최근 측정은 기준 이하");
+  assert.equal(exceedanceText(gap, place)?.headline, "#9 이후 기준 초과 3회 · 최근 측정은 기준 이하");
   // The latest measurement crosses alone: said as such, never as "since".
   const lone = exceedanceStory({points: over([7, 12]), intervals: [], truncated: false});
   assert.equal(lone.state, "latest");
-  assert.deepEqual(exceedanceText(lone, place), {headline: "#12에서 기준 초과 · 연속 초과는 아님",
-    earlier: "그 전 · 한 번만 넘은 측정 1번 · 처음 기준을 넘은 때 #7"});
+  // Two lone crossings (#7, #12) read as what they are, not as "the latest only" or "not continuous".
+  assert.deepEqual(exceedanceText(lone, place), {headline: "최근 측정(#12)에서 기준 초과",
+    earlier: "그 전 · 기준 초과 1회 · 처음 기준 초과 #7"});
   // Crossed earlier, below now.
   const below = exceedanceStory({points: over([3, 6, 7]), truncated: false,
     intervals: [{start: 6, end: 7, steps: 2, peak: 2, open: false}]});
   assert.equal(below.state, "below");
-  assert.equal(exceedanceText(below, place)?.headline, "지금은 기준 이하 · 마지막 기준 초과 #7");
+  assert.equal(exceedanceText(below, place)?.headline, "최근 측정은 기준 이하 · 마지막 기준 초과 #7");
   assert.equal(exceedanceText(exceedanceStory({points: over([]), intervals: [], truncated: false}), place), null);
 });
 

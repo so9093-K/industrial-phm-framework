@@ -27,7 +27,10 @@ test("since when, as it stood at the reviewed measurement", () => {
   const points = Array.from({length: 12}, (_, i) => point(i + 1, i + 1 >= 6));
   const trend = {points, truncated: false, intervals: [{start: 6, end: 12, steps: 7, peak: 2, open: true}]};
   // Reviewing #8: the run held #8 then, with three crossings so far; later measurements are not counted.
-  assert.equal(exceedanceText(exceedanceStory(asOf(trend, 8, 3)), (at) => "#" + at)?.headline, "#6부터 계속 기준 초과 · 3회");
+  assert.equal(exceedanceText(exceedanceStory(asOf(trend, 8, 3)), (at) => "#" + at)?.headline, "#6 이후 기준 초과 3회 · 최근 측정은 기준 초과");
+  // A past review cuts the record at the reviewed measurement: the last one is that, not the latest.
+  assert.equal(exceedanceText(exceedanceStory(asOf(trend, 8, 3)), (at) => "#" + at, "검토 대상 측정")?.headline,
+    "#6 이후 기준 초과 3회 · 검토 대상 측정은 기준 초과");
   // A later confirmed run must not make its first crossing look confirmed already.
   assert.equal(exceedanceStory(asOf(trend, 7, 3)).state, "latest");
   assert.equal(exceedanceStory(asOf(trend, 8, 5)).state, "latest");

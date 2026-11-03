@@ -10,6 +10,10 @@
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {periodMessage,periodOnset,type NextStep} from "../analysis-messages";
+  import {measurementLinks} from "../measurement-links";
+  import type {AcquisitionTrend} from "../acquisition-trend";
   import {
     FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,
     type FeatureSource,type FeatureProfile,
@@ -121,6 +125,22 @@
   }
   onMount(()=>{void loadSource();return()=>{listAbort?.abort();profileAbort?.abort();};});
   const label=(value:number|null)=>num(value);
+  // Every stored value of the feature, when none was left out, to find where B first changed.
+  let record:AcquisitionTrend|null=$state(null);
+  const LINK_TEXT:Record<string,string>={trend:"그 측정을 특징 추이에서 보기",model:"그 측정의 원본 파형·모델 점수",
+    spectrum:"그 측정을 바로 앞 측정과 주파수 비교"};
+  const told=$derived.by(()=>{
+    const read:FeatureProfile|null=profile,src:FeatureSource|null=source,values:AcquisitionTrend|null=record;
+    if(!read||!src)return null;
+    const low=read.a.quantiles?.[0]??null,high=read.a.quantiles?.[4]??null;
+    const onset=values&&!values.sampled&&values.feature===read.featureId&&low!==null&&high!==null
+      ?periodOnset(values.points,read.spans.b,low,high):null;
+    const next:NextStep[]=onset?measurementLinks(assetId,onset.first,{first:src.first,last:src.last,
+      feature:read.featureId,bindingId:src.bindingId},"features").map(link=>({label:LINK_TEXT[link.key],href:link.href})):[];
+    return periodMessage({unit:read.unit??null,a:{usable:read.a.usable,median:read.a.median,low,high},
+      b:{usable:read.b.usable,median:read.b.median},outsideCount:read.outsideCount,outsidePercent:read.outsidePercent,
+      medianChangePercent:read.medianChangePercent,onset},place,next);
+  });
 </script>
 
 <section class="ui-panel acquisition" aria-labelledby="feature-title">
@@ -169,7 +189,8 @@
         <h3>{profile.label}</h3>
         <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
           · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
-        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans}/>
+        {#if told}<AnalysisMessage message={told}/>{/if}
+        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} onLoad={read=>record=read}/>
         <h3>두 기간의 분포 비교</h3>
         {#if profile.medianChange===null}
           <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />

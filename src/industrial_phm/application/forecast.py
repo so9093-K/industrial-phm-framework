@@ -223,7 +223,7 @@ def forecast_values(
             if rolling_backtests
             else None
         ),
-        "backtest": _backtest(
+        "backtest": backtest(
             times,
             observed,
             horizon_seconds,
@@ -336,7 +336,7 @@ def _threshold(
     }
 
 
-def _backtest(
+def backtest(
     times: Sequence[datetime],
     observed: np.ndarray,
     horizon_seconds: float,

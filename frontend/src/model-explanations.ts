@@ -9,6 +9,10 @@ export type FeatureChange={
   feature:string;label:string;current:number;previous:number|null;relativePercent:number|null;
   /** The feature's unit when the stream declares one (an RMS in g); ratios have none. */
   unit?:string|null;
+  /** Where the feature usually sits: 5–95% of the model's results before the comparison. */
+  usual?:{low:number;high:number;results:number}|null;
+  /** The 5–95% range of the rows the model was fitted on, when its package kept them. */
+  learned?:{low:number;high:number}|null;
 };
 export type Relation="increased"|"decreased"|"unchanged";
 export type AnswerSource="model"|"model-trimmed"|"verified-comparison";

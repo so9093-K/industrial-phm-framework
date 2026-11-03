@@ -20,7 +20,7 @@ const payload=()=>({
  series:[{kind:"acquisition",key:"feature.R.rms",label:"R RMS",
   source_id:"source-A",binding_id:"binding-A",
   periods:{a:period(20,false),b:period(12,true)},
-  comparison:{median_change:0,b_outside_a_band_percent:25},
+  comparison:{median_change:0,median_change_percent:0,b_outside_a_band:3,b_outside_a_band_percent:25} as Record<string,unknown>,
  }],
 });
 test("acquisition feature names and server scope are exact",()=>{
@@ -38,6 +38,10 @@ test("ordinal periods, sampled metrics and provenance are retained",()=>{
  assert.equal(x.b.sampled,true);
  assert.equal(x.b.missingAcquisitions,1);
  assert.equal(x.medianChange,0);
+ assert.equal(x.outsideCount,3);
+ assert.equal(x.medianChangePercent,0);
+ const more=payload();more.series[0].comparison.b_outside_a_band=13;
+ assert.throws(()=>parseFeatureProfile(more,"motor",source,"feature.R.rms",spans),/기준 분포 밖 측정 수/);
 });
 test("mixed asset, binding and range reject the entire comparison",()=>{
  assert.throws(()=>parseFeatureProfile({...payload(),asset_id:"different"},

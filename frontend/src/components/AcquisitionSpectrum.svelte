@@ -9,6 +9,8 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {spectrumMessage,times} from "../analysis-messages";
   import {readAcquisition,readSpectrum,defaultSpans,validateSpans,
     SpectrumUnavailable,WaveformUnavailable,
     type Acquisition,type Spans,type Spectrum,type SpectrumChannel} from "../spectrum";
@@ -26,6 +28,16 @@
   });
   const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
+  // Where the first measurement of B stands against the one before it answers "since when".
+  const B_START:Record<string,string>={spectrum:"기간 B 첫 측정을 바로 앞 측정과 주파수 비교",model:"기간 B 첫 측정의 원본 파형·모델 점수"};
+  const message=$derived.by(()=>{
+    const read:Spectrum|null=result,source:Acquisition|null=acquisition;
+    if(!read||!source||!read.used.b.length)return null;
+    const next=measurementLinks(assetId,Math.min(...read.used.b),{first:source.first,last:source.last,bindingId:source.binding})
+      .filter(link=>link.key in B_START).map(link=>({label:B_START[link.key],href:link.href}));
+    return spectrumMessage(read.channels.map(channel=>({label:channel.label,ratio:channel.ratio,shares:channel.shares})),
+      {a:read.used.a.length,b:read.used.b.length},next);
+  });
   let sourceRequest:AbortController|null=null;
   let spectrumRequest:AbortController|null=null;
 
@@ -156,6 +168,7 @@
     {:else if resultState==="empty"}
       <StatusNotice message="두 기간을 고르고 주파수 비교하기를 누르세요."/>
     {:else if result}
+      {#if message}<AnalysisMessage {message}/>{/if}
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
       <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
       {#each result.channels as channel(channel.id)}
@@ -182,7 +195,7 @@
             <ol>
               {#each changed as band,i(i)}
                 <li>{band.from.toFixed(1)}–{band.to.toFixed(1)}Hz
-                  · B/A 세기 변화 {band.changeDb.toFixed(2)}dB</li>
+                  · 기간 B 세기가 기간 A의 {times(10**(band.changeDb/10))} ({band.changeDb.toFixed(1)} dB)</li>
               {/each}
             </ol>
           {:else if channel.bands.length}

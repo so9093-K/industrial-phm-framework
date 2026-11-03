@@ -15,6 +15,8 @@ from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, Step
 from industrial_phm.application.phm_range import range_analysis
 from industrial_phm.application.phm_read import project_phm_bindings
 from industrial_phm.application.phm_signal_comparison import (
+    attach_learned_ranges,
+    attach_usual_ranges,
     feature_comparison,
     feature_label,
     raw_signal_summary,
@@ -181,6 +183,8 @@ def explanation_context(
             "previous_position": previous.position if previous else None,
         }
     features = feature_comparison(result, previous)
+    attach_usual_ranges(store, binding_id, features, (previous or result).position - 1)
+    attach_learned_ranges(models_root, binding.package_id, features)
     signal_comparison: dict[str, Any] = {
         "current_position": position,
         "previous_position": None if previous is None else previous.position,
@@ -304,9 +308,9 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
         # Keep that output unchanged in storage; omit its delta from this comparison.
         output.pop("change_from_previous", None)
     task = output.get("task")
-    model = context.get("model") or {}
-    recipe = str(model.get("recipe_id") or "")
-    label = "재구성 오차" if "pca" in recipe or "autoencoder" in recipe else "이상 점수"
+    # One name for every anomaly model's output, as the screen shows it; how a model computes
+    # its score (reconstruction error, isolation depth) stays in the model details.
+    label = "이상 점수"
     facts = []
     if task == "anomaly-score":
         facts.append(

@@ -131,3 +131,19 @@ def test_request_rejects_invalid_question_without_starting_a_job(
     with pytest.raises(ValueError):
         request_phm_explanation(tmp_path, {"binding_id": "anomaly-a", "position": 3, **extra})
     assert not (tmp_path / "phm-explanations.sqlite").exists()
+
+
+def test_a_usual_range_needs_enough_earlier_results_and_skips_missing_values() -> None:
+    from types import SimpleNamespace
+
+    from industrial_phm.application.phm_signal_comparison import usual_ranges
+
+    rms = "feature.H.rms"
+    earlier = [SimpleNamespace(features={rms: 0.5 + 0.01 * i}) for i in range(40)]
+    earlier += [SimpleNamespace(features={rms: float("nan")}), SimpleNamespace(features=None)]
+    usual = usual_ranges(earlier, [rms, "feature.H.absent"])  # type: ignore[arg-type]
+    assert set(usual) == {rms}
+    assert usual[rms]["results"] == 40
+    assert usual[rms]["low"] == pytest.approx(0.5195)
+    assert usual[rms]["high"] == pytest.approx(0.8705)
+    assert usual_ranges(earlier[:19], [rms]) == {}  # type: ignore[arg-type]

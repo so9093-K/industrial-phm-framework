@@ -17,6 +17,7 @@ from typing import Any
 
 from industrial_phm.application.outlook_text import (
     FACT_LABEL,
+    check_is_weak,
     condition_reach,
     difference_sentences,
 )
@@ -40,7 +41,14 @@ _INSTRUCTIONS = (
     "읽는지, 추세를 얼마나 따르는지)를 설명하세요. 상태와 여유를 함께 물으면 측정값의 "
     "움직임(change, rate, departure)이 기준까지의 여유(management, end)로 어떻게 이어지는지 "
     "연결하세요. 교체·정비 시점을 물으면 이 화면은 정비 시점을 정하지 않는다고 한 번 말하고 "
-    "management·end의 여유로 답하세요. points: summary를 뒷받침하는 사실 1~4개입니다. text는 "
+    "management·end의 여유로 답하세요. links는 측정값과 이상 탐지 모델들이 같은 무렵을 "
+    "가리키는지, 이상 탐지 모델끼리 어긋나는지입니다. 상태나 변화를 물으면 links를 먼저 쓰고, "
+    "이상 탐지 모델이 어긋나면 그 사실을 숨기지 마세요. 이상 탐지 모델과 여유를 계산하는 "
+    "읽는 방법(readings)은 서로 다른 것이니 섞어 말하지 마세요. 기준까지의 여유를 말할 "
+    "때는 check로 그 숫자를 얼마나 믿을 수 있는지 함께 말하세요. 무엇을 확인하거나 해야 "
+    "하는지 물으면 next에 있는 항목 중에서 근거와 함께 고르고, next에 없는 행동은 제안하지 "
+    "마세요. "
+    "points: summary를 뒷받침하는 사실 1~4개입니다. text는 "
     "한 문장, evidence는 그 문장이 기대는 facts의 키입니다. 규칙: 숫자와 시점은 facts에 쓰인 "
     "표기를 그대로 옮기고, 새로 계산하거나 반올림하거나 단위를 바꾸지 마세요. "
     "시간 환산 조건을 함께 밝히고, 측정 횟수와 기록 번호·파형 샘플 수를 혼동하지 마세요. "
@@ -341,7 +349,7 @@ def generate_outlook_briefing(
     except AnalysisExplanationError:
         answer = computed_briefing(outlook, question)
         answer["checks"] = {"source": "computed", "model_unavailable": True}
-        return with_evidence(answer, facts)
+        return with_evidence(with_check(answer, outlook), facts)
     answer, issues = check_briefing(raw, facts, reach)
     first_issues = list(issues)
     if issues:
@@ -375,7 +383,27 @@ def generate_outlook_briefing(
         "first_issues": first_issues,
         "remaining_issues": issues,
     }
-    return with_evidence(answer, facts)
+    return with_evidence(with_check(answer, outlook), facts)
+
+
+def with_check(answer: dict[str, Any], outlook: dict[str, Any]) -> dict[str, Any]:
+    """A margin is never shown without how far the past check lets one trust it."""
+    check = outlook.get("check")
+    cited = {key for point in answer["points"] for key in point["evidence"]}
+    if not check or "check" in cited or not cited & {"management", "end"}:
+        return answer
+    point = {
+        "text": f"기록의 마지막 {check['points']}개를 가리고 같은 방법으로 예측했을 때 실제 값이 "
+        f"예측 범위 안에 든 비율은 {round(check['inside_interval'] * 100)}%"
+        + (
+            "여서, 기준까지의 여유는 정확한 시각이 아니라 대략의 범위로 읽어야 합니다."
+            if check_is_weak(check)
+            else "로, 예측이 실제 값을 대체로 따라갔습니다."
+        ),
+        "evidence": ["check"],
+    }
+    answer["points"] = [*answer["points"][: _MAX_POINTS - 1], point]
+    return answer
 
 
 def with_evidence(answer: dict[str, Any], facts: dict[str, str]) -> dict[str, Any]:

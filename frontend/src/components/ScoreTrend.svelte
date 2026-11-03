@@ -122,7 +122,7 @@
         <text x={RIGHT} y={H - 6} text-anchor="end" class="label">{place(scale.last)}</text>
       {/if}
     </svg>
-    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준을 넘었다고 표시한 구간입니다.{first ? (story?.state === "ongoing" ? " 세로 점선은 지금 이어지는 기준 초과가 시작된 측정입니다." : " 세로 점선은 위에 적은 측정입니다.") : ""}</p>
+    <p class="context">점을 누르면 그 측정의 점수와 원본을 아래에서 봅니다. 음영은 모델이 기준 초과 구간으로 묶은 범위로, 중간에 기준 아래 측정이 있을 수 있습니다.{first ? (story?.state === "ongoing" ? " 세로 점선은 위에 적은 기준 초과 구간의 시작 측정입니다." : " 세로 점선은 위에 적은 측정입니다.") : ""}</p>
     {#if trend.intervals.length}
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}

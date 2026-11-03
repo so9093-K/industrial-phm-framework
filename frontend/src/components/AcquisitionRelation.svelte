@@ -8,6 +8,9 @@
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
   import {strength} from "../relation";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {formulaLink,middle,relationMessage} from "../analysis-messages";
+  import {featureCompareHref} from "../measurement-links";
   import {loadFeatureSource,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {
@@ -122,6 +125,20 @@
       ymin:Math.min(...points.map(p=>p.y)), ymax:Math.max(...points.map(p=>p.y))} : null;
   });
   const featureLabel = (id:string) => source?.features.find(item=>item.id===id)?.label ?? id;
+  const message = $derived.by(() => {
+    const read:AcquisitionRelation|null = relation;
+    const ga = read?.groups.find(group=>group.period==="a"), gb = read?.groups.find(group=>group.period==="b");
+    if(!read||!ga||!gb)return null;
+    const side = (group:typeof ga) => ({pearson:group.pearson,spearman:group.spearman,pairs:group.pairs});
+    // The crest factor's own median per period, only when every pair is in hand.
+    const link = formulaLink(read.x,read.y);
+    const axis = link==="crest"||link==="crest-rms" ? (read.x.endsWith(".crest_factor") ? "x" : "y") : null;
+    const whole = (group:typeof ga) => group.points.length===group.pairs;
+    const crest = axis&&whole(ga)&&whole(gb)
+      ? {a:middle(ga.points.map(p=>p[axis])),b:middle(gb.points.map(p=>p[axis]))} : null;
+    return relationMessage(read.x,read.y,side(ga),side(gb),crest,[read.x,read.y].map(id=>({
+      label:featureLabel(id)+" 두 기간 비교",href:featureCompareHref(assetId,id,read.spans)})));
+  });
   onMount(()=>{void load();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 </script>
 
@@ -170,6 +187,7 @@
     {:else if resultState==="unavailable"}
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={error}/>
     {:else if relation}
+      {#if message}<AnalysisMessage {message}/>{/if}
       {#each relation.groups as group(group.period)}
         <section class="group">
           <h3>기간 {group.period.toUpperCase()} · {place(spans[group.period].from)} ~ {place(spans[group.period].to)}</h3>
