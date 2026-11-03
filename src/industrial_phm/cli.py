@@ -294,8 +294,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--prepare-only",
         action="store_true",
         help=(
-            "fit, replay and write the guided investigation, then exit without starting "
-            "Operations (for compose.xjtu.yaml or another host)"
+            "prepare/reuse XJTU-SY model packages, bind and replay recorded acquisitions; "
+            "exit without starting Operations"
         ),
     )
     demo_xjtu.set_defaults(handler=_run_demo_xjtu)

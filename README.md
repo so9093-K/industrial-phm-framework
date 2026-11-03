@@ -47,7 +47,7 @@ uv sync --locked --extra operations
 uv run industrial-phm demo xjtu --until 100
 ```
 
-실측 원본은 `data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets`에 준비합니다. `--until` 없이 실행하면 해당 베어링의 전체 기록을 사용하며, `--source`·`--bearing`·`--workspace` 옵션으로 입력을 바꿀 수 있습니다. 호스트에서 준비한 실제 데이터 작업공간을 컨테이너에 연결하려면 `compose.xjtu.yaml`을 사용합니다.
+실측 원본은 `data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets`에 준비합니다. `--until` 없이 실행하면 해당 베어링의 전체 기록을 사용하며, `--source`·`--bearing`·`--workspace` 옵션으로 입력을 바꿀 수 있습니다. 실측 기록은 `industrial-phm demo xjtu`가 지정한 로컬 Operations 작업공간에 재생합니다. `--prepare-only`를 사용하면 모델 준비와 실측 기록 재생 후 Web을 시작하지 않고 종료합니다.
 
 **AI-Hub 239:** 보일러·압출기·공기압축기의 전기적 측정 이력을 로컬에서 준비하고, 파일 이력 및 기록 기반 OPC UA 재생에 활용합니다. 보일러 기록 재생은 `uv run industrial-phm demo aihub-boiler`를 사용하며 원본 아카이브와 관련 선택 의존성이 필요합니다.
 
