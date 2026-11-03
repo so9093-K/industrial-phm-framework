@@ -75,16 +75,39 @@
   }
 </script>
 
-<section class="ui-panel" aria-labelledby="state-title">
+<section class="ui-panel facts-panel" aria-labelledby="summary-title">
+  <h2 id="summary-title">측정 현황</h2>
+  {#if notesState === "partial" || notesState === "failed"}
+    <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
+      actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
+  {/if}
+  <dl class="facts">
+    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
+    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
+      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
+    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
+    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
+  </dl>
+  <h3 class="recent">최근 변화·확인할 항목</h3>
+  {#if notesState === "loading"}
+    <p class="context">확인할 항목을 읽고 있습니다.</p>
+  {:else if departures.length || others.length}
+    <ul class="others">
+      {#each [...departures, ...others] as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
+    </ul>
+  {:else if notes}
+    <p class="context">지금 표시할 변화나 확인 항목이 없습니다.</p>
+  {/if}
+  <p class="context"><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 추이 보기 →</a></p>
+</section>
+
+<section class="ui-panel scores-panel" aria-labelledby="state-title">
   <h2 id="state-title">이상 징후</h2>
   {#if scoreState === "loading"}
     <p class="context">최근 모델 점수를 불러오고 있습니다.</p>
   {:else if scoreState === "failed"}
     <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다. 이상이 없다는 뜻은 아닙니다." />
   {:else if !scores.length}
-    {#each departures as note (note.id)}
-      <p class="departure"><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></p>
-    {/each}
     <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
       {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}
       {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
@@ -109,26 +132,6 @@
   {/if}
 </section>
 
-<section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <h2 id="summary-title">측정 현황</h2>
-  {#if notesState === "partial" || notesState === "failed"}
-    <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
-      actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
-  {/if}
-  <dl class="facts">
-    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
-    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
-      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
-    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
-    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
-  </dl>
-  {#if others.length}
-    <ul class="others">
-      {#each others as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
-    </ul>
-  {/if}
-</section>
-
 <section class="ui-panel next">
   <AnalysisOptions assetId={asset.assetId} />
   <p class="context"><a href={routeUrl({page: "investigations", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
@@ -146,7 +149,8 @@
   dt { font-size: var(--font-small); color: var(--color-ink-muted); }
   dd { margin: var(--space-2) 0 0; font-weight: 700; overflow-wrap: anywhere; }
   dd small { display: block; margin-top: var(--space-1); font-weight: 400; font-size: var(--font-small); color: var(--color-ink-muted); }
-  .next, .facts-panel { margin-top: var(--space-4); }
+  .next, .scores-panel { margin-top: var(--space-4); }
+  .recent { font-size: var(--font-body); margin: var(--space-5) 0 var(--space-2); }
   .next { display: grid; gap: var(--space-3); }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
@@ -154,7 +158,7 @@
   .scores .verdict { font-size: var(--font-section); }
   .split { margin: 0; padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); overflow-wrap: anywhere; }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
-  .departure, .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
-  .departure span, .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
-  .others { list-style: none; margin: var(--space-4) 0 0; padding: 0; }
+  .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
+  .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .others { list-style: none; margin: 0; padding: 0; }
 </style>

@@ -124,7 +124,7 @@
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
   <h2 id="acq-outlook-title">기준 도달 전망</h2>
-  <p class="context">진동 특징의 추세를 Prophet으로 예측하고, 사용자가 정한 관리·종료 기준에 몇 번째 측정에서 닿는지 계산합니다. 종료 기준까지 남은 측정은 조건부 잔여수명(RUL)입니다.</p>
+  <p class="context">지금 추세가 이어지면 사용자가 정한 관리·종료 기준에 몇 번째 측정에서 닿는지 계산합니다. 종료 기준까지의 예상 여유는 그 기준을 전제로 한 값이며 실제 고장까지 남은 수명이 아닙니다.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -205,8 +205,9 @@
                 {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
             {/if}
             {#if outlook.conditions.end!==null}
-              <div><span>조건부 잔여수명(RUL) · 종료 기준 {measure(outlook.conditions.end!, outlook.unit)}{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
-                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}</div>
+              <div><span>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
+                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}
+                <span>조건부 잔여수명(RUL) · 고른 종료 기준을 전제로 한 값</span></div>
             {/if}
           </div>
         {:else}
