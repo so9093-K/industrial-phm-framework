@@ -95,6 +95,24 @@ export function zoomWindow(span: Span): Span | null {
   return {from: span.from - length * 1.25, to: span.to + length / 2};
 }
 
+/** A source handed over from another screen. `point` absent means any measurement point of it;
+ * null means only the records stored without a measurement point (sent as an empty value,
+ * which no real identifier can be). */
+export type SourceFocus = {source: string; point?: string | null};
+export function focusFrom(params: URLSearchParams): SourceFocus | null {
+  const source = params.get("monitor_source");
+  if (!source) return null;
+  if (!params.has("monitor_point")) return {source};
+  return {source, point: params.get("monitor_point") || null};
+}
+export function focusParams(focus: SourceFocus): Record<string, string> {
+  return {monitor_source: focus.source, ...(focus.point !== undefined ? {monitor_point: focus.point ?? ""} : {})};
+}
+export function focusGroups<T extends {sourceId: string; pointId: string | null}>(groups: T[], focus: SourceFocus | null): T[] {
+  return focus ? groups.filter((group) => group.sourceId === focus.source
+    && (focus.point === undefined || group.pointId === focus.point)) : groups;
+}
+
 /** A narrow look around one moment of a period: a tenth of the period but at least an hour,
  * so the neighbouring stored measurements show at full detail without losing the moment. */
 export function momentWindow(at: number, periodMs: number): Span {

@@ -12,7 +12,7 @@
     type ChannelList, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
   } from "../history";
   import {
-    atFinest, covers, EDGE_MS, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, MAX_SPAN_MS,
+    atFinest, covers, EDGE_MS, focusFrom, focusGroups, focusParams, type SourceFocus, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, MAX_SPAN_MS,
     type Span,
   } from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
@@ -47,19 +47,18 @@
   // A picked moment or span stays while the signal changes, so the same time can be read on another signal.
   let picked: Span | null = $state(null);
   let drag: {key: string; from: number; to: number; x: number} | null = $state(null);
-  let card: HTMLElement | null = $state(null);
+  // One card per source chart; a pick scrolls to the card under the chart that was clicked.
+  const cards: Record<string, HTMLElement | null> = {};
   // A moment or span handed over from another screen (a scatter point, a departure) is picked once the chart loads.
   let pending = pickFrom(params.get("monitor_pick"));
   let anchor: TimeAnchor = $state(chosenAnchor === "now" ? "now" : "latest");
   let channelAbort: AbortController | null = null;
   let trendAbort: AbortController | null = null;
   // A source (and point) handed over from another screen, e.g. a scatter point's own record.
-  let focus: {source: string; point: string | null} | null = $state(params.get("monitor_source")
-    ? {source: params.get("monitor_source")!, point: params.get("monitor_point")} : null);
+  let focus: SourceFocus | null = $state(focusFrom(params));
   const groups = $derived.by(() => {
     const current: HistoryTrend | null = trend;
-    const all = current ? groupHistory(current) : [];
-    return focus?.point ? all.filter((group) => group.pointId === focus?.point) : all;
+    return focusGroups(current ? groupHistory(current) : [], focus);
   });
 
   function recorded(at: string | null): string {
@@ -109,10 +108,8 @@
       url.searchParams.set("monitor_from", new Date(zoom.from).toISOString());
       url.searchParams.set("monitor_to", new Date(zoom.to).toISOString());
     } else {url.searchParams.delete("monitor_from"); url.searchParams.delete("monitor_to");}
-    if (focus) {
-      url.searchParams.set("monitor_source", focus.source);
-      if (focus.point) url.searchParams.set("monitor_point", focus.point); else url.searchParams.delete("monitor_point");
-    } else {url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point");}
+    url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point");
+    for (const [key, value] of Object.entries(focus ? focusParams(focus) : {})) url.searchParams.set(key, value);
     url.searchParams.delete("monitor_pick");
     history.replaceState(history.state, "", url);
   }
@@ -200,7 +197,7 @@
       picked = snapSpan(start, start, grid.from, grid.to, grid.step);
     }
     await tick();
-    card?.scrollIntoView({block: "nearest"});
+    cards[current.key]?.scrollIntoView({block: "nearest"});
   }
   function scrub(slot: number) {
     if (!grid?.step) return;
@@ -250,7 +247,7 @@
   {@const now = summarize(group, span)}
   {@const before = grid && covers(grid, previousSpan(span)) ? summarize(group, previousSpan(span)) : null}
   {@const periods = periodsBefore(span)}
-  <section class="pick" bind:this={card} aria-label={(single ? "선택한 시점" : "선택한 구간") + " · " + sourceLabel(sources, group.sourceId)}>
+  <section class="pick" bind:this={cards[group.key]} aria-label={(single ? "선택한 시점" : "선택한 구간") + " · " + sourceLabel(sources, group.sourceId)}>
     <div class="pick-head"><h4>{single ? "선택한 시점" : "선택한 구간"}</h4><span>{spanText(span)}</span></div>
     {#if !now || now.mean === null}
       <p>고른 {single ? "시점" : "구간"}에 쓸 수 있는 측정이 없습니다. 빈 곳을 0으로 채우지 않습니다.</p>
@@ -344,7 +341,7 @@
         · {range === "all" ? "저장된 전체 기록" : range === "window" ? "그래프에서 고른 구간을 확대" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
       {#if focus}
-        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source)}{focus.point ? " · 측정 위치 " + focus.point : ""}만 보고 있습니다.</span>
+        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
           <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
       {/if}
       {#if range === "window"}

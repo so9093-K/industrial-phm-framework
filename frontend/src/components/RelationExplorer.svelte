@@ -5,7 +5,7 @@
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import FeatureScatter from "./FeatureScatter.svelte";
-  import {ORIGIN_TEXT,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
+  import {ORIGIN_TEXT,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
@@ -53,7 +53,7 @@
     const length=periods?Date.parse(periods[period].to)-Date.parse(periods[period].from):0;
     const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
     const params={...windowParams(momentWindow(middle,length),{from:middle,to:middle}),
-      monitor_source:pair.source,...(pair.point?{monitor_point:pair.point}:{})};
+      ...focusParams({source:pair.source,point:pair.point})};
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }

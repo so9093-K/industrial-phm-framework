@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {HistoryGroup} from "./history.ts";
 import {
-  MAX_SPAN_MS, atFinest, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
+  MAX_SPAN_MS, atFinest, focusFrom, focusGroups, focusParams, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
 } from "./signal-selection.ts";
 
 const at = (minute: number) => Date.parse("2026-10-01T00:00:00Z") + minute * 60000;
@@ -65,6 +65,18 @@ test("a scatter point opens narrowly around its own moment", () => {
   assert.deepEqual(momentWindow(at(600), 24 * hour), {from: at(600) - 1.2 * hour, to: at(600) + 1.2 * hour});
   assert.deepEqual(momentWindow(at(600), 10 * 60000), {from: at(600) - hour / 2, to: at(600) + hour / 2});
   assert.equal(momentWindow(0, 400 * 86400000).to - momentWindow(0, 400 * 86400000).from, MAX_SPAN_MS);
+});
+
+test("a handed-over source keeps its measurement point, including none", () => {
+  const groups = [{sourceId: "s", pointId: null}, {sourceId: "s", pointId: "p1"}, {sourceId: "t", pointId: null}];
+  const none = focusFrom(new URLSearchParams(focusParams({source: "s", point: null})));
+  assert.deepEqual(none, {source: "s", point: null});
+  assert.deepEqual(focusGroups(groups, none), [{sourceId: "s", pointId: null}]);
+  const p1 = focusFrom(new URLSearchParams(focusParams({source: "s", point: "p1"})));
+  assert.deepEqual(focusGroups(groups, p1), [{sourceId: "s", pointId: "p1"}]);
+  const any = focusFrom(new URLSearchParams({monitor_source: "s"}));
+  assert.deepEqual(focusGroups(groups, any).length, 2);
+  assert.equal(focusFrom(new URLSearchParams()), null);
 });
 
 test("zoom stops once each bucket holds about one stored value", () => {
