@@ -72,8 +72,14 @@
     remember();
     void compare();
   }
-  // Offered while the record holds the recent stretch and most of the one before it.
-  const fits = (length: number) => !!sources && Date.parse(sources.to) - Date.parse(sources.from) + 1000 >= 1.5 * length;
+  // Offered when the record holds both stretches; a shortfall of up to 2% (a 2-day file ending a
+  // minute early) is allowed and said below the periods instead of hiding the choice.
+  const fits = (length: number) => !!sources && Date.parse(sources.to) - Date.parse(sources.from) + 1000 >= 1.98 * length;
+  const beforeRecord = $derived.by(() => {
+    const current: Periods | null = periods, held: SourceHistory | null = sources;
+    if (!current || !held) return 0;
+    return Math.max(0, Date.parse(held.from) - Date.parse(current.a.from));
+  });
   function remember() {
     if (!periods) return;
     const url = new URL(location.href);
@@ -195,6 +201,9 @@
     {/if}
     {#if handedOver}
       <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
+    {#if beforeRecord > 0}
+      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
     {/if}
     <div class="ranges">
       {#each ["a", "b"] as key (key)}

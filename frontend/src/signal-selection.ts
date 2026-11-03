@@ -95,6 +95,13 @@ export function zoomWindow(span: Span): Span | null {
   return {from: span.from - length * 1.25, to: span.to + length / 2};
 }
 
+/** A narrow look around one moment of a period: a tenth of the period but at least an hour,
+ * so the neighbouring stored measurements show at full detail without losing the moment. */
+export function momentWindow(at: number, periodMs: number): Span {
+  const width = Math.min(MAX_SPAN_MS, Math.max(3600000, periodMs / 10));
+  return {from: at - width / 2, to: at + width / 2};
+}
+
 /** Whether the chart already shows about one stored value per bucket, so zooming in
  * further cannot reveal more measurements. */
 export function atFinest(buckets: {usableCount: number}[]): boolean {

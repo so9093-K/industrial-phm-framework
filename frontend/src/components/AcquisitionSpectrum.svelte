@@ -209,7 +209,7 @@
       {#if acquisition && result.used.b.length}
         {@const last=Math.max(...result.used.b)}
         <p class="continue">기간 B의 마지막 측정({place(last)})으로 이어서 보기
-          {#each measurementLinks(assetId,last,{first:acquisition.first,last:acquisition.last},"spectrum") as item(item.key)}
+          {#each measurementLinks(assetId,last,{first:acquisition.first,last:acquisition.last,bindingId:acquisition.binding},"spectrum") as item(item.key)}
             <a href={item.href}>{item.label} →</a>
           {/each}</p>
       {/if}

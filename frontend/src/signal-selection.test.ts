@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {HistoryGroup} from "./history.ts";
 import {
-  MAX_SPAN_MS, atFinest, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
+  MAX_SPAN_MS, atFinest, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
 } from "./signal-selection.ts";
 
 const at = (minute: number) => Date.parse("2026-10-01T00:00:00Z") + minute * 60000;
@@ -58,6 +58,13 @@ test("comparison and zoom only offer what the server reads: at most 31 days", ()
   assert.deepEqual(zoomWindow(long), long);
   assert.equal(zoomWindow({from: 0, to: MAX_SPAN_MS + 1}), null);
   assert.equal(periodsBefore({from: 0, to: MAX_SPAN_MS + 1}), null);
+});
+
+test("a scatter point opens narrowly around its own moment", () => {
+  const hour = 3600000;
+  assert.deepEqual(momentWindow(at(600), 24 * hour), {from: at(600) - 1.2 * hour, to: at(600) + 1.2 * hour});
+  assert.deepEqual(momentWindow(at(600), 10 * 60000), {from: at(600) - hour / 2, to: at(600) + hour / 2});
+  assert.equal(momentWindow(0, 400 * 86400000).to - momentWindow(0, 400 * 86400000).from, MAX_SPAN_MS);
 });
 
 test("zoom stops once each bucket holds about one stored value", () => {

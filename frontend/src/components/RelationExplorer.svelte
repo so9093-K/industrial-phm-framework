@@ -5,7 +5,7 @@
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import FeatureScatter from "./FeatureScatter.svelte";
-  import {ORIGIN_TEXT,periodOrigin,windowParams,zoomWindow,type PeriodOrigin} from "../signal-selection";
+  import {ORIGIN_TEXT,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
@@ -47,15 +47,14 @@
     const xs=all.map(p=>p.x),ys=all.map(p=>p.y);
     return {xmin:Math.min(...xs),xmax:Math.max(...xs),ymin:Math.min(...ys),ymax:Math.max(...ys)};
   }
-  /** The signals screen over the point's whole period (at least an hour), with the moment picked. */
-  function around(at:string,channel:string,period:"a"|"b"):string{
-    const middle=Date.parse(at),hour=3600000;
-    const chosen=periods?{from:Date.parse(periods[period].from),to:Date.parse(periods[period].to)}:{from:middle,to:middle};
-    const wide=chosen.to-chosen.from>=hour?chosen:{from:middle-hour/2,to:middle+hour/2};
-    const window=zoomWindow(wide)??{from:middle-hour/2,to:middle+hour/2};
+  /** The signals screen for the point's own source and point, narrowly around its time. */
+  function around(at:string,channel:string,period:"a"|"b",pair:Pair):string{
+    const middle=Date.parse(at);
+    const length=periods?Date.parse(periods[period].to)-Date.parse(periods[period].from):0;
     const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
-    for(const [key,value] of Object.entries(windowParams(window,{from:middle,to:middle})))
-      url.searchParams.set(key,value);
+    const params={...windowParams(momentWindow(middle,length),{from:middle,to:middle}),
+      monitor_source:pair.source,...(pair.point?{monitor_point:pair.point}:{})};
+    for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }
   let sourceAbort:AbortController|null=null;
@@ -231,8 +230,8 @@
               <div class="chosen" aria-live="polite">
                 <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
                 <p>{signalName(names,x)} {num(point.x)} · {signalName(names,y)} {num(point.y)}</p>
-                <p class="links"><a href={around(point.at,x,chosen.period)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
-                  <a href={around(point.at,y,chosen.period)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
+                <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
+                  <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
               </div>
             {/if}
           {/if}

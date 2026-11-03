@@ -53,7 +53,14 @@
   let anchor: TimeAnchor = $state(chosenAnchor === "now" ? "now" : "latest");
   let channelAbort: AbortController | null = null;
   let trendAbort: AbortController | null = null;
-  const groups = $derived(trend ? groupHistory(trend) : []);
+  // A source (and point) handed over from another screen, e.g. a scatter point's own record.
+  let focus: {source: string; point: string | null} | null = $state(params.get("monitor_source")
+    ? {source: params.get("monitor_source")!, point: params.get("monitor_point")} : null);
+  const groups = $derived.by(() => {
+    const current: HistoryTrend | null = trend;
+    const all = current ? groupHistory(current) : [];
+    return focus?.point ? all.filter((group) => group.pointId === focus?.point) : all;
+  });
 
   function recorded(at: string | null): string {
     if (!at) return "관측 시각 없음";
@@ -102,6 +109,10 @@
       url.searchParams.set("monitor_from", new Date(zoom.from).toISOString());
       url.searchParams.set("monitor_to", new Date(zoom.to).toISOString());
     } else {url.searchParams.delete("monitor_from"); url.searchParams.delete("monitor_to");}
+    if (focus) {
+      url.searchParams.set("monitor_source", focus.source);
+      if (focus.point) url.searchParams.set("monitor_point", focus.point); else url.searchParams.delete("monitor_point");
+    } else {url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point");}
     url.searchParams.delete("monitor_pick");
     history.replaceState(history.state, "", url);
   }
@@ -123,7 +134,8 @@
     try {
       const chosen = range === "window" && zoom
         ? {from: new Date(zoom.from).toISOString(), to: new Date(zoom.to).toISOString()} : null;
-      const result = await readTrend(assetId, selectedChannel, chosen ?? (range === "window" ? "all" : range), anchor, request.signal);
+      const result = await readTrend(assetId, selectedChannel, chosen ?? (range === "window" ? "all" : range), anchor,
+        request.signal, focus?.source ?? null);
       if (request.signal.aborted) return;
       trend = result;
       trendState = result.buckets.length || result.latest.length ? "ready" : "empty";
@@ -132,6 +144,9 @@
       if (pending) {
         picked = snapSpan(pending.from, pending.to, read.from, read.to, step);
         pending = null;
+      } else if (picked && (picked.to <= read.from || picked.from >= read.to)) {
+        // A pick wholly outside the new range (e.g. after switching to the last 15 minutes) is dropped.
+        picked = null;
       } else if (picked && covers(read, picked)) {
         // A new window has its own buckets; the shown span stays exactly the buckets summed.
         picked = snapInside(picked, read.from, read.to, step);
@@ -328,6 +343,10 @@
         {recorded(trend.startAt)} ~ {recorded(trend.endAt)}
         · {range === "all" ? "저장된 전체 기록" : range === "window" ? "그래프에서 고른 구간을 확대" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
+      {#if focus}
+        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source)}{focus.point ? " · 측정 위치 " + focus.point : ""}만 보고 있습니다.</span>
+          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
+      {/if}
       {#if range === "window"}
         <p class="zoomed"><span>고른 구간을 확대해서 보고 있습니다.</span>
           <button type="button" class="ui-button" onclick={unzoom}>전체 기록으로 돌아가기</button></p>
