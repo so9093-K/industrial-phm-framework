@@ -8,6 +8,7 @@
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
   import {readAcquisitionTrend, trendChart, type AcquisitionTrend} from "../acquisition-trend";
   import StatusNotice from "./StatusNotice.svelte";
+  import {measurementLinks} from "../measurement-links";
 
   /** A vibration asset's measurements: one feature of each stored waveform, in acquisition order.
    * The raw waveform of one measurement opens from the anomaly tab. */
@@ -17,9 +18,29 @@
   let listState: "loading" | "ready" | "empty" | "failed" = $state("loading");
   let trendState: "loading" | "ready" | "failed" = $state("loading");
   let feature = $state(new URLSearchParams(location.search).get("vibration_feature") ?? "");
+  // One measurement picked on the chart (or handed over from another screen) stays chosen across features.
+  const handed = Number(new URLSearchParams(location.search).get("vibration_at"));
+  let chosen: number | null = $state(Number.isSafeInteger(handed) && handed > 0 ? handed : null);
   let request: AbortController | null = null;
   const chart = $derived.by(() => { const current: AcquisitionTrend | null = trend; return current ? trendChart(current) : null; });
   const latest = $derived.by(() => { const current: AcquisitionTrend | null = trend; return current?.points.at(-1) ?? null; });
+  const chosenPoint = $derived.by(() => {
+    const current: AcquisitionTrend | null = trend, ordinal: number | null = chosen;
+    return current && ordinal !== null ? current.points.find((point) => point.ordinal === ordinal) ?? null : null;
+  });
+  const chosenMark = $derived(chart && chosen !== null ? chart.marks.find((mark) => mark.ordinal === chosen) ?? null : null);
+  function pick(event: MouseEvent) {
+    if (!chart?.marks.length) return;
+    const box = (event.currentTarget as Element).getBoundingClientRect();
+    const x = (event.clientX - box.left) / Math.max(box.width, 1) * chart.width;
+    choose(chart.marks.reduce((best, mark) => Math.abs(mark.x - x) < Math.abs(best.x - x) ? mark : best).ordinal);
+  }
+  function choose(ordinal: number) {
+    chosen = ordinal;
+    const url = new URL(location.href);
+    url.searchParams.set("vibration_at", String(ordinal));
+    history.replaceState(history.state, "", url);
+  }
 
   function link(tab: "change" | "outlook", key: string): string {
     const url = new URL(assetTabUrl(assetId, tab, tab === "change" ? "compare" : null, "vibration"), location.origin);
@@ -94,11 +115,31 @@
                 <title>{measurementLabel(mark.ordinal, period)} · {measure(mark.value, trend.unit)}</title>
               </circle>
             {/each}
+            {#if chosenMark}<line x1={chosenMark.x} x2={chosenMark.x} y1="0" y2={chart.height} class="cursor" />
+              <line x1={chosenMark.x} x2={chosenMark.x} y1={chosenMark.y} y2={chosenMark.y} class="dot" />{/if}
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
+            <rect x="0" y="0" width={chart.width} height={chart.height} class="hit" onclick={pick} role="presentation" />
           </svg>
           {#snippet footer()}<XAxis lo={chart.first} hi={chart.last} scale={measurementScale(period)} note={axisNote} />{/snippet}
           </ValueAxis>
         </figure>
+        <label class="scrub">측정 고르기
+          <input type="range" min="0" max={chart.marks.length - 1}
+            value={Math.max(0, chart.marks.findIndex((mark) => mark.ordinal === chosen))}
+            oninput={(event) => choose(chart.marks[Number(event.currentTarget.value)].ordinal)} />
+        </label>
+        <p class="context">그래프를 누르거나 막대를 움직이면 그 측정을 고릅니다. 같은 측정의 파형·모델 점수·주파수로 바로 이동할 수 있습니다.</p>
+        {#if chosen !== null && options}
+          <section class="pick" aria-label="선택한 측정">
+            <h3>{measurementLabel(chosen, period)}</h3>
+            <p>{trend.label} {chosenPoint ? measure(chosenPoint.value, trend.unit) : "· 그래프에 그린 측정 중에는 없음"}</p>
+            <p class="pick-links">
+              {#each measurementLinks(assetId, chosen, {first: options.first, last: options.last, feature, bindingId: trend.bindingId}, "trend") as item (item.key)}
+                <a href={item.href}>{item.label} →</a>
+              {/each}
+            </p>
+          </section>
+        {/if}
       {/if}
     {/if}
   {/if}
@@ -120,4 +161,14 @@
   .point { fill: var(--color-action); }
   .axis-note { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
   .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
+  .hit { fill: transparent; cursor: crosshair; }
+  .cursor { stroke: var(--color-focus); stroke-width: 2; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+  .dot { stroke: var(--color-focus); stroke-width: 10; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .scrub { display: grid; gap: var(--space-1); font-size: var(--font-small); margin-top: var(--space-3); }
+  .scrub input { width: 100%; }
+  .pick { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
+    border-left: 4px solid var(--color-focus); border-radius: var(--radius-control); display: grid; gap: var(--space-1); }
+  .pick h3 { margin: 0; font-size: var(--font-body); }
+  .pick p { margin: 0; overflow-wrap: anywhere; }
+  .pick-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
 </style>

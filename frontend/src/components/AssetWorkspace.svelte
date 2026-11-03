@@ -233,7 +233,8 @@
       {:else if route.tab === "anomaly" && method === "baseline"}
         <DepartureExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly"}
-        <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
+        <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null}
+          measurements={data?.vibration ? {first: data.vibration.first, last: data.vibration.last} : null} />
       {:else if route.tab === "change" && method === "spectrum"}
         <AcquisitionSpectrum assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change" && method === "electrical"}
