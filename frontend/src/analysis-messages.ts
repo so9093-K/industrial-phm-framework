@@ -102,12 +102,14 @@ function coefficients(side: RelationSide, t: Tie): string {
   return "피어슨 " + side.pearson!.toFixed(2) + (t.kind === "unclear" && side.spearman !== null ? " · 스피어먼 " + side.spearman.toFixed(2) : "");
 }
 
-/** Whether two Pearson coefficients differ by more than their sample sizes allow (Fisher z). */
-export function coefficientGap(a: RelationSide, b: RelationSide): number | null {
-  if (a.pearson === null || b.pearson === null || a.pairs < 4 || b.pairs < 4) return null;
-  const z = (r: number) => Math.atanh(Math.max(-0.999999, Math.min(0.999999, r)));
-  return Math.abs(z(a.pearson) - z(b.pearson)) / Math.sqrt(1 / (a.pairs - 3) + 1 / (b.pairs - 3));
+/** How far apart the two periods' Pearson coefficients are, described and not tested: consecutive
+ * measurements are not independent pairs, so no sample-size test is offered as a verdict. */
+export function coefficientSpread(a: RelationSide, b: RelationSide): "large" | "moderate" | "small" | null {
+  if (a.pearson === null || b.pearson === null) return null;
+  const gap = Math.abs(a.pearson - b.pearson);
+  return gap >= 0.5 ? "large" : gap >= 0.2 ? "moderate" : "small";
 }
+const SPREAD_TEXT = {large: "크게", moderate: "어느 정도", small: "조금만"} as const;
 
 /** Pairs of vibration features that move together because one is computed from the other. */
 export function formulaLink(x: string, y: string): "crest" | "crest-rms" | "rms-std" | "peaks" | null {
@@ -163,15 +165,16 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
   const sides = [{name: "A", side: a, t: ta}, {name: "B", side: b, t: tb}];
   const few = sides.filter(({side}) => side.pairs < 10).map(({name, side}) => "기간 " + name + "는 짝이 " + side.pairs + "개뿐");
   const unclear = sides.filter(({t}) => t?.kind === "unclear").map(({name}) => name);
-  const gap = ta && tb ? coefficientGap(a, b) : null;
+  const spread = ta && tb ? coefficientSpread(a, b) : null;
+  // Consecutive measurements resemble their neighbours, which can make a coefficient look stronger
+  // than the pairs alone would; the reader is pointed at the scatter instead of a test.
+  const caution = "연속된 측정은 이웃한 값끼리 비슷해 계수가 실제보다 강하게 나올 수 있으니, 시간상 이웃한 측정과 산점도에서 떨어진 점을 함께 확인하세요.";
   let certainty: string | null = null;
   if (few.length) certainty = few.join(" · ") + "이라 계수가 크게 흔들릴 수 있습니다.";
   else if (unclear.length)
     certainty = "기간 " + unclear.join("·") + "에서는 피어슨과 스피어먼이 서로 다른 방향을 가리켜, 몇몇 측정이 관계를 좌우하고 있을 수 있습니다. 산점도에서 떨어진 점을 확인하세요.";
-  else if (gap !== null)
-    certainty = gap >= 2.6 ? "측정 수를 감안해도 두 기간의 관계 차이는 우연으로 보기 어렵습니다."
-      : gap >= 1.96 ? "측정 수를 감안하면 두 기간의 관계 차이가 우연일 가능성은 낮습니다."
-      : "측정 수를 감안하면 두 기간의 관계 차이는 우연 범위 안입니다.";
+  else if (spread !== null)
+    certainty = "두 기간의 피어슨 계수는 " + SPREAD_TEXT[spread] + " 다릅니다(" + a.pearson!.toFixed(2) + " → " + b.pearson!.toFixed(2) + "). " + caution;
   return {headline, meaning, certainty, next};
 }
 
@@ -235,20 +238,27 @@ export function modelMessage(reads: ModelRead[], place: (position: number) => st
   const drawn = reads.filter((read) => read.line.points.length);
   if (!drawn.length) return null;
   const states = drawn.map((read) => modelState(read, place));
-  const over = drawn.filter((read) => read.line.story.state === "ongoing" || read.line.story.state === "latest");
-  const lead = drawn.length === 1 ? "" : !over.length ? "어느 모델도 지금 기준을 넘지 않았습니다. "
-    : over.length === drawn.length ? "모든 모델이 기준을 넘고 있습니다. " : "모델마다 다르게 말합니다. ";
+  // "Now" is the latest analyzed measurement only. A run the model still holds open within its
+  // allowed gap can end on a measurement below the threshold; that is told per model, not as now.
+  const now = drawn.filter((read) => read.line.story.lastExceeds === true);
+  const crossed = drawn.filter((read) => read.line.story.state !== "none");
+  const lead = drawn.length === 1 ? ""
+    : !now.length ? "최근 측정에서 기준을 넘은 모델은 없습니다. "
+    : now.length === drawn.length ? "모든 모델이 최근 측정에서 기준을 넘고 있습니다. "
+    : "최근 측정에서 모델마다 판단이 다릅니다. ";
   const headline = lead + states.join(", ") + ".";
   let certainty: string;
   if (drawn.length === 1) certainty = "모델 하나의 결과이므로 같은 시점에 측정값도 달라졌는지 함께 보세요.";
-  else if (over.length && over.length < drawn.length)
-    certainty = "일부 모델만 기준을 넘어 이 결과만으로는 어느 쪽이 맞는지 알 수 없습니다. 같은 시점에 측정값도 달라졌는지 확인하세요.";
-  else if (over.length) {
-    const starts = over.map((read) => read.line.story.ongoing?.start ?? read.line.story.anchor!.pointer.position);
+  else if (now.length && now.length < drawn.length)
+    certainty = "최근 측정에서 일부 모델만 기준을 넘어 이 결과만으로는 어느 쪽이 맞는지 알 수 없습니다. 같은 시점에 측정값도 달라졌는지 확인하세요.";
+  else if (now.length) {
+    const starts = now.map((read) => read.line.story.ongoing?.start ?? read.line.story.anchor!.pointer.position);
     certainty = Math.max(...starts) - Math.min(...starts) <= 3
       ? "서로 다른 모델이 같은 무렵(" + place(Math.min(...starts)) + ")부터 기준을 넘어, 한 모델만의 반응이 아닙니다."
       : "모델마다 기준을 넘기 시작한 때가 달라, 먼저 반응한 " + place(Math.min(...starts)) + "부터 확인하세요.";
-  } else certainty = "모델 기준 아래라도 측정값 자체가 달라졌는지는 따로 확인하세요.";
+  } else if (crossed.length)
+    certainty = "최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다. 그 구간의 측정값도 함께 보세요.";
+  else certainty = "모델 기준 아래라도 측정값 자체가 달라졌는지는 따로 확인하세요.";
   return {headline, meaning: null, certainty, next};
 }
 
@@ -285,10 +295,22 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     const reaches = facts.scenarios.map((scenario) => scenario[name]);
     if (reaches.some((reach) => reach?.state === "already")) { already.push("마지막 측정이 이미 " + label + "에 닿았습니다."); continue; }
     const steps = reaches.flatMap((reach) => reach?.state === "expected" && reach.expected !== null ? [reach.expected] : []);
-    if (!steps.length) { parts.push(label + "에는 계산한 범위 안에서 닿지 않습니다."); continue; }
+    // The central forecast missing a limit is not "never": the band alone may still reach it.
+    const banded = reaches.filter((reach) => reach?.state === "possible");
+    const earliest = banded.flatMap((reach) => reach!.earliest !== null ? [reach!.earliest] : []);
+    const bandText = earliest.length ? "빠르면 " + span(Math.min(...earliest), Math.min(...earliest), facts) + " 뒤 " : "";
+    if (!steps.length) {
+      parts.push(banded.length
+        ? label + "에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, 예측 범위로는 " + bandText + "닿을 수 있습니다."
+        : label + "에는 계산한 범위 안에서 닿지 않습니다.");
+      continue;
+    }
     const lo = Math.min(...steps), hi = Math.max(...steps);
-    parts.push(label + "까지 " + span(lo, hi, facts) + " 남았습니다"
-      + (steps.length < reaches.length ? "(계산 방식 " + reaches.length + "가지 중 " + steps.length + "가지에서만 닿음)." : "."));
+    const rest = steps.length < reaches.length
+      ? "(계산 방식 " + reaches.length + "가지 중 " + steps.length + "가지에서 중심 예측이 닿음"
+        + (banded.length ? ", " + banded.length + "가지는 예측 범위로만 닿을 수 있음" : "") + ")."
+      : ".";
+    parts.push(label + "까지 " + span(lo, hi, facts) + " 남았습니다" + rest);
     if (lo > 0 && hi / lo >= 2) spread = true;
   }
   if (!parts.length && !already.length) return null;
@@ -327,11 +349,14 @@ export function withoutTwins(features: FeatureChange[]): FeatureChange[] {
   });
 }
 
-export const LEARNED_TEXT = {above: "학습 범위보다 높음", below: "학습 범위보다 낮음", inside: "학습 범위 안"} as const;
+/** Against the middle 90% of the values the model was fitted on: outside it does not mean the model
+ * never saw such a value, and no combination of features is checked. */
+export const LEARNED_TEXT = {above: "학습값 5~95% 범위보다 높음", below: "학습값 5~95% 범위보다 낮음", inside: "학습값 5~95% 범위 안"} as const;
 
 /** Two stored results of one model: how the score moved, whether the features left where this asset
- * usually sits, and whether they left what the model was fitted on. A score over its threshold on
- * values the asset often shows but the model never learned is a reference gap, not an odd asset. */
+ * usually sits, and whether they left the middle of the values the model was fitted on. A score over
+ * its threshold on values the asset often shows but rarely in its reference period points first at
+ * how that period was made up, before anything about the asset. */
 export function comparisonMessage(score: {previous: number | null; current: number | null; exceeds?: boolean | null},
   features: FeatureChange[], usualUntil: number | null, place: (position: number) => string,
   next: NextStep[] = []): AnalysisMessage | null {
@@ -366,13 +391,14 @@ export function comparisonMessage(score: {previous: number | null; current: numb
   else {
     headline += " 특징값은 " + judged.length + "개 모두 이 설비의 평소 범위 안에 있습니다.";
     if (unlearned.length)
-      headline += " 다만 " + unlearned.length + "개는 모델이 기준 기간에 학습한 범위를 벗어났습니다: "
+      headline += " 다만 " + unlearned.length + "개는 모델이 기준 기간에 학습한 값의 5~95% 범위를 벗어났습니다: "
         + named(unlearned, (feature) => LEARNED_TEXT[against(feature.current, feature.learned!)]);
   }
   let meaning: string | null = null;
   if (judged.length && !outside.length && unlearned.length && flagged)
-    meaning = "이 설비에서는 흔한 값이지만 모델이 기준 기간에 배운 적 없는 상태입니다. 점수가 오른 것은 설비가 평소와 달라서라기보다 "
-      + "기준 기간에 이 상태가 없었기 때문일 수 있습니다. 이 상태가 정상 운전에 속한다면, 이 상태를 포함한 기준 기간으로 모델을 다시 만드는 것을 검토하세요.";
+    meaning = "이 설비에서는 흔한 값이지만, 모델이 기준 기간에 학습한 값의 5~95% 범위를 벗어났습니다. 점수가 오른 데에는 "
+      + "기준 기간에 이런 값이 드물었던 점이 영향을 줬을 수 있습니다. 먼저 기준 기간의 운전 상태 구성과 이 측정의 운전 조건을 확인하세요. "
+      + "기준 기간에 이 운전 상태가 빠져 있었다고 확인되면, 그때 이 상태를 포함한 기준 기간으로 모델을 다시 만드는 것을 검토할 수 있습니다.";
   else if (outside.length) {
     const top = outside[0], unit = top.unit ? " " + top.unit : "";
     meaning = "가장 멀리 벗어난 값은 " + top.label + " " + short(top.current) + unit + "이고, 평소 범위는 "
@@ -383,7 +409,9 @@ export function comparisonMessage(score: {previous: number | null; current: numb
   const certainty = judged.length && usualUntil !== null
     ? "평소 범위는 비교 측정 이전에 이 모델이 분석한 " + results + "개 결과의 5~95% 값입니다."
       + (results < 50 ? " 기록이 짧아 평소 범위가 좁거나 넓게 잡혔을 수 있습니다." : "")
-      + (counted.some((feature) => feature.learned) ? " 학습 범위는 모델이 기준 기간에 학습한 값의 5~95%입니다." : "")
+      + (counted.some((feature) => feature.learned)
+        ? " 학습값 범위는 모델이 기준 기간에 학습한 값의 5~95%입니다. 이 범위 밖이어도 모델이 학습 중에 비슷한 값을 봤을 수 있고, 여러 특징의 조합은 따로 확인하지 않았습니다."
+        : "")
     : null;
   return {headline: headline.trim(), meaning, certainty, next};
 }

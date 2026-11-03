@@ -394,7 +394,7 @@ def test_candidates_say_where_the_value_sits_against_the_assets_earlier_results(
     context["signal_comparison"]["features"][0]["learned"] = {"low": -1e9, "high": -1e8}
     first = context["signal_comparison"]["features"][0]["feature"]
     learned = {item["id"]: item for item in answer_input(context)["candidates"]}[first]
-    assert learned["learned"] == "학습 범위보다 높음"
+    assert learned["learned"] == "학습값 주된 범위보다 높음"
 
 
 def test_the_range_reading_tells_an_unusual_value_from_one_the_model_never_learned() -> None:
@@ -418,7 +418,8 @@ def test_the_range_reading_tells_an_unusual_value_from_one_the_model_never_learn
     assert text is not None and text.startswith(
         "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이지만"
     )
-    assert "전류 평균(학습 범위보다 낮음)" in text and "전압(" not in text
+    assert "전류 평균(학습값 주된 범위보다 낮음)" in text and "전압(" not in text
+    assert "배운 적" not in text and "운전 조건을 먼저 확인" in text
     first = [row("전류 평균", 0.0, (43.5, 68.8), (44.2, 69.1))]
     assert range_reading(first, {}) == "이 설비의 평소 범위를 벗어난 값: 전류 평균(평소보다 낮음)"
     assert range_reading([{**stopped[0], "usual": None}], {}) is None

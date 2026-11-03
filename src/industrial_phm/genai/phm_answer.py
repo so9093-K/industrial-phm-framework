@@ -151,11 +151,11 @@ def _learned_word(row: dict[str, Any]) -> str:
     """Where the selected value sits against the rows the model was fitted on, in words."""
     learned, value = row["learned"], row["current"]
     return (
-        "학습 범위보다 높음"
+        "학습값 주된 범위보다 높음"
         if value > learned["high"]
-        else "학습 범위보다 낮음"
+        else "학습값 주된 범위보다 낮음"
         if value < learned["low"]
-        else "학습 범위 안"
+        else "학습값 주된 범위 안"
     )
 
 
@@ -172,14 +172,17 @@ def range_reading(rows: list[dict[str, Any]], twins: dict[str, list[str]]) -> st
         return "이 설비의 평소 범위를 벗어난 값: " + ", ".join(
             f"{row['label']}({_usual_word(row)})" for row in unusual[:4]
         )
-    unlearned = [row for row in kept if row.get("learned") and _learned_word(row) != "학습 범위 안"]
+    unlearned = [
+        row for row in kept if row.get("learned") and _learned_word(row) != "학습값 주된 범위 안"
+    ]
     if not unlearned:
-        return "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이고 모델이 학습한 범위 안입니다."
+        return "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이고 학습값의 주된 범위 안입니다."
     return (
-        "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이지만, 모델이 기준 기간에 학습한 범위를 "
-        "벗어난 값이 있습니다: "
+        "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이지만, 모델이 기준 기간에 학습한 값의 "
+        "주된 범위를 벗어난 값이 있습니다: "
         + ", ".join(f"{row['label']}({_learned_word(row)})" for row in unlearned[:4])
-        + ". 이 설비에서는 흔한 상태를 모델이 기준 기간에 배운 적 없을 수 있습니다."
+        + ". 기준 기간에 이런 값이 드물었을 수 있으니, 기준 기간의 운전 상태 구성과 이 측정의 "
+        "운전 조건을 먼저 확인할 일입니다."
     )
 
 
@@ -456,12 +459,15 @@ _TASK = {
         "usual이 있으면 summary에서 변한 값이 이 설비의 평소 범위를 벗어났는지('평소보다 높음', "
         "'평소보다 낮음', '평소 범위 안')를 함께 말하세요. 점수가 크게 바뀌었는데 usual이 모두 "
         "'평소 범위 안'이면 개별 값은 평소 범위 안이라고 그대로 말하고, 원인을 짐작하지 마세요. "
-        "range_reading은 고른 측정의 특징값 전체를 평소 범위와 학습 범위에 견준 결과입니다. "
+        "range_reading은 고른 측정의 특징값 전체를 평소 범위와 학습값의 주된 범위에 견준 "
+        "결과입니다. "
         "왜 기준을 넘었는지, 설비가 평소와 다른지 물으면 두 시점의 변화보다 range_reading을 "
         "먼저 말하세요. "
-        "learned는 모델이 학습한 기준 기간의 범위에 견준 위치입니다. 값이 '평소 범위 안'인데 "
-        "'학습 범위' 밖이면, 이 설비에서는 흔하지만 모델이 기준 기간에 배운 적 없는 상태라고 "
-        "말하고, 설비 이상과 구별하세요. "
+        "learned는 모델이 기준 기간에 학습한 값의 주된 범위(학습값의 5~95%)에 견준 위치입니다. "
+        "그 밖이라도 모델이 학습 중에 비슷한 값을 봤을 수 있고 특징의 조합은 확인하지 않았으니, "
+        "'배운 적 없다'고 단정하지 마세요. 값이 '평소 범위 안'인데 학습값 주된 범위 밖이면 "
+        "기준 기간에 이런 값이 드물었을 수 있다고 말하고, 기준 기간의 운전 상태 구성과 이 측정의 "
+        "운전 조건을 확인하라고 하세요. 설비 이상이라고 말하지 마세요. "
         "기준 비교는 primary.reference와 related_models의 reference에 맞게 쓰세요. "
         "'기준을 넘었습니다', '기준 아래입니다'처럼 자연스럽게 써도 되지만 "
         "방향이 달라서는 안 됩니다."

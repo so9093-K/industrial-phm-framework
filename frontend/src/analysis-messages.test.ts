@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  comparisonMessage, coefficientGap, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientSpread, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -57,10 +57,12 @@ test("an unchanged relation says so, and the gap test tells chance from change",
   const same = relationMessage(x, y, {pearson: 0.9, spearman: 0.88, pairs: 50}, {pearson: 0.85, spearman: 0.84, pairs: 50}, null)!;
   assert.match(same.headline, /두 기간 모두 두 값은 같은 방향으로 강하게 함께 움직입니다.*관계는 그대로입니다/);
   assert.equal(same.meaning, null);
-  assert.match(same.certainty!, /우연 범위 안/);
+  assert.match(same.certainty!, /두 기간의 피어슨 계수는 조금만 다릅니다\(0.90 → 0.85\)\. 연속된 측정은/);
+  assert.doesNotMatch(same.certainty!, /우연/);
   const few = relationMessage(x, y, {pearson: 0.9, spearman: 0.9, pairs: 6}, {pearson: 0.1, spearman: 0.1, pairs: 40}, null)!;
   assert.match(few.certainty!, /기간 A는 짝이 6개뿐/);
-  assert.ok(coefficientGap({pearson: 0.938, spearman: null, pairs: 75}, {pearson: -0.336, spearman: null, pairs: 25})! > 8);
+  assert.equal(coefficientSpread({pearson: 0.938, spearman: null, pairs: 75}, {pearson: -0.336, spearman: null, pairs: 25}), "large");
+  assert.equal(coefficientSpread({pearson: 0.6, spearman: null, pairs: 75}, {pearson: 0.3, spearman: null, pairs: 25}), "moderate");
   assert.deepEqual(tie({pearson: 0.1, spearman: -0.2, pairs: 30}), {kind: "none"});
   assert.equal(tie({pearson: 0.9, spearman: 0.9, pairs: 2}), null);
 });
@@ -100,12 +102,17 @@ test("models that disagree are named as disagreeing, with where each stands", ()
   const forest = line([[74, 0.6], [75, 0.7], [76, 0.8], [77, 0.97], [78, 0.9]], []);
   const reads = [{name: "LSTM 오토인코더", line: lstm}, {name: "Isolation Forest", line: forest}];
   const message = modelMessage(reads, place)!;
-  assert.equal(message.headline, "모델마다 다르게 말합니다. LSTM 오토인코더 점수는 76번째 측정부터 계속 기준을 넘고 있습니다"
+  assert.equal(message.headline, "최근 측정에서 모델마다 판단이 다릅니다. LSTM 오토인코더 점수는 76번째 측정부터 계속 기준을 넘고 있습니다"
     + "(3회, 가장 높을 때 기준의 6.3배), Isolation Forest 점수는 한 번도 기준을 넘지 않았습니다(가장 높을 때 기준의 0.97배).");
-  assert.match(message.certainty!, /일부 모델만 기준을 넘어/);
+  assert.match(message.certainty!, /최근 측정에서 일부 모델만 기준을 넘어/);
   assert.equal(modelOnset(reads), 76);
   const both = modelMessage([reads[0], {name: "PCA", line: line([[77, 2], [78, 2]], [{start: 77, end: 78, steps: 2, peak: 2, open: true}])}], place)!;
-  assert.match(both.headline, /^모든 모델이 기준을 넘고 있습니다/);
+  assert.match(both.headline, /^모든 모델이 최근 측정에서 기준을 넘고 있습니다/);
+  // A run still open within its allowed gap can end below the threshold: that is not "over now".
+  const lapsed = line([[76, 1.4], [77, 2], [78, 0.9]], [{start: 76, end: 78, steps: 3, peak: 2, open: true}]);
+  const quiet = modelMessage([{name: "LSTM 오토인코더", line: lapsed}, reads[1]], place)!;
+  assert.match(quiet.headline, /^최근 측정에서 기준을 넘은 모델은 없습니다\. LSTM 오토인코더 점수는 76번째 측정부터 기준을 넘는 구간이 이어졌고 최근 측정은 기준 아래입니다/);
+  assert.match(quiet.certainty!, /최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다/);
   assert.match(both.certainty!, /같은 무렵\(76번째 측정\)부터/);
   assert.equal(times(0.966), "0.97배");
   assert.equal(times(12.04), "12배");
@@ -122,7 +129,13 @@ test("the outlook gives every reading's reach and how far the past check lets on
     checks: [{points: 25, error: 1.53, naive: 1.62, coverage: 0}]};
   const message = outlookMessage(facts)!;
   assert.equal(message.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 4~15회(약 4분~15분) 남았습니다. "
-    + "종료 기준 6 g까지 추가 측정 25~29회(약 25분~29분) 남았습니다(계산 방식 4가지 중 2가지에서만 닿음).");
+    + "종료 기준 6 g까지 추가 측정 25~29회(약 25분~29분) 남았습니다(계산 방식 4가지 중 2가지에서 중심 예측이 닿음, 1가지는 예측 범위로만 닿을 수 있음).");
+  // When no central forecast reaches a limit, the band alone may still: that is not "never".
+  const banded = outlookMessage({...facts, conditions: {management: null, end: 6},
+    scenarios: [{id: "current", management: null, end: {state: "possible", expected: null, earliest: 30, latest: null}},
+      {id: "linear", management: null, end: reach("beyond")}]})!;
+  assert.equal(banded.headline, "지금 추세가 이어진다고 가정하면 종료 기준 6 g에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, "
+    + "예측 범위로는 빠르면 추가 측정 30회(약 30분) 뒤 닿을 수 있습니다.");
   assert.equal(message.certainty, "기록의 마지막 25개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 0%였고, "
     + "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다. 계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. "
     + "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요.");
@@ -168,7 +181,7 @@ test("a score that jumps on ordinary values is told apart from one that follows 
   assert.equal(none.certainty, null);
 });
 
-test("a score over its threshold on values the asset often shows but the model never learned is a reference gap", () => {
+test("a score over its threshold on values the asset often shows but rarely in its reference points at the reference first", () => {
   // Compressor 1338, 2020-10-24 19:55 KST: stopped (0 A), which became common after the two learned days had none.
   const stop = (feature: string, label: string, current: number, learned: [number, number]) => ({feature, label, current,
     previous: current, relativePercent: null, unit: "A", usual: {low: 0, high: 71, results: 921}, learned: {low: learned[0], high: learned[1]}});
@@ -177,7 +190,9 @@ test("a score over its threshold on values the asset often shows but the model n
     {...stop("v", "R상전압 평균", 224, [217, 225]), unit: "V", usual: {low: 217, high: 226, results: 921}},
   ], 2000, place)!;
   assert.equal(message.headline, "이상 점수가 0.713 → 0.707입니다(모델 기준 초과). 특징값은 3개 모두 이 설비의 평소 범위 안에 있습니다. "
-    + "다만 2개는 모델이 기준 기간에 학습한 범위를 벗어났습니다: S상전류 평균(학습 범위보다 낮음), R상전류 평균(학습 범위보다 낮음).");
-  assert.match(message.meaning!, /모델이 기준 기간에 배운 적 없는 상태입니다.*모델을 다시 만드는 것을 검토하세요/);
-  assert.match(message.certainty!, /학습 범위는 모델이 기준 기간에 학습한 값의 5~95%입니다/);
+    + "다만 2개는 모델이 기준 기간에 학습한 값의 5~95% 범위를 벗어났습니다: S상전류 평균(학습값 5~95% 범위보다 낮음), R상전류 평균(학습값 5~95% 범위보다 낮음).");
+  // Outside the middle of the learned values is not "never learned"; conditions come before a rebuild.
+  assert.doesNotMatch(message.meaning!, /배운 적 없/);
+  assert.match(message.meaning!, /먼저 기준 기간의 운전 상태 구성과 이 측정의 운전 조건을 확인하세요.*빠져 있었다고 확인되면, 그때/);
+  assert.match(message.certainty!, /이 범위 밖이어도 모델이 학습 중에 비슷한 값을 봤을 수 있고, 여러 특징의 조합은 따로 확인하지 않았습니다/);
 });

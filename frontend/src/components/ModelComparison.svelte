@@ -99,12 +99,12 @@
     {#if told}<AnalysisMessage message={told}/>{/if}
     <div class="scroll"><table>
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
-      <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th><th>평소·학습 범위와 비교</th></tr></thead>
+      <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th><th>평소·학습값 범위와 비교</th></tr></thead>
       <tbody>{#each visible as feature(feature.feature)}
         <tr><th scope="row"><button class="text-button" aria-label={shown(feature.label) + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{shown(feature.label)}</button></th>
           <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td>
           <td>{#if feature.usual}<span title={"평소 범위 "+num(feature.usual.low)+"~"+num(feature.usual.high)+(feature.unit?" "+feature.unit:"")}>{AGAINST_TEXT[against(feature.current,feature.usual)]}</span>{:else}—{/if}
-            {#if feature.learned&&against(feature.current,feature.learned)!=="inside"}<span class="learned" title={"학습 범위 "+num(feature.learned.low)+"~"+num(feature.learned.high)+(feature.unit?" "+feature.unit:"")}> · {LEARNED_TEXT[against(feature.current,feature.learned)]}</span>{/if}</td></tr>
+            {#if feature.learned&&against(feature.current,feature.learned)!=="inside"}<span class="learned" title={"학습값 5~95% 범위 "+num(feature.learned.low)+"~"+num(feature.learned.high)+(feature.unit?" "+feature.unit:"")}> · {LEARNED_TEXT[against(feature.current,feature.learned)]}</span>{/if}</td></tr>
       {/each}</tbody>
     </table></div>
     {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}

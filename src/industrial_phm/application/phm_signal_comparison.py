@@ -97,10 +97,12 @@ def attach_usual_ranges(
 
 
 def attach_learned_ranges(models_root: Path, package_id: str, rows: list[dict[str, Any]]) -> None:
-    """Give each compared feature the range the model was fitted on, when the package kept it.
+    """Give each compared feature the middle 90% of the values the model was fitted on, when the
+    package kept them.
 
-    A value inside the asset's usual range but outside this one is a state the model never
-    learned, which reads differently from a value the asset itself rarely shows.
+    A value inside the asset's usual range but outside this one was rare in the reference period,
+    which reads differently from a value the asset itself rarely shows. It does not mean the model
+    never saw such a value: the tails and feature combinations are not judged here.
     """
     learned = fit_row_ranges(models_root / package_id, USUAL_QUANTILES)
     for row in rows:
