@@ -30,6 +30,7 @@ from industrial_phm.application.phm_read import (
     project_snapshot_preview,
 )
 from industrial_phm.application.phm_signal_comparison import (
+    attach_learned_ranges,
     attach_usual_ranges,
     feature_comparison,
     stream_amplitude_unit,
@@ -114,9 +115,13 @@ def handle_phm_read(
             ):
                 raise PhmReadError("comparison needs two stored analyzed results in order")
             rows = with_units(feature_comparison(current, previous), amplitude)
+            # Usual is read from before the earlier result, so neither compared one shapes it;
+            # learned is what the model was fitted on, when its package kept those rows.
             until = attach_usual_ranges(
                 store, binding_id, rows, (previous_position or position) - 1
             )
+            if owner is not None:
+                attach_learned_ranges(workspace.models_path, owner.package_id, rows)
             return HTTPStatus.OK, {
                 "schema_version": 1,
                 "binding_id": binding_id,

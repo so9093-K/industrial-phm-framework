@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,7 +18,7 @@ from industrial_phm.application.observation_window_sqlite import SqliteObservati
 from industrial_phm.application.phm_analysis import PhmBinding, SqlitePhmAnalysisStore, StepResult
 from industrial_phm.application.phm_read import PhmReadError
 from industrial_phm.application.phm_window_read import project_phm_window
-from industrial_phm.models.package import StepKind
+from industrial_phm.models.package import StepKind, fit_row_ranges
 
 # Waveform features measured in the signal's own amplitude unit; the others are ratios.
 AMPLITUDE_FEATURES = ("mean", "rms", "standard_deviation", "absolute_peak", "peak_to_peak")
@@ -93,6 +94,18 @@ def attach_usual_ranges(
     for row in rows:
         row["usual"] = usual.get(row["feature"])
     return before if usual else None
+
+
+def attach_learned_ranges(models_root: Path, package_id: str, rows: list[dict[str, Any]]) -> None:
+    """Give each compared feature the range the model was fitted on, when the package kept it.
+
+    A value inside the asset's usual range but outside this one is a state the model never
+    learned, which reads differently from a value the asset itself rarely shows.
+    """
+    learned = fit_row_ranges(models_root / package_id, USUAL_QUANTILES)
+    for row in rows:
+        edges = learned.get(row["feature"])
+        row["learned"] = None if edges is None else {"low": edges[0], "high": edges[1]}
 
 
 def feature_comparison(current: StepResult, previous: StepResult | None) -> list[dict[str, Any]]:

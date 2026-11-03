@@ -147,6 +147,42 @@ def _usual_word(row: dict[str, Any]) -> str:
     )
 
 
+def _learned_word(row: dict[str, Any]) -> str:
+    """Where the selected value sits against the rows the model was fitted on, in words."""
+    learned, value = row["learned"], row["current"]
+    return (
+        "학습 범위보다 높음"
+        if value > learned["high"]
+        else "학습 범위보다 낮음"
+        if value < learned["low"]
+        else "학습 범위 안"
+    )
+
+
+def range_reading(rows: list[dict[str, Any]], twins: dict[str, list[str]]) -> str | None:
+    """The selected result's features against the asset's usual range and the model's learned
+    one, as one sentence: values the asset rarely shows, or common ones the model never learned."""
+    folded = {name for names in twins.values() for name in names}
+    kept = [row for row in rows if row["feature"] not in folded]
+    judged = [row for row in kept if row.get("usual")]
+    if not judged:
+        return None
+    unusual = [row for row in judged if _usual_word(row) != "평소 범위 안"]
+    if unusual:
+        return "이 설비의 평소 범위를 벗어난 값: " + ", ".join(
+            f"{row['label']}({_usual_word(row)})" for row in unusual[:4]
+        )
+    unlearned = [row for row in kept if row.get("learned") and _learned_word(row) != "학습 범위 안"]
+    if not unlearned:
+        return "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이고 모델이 학습한 범위 안입니다."
+    return (
+        "고른 측정의 특징값은 모두 이 설비의 평소 범위 안이지만, 모델이 기준 기간에 학습한 범위를 "
+        "벗어난 값이 있습니다: "
+        + ", ".join(f"{row['label']}({_learned_word(row)})" for row in unlearned[:4])
+        + ". 이 설비에서는 흔한 상태를 모델이 기준 기간에 배운 적 없을 수 있습니다."
+    )
+
+
 def same_value_features(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Features that carry the same number at both measurements: a vibration's standard
     deviation equals its RMS when its mean is about zero. Kept: RMS; folded in: the twin."""
@@ -206,6 +242,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
                 else {}
             ),
             **({"usual": _usual_word(row)} if row.get("usual") else {}),
+            **({"learned": _learned_word(row)} if row.get("learned") else {}),
         }
         for row in rows
         if row["feature"] not in {name for names in twins.values() for name in names}
@@ -298,6 +335,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
         "original_amplitude": amplitude,
         "recorded_replay": bool(context.get("recorded_replay")),
         "facts": operator["facts"],
+        "range_reading": range_reading(rows, twins),
     }
 
 
@@ -418,6 +456,12 @@ _TASK = {
         "usual이 있으면 summary에서 변한 값이 이 설비의 평소 범위를 벗어났는지('평소보다 높음', "
         "'평소보다 낮음', '평소 범위 안')를 함께 말하세요. 점수가 크게 바뀌었는데 usual이 모두 "
         "'평소 범위 안'이면 개별 값은 평소 범위 안이라고 그대로 말하고, 원인을 짐작하지 마세요. "
+        "range_reading은 고른 측정의 특징값 전체를 평소 범위와 학습 범위에 견준 결과입니다. "
+        "왜 기준을 넘었는지, 설비가 평소와 다른지 물으면 두 시점의 변화보다 range_reading을 "
+        "먼저 말하세요. "
+        "learned는 모델이 학습한 기준 기간의 범위에 견준 위치입니다. 값이 '평소 범위 안'인데 "
+        "'학습 범위' 밖이면, 이 설비에서는 흔하지만 모델이 기준 기간에 배운 적 없는 상태라고 "
+        "말하고, 설비 이상과 구별하세요. "
         "기준 비교는 primary.reference와 related_models의 reference에 맞게 쓰세요. "
         "'기준을 넘었습니다', '기준 아래입니다'처럼 자연스럽게 써도 되지만 "
         "방향이 달라서는 안 됩니다."

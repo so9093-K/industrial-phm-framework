@@ -30,8 +30,12 @@ export function parseComparison(raw:unknown,binding:ModelBinding,run:ModelRun,pr
     if(row.usual!==undefined&&row.usual!==null&&!range)invalid();
     const usual=range?{low:finite(range.low)!,high:finite(range.high)!,results:integer(range.results,1)}:null;
     if(usual&&(usual.low===null||usual.high===null||usual.low>usual.high))invalid();
+    const fitted=row.learned===undefined||row.learned===null?null:object(row.learned);
+    if(row.learned!==undefined&&row.learned!==null&&!fitted)invalid();
+    const learned=fitted?{low:finite(fitted.low)!,high:finite(fitted.high)!}:null;
+    if(learned&&(learned.low===null||learned.high===null||learned.low>learned.high))invalid();
     return {feature:row.feature,label:row.label,current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent),
-      unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null,usual};
+      unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null,usual,learned};
   });
   const until=root.usual_until===undefined||root.usual_until===null?null:integer(root.usual_until,1);
   if(until!==null&&until>=(previous??run.position))invalid();

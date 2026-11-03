@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,7 @@ from industrial_phm.models.package import (
     PackageOutputSpec,
     ReviewIntervalRule,
     StepKind,
+    fit_row_ranges,
     load_model_package,
     write_model_package,
 )
@@ -118,6 +120,30 @@ def test_isolation_forest_refit_matches_direct_fit(tmp_path: Path) -> None:
     direct = IsolationForest(n_estimators=64, n_jobs=1, random_state=42, max_features=1.0).fit(rows)
     probe = rows[10:20]
     assert package.evaluate(probe.tolist()) == tuple(-direct.score_samples(probe))
+
+
+def test_learned_ranges_come_from_the_kept_fit_rows_and_only_when_they_verify(
+    tmp_path: Path,
+) -> None:
+    rows = np.column_stack([np.arange(100.0), np.arange(100.0) * 2, np.full(100, 7.0)])
+    manifest = write_model_package(tmp_path, _iforest_build(rows))
+    learned = fit_row_ranges(tmp_path / manifest.package_id)
+    assert learned["f.a"] == pytest.approx((4.95, 94.05))
+    assert learned["f.b"] == pytest.approx((9.9, 188.1)) and learned["f.c"] == (7.0, 7.0)
+    # Rows are kept after preprocessing; the ranges read back in the features' own units.
+    scaled = replace(
+        _iforest_build(rows),
+        preprocessing=AffinePreprocessing(center=(100.0, 0.0, 220.0), scale=(2.0, 1.0, 0.5)),
+    )
+    shifted = fit_row_ranges(tmp_path / write_model_package(tmp_path, scaled).package_id)
+    assert shifted["f.a"] == pytest.approx((109.9, 288.1))
+    assert shifted["f.c"] == pytest.approx((223.5, 223.5))
+    # A package that kept no rows, or whose rows no longer match their digest, has none.
+    linear = write_model_package(tmp_path, _linear_build())
+    assert fit_row_ranges(tmp_path / linear.package_id) == {}
+    (tmp_path / manifest.package_id / "fit-rows.npz").write_bytes(b"changed")
+    assert fit_row_ranges(tmp_path / manifest.package_id) == {}
+    assert fit_row_ranges(tmp_path / "missing") == {}
 
 
 def test_tampered_payload_is_refused(tmp_path: Path) -> None:

@@ -15,6 +15,7 @@ from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, Step
 from industrial_phm.application.phm_range import range_analysis
 from industrial_phm.application.phm_read import project_phm_bindings
 from industrial_phm.application.phm_signal_comparison import (
+    attach_learned_ranges,
     attach_usual_ranges,
     feature_comparison,
     feature_label,
@@ -183,6 +184,7 @@ def explanation_context(
         }
     features = feature_comparison(result, previous)
     attach_usual_ranges(store, binding_id, features, (previous or result).position - 1)
+    attach_learned_ranges(models_root, binding.package_id, features)
     signal_comparison: dict[str, Any] = {
         "current_position": position,
         "previous_position": None if previous is None else previous.position,

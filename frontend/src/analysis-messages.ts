@@ -327,44 +327,63 @@ export function withoutTwins(features: FeatureChange[]): FeatureChange[] {
   });
 }
 
-/** Two stored results of one model: how the score moved and whether the features left where this
- * asset usually sits, so a score that jumps on ordinary values is told apart from one that follows them. */
-export function comparisonMessage(score: {previous: number | null; current: number | null}, features: FeatureChange[],
-  usualUntil: number | null, place: (position: number) => string, next: NextStep[] = []): AnalysisMessage | null {
-  const judged = withoutTwins(features).filter((feature) => feature.usual);
+export const LEARNED_TEXT = {above: "학습 범위보다 높음", below: "학습 범위보다 낮음", inside: "학습 범위 안"} as const;
+
+/** Two stored results of one model: how the score moved, whether the features left where this asset
+ * usually sits, and whether they left what the model was fitted on. A score over its threshold on
+ * values the asset often shows but the model never learned is a reference gap, not an odd asset. */
+export function comparisonMessage(score: {previous: number | null; current: number | null; exceeds?: boolean | null},
+  features: FeatureChange[], usualUntil: number | null, place: (position: number) => string,
+  next: NextStep[] = []): AnalysisMessage | null {
+  const counted = withoutTwins(features), judged = counted.filter((feature) => feature.usual);
   if (score.current === null && !judged.length) return null;
   const ratio = score.previous !== null && score.current !== null && score.previous > 0 && score.current > 0
     ? score.current / score.previous : null;
   const moved = ratio !== null && (ratio >= 2 || ratio <= 0.5);
+  const flagged = moved || score.exceeds === true;
   let headline = score.previous !== null && score.current !== null
     ? "이상 점수가 " + short(score.previous) + " → " + short(score.current)
-      + (ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "가 됐습니다." : "입니다.")
+      + (ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "가 됐습니다" : "입니다")
+      + (score.exceeds === true ? "(모델 기준 초과)." : ".")
     : "";
-  // Farthest outside first, measured in the width of the usual range.
-  const far = (feature: FeatureChange) => {
-    const {low, high} = feature.usual!, width = Math.max(high - low, Math.abs(high) * 1e-6, 1e-12);
-    return Math.max(feature.current - high, low - feature.current) / width;
+  // Farthest outside first, measured in the width of the range.
+  const far = (value: number, range: {low: number; high: number}) => {
+    const width = Math.max(range.high - range.low, Math.abs(range.high) * 1e-6, 1e-12);
+    return Math.max(value - range.high, range.low - value) / width;
   };
   const outside = judged.filter((feature) => against(feature.current, feature.usual!) !== "inside")
-    .sort((a, b) => far(b) - far(a));
+    .sort((a, b) => far(b.current, b.usual!) - far(a.current, a.usual!));
+  const unlearned = counted.filter((feature) => feature.learned && against(feature.current, feature.learned) !== "inside")
+    .sort((a, b) => far(b.current, b.learned!) - far(a.current, a.learned!));
+  const named = (list: FeatureChange[], text: (feature: FeatureChange) => string) =>
+    list.slice(0, 3).map((feature) => feature.label + "(" + text(feature) + ")").join(", ")
+      + (list.length > 3 ? " 외 " + (list.length - 3) + "개." : ".");
   if (!judged.length)
     headline += " 이전 기록이 짧아 특징값이 평소와 다른지는 아직 말할 수 없습니다.";
   else if (outside.length)
     headline += " 특징 " + judged.length + "개 중 " + outside.length + "개가 이 설비의 평소 범위를 벗어났습니다: "
-      + outside.slice(0, 3).map((feature) => feature.label + "(" + AGAINST_TEXT[against(feature.current, feature.usual!)] + ")").join(", ")
-      + (outside.length > 3 ? " 외 " + (outside.length - 3) + "개." : ".");
-  else headline += " 특징값은 " + judged.length + "개 모두 이 설비의 평소 범위 안에 있습니다.";
-  const meaning = moved && judged.length && !outside.length
-    ? "점수는 크게 바뀌었지만 개별 특징값은 평소 범위 안입니다. 하나의 값보다 여러 값의 조합이 평소와 다를 때 점수가 바뀔 수 있으니, 같은 시각의 운전·측정 조건과 함께 보세요."
-    : outside.length
-      ? (() => { const top = outside[0], unit = top.unit ? " " + top.unit : "";
-        return "가장 멀리 벗어난 값은 " + top.label + " " + short(top.current) + unit + "이고, 평소 범위는 "
-          + short(top.usual!.low) + "~" + short(top.usual!.high) + unit + "입니다."; })()
-      : null;
+      + named(outside, (feature) => AGAINST_TEXT[against(feature.current, feature.usual!)]);
+  else {
+    headline += " 특징값은 " + judged.length + "개 모두 이 설비의 평소 범위 안에 있습니다.";
+    if (unlearned.length)
+      headline += " 다만 " + unlearned.length + "개는 모델이 기준 기간에 학습한 범위를 벗어났습니다: "
+        + named(unlearned, (feature) => LEARNED_TEXT[against(feature.current, feature.learned!)]);
+  }
+  let meaning: string | null = null;
+  if (judged.length && !outside.length && unlearned.length && flagged)
+    meaning = "이 설비에서는 흔한 값이지만 모델이 기준 기간에 배운 적 없는 상태입니다. 점수가 오른 것은 설비가 평소와 달라서라기보다 "
+      + "기준 기간에 이 상태가 없었기 때문일 수 있습니다. 이 상태가 정상 운전에 속한다면, 이 상태를 포함한 기준 기간으로 모델을 다시 만드는 것을 검토하세요.";
+  else if (outside.length) {
+    const top = outside[0], unit = top.unit ? " " + top.unit : "";
+    meaning = "가장 멀리 벗어난 값은 " + top.label + " " + short(top.current) + unit + "이고, 평소 범위는 "
+      + short(top.usual!.low) + "~" + short(top.usual!.high) + unit + "입니다.";
+  } else if (judged.length && flagged)
+    meaning = "점수는 크게 바뀌었지만 개별 특징값은 평소 범위 안입니다. 하나의 값보다 여러 값의 조합이 평소와 다를 때 점수가 바뀔 수 있으니, 같은 시각의 운전·측정 조건과 함께 보세요.";
   const results = judged[0]?.usual?.results ?? 0;
   const certainty = judged.length && usualUntil !== null
-    ? "평소 범위는 " + place(usualUntil) + "까지 이 모델이 분석한 " + results + "개 결과의 5~95% 값입니다."
+    ? "평소 범위는 비교 측정 이전에 이 모델이 분석한 " + results + "개 결과의 5~95% 값입니다."
       + (results < 50 ? " 기록이 짧아 평소 범위가 좁거나 넓게 잡혔을 수 있습니다." : "")
+      + (counted.some((feature) => feature.learned) ? " 학습 범위는 모델이 기준 기간에 학습한 값의 5~95%입니다." : "")
     : null;
   return {headline: headline.trim(), meaning, certainty, next};
 }

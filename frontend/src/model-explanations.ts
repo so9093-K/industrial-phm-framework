@@ -11,6 +11,8 @@ export type FeatureChange={
   unit?:string|null;
   /** Where the feature usually sits: 5–95% of the model's results before the comparison. */
   usual?:{low:number;high:number;results:number}|null;
+  /** The 5–95% range of the rows the model was fitted on, when its package kept them. */
+  learned?:{low:number;high:number}|null;
 };
 export type Relation="increased"|"decreased"|"unchanged";
 export type AnswerSource="model"|"model-trimmed"|"verified-comparison";

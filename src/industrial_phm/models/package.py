@@ -424,6 +424,48 @@ def load_model_package(path: Path) -> LoadedModelPackage:
     return package
 
 
+def fit_row_ranges(
+    path: Path, quantiles: tuple[float, float] = (0.05, 0.95)
+) -> dict[str, tuple[float, float]]:
+    """Each input feature's range over the rows the model was fitted on, when it kept them.
+
+    The rows are kept after the package's preprocessing, so they are read back into the
+    features' own units first. Only the manifest, the state and the fit rows are read, each
+    checked against its recorded digest; the model itself is not restored. A package without
+    fit rows has no learned ranges.
+    """
+    try:
+        manifest = _manifest_from_json(
+            json.loads((path / _MANIFEST_NAME).read_text(encoding="utf-8"))
+        )
+        digests = manifest.payload_sha256
+        if _FIT_ROWS_NAME not in digests or _STATE_NAME not in digests:
+            return {}
+        data = {name: (path / name).read_bytes() for name in (_FIT_ROWS_NAME, _STATE_NAME)}
+        if any(_sha256(content) != digests[name] for name, content in data.items()):
+            return {}
+        state = json.loads(data[_STATE_NAME])
+        center = np.asarray(state["preprocessing"]["center"], dtype=float)
+        scale = np.asarray(state["preprocessing"]["scale"], dtype=float)
+        with np.load(io.BytesIO(data[_FIT_ROWS_NAME]), allow_pickle=False) as arrays:
+            rows = np.asarray(arrays["rows"], dtype=float)
+    except OSError, ValueError, KeyError, TypeError, ModelPackageError:
+        return {}
+    names = manifest.input.feature_names
+    if (
+        rows.ndim != 2
+        or not len(rows)
+        or not rows.shape[1] == len(names) == len(center) == len(scale)
+    ):
+        return {}
+    low, high = np.nanquantile(rows * scale + center, quantiles, axis=0)
+    return {
+        name: (float(lo), float(hi))
+        for name, lo, hi in zip(names, low, high, strict=True)
+        if math.isfinite(lo) and math.isfinite(hi)
+    }
+
+
 _Evaluate = Callable[[np.ndarray], np.ndarray]
 
 

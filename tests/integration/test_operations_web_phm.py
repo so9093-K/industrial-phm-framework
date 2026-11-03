@@ -431,6 +431,8 @@ def test_range_route_reads_the_shape_between_two_stored_results(tmp_path: Path) 
         # Seven earlier results are too few to call any range usual: none is invented.
         assert compared["usual_until"] is None
         assert all(row["usual"] is None for row in compared["features"])
+        # These test packages keep no fit rows, so no learned range is shown either.
+        assert all(row["learned"] is None for row in compared["features"])
         assert not workspace.phm_explanation_path.exists(), (
             "reading a comparison must never request AI"
         )

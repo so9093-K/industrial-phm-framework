@@ -147,7 +147,7 @@ test("a score that jumps on ordinary values is told apart from one that follows 
   const calm = comparisonMessage({previous: 0.007502, current: 0.1789}, quiet, 9000, place)!;
   assert.equal(calm.headline, "이상 점수가 0.0075 → 0.179로 약 24배가 됐습니다. 특징값은 2개 모두 이 설비의 평소 범위 안에 있습니다.");
   assert.match(calm.meaning!, /여러 값의 조합이 평소와 다를 때/);
-  assert.equal(calm.certainty, "평소 범위는 9000번째 측정까지 이 모델이 분석한 9000개 결과의 5~95% 값입니다.");
+  assert.equal(calm.certainty, "평소 범위는 비교 측정 이전에 이 모델이 분석한 9000개 결과의 5~95% 값입니다.");
   // Bearing1_1 #75 → #100: RMS left its usual range far above.
   const loud = comparisonMessage({previous: 1.326, current: 11.05}, [
     {feature: "rms", label: "수평 진동 RMS", current: 3.214, previous: 0.947, relativePercent: 239.5, unit: "g", usual: {low: 0.6, high: 0.86, results: 40}},
@@ -166,4 +166,18 @@ test("a score that jumps on ordinary values is told apart from one that follows 
   const none = comparisonMessage({previous: 1, current: 1.1}, [{...quiet[0], usual: null}], null, place)!;
   assert.equal(none.headline, "이상 점수가 1 → 1.1입니다. 이전 기록이 짧아 특징값이 평소와 다른지는 아직 말할 수 없습니다.");
   assert.equal(none.certainty, null);
+});
+
+test("a score over its threshold on values the asset often shows but the model never learned is a reference gap", () => {
+  // Compressor 1338, 2020-10-24 19:55 KST: stopped (0 A), which became common after the two learned days had none.
+  const stop = (feature: string, label: string, current: number, learned: [number, number]) => ({feature, label, current,
+    previous: current, relativePercent: null, unit: "A", usual: {low: 0, high: 71, results: 921}, learned: {low: learned[0], high: learned[1]}});
+  const message = comparisonMessage({previous: 0.713, current: 0.707, exceeds: true}, [
+    stop("r_mean", "R상전류 평균", 0, [44.2, 69.09]), stop("s_mean", "S상전류 평균", 0, [46.87, 72.2]),
+    {...stop("v", "R상전압 평균", 224, [217, 225]), unit: "V", usual: {low: 217, high: 226, results: 921}},
+  ], 2000, place)!;
+  assert.equal(message.headline, "이상 점수가 0.713 → 0.707입니다(모델 기준 초과). 특징값은 3개 모두 이 설비의 평소 범위 안에 있습니다. "
+    + "다만 2개는 모델이 기준 기간에 학습한 범위를 벗어났습니다: S상전류 평균(학습 범위보다 낮음), R상전류 평균(학습 범위보다 낮음).");
+  assert.match(message.meaning!, /모델이 기준 기간에 배운 적 없는 상태입니다.*모델을 다시 만드는 것을 검토하세요/);
+  assert.match(message.certainty!, /학습 범위는 모델이 기준 기간에 학습한 값의 5~95%입니다/);
 });
