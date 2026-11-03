@@ -4,7 +4,7 @@
 import {assetTabUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
-export type CapabilityId="measurements"|"period-compare"|"relation"|"spectrum"|"forecast"|"anomaly"|"ai-question";
+export type CapabilityId="measurements"|"period-compare"|"relation"|"spectrum"|"electrical"|"forecast"|"anomaly"|"ai-question";
 export type CapabilityStatus="ready"|"needs-connection"|"waiting"|"unavailable";
 export type CapabilityTarget={
   view:"signals"|"monitor"|"anomaly"|"forecast"|"connect";
@@ -19,15 +19,15 @@ export type Capabilities={
   items:Capability[];
 };
 
-const IDS:readonly CapabilityId[]=["measurements","period-compare","relation","spectrum","forecast","anomaly","ai-question"];
+const IDS:readonly CapabilityId[]=["measurements","period-compare","relation","spectrum","electrical","forecast","anomaly","ai-question"];
 const STATUSES:readonly CapabilityStatus[]=["ready","needs-connection","waiting","unavailable"];
 export const NAME:Record<CapabilityId,string>={
-  measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",
+  measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",electrical:"부하·불평형",
   forecast:"상태 전망",anomaly:"이상 징후","ai-question":"AI 해설",
 };
 /** What each analysis answers, as the question a person brings, and what data it needs. The
  * method name stays beside the question so the screens it opens are still recognisable. */
-export type GuideId=CapabilityId|"electrical";
+export type GuideId=CapabilityId;
 export const QUESTION:Record<GuideId,string>={
   measurements:"값이 시간에 따라 어떻게 움직였나요?",
   anomaly:"언제 평소와 달라졌나요?",
@@ -38,7 +38,7 @@ export const QUESTION:Record<GuideId,string>={
   forecast:"지금 추세라면 정한 기준까지 얼마나 남았나요?",
   "ai-question":"이 결과가 무슨 뜻인지 근거와 함께 물어보기",
 };
-export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수",electrical:"부하·불평형"};
+export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수"};
 export const NEEDS:Record<GuideId,string>={
   measurements:"시각 열과 숫자 열이 있는 CSV, 또는 OPC UA로 받은 기록",
   anomaly:"같은 신호의 시간 순서 기록 (모델 점수는 기준 기간을 골라 모델을 만들거나 연결)",
@@ -130,6 +130,14 @@ export function fact(item:Capability,capabilities:Capabilities):string{
       const details=Array.isArray(facts.details)?facts.details.filter((detail):detail is string=>typeof detail==="string"):[];
       return "모델 입력 조건이 맞지 않음"+(details.length?" ("+details.join(", ")+")":"");
     }
+    case "phase-roles":{
+      const quantities=Array.isArray(facts.quantities)?facts.quantities:[];
+      const names=quantities.map(item=>item==="voltage"?"전압":item==="current"?"전류":"").filter(Boolean);
+      return "R·S·T 3상 "+(names.length?names.join("·"):"전압·전류")+" 역할 확인됨";
+    }
+    case "no-phase-roles":return "R·S·T 3상 전압·전류 역할이 지정된 신호 없음 (데이터 연결에서 지정)";
+    case "ambiguous-phase-roles":return "같은 상 역할로 지정된 신호가 여러 개";
+    case "no-history":return "시계열 기록 없음";
     case "single-signal":return "시계열 신호 1개";
     case "single-moment":return "측정 시각 1개";
     case "read-only":return "보기 전용 화면에서는 요청할 수 없음 (운영 중인 화면에서 사용)";
@@ -172,6 +180,8 @@ export function place(item:Capability,assetId:string):string|null{
       return assetTabUrl(assetId,"change","spectrum");
     if(item.id==="measurements" && target.goal==="trend" && target.data!==null)
       return assetTabUrl(assetId,"signals");
+    if(item.id==="electrical" && target.goal==="electrical" && target.data==="history")
+      return assetTabUrl(assetId,"change","electrical");
   }
   return null;
 }

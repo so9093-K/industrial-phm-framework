@@ -344,6 +344,26 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         ),
         batch_id="comp",
     )
+    # T상전류 reads exactly 60 A until the stop, so its baseline has no spread at all.
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:comp:{'d' * 64}:t{index}",
+                source_id="comp-file",
+                asset_id="comp-01",
+                channel_id="T상전류",
+                source_file="comp.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=0.0 if 60 <= index < 90 else 60.0,
+                source_metadata_json=phase,
+            )
+            for index in range(120)
+        ),
+        batch_id="comp-t",
+    )
     get, stop = _serve(workspace.root)
     try:
         # 관측 현황 asks whether the record ends away from its start: it does not.
@@ -352,11 +372,19 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         status, found = get("/api/v1/explore/findings", asset_id="comp-01")
         assert status == 200
         assert found["meaning"] == "departures-from-the-first-30-percent-not-fault-diagnosis"
-        assert found["checked"] == ["R상전류"] and found["unchecked"] == 0
+        assert [(row["label"], row["state"]) for row in found["signals"]] == [
+            ("R상전류", "scored"),
+            ("T상전류", "constant"),
+        ]
+        assert found["judged"] == 1 and found["unchecked"] == 0
+        # A signal held at one value through the baseline cannot be judged by spread: it is
+        # said as not judged, with what it held and what the record did afterwards.
+        held = found["signals"][1]
+        assert held["held"] == 60.0 and held["later"] == {"low": 0.0, "high": 60.0}
         assert found["interval_count"] >= 1 and found["bucket_seconds"] > 0
         stop_interval = found["intervals"][0]
         assert stop_interval["direction"] == "down" and stop_interval["value"] == 0.0
-        assert stop_interval["unit"] == "A" and stop_interval["with"] == []
+        assert stop_interval["unit"] == "A" and stop_interval["within"] == []
         assert stop_interval["usual"]["low"] < 60 < stop_interval["usual"]["high"]
         start = datetime.fromisoformat(stop_interval["start"])
         assert BASE + timedelta(minutes=59) <= start <= BASE + timedelta(minutes=60)

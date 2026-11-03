@@ -86,8 +86,8 @@ export function methodsFor(
   return methodsOf(tab).filter(method => {
     if (method === "model") return true;
     if (method === "baseline") return data?.history !== null && data?.history !== undefined;
-    // Correct R/S/T and units require the existing /api/v1/condition source inspection.
-    if (method === "electrical") return kinds.includes("history") && (data?.history?.signals ?? 0) >= 3;
+    // The server resolves R·S·T roles by bound meaning, as the 부하·불평형 screen does.
+    if (method === "electrical") return kinds.includes("history") && status("electrical", null) === "ready";
     if (method === "spectrum") return kinds.includes("vibration") && status("spectrum","vibration") === "ready";
     const id = method === "compare" ? "period-compare" : "relation";
     return kinds.some(source => status(id,source) === "ready");

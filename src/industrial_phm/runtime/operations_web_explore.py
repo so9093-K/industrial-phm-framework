@@ -431,7 +431,8 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         "asset_id": asset_id,
         "baseline": None,
         "record": None,
-        "checked": [],
+        "signals": [],
+        "judged": 0,
         "unchecked": 0,
         "intervals": [],
         "interval_count": 0,
@@ -466,25 +467,53 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         width = aggregation.bucket_seconds
         identity, buckets = strongest_identity(aggregation.buckets)
         units[channel] = interpretation_unit(identity[2])
-        points[channel] = [
+        values = [
             (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
         ]
-    try:
-        found = find_departures(points, baseline="first-30")
-    except LookupError, ValueError:
-        return body
+        if values:
+            points[channel] = values
     registry = workspace.source_registry_path
     sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
     names = resolve_channel_labels(sources, asset_id)
+
+    def named(channel: str) -> tuple[str, str | None]:
+        label, unit = names.get(channel, (None, None))
+        return label or channel, unit or units.get(channel)
+
+    try:
+        found = find_departures(points, baseline="first-30")
+    except LookupError, ValueError:
+        found = None
+    # Every signal says whether it was judged, and if not why: a signal that could not be judged
+    # is never counted as one that showed no change.
+    states = {item["key"]: item for item in found["channels"]} if found else {}
+    cut = found["baseline"]["to"] if found else None
+    signals = []
+    for channel in checked:
+        label, unit = named(channel)
+        state = states.get(channel)
+        row: dict[str, Any] = {
+            "channel": channel,
+            "label": label,
+            "unit": unit,
+            "state": state["state"] if state else "no-values",
+        }
+        if state and state["state"] == "constant" and cut is not None:
+            # Held one value through the baseline: no spread to judge a distance by, but what
+            # the record did afterwards is still a fact worth stating.
+            later = [value for start, _, value in points[channel] if start >= cut]
+            row["held"] = state["median"]
+            row["later"] = {"low": min(later), "high": max(later)} if later else None
+        signals.append(row)
+    body["signals"] = signals
+    body["judged"] = sum(row["state"] == "scored" for row in signals)
+    if found is None:
+        return body
     usual = {
         item["key"]: (item["median"], item["spread"])
         for item in found["channels"]
         if item["state"] == "scored"
     }
-
-    def named(channel: str) -> tuple[str, str | None]:
-        label, unit = names.get(channel, (None, None))
-        return label or channel, unit or units.get(channel)
 
     shown = []
     for item in found["intervals"][:_FINDINGS_SHOWN]:
@@ -504,7 +533,11 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                     "low": median - found["threshold"] * spread,
                     "high": median + found["threshold"] * spread,
                 },
-                "with": [named(other)[0] for other in item["channels"] if other != item["channel"]],
+                # Other signals outside their own range somewhere in the same merged interval,
+                # not necessarily at the same moment.
+                "within": [
+                    named(other)[0] for other in item["channels"] if other != item["channel"]
+                ],
             }
         )
     body.update(
@@ -516,7 +549,6 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             "record": {"from": iso(summary.start_at), "to": iso(summary.end_at)},
             # Each value is a bucket mean over this many seconds, not a single measurement.
             "bucket_seconds": width,
-            "checked": [named(channel)[0] for channel in points],
             "unchecked": len(channels) - len(checked),
             "intervals": shown,
             "interval_count": len(found["intervals"]),

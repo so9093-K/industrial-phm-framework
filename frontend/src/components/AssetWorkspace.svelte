@@ -238,7 +238,8 @@
       {:else if route.tab === "change" && kind === "vibration"}
         <AcquisitionFeatureProfile assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change"}
-        <PeriodComparison assetId={asset.assetId} />
+        <PeriodComparison assetId={asset.assetId}
+          electrical={capabilities?.items.some((item) => item.id === "electrical" && item.status === "ready") ?? false} />
       {:else if route.tab === "outlook" && kind === "vibration"}
         <AcquisitionOutlook assetId={asset.assetId} />
       {:else}

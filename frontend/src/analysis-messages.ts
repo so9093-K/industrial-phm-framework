@@ -454,8 +454,8 @@ export type HistoryPeriodFacts = PeriodFacts & {
 const portion = (part: number, whole: number) => whole > 0 ? part / whole : 0;
 
 /** A stored time series over two periods. Beyond the shared period message, it says whether the
- * share of time with no current differs, and when the median moved but the mean barely did, that
- * values sit at a few levels whose time shares changed. Both are observations, not causes. */
+ * share of measurements with no current differs, and when the median moved but the mean barely did,
+ * that values may sit at a few levels whose shares changed. Both are observations, not causes. */
 export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[] = []): AnalysisMessage | null {
   const base = periodMessage({...facts, onset: null}, (at) => String(at), next);
   if (!base) return null;
@@ -465,9 +465,11 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
   if (facts.noCurrent) {
     const a = portion(facts.noCurrent.a, facts.a.usable), b = portion(facts.noCurrent.b, facts.b.usable);
     idleDiffers = Math.abs(a - b) >= 0.1;
-    notes.push("전류가 1 A 미만(흐르지 않음)인 측정은 기간 A " + percent(a) + ", 기간 B " + percent(b)
-      + (idleDiffers ? "로 달라, 두 기간의 차이에는 전류가 흐른 시간 비율의 차이가 들어 있습니다."
-        : "로 비슷해, 차이는 전류가 흐르지 않은 시간보다 흐르는 동안의 값에서 나왔습니다."));
+    // A share of stored measurements, not of time: spacing can differ, so no duration is claimed,
+    // and a similar share does not settle where the difference came from.
+    notes.push("유효 측정 중 전류가 1 A 미만(흐르지 않음)인 측정의 비율은 기간 A " + percent(a) + ", 기간 B " + percent(b)
+      + (idleDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 전류가 흐르는 동안의 값끼리도 견줘 보세요."
+        : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 흐르지 않은 구간의 길이와 흐르는 동안의 값 분포를 함께 확인하세요."));
   }
   const {a, b} = facts, {a: meanA, b: meanB} = facts.means;
   if (!idleDiffers && a.median !== null && b.median !== null && meanA !== null && meanB !== null && facts.aMiddle) {
@@ -478,7 +480,7 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
     if (apart)
       notes.push("중앙값은 " + short(a.median) + " → " + short(b.median) + unit + "로 바뀌었지만 평균은 " + short(meanA) + " → " + short(meanB) + unit
         + (Math.sign(medianMove) !== Math.sign(meanMove) && Math.abs(meanMove) >= 0.1 * Math.abs(medianMove) ? "로 반대로 움직였습니다. " : "로 거의 같습니다. ")
-        + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 시간 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
+        + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
   }
   return {...base, meaning: notes.length ? notes.join(" ") : base.meaning};
 }

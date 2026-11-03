@@ -25,7 +25,7 @@
       next.push({label: "두 기간을 신호 그래프에서 보기", href: url.pathname + url.search});
     }
     const idle = a.noCurrent !== null && b.noCurrent !== null ? {a: a.noCurrent, b: b.noCurrent} : null;
-    if (idle) next.push({label: "전류가 흐른 시간과 흐르는 동안의 3상 전류를 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
+    if (idle && electrical) next.push({label: "전류가 흐른 시간과 흐르는 동안의 3상 전류를 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
     return historyPeriodMessage({
       unit: row.unit ?? names?.get(row.channel)?.unit ?? null,
       a: {usable: a.usable, median: a.median, low: qa?.[0] ?? null, high: qa?.[4] ?? null},
@@ -39,8 +39,9 @@
     type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
   } from "../comparison";
 
-  type Props = {assetId: string};
-  let {assetId}: Props = $props();
+  /** electrical: whether R·S·T roles resolve for this asset, so 부하·불평형 can actually run. */
+  type Props = {assetId: string; electrical?: boolean};
+  let {assetId, electrical = false}: Props = $props();
   let sources_: Map<string, string> = $state(new Map());
   $effect(() => { void readSourceNames().then((value) => sources_ = value); });
   let names: SignalNames = $state(new Map());

@@ -9,7 +9,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {findingLinks, findingText, readRecordFindings, type RecordFindings} from "../record-findings";
+  import {findingLinks, findingText, readRecordFindings, unjudgedText, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -73,8 +73,11 @@
     const over = read.filter((item) => item.exceeds === true).map((item) => item.name);
     const under = read.filter((item) => item.exceeds === false).map((item) => item.name);
     if (!over.length || !under.length) return null;
-    const at = scores.map((item) => item.run ? [item.binding.sourceId, item.binding.pointId ?? "", item.binding.stepKind, item.run.position].join("\n") : null);
-    return {over, under, same: at.every((key) => key !== null && key === at[0])};
+    const stream = scores.map((item) => [item.binding.sourceId, item.binding.pointId ?? "", item.binding.stepKind].join("\n"));
+    const sameStream = stream.every((key) => key === stream[0]);
+    const samePosition = scores.every((item) => item.run && item.run.position === scores[0].run?.position);
+    // Which condition failed is said as it is: another source or point, or another last measurement.
+    return {over, under, same: sameStream && samePosition, why: !sameStream ? "stream" : samePosition ? null : "position"};
   });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
@@ -132,14 +135,20 @@
               {#if links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}</span></li>
         {/each}
       </ul>
-      <p class="context small">신호 {findings.checked.length}개를 함께 보고 가장 크게 벗어난 {findings.intervals.length}구간을 골랐습니다{findings.count > findings.intervals.length ? " (모두 " + findings.count + "구간)" : ""}.
+      <p class="context small">판단한 신호 {findings.judged}개를 함께 보고 가장 크게 벗어난 {findings.intervals.length}구간을 골랐습니다{findings.count > findings.intervals.length ? " (모두 " + findings.count + "구간)" : ""}.
         기록 처음 30%는 비교 기준일 뿐 정상으로 확인된 기간이 아닙니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호별로 보기 →</a></p>
-    {:else if findings}
-      <p class="context">신호 {findings.checked.length}개 모두 기록 처음 30%의 평소 범위를 크게 벗어난 구간이 없습니다.
+    {:else if findings && findings.judged}
+      <p class="context">판단한 신호 {findings.judged}개에서 기록 처음 30%의 평소 범위를 크게 벗어난 구간을 찾지 못했습니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈 보기 →</a></p>
+    {:else if findings}
+      <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
+        <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
     {/if}
-    {#if findings?.unchecked}<p class="context">신호가 많아 앞의 {findings.checked.length}개만 확인했습니다.</p>{/if}
+    {#if findings && findings.signals.some((row) => row.state !== "scored")}
+      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored").map(unjudgedText).join(" · ")}</p>
+    {/if}
+    {#if findings?.unchecked}<p class="context small">신호가 많아 앞의 {findings.signals.length}개만 확인했고, 나머지 {findings.unchecked}개는 판단하지 않았습니다.</p>{/if}
   {/if}
   <p class="context"><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 추이 보기 →</a></p>
 </section>
@@ -170,8 +179,11 @@
     {#if split?.same}
       <p class="split">같은 측정에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
         기준 이하가 정상이라는 뜻은 아니므로 측정별 점수와 원본을 함께 확인하세요.</p>
+    {:else if split?.why === "stream"}
+      <p class="split">모델들이 서로 다른 데이터 출처나 측정 위치를 분석해, 같은 출처·측정 위치·측정의 결과가 아니므로 직접 견줄 수 없습니다.
+        모델마다 위에 적힌 결과를 따로 확인하세요.</p>
     {:else if split}
-      <p class="split">모델마다 마지막으로 분석한 측정이 달라 같은 측정에서 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
+      <p class="split">같은 출처·측정 위치를 분석하지만 마지막으로 분석한 측정이 서로 달라 직접 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
         같은 측정의 점수는 측정별 모델 점수에서 견줘 보세요.</p>
     {/if}
     <p class="context"><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정별 모델 점수 보기 →</a></p>

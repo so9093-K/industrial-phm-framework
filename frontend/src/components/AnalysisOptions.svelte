@@ -1,8 +1,8 @@
 <script lang="ts">
   import {onMount} from "svelte";
-  import {GUIDE_ORDER, METHOD, NAME, QUESTION, connectPlace, methodFor, fact, nothingStored, place, readCapabilities,
+  import {GUIDE_ORDER, NAME, QUESTION, connectPlace, methodFor, fact, nothingStored, place, readCapabilities,
     type Capabilities, type Capability} from "../capabilities";
-  import {assetTabUrl, systemUrl} from "../routes";
+  import {systemUrl} from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** What this asset's stored data supports: each analysis opens with the asset kept, one
@@ -21,14 +21,6 @@
     const current: Capabilities | null = capabilities;
     return current ? current.items.filter((item) => item.status !== "unavailable").sort((a, b) => rank(a) - rank(b)) : [];
   });
-  // Load and unbalance needs R·S·T roles the server checks when the screen opens; with three or more
-  // stored signals it is offered, and the screen says what is missing when roles were not given.
-  const electrical = $derived.by((): boolean => {
-    const current: Capabilities | null = capabilities;
-    return (current?.history?.channels ?? 0) >= 3;
-  });
-  // The row it goes before, keeping the question order; null puts it last.
-  const electricalBefore = $derived(shown.find((item) => rank(item) > GUIDE_ORDER.indexOf("electrical"))?.id ?? null);
   const refused = $derived.by((): Capability[] => {
     const current: Capabilities | null = capabilities;
     return current ? current.items.filter((item) => item.status === "unavailable") : [];
@@ -48,14 +40,6 @@
   });
 </script>
 
-{#snippet electricalRow()}
-  <li data-capability="electrical">
-    <strong>{QUESTION.electrical}</strong>
-    <span class="fact">{METHOD.electrical} · R·S·T 3상 역할을 지정한 기록에서 분석</span>
-    <span class="go"><a href={assetTabUrl(assetId, "change", "electrical")} aria-label={METHOD.electrical + " 열기"}>열기 →</a></span>
-  </li>
-{/snippet}
-
 <section class="options" aria-labelledby={"options-" + assetId}>
   <svelte:element this={"h" + level} id={"options-" + assetId}>무엇을 알아볼까요?</svelte:element>
   <p class="context">저장된 데이터로 답할 수 있는 질문입니다. 각 분석은 계산한 값과 근거를 보여 주고, 고장 원인을 판정하지 않습니다.</p>
@@ -72,7 +56,6 @@
       {#each shown as item (item.id)}
         {@const href = place(item, assetId)}
         {@const connect = connectPlace(item, assetId)}
-        {#if electrical && item.id === electricalBefore}{@render electricalRow()}{/if}
         <li data-status={item.status} data-capability={item.id}>
           <strong>{QUESTION[item.id]}</strong>
           <span class="fact">{methodFor(item, capabilities)} · {fact(item, capabilities)}</span>
@@ -88,7 +71,6 @@
           {/if}
         </li>
       {/each}
-      {#if electrical && electricalBefore === null}{@render electricalRow()}{/if}
     </ul>
     {#if refused.length}
       <details class="refused"><summary>지금 답할 수 없는 질문</summary>

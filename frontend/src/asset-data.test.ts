@@ -33,11 +33,13 @@ test("server eligibility restricts methods for each data kind", () => {
   const vibration = {history:null,vibration:{measurements:100,first:1,last:100}};
   const csv = {history:{signals:1},vibration:null};
   const mixed = {history:{signals:1},vibration:vibration.vibration};
-  const cap = (compare:CapabilityStatus,relation:CapabilityStatus,spectrum:CapabilityStatus):Capabilities => ({
+  const cap = (compare:CapabilityStatus,relation:CapabilityStatus,spectrum:CapabilityStatus,
+    electrical:CapabilityStatus="unavailable"):Capabilities => ({
     assetId:"m",history:null,acquisition:null,items:[
       {id:"period-compare",status:compare,reason:"history",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
       {id:"relation",status:relation,reason:"single-signal",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
       {id:"spectrum",status:spectrum,reason:"no-waveform",target:null,facts:{}},
+      {id:"electrical",status:electrical,reason:electrical==="ready"?"phase-roles":"no-phase-roles",target:null,facts:{}},
       {id:"anomaly",status:"ready",reason:"explore",target:null,facts:{}},
     ],
   });
@@ -50,11 +52,14 @@ test("server eligibility restricts methods for each data kind", () => {
   assert.deepEqual(methodsFor("anomaly",{history:null,vibration:null},cap("ready","ready","ready")),["model"]);
   assert.deepEqual(methodsFor("change",mixed,null),[]);
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
-    cap("unavailable","unavailable","unavailable"),"history"),["electrical"]);
+    cap("unavailable","unavailable","unavailable","ready"),"history"),["electrical"]);
+  // Three stored signals without R·S·T roles are not a 3-phase input: no 부하·불평형 tab.
+  assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
+    cap("unavailable","unavailable","unavailable","unavailable"),"history"),[]);
   const mixedElectrical = {history:{signals:3},vibration:vibration.vibration};
   // The electrical workflow consumes R/S/T history, never the selected vibration source.
-  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"history"),["electrical"]);
-  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"vibration"),
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready","ready"),"history"),["electrical"]);
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready","ready"),"vibration"),
     ["compare","relation","spectrum"]);
 });
 

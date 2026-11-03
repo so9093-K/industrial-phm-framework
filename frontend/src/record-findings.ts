@@ -12,15 +12,23 @@ export type FoundInterval = {
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
   usual: {low: number; high: number};
-  /** Other signals outside their own range in the same interval. */
-  with: string[];
+  /** Other signals outside their own range somewhere in the same merged interval; not
+   * necessarily at the same moment. */
+  within: string[];
+};
+/** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
+export type SignalState = "scored" | "short-baseline" | "constant" | "no-values";
+export type CheckedSignal = {
+  channel: string; label: string; unit: string | null; state: SignalState;
+  /** For a baseline held at one value: that value, and the range the record took afterwards. */
+  held: number | null; later: {low: number; high: number} | null;
 };
 export type RecordFindings = {
   assetId: string;
   baseline: {from: string; to: string} | null;
   /** Each value is a mean over this many seconds; null when nothing was read. */
   bucketSeconds: number | null;
-  checked: string[]; unchecked: number;
+  signals: CheckedSignal[]; judged: number; unchecked: number;
   intervals: FoundInterval[]; count: number;
 };
 
@@ -33,7 +41,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   const root = object(raw);
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId
     || root.meaning !== "departures-from-the-first-30-percent-not-fault-diagnosis"
-    || !Array.isArray(root.intervals) || !Array.isArray(root.checked)) invalid();
+    || !Array.isArray(root.intervals) || !Array.isArray(root.signals)) invalid();
   const range = (value: unknown) => {
     if (value === null) return null;
     const row = object(value);
@@ -41,18 +49,32 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   };
   const intervals = root.intervals.map((item: unknown): FoundInterval => {
     const row = object(item), usual = object(row?.usual);
-    if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.with)) invalid();
+    if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
     const low = finite(usual.low), high = finite(usual.high);
     if (low > high) invalid();
     return {start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
-      value: finite(row.value), usual: {low, high}, with: row.with.map(text)};
+      value: finite(row.value), usual: {low, high}, within: row.within.map(text)};
   });
+  const states: readonly SignalState[] = ["scored", "short-baseline", "constant", "no-values"];
+  const signals = root.signals.map((item: unknown): CheckedSignal => {
+    const row = object(item);
+    if (!row || !states.includes(row.state as SignalState)) invalid();
+    const later = row.later === undefined || row.later === null ? null : object(row.later);
+    if (row.later !== undefined && row.later !== null && !later) invalid();
+    return {channel: text(row.channel), label: text(row.label),
+      unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, state: row.state as SignalState,
+      held: row.held === undefined || row.held === null ? null : finite(row.held),
+      later: later ? {low: finite(later.low), high: finite(later.high)} : null};
+  });
+  const judged = finite(root.judged);
+  if (judged !== signals.filter((row) => row.state === "scored").length) invalid();
+  if (intervals.length && !judged) invalid();
   const count = finite(root.interval_count);
   if (count < intervals.length) invalid();
   return {assetId, baseline: range(root.baseline),
     bucketSeconds: root.bucket_seconds === null ? null : finite(root.bucket_seconds),
-    checked: root.checked.map(text), unchecked: finite(root.unchecked), intervals, count};
+    signals, judged, unchecked: finite(root.unchecked), intervals, count};
 }
 
 export async function readRecordFindings(assetId: string, signal: AbortSignal): Promise<RecordFindings> {
@@ -79,7 +101,7 @@ export function findingText(item: FoundInterval, bucketSeconds: number | null): 
     when: clock(item.start) + " ~ " + clock(item.end) + (seconds >= 60 ? " (약 " + elapsedText(seconds) + ")" : ""),
     what: item.label + " · 기록 처음 30%의 평소 범위(" + value(item.usual.low, null) + "~" + value(item.usual.high, item.unit)
       + ")보다 " + (down ? "낮았습니다" : "높았습니다") + " · " + mean + "가장 " + (down ? "낮을" : "높을") + " 때 "
-      + value(item.value, item.unit) + (item.with.length ? " · 같은 때 평소 범위를 벗어난 신호: " + item.with.join(", ") : ""),
+      + value(item.value, item.unit) + (item.within.length ? " · 같은 구간 안에서 평소 범위를 벗어난 다른 신호: " + item.within.join(", ") : ""),
   };
 }
 
@@ -105,4 +127,19 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     } catch { compare = null; }
   }
   return {signal, compare};
+}
+
+const WHY: Record<Exclude<SignalState, "scored">, string> = {
+  "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
+  constant: "기록 처음 30% 동안 값이 일정해 벗어난 정도를 계산할 수 없음",
+  "no-values": "저장된 값이 없음",
+};
+/** Why a signal was not judged, with what a held baseline and the record afterwards showed. */
+export function unjudgedText(signal: CheckedSignal): string {
+  if (signal.state === "scored") return signal.label;
+  const held = signal.state === "constant" && signal.held !== null
+    ? " · 처음 30%는 " + value(signal.held, signal.unit) + (signal.later
+      ? ", 그 뒤 " + value(signal.later.low, null) + "~" + value(signal.later.high, signal.unit) : "")
+    : "";
+  return signal.label + "(" + WHY[signal.state] + held + ")";
 }

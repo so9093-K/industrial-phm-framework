@@ -82,7 +82,11 @@ def test_connected_models_open_every_analysis_and_questions_follow_the_web_mode(
     analyze(workspace)
     asked = project_asset_capabilities(workspace, "bearing-a", can_ask=True)
     status = _status(asked)
-    assert {status[name][0] for name in status if name != "forecast"} == {"ready"}
+    # Load and unbalance needs a stored 3-phase history; waveforms alone never offer it.
+    assert status["electrical"] == ("unavailable", "no-history")
+    assert {status[name][0] for name in status if name not in {"forecast", "electrical"}} == {
+        "ready"
+    }
     # Four acquisitions a minute apart are far shorter than twice the shortest horizon.
     assert status["forecast"] == ("unavailable", "short-history")
     question = next(item for item in asked["capabilities"] if item["id"] == "ai-question")
@@ -238,3 +242,27 @@ def test_forecast_capability_uses_one_recorded_source_snapshot(
 
     monkeypatch.setattr(operations_web_forecast, "explore_sources", unexpected)
     assert project_asset_capabilities(workspace, "motor-01", can_ask=False) == expected
+
+
+def test_load_and_unbalance_is_offered_only_when_phase_roles_resolve(tmp_path: Path) -> None:
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    from tests.support.electrical_condition import condition_workspace
+
+    # R·S·T voltage and current declared by meaning: the 부하·불평형 screen can run.
+    workspace = condition_workspace(tmp_path / "phase")
+    electrical = next(
+        item
+        for item in project_asset_capabilities(workspace, "condition-motor", can_ask=True)[
+            "capabilities"
+        ]
+        if item["id"] == "electrical"
+    )
+    assert (electrical["status"], electrical["reason"]) == ("ready", "phase-roles")
+    assert electrical["facts"]["quantities"] == ["voltage", "current"]
+    assert electrical["target"] == {"view": "signals", "goal": "electrical", "data": "history"}
+    # Three stored signals without declared phase roles are not a 3-phase input.
+    plain = phm_workspace(tmp_path / "plain", bind=False)
+    _history(plain, "boiler-01", ("temperature", "pressure", "flow"))
+    status = _status(project_asset_capabilities(plain, "boiler-01", can_ask=True))
+    assert status["electrical"] == ("unavailable", "no-phase-roles")

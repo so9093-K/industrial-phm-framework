@@ -215,19 +215,21 @@ test("a score over its threshold on values the asset often shows but rarely in i
   assert.match(message.certainty!, /이 범위 밖이어도 모델이 학습 중에 비슷한 값을 봤을 수 있고, 여러 특징의 조합은 따로 확인하지 않았습니다/);
 });
 
-test("a stored time series says whether no-current time or the running values made the difference", () => {
+test("a stored time series compares the share of measurements with no current without claiming time or cause", () => {
   // Compressor 1338, 10/22–25 against 10/25–28, R상전류: medians far apart, means close, stops alike.
   const facts = {unit: "A", a: {usable: 5040, median: 46.97, low: 0, high: 70.3}, b: {usable: 5040, median: 65.27},
     outsideCount: 519, outsidePercent: 10.3, medianChangePercent: 39, onset: null,
     means: {a: 43.45, b: 45.3}, aMiddle: {low: 27.86, high: 68.59}, noCurrent: {a: 1215, b: 1247}};
   const message = historyPeriodMessage(facts)!;
   assert.equal(message.headline, "기간 B 측정의 일부(10%, 519회)만 기간 A의 평소 범위(0~70.3 A)를 벗어났습니다. 중앙값은 47 → 65.3 A입니다.");
-  assert.equal(message.meaning, "전류가 1 A 미만(흐르지 않음)인 측정은 기간 A 24%, 기간 B 25%로 비슷해, 차이는 전류가 흐르지 않은 시간보다 흐르는 동안의 값에서 나왔습니다. "
+  assert.equal(message.meaning, "유효 측정 중 전류가 1 A 미만(흐르지 않음)인 측정의 비율은 기간 A 24%, 기간 B 25%로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). "
+    + "이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 흐르지 않은 구간의 길이와 흐르는 동안의 값 분포를 함께 확인하세요. "
     + "중앙값은 47 → 65.3 A로 바뀌었지만 평균은 43.5 → 45.3 A로 거의 같습니다. 값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 "
-    + "수준별 시간 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
+    + "수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
   // When the share of time with no current differs, that is said instead of the level reading.
   const stopped = historyPeriodMessage({...facts, noCurrent: {a: 2500, b: 400}})!;
-  assert.match(stopped.meaning!, /기간 A 50%, 기간 B 8%로 달라, 두 기간의 차이에는 전류가 흐른 시간 비율의 차이가 들어 있습니다\.$/);
+  assert.match(stopped.meaning!, /기간 A 50%, 기간 B 8%로 다릅니다\(측정 수 기준이라 시간 비율과는 다를 수 있습니다\)\. 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니/);
+  assert.doesNotMatch(message.meaning! + stopped.meaning!, /시간 비율의 차이가 들어|값에서 나왔습니다/);
   // A signal not declared as a current gets neither sentence when medians and means move together.
   const plain = historyPeriodMessage({...facts, noCurrent: null, means: {a: 46, b: 64}})!;
   assert.equal(plain.meaning, null);
