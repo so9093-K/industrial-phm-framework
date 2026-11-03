@@ -102,10 +102,12 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # Where the data arrived: what it supports now, and what it cannot support.
-                options = done.get_by_role("region", name="분석하기")
+                options = done.get_by_role("region", name="무엇을 알아볼까요?")
                 pw.expect(options.get_by_role("link", name="두 기간 비교 열기")).to_be_visible()
-                options.get_by_text("현재 사용할 수 없는 분석", exact=True).click()
-                pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
+                options.get_by_text("지금 답할 수 없는 질문", exact=True).click()
+                pw.expect(options).to_contain_text(
+                    "진동이 어느 주파수에서 커졌나요? — 원본 진동 파형 없음"
+                )
 
                 card = connections.get_by_role("article", name="pump.csv")
                 pw.expect(card.locator(".badge")).to_have_text("파일 읽기 확인됨")

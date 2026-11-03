@@ -1,6 +1,9 @@
 <script lang="ts">
   import RangeCompare from "./RangeCompare.svelte";
-  import {systemUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {historyPeriodMessage, type NextStep} from "../analysis-messages";
+  import {windowParams, zoomWindow} from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -9,9 +12,31 @@
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
   import {ORIGIN_TEXT, periodOrigin, type PeriodOrigin} from "../signal-selection";
+  // What one source's two periods show, first: what changed, how plain it is, where to look next.
+  function told(read: ProfileResult, row: ProfileSeries) {
+    const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
+    const next: NextStep[] = [];
+    const from = Date.parse(read.periods.a.from), to = Date.parse(read.periods.b.to);
+    const window = zoomWindow({from, to}) ? {from, to} : null;
+    if (window && to - from <= 31 * 86400000) {
+      const url = new URL(assetTabUrl(assetId, "signals", null, null, row.channel), location.origin);
+      const pick = {from: Date.parse(read.periods.b.from), to};
+      for (const [key, value] of Object.entries(windowParams(window, pick))) url.searchParams.set(key, value);
+      next.push({label: "두 기간을 신호 그래프에서 보기", href: url.pathname + url.search});
+    }
+    const idle = a.noCurrent !== null && b.noCurrent !== null ? {a: a.noCurrent, b: b.noCurrent} : null;
+    if (idle) next.push({label: "전류가 흐른 시간과 흐르는 동안의 3상 전류를 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
+    return historyPeriodMessage({
+      unit: row.unit ?? names?.get(row.channel)?.unit ?? null,
+      a: {usable: a.usable, median: a.median, low: qa?.[0] ?? null, high: qa?.[4] ?? null},
+      b: {usable: b.usable, median: b.median},
+      outsideCount: row.outsideCount, outsidePercent: row.outsidePercent, medianChangePercent: row.medianChangePercent,
+      onset: null, means: {a: a.mean, b: b.mean}, aMiddle: qa ? {low: qa[1], high: qa[3]} : null, noCurrent: idle,
+    }, next);
+  }
   import {
     defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
-    type Periods, type ProfileResult, type SourceHistory,
+    type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
   } from "../comparison";
 
   type Props = {assetId: string};
@@ -243,9 +268,11 @@
         · 기간 B {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
       {#each result.series as row (row.key)}
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
+        {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)} · {sourceLabel(sources_, row.source)}</h3>
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
+          {#if message}<AnalysisMessage {message}/>{/if}
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
               {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
@@ -263,6 +290,9 @@
                 <tr><th scope="row">유효 측정</th><td>{row.periods.a.usable}</td><td>{row.periods.b.usable}</td></tr>
                 <tr><th scope="row">중앙값</th><td>{num(row.periods.a.median)}</td><td>{num(row.periods.b.median)}</td></tr>
                 <tr><th scope="row">평균</th><td>{num(row.periods.a.mean)}</td><td>{num(row.periods.b.mean)}</td></tr>
+                {#if row.periods.a.noCurrent !== null && row.periods.b.noCurrent !== null}
+                  <tr><th scope="row">전류 1 A 미만(흐르지 않음)</th><td>{row.periods.a.noCurrent}</td><td>{row.periods.b.noCurrent}</td></tr>
+                {/if}
                 <tr><th scope="row">결측</th><td>{row.periods.a.missing ?? "미확인"}</td><td>{row.periods.b.missing ?? "미확인"}</td></tr>
                 <tr><th scope="row">품질 문제</th><td>{row.periods.a.nonGood ?? "미확인"}</td><td>{row.periods.b.nonGood ?? "미확인"}</td></tr>
                 <tr><th scope="row">값 충돌</th><td>{row.periods.a.conflict ?? "미확인"}</td><td>{row.periods.b.conflict ?? "미확인"}</td></tr>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseFeatureSource,parseFeatureProfile,type FeatureSource} from "./acquisition-profile.ts";
+import {parseFeatureSource,parseFeatureProfile,preferredFeature,type FeatureSource} from "./acquisition-profile.ts";
 import type {Spans} from "./spectrum.ts";
 
 const source:FeatureSource={
@@ -58,4 +58,11 @@ test("no median cannot be mistaken for zero, and response counters must be consi
  const changed=payload();
  changed.series[0].periods.a.analyzed_count=2;
  assert.throws(()=>parseFeatureProfile(changed,"motor",source,"feature.R.rms",spans),/서로 맞지 않습니다/);
+});
+
+test("vibration screens open on an RMS, the overall level people read first",()=>{
+ const features=[{id:"feature.H.absolute_peak"},{id:"feature.H.crest_factor"},{id:"feature.H.rms"},{id:"feature.V.rms"}];
+ assert.equal(preferredFeature(features)?.id,"feature.H.rms");
+ assert.equal(preferredFeature([{id:"feature.H.mean"}])?.id,"feature.H.mean");
+ assert.equal(preferredFeature([]),undefined);
 });

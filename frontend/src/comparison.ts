@@ -9,6 +9,8 @@ export type PeriodProfile = {
   median: number | null;
   mean: number | null;
   quantiles: number[] | null;
+  /** For a declared current in A: usable measurements below 1 A, read as no current flowing. */
+  noCurrent: number | null;
 };
 export type ProfileSeries = {
   key: string;
@@ -20,6 +22,10 @@ export type ProfileSeries = {
   periods: { a: PeriodProfile; b: PeriodProfile };
   medianChange: number | null;
   outsidePercent: number | null;
+  /** How many of B's usable values lie outside A's 5–95% range. */
+  outsideCount: number | null;
+  /** B's median over A's as a percent change; null for a quantity that can go below zero. */
+  medianChangePercent: number | null;
 };
 export type ProfileResult = { assetId: string; channel: string; periods: Periods; series: ProfileSeries[] };
 export type SourceHistory = { assetId: string; channels: string[]; from: string; to: string };
@@ -112,7 +118,15 @@ function parsePeriod(raw: unknown): PeriodProfile {
     nonGood: optionalCount(p.non_good_count),
     conflict: optionalCount(p.conflict_count),
     median: quantiles?.[2] ?? null, quantiles,
-    mean: optionalNumber(p.mean) };
+    mean: optionalNumber(p.mean), noCurrent: idle(p.no_current, positiveCount(p.usable_count)) };
+}
+function idle(raw: unknown, usable: number): number | null {
+  if (raw === undefined || raw === null) return null;
+  const row = rec(raw);
+  if (!row || row.below !== 1) throw new Error("전류가 흐르지 않은 측정 수의 형식이 올바르지 않습니다.");
+  const count = positiveCount(row.count);
+  if (count > usable) throw new Error("전류가 흐르지 않은 측정 수가 유효 측정보다 많습니다.");
+  return count;
 }
 
 export function parseProfile(
@@ -152,6 +166,8 @@ export function parseProfile(
       unit: typeof item.unit === "string" ? item.unit : null,
       periods: {a: pa, b: pb},
       medianChange, outsidePercent: optionalNumber(comp.b_outside_a_band_percent),
+      outsideCount: optionalCount(comp.b_outside_a_band),
+      medianChangePercent: optionalNumber(comp.median_change_percent),
     };
   });
   return {assetId, channel, periods: requested, series};

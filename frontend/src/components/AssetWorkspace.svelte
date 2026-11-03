@@ -35,13 +35,18 @@
   let capabilities: Capabilities | null = $state(null);
   let capabilityState: "loading" | "ready" | "failed" = $state("loading");
 
-  // Every asset starts from the same task. The user chooses an anomaly method;
-  // mixed inputs require an explicit measurement kind, never a hidden default.
+  // Mixed inputs require an explicit measurement kind, never a hidden default.
+  // A tab opens on an answer: the anomaly tab shows model scores when a model has results (or is
+  // waiting for them), else the model-free baseline departures of a stored history.
+  const anomalyDefault = $derived.by((): Method => {
+    const reason = capabilities?.items.find((item) => item.id === "anomaly")?.reason;
+    return reason === "connected" || reason === "waiting-results" || !data?.history ? "model" : "baseline";
+  });
   const method: Method | null = $derived(route.method ?? (route.tab === "change"
-    ? methodsFor("change", data, capabilities, route.data ?? defaultKind(data))[0] ?? "compare" : null));
+    ? methodsFor("change", data, capabilities, route.data ?? defaultKind(data))[0] ?? "compare"
+    : route.tab === "anomaly" ? anomalyDefault : null));
   const kind: DataKind | null = $derived(
     usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
-  const chooseAnomaly = $derived(route.tab === "anomaly" && route.method === null);
   const chooseKind = $derived(
     usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
   const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
@@ -150,7 +155,7 @@
   <p class="tabs-hint">다른 설비 화면은 탭을 가로로 밀어 확인하세요.</p>
 
   {#if dataState === "ready" && (!needsCapability || capabilityState === "ready")
-    && !chooseAnomaly && !chooseKind && (methods.length || kind)}
+    && !chooseKind && (methods.length || kind)}
     <div class="choices">
       <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
       {#if methods.length > 1}
@@ -158,7 +163,7 @@
           {#each methods as option (option)}
             <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
               onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
-              aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}{option === "electrical" ? " · 입력 조건 확인" : ""}</a>
+              aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}</a>
           {/each}
         </nav>
       {/if}
@@ -191,7 +196,7 @@
       message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else if route.tab !== "summary" && kindsOf(data).length === 0
-    && !(route.tab === "anomaly" && (chooseAnomaly || method === "model"))}
+    && !(route.tab === "anomaly" && method === "model")}
     <StatusNotice kind="uncertain" title="분석할 저장 데이터가 없습니다"
       message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다. 다른 종류로 대체해 보여 주지 않습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
@@ -199,19 +204,6 @@
     <StatusNotice kind="uncertain" title="현재 입력에서 가능한 변화 분석이 없습니다"
       message="측정 구간·채널·진동 분석 결과 또는 3상 입력 조건을 확인하세요."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
-  {:else if chooseAnomaly}
-    <section class="task-chooser ui-panel" aria-labelledby="task-anomaly-title">
-      <h2 id="task-anomaly-title">무엇이 평소와 달라졌나요?</h2>
-      <p class="context">모델 점수는 연결된 모델과 분석 결과가 있어야 표시됩니다.</p>
-      <ul>
-        {#each methods as option (option)}
-          <li><a href={at("anomaly", option)} onclick={retainSelection}
-            onauxclick={retainSelection} oncontextmenu={retainSelection}>{METHOD_INFO[option]} 확인 →</a>
-            <span class="context">{option === "baseline" ? "저장된 시계열의 기준 구간과 변화 비교" : "모델 분석 결과 또는 연결 상태 확인"}</span>
-          </li>
-        {/each}
-      </ul>
-    </section>
   {:else if chooseKind}
     <section class="task-chooser ui-panel" aria-labelledby="task-source-title">
       <h2 id="task-source-title">어떤 측정 근거로 확인할까요?</h2>

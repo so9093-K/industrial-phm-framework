@@ -15,7 +15,7 @@
   import {measurementLinks} from "../measurement-links";
   import type {AcquisitionTrend} from "../acquisition-trend";
   import {
-    FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,
+    FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,preferredFeature,
     type FeatureSource,type FeatureProfile,
   } from "../acquisition-profile";
 
@@ -75,7 +75,7 @@
         throw new Error("넘겨받은 모델과 탐색 데이터의 적용 모델이 달라 비교하지 않았습니다.");
       source=response;
       if(selected&&!response.features.some(x=>x.id===selected))throw new Error("고른 특징이 이 데이터 출처에 없습니다.");
-      if(!selected)selected=response.features[0].id;
+      if(!selected)selected=preferredFeature(response.features)!.id;
       try{
         const bounds={source:response.sourceId,binding:response.bindingId,
           first:response.first,last:response.last,count:response.count};

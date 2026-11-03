@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {short} from "../analysis-messages";
+  import {elapsedText} from "../time-axis";
   import { onMount } from "svelte";
   import { readChannels, signalName, type ChannelList } from "../history";
   import { defaultChannel } from "../monitor-attention";
@@ -124,6 +126,14 @@
   }
   /** A found interval opens the comparison against the baseline it was found with, and the
    * signal zoomed around it with the interval already picked. Too long a span offers neither. */
+  // The range a departure is judged by, in the signal's own values, named by the chosen baseline.
+  const BASELINE_TEXT: Record<string, string> = {"first-30": "기록 처음 30%", "first-50": "기록 처음 50%", all: "기록 전체"};
+  function usualRange(found: Departures, unit: string | null): string {
+    const {median, spread} = found.scored;
+    const name = (BASELINE_TEXT[found.baseline.name] ?? "기준 구간") + "의 평소 범위";
+    if (median === null || spread === null) return name;
+    return name + "(" + short(median - found.threshold * spread) + "~" + short(median + found.threshold * spread) + (unit ? " " + unit : "") + ")";
+  }
   function intervalLinks(found: Departures, start: string, end: string): {compare: string | null; signal: string | null} {
     const step = (found.bucketSeconds ?? 0) * 1000;
     const span: Span = {from: Date.parse(start), to: Math.max(Date.parse(end), Date.parse(start) + Math.max(step, 1000))};
@@ -207,12 +217,12 @@
           <ol class="intervals">
             {#each result.intervals as interval, i (interval.start + interval.end + i)}
               {@const links = intervalLinks(result, interval.start, interval.end)}
+              {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
+              {@const down = interval.direction !== "up"}
               <li>
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
-                <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
-                  · 기준 중앙값 {num(interval.median)} → 가장 많이 벗어난 시점 {num(interval.value)}
-                  {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? ""}
-                  · 기준 변동 폭의 {num(Number(interval.distance.toFixed(1)))}배</span>
+                <span>{usualRange(result, unit)}보다 {down ? "낮음" : "높음"}
+                  · {elapsedText(result.bucketSeconds)} 평균으로 가장 {down ? "낮을" : "높을"} 때 {short(interval.value)}{unit ? " " + unit : ""}</span>
                 <span class="next">{#if links.compare}<a href={links.compare}>기준 구간과 비교 →</a>{/if}
                   {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}</span>
               </li>

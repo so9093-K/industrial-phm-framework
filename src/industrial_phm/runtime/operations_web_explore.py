@@ -45,6 +45,7 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/spectrum",
         "/api/v1/explore/anomaly",
         "/api/v1/explore/attention",
+        "/api/v1/explore/findings",
     }
 )
 # The buckets a stored record is read in for baseline departures. 관측 현황's check and the
@@ -56,6 +57,11 @@ _DEPARTURE_BUCKETS = 1000
 MAX_ATTENTION_ASSETS = 50
 _ATTENTION_CHANNELS = 6
 _ATTENTION_REUSE_SECONDS = 30.0
+# What a record held, for one asset's summary: every stored signal up to the CSV limit, read in
+# the same buckets as the 기준 구간 이탈 screen, and the largest departures named.
+_FINDING_CHANNELS = 12
+_FINDINGS_SHOWN = 3
+_findings_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any]]] = {}
 # (root, asset) → (record end, record count, computed at, result)
 # (record end judged, measurement count, monotonic time, result) per workspace and asset.
 _attention_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any] | None]] = {}
@@ -107,6 +113,8 @@ def handle_explore_read(
             return HTTPStatus.OK, _relation_or_spectrum(workspace, store, asset_id, path, query)
         if path == "/api/v1/explore/anomaly":
             return HTTPStatus.OK, _departures(workspace, asset_id, query)
+        if path == "/api/v1/explore/findings":
+            return HTTPStatus.OK, record_findings(workspace, asset_id)
         series = [value for value in query.get("series", []) if value]
         if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
             raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")
@@ -407,6 +415,116 @@ def departure_attention(
                 "last_at": held[0].astimezone(UTC).isoformat(),
             }
         )
+    return body
+
+
+def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+    """Where one asset's whole stored record left the first 30% of itself, largest first.
+
+    Unlike 관측 현황's check, which asks whether the record *ends* away from its baseline, this
+    says what the record held: a long stop or a level change that came back still counts. The
+    signals are scored together exactly as the 기준 구간 이탈 screen scores the signals it
+    shows, so the same interval reads the same in both places.
+    """
+    body: dict[str, Any] = {
+        "schema_version": 1,
+        "asset_id": asset_id,
+        "baseline": None,
+        "record": None,
+        "checked": [],
+        "unchecked": 0,
+        "intervals": [],
+        "interval_count": 0,
+        "bucket_seconds": None,
+        "meaning": "departures-from-the-first-30-percent-not-fault-diagnosis",
+    }
+    history = _history(workspace)
+    if history is None:
+        return body
+    summary = next((a for a in history.list_history_assets() if a.asset_id == asset_id), None)
+    if summary is None:
+        return body
+    key = (str(workspace.root), asset_id)
+    held = _findings_cache.get(key)
+    if held is not None and (held[0], held[1]) == (summary.end_at, summary.measurement_count):
+        return held[3]
+    channels = list(history.list_history_channels(asset_id))
+    checked = channels[:_FINDING_CHANNELS]
+    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
+    units: dict[str, str | None] = {}
+    width = 0.0
+    for channel in checked:
+        aggregation = history.query_measurement_aggregation(
+            asset_id,
+            channel_id=channel,
+            start_at=summary.start_at,
+            end_at=summary.end_at + timedelta(seconds=1),
+            bucket_count=_DEPARTURE_BUCKETS,
+        )
+        if not aggregation.buckets:
+            continue
+        width = aggregation.bucket_seconds
+        identity, buckets = strongest_identity(aggregation.buckets)
+        units[channel] = interpretation_unit(identity[2])
+        points[channel] = [
+            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
+        ]
+    try:
+        found = find_departures(points, baseline="first-30")
+    except LookupError, ValueError:
+        return body
+    registry = workspace.source_registry_path
+    sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
+    names = resolve_channel_labels(sources, asset_id)
+    usual = {
+        item["key"]: (item["median"], item["spread"])
+        for item in found["channels"]
+        if item["state"] == "scored"
+    }
+
+    def named(channel: str) -> tuple[str, str | None]:
+        label, unit = names.get(channel, (None, None))
+        return label or channel, unit or units.get(channel)
+
+    shown = []
+    for item in found["intervals"][:_FINDINGS_SHOWN]:
+        median, spread = usual[item["channel"]]
+        label, unit = named(item["channel"])
+        shown.append(
+            {
+                "start": iso(item["start"]),
+                "end": iso(item["end"]),
+                "channel": item["channel"],
+                "label": label,
+                "unit": unit,
+                "direction": item["direction"],
+                "value": item["value"],
+                # The usual range is the one the departure was judged by.
+                "usual": {
+                    "low": median - found["threshold"] * spread,
+                    "high": median + found["threshold"] * spread,
+                },
+                "with": [named(other)[0] for other in item["channels"] if other != item["channel"]],
+            }
+        )
+    body.update(
+        {
+            "baseline": {
+                "from": iso(found["baseline"]["from"]),
+                "to": iso(found["baseline"]["to"]),
+            },
+            "record": {"from": iso(summary.start_at), "to": iso(summary.end_at)},
+            # Each value is a bucket mean over this many seconds, not a single measurement.
+            "bucket_seconds": width,
+            "checked": [named(channel)[0] for channel in points],
+            "unchecked": len(channels) - len(checked),
+            "intervals": shown,
+            "interval_count": len(found["intervals"]),
+        }
+    )
+    if len(_findings_cache) > 4 * MAX_ATTENTION_ASSETS:
+        _findings_cache.clear()
+    _findings_cache[key] = (summary.end_at, summary.measurement_count, time.monotonic(), body)
     return body
 
 

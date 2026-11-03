@@ -63,6 +63,10 @@ test("roles are suggested from clear column names only, and evidence is never fi
   assert.ok(roles.every(role=>role.unit===""&&role.meaning===""));
   assert.deepEqual(suggestRoles(["Voltage_L1","Voltage_L2","Voltage_L3"],emptyRoles()).map(role=>role.channel).slice(0,3),
     ["Voltage_L1","Voltage_L2","Voltage_L3"]);
+  // Korean headers as AI-Hub and many plant exports write them; line voltages and harmonics stay out.
+  const korean=["R상전류","S상전류","T상전류","R상전압","S상 전압","전압_T","R상선간전압","R상전류고조파","온도"];
+  assert.deepEqual(suggestRoles(korean,emptyRoles()).map(role=>role.channel),
+    ["R상전압","S상 전압","전압_T","R상전류","S상전류","T상전류"]);
   // Two candidates for one role leave it for the person to choose; a chosen column is kept.
   const ambiguous=suggestRoles(["v_a","voltage_a"],emptyRoles());
   assert.equal(ambiguous[0].channel,"");

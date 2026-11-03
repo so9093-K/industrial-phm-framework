@@ -1,7 +1,8 @@
 <script lang="ts">
   import {onMount} from "svelte";
-  import {NAME, connectPlace, fact, nothingStored, place, readCapabilities, type Capabilities, type Capability} from "../capabilities";
-  import {systemUrl} from "../routes";
+  import {GUIDE_ORDER, METHOD, NAME, QUESTION, connectPlace, methodFor, fact, nothingStored, place, readCapabilities,
+    type Capabilities, type Capability} from "../capabilities";
+  import {assetTabUrl, systemUrl} from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** What this asset's stored data supports: each analysis opens with the asset kept, one
@@ -14,10 +15,20 @@
     const current: Capabilities | null = capabilities;
     return current ? nothingStored(current) : null;
   });
+  // In the order a person usually asks: what happened, when it changed, what differs, why, what next.
+  const rank = (item: Capability) => GUIDE_ORDER.indexOf(item.id);
   const shown = $derived.by((): Capability[] => {
     const current: Capabilities | null = capabilities;
-    return current ? current.items.filter((item) => item.status !== "unavailable") : [];
+    return current ? current.items.filter((item) => item.status !== "unavailable").sort((a, b) => rank(a) - rank(b)) : [];
   });
+  // Load and unbalance needs R·S·T roles the server checks when the screen opens; with three or more
+  // stored signals it is offered, and the screen says what is missing when roles were not given.
+  const electrical = $derived.by((): boolean => {
+    const current: Capabilities | null = capabilities;
+    return (current?.history?.channels ?? 0) >= 3;
+  });
+  // The row it goes before, keeping the question order; null puts it last.
+  const electricalBefore = $derived(shown.find((item) => rank(item) > GUIDE_ORDER.indexOf("electrical"))?.id ?? null);
   const refused = $derived.by((): Capability[] => {
     const current: Capabilities | null = capabilities;
     return current ? current.items.filter((item) => item.status === "unavailable") : [];
@@ -37,8 +48,17 @@
   });
 </script>
 
+{#snippet electricalRow()}
+  <li data-capability="electrical">
+    <strong>{QUESTION.electrical}</strong>
+    <span class="fact">{METHOD.electrical} · R·S·T 3상 역할을 지정한 기록에서 분석</span>
+    <span class="go"><a href={assetTabUrl(assetId, "change", "electrical")} aria-label={METHOD.electrical + " 열기"}>열기 →</a></span>
+  </li>
+{/snippet}
+
 <section class="options" aria-labelledby={"options-" + assetId}>
-  <svelte:element this={"h" + level} id={"options-" + assetId}>분석하기</svelte:element>
+  <svelte:element this={"h" + level} id={"options-" + assetId}>무엇을 알아볼까요?</svelte:element>
+  <p class="context">저장된 데이터로 답할 수 있는 질문입니다. 각 분석은 계산한 값과 근거를 보여 주고, 고장 원인을 판정하지 않습니다.</p>
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}
@@ -52,9 +72,10 @@
       {#each shown as item (item.id)}
         {@const href = place(item, assetId)}
         {@const connect = connectPlace(item, assetId)}
+        {#if electrical && item.id === electricalBefore}{@render electricalRow()}{/if}
         <li data-status={item.status} data-capability={item.id}>
-          <strong>{NAME[item.id]}</strong>
-          <span class="fact">{fact(item, capabilities)}</span>
+          <strong>{QUESTION[item.id]}</strong>
+          <span class="fact">{methodFor(item, capabilities)} · {fact(item, capabilities)}</span>
           {#if item.status === "waiting"}
             <em>결과 대기</em>
           {:else if !href}
@@ -67,10 +88,11 @@
           {/if}
         </li>
       {/each}
+      {#if electrical && electricalBefore === null}{@render electricalRow()}{/if}
     </ul>
     {#if refused.length}
-      <details class="refused"><summary>현재 사용할 수 없는 분석</summary>
-        {#each refused as item (item.id)}<span>{NAME[item.id]} — {fact(item, capabilities)}</span>{/each}</details>
+      <details class="refused"><summary>지금 답할 수 없는 질문</summary>
+        {#each refused as item (item.id)}<span>{QUESTION[item.id]} — {fact(item, capabilities)}</span>{/each}</details>
     {/if}
   {/if}
 </section>
@@ -81,7 +103,7 @@
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-  li { display: grid; grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3);
+  li { display: grid; grid-template-columns: minmax(12rem, 22rem) minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3);
     align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
   .fact { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
   li em { font-style: normal; color: var(--color-ink-muted); font-size: var(--font-small); }

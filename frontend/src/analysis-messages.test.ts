@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  comparisonMessage, coefficientSpread, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientSpread, historyPeriodMessage, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -213,4 +213,26 @@ test("a score over its threshold on values the asset often shows but rarely in i
   assert.doesNotMatch(message.meaning!, /배운 적 없/);
   assert.match(message.meaning!, /먼저 기준 기간의 운전 상태 구성과 이 측정의 운전 조건을 확인하세요.*빠져 있었다고 확인되면, 그때/);
   assert.match(message.certainty!, /이 범위 밖이어도 모델이 학습 중에 비슷한 값을 봤을 수 있고, 여러 특징의 조합은 따로 확인하지 않았습니다/);
+});
+
+test("a stored time series says whether no-current time or the running values made the difference", () => {
+  // Compressor 1338, 10/22–25 against 10/25–28, R상전류: medians far apart, means close, stops alike.
+  const facts = {unit: "A", a: {usable: 5040, median: 46.97, low: 0, high: 70.3}, b: {usable: 5040, median: 65.27},
+    outsideCount: 519, outsidePercent: 10.3, medianChangePercent: 39, onset: null,
+    means: {a: 43.45, b: 45.3}, aMiddle: {low: 27.86, high: 68.59}, noCurrent: {a: 1215, b: 1247}};
+  const message = historyPeriodMessage(facts)!;
+  assert.equal(message.headline, "기간 B 측정의 일부(10%, 519회)만 기간 A의 평소 범위(0~70.3 A)를 벗어났습니다. 중앙값은 47 → 65.3 A입니다.");
+  assert.equal(message.meaning, "전류가 1 A 미만(흐르지 않음)인 측정은 기간 A 24%, 기간 B 25%로 비슷해, 차이는 전류가 흐르지 않은 시간보다 흐르는 동안의 값에서 나왔습니다. "
+    + "중앙값은 47 → 65.3 A로 바뀌었지만 평균은 43.5 → 45.3 A로 거의 같습니다. 값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 "
+    + "수준별 시간 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
+  // When the share of time with no current differs, that is said instead of the level reading.
+  const stopped = historyPeriodMessage({...facts, noCurrent: {a: 2500, b: 400}})!;
+  assert.match(stopped.meaning!, /기간 A 50%, 기간 B 8%로 달라, 두 기간의 차이에는 전류가 흐른 시간 비율의 차이가 들어 있습니다\.$/);
+  // A signal not declared as a current gets neither sentence when medians and means move together.
+  const plain = historyPeriodMessage({...facts, noCurrent: null, means: {a: 46, b: 64}})!;
+  assert.equal(plain.meaning, null);
+  // Exactly half is "절반", not "절반 넘게".
+  const half = historyPeriodMessage({...facts, outsideCount: 2520, outsidePercent: 50, noCurrent: null})!;
+  assert.match(half.headline, /^기간 B 측정의 절반\(2520회\)가/);
+  assert.match(half.certainty!, /^절반이 벗어났지만/);
 });

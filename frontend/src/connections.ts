@@ -232,6 +232,10 @@ export function declaredRoles(inputs:RoleInput[]):PhaseRole[]{
 // The whole name must be a quantity, an optional separator and a phase: vR, iT, voltage_a, Current_L1.
 const ROLE_NAME={voltage:/^(?:v|u|volt|voltage)[ _-]?(?:phase[ _-]?)?(r|s|t|a|b|c|l1|l2|l3|1|2|3)$/i,
   current:/^(?:i|amp|amps|curr|current)[ _-]?(?:phase[ _-]?)?(r|s|t|a|b|c|l1|l2|l3|1|2|3)$/i};
+// Korean headers name the phase first or last: "R상전류", "R상 전압", "전류_R", "전압 S상". A line
+// voltage ("R상선간전압") or a harmonic ("R상전류고조파") is not a phase role and never matches.
+const KOREAN_ROLE_NAME={voltage:/^(?:([rst])상[ _-]?(?:상)?전압|(?:상)?전압[ _-]?([rst])(?:상)?)$/i,
+  current:/^(?:([rst])상[ _-]?(?:상)?전류|(?:상)?전류[ _-]?([rst])(?:상)?)$/i};
 const PHASE_TOKEN:Record<string,"R"|"S"|"T">={r:"R",a:"R",l1:"R","1":"R",s:"S",b:"S",l2:"S","2":"S",t:"T",c:"T",l3:"T","3":"T"};
 /** Suggests only the column for each empty role, when exactly one column name fits.
  * The unit and wiring evidence stays for a person to write. */
@@ -241,7 +245,9 @@ export function suggestRoles(channels:string[],current:RoleInput[]):RoleInput[]{
     if(now.channel)return now;
     const fits=channels.filter(name=>{
       const match=ROLE_NAME[role.quantity].exec(name);
-      return match!==null&&PHASE_TOKEN[match[1].toLowerCase()]===role.phase;
+      if(match!==null)return PHASE_TOKEN[match[1].toLowerCase()]===role.phase;
+      const korean=KOREAN_ROLE_NAME[role.quantity].exec(name.trim());
+      return korean!==null&&(korean[1]??korean[2]).toUpperCase()===role.phase;
     });
     return {...now,channel:fits.length===1?fits[0]:""};
   });

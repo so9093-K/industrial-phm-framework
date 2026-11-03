@@ -80,6 +80,8 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert series["unit"] == "g"
         assert series["comparison"]["b_outside_a_band"] == 4
         assert series["comparison"]["b_outside_a_band_percent"] == 100
+        # A unit alone does not say "current": no measurement is read as no current flowing.
+        assert "no_current" not in a and "no_current" not in b
         assert sum(series["histogram"]["a"]) == 4 and sum(series["histogram"]["b"]) == 4
         assert str(tmp_path) not in json.dumps(body)
 
@@ -308,5 +310,73 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         assert reused["distance"] == item["distance"]
         # ...and it still names the record end it judged, not the newer one.
         assert reused["last_at"] == item["last_at"] == (BASE + timedelta(minutes=59)).isoformat()
+    finally:
+        stop()
+
+
+def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
+    tmp_path: Path,
+) -> None:
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    phase = '{"binding":{"definition":{"observed_property":"phase current","unit":"A"}}}'
+    # A compressor runs near 60 A, stops (0 A) from minute 60 to 90, then runs as before.
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:comp:{'d' * 64}:{index}",
+                source_id="comp-file",
+                asset_id="comp-01",
+                channel_id="R상전류",
+                source_file="comp.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=BASE + timedelta(minutes=index),
+                value=0.0 if 60 <= index < 90 else 60.0 + (index % 5) * 0.5,
+                source_metadata_json=phase,
+            )
+            for index in range(120)
+        ),
+        batch_id="comp",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        # 관측 현황 asks whether the record ends away from its start: it does not.
+        assert get("/api/v1/explore/attention", asset_id="comp-01")[1]["items"] == []
+        # The summary asks what the record held: the stop, named as observed.
+        status, found = get("/api/v1/explore/findings", asset_id="comp-01")
+        assert status == 200
+        assert found["meaning"] == "departures-from-the-first-30-percent-not-fault-diagnosis"
+        assert found["checked"] == ["R상전류"] and found["unchecked"] == 0
+        assert found["interval_count"] >= 1 and found["bucket_seconds"] > 0
+        stop_interval = found["intervals"][0]
+        assert stop_interval["direction"] == "down" and stop_interval["value"] == 0.0
+        assert stop_interval["unit"] == "A" and stop_interval["with"] == []
+        assert stop_interval["usual"]["low"] < 60 < stop_interval["usual"]["high"]
+        start = datetime.fromisoformat(stop_interval["start"])
+        assert BASE + timedelta(minutes=59) <= start <= BASE + timedelta(minutes=60)
+        assert get("/api/v1/explore/findings", asset_id="comp-01")[1] == found
+        assert get("/api/v1/explore/findings", asset_id="unknown")[1]["intervals"] == []
+        # A declared current in A also counts, per period, the measurements with no current.
+        middle = BASE + timedelta(minutes=60)
+        status, body = get(
+            "/api/v1/explore/profile",
+            asset_id="comp-01",
+            kind="history",
+            series=["R상전류"],
+            a_from=BASE.isoformat(),
+            a_to=middle.isoformat(),
+            b_from=middle.isoformat(),
+            b_to=(BASE + timedelta(hours=2)).isoformat(),
+        )
+        assert status == 200
+        (series,) = body["series"]
+        assert series["periods"]["a"]["no_current"] == {"below": 1.0, "count": 0}
+        assert series["periods"]["b"]["no_current"] == {"below": 1.0, "count": 30}
     finally:
         stop()

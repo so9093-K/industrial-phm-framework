@@ -25,6 +25,36 @@ export const NAME:Record<CapabilityId,string>={
   measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",
   forecast:"상태 전망",anomaly:"이상 징후","ai-question":"AI 해설",
 };
+/** What each analysis answers, as the question a person brings, and what data it needs. The
+ * method name stays beside the question so the screens it opens are still recognisable. */
+export type GuideId=CapabilityId|"electrical";
+export const QUESTION:Record<GuideId,string>={
+  measurements:"값이 시간에 따라 어떻게 움직였나요?",
+  anomaly:"언제 평소와 달라졌나요?",
+  "period-compare":"두 시기는 무엇이 다른가요?",
+  relation:"신호끼리 함께 움직이나요?",
+  spectrum:"진동이 어느 주파수에서 커졌나요?",
+  electrical:"3상 전류가 언제 흐르고 멈췄으며, 상끼리 고르게 흐르나요?",
+  forecast:"지금 추세라면 정한 기준까지 얼마나 남았나요?",
+  "ai-question":"이 결과가 무슨 뜻인지 근거와 함께 물어보기",
+};
+export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수",electrical:"부하·불평형"};
+export const NEEDS:Record<GuideId,string>={
+  measurements:"시각 열과 숫자 열이 있는 CSV, 또는 OPC UA로 받은 기록",
+  anomaly:"같은 신호의 시간 순서 기록 (모델 점수는 기준 기간을 골라 모델을 만들거나 연결)",
+  "period-compare":"비교할 두 시기가 모두 담긴 기록",
+  relation:"같은 시각에 함께 기록된 신호 2개 이상",
+  spectrum:"진동 원본 파형 기록 (지금은 XJTU-SY 실측 재생으로 준비)",
+  electrical:"R·S·T 3상 전압·전류 열과 각 상의 역할 지정",
+  forecast:"같은 신호의 기록 20개 이상 (예측할 기간의 2배 이상 길이)",
+  "ai-question":"상태 전망이나 모델 결과, 그리고 설정된 AI 서버",
+};
+/** The method an asset's own data offers: model-free departures need a stored time series. */
+export function methodFor(item:Capability,capabilities:Capabilities):string{
+  return item.id==="anomaly"&&!capabilities.history?"모델 점수":METHOD[item.id];
+}
+/** The order a person usually goes in: what happened, when it changed, what differs, why, what next. */
+export const GUIDE_ORDER:readonly GuideId[]=["measurements","anomaly","period-compare","relation","spectrum","electrical","forecast","ai-question"];
 const HORIZON:Record<string,string>={"1h":"1시간","24h":"24시간","7d":"7일","30d":"30일"};
 
 function invalid():never{throw new Error("분석 항목의 형식이 올바르지 않습니다.");}
