@@ -147,8 +147,8 @@ class MeasurementProfile:
     histogram_high: float | None
     histogram: tuple[int, ...]
     outside_other_band: int | None  # values outside the other period's 5-95 % range
-    # Usable values whose size is below SMALL_VALUE_LIMIT. Only a phase current in A reads it,
-    # as the time no current flowed (the same 1 A floor as the electrical condition analysis).
+    # Usable values whose size is below SMALL_VALUE_LIMIT. Only a current in A reports it, as a
+    # count of low-current measurements (the electrical analysis' 1 A floor), never as a stop.
     small_value_count: int = 0
 
 

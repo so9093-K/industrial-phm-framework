@@ -62,11 +62,17 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
     + (ratio !== null && ratio > 0 && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "입니다." : "입니다.");
   const share = facts.outsidePercent;
   const count = facts.outsideCount ?? (share === null ? null : Math.round(share * b.usable / 100));
+  // "모두" only when every usable measurement is outside; otherwise the count itself, and a
+  // percentage that never rounds 99.5% up to 100% or 0.4% down to 0%.
+  const all = count !== null && b.usable > 0 && count === b.usable;
+  const pct = share === null ? "" : (share > 99 && !all) || (share > 0 && share < 1)
+    ? share.toFixed(1) + "%" : Math.round(share) + "%";
   let headline: string;
   if (share === null || range === null) headline = "기간 A와 B의 " + medians;
-  else if (share >= 99.5) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else if (share >= 50) headline = "기간 B 측정의 " + (share > 50 ? Math.round(share) + "%" : "절반") + "(" + count + "회)가 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else if (share > 10) headline = "기간 B 측정의 일부(" + Math.round(share) + "%, " + count + "회)만 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (share >= 50) headline = (share === 50 ? "기간 B 측정의 절반(" + count + "회)이"
+    : "기간 B 측정 " + b.usable + "회 중 " + count + "회(" + pct + ")가") + " 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (share > 10) headline = "기간 B 측정의 일부(" + pct + ", " + count + "회)만 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
   else headline = "기간 B의 값은 대부분 기간 A의 평소 범위(" + range + ") 안에 있습니다. " + medians;
   let certainty: string | null = null;
   if (b.usable < 5 || a.usable < 10)
@@ -447,8 +453,8 @@ export type HistoryPeriodFacts = PeriodFacts & {
   /** Each period's mean and middle half, to tell a moved median from a moved level. */
   means: {a: number | null; b: number | null};
   aMiddle: {low: number; high: number} | null;
-  /** For a declared current in A: measurements below 1 A (no current flowing) in each period. */
-  noCurrent: {a: number; b: number} | null;
+  /** For a declared current in A: measurements below 1 A in each period — a low reading, not a stop. */
+  lowCurrent: {a: number; b: number} | null;
 };
 
 const portion = (part: number, whole: number) => whole > 0 ? part / whole : 0;
@@ -461,18 +467,19 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
   if (!base) return null;
   const unit = facts.unit ? " " + facts.unit : "";
   const notes: string[] = [];
-  let idleDiffers = false;
-  if (facts.noCurrent) {
-    const a = portion(facts.noCurrent.a, facts.a.usable), b = portion(facts.noCurrent.b, facts.b.usable);
-    idleDiffers = Math.abs(a - b) >= 0.1;
-    // A share of stored measurements, not of time: spacing can differ, so no duration is claimed,
-    // and a similar share does not settle where the difference came from.
-    notes.push("유효 측정 중 전류가 1 A 미만(흐르지 않음)인 측정의 비율은 기간 A " + percent(a) + ", 기간 B " + percent(b)
-      + (idleDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 전류가 흐르는 동안의 값끼리도 견줘 보세요."
-        : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 흐르지 않은 구간의 길이와 흐르는 동안의 값 분포를 함께 확인하세요."));
+  let lowDiffers = false;
+  if (facts.lowCurrent) {
+    const a = portion(facts.lowCurrent.a, facts.a.usable), b = portion(facts.lowCurrent.b, facts.b.usable);
+    lowDiffers = Math.abs(a - b) >= 0.1;
+    // A share of stored measurements, not of time, and a low reading, not a stop: spacing can
+    // differ, one phase below 1 A says nothing of the others, and a similar share settles no cause.
+    notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + percent(a) + ", 기간 B " + percent(b)
+      + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리도 견줘 보세요."
+        : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요.")
+      + " 1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다.");
   }
   const {a, b} = facts, {a: meanA, b: meanB} = facts.means;
-  if (!idleDiffers && a.median !== null && b.median !== null && meanA !== null && meanB !== null && facts.aMiddle) {
+  if (!lowDiffers && a.median !== null && b.median !== null && meanA !== null && meanB !== null && facts.aMiddle) {
     const medianMove = b.median - a.median, meanMove = meanB - meanA;
     const width = facts.aMiddle.high - facts.aMiddle.low;
     const apart = Math.abs(medianMove) >= 0.25 * width && width > 0

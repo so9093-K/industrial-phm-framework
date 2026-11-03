@@ -80,8 +80,8 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         assert series["unit"] == "g"
         assert series["comparison"]["b_outside_a_band"] == 4
         assert series["comparison"]["b_outside_a_band_percent"] == 100
-        # A unit alone does not say "current": no measurement is read as no current flowing.
-        assert "no_current" not in a and "no_current" not in b
+        # A unit alone does not say "current": no measurement below 1 A is counted.
+        assert "low_current" not in a and "low_current" not in b
         assert sum(series["histogram"]["a"]) == 4 and sum(series["histogram"]["b"]) == 4
         assert str(tmp_path) not in json.dumps(body)
 
@@ -390,7 +390,7 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         assert BASE + timedelta(minutes=59) <= start <= BASE + timedelta(minutes=60)
         assert get("/api/v1/explore/findings", asset_id="comp-01")[1] == found
         assert get("/api/v1/explore/findings", asset_id="unknown")[1]["intervals"] == []
-        # A declared current in A also counts, per period, the measurements with no current.
+        # A declared current in A also counts, per period, the measurements below 1 A.
         middle = BASE + timedelta(minutes=60)
         status, body = get(
             "/api/v1/explore/profile",
@@ -404,7 +404,7 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         )
         assert status == 200
         (series,) = body["series"]
-        assert series["periods"]["a"]["no_current"] == {"below": 1.0, "count": 0}
-        assert series["periods"]["b"]["no_current"] == {"below": 1.0, "count": 30}
+        assert series["periods"]["a"]["low_current"] == {"below": 1.0, "count": 0}
+        assert series["periods"]["b"]["low_current"] == {"below": 1.0, "count": 30}
     finally:
         stop()

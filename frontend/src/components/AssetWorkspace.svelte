@@ -1,7 +1,7 @@
 <script lang="ts">
   import {measurementLabel,elapsedText} from "../time-axis";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
-  import {defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
+  import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
   import {
     DATA_INFO, METHOD_INFO, TAB_INFO, TABS, routeUrl, tabSelectionUrl, usesDataKind,
@@ -38,10 +38,7 @@
   // Mixed inputs require an explicit measurement kind, never a hidden default.
   // A tab opens on an answer: the anomaly tab shows model scores when a model has results (or is
   // waiting for them), else the model-free baseline departures of a stored history.
-  const anomalyDefault = $derived.by((): Method => {
-    const reason = capabilities?.items.find((item) => item.id === "anomaly")?.reason;
-    return reason === "connected" || reason === "waiting-results" || !data?.history ? "model" : "baseline";
-  });
+  const anomalyDefault = $derived(defaultAnomalyMethod(capabilities, data));
   const method: Method | null = $derived(route.method ?? (route.tab === "change"
     ? methodsFor("change", data, capabilities, route.data ?? defaultKind(data))[0] ?? "compare"
     : route.tab === "anomaly" ? anomalyDefault : null));

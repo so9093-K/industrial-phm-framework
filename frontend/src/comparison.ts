@@ -9,8 +9,8 @@ export type PeriodProfile = {
   median: number | null;
   mean: number | null;
   quantiles: number[] | null;
-  /** For a declared current in A: usable measurements below 1 A, read as no current flowing. */
-  noCurrent: number | null;
+  /** For a declared current in A: usable measurements below 1 A. A low reading, not a stop. */
+  lowCurrent: number | null;
 };
 export type ProfileSeries = {
   key: string;
@@ -118,14 +118,14 @@ function parsePeriod(raw: unknown): PeriodProfile {
     nonGood: optionalCount(p.non_good_count),
     conflict: optionalCount(p.conflict_count),
     median: quantiles?.[2] ?? null, quantiles,
-    mean: optionalNumber(p.mean), noCurrent: idle(p.no_current, positiveCount(p.usable_count)) };
+    mean: optionalNumber(p.mean), lowCurrent: low(p.low_current, positiveCount(p.usable_count)) };
 }
-function idle(raw: unknown, usable: number): number | null {
+function low(raw: unknown, usable: number): number | null {
   if (raw === undefined || raw === null) return null;
   const row = rec(raw);
-  if (!row || row.below !== 1) throw new Error("전류가 흐르지 않은 측정 수의 형식이 올바르지 않습니다.");
+  if (!row || row.below !== 1) throw new Error("전류 1 A 미만 측정 수의 형식이 올바르지 않습니다.");
   const count = positiveCount(row.count);
-  if (count > usable) throw new Error("전류가 흐르지 않은 측정 수가 유효 측정보다 많습니다.");
+  if (count > usable) throw new Error("전류 1 A 미만 측정 수가 유효 측정보다 많습니다.");
   return count;
 }
 

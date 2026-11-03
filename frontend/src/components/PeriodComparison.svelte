@@ -24,14 +24,14 @@
       for (const [key, value] of Object.entries(windowParams(window, pick))) url.searchParams.set(key, value);
       next.push({label: "두 기간을 신호 그래프에서 보기", href: url.pathname + url.search});
     }
-    const idle = a.noCurrent !== null && b.noCurrent !== null ? {a: a.noCurrent, b: b.noCurrent} : null;
-    if (idle && electrical) next.push({label: "전류가 흐른 시간과 흐르는 동안의 3상 전류를 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
+    const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
+    if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
     return historyPeriodMessage({
       unit: row.unit ?? names?.get(row.channel)?.unit ?? null,
       a: {usable: a.usable, median: a.median, low: qa?.[0] ?? null, high: qa?.[4] ?? null},
       b: {usable: b.usable, median: b.median},
       outsideCount: row.outsideCount, outsidePercent: row.outsidePercent, medianChangePercent: row.medianChangePercent,
-      onset: null, means: {a: a.mean, b: b.mean}, aMiddle: qa ? {low: qa[1], high: qa[3]} : null, noCurrent: idle,
+      onset: null, means: {a: a.mean, b: b.mean}, aMiddle: qa ? {low: qa[1], high: qa[3]} : null, lowCurrent: low,
     }, next);
   }
   import {
@@ -291,8 +291,8 @@
                 <tr><th scope="row">유효 측정</th><td>{row.periods.a.usable}</td><td>{row.periods.b.usable}</td></tr>
                 <tr><th scope="row">중앙값</th><td>{num(row.periods.a.median)}</td><td>{num(row.periods.b.median)}</td></tr>
                 <tr><th scope="row">평균</th><td>{num(row.periods.a.mean)}</td><td>{num(row.periods.b.mean)}</td></tr>
-                {#if row.periods.a.noCurrent !== null && row.periods.b.noCurrent !== null}
-                  <tr><th scope="row">전류 1 A 미만(흐르지 않음)</th><td>{row.periods.a.noCurrent}</td><td>{row.periods.b.noCurrent}</td></tr>
+                {#if row.periods.a.lowCurrent !== null && row.periods.b.lowCurrent !== null}
+                  <tr><th scope="row">전류 1 A 미만인 측정</th><td>{row.periods.a.lowCurrent}</td><td>{row.periods.b.lowCurrent}</td></tr>
                 {/if}
                 <tr><th scope="row">결측</th><td>{row.periods.a.missing ?? "미확인"}</td><td>{row.periods.b.missing ?? "미확인"}</td></tr>
                 <tr><th scope="row">품질 문제</th><td>{row.periods.a.nonGood ?? "미확인"}</td><td>{row.periods.b.nonGood ?? "미확인"}</td></tr>

@@ -63,8 +63,8 @@ def interpretation_property(interpretation_json: str) -> str | None:
 
 
 def is_current_in_amperes(interpretation_json: str) -> bool:
-    """A declared electric current in A: the only meaning under which a value below 1 is read
-    as no current flowing, as the electrical condition analysis reads it."""
+    """A declared electric current in A: the only meaning under which values below 1 A are
+    counted. A value below 1 A is a low measured current, not proof the equipment stopped."""
     prop = (interpretation_property(interpretation_json) or "").lower()
     return interpretation_unit(interpretation_json) == "A" and ("current" in prop or "전류" in prop)
 
@@ -143,7 +143,7 @@ def history_series(
         if is_current_in_amperes(interpretation):
             for name, _, _ in periods:
                 held = by_period.get(name)
-                stats[name]["no_current"] = {
+                stats[name]["low_current"] = {
                     "below": SMALL_VALUE_LIMIT,
                     "count": held.small_value_count if held else 0,
                 }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
+import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
 import type {Capabilities, CapabilityStatus} from "./capabilities.ts";
 
 test("an asset's stored data kinds choose the default analysis, never another asset's", () => {
@@ -69,4 +69,15 @@ test("elapsed measurement time carries its source and requires a valid recorded 
   assert.deepEqual(read(60).vibration?.timing, {sourceId:"bench",periodSeconds:60});
   for (const period of [null, undefined, 0, -1, NaN, Infinity, "60"])
     assert.equal(read(period).vibration?.timing, undefined);
+});
+
+test("the anomaly tab opens on a model's scores whenever a model has results or waits for them", () => {
+  const history = {history: {signals: 2}, vibration: null};
+  const anomaly = (reason: string, facts: Record<string, unknown> = {}): Capabilities => ({assetId: "m", history: null, acquisition: null,
+    items: [{id: "anomaly", status: "ready", reason, target: null, facts}]});
+  assert.equal(defaultAnomalyMethod(anomaly("connected"), history), "model");
+  // A stored history stays explorable while a model waits; the waiting model still opens first.
+  assert.equal(defaultAnomalyMethod(anomaly("explore", {model_waiting: true}), history), "model");
+  assert.equal(defaultAnomalyMethod(anomaly("explore", {model_waiting: false}), history), "baseline");
+  assert.equal(defaultAnomalyMethod(anomaly("compatible-model"), {history: null, vibration: null}), "model");
 });

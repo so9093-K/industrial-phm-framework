@@ -34,7 +34,7 @@ export const QUESTION:Record<GuideId,string>={
   "period-compare":"두 시기는 무엇이 다른가요?",
   relation:"신호끼리 함께 움직이나요?",
   spectrum:"진동이 어느 주파수에서 커졌나요?",
-  electrical:"3상 전류가 언제 흐르고 멈췄으며, 상끼리 고르게 흐르나요?",
+  electrical:"3상 전류가 언제 얼마나 흘렀고, 상끼리 고르게 흐르나요?",
   forecast:"지금 추세라면 정한 기준까지 얼마나 남았나요?",
   "ai-question":"이 결과가 무슨 뜻인지 근거와 함께 물어보기",
 };
