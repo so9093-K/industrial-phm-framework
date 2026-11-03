@@ -74,11 +74,11 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
   else if (share === null) certainty = null;
   else if (share >= 90) certainty = "값 몇 개가 튄 것이 아니라 거의 모든 측정이 벗어나, 값의 수준 자체가 달라졌습니다.";
   else if (share >= 50) certainty = "절반 넘게 벗어났지만 평소 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
-  else if (share > 10) certainty = "일부만 벗어나 잠깐의 변화일 수 있습니다. 벗어난 측정이 한곳에 몰려 있는지 시간 추이에서 확인하세요.";
+  else if (share > 10) certainty = "기간 B 측정 중 일부만 벗어났습니다. 벗어난 측정이 한 시기에 몰려 있는지 흩어져 있는지 시간 추이에서 확인하세요.";
   else certainty = "기간 A 안에서도 값의 10%는 이 범위 밖에 있으므로, 이 정도는 뚜렷한 변화로 보기 어렵습니다.";
   const onset = facts.onset && share !== null && share > 10
     ? place(facts.onset.first) + "에서 처음 평소 범위를 벗어났고"
-      + (facts.onset.stayed ? " 그 뒤로 계속 벗어나 있습니다." : " 그 뒤로 범위 안팎을 오갔습니다.")
+      + (facts.onset.stayed ? " 그 뒤 기간 B의 측정도 모두 평소 범위 밖입니다." : " 그 뒤 기간 B의 측정 중 일부는 평소 범위 안으로 돌아왔습니다.")
     : null;
   return {headline, meaning: onset, certainty, next};
 }
@@ -221,16 +221,27 @@ export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: 
 
 export type ModelRead = {name: string; line: RatioLine};
 
+/** One model's crossings as observed: where and how many, and how its last analyzed measurement
+ * stands. No word for a kind of run ("continuous", "one-off") is used: the run rule tolerates
+ * measurements below the threshold, so such words would say more, or other, than was seen. */
 function modelState(read: ModelRead, place: (position: number) => string): string {
   const {name, line} = read, story = line.story;
   const top = line.points.length ? times(Math.max(...line.points.map((p) => p.ratio))) : null;
+  const latest = line.latest ? place(line.latest.position) : null;
+  const before = story.earlierCount
+    ? "그 전에도 " + story.earlierCount + "회" + (story.first && story.anchor && story.first.pointer.position < story.anchor.pointer.position
+      ? ", 처음 " + place(story.first.pointer.position) : "")
+    : "그 전에는 기준을 넘은 측정 없음";
   if (story.state === "ongoing" && story.ongoing)
-    return name + " 점수는 " + place(story.ongoing.start) + "부터 "
-      + (story.lastExceeds === false ? "기준을 넘는 구간이 이어졌고 최근 측정은 기준 아래입니다" : "계속 기준을 넘고 있습니다")
-      + "(" + story.ongoing.steps + "회" + (top ? ", 가장 높을 때 기준의 " + top : "") + ")";
-  if (story.state === "latest" && story.anchor) return name + " 점수는 마지막 측정(" + place(story.anchor.pointer.position) + ")에서만 기준을 넘었습니다";
-  if (story.state === "below" && story.anchor) return name + " 점수는 지금 기준 아래입니다(마지막 기준 초과 " + place(story.anchor.pointer.position) + ")";
-  return name + " 점수는 한 번도 기준을 넘지 않았습니다" + (top ? "(가장 높을 때 기준의 " + top + ")" : "");
+    return name + " 점수는 " + place(story.ongoing.start) + " 이후 기준을 " + story.ongoing.steps + "회 넘었고, 마지막으로 분석한 "
+      + (latest ?? "측정") + "은 기준 " + (story.lastExceeds === false ? "이하" : "초과") + "입니다(" + before
+      + (top ? ", 가장 높을 때 기준의 " + top : "") + ")";
+  if (story.state === "latest" && story.anchor)
+    return name + " 점수는 마지막으로 분석한 " + place(story.anchor.pointer.position) + "에서 기준을 넘었습니다(" + before + ")";
+  if (story.state === "below" && story.anchor)
+    return name + " 점수는 마지막으로 분석한 " + (latest ?? "측정") + "에서 기준 이하입니다(그 전 기준 초과 " + (story.earlierCount + 1)
+      + "회, 마지막 " + place(story.anchor.pointer.position) + ")";
+  return name + " 점수는 분석한 " + line.analyzed + "회 중 기준을 넘은 측정이 없습니다" + (top ? "(가장 높을 때 기준의 " + top + ")" : "");
 }
 
 /** Where the models' crossings start, so the next look goes to that measurement. */

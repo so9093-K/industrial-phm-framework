@@ -15,7 +15,7 @@ test("a period whose every value left the usual range says so before the medians
   const message = periodMessage(facts, place)!;
   assert.equal(message.headline,
     "기간 B의 측정 25회가 모두 기간 A의 평소 범위(0.602~0.863 g)를 벗어났습니다. 중앙값은 0.766 → 2.8 g로 약 3.7배입니다.");
-  assert.equal(message.meaning, "76번째 측정에서 처음 평소 범위를 벗어났고 그 뒤로 계속 벗어나 있습니다.");
+  assert.equal(message.meaning, "76번째 측정에서 처음 평소 범위를 벗어났고 그 뒤 기간 B의 측정도 모두 평소 범위 밖입니다.");
   assert.match(message.certainty!, /수준 자체가 달라졌습니다/);
 });
 
@@ -24,7 +24,7 @@ test("a few values outside the usual range read as possibly brief, a tenth or le
     medianChangePercent: 5, onset: null};
   const some = periodMessage({...base, outsideCount: 8, outsidePercent: 20}, place)!;
   assert.match(some.headline, /일부\(20%, 8회\)만/);
-  assert.match(some.certainty!, /잠깐의 변화일 수 있습니다/);
+  assert.match(some.certainty!, /일부만 벗어났습니다\. 벗어난 측정이 한 시기에 몰려 있는지/);
   assert.doesNotMatch(some.headline, /배입니다/);
   const none = periodMessage({...base, outsideCount: 2, outsidePercent: 5}, place)!;
   assert.match(none.headline, /대부분 기간 A의 평소 범위\(8~12\) 안/);
@@ -108,16 +108,22 @@ test("models that disagree are named as disagreeing, with where each stands", ()
   const forest = line([[74, 0.6], [75, 0.7], [76, 0.8], [77, 0.97], [78, 0.9]], []);
   const reads = [{name: "LSTM 오토인코더", line: lstm}, {name: "Isolation Forest", line: forest}];
   const message = modelMessage(reads, place)!;
-  assert.equal(message.headline, "같은 최근 측정에서 모델마다 판단이 다릅니다. LSTM 오토인코더 점수는 76번째 측정부터 계속 기준을 넘고 있습니다"
-    + "(3회, 가장 높을 때 기준의 6.3배), Isolation Forest 점수는 한 번도 기준을 넘지 않았습니다(가장 높을 때 기준의 0.97배).");
+  assert.equal(message.headline, "같은 최근 측정에서 모델마다 판단이 다릅니다. LSTM 오토인코더 점수는 76번째 측정 이후 기준을 3회 넘었고, "
+    + "마지막으로 분석한 78번째 측정은 기준 초과입니다(그 전에는 기준을 넘은 측정 없음, 가장 높을 때 기준의 6.3배), "
+    + "Isolation Forest 점수는 분석한 5회 중 기준을 넘은 측정이 없습니다(가장 높을 때 기준의 0.97배).");
+  // Crossings at #7 and #12 only: the latest one is named with the earlier one, not as "the latest only".
+  const lone = modelMessage([{name: "PCA", line: line([[6, 0.5], [7, 1.4], [8, 0.6], [11, 0.7], [12, 1.2]], [])}], place)!;
+  assert.equal(lone.headline, "PCA 점수는 마지막으로 분석한 12번째 측정에서 기준을 넘었습니다(그 전에도 1회, 처음 7번째 측정).");
+  assert.doesNotMatch(lone.headline, /연속|만 기준|계속/);
   assert.match(message.certainty!, /최근 측정에서 일부 모델만 기준을 넘어/);
   assert.equal(modelOnset(reads), 76);
   const both = modelMessage([reads[0], {name: "PCA", line: line([[77, 2], [78, 2]], [{start: 77, end: 78, steps: 2, peak: 2, open: true}])}], place)!;
   assert.match(both.headline, /^모든 모델이 최근 측정에서 기준을 넘고 있습니다/);
   // A run still open within its allowed gap can end below the threshold: that is not "over now".
-  const lapsed = line([[76, 1.4], [77, 2], [78, 0.9]], [{start: 76, end: 78, steps: 3, peak: 2, open: true}]);
+  // A run's steps count only its measurements over the threshold; #78 is below and not counted.
+  const lapsed = line([[76, 1.4], [77, 2], [78, 0.9]], [{start: 76, end: 77, steps: 2, peak: 2, open: true}]);
   const quiet = modelMessage([{name: "LSTM 오토인코더", line: lapsed}, reads[1]], place)!;
-  assert.match(quiet.headline, /^최근 측정에서 기준을 넘은 모델은 없습니다\. LSTM 오토인코더 점수는 76번째 측정부터 기준을 넘는 구간이 이어졌고 최근 측정은 기준 아래입니다/);
+  assert.match(quiet.headline, /^최근 측정에서 기준을 넘은 모델은 없습니다\. LSTM 오토인코더 점수는 76번째 측정 이후 기준을 2회 넘었고, 마지막으로 분석한 78번째 측정은 기준 이하입니다/);
   assert.match(quiet.certainty!, /최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다/);
   // Different last analyzed measurements are not a disagreement at the same measurement.
   const behind = line([[74, 0.6], [75, 0.7]], []);

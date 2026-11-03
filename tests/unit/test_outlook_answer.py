@@ -208,7 +208,8 @@ def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how
     sustained = {
         **outlook["anomaly_model"],
         "package_id": "xjtu-lstm-autoencoder-fold-1",
-        "intervals": [{"start_position": 77, "end_position": 123, "open": True}],
+        "exceeding": 47,
+        "intervals": [{"start_position": 77, "end_position": 123, "steps": 47, "open": True}],
     }
     quiet = {**outlook["anomaly_model"], "first_exceeding": None, "intervals": []}
     outlook["anomaly_models"] = [sustained, quiet]
@@ -221,7 +222,7 @@ def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how
     facts = outlook_facts(outlook)
     assert facts["links"] == (
         "측정값이 초기 비교 범위를 벗어나기 시작 #76; "
-        "LSTM 기준 초과 시작 #77 (1회 차이, 같은 무렵); Isolation Forest 기준 초과 없음 · "
+        "LSTM #77 이후 기준 초과 47회 (1회 차이, 같은 무렵); Isolation Forest 기준 초과 없음 · "
         "같은 무렵을 가리키는 이상 탐지 모델과 기준을 넘지 않은 이상 탐지 모델이 함께 있음 "
         "(이상 탐지 모델끼리 다르게 말함)"
     )
@@ -449,17 +450,19 @@ def test_ai_rejects_measurement_counts_as_elapsed_minutes_without_cadence() -> N
     )
 
 
-def test_a_crossing_still_going_on_is_named_apart_from_an_earlier_one_off() -> None:
+def test_crossings_are_told_by_place_and_count_not_by_a_kind_of_run() -> None:
     outlook = _outlook()
     outlook["anomaly_model"] = {
         **outlook["anomaly_model"],
         "package_id": "xjtu-lstm-autoencoder-fold-1",
         "first_exceeding": {"position": 30, "at": None},
-        "intervals": [{"start_position": 76, "end_position": 123, "open": True}],
+        "exceeding": 49,
+        "intervals": [{"start_position": 76, "end_position": 123, "steps": 47, "open": True}],
     }
     text = outlook_facts(outlook)["model"]
-    assert "기준 초과가 이어지기 시작 #76 · 그 전에 처음 기준을 넘은 측정 #30" in text
-    assert "처음 초과 #30" not in text
+    # Place and count only: the run rule tolerates results below the threshold inside a run.
+    assert "기준 초과 49회 (처음 #30) · #76 이후 기준 초과 47회" in text
+    assert "이어지" not in text and "연속" not in text
 
 
 def test_a_margin_always_comes_with_how_far_the_past_check_lets_one_trust_it() -> None:

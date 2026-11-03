@@ -361,19 +361,22 @@ def _model_text(model: dict[str, Any]) -> str:
             else "#" + str(item["position"])
         )
 
-    # A crossing still going on is named apart from an earlier one-off crossing, so the two
-    # are never read as one "since".
+    # Crossings are told by place and count only. The model's run rule tolerates results below the
+    # threshold inside a run, so no word for a kind of run ("continuous") is put in a fact.
+    total = model.get("exceeding")
+    if first:
+        text += (f" · 기준 초과 {total}회" if isinstance(total, int) else " · 기준 초과") + (
+            f" (처음 {where_first(first)})"
+        )
+    elif total == 0:
+        text += " · 기준 초과 없음"
     if run is not None:
         start = (
             _clock(run["start_at"])
             if not acquisitions and run.get("start_at")
             else "#" + str(run["start_position"])
         )
-        text += " · 기준 초과가 이어지기 시작 " + start
-        if first and first["position"] < run["start_position"]:
-            text += " · 그 전에 처음 기준을 넘은 측정 " + where_first(first)
-    elif first:
-        text += " · 처음 초과 " + where_first(first)
+        text += f" · {start} 이후 기준 초과 {run['steps']}회"
     recent = model["recent"]
     return text + f" · 최근 {recent['results']}개 중 {recent['exceeding']}개 초과"
 
@@ -387,15 +390,27 @@ def _models(outlook: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _model_start(outlook: dict[str, Any], model: dict[str, Any]) -> Any:
-    """Where a model's crossing that is still going on starts, else its first crossing."""
+    """Where the model's open run starts, else its first crossing."""
+    return (_model_crossings(outlook, model) or (None, None))[0]
+
+
+def _model_crossings(
+    outlook: dict[str, Any], model: dict[str, Any]
+) -> tuple[Any, int | None] | None:
+    """Where to count a model's crossings from, and how many there are from there: its open run's
+    start and the crossings in that run, else its first crossing and all of them."""
     acquisitions = outlook["axis"] == "acquisition"
     run = next((item for item in reversed(model.get("intervals") or []) if item.get("open")), None)
     if run is not None:
-        return run["start_position"] if acquisitions else run.get("start_at")
+        start = run["start_position"] if acquisitions else run.get("start_at")
+        return start, run.get("steps")
     first = model.get("first_exceeding")
     if first is None:
         return None
-    return first["position"] if acquisitions else first.get("at")
+    total = model.get("exceeding")
+    return (first["position"] if acquisitions else first.get("at")), (
+        total if isinstance(total, int) else None
+    )
 
 
 def _gap(outlook: dict[str, Any], one: Any, two: Any) -> tuple[str, bool]:
@@ -418,7 +433,8 @@ def _links(outlook: dict[str, Any]) -> str | None:
     parts = [f"측정값이 초기 비교 범위를 벗어나기 시작 {place(outlook, since)}"]
     agreeing, quiet = 0, 0
     for model in models:
-        name, start = model_label(model["package_id"]), _model_start(outlook, model)
+        name, crossings = model_label(model["package_id"]), _model_crossings(outlook, model)
+        start, count = crossings or (None, None)
         if start is None:
             quiet += 1
             parts.append(f"{name} 기준 초과 없음")
@@ -426,7 +442,9 @@ def _links(outlook: dict[str, Any]) -> str | None:
         gap, same = _gap(outlook, start, since)
         agreeing += same
         parts.append(
-            f"{name} 기준 초과 시작 {place(outlook, start)} ({gap}"
+            f"{name} {place(outlook, start)} 이후 기준 초과"
+            + (f" {count}회" if count is not None else "")
+            + f" ({gap}"
             + (", 같은 무렵)" if same else ")")
         )
     text = "; ".join(parts)
