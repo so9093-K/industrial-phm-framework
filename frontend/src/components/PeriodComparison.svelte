@@ -8,6 +8,7 @@
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
+  import {ORIGIN_TEXT, periodOrigin, type PeriodOrigin} from "../signal-selection";
   import {
     defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
     type Periods, type ProfileResult, type SourceHistory,
@@ -25,6 +26,12 @@
   let sources: SourceHistory | null = $state(null);
   let selected = $state(new URLSearchParams(location.search).get("monitor_channel") ?? "");
   let periods: Periods | null = $state(null);
+  // Periods handed over from a span picked on the signal chart; said on screen until edited.
+  let handedOver: PeriodOrigin | null = $state(periodOrigin(location.search));
+  const HOUR = 3600000;
+  const QUICK: {label: string; length: number}[] = [
+    {label: "1시간", length: HOUR}, {label: "24시간", length: 24 * HOUR}, {label: "7일", length: 7 * 24 * HOUR},
+  ];
   let result: ProfileResult | null = $state(null);
   let error = $state("");
   // Keep invalid *draft fields* separate from valid periods used by server queries.
@@ -52,9 +59,21 @@
       return span && span.length === 2 ? {from:span[0],to:span[1]} : null;
     };
     const a = read("compare_a"), b = read("compare_b");
-    if (!a || !b) return fallback;
-    try {validatePeriods({a,b}); return {a,b};} catch {return fallback;}
+    if (!a || !b) {handedOver = null; return fallback;}
+    try {validatePeriods({a,b}); return {a,b};} catch {handedOver = null; return fallback;}
   }
+  /** The last stretch of the record (B) against the same length right before it (A). */
+  function quick(length: number) {
+    if (!sources) return;
+    const last = Date.parse(sources.to) + 1000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    periods = {a: {from: iso(last - 2 * length), to: iso(last - length)}, b: {from: iso(last - length), to: iso(last)}};
+    invalidFields = {}; handedOver = null;
+    remember();
+    void compare();
+  }
+  // Offered while the record holds the recent stretch and most of the one before it.
+  const fits = (length: number) => !!sources && Date.parse(sources.to) - Date.parse(sources.from) + 1000 >= 1.5 * length;
   function remember() {
     if (!periods) return;
     const url = new URL(location.href);
@@ -62,6 +81,7 @@
     url.searchParams.set("monitor_channel", selected);
     url.searchParams.set("compare_a", periods.a.from + "~" + periods.a.to);
     url.searchParams.set("compare_b", periods.b.from + "~" + periods.b.to);
+    if (!handedOver) url.searchParams.delete("compare_origin");
     history.replaceState(history.state, "", url);
   }
   async function loadSources() {
@@ -101,6 +121,7 @@
     result = null;
     compareState = "edited";
     error = "";
+    handedOver = null;
     const key = which + "." + edge;
     try {
       const parsed = isoKst(value);
@@ -164,6 +185,17 @@
         </select>
       </label>
     </div>
+    {#if QUICK.some((item) => fits(item.length))}
+      <div class="quick" role="group" aria-label="빠른 기간 선택">
+        <span>마지막 기록까지 · 바로 앞 같은 길이와 비교</span>
+        {#each QUICK.filter((item) => fits(item.length)) as item (item.label)}
+          <button type="button" class="ui-button" onclick={() => quick(item.length)}>최근 {item.label}</button>
+        {/each}
+      </div>
+    {/if}
+    {#if handedOver}
+      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
     <div class="ranges">
       {#each ["a", "b"] as key (key)}
         {@const name = key as "a" | "b"}
@@ -247,6 +279,10 @@
   select, input { min-width: 0; width: 100%; padding: var(--space-3); color: var(--color-ink);
     background: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: var(--radius-control); }
+  .quick { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+  .quick span { color: var(--color-ink-muted); font-size: var(--font-small); margin-right: var(--space-2); }
+  .handed { margin: var(--space-4) 0 0; padding: var(--space-3); border-left: 4px solid var(--color-focus);
+    background: var(--color-surface-selected); overflow-wrap: anywhere; }
   .ranges { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-block: var(--space-4); }
   fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-panel); min-width: 0; display: grid; gap: var(--space-3); }
   legend { font-weight: 700; }

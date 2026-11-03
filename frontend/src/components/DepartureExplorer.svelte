@@ -17,6 +17,8 @@
     scoreTable.querySelector<HTMLElement>('[data-onset="true"]')?.focus();
   }
   import {assetTabUrl, systemUrl} from "../routes";
+  import {validatePeriods} from "../comparison";
+  import {periodParams, windowParams, zoomWindow, type Span} from "../signal-selection";
 
   type Props = { assetId: string };
   type LoadState = "loading" | "ready" | "empty" | "unavailable" | "failed";
@@ -120,6 +122,27 @@
       }
     }
   }
+  /** A found interval opens the comparison against the baseline it was found with, and the
+   * signal zoomed around it with the interval already picked. Too long a span offers neither. */
+  function intervalLinks(found: Departures, start: string, end: string): {compare: string | null; signal: string | null} {
+    const step = (found.bucketSeconds ?? 0) * 1000;
+    const span: Span = {from: Date.parse(start), to: Math.max(Date.parse(end), Date.parse(start) + Math.max(step, 1000))};
+    const link = (href: string, params: Record<string, string>) => {
+      const url = new URL(href, location.origin);
+      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+      return url.pathname + url.search;
+    };
+    const periods = {a: {from: found.baseline.from, to: found.baseline.to},
+      b: {from: new Date(span.from).toISOString(), to: new Date(span.to).toISOString()}};
+    let compare: string | null = null;
+    try {
+      validatePeriods(periods);
+      compare = link(assetTabUrl(assetId, "change", "compare", "history", found.selectedChannel), periodParams(periods, "departure"));
+    } catch { compare = null; }
+    const window = zoomWindow(span);
+    const signal = window ? link(assetTabUrl(assetId, "signals", null, null, found.selectedChannel), windowParams(window, span)) : null;
+    return {compare, signal};
+  }
   onMount(() => {
     void loadChannels();
     return () => { channelsRequest?.abort(); resultRequest?.abort(); };
@@ -183,12 +206,15 @@
         {:else}
           <ol class="intervals">
             {#each result.intervals as interval, i (interval.start + interval.end + i)}
+              {@const links = intervalLinks(result, interval.start, interval.end)}
               <li>
                 <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
                 <span>{interval.direction === "up" ? "기준보다 높음" : "기준보다 낮음"}
                   · 기준 중앙값 {num(interval.median)} → 가장 많이 벗어난 시점 {num(interval.value)}
                   {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? ""}
                   · 기준 변동 폭의 {num(Number(interval.distance.toFixed(1)))}배</span>
+                <span class="next">{#if links.compare}<a href={links.compare}>기준 구간과 비교 →</a>{/if}
+                  {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}</span>
               </li>
             {/each}
           </ol>
@@ -266,6 +292,7 @@
   .intervals { padding-inline-start: var(--space-5); }
   .intervals li { padding-block: var(--space-3); border-bottom: 1px solid var(--color-border); }
   .intervals span { display: block; color: var(--color-ink-muted); overflow-wrap: anywhere; }
+  .intervals .next { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-1); }
   svg { width: 100%; height: 200px; display: block; margin-top: var(--space-2); }
   svg path, svg line { vector-effect: non-scaling-stroke; }
   .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
