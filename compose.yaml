@@ -6,8 +6,6 @@ services:
       context: .
       dockerfile: deploy/container/Dockerfile
     init: true
-    environment:
-      INDUSTRIAL_PHM_SAMPLE_UI_PORT: "2719"
     # The web proxy forwards loopback :9400 (AI explanations) to a model server on the host.
     # Docker Desktop resolves this name already; Linux Docker needs the mapping.
     extra_hosts:
@@ -18,7 +16,6 @@ services:
     # The proxy shares this network namespace; the supervisor stays on loopback.
     ports:
       - "127.0.0.1:2718:8080"
-      - "127.0.0.1:2719:8081"
     security_opt:
       - no-new-privileges:true
     cap_drop: [ALL]

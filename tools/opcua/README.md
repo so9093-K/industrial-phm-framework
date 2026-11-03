@@ -19,14 +19,14 @@ uv run --no-sync industrial-phm demo aihub-boiler
 
 ```bash
 uv sync --locked --extra history --extra opcua --extra aihub --group research
-uv run --no-sync python -m tools.opcua.aihub_replay prepare \\
-  --root artifacts/aihub-replay \\
-  --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \\
-  --archive data/raw/aihub/239/archives/training/raw/5.보일러.zip \\
-  --member "5.보일러/SourceData_211.json" \\
-  --binding tools/opcua/presets/aihub-boiler-2297-replay.json \\
+uv run --no-sync python -m tools.opcua.aihub_replay prepare \
+  --root artifacts/aihub-replay \
+  --endpoint opc.tcp://127.0.0.1:4850/aihub-replay/ \
+  --archive data/raw/aihub/239/archives/training/raw/5.보일러.zip \
+  --member "5.보일러/SourceData_211.json" \
+  --binding tools/opcua/presets/aihub-boiler-2297-replay.json \
   --start 2020-11-14T06:00:00 --end 2020-11-14T12:30:00
-uv run --no-sync python -m tools.opcua.aihub_replay server \\
+uv run --no-sync python -m tools.opcua.aihub_replay server \
   --root artifacts/aihub-replay --speed 60 --loop
 ```
 

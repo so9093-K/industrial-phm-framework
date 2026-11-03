@@ -43,10 +43,7 @@ The container does not mount or migrate host `artifacts/operations`, `data/`, mo
 Use browser CSV upload for a first connection. Workspace-relative CSV paths refer to container paths.
 Existing model packages or workspaces need explicit provisioning; the supported backup/restore contract
 remains the application CLI and ADR-0015. Keep the internal Web port in `config.toml` at 2718: this local
-Compose reference and its Host/Origin checks intentionally use fixed ports 2718 and 2719.
-Compose sets `INDUSTRIAL_PHM_SAMPLE_UI_PORT=2719` for both bearing and live examples. A genuinely
-occupied example port reports a failure. The readiness probe uses the HTTP server's address-reuse
-policy so TCP TIME_WAIT after a clean stop preserves the same example port and workspace on restart.
+Compose reference and its Host/Origin checks use that port. No separate example Web listener is started.
 
 For an offline backup, stop the node without deleting its volume, run the CLI against that volume,
 then copy the backup directory out of the stopped service container:
@@ -66,9 +63,9 @@ volume name. Separate projects still cannot publish the same host ports simultan
 ## Local transport and optional services
 
 The Python Web continues to listen on Linux loopback. An unprivileged nginx sidecar shares the
-Operations network namespace and forwards ports 8080/8081 to loopback 2718/2719. Docker publishes only
-`127.0.0.1:2718` and `127.0.0.1:2719` on the host. The second port serves the isolated first-run sample;
-its OPC UA simulator remains internal. Docker Desktop host networking is not required.
+Operations network namespace and forwards port 8080 to the Operations Web on loopback port 2718.
+Docker publishes only `127.0.0.1:2718` on the host. Docker Desktop host networking is not required.
+The separate loopback proxy on port 9400 for optional AI explanations remains internal.
 
 The proxy preserves the original Host, Origin, Sec-Fetch-Site and CSRF headers. The application retains
 its exact localhost allowlist and Linux PID/UID peer credential broker. Neither writable preview mode
