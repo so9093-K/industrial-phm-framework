@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  comparisonMessage, coefficientSpread, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientSpread, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -84,7 +84,13 @@ test("the spectrum says how much energy grew and where it went, and whether both
     "기간 B의 수평 진동 에너지는 기간 A의 12배가 됐고, 800~1,594 Hz가 전체 에너지에서 차지하는 비중이 14% → 57%로 커졌습니다.");
   assert.match(message.certainty!, /수직 진동에서도 같은 대역 비중이 28% → 57%로 커져/);
   const flat = spectrumMessage([{label: "수평 진동", ratio: 1.1, shares: [band(0, 0.5, 0.52), band(800, 0.5, 0.48)]}], {a: 2, b: 2})!;
-  assert.match(flat.headline, /기간 A와 비슷하고\(1.1배\), 주파수별 에너지 분포는 비슷합니다/);
+  assert.match(flat.headline, /기간 A와 비슷하고\(1.1배\), 비중이 10%p 이상 커진 대역은 없고, 대역 사이에 옮겨 간 에너지 비중은 모두 합쳐 전체의 2%입니다/);
+  // Ten bands of 10% each, half rising to 19% and half falling to 1%: no band moves 10 points,
+  // yet 45% of the energy moved, which is not "a similar distribution".
+  const spread = Array.from({length: 10}, (_, i) => band(800 * i, 0.1, i < 5 ? 0.19 : 0.01));
+  assert.equal(shiftedBand(spread), null);
+  assert.ok(Math.abs(movedShare(spread) - 0.45) < 1e-9);
+  assert.match(spectrumMessage([{label: "수평 진동", ratio: 1, shares: spread}], {a: 8, b: 8})!.headline, /전체의 45%입니다/);
   assert.match(flat.certainty!, /측정 2회만 비교해 우연일 수 있습니다/);
   assert.equal(shiftedBand([band(0, 0.5, 0.55)]), null);
   assert.equal(spectrumMessage([{label: "수평 진동", ratio: null, shares: []}], {a: 8, b: 8}), null);
@@ -102,7 +108,7 @@ test("models that disagree are named as disagreeing, with where each stands", ()
   const forest = line([[74, 0.6], [75, 0.7], [76, 0.8], [77, 0.97], [78, 0.9]], []);
   const reads = [{name: "LSTM 오토인코더", line: lstm}, {name: "Isolation Forest", line: forest}];
   const message = modelMessage(reads, place)!;
-  assert.equal(message.headline, "최근 측정에서 모델마다 판단이 다릅니다. LSTM 오토인코더 점수는 76번째 측정부터 계속 기준을 넘고 있습니다"
+  assert.equal(message.headline, "같은 최근 측정에서 모델마다 판단이 다릅니다. LSTM 오토인코더 점수는 76번째 측정부터 계속 기준을 넘고 있습니다"
     + "(3회, 가장 높을 때 기준의 6.3배), Isolation Forest 점수는 한 번도 기준을 넘지 않았습니다(가장 높을 때 기준의 0.97배).");
   assert.match(message.certainty!, /최근 측정에서 일부 모델만 기준을 넘어/);
   assert.equal(modelOnset(reads), 76);
@@ -113,6 +119,12 @@ test("models that disagree are named as disagreeing, with where each stands", ()
   const quiet = modelMessage([{name: "LSTM 오토인코더", line: lapsed}, reads[1]], place)!;
   assert.match(quiet.headline, /^최근 측정에서 기준을 넘은 모델은 없습니다\. LSTM 오토인코더 점수는 76번째 측정부터 기준을 넘는 구간이 이어졌고 최근 측정은 기준 아래입니다/);
   assert.match(quiet.certainty!, /최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다/);
+  // Different last analyzed measurements are not a disagreement at the same measurement.
+  const behind = line([[74, 0.6], [75, 0.7]], []);
+  const apart = modelMessage([reads[0], {name: "Isolation Forest", line: behind}], place)!;
+  assert.match(apart.headline, /^모델마다 마지막으로 분석한 측정이 달라\(LSTM 오토인코더 78번째 측정, Isolation Forest 75번째 측정\) 같은 최근 측정에서 견줄 수 없습니다/);
+  assert.doesNotMatch(apart.headline, /판단이 다릅니다/);
+  assert.match(apart.certainty!, /뒤쪽 측정을 아직 분석하지 않은 모델/);
   assert.match(both.certainty!, /같은 무렵\(76번째 측정\)부터/);
   assert.equal(times(0.966), "0.97배");
   assert.equal(times(12.04), "12배");

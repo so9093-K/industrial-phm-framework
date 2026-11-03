@@ -186,6 +186,12 @@ export function shiftedBand(shares: BandShare[]): BandShare | null {
   return best && best.b - best.a >= 0.1 ? best : null;
 }
 
+/** How much of the energy moved between bands, all bands together: half the summed share changes.
+ * Several bands can each move a little and still move much of the energy between them. */
+export function movedShare(shares: BandShare[]): number {
+  return shares.reduce((sum, band) => sum + Math.abs(band.b - band.a), 0) / 2;
+}
+
 export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: number},
   next: NextStep[] = []): AnalysisMessage | null {
   const [main, ...others] = channels;
@@ -195,7 +201,7 @@ export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: 
   const band = shiftedBand(main.shares);
   const headline = "기간 B의 " + main.label + " 에너지는 " + energy + ", "
     + (band ? hz(band.from) + "~" + hz(band.to) + " Hz가 전체 에너지에서 차지하는 비중이 " + percent(band.a) + " → " + percent(band.b) + "로 커졌습니다."
-      : "주파수별 에너지 분포는 비슷합니다.");
+      : "비중이 10%p 이상 커진 대역은 없고, 대역 사이에 옮겨 간 에너지 비중은 모두 합쳐 전체의 " + percent(movedShare(main.shares)) + "입니다.");
   const notes: string[] = [];
   for (const other of others) {
     const moved = shiftedBand(other.shares);
@@ -204,7 +210,8 @@ export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: 
       notes.push(other.label + "에서도 같은 대역 비중이 " + percent(moved.a) + " → " + percent(moved.b) + "로 커져, 두 방향이 같은 변화를 보입니다.");
     else if (moved)
       notes.push(other.label + "에서는 비중이 커진 대역이 달라(" + hz(moved.from) + "~" + hz(moved.to) + " Hz) 한 방향에서만 보이는 변화일 수 있습니다.");
-    else notes.push(other.label + "에서는 분포가 비슷해 한 방향에서만 보이는 변화입니다.");
+    else notes.push(other.label + "에서는 비중이 10%p 이상 커진 대역이 없어(옮겨 간 비중 전체의 " + percent(movedShare(other.shares))
+      + ") 한 방향에서만 보이는 변화일 수 있습니다.");
   }
   notes.push(Math.min(used.a, used.b) < 3
     ? "기간마다 측정 " + Math.min(used.a, used.b) + "회만 비교해 우연일 수 있습니다."
@@ -240,15 +247,24 @@ export function modelMessage(reads: ModelRead[], place: (position: number) => st
   const states = drawn.map((read) => modelState(read, place));
   // "Now" is the latest analyzed measurement only. A run the model still holds open within its
   // allowed gap can end on a measurement below the threshold; that is told per model, not as now.
+  // Each model's trend is read on its own, so their last analyzed measurements can differ; only
+  // the same measurement lets "the latest" be compared across models.
+  const lasts = drawn.map((read) => read.line.latest?.position ?? null);
+  const aligned = lasts.every((position) => position !== null && position === lasts[0]);
   const now = drawn.filter((read) => read.line.story.lastExceeds === true);
   const crossed = drawn.filter((read) => read.line.story.state !== "none");
   const lead = drawn.length === 1 ? ""
+    : !aligned ? "모델마다 마지막으로 분석한 측정이 달라("
+      + drawn.map((read) => read.name + " " + (read.line.latest ? place(read.line.latest.position) : "분석 없음")).join(", ")
+      + ") 같은 최근 측정에서 견줄 수 없습니다. 각 모델의 마지막 분석 기준으로 보면 "
     : !now.length ? "최근 측정에서 기준을 넘은 모델은 없습니다. "
     : now.length === drawn.length ? "모든 모델이 최근 측정에서 기준을 넘고 있습니다. "
-    : "최근 측정에서 모델마다 판단이 다릅니다. ";
+    : "같은 최근 측정에서 모델마다 판단이 다릅니다. ";
   const headline = lead + states.join(", ") + ".";
   let certainty: string;
   if (drawn.length === 1) certainty = "모델 하나의 결과이므로 같은 시점에 측정값도 달라졌는지 함께 보세요.";
+  else if (!aligned)
+    certainty = "뒤쪽 측정을 아직 분석하지 않은 모델이 있을 수 있습니다. 같은 측정에서의 판단은 그래프에서 같은 측정 위치의 점수로 견줘 보세요.";
   else if (now.length && now.length < drawn.length)
     certainty = "최근 측정에서 일부 모델만 기준을 넘어 이 결과만으로는 어느 쪽이 맞는지 알 수 없습니다. 같은 시점에 측정값도 달라졌는지 확인하세요.";
   else if (now.length) {
