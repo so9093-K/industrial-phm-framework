@@ -3,10 +3,15 @@
   import XAxis from "./XAxis.svelte";
   import {niceTicks, yTicks} from "../chart-axis";
   import {num} from "../format";
-  let {points, bounds, xLabel, yLabel, description}: {
+  let {points, bounds, xLabel, yLabel, description,
+    caption = "한 점은 같은 측정의 두 특징값입니다. 두 기간은 같은 축 범위로 표시합니다.", picked = null, onPick}: {
     points:{x:number;y:number;label:string}[];
     bounds:{xmin:number;xmax:number;ymin:number;ymax:number};
     xLabel:string;yLabel:string;description:string;
+    caption?:string;
+    /** Index of the point the reader picked; the parent shows what it is and where to go next. */
+    picked?:number|null;
+    onPick?:(index:number)=>void;
   }=$props();
   const scale=$derived.by(()=>{
     const xp=bounds.xmax===bounds.xmin?Math.max(Math.abs(bounds.xmin)*0.05,1):(bounds.xmax-bounds.xmin)*0.05;
@@ -14,6 +19,19 @@
     const lo=bounds.xmin-xp,hi=bounds.xmax+xp,bottom=bounds.ymin-yp,top=bounds.ymax+yp;
     return {lo,hi,bottom,top,x:(v:number)=>640*(v-lo)/(hi-lo),y:(v:number)=>240-240*(v-bottom)/(top-bottom)};
   });
+  // The plot stretches, so the nearest point is measured on screen, not in the 640x240 box.
+  function pick(event:MouseEvent){
+    if(!onPick||!points.length)return;
+    const box=(event.currentTarget as Element).getBoundingClientRect();
+    const px=event.clientX-box.left,py=event.clientY-box.top;
+    let best=0,distance=Infinity;
+    points.forEach((point,index)=>{
+      const dx=scale.x(point.x)/640*box.width-px,dy=scale.y(point.y)/240*box.height-py;
+      const d=dx*dx+dy*dy;
+      if(d<distance){distance=d;best=index;}
+    });
+    onPick(best);
+  }
 </script>
 
 <figure>
@@ -26,15 +44,21 @@
       {#each points as point,i(i)}<circle cx={scale.x(point.x)} cy={scale.y(point.y)} r="3">
         <title>{point.label} · {xLabel} {num(point.x)} · {yLabel} {num(point.y)}</title>
       </circle>{/each}
+      {#if picked!==null&&points[picked]}
+        <line x1={scale.x(points[picked].x)} x2={scale.x(points[picked].x)} y1={scale.y(points[picked].y)} y2={scale.y(points[picked].y)} class="picked"/>
+      {/if}
+      {#if onPick}<rect x="0" y="0" width="640" height="240" class="hit" onclick={pick} role="presentation"/>{/if}
     </svg>
     {#snippet footer()}<XAxis lo={scale.lo} hi={scale.hi} scale={{kind:"value"}} note={"가로축 · "+xLabel}/>{/snippet}
   </ValueAxis>
-  <figcaption>한 점은 같은 측정의 두 특징값입니다. 두 기간은 같은 축 범위로 표시합니다.</figcaption>
+  <figcaption>{caption}</figcaption>
 </figure>
 
 <style>
   figure{margin:var(--space-3) 0;min-width:0;max-width:760px}
   svg{display:block;width:100%;height:240px}circle{fill:var(--color-action);fill-opacity:0.75}
   .grid{stroke:var(--color-border);stroke-width:1}svg circle,svg line{vector-effect:non-scaling-stroke}
+  .picked{stroke:var(--color-focus);stroke-width:12;stroke-linecap:round}
+  .hit{fill:transparent;cursor:crosshair}
   .note,figcaption{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-2) 0;overflow-wrap:anywhere}
 </style>

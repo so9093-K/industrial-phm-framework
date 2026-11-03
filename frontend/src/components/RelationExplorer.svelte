@@ -3,7 +3,9 @@
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
-  import {readRelation,RelationUnavailable,type Relation} from "../relation";
+  import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
+  import FeatureScatter from "./FeatureScatter.svelte";
+  import {ORIGIN_TEXT,periodOrigin,windowParams,zoomWindow,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import CautionNote from "./CautionNote.svelte";
@@ -23,6 +25,39 @@
   let x=$state(new URLSearchParams(location.search).get("relation_x")??"");
   let y=$state(new URLSearchParams(location.search).get("relation_y")??"");
   let periods:Periods|null=$state(null);
+  // Periods handed over from a span picked on the signal chart; said on screen until edited.
+  let handedOver:PeriodOrigin|null=$state(periodOrigin(location.search));
+  // Each source, point and meaning shows both periods side by side on one shared axis range.
+  type Pair={key:string;source:string;point:string|null;a:PairedGroup|null;b:PairedGroup|null};
+  const pairs=$derived.by(():Pair[]=>{
+    const current:Relation|null=relation;
+    if(!current)return [];
+    const found=new Map<string,Pair>();
+    for(const group of current.groups){
+      const key=JSON.stringify([group.source,group.point,group.meaning]);
+      const pair=found.get(key)??{key,source:group.source,point:group.point,a:null,b:null};
+      pair[group.period]=group;found.set(key,pair);
+    }
+    return [...found.values()];
+  });
+  let chosen:{key:string;period:"a"|"b";index:number}|null=$state(null);
+  function bounds(pair:Pair){
+    const all=[...(pair.a?.points??[]),...(pair.b?.points??[])];
+    if(!all.length)return null;
+    const xs=all.map(p=>p.x),ys=all.map(p=>p.y);
+    return {xmin:Math.min(...xs),xmax:Math.max(...xs),ymin:Math.min(...ys),ymax:Math.max(...ys)};
+  }
+  /** The signals screen over the point's whole period (at least an hour), with the moment picked. */
+  function around(at:string,channel:string,period:"a"|"b"):string{
+    const middle=Date.parse(at),hour=3600000;
+    const chosen=periods?{from:Date.parse(periods[period].from),to:Date.parse(periods[period].to)}:{from:middle,to:middle};
+    const wide=chosen.to-chosen.from>=hour?chosen:{from:middle-hour/2,to:middle+hour/2};
+    const window=zoomWindow(wide)??{from:middle-hour/2,to:middle+hour/2};
+    const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
+    for(const [key,value] of Object.entries(windowParams(window,{from:middle,to:middle})))
+      url.searchParams.set(key,value);
+    return url.pathname+url.search;
+  }
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
   const asTime=(value:string)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
@@ -36,8 +71,8 @@
       return parts?.length===2?{from:parts[0],to:parts[1]}:null;
     };
     const a=decode("compare_a"),b=decode("compare_b");
-    if(!a||!b)return fallback;
-    try{validatePeriods({a,b});return {a,b};}catch{return fallback;}
+    if(!a||!b){handedOver=null;return fallback;}
+    try{validatePeriods({a,b});return {a,b};}catch{handedOver=null;return fallback;}
   }
   function remember(){
     if(!periods)return;
@@ -47,6 +82,7 @@
     url.searchParams.set("relation_y",y);
     url.searchParams.set("compare_a",periods.a.from+"~"+periods.a.to);
     url.searchParams.set("compare_b",periods.b.from+"~"+periods.b.to);
+    if(!handedOver)url.searchParams.delete("compare_origin");
     history.replaceState(history.state,"",url);
   }
   async function sourceList(){
@@ -77,12 +113,12 @@
   function editPeriod(n:"a"|"b",edge:"from"|"to",value:string){
     if(!periods)return;
     periods={...periods,[n]:{...periods[n],[edge]:selectedPeriod(value)}};
-    relationAbort?.abort();relation=null;resultState="empty";
+    relationAbort?.abort();relation=null;resultState="empty";handedOver=null;
   }
   async function compare(){
     relationAbort?.abort();
     const req=new AbortController();relationAbort=req;
-    relation=null;resultState="loading";error="";
+    relation=null;chosen=null;resultState="loading";error="";
     try{
       if(!periods)throw new Error("비교 기간을 선택하세요.");
       const frozen:Periods={a:{...periods.a},b:{...periods.b}};
@@ -123,6 +159,9 @@
         </select>
       </label>
     </div>
+    {#if handedOver}
+      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
     <div class="periods">
       {#each ["a","b"] as name(name)}
         {@const n=name as "a"|"b"}
@@ -149,33 +188,69 @@
         message="시각이나 출처가 다른 측정은 짝짓지 않습니다. 기간이나 신호를 바꿔 보세요."/>
     {:else if relation}
       <p class="context">기간 A {periodText("a")} · 기간 B {periodText("b")}</p>
-      {#each relation.groups as group(group.id)}
+      {#each pairs as pair(pair.key)}
+        {@const axes=bounds(pair)}
         <section class="group">
-          <h3>기간 {group.period.toUpperCase()} · {sourceLabel(sourceNames, group.source)} / {group.point??"측정 위치 미확인"}</h3>
-          {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
-          <p class="context">{signalName(names,x)} ({group.xUnit??names.get(x)?.unit??"단위 미확인"}) / {signalName(names,y)} ({group.yUnit??names.get(y)?.unit??"단위 미확인"})</p>
-          <dl>
-            <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
-            <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
-            <div><dt>스피어먼 상관</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
-          </dl>
-          {#if group.sampled}
-            <StatusNotice kind="uncertain" message="짝이 많아 일부만 골라 계산했습니다. 전체 분포로 단정하지 마세요."/>
+          <h3>{sourceLabel(sourceNames, pair.source)} / {pair.point??"측정 위치 미확인"}</h3>
+          <div class="sides">
+            {#each ["a","b"] as name(name)}
+              {@const n=name as "a"|"b"}
+              {@const group=pair[n]}
+              <div class="side">
+                <h4>기간 {n.toUpperCase()}</h4>
+                {#if !group}
+                  <p class="context">이 기간에는 같은 시각 측정 짝이 없습니다.</p>
+                {:else}
+                  {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
+                  <dl>
+                    <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
+                    <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
+                    <div><dt>스피어먼 상관</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
+                  </dl>
+                  {#if group.sampled}
+                    <StatusNotice kind="uncertain" message="짝이 많아 일부만 골라 계산했습니다. 전체 분포로 단정하지 마세요."/>
+                  {/if}
+                  {#if group.pairCount<3||group.pearson===null||group.spearman===null}
+                    <StatusNotice kind="uncertain" message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
+                  {/if}
+                  {#if axes&&group.points.length}
+                    <FeatureScatter bounds={axes} points={group.points.map(p=>({x:p.x,y:p.y,label:asTime(p.at)}))}
+                      xLabel={signalName(names,x)} yLabel={signalName(names,y)}
+                      description={"기간 "+n.toUpperCase()+" · 같은 시각 측정 짝 "+group.points.length+"개 산점도."}
+                      caption={"한 점은 같은 시각에 함께 기록된 두 측정값입니다. 두 기간은 같은 축 범위로 그립니다. 점을 누르면 그 시각을 봅니다."}
+                      picked={chosen?.key===pair.key&&chosen.period===n?chosen.index:null}
+                      onPick={(index)=>chosen={key:pair.key,period:n,index}}/>
+                  {/if}
+                {/if}
+              </div>
+            {/each}
+          </div>
+          {#if chosen?.key===pair.key}
+            {@const point=pair[chosen.period]?.points[chosen.index]}
+            {#if point}
+              <div class="chosen" aria-live="polite">
+                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
+                <p>{signalName(names,x)} {num(point.x)} · {signalName(names,y)} {num(point.y)}</p>
+                <p class="links"><a href={around(point.at,x,chosen.period)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
+                  <a href={around(point.at,y,chosen.period)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
+              </div>
+            {/if}
           {/if}
-          {#if group.pairCount<3||group.pearson===null||group.spearman===null}
-            <StatusNotice kind="uncertain" message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
-          {/if}
-          <details>
-            <summary>같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
-            <div class="table-scroll"><table>
-              <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다</caption>
-              <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{signalName(names,x)}</th><th scope="col">{signalName(names,y)}</th></tr></thead>
-              <tbody>{#each group.points.slice(0,100) as item,i (i)}
-                <tr><td>{asTime(item.at)}</td><td>{num(item.x)}</td><td>{num(item.y)}</td></tr>
-              {/each}</tbody>
-            </table></div>
-            {#if group.points.length>100}<p class="context">표에 최대 100개 짝만 표시합니다.</p>{/if}
-          </details>
+          {#each [pair.a,pair.b] as group,i(i)}
+            {#if group}
+              <details>
+                <summary>기간 {group.period.toUpperCase()} · 같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
+                <div class="table-scroll"><table>
+                  <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다</caption>
+                  <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{signalName(names,x)}</th><th scope="col">{signalName(names,y)}</th></tr></thead>
+                  <tbody>{#each group.points.slice(0,100) as item,i (i)}
+                    <tr><td>{asTime(item.at)}</td><td>{num(item.x)}</td><td>{num(item.y)}</td></tr>
+                  {/each}</tbody>
+                </table></div>
+                {#if group.points.length>100}<p class="context">표에 최대 100개 짝만 표시합니다.</p>{/if}
+              </details>
+            {/if}
+          {/each}
         </section>
       {/each}
       <CautionNote message="두 신호가 함께 움직여도 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다. 고장 여부도 판단하지 않습니다."/>
@@ -192,5 +267,11 @@
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}dd{margin:0;font-weight:700}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--color-border);padding:var(--space-2)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .headline{font-size:var(--font-section);font-weight:700}
+  .headline{font-size:var(--font-section);font-weight:700;margin:0}
+  .sides{display:grid;gap:var(--space-4) var(--space-6);grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .side{min-width:0}.side h4{margin:0 0 var(--space-2)}
+  .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
+    border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
+  .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+  .handed{margin:var(--space-4) 0 0;padding:var(--space-3);border-left:4px solid var(--color-focus);background:var(--color-surface-selected);overflow-wrap:anywhere}
 </style>
