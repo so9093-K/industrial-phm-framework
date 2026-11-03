@@ -17,6 +17,13 @@ test("only exact stored comparison and server-described range shapes are display
   assert.equal(parsed.features[0].label,"수평 RMS");
   for(const mutation of [{binding_id:"other"},{analysis_run_id:"wrong"},{compare_position:2}])
     assert.throws(()=>parseComparison({...raw,...mutation},binding,run,1));
+  assert.equal(comparison.usualUntil,null);assert.equal(comparison.features[0].usual,null);
+  const usual={...raw,usual_until:0,features:[{...raw.features[0],usual:{low:0.6,high:0.9,results:40}}]};
+  assert.throws(()=>parseComparison(usual,binding,run,1),"the usual range is read from before the comparison");
+  const read=parseComparison({...usual,compare_position:5,previous_analysis_run_id:"r5",usual_until:4},binding,run,5);
+  assert.deepEqual([read.usualUntil,read.features[0].usual],[4,{low:0.6,high:0.9,results:40}]);
+  assert.throws(()=>parseComparison({...usual,compare_position:5,previous_analysis_run_id:"r5",usual_until:4,
+    features:[{...raw.features[0],usual:{low:2,high:1,results:40}}]},binding,run,5));
   for(const mutation of [{binding_id:"other"},{first:2},{points:9},{flow_basis:"invented"},{features:{unknown:flat}},
     {primary:{...flat,level_shift:{at:9,direction:"increase"}}}])
     assert.throws(()=>parseRange({...range,...mutation},binding,run,1,comparison));

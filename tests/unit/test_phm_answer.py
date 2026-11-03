@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -377,3 +378,16 @@ def test_natural_threshold_negation_and_named_subjects(
     payload["primary"]["model"] = "LSTM 오토인코더"
     payload["related_models"] = [{"name": "Isolation Forest", "reference": "모델 기준 이하"}]
     assert (not phm_answer._threshold_issues(text, payload)) is valid
+
+
+def test_candidates_say_where_the_value_sits_against_the_assets_earlier_results(
+    contexts: dict[str, Any],
+) -> None:
+    context = deepcopy(contexts["anomaly-a"])
+    for row in context["signal_comparison"]["features"]:
+        row["usual"] = {"low": row["current"] - 1, "high": row["current"] + 1, "results": 40}
+        if row["feature"] == RMS:
+            row["usual"] = {"low": 0.0, "high": row["current"] / 2, "results": 40}
+    rows = {item["id"]: item for item in answer_input(context)["candidates"]}
+    assert rows[RMS]["usual"] == "평소보다 높음"
+    assert rows[VERTICAL]["usual"] == "평소 범위 안"

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  coefficientGap, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientGap, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -135,4 +135,35 @@ test("the outlook gives every reading's reach and how far the past check lets on
   assert.equal(time.headline, "마지막 측정이 이미 관리 기준 4 g에 닿았습니다. 지금 추세가 이어진다고 가정하면 종료 기준 6 g에는 계산한 범위 안에서 닿지 않습니다.");
   assert.match(time.certainty!, /과거 자료로 예측을 확인하지 못했습니다/);
   assert.equal(outlookMessage({...facts, conditions: {management: null, end: null}}), null);
+});
+
+test("a score that jumps on ordinary values is told apart from one that follows values leaving their usual range", () => {
+  const usual = (low: number, high: number) => ({low, high, results: 9000});
+  // Shaped like the compressor 1338 comparison: the score rose 24 times on values inside their usual ranges.
+  const quiet = [
+    {feature: "current_unbalance", label: "전류 불평형 평균", current: 3.48, previous: 3.364, relativePercent: 3.4, unit: "%", usual: usual(2.1, 6.5)},
+    {feature: "current_t", label: "T상 평균 전류", current: 75.75, previous: 74.54, relativePercent: 1.6, unit: "A", usual: usual(38, 78)},
+  ];
+  const calm = comparisonMessage({previous: 0.007502, current: 0.1789}, quiet, 9000, place)!;
+  assert.equal(calm.headline, "이상 점수가 0.0075 → 0.179로 약 24배가 됐습니다. 특징값은 2개 모두 이 설비의 평소 범위 안에 있습니다.");
+  assert.match(calm.meaning!, /여러 값의 조합이 평소와 다를 때/);
+  assert.equal(calm.certainty, "평소 범위는 9000번째 측정까지 이 모델이 분석한 9000개 결과의 5~95% 값입니다.");
+  // Bearing1_1 #75 → #100: RMS left its usual range far above.
+  const loud = comparisonMessage({previous: 1.326, current: 11.05}, [
+    {feature: "rms", label: "수평 진동 RMS", current: 3.214, previous: 0.947, relativePercent: 239.5, unit: "g", usual: {low: 0.6, high: 0.86, results: 40}},
+    {feature: "skew", label: "수평 진동 왜도", current: -0.25, previous: 0.02, relativePercent: null, usual: {low: -0.3, high: 0.3, results: 40}},
+  ], 74, place)!;
+  assert.equal(loud.headline, "이상 점수가 1.33 → 11.1로 약 8.3배가 됐습니다. 특징 2개 중 1개가 이 설비의 평소 범위를 벗어났습니다: 수평 진동 RMS(평소보다 높음).");
+  assert.equal(loud.meaning, "가장 멀리 벗어난 값은 수평 진동 RMS 3.21 g이고, 평소 범위는 0.6~0.86 g입니다.");
+  assert.match(loud.certainty!, /기록이 짧아/);
+  // A standard deviation equal to its RMS is the same fact; it is not counted twice.
+  const rms = {feature: "feature.V.rms", label: "수직 진동 RMS", current: 2.306, previous: 0.7433, relativePercent: 210, unit: "g",
+    usual: {low: 0.613, high: 0.679, results: 67}};
+  const twin = {...rms, feature: "feature.V.standard_deviation", label: "수직 진동 표준편차", current: 2.3057, previous: 0.74325};
+  assert.deepEqual(withoutTwins([rms, twin]).map((feature) => feature.label), ["수직 진동 RMS"]);
+  assert.match(comparisonMessage({previous: 1.33, current: 11}, [rms, twin], 74, place)!.headline, /특징 1개 중 1개가/);
+  assert.equal(withoutTwins([rms, {...twin, current: 3}]).length, 2);
+  const none = comparisonMessage({previous: 1, current: 1.1}, [{...quiet[0], usual: null}], null, place)!;
+  assert.equal(none.headline, "이상 점수가 1 → 1.1입니다. 이전 기록이 짧아 특징값이 평소와 다른지는 아직 말할 수 없습니다.");
+  assert.equal(none.certainty, null);
 });

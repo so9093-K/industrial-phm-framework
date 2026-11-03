@@ -30,6 +30,7 @@ from industrial_phm.application.phm_read import (
     project_snapshot_preview,
 )
 from industrial_phm.application.phm_signal_comparison import (
+    attach_usual_ranges,
     feature_comparison,
     stream_amplitude_unit,
     with_units,
@@ -112,6 +113,10 @@ def handle_phm_read(
                 or (previous is not None and previous.state.value != "analyzed")
             ):
                 raise PhmReadError("comparison needs two stored analyzed results in order")
+            rows = with_units(feature_comparison(current, previous), amplitude)
+            until = attach_usual_ranges(
+                store, binding_id, rows, (previous_position or position) - 1
+            )
             return HTTPStatus.OK, {
                 "schema_version": 1,
                 "binding_id": binding_id,
@@ -120,7 +125,8 @@ def handle_phm_read(
                 "compare_position": previous_position,
                 "previous_analysis_run_id": previous.analysis_run_id if previous else None,
                 "previous_score": previous.output.get("score") if previous else None,
-                "features": with_units(feature_comparison(current, previous), amplitude),
+                "usual_until": until,
+                "features": rows,
             }
         if path == "/api/v1/phm/trace":
             return HTTPStatus.OK, project_phm_trace(store, binding_id=binding_id)

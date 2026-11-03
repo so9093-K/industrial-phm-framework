@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
+
+import numpy as np
 
 from industrial_phm.application.acquisition_snapshot import (
     AcquisitionSnapshotError,
@@ -41,6 +44,55 @@ def with_units(rows: list[dict[str, Any]], amplitude_unit: str | None) -> list[d
     return [
         {**row, "unit": feature_unit(str(row.get("feature", "")), amplitude_unit)} for row in rows
     ]
+
+
+# Where an asset usually sits: the 5-95% range of each feature over the analyzed results before
+# the comparison, once there are enough of them to call it usual.
+USUAL_QUANTILES = (0.05, 0.95)
+MIN_USUAL_RESULTS = 20
+
+
+def usual_ranges(results: Sequence[StepResult], names: Sequence[str]) -> dict[str, dict[str, Any]]:
+    """Each named feature's usual range over earlier analyzed results of the same model."""
+    ranges: dict[str, dict[str, Any]] = {}
+    for name in names:
+        values = np.asarray(
+            [
+                value
+                for result in results
+                if isinstance(value := (result.features or {}).get(name), (int, float))
+                and math.isfinite(value)
+            ],
+            dtype=float,
+        )
+        if values.size < MIN_USUAL_RESULTS:
+            continue
+        low, high = np.quantile(values, USUAL_QUANTILES)
+        ranges[name] = {"low": float(low), "high": float(high), "results": int(values.size)}
+    return ranges
+
+
+# Earlier results read, evenly over the record, to find each feature's usual range.
+USUAL_MAX_RESULTS = 2000
+
+
+def attach_usual_ranges(
+    store: SqlitePhmAnalysisStore, binding_id: str, rows: list[dict[str, Any]], before: int
+) -> int | None:
+    """Give each compared feature its usual range over results up to ``before``.
+
+    ``before`` is the last result read: just ahead of the earlier of the two compared results,
+    so neither of them shapes what counts as usual. Returns it when any range was found.
+    """
+    earlier = (
+        store.analyzed_between(binding_id, 1, before, max_points=USUAL_MAX_RESULTS)[0]
+        if before >= 1
+        else ()
+    )
+    usual = usual_ranges(earlier, [row["feature"] for row in rows])
+    for row in rows:
+        row["usual"] = usual.get(row["feature"])
+    return before if usual else None
 
 
 def feature_comparison(current: StepResult, previous: StepResult | None) -> list[dict[str, Any]]:

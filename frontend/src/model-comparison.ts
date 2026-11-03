@@ -4,7 +4,9 @@ import type {FeatureChange} from "./model-explanations.ts";
 import {object} from "./writes.ts";
 
 export type Focus={position:number;series:string|null};
-export type Comparison={features:FeatureChange[];previousScore:number|null;previousRunId:string|null};
+export type Comparison={features:FeatureChange[];previousScore:number|null;previousRunId:string|null;
+  /** The last result the usual ranges were read from, when there were enough before it. */
+  usualUntil:number|null};
 export type Shape={count:number;trend:"insufficient"|"flat"|"increasing"|"decreasing"|"mixed";steady:boolean;
   largest:{from:number;to:number;direction:"increase"|"decrease"}|null;
   shift:{at:number;direction:"increase"|"decrease"}|null};
@@ -24,10 +26,16 @@ export function parseComparison(raw:unknown,binding:ModelBinding,run:ModelRun,pr
     seen.add(row.feature);
     const current=finite(row.current);
     if(current===null)invalid();
+    const range=row.usual===undefined||row.usual===null?null:object(row.usual);
+    if(row.usual!==undefined&&row.usual!==null&&!range)invalid();
+    const usual=range?{low:finite(range.low)!,high:finite(range.high)!,results:integer(range.results,1)}:null;
+    if(usual&&(usual.low===null||usual.high===null||usual.low>usual.high))invalid();
     return {feature:row.feature,label:row.label,current,previous:finite(row.previous),relativePercent:finite(row.relative_change_percent),
-      unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null};
+      unit:typeof row.unit==="string"&&row.unit.trim()?row.unit:null,usual};
   });
-  return {features,previousScore:finite(root.previous_score),previousRunId:root.previous_analysis_run_id as string|null};
+  const until=root.usual_until===undefined||root.usual_until===null?null:integer(root.usual_until,1);
+  if(until!==null&&until>=(previous??run.position))invalid();
+  return {features,previousScore:finite(root.previous_score),previousRunId:root.previous_analysis_run_id as string|null,usualUntil:until};
 }
 function shape(raw:unknown,first:number,last:number):Shape{
   const row=object(raw);

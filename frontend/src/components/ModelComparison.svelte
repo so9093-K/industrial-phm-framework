@@ -7,6 +7,8 @@
   import {readComparison,readRange,shapeText,type Comparison,type ModelRange,type Focus} from "../model-comparison";
   import ModelInput from "./ModelInput.svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {AGAINST_TEXT,against,comparisonMessage} from "../analysis-messages";
   let {binding,run,compare,place,onFocus}: {binding:ModelBinding;run:ModelRun;compare:number|null;
     place:(at:number)=>string;onFocus:(focus:Focus)=>void}=$props();
   // A stored-history model's features are named by the asset's signal names (ADR-0032).
@@ -34,6 +36,13 @@
     const current: Comparison | null = comparison;
     const size=(value:number|null)=>value===null?-1:Math.abs(value);
     return current?[...current.features].sort((a,b)=>size(b.relativePercent)-size(a.relativePercent)):[];
+  });
+  // Whether the score moved with values leaving where this asset usually sits, or on ordinary values.
+  const told=$derived.by(()=>{
+    const current: Comparison | null = comparison;
+    if(!current||compare===null)return null;
+    return comparisonMessage({previous:current.previousScore,current:typeof run.output.score==="number"?run.output.score:null},
+      current.features.map(feature=>({...feature,label:shown(feature.label)})),current.usualUntil,place);
   });
   // The largest changes come first; the rest stay one press away instead of lengthening the page.
   const FIRST_ROWS=6;
@@ -86,12 +95,14 @@
   {:else if comparison}
     {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
+    {#if told}<AnalysisMessage message={told}/>{/if}
     <div class="scroll"><table>
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
-      <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th></tr></thead>
+      <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th><th>평소와 비교</th></tr></thead>
       <tbody>{#each visible as feature(feature.feature)}
         <tr><th scope="row"><button class="text-button" aria-label={shown(feature.label) + " 원본 확인"} onclick={()=>open(run.position,feature.feature)}>{shown(feature.label)}</button></th>
-          <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td></tr>
+          <td>{num(feature.previous,"—")}{feature.previous!==null&&feature.unit?" "+feature.unit:""}</td><td>{num(feature.current)}{feature.unit?" "+feature.unit:""}</td><td>{feature.relativePercent===null?"—":(feature.relativePercent>0?"+":"")+feature.relativePercent.toLocaleString("ko-KR",{maximumFractionDigits:1})+"%"}</td>
+          <td>{#if feature.usual}<span title={"평소 범위 "+num(feature.usual.low)+"~"+num(feature.usual.high)+(feature.unit?" "+feature.unit:"")}>{AGAINST_TEXT[against(feature.current,feature.usual)]}</span>{:else}—{/if}</td></tr>
       {/each}</tbody>
     </table></div>
     {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}

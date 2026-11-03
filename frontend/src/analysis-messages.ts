@@ -4,6 +4,7 @@
 import type {BandShare} from "./spectrum.ts";
 import type {RatioLine} from "./model-trend.ts";
 import {elapsedText} from "./time-axis.ts";
+import type {FeatureChange} from "./model-explanations.ts";
 
 export type NextStep = {label: string; href: string};
 export type AnalysisMessage = {
@@ -306,4 +307,64 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
         : "과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다.");
   }
   return {headline, meaning: null, certainty, next};
+}
+
+/** Where a value sits against its usual range: above, below or inside. */
+export function against(value: number, usual: {low: number; high: number}): "above" | "below" | "inside" {
+  return value > usual.high ? "above" : value < usual.low ? "below" : "inside";
+}
+export const AGAINST_TEXT = {above: "평소보다 높음", below: "평소보다 낮음", inside: "평소 범위 안"} as const;
+
+/** A vibration's standard deviation that carries its RMS's number at both results (mean about zero):
+ * one fact under two names, so it is counted once, as the RMS. */
+export function withoutTwins(features: FeatureChange[]): FeatureChange[] {
+  const byId = new Map(features.map((feature) => [feature.feature, feature]));
+  const same = (a: number | null, b: number | null) => a !== null && b !== null && a > 0 && Math.abs(a - b) <= 0.01 * a;
+  return features.filter((feature) => {
+    if (!feature.feature.endsWith(".standard_deviation")) return true;
+    const rms = byId.get(feature.feature.replace(/\.standard_deviation$/, ".rms"));
+    return !rms || !same(rms.current, feature.current) || !same(rms.previous, feature.previous);
+  });
+}
+
+/** Two stored results of one model: how the score moved and whether the features left where this
+ * asset usually sits, so a score that jumps on ordinary values is told apart from one that follows them. */
+export function comparisonMessage(score: {previous: number | null; current: number | null}, features: FeatureChange[],
+  usualUntil: number | null, place: (position: number) => string, next: NextStep[] = []): AnalysisMessage | null {
+  const judged = withoutTwins(features).filter((feature) => feature.usual);
+  if (score.current === null && !judged.length) return null;
+  const ratio = score.previous !== null && score.current !== null && score.previous > 0 && score.current > 0
+    ? score.current / score.previous : null;
+  const moved = ratio !== null && (ratio >= 2 || ratio <= 0.5);
+  let headline = score.previous !== null && score.current !== null
+    ? "이상 점수가 " + short(score.previous) + " → " + short(score.current)
+      + (ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "가 됐습니다." : "입니다.")
+    : "";
+  // Farthest outside first, measured in the width of the usual range.
+  const far = (feature: FeatureChange) => {
+    const {low, high} = feature.usual!, width = Math.max(high - low, Math.abs(high) * 1e-6, 1e-12);
+    return Math.max(feature.current - high, low - feature.current) / width;
+  };
+  const outside = judged.filter((feature) => against(feature.current, feature.usual!) !== "inside")
+    .sort((a, b) => far(b) - far(a));
+  if (!judged.length)
+    headline += " 이전 기록이 짧아 특징값이 평소와 다른지는 아직 말할 수 없습니다.";
+  else if (outside.length)
+    headline += " 특징 " + judged.length + "개 중 " + outside.length + "개가 이 설비의 평소 범위를 벗어났습니다: "
+      + outside.slice(0, 3).map((feature) => feature.label + "(" + AGAINST_TEXT[against(feature.current, feature.usual!)] + ")").join(", ")
+      + (outside.length > 3 ? " 외 " + (outside.length - 3) + "개." : ".");
+  else headline += " 특징값은 " + judged.length + "개 모두 이 설비의 평소 범위 안에 있습니다.";
+  const meaning = moved && judged.length && !outside.length
+    ? "점수는 크게 바뀌었지만 개별 특징값은 평소 범위 안입니다. 하나의 값보다 여러 값의 조합이 평소와 다를 때 점수가 바뀔 수 있으니, 같은 시각의 운전·측정 조건과 함께 보세요."
+    : outside.length
+      ? (() => { const top = outside[0], unit = top.unit ? " " + top.unit : "";
+        return "가장 멀리 벗어난 값은 " + top.label + " " + short(top.current) + unit + "이고, 평소 범위는 "
+          + short(top.usual!.low) + "~" + short(top.usual!.high) + unit + "입니다."; })()
+      : null;
+  const results = judged[0]?.usual?.results ?? 0;
+  const certainty = judged.length && usualUntil !== null
+    ? "평소 범위는 " + place(usualUntil) + "까지 이 모델이 분석한 " + results + "개 결과의 5~95% 값입니다."
+      + (results < 50 ? " 기록이 짧아 평소 범위가 좁거나 넓게 잡혔을 수 있습니다." : "")
+    : null;
+  return {headline: headline.trim(), meaning, certainty, next};
 }

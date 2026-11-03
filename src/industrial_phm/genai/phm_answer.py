@@ -135,6 +135,18 @@ def _channel_name(channel: str) -> str:
     return feature_label(f"feature.{channel}.rms").removesuffix(" RMS")
 
 
+def _usual_word(row: dict[str, Any]) -> str:
+    """Where the selected value sits against this asset's earlier results, in words."""
+    usual, value = row["usual"], row["current"]
+    return (
+        "평소보다 높음"
+        if value > usual["high"]
+        else "평소보다 낮음"
+        if value < usual["low"]
+        else "평소 범위 안"
+    )
+
+
 def same_value_features(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Features that carry the same number at both measurements: a vibration's standard
     deviation equals its RMS when its mean is about zero. Kept: RMS; folded in: the twin."""
@@ -193,6 +205,7 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
                 if row["feature"] in twins
                 else {}
             ),
+            **({"usual": _usual_word(row)} if row.get("usual") else {}),
         }
         for row in rows
         if row["feature"] not in {name for names in twins.values() for name in names}
@@ -401,6 +414,10 @@ _TASK = {
         "'재구성 오차' 같은 계산 방식 이름 대신 primary.name대로 쓰고, 같은 "
         "값을 원인처럼 반복하지 마세요. candidates의 same_as는 계산상 같은 값이라 따로 세지 "
         "않은 특징입니다. 여러 특징이 함께 변했다고 말할 때 같은 값을 두 근거로 세지 마세요. "
+        "candidates의 usual은 고른 측정값이 이 설비의 이전 결과에 견줘 어디에 있는지입니다. "
+        "usual이 있으면 summary에서 변한 값이 이 설비의 평소 범위를 벗어났는지('평소보다 높음', "
+        "'평소보다 낮음', '평소 범위 안')를 함께 말하세요. 점수가 크게 바뀌었는데 usual이 모두 "
+        "'평소 범위 안'이면 개별 값은 평소 범위 안이라고 그대로 말하고, 원인을 짐작하지 마세요. "
         "기준 비교는 primary.reference와 related_models의 reference에 맞게 쓰세요. "
         "'기준을 넘었습니다', '기준 아래입니다'처럼 자연스럽게 써도 되지만 "
         "방향이 달라서는 안 됩니다."
