@@ -12,6 +12,10 @@ data/
 └── processed/  # 재현 가능한 preprocessing/feature 결과
 ```
 
+웹은 이 폴더에서 `raw/aihub/239/archives/*/raw/*.zip`(AI-Hub 239 원천)과
+`interim/xjtu-sy/XJTU-SY_Bearing_Datasets/`(압축을 푼 XJTU-SY)를 찾아 **데이터 연결 › 공개 실측 데이터로 시작**에
+보여 줍니다. `make up`은 이 폴더를 컨테이너에 읽기 전용으로 연결합니다.
+
 `.gitignore`는 `data/raw/`, `data/interim/`, `data/processed/`를 제외합니다. dataset source/version/license의
 Source of Truth는 `src/industrial_phm/data/manifests/`에 유지합니다.
 

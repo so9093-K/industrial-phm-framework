@@ -49,7 +49,8 @@
     const values = runs.flat().map((point) => point[metric] as number);
     if (threshold !== null) values.push(threshold);
     const high = values.length ? Math.max(...values) : 1, low = values.length ? Math.min(...values) : 0;
-    const pad = Math.max((high - low) * 0.1, 0.01);
+    // A flat line (e.g. 0 A all day) gets a whole unit around it, not ticks a hundredth apart.
+    const pad = high > low ? Math.max((high - low) * 0.1, 0.01) : Math.max(Math.abs(high) * 0.1, 1);
     const min = Math.max(0, low - pad), max = high + pad;
     // The plot spans the observations themselves; a few minutes of a 24-hour window fill it.
     const first = current?.timeline[0]?.at, last = current?.timeline[current.timeline.length - 1]?.at;

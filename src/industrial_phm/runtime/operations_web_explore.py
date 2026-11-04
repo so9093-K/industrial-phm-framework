@@ -410,6 +410,7 @@ def departure_attention(
                 "unit": unit or found["unit"],
                 "distance": found["distance"],
                 "direction": found["direction"],
+                "usual": found.get("usual"),
                 "since": found["since"].astimezone(UTC).isoformat(),
                 # The record end this check judged; a reused check never borrows a newer time.
                 "last_at": held[0].astimezone(UTC).isoformat(),
@@ -580,11 +581,22 @@ def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any
             (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
         ]
         try:
-            found = latest_departure(find_departures({channel: points}, baseline="first-30"))
+            judged = find_departures({channel: points}, baseline="first-30")
+            found = latest_departure(judged)
         except LookupError, ValueError:
             continue
         if found is not None and (farthest is None or found["distance"] > farthest["distance"]):
-            farthest = {**found, "unit": interpretation_unit(key[2])}
+            scored = next((item for item in judged["channels"] if item["state"] == "scored"), None)
+            # The range the end was judged against, so the note can say it in the signal's values.
+            usual = (
+                {
+                    "low": scored["median"] - judged["threshold"] * scored["spread"],
+                    "high": scored["median"] + judged["threshold"] * scored["spread"],
+                }
+                if scored
+                else None
+            )
+            farthest = {**found, "unit": interpretation_unit(key[2]), "usual": usual}
     return farthest
 
 

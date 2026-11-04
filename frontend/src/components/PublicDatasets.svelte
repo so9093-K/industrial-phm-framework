@@ -70,9 +70,11 @@
   {:else}
     <p class="context">data 폴더에 있는 AI-Hub 239 설비 전력 기록과 XJTU-SY 베어링 진동 기록입니다. 고르면 이 작업공간에 가져와 설비 화면에서 분석합니다.</p>
     {#if message}<p class="message" role="alert">{message}</p>{/if}
-    {#each groups as group, index (group.key)}
+    {#each groups as group (group.key)}
       {@const active = group.items.some((item) => item.stored || datasets?.jobs[item.datasetId]?.state === "running")}
-      <details open={index === 0 || active}>
+      <!-- Groups stay folded, so the list reads as what kinds of records there are; one opens
+           once it holds an import. -->
+      <details open={active}>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
           ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다."

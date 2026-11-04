@@ -84,14 +84,15 @@ test("only a collection someone asked to run is flagged when it stops receiving"
 
 test("a stored signal that ends far from its baseline asks for a look and opens that signal", () => {
   const departures=parseDepartures({schema_version:1,items:[
-    {asset_id:"pump-2",channel:"current_a",label:"전류",unit:"A",distance:96.4,direction:"up",since:"2026-10-01T02:05:57Z"},
+    {asset_id:"pump-2",channel:"current_a",label:"전류",unit:"A",distance:96.4,direction:"up",since:"2026-10-01T02:05:57Z",
+      usual:{low:42.1,high:73.2}},
     {asset_id:"pump-3",channel:"x"},
   ]});
   assert.equal(departures.length,1);
   const [group]=attentionByAsset([],null,departures);
   assert.equal(group.assetId,"pump-2");
   assert.equal(group.notes[0].kind,"departure");
-  assert.match(group.notes[0].detail,/^전류 \(A\) · 기준 변동 폭의 96배 높음 · /);
+  assert.match(group.notes[0].detail,/^전류 · 마지막 측정이 기록 처음 30%의 평소 범위\(42\.1~73\.2 A\)보다 높음 · 벗어난 구간 시작 /);
   assert.match(group.notes[0].href,/tab=anomaly&method=baseline/);
   assert.match(group.notes[0].href,/monitor_channel=current_a/);
 });
