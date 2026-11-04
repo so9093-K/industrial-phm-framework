@@ -49,3 +49,13 @@ test("a partly stored dataset is not reported as fully imported", () => {
   assert.equal(found.items[0].partial, true);
   assert.match(jobText(Object.values(found.jobs)[0]), /다시 가져오면/);
 });
+
+test("a previous success cannot hide a changed source that needs importing again", () => {
+  const record = aihub("1338");
+  const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
+    items: [{...record, stored: false, partial: true, source_changed: true}],
+    jobs: {[record.dataset_id]: {state: "succeeded", step: "history", done: 2000, asset_id: record.asset_id}}});
+  assert.equal(found.items[0].stored, false);
+  assert.equal(found.items[0].partial, true);
+  assert.equal(found.items[0].sourceChanged, true);
+});

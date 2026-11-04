@@ -1,6 +1,7 @@
 """Public datasets in the data folder are offered on the Web and imported by the supervisor."""
 
 import json
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zipfile import ZipFile
@@ -190,3 +191,167 @@ def test_unreadable_aihub_archive_does_not_hide_valid_datasets(tmp_path: Path) -
     write_public_dataset_index(workspace, root)
     listed = list_public_datasets(workspace, root)["items"]
     assert {item["asset_id"] for item in listed} == {"공기압축기 1338", "공기압축기 902"}
+
+
+def test_changed_aihub_source_needs_reimport_and_preserves_previous_history(tmp_path: Path) -> None:
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+
+    def run() -> dict[str, object]:
+        jobs = PublicDatasetJobs(workspace.root, root=root)
+        jobs.start({"dataset_id": target["dataset_id"]})
+        jobs.close()
+        listing = list_public_datasets(workspace, root)
+        assert listing["items"][0]["stored"] is True
+        return listing["jobs"][target["dataset_id"]]
+
+    original = run()
+    archive = root / "raw/aihub/239/archives/training/raw/3.공기압축기.zip"
+    stat = archive.stat()
+    with ZipFile(archive) as opened:
+        members = {name: opened.read(name) for name in opened.namelist()}
+    with ZipFile(archive, "w") as opened:
+        for name, content in members.items():
+            opened.writestr(name, content.replace(b"68.0", b"79.0"))
+    # Restoring the original mtime and byte size must not hide changed contents.
+    assert archive.stat().st_size == stat.st_size
+    os.utime(archive, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    changed = list_public_datasets(workspace, root)["items"][0]
+    assert (changed["stored"], changed["partial"], changed["source_changed"]) == (False, True, True)
+
+    updated = run()
+    assert original["source_digest"] != updated["source_digest"]
+    assert original["source_id"] != updated["source_id"]
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    assert [r.value for r in history.query_file_events(original["source_id"])] == [68.0, 0.0]
+    assert [r.value for r in history.query_file_events(updated["source_id"])] == [79.0, 0.0]
+    assert run()["source_id"] == updated["source_id"]
+    assert len(history.query_file_events(updated["source_id"])) == 2
+    # A metadata-only change is conservative until retry, then byte identity recovers
+    # the same stream instead of inserting a duplicate source version.
+    stamp = archive.stat()
+    os.utime(archive, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000))
+    assert list_public_datasets(workspace, root)["items"][0]["stored"] is False
+    assert run()["source_id"] == updated["source_id"]
+    assert len(history.query_file_events(updated["source_id"])) == 2
+
+
+def test_xjtu_same_count_edit_and_relocation_get_separate_snapshot_streams(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from industrial_phm.adapters import XJTU_SY_CHANNELS
+    from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+    from industrial_phm.demo import xjtu_models
+    from industrial_phm.runtime import operations_web_phm_models, public_datasets
+
+    root = tmp_path / "data"
+    bearing = xjtu_models.held_out_bearings()[0]
+    folder = root / public_datasets.XJTU_SOURCE / "35Hz12kN" / bearing
+    folder.mkdir(parents=True)
+    csv = folder / "1.csv"
+    csv.write_text(",".join(XJTU_SY_CHANNELS) + "\n0.1,0.2\n")
+    # Model training is unrelated to source version isolation; exercise the real replay/store.
+    monkeypatch.setattr(
+        xjtu_models,
+        "existing_packages",
+        lambda _: {
+            xjtu_models.IFOREST_RECIPE: "iforest",
+            xjtu_models.LSTM_RECIPE: "lstm",
+        },
+    )
+    bindings: list[str] = []
+    monkeypatch.setattr(
+        operations_web_phm_models,
+        "create_phm_binding",
+        lambda *_, **kwargs: bindings.append(kwargs["source_id"]),
+    )
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+
+    def run(data_root: Path) -> dict[str, object]:
+        jobs = PublicDatasetJobs(workspace.root, root=data_root)
+        jobs.start({"dataset_id": target["dataset_id"]})
+        jobs.close()
+        listing = list_public_datasets(workspace, data_root)
+        assert listing["items"][0]["stored"] is True
+        return listing["jobs"][target["dataset_id"]]
+
+    original = run(root)
+    stat = csv.stat()
+    csv.write_text(csv.read_text().replace("0.1", "0.9"))
+    os.utime(csv, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    changed = list_public_datasets(workspace, root)["items"][0]
+    assert (changed["stored"], changed["source_changed"]) == (False, True)
+    updated = run(root)
+    assert updated["source_id"] != original["source_id"]
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    old = snapshots.get(original["source_id"], bearing, 1)
+    new = snapshots.get(updated["source_id"], bearing, 1)
+    assert old.sha256 != new.sha256
+
+    moved_root = root.rename(tmp_path / "moved-data")
+    changed = list_public_datasets(workspace, moved_root)["items"][0]
+    assert (changed["stored"], changed["source_changed"]) == (False, True)
+    moved = run(moved_root)
+    assert moved["source_id"] != updated["source_id"]
+    latest = snapshots.get(moved["source_id"], bearing, 1)
+    assert latest.file_path.is_file() and latest.sha256 == new.sha256
+    assert snapshots.get(original["source_id"], bearing, 1) == old
+    assert bindings == [job["source_id"] for job in (original, updated, moved) for _ in range(2)]
+
+
+def test_import_without_source_fingerprint_is_not_proof_of_current_completion(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    jobs.start({"dataset_id": target["dataset_id"]})
+    jobs.close()
+    saved = json.loads(workspace.public_dataset_job_path.read_text())
+    for key in ("source_signature", "source_digest"):
+        saved["jobs"][target["dataset_id"]].pop(key)
+    workspace.public_dataset_job_path.write_text(json.dumps(saved))
+    item = list_public_datasets(workspace, root)["items"][0]
+    assert (item["stored"], item["partial"]) == (False, True)
+
+
+def test_source_change_during_import_cannot_be_recorded_as_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections.abc import Callable
+
+    from industrial_phm.runtime import public_datasets
+
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+    real_import = public_datasets._import_aihub
+
+    def change_after_commit(
+        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+    ) -> None:
+        real_import(destination, item, progress)
+        stat = item.path.stat()
+        os.utime(item.path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+
+    monkeypatch.setattr(public_datasets, "_import_aihub", change_after_commit)
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    jobs.start({"dataset_id": target["dataset_id"]})
+    jobs.close()
+    listing = list_public_datasets(workspace, root)
+    job = listing["jobs"][target["dataset_id"]]
+    assert (job["state"], job["failure"]) == ("failed", "source-changed")
+    item = listing["items"][0]
+    assert (item["stored"], item["partial"], item["source_changed"]) == (False, True, True)

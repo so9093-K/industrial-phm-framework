@@ -5,6 +5,7 @@ import {object, postWrite} from "./writes.ts";
 
 export type PublicDataset = {
   datasetId: string; kind: "aihub-239" | "xjtu-sy"; assetId: string; stored: boolean; partial: boolean;
+  sourceChanged: boolean;
   /** AI-Hub: equipment group, 학습용/검증용, device and member size. */
   equipment: string | null; split: string | null; deviceId: string | null; bytes: number | null;
   /** XJTU-SY: operating condition and how many acquisitions the run holds. */
@@ -31,7 +32,8 @@ export function parsePublicDatasets(raw: unknown): PublicDatasets {
     const row = object(entry);
     if (!row || (row.kind !== "aihub-239" && row.kind !== "xjtu-sy")) invalid();
     return {datasetId: text(row.dataset_id) ?? invalid(), kind: row.kind, assetId: text(row.asset_id) ?? invalid(),
-      stored: row.stored === true, partial: row.partial === true, equipment: text(row.equipment), split: text(row.split), deviceId: text(row.device_id),
+      stored: row.stored === true, partial: row.partial === true, sourceChanged: row.source_changed === true,
+      equipment: text(row.equipment), split: text(row.split), deviceId: text(row.device_id),
       bytes: count(row.bytes), speedHz: count(row.rotational_speed_hz), loadKn: count(row.radial_load_kn),
       acquisitions: count(row.acquisitions)};
   });
@@ -89,6 +91,7 @@ const FAILURE: Record<string, string> = {
   "source-incomplete": "XJTU-SY 베어링 15개가 모두 있어야 모델을 준비할 수 있습니다.",
   "reader-unavailable": "AI-Hub 원천 기록을 읽는 구성 요소가 설치되지 않았습니다.",
   "dataset-unavailable": "데이터 파일을 읽지 못했습니다.",
+  "source-changed": "가져오는 동안 원본이 바뀌었습니다. 원본을 그대로 둔 뒤 다시 가져오세요. 기존 기록은 보존됩니다.",
 };
 
 /** One line for a running or finished import, in terms of what is being stored. */
