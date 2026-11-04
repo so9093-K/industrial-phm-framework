@@ -2,7 +2,7 @@
   import {onMount} from "svelte";
   import {explainWrite} from "../connections";
   import {datasetFacts, datasetName, groupDatasets, jobText, readPublicDatasets, startImport,
-    type PublicDatasets} from "../public-datasets";
+    type PublicDataset, type PublicDatasets} from "../public-datasets";
   import {routeUrl} from "../routes";
 
   /** AI-Hub 239 and XJTU-SY records prepared in the datasets folder, imported in one step each.
@@ -59,6 +59,23 @@
   });
 </script>
 
+{#snippet row(item: PublicDataset, named: boolean)}
+  {@const job = datasets?.jobs[item.datasetId]}
+  <li>
+    <strong>{named ? (item.kind === "xjtu-sy" ? "XJTU-SY " : "AI-Hub ") + datasetName(item) + (item.split ? " · " + item.split : "") : datasetName(item)}</strong>
+    <span class="facts">{named && item.kind === "aihub-239" ? item.assetId : datasetFacts(item)}</span>
+    {#if job && job.state !== "succeeded"}
+      <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
+    {/if}
+    {#if item.stored && job?.state !== "running"}
+      <a href={assetHref(item.assetId)}>설비 화면 보기 →</a>
+    {:else if job?.state !== "running"}
+      <button type="button" class="ui-button" disabled={!writable || !datasets?.canImport || running || pending !== ""}
+        onclick={() => void begin(item.datasetId)}>{pending === item.datasetId ? "시작하는 중" : job ? "다시 가져오기" : "가져오기"}</button>
+    {/if}
+  </li>
+{/snippet}
+
 <section class="ui-panel datasets" id="public-datasets" aria-labelledby="datasets-title">
   <h2 id="datasets-title">공개 실측 데이터로 시작</h2>
   {#if loadState === "loading"}
@@ -70,33 +87,20 @@
   {:else}
     <p class="context">data 폴더에 있는 AI-Hub 239 설비 전력 기록과 XJTU-SY 베어링 진동 기록입니다. 고르면 이 작업공간에 가져와 설비 화면에서 분석합니다.</p>
     {#if message}<p class="message" role="alert">{message}</p>{/if}
+    {@const current = datasets.items.filter((item) => item.stored || datasets?.jobs[item.datasetId])}
+    {#if current.length}
+      <!-- What this workspace already holds or is bringing in, above the folded lists. -->
+      <h3>가져온 기록</h3>
+      <ul>{#each current as item (item.datasetId)}{@render row(item, true)}{/each}</ul>
+    {/if}
     {#each groups as group (group.key)}
-      {@const active = group.items.some((item) => item.stored || datasets?.jobs[item.datasetId]?.state === "running")}
-      <!-- Groups stay folded, so the list reads as what kinds of records there are; one opens
-           once it holds an import. -->
-      <details open={active}>
+      <!-- Folded: the list first reads as what kinds of records there are. -->
+      <details>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
           ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다."
           : "설비 하나의 약 한 달 기록입니다. 원본 시각에 시간대가 없어 한국 표준시로 저장합니다."}</p>
-        <ul>
-          {#each group.items as item (item.datasetId)}
-            {@const job = datasets.jobs[item.datasetId]}
-            <li>
-              <strong>{datasetName(item)}</strong>
-              <span class="facts">{datasetFacts(item)}</span>
-              {#if job && job.state !== "succeeded"}
-                <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
-              {/if}
-              {#if item.stored && job?.state !== "running"}
-                <a href={assetHref(item.assetId)}>설비 화면 보기 →</a>
-              {:else if job?.state !== "running"}
-                <button type="button" class="ui-button" disabled={!writable || !datasets.canImport || running || pending !== ""}
-                  onclick={() => void begin(item.datasetId)}>{pending === item.datasetId ? "시작하는 중" : "가져오기"}</button>
-              {/if}
-            </li>
-          {/each}
-        </ul>
+        <ul>{#each group.items as item (item.datasetId)}{@render row(item, false)}{/each}</ul>
       </details>
     {/each}
     {#if !writable || !datasets.canImport}<p class="context">보기 전용이라 가져올 수 없습니다.</p>{/if}
@@ -105,7 +109,8 @@
 
 <style>
   .datasets { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); min-width: 0; }
-  h2 { margin: 0; }
+  h2, h3 { margin: 0; }
+  h3 { font-size: var(--font-body); }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); }
   details { border-top: 1px solid var(--color-border); padding-top: var(--space-2); display: grid; gap: var(--space-2); }

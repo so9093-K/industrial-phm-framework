@@ -22,11 +22,11 @@ pytest.importorskip("duckdb")
 MEMBERS = {"3.공기압축기/SourceData_16.json": 1338, "3.공기압축기/SourceData_9.json": 902}
 
 
-def _aihub(root: Path) -> None:
-    archive = root / "raw/aihub/239/archives/training/raw/3.공기압축기.zip"
+def _aihub(root: Path, split: str = "training", members: dict[str, int] = MEMBERS) -> None:
+    archive = root / f"raw/aihub/239/archives/{split}/raw/3.공기압축기.zip"
     archive.parent.mkdir(parents=True)
     with ZipFile(archive, "w") as opened:
-        for member, device in MEMBERS.items():
+        for member, device in members.items():
             records = [
                 {"ITEM_NAME": "R상전류", "ITEM_VALUE": value, "TIMESTAMP": stamp}
                 for value, stamp in ((68.0, "2020-10-22 00:00:22"), (0.0, "2020-10-22 00:01:22"))
@@ -38,9 +38,16 @@ def _aihub(root: Path) -> None:
 def test_an_aihub_member_becomes_one_assets_history_read_as_kst(tmp_path: Path) -> None:
     root = tmp_path / "data"
     _aihub(root)
+    # The same device is in the validation archive too; it stays a member of its own.
+    _aihub(root, "validation", {"3.공기압축기/SourceData_70.json": 1338})
     workspace = OperationsWorkspace(tmp_path / "ws")
     initialize_operations_workspace(workspace)
-    items = {item["asset_id"]: item for item in list_public_datasets(workspace, root)["items"]}
+    found = list_public_datasets(workspace, root)["items"]
+    assert [(item["asset_id"], item["split"]) for item in found if item["device_id"] == "1338"] == [
+        ("공기압축기 1338", "학습용"),
+        ("공기압축기 1338", "검증용"),
+    ]
+    items = {item["asset_id"]: item for item in found if item["split"] == "학습용"}
     # The asset is named by the equipment group and the record's own DEVICE_ID.
     assert set(items) == {"공기압축기 1338", "공기압축기 902"}
     target = items["공기압축기 1338"]
@@ -52,8 +59,13 @@ def test_an_aihub_member_becomes_one_assets_history_read_as_kst(tmp_path: Path) 
     listing = list_public_datasets(workspace, root)
     job = listing["jobs"][target["dataset_id"]]
     assert (job["state"], job["done"]) == ("succeeded", 2)
-    stored = {item["asset_id"]: item["stored"] for item in listing["items"]}
-    assert stored == {"공기압축기 1338": True, "공기압축기 902": False}
+    stored = {(item["asset_id"], item["split"]): item["stored"] for item in listing["items"]}
+    # Importing the training member does not mark the validation member of the same device.
+    assert stored == {
+        ("공기압축기 1338", "학습용"): True,
+        ("공기압축기 902", "학습용"): False,
+        ("공기압축기 1338", "검증용"): False,
+    }
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
     )

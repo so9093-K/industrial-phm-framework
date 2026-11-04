@@ -228,24 +228,39 @@ def read_public_dataset_jobs(workspace: OperationsWorkspace) -> dict[str, dict[s
     )
 
 
-def _stored(workspace: OperationsWorkspace) -> tuple[set[str], dict[str, int]]:
-    """Assets with stored history, and acquisitions replayed per XJTU-SY bearing."""
+def _aihub_source(dataset_id: str, description: Mapping[str, object]) -> str:
+    """The history source of one member: its split and device, so the same device in the
+    training and validation archives stays two sources of one asset."""
+    split = dataset_id.split(":")[1]
+    return f"aihub239-{split}-{description['device_id']}-{description['device_board_id']}"
+
+
+def _stored(
+    workspace: OperationsWorkspace, assets: set[str]
+) -> tuple[set[tuple[str, str]], dict[str, int]]:
+    """Stored (asset, source) history among ``assets``, and acquisitions per XJTU-SY bearing."""
     from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
     from industrial_phm.demo.xjtu_models import XJTU_DEMO_SOURCE_ID
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 
-    assets: set[str] = set()
+    sources: set[tuple[str, str]] = set()
     if workspace.history_catalog_path.is_file():
         history = DuckLakeAssetHistory(
             DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
         )
-        assets = {item.asset_id for item in history.list_history_assets()}
+        # A device in both archives is one asset; whether a member is stored is its source's.
+        for summary in history.list_history_assets():
+            if summary.asset_id in assets:
+                sources |= {
+                    (summary.asset_id, stream.source_id)
+                    for stream in history.list_history_streams(summary.asset_id)
+                }
     replayed: dict[str, int] = {}
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
     for stream in snapshots.list_streams():
         if stream.source_id == XJTU_DEMO_SOURCE_ID:
             replayed[stream.asset_id] = stream.ordinal
-    return assets, replayed
+    return sources, replayed
 
 
 def list_public_datasets(
@@ -255,12 +270,18 @@ def list_public_datasets(
     root = root or datasets_root()
     datasets = find_public_datasets(root, workspace)
     try:
-        assets, replayed = _stored(workspace)
+        sources, replayed = _stored(
+            workspace, {item.asset_id for item in datasets if item.kind == "aihub-239"}
+        )
     except OSError, ValueError, RuntimeError:
-        assets, replayed = set(), {}
+        sources, replayed = set(), {}
     items = []
     for item in datasets:
-        stored = item.asset_id in assets if item.kind == "aihub-239" else item.asset_id in replayed
+        stored = (
+            (item.asset_id, _aihub_source(item.dataset_id, item.description)) in sources
+            if item.kind == "aihub-239"
+            else item.asset_id in replayed
+        )
         items.append(
             {
                 "dataset_id": item.dataset_id,
@@ -287,10 +308,9 @@ def _import_aihub(
     from industrial_phm.runtime.aihub_history_import import import_history
     from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
 
-    split = item.dataset_id.split(":")[1]
     device, board = str(item.description["device_id"]), str(item.description["device_board_id"])
     binding = PowerHistoryBinding(
-        source_id=f"aihub239-{split}-{device}-{board}",
+        source_id=_aihub_source(item.dataset_id, item.description),
         asset_id=item.asset_id,
         device_id=device,
         device_board_id=board,
