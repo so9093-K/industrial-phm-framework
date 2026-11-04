@@ -54,11 +54,11 @@ from industrial_phm.connectors import (
 )
 from industrial_phm.runtime.collection_control import SqliteCollectionControlRepository
 from industrial_phm.runtime.operations_app_wiring import (
-    OperationsAppPaths,
     OperationsSourceRegistryState,
     operations_source_registry_state,
     run_async_in_worker,
 )
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
 class OperationsActionError(RuntimeError):
@@ -76,7 +76,7 @@ class OperationsDiagnosticKind(StrEnum):
 class OperationsAppActions:
     """Concrete local write/action facade for one resolved Operations workspace."""
 
-    paths: OperationsAppPaths
+    paths: OperationsWorkspace
 
     def set_freshness_policy(
         self,
@@ -85,7 +85,7 @@ class OperationsAppActions:
         max_observation_age_seconds: float | None,
         changed_at: datetime,
     ) -> tuple[SourceFreshnessPolicy | None, OperationsSourceRegistryState]:
-        repository = JsonSourceRepository(self.paths.registry)
+        repository = JsonSourceRepository(self.paths.source_registry_path)
         if max_observation_age_seconds is None:
             repository.clear_freshness_policy(source_id)
             policy = None
@@ -128,9 +128,11 @@ class OperationsAppActions:
     ]:
         if not isinstance(kind, OperationsDiagnosticKind):
             raise ValueError("kind must be an OperationsDiagnosticKind")
-        validate_distinct_source_state_paths(self.paths.registry, self.paths.source_runtime)
-        source_repository = JsonSourceRepository(self.paths.registry)
-        runtime_repository = JsonSourceRuntimeRepository(self.paths.source_runtime)
+        validate_distinct_source_state_paths(
+            self.paths.source_registry_path, self.paths.source_runtime_path
+        )
+        source_repository = JsonSourceRepository(self.paths.source_registry_path)
+        runtime_repository = JsonSourceRuntimeRepository(self.paths.source_runtime_path)
         source = source_repository.get(source_id)
         result: SourceRuntimeCycleResult | RegisteredOpcUaSubscriptionCycleResult
 
@@ -179,7 +181,7 @@ class OperationsAppActions:
         *,
         changed_at: datetime,
     ) -> tuple[SourceLifecycleRecord, OperationsSourceRegistryState]:
-        repository = JsonSourceRepository(self.paths.registry)
+        repository = JsonSourceRepository(self.paths.source_registry_path)
         record = transition_source_lifecycle(
             repository,
             source_id,
@@ -195,8 +197,8 @@ class OperationsAppActions:
         *,
         requested_at: datetime,
     ) -> tuple[CollectionControlRecord, tuple[CollectionControlRecord, ...]]:
-        source_repository = JsonSourceRepository(self.paths.registry)
-        control_repository = SqliteCollectionControlRepository(self.paths.collection_control)
+        source_repository = JsonSourceRepository(self.paths.source_registry_path)
+        control_repository = SqliteCollectionControlRepository(self.paths.collection_control_path)
         record = request_collection_state(
             source_repository,
             source_repository,
@@ -211,7 +213,7 @@ class OperationsAppActions:
         self,
         source: RegisteredSource,
     ) -> OperationsSourceRegistryState:
-        repository = JsonSourceRepository(self.paths.registry)
+        repository = JsonSourceRepository(self.paths.source_registry_path)
         if isinstance(source.config, FileSourceConfig):
             register_file_source(source, repository)
         elif isinstance(source.config, OpcUaSourceConfig):
@@ -228,7 +230,7 @@ class OperationsAppActions:
         tuple[RegisteredFileFeatureAnalysis, ...],
     ]:
         result = run_registered_file_feature_analysis(source)
-        repository = JsonFileFeatureAnalysisRepository(self.paths.file_feature_analysis)
+        repository = JsonFileFeatureAnalysisRepository(self.paths.file_feature_analysis_path)
         repository.record(result)
         return result, repository.list_results()
 
@@ -237,7 +239,7 @@ class OperationsAppActions:
         result: OperationalAnalysisResult,
     ) -> tuple[OperationalFinding, tuple[OperationalFinding, ...]]:
         finding = create_human_review_finding(result)
-        repository = JsonOperationalFindingRepository(self.paths.findings)
+        repository = JsonOperationalFindingRepository(self.paths.finding_state_path)
         repository.record(finding)
         return finding, repository.list_findings()
 
@@ -253,6 +255,6 @@ class OperationsAppActions:
         event = create_finding_review_event(
             finding, action=action, note=note, request_id=request_id, decision=decision
         )
-        repository = JsonFindingReviewRepository(self.paths.review)
+        repository = JsonFindingReviewRepository(self.paths.maintenance_review_state_path)
         repository.record(event)
         return event, repository.list_events()

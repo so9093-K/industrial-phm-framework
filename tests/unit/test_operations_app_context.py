@@ -21,7 +21,7 @@ def test_app_context_binds_snapshot_and_actions_to_same_paths(tmp_path: Path) ->
         assessed_at=datetime(2026, 10, 3, 9, 0, tzinfo=UTC),
     )
 
-    assert context.snapshot.paths.workspace == workspace
+    assert context.snapshot.paths == workspace
     assert context.actions.paths == context.snapshot.paths
     assert context.snapshot.assessed_at == datetime(2026, 10, 3, 9, 0, tzinfo=UTC)
 

@@ -95,8 +95,8 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
     paths = resolve_operations_app_paths(
         {"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(tmp_path / "workspace")}
     )
-    paths.history_catalog.parent.mkdir(parents=True, exist_ok=True)
-    paths.history_catalog.touch()
+    paths.history_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+    paths.history_catalog_path.touch()
 
     live_point = _point(
         source_id="live-opcua",

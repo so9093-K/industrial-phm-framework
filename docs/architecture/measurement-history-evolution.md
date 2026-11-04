@@ -7,10 +7,11 @@ statistic and unit. AI-Hub raw labels do not establish these meanings. New impor
 which applies `aihub-239-semantics-v3` only to archives inside its profiled scope and there only to items
 where the provider unit table and a full-archive relation profile agree (frequency, phase/line voltage
 averages, phase currents), with member exceptions where a relation fails; every other item, and every
-item of an unprofiled archive, stays unresolved. v4 (`semantics-v2`), v3 (`semantics-v1`),
-v2 (all unresolved) and legacy v1 JSON stay immutable; v1 is displayed as a source label rather than
-a resolved property. Exact recovery of an earlier import requires its explicit serialization option. Changing interpretation
-never overwrites historical batch fingerprints or creates another copy of the same raw observation.
+item of an unprofiled archive, stays unresolved. The importer writes and recovers only the current
+metadata v5 format; earlier serialization options and semantic dictionaries are retained in Git
+history. Changing interpretation never overwrites historical batch fingerprints or creates another
+copy of the same raw observation. Pre-release workspaces in an older storage format must be recreated
+under [ADR-0022](../adr/0022-retire-pre-release-persisted-migration-paths.md).
 
 `HistoricalMeasurement.source_quality` separates FILE unknown source quality from numeric availability.
 Its existing persisted `status_good` field remains a compatibility field: FILE numeric availability,
@@ -47,16 +48,12 @@ shape for analysis eligibility, and accepts a binding only when its `source_id`/
 raw row it is stored with; any other snapshot reads as unresolved.
 
 OPC UA batch fingerprints are versioned. New commits record `fingerprint_version = opcua-semantic-v2`
-and fingerprint the semantic snapshot. A commit without a version was written before this change,
-including spool batches that already carried a snapshot but were fingerprinted without it; recovery
-verifies those with the legacy semantics-free fingerprint. So a batch committed by the earlier writer
-and not acknowledged before a crash still recovers after upgrade, and its raw rows stay without a
-semantic snapshot instead of being backfilled with the current binding.
+and fingerprint the semantic snapshot. Recovery requires that exact version and fingerprint;
+unversioned OPC UA commits and unknown versions are rejected. FILE batch commits remain unversioned.
 
-Catalogs created before this column gain it once as a nullable column; earlier rows stay without
-semantics (unresolved), never reinterpreted. Time travel to a snapshot recorded before the column
-existed reads OPC UA semantics as unresolved instead of failing, so earlier analysis results remain
-recomputable at their recorded snapshot.
+The repository opens only the current catalog layout. It neither adds missing columns to an older
+catalog nor supplies missing semantic columns when reading earlier snapshots. Stored snapshots in
+the current layout retain their original semantic evidence; current bindings never backfill it.
 
 ## Measured storage baseline (2026-09-29)
 
@@ -85,7 +82,7 @@ lease. It creates one storage snapshot and changes no logical rows: earlier snap
 rows through time travel, and batch recovery still resolves each batch's original commit snapshot.
 A flush with nothing inlined creates no snapshot. The AI-Hub import tool flushes after every 10 newly
 appended batches (`--flush-every-batches`) and at the end; exact retries of recovered batches do not
-flush. `industrial-phm operations flush-history` flushes an existing catalog, including FILE
+flush. `industrial-phm maintenance history flush` flushes an existing catalog, including FILE
 backfills and live collection history.
 
 Same member and range, measured again with flush during import:
@@ -185,8 +182,9 @@ Terminology is fixed across code and operations:
 - **vacuum**: reclaim metadata-catalog storage
 
 #317-A does not call snapshot expiration, old/orphan-file cleanup, CHECKPOINT or VACUUM and does not
-run maintenance from the collector hot path. Retention/deletion and automatic scheduling remain
-#317-B after representative archive measurements.
+run maintenance from the collector hot path. Retention/deletion is a separate explicit maintenance
+operation, documented in [history retention evidence](../research/history-retention-evidence.md).
+Automatic scheduling is not part of compaction.
 
 Dictionary normalization below remains useful for semantic updates and query clarity, but needs its
 own measured benefit after compaction before it is prioritized.
