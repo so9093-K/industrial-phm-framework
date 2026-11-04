@@ -65,7 +65,9 @@ def test_unavailable_model_answer_can_be_regenerated_without_continuing_the_fall
                     f"http://127.0.0.1:{running[0].server_port}/web/?page=assets&tab=anomaly"
                     "&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=3"
                 )
-                explanation = page.get_by_role("region", name="AI 해설")
+                explanation = page.get_by_role("region", name="측정 변화 분석")
+                if not explanation.locator("details.ai-panel").evaluate("node => node.open"):
+                    explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
                 question = "두 측정 사이에 무엇이 달라졌는지 설명해 주세요."
                 explanation.get_by_label("AI에게 물을 질문 (최대 600자)").fill(question)
@@ -151,9 +153,10 @@ def test_model_result_explanation_and_review_request(
                 page.goto(f"http://127.0.0.1:{writer.server_port}{address}")
                 expect_place(pw, page, "이상 징후", "모델 점수")
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("3")
-                explanation = page.get_by_role("region", name="AI 해설")
+                explanation = page.get_by_role("region", name="측정 변화 분석")
                 compare = explanation.get_by_label("비교할 이전 측정")
                 pw.expect(compare).to_have_value("2")
+                explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 pw.expect(explanation).to_contain_text("아직 이 비교에 대한 해설이 없습니다")
                 explanation.get_by_role("button", name="해설 만들기").click()
                 pw.expect(explanation.get_by_text(SUMMARY)).to_be_visible(timeout=20000)
@@ -203,7 +206,7 @@ def test_model_result_explanation_and_review_request(
 
                 observer = _open(browser, width)
                 observer.goto(f"http://127.0.0.1:{viewer.server_port}{address}")
-                watched = observer.get_by_role("region", name="AI 해설")
+                watched = observer.get_by_role("region", name="측정 변화 분석")
                 pw.expect(watched.get_by_text(SUMMARY)).to_be_visible(timeout=20000)
                 pw.expect(watched).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
                 assert watched.get_by_role("button", name="해설 만들기").count() == 0
@@ -263,13 +266,15 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                 flow.get_by_role("row").first.get_by_role(
                     "button", name="가장 큰 변화", exact=False
                 ).click()
-                explanation = page.get_by_role("region", name="AI 해설")
+                explanation = page.get_by_role("region", name="측정 변화 분석")
                 pw.expect(explanation).to_contain_text("질문 기준 지점 · 4번째 측정 · 모델 점수")
                 pw.expect(
                     explanation.get_by_role("region", name="측정값 비교").get_by_role(
                         "heading", name="4번째 측정 원본 파형"
                     )
                 ).to_be_visible()
+                if not explanation.locator("details.ai-panel").evaluate("node => node.open"):
+                    explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
                 explanation.get_by_role(
                     "button", name="이 지점 전후로 무엇이 달라졌어?", exact=True

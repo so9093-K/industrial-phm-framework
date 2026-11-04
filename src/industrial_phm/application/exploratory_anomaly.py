@@ -142,6 +142,124 @@ def find_departures(
     }
 
 
+def record_changes(
+    series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
+    *,
+    limit: int = 3,
+) -> dict[str, Any]:
+    """Select distinct sustained, end-of-record and large changes across every signal.
+
+    Each signal keeps its own runs: a succession of unrelated deviations across channels
+    must not glue the entire record into one apparent event. Selection reasons describe
+    observed changes, not equipment criticality or fault severity.
+    """
+    analyses = {name: find_departures({name: points}) for name, points in series.items() if points}
+    if not analyses:
+        raise LookupError("no stored values")
+    candidates = [
+        {**interval, "baseline": read["baseline"]}
+        for read in analyses.values()
+        for interval in read["intervals"]
+    ]
+    selected: list[dict[str, Any]] = []
+
+    def distinct(item: dict[str, Any]) -> bool:
+        for chosen in selected:
+            intersection = max(
+                0.0,
+                (
+                    min(item["end"], chosen["end"]) - max(item["start"], chosen["start"])
+                ).total_seconds(),
+            )
+            union = (
+                max(item["end"], chosen["end"]) - min(item["start"], chosen["start"])
+            ).total_seconds()
+            if union and intersection / union >= 0.6:
+                return False
+        return True
+
+    def take(items: list[dict[str, Any]], reason: str) -> None:
+        item = next((item for item in items if distinct(item)), None)
+        if item is not None and len(selected) < limit:
+            selected.append({**item, "reason": reason})
+
+    sustained = sorted(
+        candidates,
+        key=lambda item: (
+            -item["points"],
+            -item["distance"],
+            item["channel"],
+            item["start"],
+        ),
+    )
+    take(sustained, "sustained")
+    last = max(point[1] for points in series.values() for point in points)
+    spacing = max(
+        (point[1] - point[0] for points in series.values() for point in points),
+        default=timedelta(0),
+    )
+    recent = sorted(
+        [item for item in candidates if last - item["end"] <= spacing * 1.5],
+        key=lambda item: (-item["points"], -item["distance"], item["channel"]),
+    )
+    take(recent, "record-end")
+    take(
+        sorted(
+            candidates,
+            key=lambda item: (
+                -item["distance"],
+                -item["points"],
+                item["channel"],
+                item["start"],
+            ),
+        ),
+        "largest",
+    )
+    if len(selected) < limit:
+        for item in sustained:
+            take([item], "sustained")
+    return {
+        "channels": [row for read in analyses.values() for row in read["channels"]],
+        "threshold": THRESHOLD,
+        "intervals": selected,
+        "interval_count": len(candidates),
+        "baseline": min(
+            (read["baseline"] for read in analyses.values()), key=lambda row: row["from"]
+        ),
+    }
+
+
+def interval_comparison(
+    points: Sequence[tuple[datetime, datetime, float]],
+    reference: tuple[datetime, datetime],
+    interval: tuple[datetime, datetime],
+) -> dict[str, Any] | None:
+    """Compare the typical bucket mean in a change's period with its reference period."""
+    before = np.asarray(
+        [value for start, _, value in points if reference[0] <= start < reference[1]], dtype=float
+    )
+    after = np.asarray(
+        [value for start, _, value in points if interval[0] <= start < interval[1]], dtype=float
+    )
+    if len(before) < 5 or len(after) < 3:
+        return None
+    median, current = float(np.median(before)), float(np.median(after))
+    spread = robust_spread(before)
+    if spread <= 0:
+        return None
+    distance = (current - median) / spread
+    return {
+        "reference": median,
+        "current": current,
+        "state": "higher"
+        if distance >= THRESHOLD
+        else "lower"
+        if distance <= -THRESHOLD
+        else "within",
+        "distance": abs(distance),
+    }
+
+
 def latest_departure(found: Mapping[str, Any]) -> dict[str, Any] | None:
     """The departure the record ends in, if its last values are still outside the baseline.
 

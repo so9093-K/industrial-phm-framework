@@ -1,5 +1,5 @@
 /** What one asset's whole stored record held: where its signals left the first 30% of the record,
- * largest first (GET /api/v1/explore/findings). The summary says these as observed facts: when,
+ * representative sustained, recent and large changes (GET /api/v1/explore/findings). The summary says these as observed facts: when,
  * for how long, which signal, against which range, and how far. It never names a cause. */
 import {assetTabUrl} from "./routes.ts";
 import {elapsedText} from "./time-axis.ts";
@@ -12,9 +12,12 @@ export type FoundInterval = {
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
   usual: {low: number; high: number};
-  /** Other signals outside their own range somewhere in the same merged interval; not
-   * necessarily at the same moment. */
+  /** Other signals with a representative shift in this interval. */
   within: string[];
+  reason: "sustained" | "record-end" | "largest" | null;
+  baseline: {from: string; to: string} | null;
+  reference: number | null; typical: number | null;
+  related: {channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
 };
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
 export type SignalState = "scored" | "short-baseline" | "constant" | "no-values";
@@ -55,7 +58,17 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     if (low > high) invalid();
     return {start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
-      value: finite(row.value), usual: {low, high}, within: row.within.map(text)};
+      value: finite(row.value), usual: {low, high}, within: row.within.map(text),
+      reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as FoundInterval["reason"] : null,
+      baseline: range(row.baseline ?? null),
+      reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
+      typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
+      related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
+        const other = object(entry);
+        if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
+        return {channel: text(other.channel), label: text(other.label), unit: typeof other.unit === "string" ? other.unit : null,
+          reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
+      })};
   });
   const states: readonly SignalState[] = ["scored", "short-baseline", "constant", "no-values"];
   const signals = root.signals.map((item: unknown): CheckedSignal => {
@@ -93,6 +106,9 @@ const clock = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: 
 const value = (number: number, unit: string | null) =>
   number.toLocaleString("ko-KR", {maximumSignificantDigits: 3}) + (unit ? " " + unit : "");
 
+export const CHANGE_REASON = {sustained: "오래 이어진 변화", "record-end": "기록 끝까지 이어진 변화", largest: "변화 폭이 큰 구간"};
+export const changeValue = value;
+
 /** When, for how long, and what was observed; a value is a bucket mean, so it says so. */
 export function findingText(item: FoundInterval, bucketSeconds: number | null): {when: string; what: string} {
   const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
@@ -100,15 +116,17 @@ export function findingText(item: FoundInterval, bucketSeconds: number | null): 
   const mean = bucketSeconds ? elapsedText(bucketSeconds) + " 평균으로 " : "";
   return {
     when: clock(item.start) + " ~ " + clock(item.end) + (seconds >= 60 ? " (약 " + elapsedText(seconds) + ")" : ""),
-    what: item.label + " · 기록 처음 30%의 평소 범위(" + value(item.usual.low, null) + "~" + value(item.usual.high, item.unit)
+    what: item.reference !== null && item.typical !== null
+      ? "대표값 " + value(item.reference, null) + " → " + value(item.typical, item.unit)
+      : item.label + " · 기록 처음 30%의 평소 범위(" + value(item.usual.low, null) + "~" + value(item.usual.high, item.unit)
       + ")보다 " + (down ? "낮았습니다" : "높았습니다") + " · " + mean + "가장 " + (down ? "낮을" : "높을") + " 때 "
-      + value(item.value, item.unit) + (item.within.length ? " · 같은 구간 안에서 평소 범위를 벗어난 다른 신호: " + item.within.join(", ") : ""),
+      + value(item.value, item.unit),
   };
 }
 
 /** The interval in the signal graph, and compared with the first 30% it was judged against. */
 export function findingLinks(assetId: string, item: FoundInterval, baseline: RecordFindings["baseline"],
-  bucketSeconds: number | null): {signal: string | null; compare: string | null} {
+  bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null} {
   const link = (href: string, params: Record<string, string>) => {
     const url = new URL(href, "http://local");
     for (const [key, entry] of Object.entries(params)) url.searchParams.set(key, entry);
@@ -116,9 +134,18 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
   };
   const from = Date.parse(item.start);
   const span = {from, to: Math.max(Date.parse(item.end), from + Math.max((bucketSeconds ?? 0) * 1000, 1000))};
-  const window = zoomWindow(span);
-  const signal = window ? link(assetTabUrl(assetId, "signals", null, null, item.channel), windowParams(window, span)) : null;
+  const inspection = {...span, to: Math.min(span.to, span.from + 31 * 86400000)};
+  const window = zoomWindow(inspection);
+  const signal = window ? link(assetTabUrl(assetId, "signals", null, null, item.channel), windowParams(window, inspection)) : null;
   let compare: string | null = null;
+  let previous: string | null = null;
+  const prior = {from: inspection.from - (inspection.to - inspection.from), to: inspection.from};
+  if (record && prior.from >= Date.parse(record.from)) {
+    const periods = {a: {from: new Date(prior.from).toISOString(), to: new Date(prior.to).toISOString()},
+      b: {from: new Date(inspection.from).toISOString(), to: new Date(inspection.to).toISOString()}};
+    previous = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "previous"));
+  }
+  baseline = item.baseline ?? baseline;
   if (baseline) {
     const periods = {a: {from: baseline.from, to: baseline.to},
       b: {from: new Date(span.from).toISOString(), to: new Date(span.to).toISOString()}};
@@ -127,7 +154,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
       compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "departure"));
     } catch { compare = null; }
   }
-  return {signal, compare};
+  return {signal, compare, previous};
 }
 
 const WHY: Record<Exclude<SignalState, "scored">, string> = {

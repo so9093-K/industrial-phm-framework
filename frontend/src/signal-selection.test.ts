@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {HistoryGroup} from "./history.ts";
 import {
-  MAX_SPAN_MS, atFinest, focusFrom, focusGroups, focusParams, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
+  MAX_SPAN_MS, comparisonWindows, atFinest, focusFrom, focusGroups, focusParams, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
 } from "./signal-selection.ts";
 
 const at = (minute: number) => Date.parse("2026-10-01T00:00:00Z") + minute * 60000;
@@ -95,4 +95,14 @@ test("handed-over periods name where they came from and a pick reads back", () =
   assert.deepEqual(pickFrom(zoomed.get("monitor_pick")), {from: at(5), to: at(5)});
   assert.equal(pickFrom("2026-10-02T00:00:00Z~2026-10-01T00:00:00Z"), null);
   assert.equal(pickFrom(null), null);
+});
+
+
+test("distant comparison periods both retain a bounded path to their signal graph", () => {
+  const periods={a:{from:"2020-09-16T00:00:00Z",to:"2020-09-27T00:00:00Z"},
+    b:{from:"2020-10-16T00:00:00Z",to:"2020-10-22T00:00:00Z"}};
+  const windows=comparisonWindows(periods);
+  assert.equal(windows.length,2);
+  assert.deepEqual(windows.map(view=>view.pick.from),[Date.parse(periods.a.from),Date.parse(periods.b.from)]);
+  assert.ok(windows.every(view=>view.window.to-view.window.from<=MAX_SPAN_MS));
 });

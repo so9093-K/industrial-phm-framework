@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount} from "svelte";
-  import {GUIDE_ORDER, NAME, QUESTION, connectPlace, methodFor, fact, nothingStored, place, readCapabilities,
+  import {GUIDE_ORDER, NAME, connectPlace, methodFor, fact, nothingStored, place, readCapabilities,
     type Capabilities, type Capability} from "../capabilities";
   import {systemUrl} from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
@@ -19,11 +19,11 @@
   const rank = (item: Capability) => GUIDE_ORDER.indexOf(item.id);
   const shown = $derived.by((): Capability[] => {
     const current: Capabilities | null = capabilities;
-    return current ? current.items.filter((item) => item.status !== "unavailable").sort((a, b) => rank(a) - rank(b)) : [];
+    return current ? current.items.filter((item) => item.id !== "ai-question" && item.status !== "unavailable").sort((a, b) => rank(a) - rank(b)) : [];
   });
   const refused = $derived.by((): Capability[] => {
     const current: Capabilities | null = capabilities;
-    return current ? current.items.filter((item) => item.status === "unavailable") : [];
+    return current ? current.items.filter((item) => item.id !== "ai-question" && item.status === "unavailable") : [];
   });
   let request: AbortController | null = null;
   function reload() {
@@ -41,8 +41,7 @@
 </script>
 
 <section class="options" aria-labelledby={"options-" + assetId}>
-  <svelte:element this={"h" + level} id={"options-" + assetId}>무엇을 알아볼까요?</svelte:element>
-  <p class="context">저장된 데이터로 답할 수 있는 질문입니다. 각 분석은 계산한 값과 근거를 보여 주고, 고장 원인을 판정하지 않습니다.</p>
+  <svelte:element this={"h" + level} id={"options-" + assetId}>사용 가능한 분석</svelte:element>
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}
@@ -57,8 +56,8 @@
         {@const href = place(item, assetId)}
         {@const connect = connectPlace(item, assetId)}
         <li data-status={item.status} data-capability={item.id}>
-          <strong>{QUESTION[item.id]}</strong>
-          <span class="fact">{methodFor(item, capabilities)} · {fact(item, capabilities)}</span>
+          <strong>{methodFor(item, capabilities)}</strong>
+          <span class="fact">{fact(item, capabilities)}</span>
           {#if item.status === "waiting"}
             <em>결과 대기</em>
           {:else if !href}
@@ -73,8 +72,8 @@
       {/each}
     </ul>
     {#if refused.length}
-      <details class="refused"><summary>지금 답할 수 없는 질문</summary>
-        {#each refused as item (item.id)}<span>{QUESTION[item.id]} — {fact(item, capabilities)}</span>{/each}</details>
+      <details class="refused"><summary>추가 데이터가 필요한 분석</summary>
+        {#each refused as item (item.id)}<span>{NAME[item.id]} — {fact(item, capabilities)}</span>{/each}</details>
     {/if}
   {/if}
 </section>

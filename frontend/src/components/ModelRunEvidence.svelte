@@ -87,7 +87,8 @@
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
   function showSelectedInput() {
     followLatest = false;
-    const input = document.getElementById("selected-model-input");
+    const input = document.getElementById("selected-model-input") as HTMLDetailsElement | null;
+    if (input) input.open = true;
     input?.focus({preventScroll: true});
     input?.scrollIntoView({block: "start"});
   }
@@ -344,11 +345,13 @@
               basis={builtModelNote(binding) ?? "모델에 저장된 비교 기준"}
               boundary="모델마다 점수의 척도와 기준이 다릅니다. 이상 점수는 고장 확률이 아닙니다." />
             <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button>
+            <details><summary>점수·판정 상세</summary>
             <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>
               <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
               <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
               <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
             </div>
+            </details>
           {/if}
           <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
@@ -357,7 +360,9 @@
             {#if links.length}<p class="continue">같은 측정으로 이어서 보기
               {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
           {/if}
-          <div id="selected-model-input" tabindex="-1">{#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}</div>
+          <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
+            {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
+          </details>
           {#if result.state!=="skipped"}
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}

@@ -15,7 +15,12 @@ from industrial_phm.application.acquisition_snapshot import (
     SqliteAcquisitionSnapshotRepository,
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
-from industrial_phm.application.exploratory_anomaly import find_departures, latest_departure
+from industrial_phm.application.exploratory_anomaly import (
+    find_departures,
+    interval_comparison,
+    latest_departure,
+    record_changes,
+)
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_unit, stream_amplitude_unit
 from industrial_phm.application.signal_exploration import (
@@ -28,6 +33,7 @@ from industrial_phm.application.signal_exploration import (
     history_relation,
     history_series,
     interpretation_unit,
+    is_current_in_amperes,
     strongest_identity,
 )
 from industrial_phm.application.source_registry import JsonSourceRepository
@@ -57,9 +63,8 @@ _DEPARTURE_BUCKETS = 1000
 MAX_ATTENTION_ASSETS = 50
 _ATTENTION_CHANNELS = 6
 _ATTENTION_REUSE_SECONDS = 30.0
-# What a record held, for one asset's summary: every stored signal up to the CSV limit, read in
-# the same buckets as the 기준 구간 이탈 screen, and the largest departures named.
-_FINDING_CHANNELS = 12
+# What a record held: all stored signals, read in the same buckets as the departure screen.
+# Show distinct sustained, end-of-record and large changes, with simultaneous comparisons.
 _FINDINGS_SHOWN = 3
 _findings_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any]]] = {}
 # (root, asset) → (record end, record count, computed at, result)
@@ -451,30 +456,53 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
     if held is not None and (held[0], held[1]) == (summary.end_at, summary.measurement_count):
         return held[3]
     channels = list(history.list_history_channels(asset_id))
-    checked = channels[:_FINDING_CHANNELS]
-    # Said on every path, so signals past the limit are never silently left out.
-    body["unchecked"] = len(channels) - len(checked)
+    checked = channels
     points: dict[str, list[tuple[datetime, datetime, float]]] = {}
     units: dict[str, str | None] = {}
+    identities: dict[str, tuple[str, str | None, str]] = {}
     width = 0.0
-    for channel in checked:
-        aggregation = history.query_measurement_aggregation(
-            asset_id,
-            channel_id=channel,
-            start_at=summary.start_at,
-            end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=_DEPARTURE_BUCKETS,
-        )
-        if not aggregation.buckets:
-            continue
-        width = aggregation.bucket_seconds
-        identity, buckets = strongest_identity(aggregation.buckets)
-        units[channel] = interpretation_unit(identity[2])
-        values = [
-            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
-        ]
-        if values:
-            points[channel] = values
+    for offset in range(0, len(checked), 4):
+        group = checked[offset : offset + 4]
+        try:
+            reads = [
+                history.query_multi_signal_measurement_aggregation(
+                    asset_id,
+                    channel_ids=group,
+                    start_at=summary.start_at,
+                    end_at=summary.end_at + timedelta(seconds=1),
+                    bucket_count=_DEPARTURE_BUCKETS,
+                )
+            ]
+        except ValueError as error:
+            if "exceeds 10000" not in str(error):
+                raise
+            # Several versions of one signal can exceed a batch's bounded row budget.
+            reads = [
+                history.query_multi_signal_measurement_aggregation(
+                    asset_id,
+                    channel_ids=[channel],
+                    start_at=summary.start_at,
+                    end_at=summary.end_at + timedelta(seconds=1),
+                    bucket_count=_DEPARTURE_BUCKETS,
+                )
+                for channel in group
+            ]
+        for aggregation in reads:
+            width = aggregation.bucket_seconds
+            for channel in group:
+                channel_buckets = [b for b in aggregation.buckets if b.channel_id == channel]
+                if not channel_buckets:
+                    continue
+                identity, buckets = strongest_identity(channel_buckets)
+                identities[channel] = identity
+                units[channel] = interpretation_unit(identity[2])
+                values = [
+                    (b.bucket_start, b.bucket_end, float(b.mean))
+                    for b in buckets
+                    if b.mean is not None
+                ]
+                if values:
+                    points[channel] = values
     registry = workspace.source_registry_path
     sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
     names = resolve_channel_labels(sources, asset_id)
@@ -484,7 +512,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         return label or channel, unit or units.get(channel)
 
     try:
-        found = find_departures(points, baseline="first-30")
+        found = record_changes(points, limit=_FINDINGS_SHOWN)
     except LookupError, ValueError:
         found = None
     # Every signal says whether it was judged, and if not why: a signal that could not be judged
@@ -519,9 +547,46 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
     }
 
     shown = []
-    for item in found["intervals"][:_FINDINGS_SHOWN]:
+    for item in found["intervals"]:
         median, spread = usual[item["channel"]]
         label, unit = named(item["channel"])
+        reference = (item["baseline"]["from"], item["baseline"]["to"])
+        period = (item["start"], item["end"])
+        comparisons = []
+        identity = identities[item["channel"]]
+        for channel, values in points.items():
+            # Compare simultaneous signals from the same source and measurement point.
+            if identities[channel][:2] != identity[:2]:
+                continue
+            comparison = interval_comparison(values, reference, period)
+            if comparison is not None:
+                other_label, other_unit = named(channel)
+                comparisons.append(
+                    {
+                        **comparison,
+                        "channel": channel,
+                        "label": other_label,
+                        "unit": other_unit,
+                        "current_signal": is_current_in_amperes(identities[channel][2]),
+                    }
+                )
+        own = next((row for row in comparisons if row["channel"] == item["channel"]), None)
+        changed = sorted(
+            [
+                row
+                for row in comparisons
+                if row["channel"] != item["channel"] and row["state"] != "within"
+            ],
+            key=lambda row: (-row["distance"], row["channel"]),
+        )
+        similar = sorted(
+            [
+                row
+                for row in comparisons
+                if row["channel"] != item["channel"] and row["state"] == "within"
+            ],
+            key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
+        )
         shown.append(
             {
                 "start": iso(item["start"]),
@@ -531,16 +596,25 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "unit": unit,
                 "direction": item["direction"],
                 "value": item["value"],
+                "reason": item["reason"],
+                "baseline": {"from": iso(reference[0]), "to": iso(reference[1])},
+                "reference_value": own["reference"] if own else None,
+                "typical_value": own["current"] if own else None,
+                "related": [
+                    {
+                        key: value
+                        for key, value in row.items()
+                        if key not in {"distance", "current_signal"}
+                    }
+                    for row in [*changed[:2], *similar[:1]]
+                ],
                 # The usual range is the one the departure was judged by.
                 "usual": {
                     "low": median - found["threshold"] * spread,
                     "high": median + found["threshold"] * spread,
                 },
-                # Other signals outside their own range somewhere in the same merged interval,
-                # not necessarily at the same moment.
-                "within": [
-                    named(other)[0] for other in item["channels"] if other != item["channel"]
-                ],
+                # Other signals whose representative value shifted in this interval.
+                "within": [row["label"] for row in changed],
             }
         )
     body.update(
@@ -553,7 +627,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             # Each value is a bucket mean over this many seconds, not a single measurement.
             "bucket_seconds": width,
             "intervals": shown,
-            "interval_count": len(found["intervals"]),
+            "interval_count": found["interval_count"],
         }
     )
     if len(_findings_cache) > 4 * MAX_ATTENTION_ASSETS:

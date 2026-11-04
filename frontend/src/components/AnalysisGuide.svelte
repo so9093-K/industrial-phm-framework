@@ -1,25 +1,24 @@
 <script lang="ts">
-  /** Before any data: the questions this product answers and what each needs, so a person knows
+  /** Before any data: the available analyses and what each needs, so a person knows
    * what to bring. Nothing here is a result; no chart or score is drawn without stored data. */
-  import {GUIDE_ORDER, METHOD, NEEDS, QUESTION} from "../capabilities";
+  import {GUIDE_ORDER, METHOD, NEEDS} from "../capabilities";
 </script>
 
 <section class="guide" aria-labelledby="guide-title">
-  <h3 id="guide-title">데이터를 연결하면 알아볼 수 있는 것</h3>
+  <h3 id="guide-title">분석 기능 및 입력 데이터</h3>
   <ul>
     {#each GUIDE_ORDER as id (id)}
-      <li><strong>{QUESTION[id]}</strong><span>{METHOD[id]}</span><span class="needs">필요한 데이터 · {NEEDS[id]}</span></li>
+      <li><strong>{METHOD[id]}</strong><span class="needs">필요한 데이터 · {NEEDS[id]}</span></li>
     {/each}
   </ul>
-  <p class="context">결과는 계산한 값과 근거로 보여 주고, 고장 원인을 판정하지 않습니다. 결과와 전망은 근거와 함께 검토 기록으로 남겨
-    담당자가 확인·종료할 수 있습니다.</p>
+  <p class="context">데이터를 연결하면 신호 추이·구간 변화·이상 점수를 분석할 수 있습니다. 결과에서 비교할 기간과 측정을 선택해 상세 신호를 확인합니다.</p>
 </section>
 
 <style>
   .guide { display: grid; gap: var(--space-3); min-width: 0; }
   h3 { margin: 0; font-size: var(--font-body); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; }
-  li { display: grid; grid-template-columns: minmax(12rem, 22rem) minmax(6rem, 12rem) minmax(0, 1fr); gap: var(--space-1) var(--space-3);
+  li { display: grid; grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); gap: var(--space-1) var(--space-3);
     padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); min-width: 0; overflow-wrap: anywhere; }
   li span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .context { margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }

@@ -21,9 +21,13 @@ export type AnalysisMessage = {
  * from the score, or treating a below-threshold result as evidence of a healthy asset. */
 export function selectedScoreMessage(summary: {score: number | null; threshold: number | null; exceeds: boolean | null},
   next: NextStep[] = []): AnalysisMessage {
+  const equalDisplay = summary.score !== null && summary.threshold !== null && summary.score !== summary.threshold
+    && short(summary.score) === short(summary.threshold);
+  const score = summary.score === null ? "" : equalDisplay ? String(summary.score) : short(summary.score);
+  const threshold = summary.threshold === null ? "" : equalDisplay ? String(summary.threshold) : short(summary.threshold);
   const numbers = summary.score === null ? "이 측정의 모델 점수가 기록되지 않았습니다."
-    : "이 측정의 모델 점수는 " + short(summary.score)
-      + (summary.threshold === null ? "이며, 비교 기준값은 기록되지 않았습니다." : ", 모델 기준은 " + short(summary.threshold) + "입니다.");
+    : "이 측정의 모델 점수는 " + score
+      + (summary.threshold === null ? "이며, 비교 기준값은 기록되지 않았습니다." : ", 모델 기준은 " + threshold + "입니다.");
   const judged = summary.score !== null && summary.threshold !== null && summary.exceeds !== null;
   return {
     headline: judged ? "선택한 측정이 이 모델의 기준을 " + (summary.exceeds ? "넘었습니다." : "넘지 않았습니다.") : "이 측정의 기준 초과 여부를 확인할 수 없습니다.",

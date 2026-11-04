@@ -141,7 +141,7 @@
 
 <section class="explanation" aria-labelledby={"model-ai-" + run.runId}>
   <div class="head">
-    <h3 id={"model-ai-" + run.runId}>AI 해설</h3>
+    <h3 id={"model-ai-" + run.runId}>측정 변화 분석</h3>
     {#if latest?.answer}
       <span class="meta">{latest.answer.modelUnavailable ? "AI 응답 없음 · 저장된 비교로 작성" : SOURCE[latest.answer.source]}
         · {latest.model ?? "모델명 없음"} · {clock(latest.requestedAt)}</span>
@@ -162,88 +162,87 @@
   {/if}
 
 
-  {#if requesting}
-    <StatusNotice message="해설을 요청하고 있습니다." />
-  {:else if loadState === "loading" && !records.length}
-    <StatusNotice message="이 결과에 대한 해설을 확인하고 있습니다." />
-  {:else if loadState === "failed"}
-    <StatusNotice kind="failure" title="해설을 확인하지 못했습니다" message={error + " 모델 점수는 그대로 볼 수 있습니다."}
-      actionLabel="다시 확인" onAction={() => { remaining = 40; void refresh(); }} />
-  {:else if waiting}
-    <StatusNotice message="두 측정의 값과 모델 점수를 비교해 해설을 만들고 있습니다. 잠시 후 자동으로 다시 확인합니다." />
-  {:else if latest?.answer}
-    <p class="question">질문 · {latest.question}</p>
-    {#if latest.focus}<p class="context">답변 기준 지점 · {place(latest.focus.position)}</p>{/if}
-    <p class="summary">{latest.answer.summary}</p>
-    {#if latest.answer.modelUnavailable && writable}
-      <p class="context">AI 서버가 응답하지 않아 저장된 비교로 썼습니다.
-        <button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => {if (latest) void ask(latest.question, true);}}>AI로 다시 만들기</button></p>
-    {/if}
-    {#if latest.comparePosition !== null}
-      <p class="context">모델 점수 {num(latest.previousScore, "기록 없음")} → {num(score.score, "기록 없음")}
-        ({place(latest.comparePosition)} → {place(run.position)})</p>
-    {/if}
-    {#if mentioned.length}
-      <div class="scroll"><table>
-        <caption>해설이 짚은 측정값</caption>
-        <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화</th></tr></thead>
-        <tbody>
-          {#each mentioned as {change, relation} (change.feature)}
-            <tr><th scope="row">{shown(change.label)}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
-              <td>{RELATION[relation]} {percent(change.relativePercent)}</td></tr>
-          {/each}
-        </tbody>
-      </table></div>
-    {/if}
-    {#if latest.answer.nextStep}
-      <p><strong>다음에 볼 것</strong> · {latest.answer.nextStep}</p>
-    {/if}
-    {#if latest.features.length}
-      <details>
-        <summary>저장된 측정값 비교 전체 ({latest.features.length}개)</summary>
+  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
+  <details class="ai-panel" open={requesting || waiting || latest !== null || focus !== null}>
+    <summary>AI 해설·추가 질문</summary>
+    {#if requesting}
+      <StatusNotice message="해설을 요청하고 있습니다." />
+    {:else if loadState === "loading" && !records.length}
+      <StatusNotice message="이 결과에 대한 해설을 확인하고 있습니다." />
+    {:else if loadState === "failed"}
+      <StatusNotice kind="failure" title="해설을 확인하지 못했습니다" message={error + " 모델 점수는 그대로 볼 수 있습니다."}
+        actionLabel="다시 확인" onAction={() => { remaining = 40; void refresh(); }} />
+    {:else if waiting}
+      <StatusNotice message="두 측정의 값과 모델 점수를 비교해 해설을 만들고 있습니다. 잠시 후 자동으로 다시 확인합니다." />
+    {:else if latest?.answer}
+      <p class="question">질문 · {latest.question}</p>
+      {#if latest.focus}<p class="context">답변 기준 지점 · {place(latest.focus.position)}</p>{/if}
+      <p class="summary">{latest.answer.summary}</p>
+      {#if latest.answer.modelUnavailable && writable}
+        <p class="context">AI 서버가 응답하지 않아 저장된 비교로 썼습니다.
+          <button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => {if (latest) void ask(latest.question, true);}}>AI로 다시 만들기</button></p>
+      {/if}
+      {#if latest.comparePosition !== null}
+        <p class="context">모델 점수 {num(latest.previousScore, "기록 없음")} → {num(score.score, "기록 없음")}
+          ({place(latest.comparePosition)} → {place(run.position)})</p>
+      {/if}
+      {#if mentioned.length}
         <div class="scroll"><table>
-          <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화율</th></tr></thead>
+          <caption>해설이 짚은 측정값</caption>
+          <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화</th></tr></thead>
           <tbody>
-            {#each latest.features as row (row.feature)}
-              <tr><th scope="row">{shown(row.label)}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
-                <td>{percent(row.relativePercent)}</td></tr>
+            {#each mentioned as {change, relation} (change.feature)}
+              <tr><th scope="row">{shown(change.label)}</th><td>{num(change.previous, "—")}{change.previous !== null && change.unit ? " " + change.unit : ""}</td><td>{num(change.current)}{change.unit ? " " + change.unit : ""}</td>
+                <td>{RELATION[relation]} {percent(change.relativePercent)}</td></tr>
             {/each}
           </tbody>
         </table></div>
+      {/if}
+      {#if latest.answer.nextStep}
+        <p><strong>다음에 볼 것</strong> · {latest.answer.nextStep}</p>
+      {/if}
+      {#if latest.features.length}
+        <details>
+          <summary>저장된 측정값 비교 전체 ({latest.features.length}개)</summary>
+          <div class="scroll"><table>
+            <thead><tr><th scope="col">측정값</th><th scope="col">비교 측정</th><th scope="col">고른 측정</th><th scope="col">변화율</th></tr></thead>
+            <tbody>
+              {#each latest.features as row (row.feature)}
+                <tr><th scope="row">{shown(row.label)}</th><td>{num(row.previous, "—")}{row.previous !== null && row.unit ? " " + row.unit : ""}</td><td>{num(row.current)}{row.unit ? " " + row.unit : ""}</td>
+                  <td>{percent(row.relativePercent)}</td></tr>
+              {/each}
+            </tbody>
+          </table></div>
+        </details>
+      {/if}
+    {:else}
+      {#if newest?.status === "failed"}
+        <StatusNotice kind="uncertain" message="지난번 해설은 만들지 못했습니다. 모델 점수와 측정값은 그대로 볼 수 있습니다." />
+      {/if}
+      <p class="context">아직 이 비교에 대한 해설이 없습니다.</p>
+      {#if writable}
+        <button type="button" class="ui-button ui-button-primary" onclick={() => void ask(DEFAULT_QUESTION)}>해설 만들기</button>
+      {/if}
+    {/if}
+    {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
+      <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
+    {#if !writable}
+      <p class="context">보기 전용이라 해설을 만들 수 없습니다. 운영을 시작하면 만들 수 있습니다.</p>
+    {:else}
+      <details class="ask">
+        <summary>{latest ? "이어서 질문하기" : "직접 질문하기"}</summary>
+        {#if focus}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("이 지점 전후로 무엇이 달라졌어?")}>이 지점 전후로 무엇이 달라졌어?</button>{/if}
+        {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체에서 어떤 흐름을 보였어?")}>구간 전체에서 어떤 흐름을 보였어?</button>{/if}
+        <label>AI에게 물을 질문 (최대 600자)
+          <input maxlength="600" value={question} disabled={requesting} placeholder={DEFAULT_QUESTION}
+            oninput={(event) => { chosen = true; question = event.currentTarget.value; }} />
+        </label>
+        <button type="button" class="ui-button ui-button-primary" disabled={requesting || waiting || !question.trim()}
+          onclick={() => void ask(question)}>질문 보내기</button>
       </details>
     {/if}
-  {:else}
-    {#if newest?.status === "failed"}
-      <StatusNotice kind="uncertain" message="지난번 해설은 만들지 못했습니다. 모델 점수와 측정값은 그대로 볼 수 있습니다." />
-    {/if}
-    <p class="context">아직 이 비교에 대한 해설이 없습니다.</p>
-    {#if writable}
-      <button type="button" class="ui-button ui-button-primary" onclick={() => void ask(DEFAULT_QUESTION)}>해설 만들기</button>
-    {/if}
-  {/if}
-  {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
-    <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
-  {#if !writable}
-    <p class="context">보기 전용이라 해설을 만들 수 없습니다. 운영을 시작하면 만들 수 있습니다.</p>
-  {:else}
-    <details class="ask">
-      <summary>{latest ? "이어서 질문하기" : "직접 질문하기"}</summary>
-      {#if focus}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("이 지점 전후로 무엇이 달라졌어?")}>이 지점 전후로 무엇이 달라졌어?</button>{/if}
-      {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체에서 어떤 흐름을 보였어?")}>구간 전체에서 어떤 흐름을 보였어?</button>{/if}
-      <label>AI에게 물을 질문 (최대 600자)
-        <input maxlength="600" value={question} disabled={requesting} placeholder={DEFAULT_QUESTION}
-          oninput={(event) => { chosen = true; question = event.currentTarget.value; }} />
-      </label>
-      <button type="button" class="ui-button ui-button-primary" disabled={requesting || waiting || !question.trim()}
-        onclick={() => void ask(question)}>질문 보내기</button>
-    </details>
-  {/if}
-  <!-- The explanation comes first; the stored values it rests on stay one click away,
-       open while there is no answer to read. -->
-  <details class="evidence" open={!latest?.answer}>
-    <summary>해설의 근거 · 두 측정의 측정값과 구간 흐름</summary>
-    <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
   </details>
+
 </section>
 
 <style>
@@ -256,7 +255,8 @@
   select, input { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
     padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .ask { display: grid; gap: var(--space-3); }
-  .evidence { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
+  .ai-panel { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
+  .ai-panel > summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
   .ask button { justify-self: start; margin-top: var(--space-3); }
   .scroll { max-width: 100%; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; }

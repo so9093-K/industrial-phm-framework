@@ -3,7 +3,7 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {historyPeriodMessage, type NextStep} from "../analysis-messages";
-  import {windowParams, zoomWindow} from "../signal-selection";
+  import {comparisonWindows, windowParams} from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -15,13 +15,10 @@
   function told(read: ProfileResult, row: ProfileSeries) {
     const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
     const next: NextStep[] = [];
-    const from = Date.parse(read.periods.a.from), to = Date.parse(read.periods.b.to);
-    const window = zoomWindow({from, to}) ? {from, to} : null;
-    if (window && to - from <= 31 * 86400000) {
+    for (const view of comparisonWindows(read.periods)) {
       const url = new URL(assetTabUrl(assetId, "signals", null, null, row.channel), location.origin);
-      const pick = {from: Date.parse(read.periods.b.from), to};
-      for (const [key, value] of Object.entries(windowParams(window, pick))) url.searchParams.set(key, value);
-      next.push({label: "두 기간을 신호 그래프에서 보기", href: url.pathname + url.search});
+      for (const [key, value] of Object.entries(windowParams(view.window, view.pick))) url.searchParams.set(key, value);
+      next.push({label: view.label, href: url.pathname + url.search});
     }
     const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
     if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});

@@ -9,7 +9,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {findingLinks, findingText, readRecordFindings, unjudgedText, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, findingLinks, findingText, readRecordFindings, unjudgedText, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -47,6 +47,7 @@
   // What the whole stored record held, not only whether it ends away from its start.
   let findings: RecordFindings | null = $state(null);
   let findingState: "idle" | "loading" | "ready" | "failed" = $state("idle");
+  let showOptions = $state(false);
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -109,7 +110,7 @@
     <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
   </dl>
   {#if data?.history}
-    <h3 class="recent">이 기록에서 찾은 변화</h3>
+    <h3 class="recent">주요 변화</h3>
     {#if findingState === "ready" && findings}
       {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
       <p class="coverage" aria-label="변화 분석 범위">전체 신호 {findings.signals.length + findings.unchecked}개 중
@@ -124,15 +125,29 @@
       <ul class="found">
         {#each findings.intervals as item (item.start + item.channel)}
           {@const told = findingText(item, findings.bucketSeconds)}
-          {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds)}
-          <li><strong>{told.when}</strong> <span>{told.what}</span>
+          {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
+          <li>
+            <span class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</span>
+            <strong>{item.label} · {told.what}</strong><span>{told.when}</span>
+            {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
+              {#each item.related as other (other.channel)}
+                {@const target = findingLinks(asset.assetId, {...item, channel:other.channel}, findings.baseline, findings.bucketSeconds, findings.record)}
+                <li>{#if target.signal}<a href={target.signal}>{other.label}</a>{:else}{other.label}{/if}
+                  · {changeValue(other.reference, null)} → {changeValue(other.current, other.unit)}
+                  · {other.state === "within" ? "대표값이 기준 범위 안" : other.state === "higher" ? "함께 높아짐" : "함께 낮아짐"}</li>
+              {/each}
+            </ul>{/if}
             <span class="go">{#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
-              {#if links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}</span></li>
+              {#if links.previous}<a href={links.previous}>변화 직전과 비교 →</a>
+              {:else if links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}</span>
+            {#if links.previous && links.compare}<details><summary>처음 기준과 비교</summary><a href={links.compare}>기록 처음 30%와 비교 →</a></details>{/if}
+          </li>
         {/each}
       </ul>
-      <p class="context small">판단한 신호 {findings.judged}개를 함께 보고 가장 크게 벗어난 {findings.intervals.length}구간을 골랐습니다{findings.count > findings.intervals.length ? " (모두 " + findings.count + "구간)" : ""}.
-        기록 처음 30%는 비교 기준일 뿐 정상으로 확인된 기간이 아닙니다.
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호별로 보기 →</a></p>
+      <details class="context small"><summary>변화 선정 방식과 전체 신호</summary>
+        <p>계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
+          대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.</p>
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 다른 신호 보기 →</a></details>
     {:else if findings && findings.judged}
       <p class="context">판단한 신호 {findings.judged}개에서 기록 처음 30%의 평소 범위를 크게 벗어난 구간을 찾지 못했습니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈 보기 →</a></p>
@@ -198,11 +213,12 @@
   {/if}
 </section>
 
-<section class="ui-panel next">
-  <AnalysisOptions assetId={asset.assetId} />
+<details class="ui-panel next" ontoggle={(event) => showOptions=event.currentTarget.open}>
+  <summary>추가 분석</summary>
+  {#if showOptions}<AnalysisOptions assetId={asset.assetId} level={3} />{/if}
   <p class="context"><a href={routeUrl({page: "investigations", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
     저장된 분석 결과 보기 →</a></p>
-</section>
+</details>
 
 <style>
   .facts {
@@ -231,6 +247,11 @@
   .coverage { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); font-size: var(--font-small); overflow-wrap: anywhere; }
   .found { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
   .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
+  .found > li { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .found .reason { color: var(--color-action); font-weight: 650; font-size: var(--font-small); }
+  .related { list-style: none; padding: 0; margin-block: var(--space-2); font-size: var(--font-small); }
+  .related li { display: block; padding-block: var(--space-1); color: var(--color-ink-muted); }
+  summary { cursor: pointer; font-weight: 650; padding-block: var(--space-2); }
   .found span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .found .go { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--font-small); }
 </style>

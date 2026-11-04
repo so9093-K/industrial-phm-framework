@@ -304,10 +304,10 @@
 </script>
 
 <section class="ui-panel csv-start" aria-labelledby="csv-start-title">
-  <h2 id="csv-start-title">CSV 파일로 시작</h2>
-  <p class="context">파일의 실제 값을 먼저 보고, 서버가 점검한 뒤 저장하면 설비 화면의 신호 탭에서 같은 값을 봅니다.</p>
+  <h2 id="csv-start-title">CSV 데이터 등록</h2>
+  <p class="context">파일 미리보기와 측정 설정을 확인한 뒤 등록합니다. 저장한 데이터는 설비 화면에서 분석할 수 있습니다.</p>
   <ol class="flow" aria-label="진행 순서">
-    <li>파일 고르기</li><li>측정값·설비 확인</li><li>서버 점검 (저장 안 함)</li><li>등록하고 이력 저장</li>
+    <li>파일 선택</li><li>측정·설비 설정</li><li>등록 전 검증</li><li>등록·이력 저장</li>
   </ol>
 
   <div class="field">
@@ -364,8 +364,8 @@
       {/if}
       {#if channels.length}
         <fieldset class="names">
-          <legend>화면에 보일 이름·단위 (선택)</legend>
-          <p class="context">비워 두면 열 이름이 그대로 보이고, 단위가 없으면 그래프에 ‘단위 미확인’으로 표시합니다.</p>
+          <legend>표시명·단위 설정</legend>
+          <p class="context">선택 입력입니다. 미입력 시 원본 열 이름을 사용하고, 단위는 ‘미확인’으로 표시합니다.</p>
           {#if unfilledExamples.length && !locked}
             <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
             <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
@@ -399,7 +399,7 @@
           {gaps.longestAfter !== null ? " (" + clock(new Date(gaps.longestAfter).toISOString()) + " 이후)" : ""}</p>
       {/if}
       {#if channels.length && points.length}
-        <label class="field">미리 볼 측정값
+        <label class="field">미리보기 신호
           <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{shown(name)}</option>{/each}</select>
         </label>
         {@const low = Math.min(...points.map((p) => p.min))}
@@ -452,7 +452,7 @@
       {:else}
         <button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
           aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
-          onclick={() => void check()}>서버에서 점검 (저장 안 함)</button>
+          onclick={() => void check()}>등록 전 검증</button>
         {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
       {/if}
       {#if checkMessage}
@@ -461,7 +461,7 @@
     </section>
 
     <section aria-labelledby="csv-save-title">
-      <h3 id="csv-save-title">등록하고 이력 저장</h3>
+      <h3 id="csv-save-title">등록·이력 저장</h3>
       <p class="context">중간에 실패해도 입력은 남고, 다시 시도하면 끝난 단계는 건너뜁니다.</p>
       <ol class="steps">
         {#each STEPS as item (item.id)}
@@ -471,7 +471,7 @@
       </ol>
       {#if !stored}
         <button type="button" class="ui-button ui-button-primary" disabled={!writable || !checked || !timeZoneReady || saving}
-          onclick={() => void save()}>{saveFailed && progress ? "실패한 단계부터 다시 시도" : "등록하고 이력 저장"}</button>
+          onclick={() => void save()}>{saveFailed && progress ? "실패한 단계부터 다시 시도" : "등록·이력 저장"}</button>
       {/if}
       {#if saveMessage}
         <p class="message" class:failure={saveFailed} role={saveFailed ? "alert" : "status"}>{saveMessage}</p>

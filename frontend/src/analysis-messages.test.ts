@@ -17,6 +17,7 @@ test("a selected model result explains its scope without equating below threshol
   const below = selectedScoreMessage({score: 0.4, threshold: 0.5, exceeds: false});
   assert.match(below.headline, /넘지 않았습니다/);
   assert.match(below.certainty!, /정상이라거나.*판정은 아닙니다/);
+  assert.match(selectedScoreMessage({score: 0.5001, threshold: 0.5, exceeds: true}).meaning!, /0.5001.*0.5/);
   // A numeric comparison must not invent a missing stored verdict or conceal missing evidence.
   for (const summary of [
     {score: 0.8, threshold: 0.5, exceeds: null},
