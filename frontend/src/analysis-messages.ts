@@ -28,14 +28,17 @@ export function times(ratio: number): string {
   return text + "배";
 }
 const percent = (share: number) => Math.round(share * 100) + "%";
-/** A share of counted measurements as a percentage that reads as all or none only when it is:
- * between 1% and 99% it rounds as usual, above 99% it rounds down and below 1% up, to one decimal. */
+/** A share of counted measurements as a percentage that is neither inflated nor read as all or
+ * none unless it is: 1–99% rounds to a whole percent, otherwise to one decimal, and a share below
+ * 0.1% or above 99.9% is said as that bound ("0.1% 미만", "99.9% 초과") instead of rounded to it. */
 export function countShare(part: number, whole: number): string {
   if (whole <= 0 || part <= 0) return "0%";
   if (part >= whole) return "100%";
   const share = 100 * part / whole;
+  if (share < 0.1) return "0.1% 미만";
+  if (share > 99.9) return "99.9% 초과";
   if (share >= 1 && share <= 99) return Math.round(share) + "%";
-  return (share > 99 ? Math.floor(share * 10) / 10 : Math.ceil(share * 10) / 10).toFixed(1) + "%";
+  return (Math.round(share * 10) / 10).toFixed(1) + "%";
 }
 const hz = (value: number) => Math.round(value).toLocaleString("ko-KR");
 
