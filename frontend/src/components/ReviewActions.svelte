@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount, tick} from "svelte";
   import {
-    latestDecision, reviewNote, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict, WriteForbidden,
+    latestDecision, reviewNote, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict,
     type ReviewAction, type ReviewDecision, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
@@ -70,8 +70,9 @@
         return;
       }
       messageKind = cause instanceof OutcomeUnknown ? "uncertain" : "failure";
-      message = cause instanceof WriteForbidden ? cause.message
-        : "처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.";
+      message = cause instanceof OutcomeUnknown
+        ? "처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다."
+        : cause instanceof Error ? cause.message : "검토 기록을 저장하지 못했습니다. 다시 시도하세요.";
     } finally {
       if (controller === request) busy = false;
     }

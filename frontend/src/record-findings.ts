@@ -166,7 +166,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     url.searchParams.set("method", "relation");
     url.searchParams.set("relation_x", item.channel);
     url.searchParams.set("relation_y", other.channel);
-    relation = {href: url.pathname + url.search, label: other.label + "와의 관계 비교"};
+    relation = {href: url.pathname + url.search, label: other.label + " 관계 비교"};
   }
   return {signal, compare, previous, relation, outlook: assetTabUrl(assetId, "outlook", null, "history", item.channel)};
 }
