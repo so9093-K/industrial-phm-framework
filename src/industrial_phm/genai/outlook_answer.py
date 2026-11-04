@@ -20,6 +20,7 @@ from industrial_phm.application.outlook_text import (
     check_is_weak,
     condition_reach,
     difference_sentences,
+    inside_share,
 )
 from industrial_phm.genai.local_explanation import (
     AnalysisExplanationError,
@@ -392,13 +393,17 @@ def with_check(answer: dict[str, Any], outlook: dict[str, Any]) -> dict[str, Any
     cited = {key for point in answer["points"] for key in point["evidence"]}
     if not check or "check" in cited or not cited & {"management", "end"}:
         return answer
+    inside = inside_share(check)
+    # "0.1% 미만" ends in a consonant, so its particles differ from a plain "4%".
+    final = inside.endswith("미만")
     point = {
         "text": f"기록의 마지막 {check['points']}개를 가리고 같은 방법으로 예측했을 때 실제 값이 "
-        f"예측 범위 안에 든 비율은 {round(check['inside_interval'] * 100)}%"
+        f"예측 범위 안에 든 비율은 {inside}"
         + (
-            "여서, 기준까지의 여유는 정확한 시각이 아니라 대략의 범위로 읽어야 합니다."
+            ("이어서" if final else "여서")
+            + ", 기준까지의 여유는 정확한 시각이 아니라 대략의 범위로 읽어야 합니다."
             if check_is_weak(check)
-            else "로, 예측이 실제 값을 대체로 따라갔습니다."
+            else ("으로" if final else "로") + ", 예측이 실제 값을 대체로 따라갔습니다."
         ),
         "evidence": ["check"],
     }

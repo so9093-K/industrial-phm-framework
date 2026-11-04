@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {groupHistory, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
+import {groupHistory, latestUnit, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -14,6 +14,23 @@ const data = (buckets: unknown[]) => ({
   asset_id: "motor", channel_ids: ["R"], start_at: "2026-10-01T00:00:00Z",
   end_at: "2026-10-01T01:00:00Z", assessed_at: "2026-10-16T00:00:00Z",
   buckets, latest_stored: [],
+});
+
+test("a last stored value takes its unit only from the bucket that ends at that value", () => {
+  const ending = (interpretation: string, last: string) =>
+    ({...bucket("src1", interpretation, 2), first_event_at: "2026-10-01T00:01:00Z", last_event_at: last});
+  // Amperes earlier in the window, volts for the meaning the last value was stored under.
+  const trend = parseTrend(data([ending("i1", "2026-10-01T00:30:00Z"), ending("i2", "2026-10-01T00:59:00Z")]), "motor", "R");
+  const latest = (eventAt: string | null, sourceId = "src1") =>
+    ({channelId: "R", sourceId, pointId: "motor-a", eventAt, value: 3, usable: true, quality: "good"});
+  assert.equal(latestUnit(trend, latest("2026-10-01T00:59:00Z")), "V");
+  // A last value after a past window is not given the unit that window saw.
+  assert.equal(latestUnit(trend, latest("2026-10-02T00:00:00Z")), null);
+  assert.equal(latestUnit(trend, latest(null)), null);
+  assert.equal(latestUnit(trend, latest("2026-10-01T00:59:00Z", "src2")), null);
+  // Two unlike meanings both ending at the same instant say nothing about which it was.
+  const tied = parseTrend(data([ending("i1", "2026-10-01T00:59:00Z"), ending("i2", "2026-10-01T00:59:00Z")]), "motor", "R");
+  assert.equal(latestUnit(tied, latest("2026-10-01T00:59:00Z")), null);
 });
 
 test("channels are strictly for the selected asset", () => {

@@ -166,6 +166,11 @@ test("the outlook gives every reading's reach and how far the past check lets on
   assert.equal(message.certainty, "기록의 마지막 25개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 0%였고, "
     + "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다. 계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. "
     + "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요.");
+  // One of 250 hidden values inside the band is not none, as "0%" said.
+  const one = outlookMessage({...facts, checks: [{points: 250, error: 65.5, naive: 4.46, coverage: 0.004}]})!;
+  assert.match(one.certainty!, /예측 범위 안에 든 비율은 0\.4%였고, 마지막 값을 그대로 이어 쓴 것보다 오차가 컸습니다/);
+  const rare = outlookMessage({...facts, checks: [{points: 2000, error: 65.5, naive: 4.46, coverage: 0.0005}]})!;
+  assert.match(rare.certainty!, /비율은 0\.1% 미만이었고,/);
   const good = outlookMessage({...facts, period: null, conditions: {management: 4, end: null},
     scenarios: [{id: "current", management: reach("expected", 10), end: null}], checks: [{points: 20, error: 0.2, naive: 1, coverage: 0.9}]})!;
   assert.equal(good.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 10회 남았습니다.");

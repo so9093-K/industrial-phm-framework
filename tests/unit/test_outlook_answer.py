@@ -482,3 +482,24 @@ def test_a_margin_always_comes_with_how_far_the_past_check_lets_one_trust_it() -
     assert answer["points"][-1]["text"].endswith("대략의 범위로 읽어야 합니다.")
     plain = {"summary": "...", "points": [{"text": "변화", "evidence": ["change"]}]}
     assert outlook_answer.with_check(plain, outlook)["points"] == plain["points"]
+
+
+def test_one_value_inside_the_band_is_never_rounded_to_none() -> None:
+    # Compressor 1338 R상전류: 1 of 250 hidden values fell inside the band; "0%" read as none.
+    outlook = _outlook()
+    outlook["check"] = {
+        "points": 250,
+        "mean_absolute_error": 65.5,
+        "naive_mean_absolute_error": 4.46,
+        "inside_interval": 0.004,
+    }
+    cited = {
+        "text": "관리 상한 8까지 56분 뒤 도달할 것으로 계산했습니다.",
+        "evidence": ["management"],
+    }
+    told = outlook_answer.with_check({"summary": "...", "points": [cited]}, outlook)
+    assert "비율은 0.4%여서," in told["points"][-1]["text"]
+    assert "실제 값이 예측 범위 안에 든 비율 0.4% ·" in outlook_facts(outlook)["check"]
+    outlook["check"] = {**outlook["check"], "points": 2000, "inside_interval": 0.0005}
+    told = outlook_answer.with_check({"summary": "...", "points": [cited]}, outlook)
+    assert "비율은 0.1% 미만이어서," in told["points"][-1]["text"]

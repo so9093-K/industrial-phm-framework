@@ -372,8 +372,9 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     const versus = check.error < 0.8 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 작았습니다"
       : check.error > 1.2 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 컸습니다" : "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다";
     const weak = check.coverage < 0.5 || check.error >= 0.8 * check.naive || spread;
+    const inside = countShare(Math.round(check.coverage * check.points), check.points);
     certainty = "기록의 마지막 " + check.points + "개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 "
-      + Math.round(check.coverage * 100) + "%였고, " + versus + ". "
+      + inside + (inside.endsWith("미만") ? "이었고, " : "였고, ") + versus + ". "
       + (spread ? "계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. " : "")
       + (weak ? "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요."
         : "과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다.");

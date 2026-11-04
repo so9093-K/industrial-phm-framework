@@ -57,6 +57,31 @@ def one(value: float) -> str:
     return num(value, 1)
 
 
+def share(part: int, whole: int) -> str:
+    """A count's share as the Web's ``countShare`` writes it: never 0% or 100% unless exact.
+
+    One of 250 hidden values inside the band rounded to "0%", which read as none at all.
+    """
+    if whole <= 0 or part <= 0:
+        return "0%"
+    if part >= whole:
+        return "100%"
+    percent = 100 * part / whole
+    if percent < 0.1:
+        return "0.1% 미만"
+    if percent > 99.9:
+        return "99.9% 초과"
+    # Halves round up, as JavaScript's Math.round does on the screen.
+    if 1 <= percent <= 99:
+        return f"{math.floor(percent + 0.5)}%"
+    return f"{math.floor(percent * 10 + 0.5) / 10:.1f}%"
+
+
+def inside_share(check: dict[str, Any]) -> str:
+    """How many hidden values fell inside the band, from the check's ratio and count."""
+    return share(round(check["inside_interval"] * check["points"]), check["points"])
+
+
 def signed(value: float) -> str:
     return ("+" if value > 0 else "") + num(value)
 
@@ -470,15 +495,11 @@ def _check(outlook: dict[str, Any]) -> str | None:
     check = outlook.get("check")
     if not check:
         return None
-    inside, error, naive = (
-        check["inside_interval"],
-        check["mean_absolute_error"],
-        check["naive_mean_absolute_error"],
-    )
+    error, naive = check["mean_absolute_error"], check["naive_mean_absolute_error"]
     weak = check_is_weak(check)
     return (
         f"기록의 마지막 {check['points']}개를 가리고 같은 방법으로 예측: 실제 값이 예측 범위 "
-        f"안에 든 비율 {round(inside * 100)}% · 평균 오차 {num(error)} (마지막 값을 그대로 "
+        f"안에 든 비율 {inside_share(check)} · 평균 오차 {num(error)} (마지막 값을 그대로 "
         f"이어 쓰면 {num(naive)})"
         + (
             " · 기준까지의 여유는 정확한 시각이 아니라 대략의 범위로 읽어야 함"
