@@ -12,6 +12,7 @@
   let datasets: PublicDatasets | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let message = $state("");
+  let readUncertain = $state(false);
   let pending = $state("");
   const groups = $derived.by(() => {
     const current: PublicDatasets | null = datasets;
@@ -26,19 +27,26 @@
 
   async function reload() {
     request?.abort();
+    if (timer) clearTimeout(timer);
+    timer = null;
     const current = new AbortController(); request = current;
     const wasRunning = running;
     try {
       const value = await readPublicDatasets(current.signal);
       if (current.signal.aborted) return;
-      datasets = value; loadState = "ready";
+      datasets = value; loadState = "ready"; readUncertain = false;
       const stillRunning = Object.values(value.jobs).some((job) => job.state === "running");
-      if (wasRunning && !stillRunning) await onImported?.();
-      if (timer) clearTimeout(timer);
-      // Progress is written by the supervisor about once a second.
       if (stillRunning) timer = setTimeout(() => void reload(), 2000);
+      if (wasRunning && !stillRunning) await onImported?.();
     } catch {
-      if (!current.signal.aborted) loadState = "failed";
+      if (current.signal.aborted) return;
+      // A failed status read does not stop the import owned by the server.
+      if (wasRunning && datasets) {
+        loadState = "ready"; readUncertain = true;
+        timer = setTimeout(() => void reload(), 4000);
+      } else {
+        loadState = "failed";
+      }
     }
   }
   async function begin(datasetId: string) {
@@ -67,11 +75,13 @@
     {#if job && job.state !== "succeeded"}
       <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
     {/if}
+    {#if item.partial}<span class="status">기존 기록 있음 · 가져오기 완료 확인 전</span>{/if}
     {#if item.stored && job?.state !== "running"}
       <a href={assetHref(item.assetId)}>설비 화면 보기 →</a>
     {:else if job?.state !== "running"}
       <button type="button" class="ui-button" disabled={!writable || !datasets?.canImport || running || pending !== ""}
-        onclick={() => void begin(item.datasetId)}>{pending === item.datasetId ? "시작하는 중" : job ? "다시 가져오기" : "가져오기"}</button>
+        onclick={() => void begin(item.datasetId)}>{pending === item.datasetId ? "시작하는 중" : item.partial || job ? "다시 가져오기" : "가져오기"}</button>
+      {#if item.partial}<a href={assetHref(item.assetId)}>저장된 부분 보기 →</a>{/if}
     {/if}
   </li>
 {/snippet}
@@ -86,8 +96,9 @@
     <p class="context">data 폴더에서 가져올 AI-Hub 239·XJTU-SY 기록을 찾지 못했습니다.</p>
   {:else}
     <p class="context">data 폴더에 있는 AI-Hub 239 설비 전력 기록과 XJTU-SY 베어링 진동 기록입니다. 고르면 이 작업공간에 가져와 설비 화면에서 분석합니다.</p>
+    {#if readUncertain}<p class="context" role="status">가져오기 상태를 잠시 읽지 못했습니다. 자동으로 다시 확인합니다.</p>{/if}
     {#if message}<p class="message" role="alert">{message}</p>{/if}
-    {@const current = datasets.items.filter((item) => item.stored || datasets?.jobs[item.datasetId])}
+    {@const current = datasets.items.filter((item) => item.stored || item.partial || datasets?.jobs[item.datasetId])}
     {#if current.length}
       <!-- What this workspace already holds or is bringing in, above the folded lists. -->
       <h3>가져온 기록</h3>

@@ -25,6 +25,7 @@ test("the listing groups AI-Hub records by equipment and split before the XJTU-S
   assert.equal(datasetName(found.items[3]), "Bearing1_1 · 35 Hz · 12 kN");
   assert.equal(datasetFacts(found.items[3]), "측정 123회");
   assert.equal(found.items[2].stored, true);
+  assert.equal(found.items[0].partial, false);
   assert.equal(jobText(found.jobs["xjtu-sy:Bearing1_1"]), "이상 탐지 모델 준비 중 · 처음 한 번만, 몇 분 걸립니다");
   assert.throws(() => parsePublicDatasets({schema_version: 1, items: [], meaning: "imported"}), /형식/);
 });
@@ -37,4 +38,14 @@ test("an import says what it is storing, and why it stopped in the reader's term
   assert.match(jobText(job("failed", "models", 0, "source-incomplete")), /15개가 모두 있어야/);
   assert.match(jobText(job("failed", "history", 0, "unknown")), /원인을 확인하지 못했습니다/);
   assert.match(jobText(job("interrupted", "history")), /저장된 부분은 건너뜁니다/);
+});
+
+test("a partly stored dataset is not reported as fully imported", () => {
+  const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
+    items: [{...aihub("1338"), partial: true, stored: false}],
+    jobs: {"aihub239:training:3.공기압축기.zip:SourceData_1338.json":
+      {state: "interrupted", step: "history", done: 2000, asset_id: "공기압축기 1338"}}});
+  assert.equal(found.items[0].stored, false);
+  assert.equal(found.items[0].partial, true);
+  assert.match(jobText(Object.values(found.jobs)[0]), /다시 가져오면/);
 });

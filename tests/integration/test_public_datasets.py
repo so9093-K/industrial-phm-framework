@@ -1,7 +1,7 @@
 """Public datasets in the data folder are offered on the Web and imported by the supervisor."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -14,7 +14,7 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
-from industrial_phm.runtime.public_datasets import PublicDatasetJobs, list_public_datasets
+from industrial_phm.runtime.public_datasets import PublicDataset, PublicDatasetJobs, list_public_datasets
 
 pytest.importorskip("ijson")
 pytest.importorskip("duckdb")
@@ -113,3 +113,60 @@ def test_a_restarted_web_lists_archives_from_the_index_without_rereading_them(
     monkeypatch.setattr(aihub_power, "read_power_member_identities", unread)
     assets = {item["asset_id"] for item in list_public_datasets(workspace, root)["items"]}
     assert assets == {"공기압축기 1338", "공기압축기 902"}
+
+def test_interrupted_aihub_import_can_retry_committed_batches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from collections.abc import Callable
+
+    from industrial_phm.runtime import public_datasets
+
+    root = tmp_path / "data"
+    archive = root / "raw/aihub/239/archives/training/raw/3.공기압축기.zip"
+    archive.parent.mkdir(parents=True)
+    start = datetime(2020, 10, 22)
+    body = {
+        "DEVICE_ID": 1338,
+        "DEVICE_BD_ID": 1,
+        "data": [
+            {
+                "ITEM_NAME": "R상전류",
+                "ITEM_VALUE": 68.0,
+                "TIMESTAMP": (start + timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            for i in range(2001)
+        ],
+    }
+    with ZipFile(archive, "w") as opened:
+        opened.writestr("3.공기압축기/SourceData_16.json", json.dumps(body, ensure_ascii=False))
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+    real_import = public_datasets._import_aihub
+
+    def stop_after_first_commit(
+        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+    ) -> None:
+        def interrupted(done: int) -> None:
+            progress(done)
+            if done == 2000:
+                raise RuntimeError("simulated interruption after committed batch")
+
+        real_import(destination, item, interrupted)
+
+    monkeypatch.setattr(public_datasets, "_import_aihub", stop_after_first_commit)
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    jobs.start({"dataset_id": target["dataset_id"]})
+    jobs.close()
+    partial = list_public_datasets(workspace, root)
+    assert partial["jobs"][target["dataset_id"]]["state"] == "failed"
+    assert (partial["items"][0]["stored"], partial["items"][0]["partial"]) == (False, True)
+
+    monkeypatch.setattr(public_datasets, "_import_aihub", real_import)
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    jobs.start({"dataset_id": target["dataset_id"]})
+    jobs.close()
+    completed = list_public_datasets(workspace, root)
+    assert completed["jobs"][target["dataset_id"]]["state"] == "succeeded"
+    assert completed["jobs"][target["dataset_id"]]["done"] == 2001
+    assert (completed["items"][0]["stored"], completed["items"][0]["partial"]) == (True, False)

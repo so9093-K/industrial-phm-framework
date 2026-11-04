@@ -275,19 +275,30 @@ def list_public_datasets(
         )
     except OSError, ValueError, RuntimeError:
         sources, replayed = set(), {}
+    jobs = read_public_dataset_jobs(workspace)
     items = []
     for item in datasets:
-        stored = (
+        job = jobs.get(item.dataset_id)
+        present = (
             (item.asset_id, _aihub_source(item.dataset_id, item.description)) in sources
             if item.kind == "aihub-239"
             else item.asset_id in replayed
         )
+        # A partially written stream is not proof of a completed import.
+        # Full XJTU replays without a job may be identified by the last acquisition.
+        if item.kind == "aihub-239":
+            stored = present and job is not None and job.get("state") == "succeeded"
+        else:
+            expected = item.description["acquisitions"]
+            complete = isinstance(expected, int) and replayed.get(item.asset_id, 0) >= expected
+            stored = present and complete and (job is None or job.get("state") == "succeeded")
         items.append(
             {
                 "dataset_id": item.dataset_id,
                 "kind": item.kind,
                 "asset_id": item.asset_id,
                 "stored": stored,
+                "partial": present and not stored,
                 **item.description,
             }
         )
@@ -295,7 +306,7 @@ def list_public_datasets(
         "schema_version": 1,
         "available": root.is_dir(),
         "items": items,
-        "jobs": read_public_dataset_jobs(workspace),
+        "jobs": jobs,
         "meaning": "public-datasets-found-in-the-datasets-folder-not-imported-evidence",
     }
 

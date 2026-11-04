@@ -4,7 +4,7 @@
 import {object, postWrite} from "./writes.ts";
 
 export type PublicDataset = {
-  datasetId: string; kind: "aihub-239" | "xjtu-sy"; assetId: string; stored: boolean;
+  datasetId: string; kind: "aihub-239" | "xjtu-sy"; assetId: string; stored: boolean; partial: boolean;
   /** AI-Hub: equipment group, 학습용/검증용, device and member size. */
   equipment: string | null; split: string | null; deviceId: string | null; bytes: number | null;
   /** XJTU-SY: operating condition and how many acquisitions the run holds. */
@@ -31,7 +31,7 @@ export function parsePublicDatasets(raw: unknown): PublicDatasets {
     const row = object(entry);
     if (!row || (row.kind !== "aihub-239" && row.kind !== "xjtu-sy")) invalid();
     return {datasetId: text(row.dataset_id) ?? invalid(), kind: row.kind, assetId: text(row.asset_id) ?? invalid(),
-      stored: row.stored === true, equipment: text(row.equipment), split: text(row.split), deviceId: text(row.device_id),
+      stored: row.stored === true, partial: row.partial === true, equipment: text(row.equipment), split: text(row.split), deviceId: text(row.device_id),
       bytes: count(row.bytes), speedHz: count(row.rotational_speed_hz), loadKn: count(row.radial_load_kn),
       acquisitions: count(row.acquisitions)};
   });
