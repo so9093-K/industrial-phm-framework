@@ -112,7 +112,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 page.get_by_text("추가 분석", exact=True).click()
                 options.get_by_role("link", name="상태 전망 열기").click()
                 expect_place(pw, page, "상태 전망")
-                pw.expect(page.get_by_role("heading", name="기준 도달 전망")).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="추세·기준 도달 전망")).to_be_visible()
 
                 # Vibration with a connected model: every analysis but the outlook.
                 page.goto(base + "&monitor_asset=bearing-a")

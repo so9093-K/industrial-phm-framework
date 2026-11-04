@@ -9,7 +9,6 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {periodMessage,periodOnset,type NextStep} from "../analysis-messages";
@@ -223,7 +222,6 @@
         {#if profile.a.sampled||profile.b.sampled}
           <StatusNotice kind="uncertain" message="측정이 많아 특징 통계는 일부 측정만 골라 계산했습니다. 측정 건수는 전체 기준입니다." />
         {/if}
-        <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다." />
         <details>
           <summary>기술 상세</summary>
           <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}

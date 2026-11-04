@@ -11,7 +11,6 @@
   import XAxis from "./XAxis.svelte";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
-  import CautionNote from "./CautionNote.svelte";
   import {reachText, recordAgeText, reachCalendarText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
@@ -136,7 +135,7 @@
 </script>
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
-  <h2 id="projection-title">기준 도달 전망</h2>
+  <h2 id="projection-title">추세·기준 도달 전망</h2>
   <p class="intro">선택한 신호의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
@@ -218,7 +217,7 @@
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
-          <span class="intro">{clock(projection.record.last)}까지의 기록으로 계산</span>
+          <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
         {#if told}<AnalysisMessage message={told}
@@ -268,12 +267,14 @@
           </figure>
         {/if}
         {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
+          <details class="optional-ai"><summary>AI 해설·추가 질문</summary>
           <OutlookBriefings {projection} onEvidenceChanged={()=>{
             requestProjection?.abort();
             projection=null;
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
           }}/>
+          </details>
           <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && projection ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
             {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
             requestProjection?.abort();
@@ -284,7 +285,6 @@
           </details>
         {/key}
         <ForecastValidation checks={projection.checks}/>
-        <CautionNote message="기록 마지막 시점의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다." />
         <details>
           <summary>예측값 표 · {HORIZON_LABEL[projection.horizon]}</summary>
           {#if projection.future.length}

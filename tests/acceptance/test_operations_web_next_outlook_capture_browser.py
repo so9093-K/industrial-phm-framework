@@ -194,7 +194,7 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 pw.expect(watched.get_by_role("button", name="확인함으로 표시")).to_have_count(0)
 
                 # The response to a committed confirmation is lost; the retry reuses its event ID.
-                pw.expect(detail.get_by_role("textbox")).to_have_count(0)
+                pw.expect(detail.get_by_label("메모 (선택)")).to_be_empty()
                 submitted: list[str] = []
 
                 def lost_response(route: Any) -> None:
@@ -361,7 +361,9 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
         reply(route, {"schema_version": 1, "selection": selection, "briefings": []})
 
     def captures(route: Any) -> None:
-        if state["read_failures"]:
+        if state["read_failures"] and "capture_id" not in parse_qs(
+            urlsplit(route.request.url).query
+        ):
             state["read_failures"] -= 1
             reply(route, {"error": "outlook_capture_store_unavailable"}, 503)
             return

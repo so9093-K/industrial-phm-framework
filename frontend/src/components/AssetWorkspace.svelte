@@ -80,10 +80,15 @@
     link.href = tabSelectionUrl(link.href, location.href);
   }
   let tabBar: HTMLElement | null = $state(null);
+  let tabWidth = $state(0);
   // On a phone the tab row scrolls; keep the current tab in view when it changes.
   $effect(() => {
-    route.tab;
-    tabBar?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
+    route.tab; tabWidth;
+    const active = tabBar?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (tabBar && active) {
+      const row = tabBar.getBoundingClientRect(), item = active.getBoundingClientRect();
+      tabBar.scrollLeft += item.left - row.left - (tabWidth - item.width) / 2;
+    }
   });
   let dataRequest: AbortController | null = null;
   let capabilityRequest: AbortController | null = null;
@@ -143,7 +148,7 @@
 
   <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
-  <nav class="tabs" aria-label="설비 화면" bind:this={tabBar}>
+  <nav class="tabs" aria-label="설비 화면" bind:this={tabBar} bind:clientWidth={tabWidth}>
     {#each TABS as tab (tab)}
       <a href={at(tab)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
         aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>

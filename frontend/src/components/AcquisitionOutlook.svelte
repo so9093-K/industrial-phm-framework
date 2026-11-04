@@ -13,7 +13,6 @@
   import XAxis from "./XAxis.svelte";
   import {elapsedText,measurementScale} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
-  import CautionNote from "./CautionNote.svelte";
   import {reachDuration,reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
@@ -130,7 +129,7 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
-  <h2 id="acq-outlook-title">기준 도달 전망</h2>
+  <h2 id="acq-outlook-title">추세·기준 도달 전망</h2>
   <p class="context">선택한 진동 특징의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
@@ -223,7 +222,7 @@
         {#if told}<AnalysisMessage message={told}
           subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
           basis={outlook.record.last + "번째 측정까지의 기록 · " + timeBasis(outlook)}
-          boundary="남은 횟수는 기록 마지막 측정 이후의 계산입니다. 실제 고장까지 남은 수명을 뜻하지 않습니다." />{/if}
+          boundary="예상 여유의 시작은 기록 마지막 측정입니다." />{/if}
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
@@ -268,12 +267,14 @@
           </figure>
         {/if}
         {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
+          <details class="optional-ai"><summary>AI 해설·추가 질문</summary>
           <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
             resultAbort?.abort();
             outlook=null;
             resultState="mismatch";
             message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
           }}/>
+          </details>
           <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && outlook ? outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis : null}><summary>검토 기록에 남기기 (선택)</summary>
             {#if reviewSelection === outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}<ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
             resultAbort?.abort();
@@ -284,7 +285,6 @@
           </details>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
-        <CautionNote message="기록 마지막 측정의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>

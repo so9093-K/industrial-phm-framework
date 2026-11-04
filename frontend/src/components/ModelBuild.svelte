@@ -116,7 +116,7 @@
     </fieldset>
     <label class="field">구간 길이<select bind:value={windowSeconds} disabled={busy}>
       {#each WINDOW_CHOICES as item (item.seconds)}<option value={item.seconds}>{item.label}</option>{/each}</select></label>
-    <p class="context">기준 기간은 비교 기준일 뿐 정상으로 확인된 기간이 아니며, 만든 모델은 현장 검증을 거친 모델이 아닙니다.</p>
+    <p class="context">학습 기준으로 사용할 운전 상태가 포함된 기간을 선택하세요. 모델 결과는 설비 운전 조건과 함께 검토하세요.</p>
     {#if writable}
       <button type="button" class="ui-button ui-button-primary" disabled={busy || !chosen.length} onclick={() => void build()}>
         {busy ? "만드는 중" : "이 기간으로 모델 만들기"}</button>

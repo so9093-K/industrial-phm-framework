@@ -86,7 +86,7 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                         acq_assumed_period="180",
                     )
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?{urlencode(query)}")
-                panel = page.get_by_role("region", name="기준 도달 전망")
+                panel = page.get_by_role("region", name="추세·기준 도달 전망")
                 result_heading = (
                     "기록 마지막 시점 기준 전망"
                     if kind == "history"

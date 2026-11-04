@@ -11,7 +11,6 @@
   } from "../departures";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import XAxis from "./XAxis.svelte";
   let scoreTable: HTMLDetailsElement | null = $state(null);
   function showFirstExceedance() {
@@ -293,7 +292,6 @@
             </div>
           </details>
         {/if}
-        <CautionNote message="기준 구간은 고른 기록의 일부이며 정상 상태로 확인된 구간이 아닙니다. 벗어난 정도는 모델 점수나 고장 가능성이 아닙니다." />
       {/if}
       <details>
         <summary>기술 상세</summary>
