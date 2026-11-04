@@ -79,3 +79,25 @@ def test_an_import_needs_the_supervisor_that_owns_its_background_thread() -> Non
     assert route in WEB_SOURCE_ACTION_ROUTES and route in WEB_SUPERVISOR_ONLY_ACTION_ROUTES
     with pytest.raises(ValueError, match="supervisor"):
         execute_web_source_action(Path("."), route, {"dataset_id": "x"})
+
+
+def test_a_restarted_web_lists_archives_from_the_index_without_rereading_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from industrial_phm.adapters import aihub_power
+    from industrial_phm.runtime import public_datasets
+
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    public_datasets.write_public_dataset_index(workspace, root)
+    # A new Web process starts with an empty memory cache and must not decompress members.
+    monkeypatch.setattr(public_datasets, "_IDENTITY_CACHE", {})
+
+    def unread(_path: Path) -> dict[str, tuple[str, str]]:
+        raise AssertionError("archive members were reread")
+
+    monkeypatch.setattr(aihub_power, "read_power_member_identities", unread)
+    assets = {item["asset_id"] for item in list_public_datasets(workspace, root)["items"]}
+    assert assets == {"공기압축기 1338", "공기압축기 902"}

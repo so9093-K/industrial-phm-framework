@@ -137,6 +137,11 @@ class OperationsWorkspace:
         return self.root / "runtime" / "public-datasets.json"
 
     @property
+    def public_dataset_index_path(self) -> Path:
+        """Member devices of the public dataset archives; a cache rebuilt at supervisor start."""
+        return self.root / "runtime" / "public-dataset-index.json"
+
+    @property
     def runtime_state_files(self) -> tuple[Path, ...]:
         """Return durable/local state files owned by this workspace layout."""
         return (

@@ -14,6 +14,7 @@ A dataset that is missing or incomplete is never replaced by another one.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -23,6 +24,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
@@ -73,8 +75,12 @@ _IDENTITY_CACHE: dict[tuple[str, int, int], dict[str, tuple[str, str]]] = {}
 _CACHE_LOCK = threading.Lock()
 
 
-def _identities(archive: Path) -> dict[str, tuple[str, str]]:
-    """Device identifiers per member, reread only when the archive file changes."""
+def _identities(archive: Path, index: Mapping[str, Any]) -> dict[str, tuple[str, str]]:
+    """Device identifiers per member, reread only when the archive file changes.
+
+    Reading every member's head of a few hundred members took about 5 s on a container's
+    mounted folder, so the supervisor keeps an index in the workspace across restarts.
+    """
     from industrial_phm.adapters.aihub_power import read_power_member_identities
 
     stat = archive.stat()
@@ -82,19 +88,63 @@ def _identities(archive: Path) -> dict[str, tuple[str, str]]:
     with _CACHE_LOCK:
         held = _IDENTITY_CACHE.get(key)
     if held is None:
-        held = read_power_member_identities(archive)
+        entry = index.get(key[0])
+        if (
+            isinstance(entry, dict)
+            and (entry.get("size"), entry.get("mtime_ns")) == key[1:]
+            and isinstance(entry.get("members"), dict)
+        ):
+            held = {member: (str(ids[0]), str(ids[1])) for member, ids in entry["members"].items()}
+        else:
+            held = read_power_member_identities(archive)
         with _CACHE_LOCK:
             _IDENTITY_CACHE[key] = held
     return held
 
 
-def _aihub_datasets(root: Path) -> list[PublicDataset]:
+def _archives(root: Path) -> list[Path]:
+    return sorted((root / AIHUB_ARCHIVES).glob("*/raw/*.zip"))
+
+
+def _read_index(workspace: OperationsWorkspace | None) -> dict[str, Any]:
+    if workspace is None:
+        return {}
+    try:
+        data = json.loads(workspace.public_dataset_index_path.read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def write_public_dataset_index(workspace: OperationsWorkspace, root: Path | None = None) -> None:
+    """Record each archive's member devices, so a restarted Web lists them at once."""
+    root = root or datasets_root()
+    index: dict[str, object] = {}
+    for archive in _archives(root):
+        try:
+            identities = _identities(archive, {})
+            stat = archive.stat()
+        except OSError, ValueError, RuntimeError:
+            continue
+        index[str(archive.resolve())] = {
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "members": {member: list(ids) for member, ids in identities.items()},
+        }
+    target = workspace.public_dataset_index_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".tmp")
+    temporary.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, target)
+
+
+def _aihub_datasets(root: Path, index: Mapping[str, Any]) -> list[PublicDataset]:
     found = []
-    for archive in sorted((root / AIHUB_ARCHIVES).glob("*/raw/*.zip")):
+    for archive in _archives(root):
         split = archive.parent.parent.name
         equipment = _equipment(archive.stem)
         try:
-            identities = _identities(archive)
+            identities = _identities(archive, index)
             with ZipFile(archive) as opened:
                 sizes = {info.filename: info.file_size for info in opened.infolist()}
         except OSError, ValueError, RuntimeError:
@@ -155,12 +205,14 @@ def _xjtu_datasets(root: Path) -> list[PublicDataset]:
     return found
 
 
-def find_public_datasets(root: Path | None = None) -> list[PublicDataset]:
+def find_public_datasets(
+    root: Path | None = None, workspace: OperationsWorkspace | None = None
+) -> list[PublicDataset]:
     """Every importable dataset under the datasets folder, AI-Hub first."""
     root = root or datasets_root()
     if not root.is_dir():
         return []
-    return [*_aihub_datasets(root), *_xjtu_datasets(root)]
+    return [*_aihub_datasets(root, _read_index(workspace)), *_xjtu_datasets(root)]
 
 
 def read_public_dataset_jobs(workspace: OperationsWorkspace) -> dict[str, dict[str, object]]:
@@ -201,7 +253,7 @@ def list_public_datasets(
 ) -> dict[str, object]:
     """What the Web may offer to import, whether each is already stored, and the jobs."""
     root = root or datasets_root()
-    datasets = find_public_datasets(root)
+    datasets = find_public_datasets(root, workspace)
     try:
         assets, replayed = _stored(workspace)
     except OSError, ValueError, RuntimeError:
@@ -358,6 +410,13 @@ class PublicDatasetJobs:
         }
         if self._jobs:
             self._write()
+        # The Web lists the archives from this index after a restart instead of rereading them.
+        threading.Thread(target=self._index, name="public-dataset-index", daemon=True).start()
+
+    def _index(self) -> None:
+        # A missing index only makes the next listing slower; it is never required.
+        with contextlib.suppress(OSError, ValueError, RuntimeError):
+            write_public_dataset_index(self._workspace, self._root)
 
     def start(self, payload: dict[str, object]) -> dict[str, object]:
         """Check the selection synchronously, then import on a supervisor thread."""
@@ -375,7 +434,12 @@ class PublicDatasetJobs:
             if running is not None:
                 raise SourceControlConflict("another public dataset import is running")
             item = next(
-                (d for d in find_public_datasets(self._root) if d.dataset_id == dataset_id), None
+                (
+                    d
+                    for d in find_public_datasets(self._root, self._workspace)
+                    if d.dataset_id == dataset_id
+                ),
+                None,
             )
             if item is None:
                 raise ValueError("unknown public dataset")
