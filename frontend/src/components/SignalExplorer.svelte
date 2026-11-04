@@ -434,8 +434,11 @@
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
+              <!-- A unit is added only when every stored meaning of this source and point agrees on it. -->
+              {@const units = new Set(groups.filter((group) => group.sourceId === item.sourceId && group.pointId === item.pointId).map((group) => group.unit))}
+              {@const unit = units.size === 1 ? [...units][0] : null}
               <li>{sourceLabel(sources, item.sourceId)}{item.pointId ? " · 측정 위치 " + item.pointId : ""}
-                · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
+                · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") + (item.value !== null && unit ? " " + unit : "") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {QUALITY[item.quality] ?? item.quality}</li>
             {/each}
           </ul>

@@ -342,11 +342,17 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     // The central forecast missing a limit is not "never": the band alone may still reach it.
     const banded = reaches.filter((reach) => reach?.state === "possible");
     const earliest = banded.flatMap((reach) => reach!.earliest !== null ? [reach!.earliest] : []);
-    const bandText = earliest.length ? "빠르면 " + span(Math.min(...earliest), Math.min(...earliest), facts) + " 뒤 " : "";
+    // Each method has its own earliest band reach and the tiles show one of them, so the
+    // sentence gives the spread over methods; the first alone contradicted the tile.
+    const first = Math.min(...earliest), last = Math.max(...earliest);
+    const bandText = earliest.length
+      ? (earliest.length > 1 ? "계산 방식에 따라 " : "") + "빠르면 " + span(first, last, facts) + " 뒤 " : "";
     if (!steps.length) {
       parts.push(banded.length
-        ? label + "에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, 예측 범위로는 " + bandText + "닿을 수 있습니다."
+        ? label + "에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, 예측 범위로는 " + bandText + "닿을 수 있습니다"
+          + (banded.length < reaches.length ? "(계산 방식 " + reaches.length + "가지 중 " + banded.length + "가지)." : ".")
         : label + "에는 계산한 범위 안에서 닿지 않습니다.");
+      if (earliest.length && first > 0 && last / first >= 2) spread = true;
       continue;
     }
     const lo = Math.min(...steps), hi = Math.max(...steps);

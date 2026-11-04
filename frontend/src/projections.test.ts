@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
+import {loadPaired, outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
   type Conditions} from "./projections.ts";
 const conditions:Conditions={direction:"upper",management:12,end:16};
 const forecast=()=>({
@@ -33,6 +33,19 @@ test("same measurement/version/source allows read-only joined evidence",()=>{
   assert.equal(data.future[0].estimate,14);
   assert.equal(data.scenarios[0].management?.expected,3600);
   assert.equal(data.dataVersion,"ai-review-fingerprint");
+});
+test("the reach sentence rests on the outlook's own check, not the drawn forecast's",async()=>{
+  // Shaped like compressor 1338 R상전류: the 24 h forecast's check held 83% inside its band while
+  // the outlook's check over its 3.5-day reach search held 0.4%; the screen said the former.
+  const original=globalThis.fetch;
+  globalThis.fetch=(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).startsWith("/api/v1/forecast?")
+    ?{...forecast(),backtest:{points:143,mean_absolute_error:9.7,naive_mean_absolute_error:4.5,inside_interval:0.83}}
+    :{...outlook(),check:{points:250,mean_absolute_error:65.5,naive_mean_absolute_error:4.5,inside_interval:0.004}}))) as typeof fetch;
+  try{
+    const data=await loadPaired("a","R","1h",conditions,new AbortController().signal);
+    assert.deepEqual(data.checks?.map(check=>check.coverage),[0.83]);
+    assert.deepEqual(data.reachChecks?.map(check=>check.coverage),[0.004]);
+  }finally{globalThis.fetch=original;}
 });
 test("changed measurements or source block every joined result",()=>{
   assert.throws(()=>parsePairedProjection(forecast(),{...outlook(),measurement_version:"v2"},

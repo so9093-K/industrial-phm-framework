@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -28,6 +29,8 @@ FUTURE_POINTS = 200
 # A horizon needs at least twice its length of history: a forecast should not reach further
 # ahead than it has seen.
 HISTORY_PER_HORIZON = 2.0
+_INTERVAL_SEED = 0
+_PREDICT_LOCK = threading.Lock()
 
 
 class ForecastUnavailable(ValueError):
@@ -107,7 +110,20 @@ def _fit(
 
 
 def _predict(model: Any, times: Sequence[datetime]) -> Any:
-    return model.predict(_frame(times))
+    """Predict with a fixed draw, so the same model and times always give the same interval.
+
+    Prophet samples its interval from numpy's global generator. Unseeded, one selection gave a
+    different earliest reach on each request, so a recalculation, a capture and an AI briefing
+    of the same measurements disagreed. The lock keeps concurrent requests from sharing the
+    generator, and the caller's generator state is restored afterwards.
+    """
+    with _PREDICT_LOCK:
+        state = np.random.get_state()
+        np.random.seed(_INTERVAL_SEED)
+        try:
+            return model.predict(_frame(times))
+        finally:
+            np.random.set_state(state)
 
 
 def forecast_values(

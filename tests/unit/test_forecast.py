@@ -87,6 +87,21 @@ def test_noise_without_a_trend_stays_flat_and_a_level_already_passed_is_named() 
     assert all(math.isfinite(point[1]) for point in low["forecast"])
 
 
+def test_the_same_measurements_give_the_same_interval_on_every_request() -> None:
+    # The interval is sampled; unseeded, a recalculation, a capture and an AI briefing of one
+    # selection each reported a different earliest reach.
+    rng = np.random.default_rng(7)
+    values = [5.0 + 0.002 * index + rng.normal(0, 0.4) for index in range(180)]
+    first = forecast_values(_minutes(180), values, 3600)
+    np.random.seed(123)
+    caller_draw = np.random.get_state()[1].copy()
+    again = forecast_values(_minutes(180), values, 3600)
+    assert again["forecast"] == first["forecast"]
+    assert again["backtest"] == first["backtest"]
+    # A caller's own use of the global generator is left where it was.
+    assert (np.random.get_state()[1] == caller_draw).all()
+
+
 def test_a_daily_pattern_is_used_once_two_days_are_stored() -> None:
     times = _minutes(4 * 24 * 2, 30)  # four days every 30 minutes
     values = [10 + 3 * math.sin(2 * math.pi * index / 48) for index in range(len(times))]

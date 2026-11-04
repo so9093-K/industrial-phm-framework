@@ -20,7 +20,10 @@ export type Projection = {
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
   /** The stored values the forecast was fitted on, for drawing; never edited or filled. */
   history?: Array<{at:string; value:number}>;
-  checks?: Backtest[]; scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
+  checks?: Backtest[];
+  /** The outlook's own check over its reach search, which is what the reach sentence rests on;
+   * `checks` belong to the drawn forecast's shorter horizon. */
+  reachChecks?: Backtest[]; scenarios: Scenario[]; conditions: Conditions; outlookSettings?: OutlookSettings | null;
 };
 export class ProjectionUnavailable extends Error {}
 export class MeasurementVersionMismatch extends Error {}
@@ -248,5 +251,6 @@ export async function loadPaired(
     json("/api/v1/outlook?" + new URLSearchParams({...args,...direction,...limits}),signal),
   ]);
   verifySettings(forecast,outlook,settings);
-  return {...parsePairedProjection(forecast,outlook,assetId,channel,horizon,conditions),checks:backtests(forecast)};
+  return {...parsePairedProjection(forecast,outlook,assetId,channel,horizon,conditions),checks:backtests(forecast),
+    reachChecks:backtests({backtest:object(outlook)?.check})};
 }
