@@ -621,7 +621,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                         for key, value in row.items()
                         if key not in {"distance", "current_signal"}
                     }
-                    for row in [*changed[:2], *similar[:1]]
+                    for row in related(changed, similar)
                 ],
                 # The usual range is the one the departure was judged by.
                 "usual": {
@@ -649,6 +649,20 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         _findings_cache.clear()
     _findings_cache[key] = (summary.end_at, summary.measurement_count, time.monotonic(), body)
     return body
+
+
+def related(changed: list[dict[str, Any]], similar: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The other signals shown with one change: the two that moved most and one that held.
+
+    A current in amperes says whether the equipment ran, so one is always included: a stop
+    first reads as a power factor falling to 0 and needs its current beside it.
+    """
+    rows = [*changed[:2], *similar[:1]]
+    if not any(row["current_signal"] for row in rows):
+        current = next((row for row in [*changed, *similar] if row["current_signal"]), None)
+        if current is not None:
+            rows.append(current)
+    return rows
 
 
 def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:

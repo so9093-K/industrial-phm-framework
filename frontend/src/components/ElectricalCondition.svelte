@@ -93,6 +93,15 @@
       error = failure instanceof Error ? failure.message : "분석할 데이터를 읽지 못했습니다.";
     }
   }
+  // The same length of period moved back or forward, compared with the period just before it.
+  const kstInput = (ms: number) => new Date(ms + 9 * 3_600_000).toISOString().slice(0, 19);
+  function shift(current: Analyzed, direction: -1 | 1) {
+    const end = Date.parse(current.targetEnd), length = end - Date.parse(current.targetStart);
+    custom = {end: kstInput(end + direction * length), referenceStart: "", referenceEnd: ""};
+    return analyze();
+  }
+  const canAdvance = (current: Analyzed) =>
+    current.lastObservedAt !== null && Date.parse(current.targetEnd) <= Date.parse(current.lastObservedAt);
   async function choose(at: string, nextMetric: Metric | null = null, focus = true) {
     if (nextMetric) metric = nextMetric;
     selectedAt = at;
@@ -174,6 +183,11 @@
   {:else if analyzed}
     <p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
       <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
+    <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
+    <p class="shift">
+      <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
+      <button type="button" class="ui-button" disabled={!canAdvance(analyzed)} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
+    </p>
     {@render summaryCards(analyzed.target, analyzed.reference)}
 
     <section class="block" aria-labelledby="condition-insights">
@@ -184,14 +198,14 @@
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
         <h3 id="condition-chart">어느 시각에 달라졌나</h3>
-        <label>그래프 값
+        <div class="graph-controls"><label>그래프 값
           <select bind:value={metric}>
             {#each Object.entries(METRICS) as [value, info] (value)}<option {value}>{info.label}{info.unit ? " ·" + info.unit : ""}</option>{/each}
           </select>
         </label>
         {#if metric === "currentMean"}
           <label class="toggle"><input type="checkbox" bind:checked={byPhase} /> R·S·T 상별로 보기</label>
-        {/if}
+        {/if}</div>
       </div>
       {#if !runs.length}
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
@@ -314,7 +328,9 @@
   .key.phase-R { border-color: #2a78d6; }
   .key.phase-S { border-color: #eb6834; border-top-style: dashed; }
   .key.phase-T { border-color: #1baf7a; border-top-style: dotted; }
-  .toggle { display: inline-flex; gap: var(--space-1); align-items: center; font-weight: 400; }
+  .toggle { display: inline-flex; gap: var(--space-1); align-items: center; font-weight: 400; white-space: nowrap; }
+  .graph-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3); }
+  .shift { display: flex; gap: var(--space-2); margin: 0; }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .chosen { stroke: var(--color-ink); stroke-width: 1.5; }
   .hit { fill: transparent; cursor: crosshair; }
