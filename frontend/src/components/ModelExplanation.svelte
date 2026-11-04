@@ -36,7 +36,8 @@
   let question = $state("");
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let remaining = 40;
+  // Poll for up to six minutes: a local-model response can take over one minute.
+  let remaining = 240;
 
   const RELATION: Record<Relation, string> = {increased: "증가", decreased: "감소", unchanged: "거의 같음"};
   const SOURCE = {"model": "AI 해설 · 근거 확인됨", "model-trimmed": "AI 해설 · 근거 없는 문장 제외",
@@ -65,7 +66,7 @@
     const before = suggested;
     if (before === null || chosen || compare === before) return;
     compare = before;
-    remaining = 40;
+    remaining = 240;
     void refresh();
   });
   $effect(() => { onExplained(latest?.id ?? null); });
@@ -101,7 +102,7 @@
     onInteract?.();
     cancel();
     const pending = new AbortController(); request = pending;
-    requesting = true; error = ""; remaining = 40;
+    requesting = true; error = ""; remaining = 240;
     try {
       // A follow-up continues the shown answer of the same comparison.
       await requestModelExplanation(binding, run, compare, text,
@@ -127,7 +128,7 @@
     if (compare !== null) url.searchParams.set("model_compare", String(compare));
     else url.searchParams.delete("model_compare");
     history.replaceState(history.state, "", url);
-    remaining = 40;
+    remaining = 240;
     void refresh();
   }
   onMount(() => {
@@ -162,7 +163,7 @@
   {/if}
 
 
-  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 40; void refresh(); } }} />
+  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 240; void refresh(); } }} />
   <details class="ai-panel" open={requesting || waiting || latest !== null || focus !== null}>
     <summary>AI 해설·추가 질문</summary>
     {#if requesting}
@@ -171,9 +172,10 @@
       <StatusNotice message="이 결과에 대한 해설을 확인하고 있습니다." />
     {:else if loadState === "failed"}
       <StatusNotice kind="failure" title="해설을 확인하지 못했습니다" message={error + " 모델 점수는 그대로 볼 수 있습니다."}
-        actionLabel="다시 확인" onAction={() => { remaining = 40; void refresh(); }} />
+        actionLabel="다시 확인" onAction={() => { remaining = 240; void refresh(); }} />
     {:else if waiting}
-      <StatusNotice message="두 측정의 값과 모델 점수를 비교해 해설을 만들고 있습니다. 잠시 후 자동으로 다시 확인합니다." />
+      <StatusNotice message="두 측정의 값과 모델 점수를 비교해 해설을 만들고 있습니다."
+        actionLabel="결과 다시 확인" onAction={() => { remaining = 240; void refresh(); }} />
     {:else if latest?.answer}
       <p class="question">질문 · {latest.question}</p>
       {#if latest.focus}<p class="context">답변 기준 지점 · {place(latest.focus.position)}</p>{/if}
@@ -225,7 +227,7 @@
       {/if}
     {/if}
     {#if focus}<p class="context">질문 기준 지점 · {place(focus.position)} · {focus.series === "primary" ? "모델 점수" : focus.series ?? "측정값"}
-      <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 40; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
+      <button type="button" class="ui-button" disabled={requesting} onclick={() => {focus = null; remaining = 240; void refresh();}}>질문 기준 지점 해제</button></p>{/if}
     {#if !writable}
       <p class="context">보기 전용이라 해설을 만들 수 없습니다. 운영을 시작하면 만들 수 있습니다.</p>
     {:else}

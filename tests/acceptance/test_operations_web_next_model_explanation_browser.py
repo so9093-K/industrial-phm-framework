@@ -365,3 +365,64 @@ def test_decision_and_optional_note_are_saved_once_without_leaving_the_model_res
                 browser.close()
     finally:
         stop_web(*running)
+
+
+def test_model_explanation_keeps_checking_beyond_a_one_minute_model_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "slow-answer")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0), 1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    monkeypatch.setattr(
+        phm_answer,
+        "complete_json",
+        ScriptedModel(
+            {
+                "summary": SUMMARY,
+                "observations": [{"feature": RMS, "change": "증가"}],
+                "next_signals": [],
+                "next_step": "원본 파형을 비교해 보세요.",
+            }
+        ),
+    )
+    monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
+    running = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = _open(browser, 390)
+                page.clock.install()
+                pending = {"reads": 0}
+
+                def slow_status(route: Any) -> None:
+                    response = route.fetch()
+                    body = response.json()
+                    if body.get("explanations"):
+                        pending["reads"] += 1
+                        if pending["reads"] <= 45:
+                            for row in body["explanations"]:
+                                row["status"] = "pending"
+                    route.fulfill(json=body)
+
+                page.route("**/api/v1/phm/explanations?**", slow_status)
+                page.goto(
+                    f"http://127.0.0.1:{running[0].server_port}/web/?page=assets"
+                    "&tab=anomaly&method=model&monitor_asset=bearing-a"
+                    "&model_binding=anomaly-a&model_position=3"
+                )
+                panel = page.get_by_role("region", name="측정 변화 분석")
+                panel.get_by_text("AI 해설·추가 질문", exact=True).click()
+                panel.get_by_role("button", name="해설 만들기", exact=True).click()
+                pw.expect(panel.get_by_role("button", name="결과 다시 확인")).to_be_visible()
+                while pending["reads"] <= 45:
+                    with page.expect_response("**/api/v1/phm/explanations?**"):
+                        page.clock.run_for(1600)
+                    page.wait_for_timeout(10)
+                pw.expect(panel.locator("p.summary")).to_have_text(SUMMARY)
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
