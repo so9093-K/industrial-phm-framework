@@ -81,7 +81,10 @@
     {/if}
     {#if item.sourceChanged}
       <span class="status" role="status">준비된 원본의 내용 또는 위치가 달라졌습니다. 기존 기록은 보존되며, 다시 가져오면 새 내용은 별도 출처로 저장합니다.</span>
-    {:else if item.partial}<span class="status">기존 기록 있음 · 현재 원본의 가져오기 완료 확인 전</span>{/if}
+    {:else if item.partial && job?.state !== "running"}
+      <!-- While an import runs, its own rows are what is partly stored; that is not an earlier record. -->
+      <span class="status">기존 기록 있음 · 현재 원본의 가져오기 완료 확인 전</span>
+    {/if}
     {#if item.kind === "xjtu-sy" && (item.stored || item.partial || job)}
       <span class="status">파형은 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다.</span>
     {/if}

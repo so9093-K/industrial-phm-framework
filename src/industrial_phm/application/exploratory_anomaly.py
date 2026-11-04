@@ -142,6 +142,27 @@ def find_departures(
     }
 
 
+def accumulates(values: Sequence[float]) -> bool:
+    """Whether a signal only adds up over the record, like a cumulative energy counter.
+
+    Its bucket means rise in most steps, almost never fall and end near the top of their range.
+    Such a signal always leaves its early range, so that departure says nothing about a change;
+    a measured quantity that drifts up still falls back in many steps.
+    """
+    if len(values) < 10:
+        return False
+    steps = [after - before for before, after in pairwise(values)]
+    rises = sum(step > 0 for step in steps)
+    falls = sum(step < 0 for step in steps)
+    span = max(values) - min(values)
+    return (
+        span > 0
+        and rises >= 0.5 * len(steps)
+        and falls <= 0.02 * len(steps)
+        and values[-1] - values[0] >= 0.9 * span
+    )
+
+
 def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import {tick} from "svelte";
   import type {Evidence} from "../reviews";
   import {modelResultUrl, readFindingReview, recordFindingAction, type FindingReview} from "../finding-reviews";
@@ -102,7 +103,7 @@
     {:else}
       <ul class="evidence">
         {#each linked as evidence (evidence.evidenceId)}
-          <li>{ANALYSIS[evidence.kind]} · 데이터 출처 {evidence.sourceId} · 측정 위치 {evidence.pointId ?? "미확인"}
+          <li>{ANALYSIS[evidence.kind]} · 데이터 출처 {readableSourceId(evidence.sourceId)} · 측정 위치 {evidence.pointId ?? "미확인"}
             · 원본 품질 {QUALITY[evidence.quality ?? ""] ?? evidence.quality ?? "미확인"} · 분석 {clock(evidence.completedAt)}</li>
         {/each}
         {#each missing as evidenceId (evidenceId)}

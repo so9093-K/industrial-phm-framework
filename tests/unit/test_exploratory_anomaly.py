@@ -8,6 +8,7 @@ import pytest
 
 from industrial_phm.application.exploratory_anomaly import (
     THRESHOLD,
+    accumulates,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -95,3 +96,15 @@ def test_related_signal_comparison_separates_typical_change_from_stable_values()
     assert changed is not None and changed["state"] == "higher"
     assert changed["current"] == 20.0
     assert interval_comparison([], reference, interval) is None
+
+
+def test_a_counter_that_only_adds_up_is_told_apart_from_a_signal_that_drifts() -> None:
+    # Shaped like AI-Hub 누적전력량: flat while stopped, one reset to 0 after a gap, then rising.
+    rising, held = [float(10 * i) for i in range(40)], [390.0] * 10
+    counter = rising + held + [0.0] + [400.0 + 10 * i for i in range(50)]
+    assert accumulates(counter)
+    # A measured value that drifts up still falls back in many steps.
+    drifting = [10 + 0.1 * i + (1.5 if i % 3 == 0 else -1.0) for i in range(100)]
+    assert not accumulates(drifting)
+    assert not accumulates([5.0] * 50)
+    assert not accumulates([1.0, 2.0, 3.0])

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseRuntimeStatus,parseSources,receiptText} from "./operations-status.ts";
+import {parseRuntimeStatus,parseSources,readableSourceId,receiptText,sourceLabel} from "./operations-status.ts";
 
 const runtime={schema_version:1,assessed_at:"2026-10-17T00:00:00Z",
   meaning:"local-process-readiness-not-collection-receipt-or-asset-health",ready:false,
@@ -35,4 +35,15 @@ test("registration is not receipt, and a connection claim needs live evidence",(
   assert.equal(receiptText(live({last_live_receive_fresh:true,opcua_session_last_state:"DISCONNECTED"})),"현재 연결 미확인");
   assert.equal(receiptText(live({live_telemetry_read_error:true})),"수신 상태 조회 실패");
   assert.throws(()=>parseSources({...sources(),meaning:"connected"}),/데이터 연결 목록/);
+});
+
+test("an imported source reads as what it is; its content digest stays out of the screen",()=>{
+  const digest="ba8f9d1820f137f198263c7a594c6a12a6599f6c8ab21673810d15d4bb652801";
+  assert.equal(readableSourceId("xjtu-sy-replay-"+digest),"XJTU-SY 측정 기록");
+  assert.equal(readableSourceId("xjtu-sy-replay"),"XJTU-SY 측정 기록");
+  assert.equal(readableSourceId("aihub239-training-1338-1-"+digest),"AI-Hub 239 원천 기록 (학습용)");
+  assert.equal(readableSourceId("aihub239-validation-2194-1"),"AI-Hub 239 원천 기록 (검증용)");
+  assert.equal(readableSourceId("csv-pump-a1b2"),"csv-pump-a1b2");
+  // A name someone registered always wins.
+  assert.equal(sourceLabel(new Map([["xjtu-sy-replay","베어링 시험대"]]),"xjtu-sy-replay"),"베어링 시험대");
 });

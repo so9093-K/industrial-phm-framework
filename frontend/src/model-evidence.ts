@@ -264,6 +264,18 @@ export function scoreSummary(output:Record<string,unknown>):ScoreSummary{
 }
 
 export type LatestScore={binding:ModelBinding;run:ModelRun|null};
+/** The model whose latest result stands furthest above its own threshold, to open first: a
+ * model barely over its threshold should not hide one far over it. Null when none is above. */
+export function strongestModel(scores:LatestScore[]):ModelBinding|null{
+  let best:{binding:ModelBinding;ratio:number}|null=null;
+  for(const {binding,run} of scores){
+    const summary=run?scoreSummary(run.output):null;
+    if(!summary||summary.exceeds!==true||summary.score===null||summary.threshold===null||summary.threshold<=0)continue;
+    const ratio=summary.score/summary.threshold;
+    if(!best||ratio>best.ratio)best={binding,ratio};
+  }
+  return best?.binding??null;
+}
 /** The latest analyzed step of each model bound to the asset (at most three models). */
 export async function loadLatestScores(assetId:string,signal:AbortSignal):Promise<LatestScore[]>{
   const bindings=(await loadModelBindings(assetId,signal)).slice(0,3);

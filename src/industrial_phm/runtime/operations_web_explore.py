@@ -16,6 +16,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import (
+    accumulates,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -511,8 +512,17 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         label, unit = names.get(channel, (None, None))
         return label or channel, unit or units.get(channel)
 
+    # A counter that only adds up always leaves its early range; it is stated, not judged.
+    cumulative = {
+        channel: values
+        for channel, values in points.items()
+        if accumulates([value for _, _, value in values])
+    }
     try:
-        found = record_changes(points, limit=_FINDINGS_SHOWN)
+        found = record_changes(
+            {channel: values for channel, values in points.items() if channel not in cumulative},
+            limit=_FINDINGS_SHOWN,
+        )
     except LookupError, ValueError:
         found = None
     # Every signal says whether it was judged, and if not why: a signal that could not be judged
@@ -527,8 +537,13 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             "channel": channel,
             "label": label,
             "unit": unit,
-            "state": state["state"] if state else "no-values",
+            "state": (
+                "cumulative" if channel in cumulative else state["state"] if state else "no-values"
+            ),
         }
+        if channel in cumulative:
+            row["first"] = cumulative[channel][0][2]
+            row["last"] = cumulative[channel][-1][2]
         if state and state["state"] == "constant" and cut is not None:
             # Held one value through the baseline: no spread to judge a distance by, but what
             # the record did afterwards is still a fact worth stating.

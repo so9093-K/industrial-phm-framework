@@ -141,6 +141,15 @@ export function readSourceNames(): Promise<Map<string, string>> {
   return named.names;
 }
 /** A source as people know it: its registered connection name, else its ID. */
+/** A source as people read it when nobody registered a name for it. Imported public records and
+ * replays say what they are; the content digest in their ID tells two versions of a source apart
+ * for the server and is shown only under 기술 상세. */
+export function readableSourceId(id: string): string {
+  const aihub = /^aihub239-(training|validation)-[^-]+-[^-]+(?:-[0-9a-f]{64})?$/.exec(id);
+  if (aihub) return "AI-Hub 239 원천 기록 (" + (aihub[1] === "training" ? "학습용" : "검증용") + ")";
+  if (/^xjtu-sy-replay(?:-[0-9a-f]{64})?$/.test(id)) return "XJTU-SY 측정 기록";
+  return id.replace(/-[0-9a-f]{64}$/, "");
+}
 export function sourceLabel(names: Map<string, string> | null | undefined, id: string): string {
-  return names?.get(id) ?? id;
+  return names?.get(id) ?? readableSourceId(id);
 }

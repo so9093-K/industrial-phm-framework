@@ -20,11 +20,13 @@ export type FoundInterval = {
   related: {channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
 };
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
-export type SignalState = "scored" | "short-baseline" | "constant" | "no-values";
+export type SignalState = "scored" | "short-baseline" | "constant" | "cumulative" | "no-values";
 export type CheckedSignal = {
   channel: string; label: string; unit: string | null; state: SignalState;
   /** For a baseline held at one value: that value, and the range the record took afterwards. */
   held: number | null; later: {low: number; high: number} | null;
+  /** For a counter that only adds up: where the record began and ended. */
+  first?: number | null; last?: number | null;
 };
 export type RecordFindings = {
   assetId: string;
@@ -70,7 +72,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
           reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
       })};
   });
-  const states: readonly SignalState[] = ["scored", "short-baseline", "constant", "no-values"];
+  const states: readonly SignalState[] = ["scored", "short-baseline", "constant", "cumulative", "no-values"];
   const signals = root.signals.map((item: unknown): CheckedSignal => {
     const row = object(item);
     if (!row || !states.includes(row.state as SignalState)) invalid();
@@ -79,6 +81,8 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     return {channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, state: row.state as SignalState,
       held: row.held === undefined || row.held === null ? null : finite(row.held),
+      first: row.first === undefined || row.first === null ? null : finite(row.first),
+      last: row.last === undefined || row.last === null ? null : finite(row.last),
       later: later ? {low: finite(later.low), high: finite(later.high)} : null};
   });
   const judged = finite(root.judged);
@@ -160,6 +164,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
 const WHY: Record<Exclude<SignalState, "scored">, string> = {
   "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
   constant: "기록 처음 30% 동안 값이 일정해 벗어난 정도를 계산할 수 없음",
+  cumulative: "누적값처럼 계속 늘어나 기록 처음과 견준 변화로 판단하지 않음",
   "no-values": "저장된 값이 없음",
 };
 /** Why a signal was not judged, with what a held baseline and the record afterwards showed. */
@@ -168,6 +173,7 @@ export function unjudgedText(signal: CheckedSignal): string {
   const held = signal.state === "constant" && signal.held !== null
     ? " · 처음 30%는 " + value(signal.held, signal.unit) + (signal.later
       ? ", 그 뒤 " + value(signal.later.low, null) + "~" + value(signal.later.high, signal.unit) : "")
-    : "";
+    : signal.state === "cumulative" && signal.first != null && signal.last != null
+      ? " · " + value(signal.first, null) + " → " + value(signal.last, signal.unit) : "";
   return signal.label + "(" + WHY[signal.state] + held + ")";
 }
