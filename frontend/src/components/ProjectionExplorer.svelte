@@ -202,7 +202,7 @@
       {@const age=recordAgeText(projection.record.last, now)}
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
-        scenarios:projection.scenarios,checks:projection.checks??[]})}
+        scenarios:projection.scenarios,checks:projection.reachChecks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">결과</h3>

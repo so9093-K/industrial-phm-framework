@@ -20,6 +20,8 @@ export type HistoryBucket = {
   bucketStart: string;
   /** The first stored event inside the bucket; bucket starts are aligned to the window. */
   firstEventAt?: string | null;
+  /** The last stored event inside the bucket, with this bucket's measurement meaning. */
+  lastEventAt?: string | null;
   mean: number | null;
   /** Smallest and largest stored value inside the bucket; a short spike shows here. */
   minimum: number | null;
@@ -124,6 +126,7 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
       interpretationId: nonEmpty(b.interpretation_id),
       bucketStart: time(b.bucket_start),
       firstEventAt: typeof b.first_event_at === "string" ? time(b.first_event_at) : null,
+      lastEventAt: typeof b.last_event_at === "string" ? time(b.last_event_at) : null,
       mean: numberOrNull(b.mean),
       minimum: b.minimum === undefined ? null : numberOrNull(b.minimum),
       maximum: b.maximum === undefined ? null : numberOrNull(b.maximum),
@@ -155,6 +158,19 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
       ? response.bucket_seconds : null,
     buckets, latest,
   };
+}
+
+/** The unit of one stored last value, read from the bucket that ends at that very event.
+ * The last value carries no meaning of its own; a unit seen elsewhere in the window may be
+ * from before a change, so a value outside the window, or claimed by unlike units, gets none. */
+export function latestUnit(trend: HistoryTrend, latest: HistoryTrend["latest"][number]): string | null {
+  if (latest.eventAt === null) return null;
+  const at = Date.parse(latest.eventAt);
+  const units = new Set(trend.buckets
+    .filter((bucket) => bucket.sourceId === latest.sourceId && bucket.pointId === latest.pointId
+      && bucket.lastEventAt != null && Date.parse(bucket.lastEventAt) === at)
+    .map((bucket) => bucket.unit));
+  return units.size === 1 ? [...units][0] : null;
 }
 
 export function groupHistory(trend: HistoryTrend): HistoryGroup[] {

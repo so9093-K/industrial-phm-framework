@@ -197,7 +197,7 @@
       {@const chart=acquisitionChart(outlook)}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
       {@const told=outlookMessage({axis:"acquisition",period,unit:outlook.unit,conditions:outlook.conditions,
-        scenarios:outlook.scenarios,checks:outlook.checks??[]},
+        scenarios:outlook.scenarios,checks:outlook.reachChecks??[]},
         [{label:"다음 측정이 기준에 다가가는지 특징 추이에서 보기",href:featureTrendHref(outlook.assetId,outlook.featureId)}])}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">

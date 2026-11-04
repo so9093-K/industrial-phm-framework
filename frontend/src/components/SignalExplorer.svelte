@@ -8,7 +8,7 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import {num, propertyLabel} from "../format";
   import {
-    groupHistory, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
+    groupHistory, latestUnit, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
     type ChannelList, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
   } from "../history";
   import {
@@ -434,8 +434,9 @@
           <p class="context">지금 수신 중인 값이 아니라 마지막으로 저장된 값입니다.</p>
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
+              {@const unit = latestUnit(trend, item)}
               <li>{sourceLabel(sources, item.sourceId)}{item.pointId ? " · 측정 위치 " + item.pointId : ""}
-                · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") : "품질 문제로 표시 안 함"}
+                · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") + (item.value !== null && unit ? " " + unit : "") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {QUALITY[item.quality] ?? item.quality}</li>
             {/each}
           </ul>

@@ -190,8 +190,18 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
 /** Times to look at first: the observations over the reference pattern, or else the largest values. */
 export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:string;label:string;detail:string;metric:Metric}[]{
   const notable=condition.pattern.scored?condition.pattern.notable:[];
-  if(notable.length)return notable.map(item=>({at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",
-    detail:item.channel+" "+measured(item.value," "+item.unit)+" · 기준 5–95% 범위 "+measured(item.low)+"–"+measured(item.high," "+item.unit)}));
+  if(notable.length)return notable.map(item=>{
+    const unit=" "+item.unit,range="기준 5–95% 범위 "+measured(item.low)+"–"+measured(item.high,unit);
+    // The server names the one phase farthest from its range. Alone it reads like a lost phase
+    // even when all three phases read 0 A, so the same moment's R/S/T values come with it.
+    const point=condition.timeline.find(row=>Date.parse(row.at)===Date.parse(item.at));
+    const phases=item.unit==="V"?point?.voltage:point?.current;
+    const detail=phases
+      ?(item.unit==="V"?"전압":"전류")+" R/S/T "+phases.map(value=>measured(value)).join(" / ")+unit
+        +" · 가장 멀리 벗어난 "+item.channel+"의 "+range
+      :item.channel+" "+measured(item.value,unit)+" · "+range;
+    return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail};
+  });
   return ([["최대 전류",condition.target.currentPeakAt,"currentMean"],["최대 전압 불평형",condition.target.voltageUnbalanceMaxAt,"voltageUnbalance"]] as const)
     .flatMap(([label,at,metric])=>at?[{at,label:label+" · "+kstTime(at),detail:"",metric}]:[]);
 }

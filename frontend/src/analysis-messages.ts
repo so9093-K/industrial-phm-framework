@@ -342,11 +342,17 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     // The central forecast missing a limit is not "never": the band alone may still reach it.
     const banded = reaches.filter((reach) => reach?.state === "possible");
     const earliest = banded.flatMap((reach) => reach!.earliest !== null ? [reach!.earliest] : []);
-    const bandText = earliest.length ? "빠르면 " + span(Math.min(...earliest), Math.min(...earliest), facts) + " 뒤 " : "";
+    // Each method has its own earliest band reach and the tiles show one of them, so the
+    // sentence gives the spread over methods; the first alone contradicted the tile.
+    const first = Math.min(...earliest), last = Math.max(...earliest);
+    const bandText = earliest.length
+      ? (earliest.length > 1 ? "계산 방식에 따라 " : "") + "빠르면 " + span(first, last, facts) + " 뒤 " : "";
     if (!steps.length) {
       parts.push(banded.length
-        ? label + "에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, 예측 범위로는 " + bandText + "닿을 수 있습니다."
+        ? label + "에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, 예측 범위로는 " + bandText + "닿을 수 있습니다"
+          + (banded.length < reaches.length ? "(계산 방식 " + reaches.length + "가지 중 " + banded.length + "가지)." : ".")
         : label + "에는 계산한 범위 안에서 닿지 않습니다.");
+      if (earliest.length && first > 0 && last / first >= 2) spread = true;
       continue;
     }
     const lo = Math.min(...steps), hi = Math.max(...steps);
@@ -366,8 +372,9 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     const versus = check.error < 0.8 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 작았습니다"
       : check.error > 1.2 * check.naive ? "마지막 값을 그대로 이어 쓴 것보다 오차가 컸습니다" : "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다";
     const weak = check.coverage < 0.5 || check.error >= 0.8 * check.naive || spread;
+    const inside = countShare(Math.round(check.coverage * check.points), check.points);
     certainty = "기록의 마지막 " + check.points + "개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 "
-      + Math.round(check.coverage * 100) + "%였고, " + versus + ". "
+      + inside + (inside.endsWith("미만") ? "이었고, " : "였고, ") + versus + ". "
       + (spread ? "계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. " : "")
       + (weak ? "도달 시점은 정확한 시각이 아니라 대략의 범위로 읽고, 새 측정이 들어올 때마다 다시 확인하세요."
         : "과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다.");

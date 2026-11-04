@@ -20,6 +20,8 @@ export type AcquisitionProjection={
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
   history:Array<{ordinal:number;value:number}>;unit:string|null;
   scenarios:Scenario[];checks?:Backtest[];
+  /** The outlook's own check over its reach search; `checks` belong to the drawn forecast. */
+  reachChecks?:Backtest[];
 };
 export class AcquisitionOutlookUnavailable extends Error {}
 export class AcquisitionVersionMismatch extends Error {}
@@ -281,5 +283,6 @@ export async function loadAcquisitionPair(
     json("/api/v1/outlook?"+new URLSearchParams({...base,...limit}),signal),
   ]);
   verifySettings(forecast,outlook,settings);
-  return {...parseAcquisitionPair(forecast,outlook,options,featureId,horizonCount,assumedPeriod,conditions,timeHorizon),checks:backtests(forecast)};
+  return {...parseAcquisitionPair(forecast,outlook,options,featureId,horizonCount,assumedPeriod,conditions,timeHorizon),checks:backtests(forecast),
+    reachChecks:backtests({backtest:obj(outlook)?.check})};
 }

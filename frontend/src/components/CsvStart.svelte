@@ -411,7 +411,7 @@
         {@const unit = labels[chartChannel]?.unit.trim() || null}
         <svg viewBox="0 0 650 130" role="img" aria-label={shown(chartChannel) + "의 시간 구간별 평균과 최소·최대 (파일의 실제 값)"}>
           {#each high === low ? [] : yTicks(low, high, 18, 110, 3) as tick (tick.value)}
-            <line x1="62" x2="632" y1={tick.y} y2={tick.y} class="grid" />
+            <line x1="62" x2="632" y1={tick.y} y2={tick.y} class="gridline" />
             <text x="56" y={tick.y + 3.5} text-anchor="end" class="tick">{measure(tick.value, unit)}</text>
           {/each}
           <path d="M62 12 V114 H632" class="axis" />
@@ -527,7 +527,7 @@
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
   svg { width: 100%; height: auto; max-height: 180px; }
-  .grid { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; }
+  .gridline { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; }
   .tick { font-size: 10px; fill: var(--color-ink-muted); }
   .axis { fill: none; stroke: var(--color-border); }
   .range { stroke: var(--color-ink-muted); stroke-width: 1; }

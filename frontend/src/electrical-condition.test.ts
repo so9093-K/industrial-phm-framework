@@ -60,6 +60,18 @@ test("insights compare like with like and say when the reference pattern was not
   assert.equal(firstChecks(ready(analyzed()))[0].metric,"voltageUnbalance");
 });
 
+test("a time to check first gives all three phases, so all phases at 0 A never reads as one lost phase",()=>{
+  const stopped=ready(analyzed({
+    pattern:{state:"scored",threshold:2.5,above_reference_count:1,scored_samples:60,above_reference_percent:2,
+      notable:[{at:"2020-11-13T03:00:00+00:00",score:4,above_reference:true,channel_id:"iT",value:0,
+        reference_p05:38.4,reference_p95:75.6,unit:"A"}]},
+    timeline:[{at:"2020-11-13T03:00:00+00:00",current_mean_a:0,voltage_phase_v:[222,224,222],current_phase_a:[0,0,0]}],
+  }));
+  assert.equal(firstChecks(stopped)[0].detail,"전류 R/S/T 0 / 0 / 0 A · 가장 멀리 벗어난 iT의 기준 5–95% 범위 38.4–75.6 A");
+  const unmatched=ready(analyzed({timeline:[]}));
+  assert.equal(firstChecks(unmatched)[0].detail,"vR 240 V · 기준 5–95% 범위 229–232 V");
+});
+
 test("lines never join across a missing value or a time gap",()=>{
   const runs=segments(ready(analyzed()).timeline,"currentMean");
   assert.deepEqual(runs.map(run=>run.length),[2,1,1]);
