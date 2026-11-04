@@ -24,6 +24,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.measurement_history import (
     PROFILE_QUANTILES,
+    SMALL_VALUE_LIMIT,
     MeasurementPairGroup,
     MeasurementProfile,
 )
@@ -48,6 +49,24 @@ def _time(value: datetime | None) -> str | None:
 
 def _number(value: float | None) -> float | None:
     return None if value is None or not math.isfinite(value) else float(value)
+
+
+def interpretation_property(interpretation_json: str) -> str | None:
+    """The observed property the stored interpretation declares, e.g. ``phase current``."""
+    data = json.loads(interpretation_json)
+    for part in ("binding", "semantics"):
+        item = data.get(part) if isinstance(data, dict) else None
+        definition = item.get("definition", item) if isinstance(item, dict) else None
+        if isinstance(definition, dict) and isinstance(definition.get("observed_property"), str):
+            return str(definition["observed_property"])
+    return None
+
+
+def is_current_in_amperes(interpretation_json: str) -> bool:
+    """A declared electric current in A: the only meaning under which values below 1 A are
+    counted. A value below 1 A is a low measured current, not proof the equipment stopped."""
+    prop = (interpretation_property(interpretation_json) or "").lower()
+    return interpretation_unit(interpretation_json) == "A" and ("current" in prop or "전류" in prop)
 
 
 def interpretation_unit(interpretation_json: str) -> str | None:
@@ -121,6 +140,13 @@ def history_series(
     for (channel, source, source_type, point, interpretation), by_period in grouped.items():
         first = next(iter(by_period.values()))
         stats = {name: _history_period(by_period.get(name)) for name, _, _ in periods}
+        if is_current_in_amperes(interpretation):
+            for name, _, _ in periods:
+                held = by_period.get(name)
+                stats[name]["low_current"] = {
+                    "below": SMALL_VALUE_LIMIT,
+                    "count": held.small_value_count if held else 0,
+                }
         histogram = None
         if first.histogram_low is not None:
             histogram = {

@@ -66,6 +66,15 @@ export async function readAssetData(assetId: string, signal: AbortSignal): Promi
   return parseAssetData(await response.json() as unknown, assetId);
 }
 
+/** What the anomaly tab opens on: a model's scores when it has results or is still waiting for
+ * them (the server keeps a stored history explorable meanwhile and says so in model_waiting),
+ * else the model-free departures of a stored history. */
+export function defaultAnomalyMethod(capabilities: Capabilities | null, data: AssetData | null): "model" | "baseline" {
+  const item = capabilities?.items.find((value) => value.id === "anomaly");
+  const modelled = item?.reason === "connected" || item?.reason === "waiting-results" || item?.facts.model_waiting === true;
+  return modelled || !data?.history ? "model" : "baseline";
+}
+
 /** Data kinds are navigation context; execution eligibility is owned by the server.
  * Model and 3-phase electrical methods open inspection/setup, not a ready claim. */
 export function methodsFor(
@@ -86,8 +95,8 @@ export function methodsFor(
   return methodsOf(tab).filter(method => {
     if (method === "model") return true;
     if (method === "baseline") return data?.history !== null && data?.history !== undefined;
-    // Correct R/S/T and units require the existing /api/v1/condition source inspection.
-    if (method === "electrical") return kinds.includes("history") && (data?.history?.signals ?? 0) >= 3;
+    // The server resolves R·S·T roles by bound meaning, as the 부하·불평형 screen does.
+    if (method === "electrical") return kinds.includes("history") && status("electrical", null) === "ready";
     if (method === "spectrum") return kinds.includes("vibration") && status("spectrum","vibration") === "ready";
     const id = method === "compare" ? "period-compare" : "relation";
     return kinds.some(source => status(id,source) === "ready");

@@ -11,7 +11,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {formulaLink,middle,relationMessage} from "../analysis-messages";
   import {featureCompareHref} from "../measurement-links";
-  import {loadFeatureSource,type FeatureSource} from "../acquisition-profile";
+  import {loadFeatureSource,preferredFeature,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {
     readAcquisitionRelation,AcquisitionRelationUnavailable,
@@ -73,7 +73,7 @@
       if(pending.signal.aborted)return;
       if(!result||result.features.length<2){sourceState="empty";return;}
       source=result;
-      if(!result.features.some(f=>f.id===x))x=result.features[0].id;
+      if(!result.features.some(f=>f.id===x))x=preferredFeature(result.features)!.id;
       if(!result.features.some(f=>f.id===y)||y===x)
         y=result.features.find(f=>f.id!==x)!.id;
       try{

@@ -1,5 +1,6 @@
 <script lang="ts">
   import {onMount} from "svelte";
+  import {preferredFeature} from "../acquisition-profile";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
@@ -66,7 +67,7 @@
       if (!value || !value.features.length) { listState = "empty"; return; }
       options = value;
       if (!value.features.some((item) => item.id === feature))
-        feature = value.features[0].id;
+        feature = preferredFeature(value.features)!.id;
       listState = "ready";
       void load();
     }).catch(() => { if (!pending.signal.aborted) listState = "failed"; });

@@ -28,6 +28,18 @@ export function times(ratio: number): string {
   return text + "배";
 }
 const percent = (share: number) => Math.round(share * 100) + "%";
+/** A share of counted measurements as a percentage that is neither inflated nor read as all or
+ * none unless it is: 1–99% rounds to a whole percent, otherwise to one decimal, and a share below
+ * 0.1% or above 99.9% is said as that bound ("0.1% 미만", "99.9% 초과") instead of rounded to it. */
+export function countShare(part: number, whole: number): string {
+  if (whole <= 0 || part <= 0) return "0%";
+  if (part >= whole) return "100%";
+  const share = 100 * part / whole;
+  if (share < 0.1) return "0.1% 미만";
+  if (share > 99.9) return "99.9% 초과";
+  if (share >= 1 && share <= 99) return Math.round(share) + "%";
+  return (Math.round(share * 10) / 10).toFixed(1) + "%";
+}
 const hz = (value: number) => Math.round(value).toLocaleString("ko-KR");
 
 export type PeriodFacts = {
@@ -62,18 +74,23 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
     + (ratio !== null && ratio > 0 && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "입니다." : "입니다.");
   const share = facts.outsidePercent;
   const count = facts.outsideCount ?? (share === null ? null : Math.round(share * b.usable / 100));
+  // "모두" only when every usable measurement is outside; otherwise the count itself, and a
+  // percentage that never rounds 99.5% up to 100% or 0.4% down to 0%.
+  const all = count !== null && b.usable > 0 && count === b.usable;
+  const pct = share === null ? "" : count !== null ? countShare(count, b.usable) : Math.round(share) + "%";
   let headline: string;
   if (share === null || range === null) headline = "기간 A와 B의 " + medians;
-  else if (share >= 99.5) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else if (share >= 50) headline = "기간 B 측정의 " + Math.round(share) + "%(" + count + "회)가 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else if (share > 10) headline = "기간 B 측정의 일부(" + Math.round(share) + "%, " + count + "회)만 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (share >= 50) headline = (share === 50 ? "기간 B 측정의 절반(" + count + "회)이"
+    : "기간 B 측정 " + b.usable + "회 중 " + count + "회(" + pct + ")가") + " 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (share > 10) headline = "기간 B 측정의 일부(" + pct + ", " + count + "회)만 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
   else headline = "기간 B의 값은 대부분 기간 A의 평소 범위(" + range + ") 안에 있습니다. " + medians;
   let certainty: string | null = null;
   if (b.usable < 5 || a.usable < 10)
     certainty = "측정 수가 적어(기간 A " + a.usable + "회 · 기간 B " + b.usable + "회) 이 결과만으로 단정하기 이릅니다.";
   else if (share === null) certainty = null;
   else if (share >= 90) certainty = "값 몇 개가 튄 것이 아니라 거의 모든 측정이 벗어나, 값의 수준 자체가 달라졌습니다.";
-  else if (share >= 50) certainty = "절반 넘게 벗어났지만 평소 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
+  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 평소 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
   else if (share > 10) certainty = "기간 B 측정 중 일부만 벗어났습니다. 벗어난 측정이 한 시기에 몰려 있는지 흩어져 있는지 시간 추이에서 확인하세요.";
   else certainty = "기간 A 안에서도 값의 10%는 이 범위 밖에 있으므로, 이 정도는 뚜렷한 변화로 보기 어렵습니다.";
   const onset = facts.onset && share !== null && share > 10
@@ -441,4 +458,48 @@ export function comparisonMessage(score: {previous: number | null; current: numb
         : "")
     : null;
   return {headline: headline.trim(), meaning, certainty, next};
+}
+
+export type HistoryPeriodFacts = PeriodFacts & {
+  /** Each period's mean and middle half, to tell a moved median from a moved level. */
+  means: {a: number | null; b: number | null};
+  aMiddle: {low: number; high: number} | null;
+  /** For a declared current in A: measurements below 1 A in each period — a low reading, not a stop. */
+  lowCurrent: {a: number; b: number} | null;
+};
+
+const portion = (part: number, whole: number) => whole > 0 ? part / whole : 0;
+
+/** A stored time series over two periods. Beyond the shared period message, it says whether the
+ * share of measurements with no current differs, and when the median moved but the mean barely did,
+ * that values may sit at a few levels whose shares changed. Both are observations, not causes. */
+export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[] = []): AnalysisMessage | null {
+  const base = periodMessage({...facts, onset: null}, (at) => String(at), next);
+  if (!base) return null;
+  const unit = facts.unit ? " " + facts.unit : "";
+  const notes: string[] = [];
+  let lowDiffers = false;
+  if (facts.lowCurrent) {
+    const a = portion(facts.lowCurrent.a, facts.a.usable), b = portion(facts.lowCurrent.b, facts.b.usable);
+    const shareA = countShare(facts.lowCurrent.a, facts.a.usable), shareB = countShare(facts.lowCurrent.b, facts.b.usable);
+    lowDiffers = Math.abs(a - b) >= 0.1;
+    // A share of stored measurements, not of time, and a low reading, not a stop: spacing can
+    // differ, one phase below 1 A says nothing of the others, and a similar share settles no cause.
+    notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + shareA + ", 기간 B " + shareB
+      + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리도 견줘 보세요."
+        : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요.")
+      + " 1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다.");
+  }
+  const {a, b} = facts, {a: meanA, b: meanB} = facts.means;
+  if (!lowDiffers && a.median !== null && b.median !== null && meanA !== null && meanB !== null && facts.aMiddle) {
+    const medianMove = b.median - a.median, meanMove = meanB - meanA;
+    const width = facts.aMiddle.high - facts.aMiddle.low;
+    const apart = Math.abs(medianMove) >= 0.25 * width && width > 0
+      && (Math.sign(medianMove) !== Math.sign(meanMove) || Math.abs(meanMove) < 0.5 * Math.abs(medianMove));
+    if (apart)
+      notes.push("중앙값은 " + short(a.median) + " → " + short(b.median) + unit + "로 바뀌었지만 평균은 " + short(meanA) + " → " + short(meanB) + unit
+        + (Math.sign(medianMove) !== Math.sign(meanMove) && Math.abs(meanMove) >= 0.1 * Math.abs(medianMove) ? "로 반대로 움직였습니다. " : "로 거의 같습니다. ")
+        + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
+  }
+  return {...base, meaning: notes.length ? notes.join(" ") : base.meaning};
 }

@@ -9,6 +9,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
+  import {findingLinks, findingText, readRecordFindings, unjudgedText, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -43,6 +44,18 @@
   const departures = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind === "departure"); });
   // The interval context can differ from the latest score, especially across an allowed gap.
   const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure"); });
+  // What the whole stored record held, not only whether it ends away from its start.
+  let findings: RecordFindings | null = $state(null);
+  let findingState: "idle" | "loading" | "ready" | "failed" = $state("idle");
+  $effect(() => {
+    if (!data?.history) return;
+    const request = new AbortController();
+    findingState = "loading";
+    void readRecordFindings(asset.assetId, request.signal).then((value) => {
+      if (!request.signal.aborted) {findings = value; findingState = "ready";}
+    }).catch(() => {if (!request.signal.aborted) findingState = "failed";});
+    return () => request.abort();
+  });
   onMount(() => {
     const request = new AbortController();
     void loadLatestScores(asset.assetId, request.signal).then((value) => {
@@ -53,11 +66,18 @@
     return () => {request.abort();noteRequest?.abort();};
   });
   // Models reading the same asset can disagree; a "기준 이하" beside a "기준 초과" is not a clean bill.
+  // Each model's latest result is read on its own, so they are compared only when every one of them
+  // analyzed the same measurement of the same source; otherwise each says where it last stands.
   const split = $derived.by(() => {
     const read = scores.map((item) => ({name: modelName(item.binding), exceeds: item.run ? scoreSummary(item.run.output).exceeds : null}));
     const over = read.filter((item) => item.exceeds === true).map((item) => item.name);
     const under = read.filter((item) => item.exceeds === false).map((item) => item.name);
-    return over.length && under.length ? {over, under} : null;
+    if (!over.length || !under.length) return null;
+    const stream = scores.map((item) => [item.binding.sourceId, item.binding.pointId ?? "", item.binding.stepKind].join("\n"));
+    const sameStream = stream.every((key) => key === stream[0]);
+    const samePosition = scores.every((item) => item.run && item.run.position === scores[0].run?.position);
+    // Which condition failed is said as it is: another source or point, or another last measurement.
+    return {over, under, same: sameStream && samePosition, why: !sameStream ? "stream" : samePosition ? null : "position"};
   });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
@@ -88,7 +108,7 @@
     <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
     <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
   </dl>
-  <h3 class="recent">최근 변화·확인할 항목</h3>
+  <h3 class="recent">지금 확인할 항목</h3>
   {#if notesState === "loading"}
     <p class="context">확인할 항목을 읽고 있습니다.</p>
   {:else if departures.length || others.length}
@@ -96,7 +116,39 @@
       {#each [...departures, ...others] as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
     </ul>
   {:else if notes}
-    <p class="context">지금 표시할 변화나 확인 항목이 없습니다.</p>
+    <p class="context">기록의 마지막 측정 기준으로 지금 확인할 항목은 없습니다.</p>
+  {/if}
+  {#if data?.history}
+    <h3 class="recent">이 기록에서 찾은 변화</h3>
+    {#if findingState === "loading"}
+      <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
+    {:else if findingState === "failed"}
+      <p class="context">기록에서 찾은 변화를 읽지 못했습니다. 변화가 없다는 뜻은 아닙니다.
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 직접 보기 →</a></p>
+    {:else if findings && findings.intervals.length}
+      <ul class="found">
+        {#each findings.intervals as item (item.start + item.channel)}
+          {@const told = findingText(item, findings.bucketSeconds)}
+          {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds)}
+          <li><strong>{told.when}</strong> <span>{told.what}</span>
+            <span class="go">{#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
+              {#if links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}</span></li>
+        {/each}
+      </ul>
+      <p class="context small">판단한 신호 {findings.judged}개를 함께 보고 가장 크게 벗어난 {findings.intervals.length}구간을 골랐습니다{findings.count > findings.intervals.length ? " (모두 " + findings.count + "구간)" : ""}.
+        기록 처음 30%는 비교 기준일 뿐 정상으로 확인된 기간이 아닙니다.
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호별로 보기 →</a></p>
+    {:else if findings && findings.judged}
+      <p class="context">판단한 신호 {findings.judged}개에서 기록 처음 30%의 평소 범위를 크게 벗어난 구간을 찾지 못했습니다.
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈 보기 →</a></p>
+    {:else if findings}
+      <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
+        <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
+    {/if}
+    {#if findings && findings.signals.some((row) => row.state !== "scored")}
+      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored").map(unjudgedText).join(" · ")}</p>
+    {/if}
+    {#if findings?.unchecked}<p class="context small">신호가 많아 앞의 {findings.signals.length}개만 확인했고, 나머지 {findings.unchecked}개는 판단하지 않았습니다.</p>{/if}
   {/if}
   <p class="context"><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 추이 보기 →</a></p>
 </section>
@@ -124,9 +176,15 @@
         </li>
       {/each}
     </ul>
-    {#if split}
-      <p class="split">최근 결과에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
+    {#if split?.same}
+      <p class="split">같은 측정에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
         기준 이하가 정상이라는 뜻은 아니므로 측정별 점수와 원본을 함께 확인하세요.</p>
+    {:else if split?.why === "stream"}
+      <p class="split">모델들이 서로 다른 데이터 출처나 측정 위치를 분석해, 같은 출처·측정 위치·측정의 결과가 아니므로 직접 견줄 수 없습니다.
+        모델마다 위에 적힌 결과를 따로 확인하세요.</p>
+    {:else if split}
+      <p class="split">같은 출처·측정 위치를 분석하지만 마지막으로 분석한 측정이 서로 달라 직접 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
+        같은 측정의 점수는 측정별 모델 점수에서 견줘 보세요.</p>
     {/if}
     <p class="context"><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정별 모델 점수 보기 →</a></p>
   {/if}
@@ -161,4 +219,9 @@
   .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
   .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .others { list-style: none; margin: 0; padding: 0; }
+  .small { font-size: var(--font-small); }
+  .found { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+  .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
+  .found span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .found .go { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: var(--font-small); }
 </style>

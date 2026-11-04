@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  comparisonMessage, coefficientSpread, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientSpread, countShare, historyPeriodMessage, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -213,4 +213,41 @@ test("a score over its threshold on values the asset often shows but rarely in i
   assert.doesNotMatch(message.meaning!, /배운 적 없/);
   assert.match(message.meaning!, /먼저 기준 기간의 운전 상태 구성과 이 측정의 운전 조건을 확인하세요.*빠져 있었다고 확인되면, 그때/);
   assert.match(message.certainty!, /이 범위 밖이어도 모델이 학습 중에 비슷한 값을 봤을 수 있고, 여러 특징의 조합은 따로 확인하지 않았습니다/);
+});
+
+test("a stored time series compares the share of measurements with no current without claiming time or cause", () => {
+  // Compressor 1338, 10/22–25 against 10/25–28, R상전류: medians far apart, means close, stops alike.
+  const facts = {unit: "A", a: {usable: 5040, median: 46.97, low: 0, high: 70.3}, b: {usable: 5040, median: 65.27},
+    outsideCount: 519, outsidePercent: 10.3, medianChangePercent: 39, onset: null,
+    means: {a: 43.45, b: 45.3}, aMiddle: {low: 27.86, high: 68.59}, lowCurrent: {a: 1215, b: 1247}};
+  const message = historyPeriodMessage(facts)!;
+  assert.equal(message.headline, "기간 B 측정의 일부(10%, 519회)만 기간 A의 평소 범위(0~70.3 A)를 벗어났습니다. 중앙값은 47 → 65.3 A입니다.");
+  assert.equal(message.meaning, "유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A 24%, 기간 B 25%로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). "
+    + "이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요. "
+    + "1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다. "
+    + "중앙값은 47 → 65.3 A로 바뀌었지만 평균은 43.5 → 45.3 A로 거의 같습니다. 값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 "
+    + "수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
+  // When the share of time with no current differs, that is said instead of the level reading.
+  const stopped = historyPeriodMessage({...facts, lowCurrent: {a: 2500, b: 400}})!;
+  assert.match(stopped.meaning!, /기간 A 50%, 기간 B 8%로 다릅니다\(측정 수 기준이라 시간 비율과는 다를 수 있습니다\)\. 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니/);
+  assert.doesNotMatch(message.meaning! + stopped.meaning!, /시간 비율의 차이가 들어|값에서 나왔습니다|흐르지 않음|흐르지 않은/);
+  // A signal not declared as a current gets neither sentence when medians and means move together.
+  const plain = historyPeriodMessage({...facts, lowCurrent: null, means: {a: 46, b: 64}})!;
+  assert.equal(plain.meaning, null);
+  // Exactly half is "절반", not "절반 넘게".
+  const half = historyPeriodMessage({...facts, outsideCount: 2520, outsidePercent: 50, lowCurrent: null})!;
+  assert.match(half.headline, /^기간 B 측정의 절반\(2520회\)이/);
+  // "모두" needs every usable measurement outside: 199 of 200 is said as it is, never as 100%.
+  const nearly = historyPeriodMessage({...facts, b: {usable: 200, median: 65}, outsideCount: 199, outsidePercent: 99.5, lowCurrent: null})!;
+  assert.match(nearly.headline, /^기간 B 측정 200회 중 199회\(99\.5%\)가 기간 A의 평소 범위/);
+  // A large record: 2,499 of 2,500 must not read as 100%.
+  const large = historyPeriodMessage({...facts, b: {usable: 2500, median: 65}, outsideCount: 2499, outsidePercent: 99.96, lowCurrent: null})!;
+  assert.match(large.headline, /^기간 B 측정 2500회 중 2499회\(99\.9% 초과\)가/);
+  // Tiny shares are said as a bound, never inflated to 0.1%; the rest round to the nearest value.
+  assert.deepEqual([countShare(1, 2500), countShare(1, 1_000_000), countShare(1, 1000), countShare(4, 1000),
+    countShare(0, 10), countShare(10, 10), countShare(7, 20), countShare(995, 1000), countShare(999_999, 1_000_000)],
+    ["0.1% 미만", "0.1% 미만", "0.1%", "0.4%", "0%", "100%", "35%", "99.5%", "99.9% 초과"]);
+  const every = historyPeriodMessage({...facts, b: {usable: 200, median: 65}, outsideCount: 200, outsidePercent: 100, lowCurrent: null})!;
+  assert.match(every.headline, /^기간 B의 측정 200회가 모두/);
+  assert.match(half.certainty!, /^절반이 벗어났지만/);
 });

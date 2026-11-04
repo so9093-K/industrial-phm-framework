@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
+import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, parseAssetData} from "./asset-data.ts";
 import type {Capabilities, CapabilityStatus} from "./capabilities.ts";
 
 test("an asset's stored data kinds choose the default analysis, never another asset's", () => {
@@ -33,11 +33,13 @@ test("server eligibility restricts methods for each data kind", () => {
   const vibration = {history:null,vibration:{measurements:100,first:1,last:100}};
   const csv = {history:{signals:1},vibration:null};
   const mixed = {history:{signals:1},vibration:vibration.vibration};
-  const cap = (compare:CapabilityStatus,relation:CapabilityStatus,spectrum:CapabilityStatus):Capabilities => ({
+  const cap = (compare:CapabilityStatus,relation:CapabilityStatus,spectrum:CapabilityStatus,
+    electrical:CapabilityStatus="unavailable"):Capabilities => ({
     assetId:"m",history:null,acquisition:null,items:[
       {id:"period-compare",status:compare,reason:"history",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
       {id:"relation",status:relation,reason:"single-signal",target:null,facts:{by_kind:{history:"unavailable",vibration:"ready"}}},
       {id:"spectrum",status:spectrum,reason:"no-waveform",target:null,facts:{}},
+      {id:"electrical",status:electrical,reason:electrical==="ready"?"phase-roles":"no-phase-roles",target:null,facts:{}},
       {id:"anomaly",status:"ready",reason:"explore",target:null,facts:{}},
     ],
   });
@@ -50,11 +52,14 @@ test("server eligibility restricts methods for each data kind", () => {
   assert.deepEqual(methodsFor("anomaly",{history:null,vibration:null},cap("ready","ready","ready")),["model"]);
   assert.deepEqual(methodsFor("change",mixed,null),[]);
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
-    cap("unavailable","unavailable","unavailable"),"history"),["electrical"]);
+    cap("unavailable","unavailable","unavailable","ready"),"history"),["electrical"]);
+  // Three stored signals without R·S·T roles are not a 3-phase input: no 부하·불평형 tab.
+  assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
+    cap("unavailable","unavailable","unavailable","unavailable"),"history"),[]);
   const mixedElectrical = {history:{signals:3},vibration:vibration.vibration};
   // The electrical workflow consumes R/S/T history, never the selected vibration source.
-  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"history"),["electrical"]);
-  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready"),"vibration"),
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready","ready"),"history"),["electrical"]);
+  assert.deepEqual(methodsFor("change",mixedElectrical,cap("ready","ready","ready","ready"),"vibration"),
     ["compare","relation","spectrum"]);
 });
 
@@ -64,4 +69,15 @@ test("elapsed measurement time carries its source and requires a valid recorded 
   assert.deepEqual(read(60).vibration?.timing, {sourceId:"bench",periodSeconds:60});
   for (const period of [null, undefined, 0, -1, NaN, Infinity, "60"])
     assert.equal(read(period).vibration?.timing, undefined);
+});
+
+test("the anomaly tab opens on a model's scores whenever a model has results or waits for them", () => {
+  const history = {history: {signals: 2}, vibration: null};
+  const anomaly = (reason: string, facts: Record<string, unknown> = {}): Capabilities => ({assetId: "m", history: null, acquisition: null,
+    items: [{id: "anomaly", status: "ready", reason, target: null, facts}]});
+  assert.equal(defaultAnomalyMethod(anomaly("connected"), history), "model");
+  // A stored history stays explorable while a model waits; the waiting model still opens first.
+  assert.equal(defaultAnomalyMethod(anomaly("explore", {model_waiting: true}), history), "model");
+  assert.equal(defaultAnomalyMethod(anomaly("explore", {model_waiting: false}), history), "baseline");
+  assert.equal(defaultAnomalyMethod(anomaly("compatible-model"), {history: null, vibration: null}), "model");
 });

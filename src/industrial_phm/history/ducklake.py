@@ -36,6 +36,7 @@ from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.application.history_retention import RetentionProtection
 from industrial_phm.application.measurement_history import (
     PROFILE_QUANTILES,
+    SMALL_VALUE_LIMIT,
     HistoryAssetSummary,
     HistoryStream,
     MeasurementHistoryAggregation,
@@ -1844,7 +1845,9 @@ class DuckLakeAssetHistory:
                         avg(value) FILTER (WHERE usable) AS mean,
                         stddev_samp(value) FILTER (WHERE usable) AS deviation,
                         quantile_cont(value, {list(PROFILE_QUANTILES)}) FILTER (WHERE usable)
-                            AS quantiles
+                            AS quantiles,
+                        count(*) FILTER (WHERE usable AND abs(value) < {SMALL_VALUE_LIMIT})
+                            AS small
                     FROM profile_points GROUP BY ALL
                 ), timing AS (
                     SELECT {keys}, median(epoch(event_at - prev_at)) AS median_interval,
@@ -1952,18 +1955,19 @@ class DuckLakeAssetHistory:
                     mean=_optional_float(row[15], "mean"),
                     standard_deviation=_optional_float(row[16], "standard_deviation"),
                     quantiles=None if row[17] is None else tuple(float(q) for q in row[17]),
-                    median_interval_seconds=_optional_float(row[18], "median_interval"),
-                    largest_gap_seconds=_optional_float(row[19], "largest_gap"),
-                    largest_gap_start=row[20],
-                    largest_gap_end=row[21],
-                    long_gap_count=int(row[22]),
-                    longest_constant_count=int(row[23] or 0),
-                    longest_constant_start=row[24],
-                    longest_constant_end=row[25],
+                    median_interval_seconds=_optional_float(row[19], "median_interval"),
+                    largest_gap_seconds=_optional_float(row[20], "largest_gap"),
+                    largest_gap_start=row[21],
+                    largest_gap_end=row[22],
+                    long_gap_count=int(row[23]),
+                    longest_constant_count=int(row[24] or 0),
+                    longest_constant_start=row[25],
+                    longest_constant_end=row[26],
                     histogram_low=None if low_high is None else low_high[0],
                     histogram_high=None if low_high is None else low_high[1],
                     histogram=tuple(bins_by_key.get(key, [0] * bins)),
                     outside_other_band=outside.get(key) if len(periods) == 2 else None,
+                    small_value_count=int(row[18] or 0),
                 )
             )
         return tuple(profiles)

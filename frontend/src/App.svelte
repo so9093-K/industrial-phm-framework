@@ -10,6 +10,7 @@
   import { readAttention, type AttentionState } from "./monitor-attention";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
+  import AnalysisGuide from "./components/AnalysisGuide.svelte";
   import StatusNotice from "./components/StatusNotice.svelte";
   import ReviewQueue from "./components/ReviewQueue.svelte";
   import InvestigationRecords from "./components/InvestigationRecords.svelte";
@@ -294,12 +295,15 @@
       {#if (route.page === "monitor" || route.page === "assets") && loadState === "empty"}
         <!-- A first visit starts with how to get data in, not with panels about data that is not there. -->
         <section class="ui-panel start" aria-labelledby="start-title">
-          <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "아직 연결된 데이터가 없습니다"}</h2>
-          <p>분석할 CSV 파일을 연결하거나 OPC UA 데이터 소스를 등록하세요.
-            XJTU-SY와 AI-Hub 실측 기록도 준비한 후 동일한 분석 화면에서 확인할 수 있습니다.</p>
+          <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "설비 기록에서 무엇이 달라졌는지 확인합니다"}</h2>
+          <p>{snapshot.systemReadUncertain ? "설비 목록을 확인하지 못했습니다. 데이터가 없다는 뜻은 아닙니다." : "아직 연결된 데이터가 없습니다."}
+            측정 기록을 연결하면 시간에 따른 변화, 평소 범위를 벗어난 구간, 두 시기의 차이, 정한 기준까지의 여유를 확인하고,
+            그 근거를 AI 해설과 사람의 검토로 이어 갈 수 있습니다.</p>
           <div class="start-actions">
-            <a class="ui-button ui-button-primary" href={systemUrl("connections")}>데이터 연결하기</a>
+            <a class="ui-button ui-button-primary" href={systemUrl("connections")}>CSV 파일로 시작하기</a>
           </div>
+          <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 같은 화면에서 연결합니다. XJTU-SY 베어링·AI-Hub 실측 기록은 재생 명령으로 준비해 같은 분석 화면에서 볼 수 있습니다.</p>
+          <AnalysisGuide />
         </section>
       {/if}
       {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}

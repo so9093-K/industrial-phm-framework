@@ -23,6 +23,11 @@ export type FeatureProfile = {
   outsideCount:number|null;
 };
 export class FeatureEvidenceUnavailable extends Error {}
+/** The feature a vibration screen opens on: an RMS, the overall vibration level people read
+ * first, else the first stored feature. */
+export function preferredFeature<T extends {id:string}>(features:T[]):T|undefined {
+  return features.find(item=>item.id.endsWith(".rms"))??features[0];
+}
 
 function obj(raw:unknown):Record<string,unknown>|null {
   return raw!==null&&typeof raw==="object"&&!Array.isArray(raw)

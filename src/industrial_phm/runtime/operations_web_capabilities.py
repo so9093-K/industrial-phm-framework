@@ -11,14 +11,17 @@ Nothing here runs an analysis or a model.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import parse_qs
 
 from industrial_phm.application import JsonSourceRepository, OpcUaSourceConfig
 from industrial_phm.application.forecast import HORIZONS
+from industrial_phm.application.phase_unbalance import UnbalanceQuantity, resolve_phase_channels
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
+from industrial_phm.history import DuckLakeAssetHistory
+from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
 from industrial_phm.models.package import ModelTask
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import explore_sources, package_task
@@ -103,12 +106,68 @@ def project_asset_capabilities(
         # alone creates neither.
         "capabilities": [
             *signals,
+            _electrical_capability(workspace, asset_id, history is not None),
             forecast,
             anomaly,
             _question_capability(modelled, forecast, can_ask),
         ],
         "meaning": "what-the-stored-data-supports-not-asset-health",
     }
+
+
+def _electrical_capability(
+    workspace: OperationsWorkspace, asset_id: str, stored: bool
+) -> dict[str, Any]:
+    """Load and unbalance needs R·S·T voltage or current resolved by bound meaning in one stream,
+    decided by the same rule the 부하·불평형 screen uses; three stored signals are not enough."""
+    if not stored or not workspace.history_catalog_path.is_file():
+        return _item("electrical", UNAVAILABLE, "no-history", None)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    snapshot = history.current_snapshot_id()
+    ambiguous = False
+    for stream in history.list_history_streams(asset_id):
+        candidates = tuple(
+            candidate
+            for candidate in history.list_channel_semantics(
+                asset_id,
+                source_id=stream.source_id,
+                start_at=stream.start_at,
+                end_at=stream.end_at + timedelta(seconds=1),
+                snapshot_id=snapshot,
+            )
+            if candidate.measurement_point_id == stream.measurement_point_id
+        )
+        try:
+            roles = resolve_phase_channels(candidates)
+        except ValueError:
+            ambiguous = True
+            continue
+        quantities = [
+            name
+            for name, quantity in (
+                ("voltage", UnbalanceQuantity.VOLTAGE),
+                ("current", UnbalanceQuantity.CURRENT),
+            )
+            if roles[quantity]
+        ]
+        if quantities:
+            return _item(
+                "electrical",
+                READY,
+                "phase-roles",
+                "signals",
+                "electrical",
+                data_kind="history",
+                quantities=quantities,
+            )
+    return _item(
+        "electrical",
+        UNAVAILABLE,
+        "ambiguous-phase-roles" if ambiguous else "no-phase-roles",
+        "connect",
+    )
 
 
 def _origins(workspace: OperationsWorkspace, asset_id: str) -> list[str]:

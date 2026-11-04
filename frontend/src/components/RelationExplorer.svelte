@@ -5,6 +5,8 @@
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import FeatureScatter from "./FeatureScatter.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {relationMessage} from "../analysis-messages";
   import {ORIGIN_TEXT,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -189,8 +191,11 @@
       <p class="context">기간 A {periodText("a")} · 기간 B {periodText("b")}</p>
       {#each pairs as pair(pair.key)}
         {@const axes=bounds(pair)}
+        {@const side=(group:PairedGroup|null)=>({pearson:group?.pearson??null,spearman:group?.spearman??null,pairs:group?.pairCount??0})}
+        {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null):null}
         <section class="group">
           <h3>{sourceLabel(sourceNames, pair.source)} / {pair.point??"측정 위치 미확인"}</h3>
+          {#if message}<AnalysisMessage {message}/>{/if}
           <div class="sides">
             {#each ["a","b"] as name(name)}
               {@const n=name as "a"|"b"}
