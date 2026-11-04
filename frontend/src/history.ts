@@ -173,6 +173,15 @@ export function latestUnit(trend: HistoryTrend, latest: HistoryTrend["latest"][n
   return units.size === 1 ? [...units][0] : null;
 }
 
+/** The last stored measurement the trend holds. A whole-record query ends one second after it,
+ * since its end is exclusive, so that edge is not a measurement time. */
+export function recordEnd(trend: HistoryTrend): string | null {
+  let last: string | null = null;
+  for (const bucket of trend.buckets)
+    if (bucket.lastEventAt && (last === null || Date.parse(bucket.lastEventAt) > Date.parse(last))) last = bucket.lastEventAt;
+  return last;
+}
+
 export function groupHistory(trend: HistoryTrend): HistoryGroup[] {
   const map = new Map<string, HistoryGroup>();
   for (const bucket of trend.buckets) {

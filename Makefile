@@ -79,8 +79,10 @@ else
 $(error OPERATIONS_BACKEND must be container or native)
 endif
 
+# Models the Web fits record the checkout commit, known only for a tree without local changes.
 container-up: _require-docker
-	$(COMPOSE) up --build --detach --wait --wait-timeout 180
+	INDUSTRIAL_PHM_CODE_REVISION="$$(git diff --quiet HEAD -- 2>/dev/null && git rev-parse HEAD 2>/dev/null)" \
+		$(COMPOSE) up --build --detach --wait --wait-timeout 180
 	@printf '%s\n' 'Operations: http://127.0.0.1:2718/web/ (persistent Docker workspace)'
 
 container-down: _require-docker

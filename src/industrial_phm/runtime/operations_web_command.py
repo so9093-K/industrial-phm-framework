@@ -113,6 +113,9 @@ class SupervisorWebCommandBroker:
         from industrial_phm.runtime.operations_web_file_history import FileHistoryJobs
 
         self.file_history = FileHistoryJobs(self.workspace)
+        from industrial_phm.runtime.public_datasets import PublicDatasetJobs
+
+        self.public_datasets = PublicDatasetJobs(self.workspace)
         self.socket_path = socket_path
         self.upload_directory = Path(socket_path).parent / "uploads"
         self.token = secrets.token_urlsafe(32)
@@ -199,6 +202,8 @@ class SupervisorWebCommandBroker:
         try:
             if route == "/api/v1/sources/file/backfill/start":
                 return {"ok": True, "result": self.file_history.start(payload)}
+            if route == "/api/v1/datasets/import":
+                return {"ok": True, "result": self.public_datasets.start(payload)}
             if route in {
                 "/api/v1/sources/file/upload",
                 "/api/v1/sources/file/upload/preflight",
@@ -269,3 +274,4 @@ def open_supervisor_web_command_broker(workspace: Path) -> Iterator[SupervisorWe
                 server.shutdown()
                 thread.join(timeout=_TIMEOUT_SECONDS)
                 broker.file_history.close()
+                broker.public_datasets.close()

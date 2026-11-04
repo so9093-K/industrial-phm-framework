@@ -285,6 +285,8 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         assert long_screen["score"][-1][1] == long_item["distance"]
         assert item["asset_id"] == "pump-moved" and item["channel"] == "current"
         assert item["unit"] == "A" and item["direction"] == "up" and item["distance"] >= 3.5
+        # The note says the range the end was judged against in amperes, not a multiple of it.
+        assert item["usual"]["low"] < item["usual"]["high"]
         # "Since" is the start of the bucket the step falls in, in UTC.
         since = datetime.fromisoformat(item["since"])
         assert since.utcoffset() == timedelta(0)

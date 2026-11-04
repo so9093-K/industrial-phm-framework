@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {builtModelNote,modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
 import type {ModelBinding} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
@@ -108,4 +108,10 @@ test("a model of a known method is named by the method; two of one method keep t
   const lone={...one,bindingId:"c",estimatorKind:"lstm-autoencoder-v1"};
   assert.deepEqual([...modelNames([one,two,lone]).values()],
     ["Isolation Forest · site-a-iforest","Isolation Forest · site-b-iforest","LSTM 오토인코더"]);
+});
+
+test("a model built from a chosen period says so next to its result, a packaged one does not",()=>{
+  assert.equal(builtModelNote({reference:"기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개"}),
+    "직접 고른 기준 기간으로 만든 모델 · 현장 검증 전 · 기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개");
+  assert.equal(builtModelNote({}),null);
 });

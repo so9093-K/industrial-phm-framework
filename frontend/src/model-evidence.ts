@@ -16,6 +16,11 @@ export type ModelBinding={
   reference?:string;
 };
 const kstShort=(iso:string)=>new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
+/** A model someone built from their own record learned a period they chose, not one confirmed
+ * normal in the field; its "기준 초과/이하" is read against that choice. */
+export function builtModelNote(binding:{reference?:string}):string|null{
+  return binding.reference?"직접 고른 기준 기간으로 만든 모델 · 현장 검증 전 · "+binding.reference:null;
+}
 /** "기준 10. 15. 00:00~10. 16. 06:36 · 신호 2개": the period an operator-built model learned (ADR-0032). */
 export function referenceLabel(start:string,end:string,channels:number):string{
   return "기준 "+kstShort(start)+"~"+kstShort(end)+" · 신호 "+channels+"개";

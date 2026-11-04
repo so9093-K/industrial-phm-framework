@@ -8,6 +8,7 @@
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
   import { readAttention, type AttentionState } from "./monitor-attention";
+  import { readPublicDatasets } from "./public-datasets";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
   import AnalysisGuide from "./components/AnalysisGuide.svelte";
@@ -40,6 +41,16 @@
     void readAttention(request.signal).then((read) => {
       if (!request.signal.aborted) {listNotes = read.counts; listNotesState = read.state;}
     }).catch(() => {if (!request.signal.aborted) {listNotes = {}; listNotesState = "failed";}});
+    return () => request.abort();
+  });
+  // An empty workspace offers the public datasets prepared in the data folder, when there are any.
+  let publicCount = $state(0);
+  $effect(() => {
+    if (loadState !== "empty") return;
+    const request = new AbortController();
+    void readPublicDatasets(request.signal).then((found) => {
+      if (!request.signal.aborted) publicCount = found.items.length;
+    }).catch(() => {});
     return () => request.abort();
   });
   let controller: AbortController | null = null;
@@ -301,8 +312,11 @@
             그 근거를 AI 해설과 사람의 검토로 이어 갈 수 있습니다.</p>
           <div class="start-actions">
             <a class="ui-button ui-button-primary" href={systemUrl("connections")}>CSV 파일로 시작하기</a>
+            {#if publicCount}
+              <a class="ui-button" href={systemUrl("connections") + "#public-datasets"}>공개 실측 데이터로 시작하기 ({publicCount}개)</a>
+            {/if}
           </div>
-          <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 같은 화면에서 연결합니다. XJTU-SY 베어링·AI-Hub 실측 기록은 재생 명령으로 준비해 같은 분석 화면에서 볼 수 있습니다.</p>
+          <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 데이터 연결에서 등록합니다.</p>
           <AnalysisGuide />
         </section>
       {/if}

@@ -13,7 +13,7 @@
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,
+    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
@@ -279,6 +279,7 @@
     {#if binding}
       <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
+      {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
         <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>
       {#if !binding.packageAvailable}

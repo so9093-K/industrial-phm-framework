@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
-  import {isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
+  import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
   import {measurementLabel} from "../time-axis";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
@@ -167,12 +167,14 @@
     <ul class="scores">
       {#each scores as item (item.binding.bindingId)}
         {@const summary = item.run ? scoreSummary(item.run.output) : null}
+        {@const note = builtModelNote(item.binding)}
         <li>
           <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
           <span>{modelName(item.binding)}
             {#if item.run && summary}
               · {isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
             {/if}</span>
+          {#if note}<span class="note">{note}</span>{/if}
         </li>
       {/each}
     </ul>

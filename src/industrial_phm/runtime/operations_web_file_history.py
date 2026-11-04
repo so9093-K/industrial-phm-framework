@@ -55,6 +55,10 @@ def _failure(error: Exception) -> str:
     return "source_state_unavailable"
 
 
+# DuckLake has one local writer; every supervisor history job writes while holding this.
+HISTORY_WRITE_LOCK = threading.Lock()
+
+
 class FileHistoryJobs:
     """At most one history write at a time; DuckLake has a single local writer."""
 
@@ -109,7 +113,8 @@ class FileHistoryJobs:
 
     def _execute(self, paths: object, registry: object, source_id: str) -> None:
         try:
-            result = self._run(paths, registry, source_id)
+            with HISTORY_WRITE_LOCK:
+                result = self._run(paths, registry, source_id)
             update: dict[str, object] = {
                 "state": "succeeded",
                 "event_count": result["event_count"],

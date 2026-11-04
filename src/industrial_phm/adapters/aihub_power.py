@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 
@@ -40,36 +41,54 @@ def list_power_members(path: Path) -> tuple[str, ...]:
     return members
 
 
+def _ijson() -> Any:
+    try:
+        return importlib.import_module("ijson")
+    except ModuleNotFoundError as error:
+        raise RuntimeError("AI-Hub reader requires the 'aihub' extra") from error
+
+
+def _member_header(archive: ZipFile, member: str, ijson: Any) -> dict[str, str]:
+    """The device identifiers before the data array; only the member's head is decompressed."""
+    header: dict[str, str] = {}
+    found_data = False
+    with archive.open(member) as stream:
+        for prefix, event, value in ijson.parse(stream, use_float=True):
+            if prefix == "data" and event == "start_array":
+                found_data = True
+                break
+            if prefix in {"DEVICE_ID", "DEVICE_BD_ID"} and event in {"string", "number"}:
+                if isinstance(value, bool) or not isinstance(value, (str, int)):
+                    raise ValueError("device identifiers must be strings or integers")
+                header[prefix] = str(value)
+    if not found_data or set(header) != {"DEVICE_ID", "DEVICE_BD_ID"} or not all(header.values()):
+        raise ValueError("DEVICE_ID and DEVICE_BD_ID must precede the data array")
+    return header
+
+
+def read_power_member_identities(path: Path) -> dict[str, tuple[str, str]]:
+    """``(DEVICE_ID, DEVICE_BD_ID)`` of every JSON member, reading only each member's head."""
+    ijson = _ijson()
+    members = list_power_members(path)
+    with ZipFile(path) as archive:
+        identities = {}
+        for member in members:
+            header = _member_header(archive, member, ijson)
+            identities[member] = (header["DEVICE_ID"], header["DEVICE_BD_ID"])
+    return identities
+
+
 def iter_power_observations(path: Path, member: str) -> Iterator[PowerObservation]:
     """Read one observed source schema with bounded memory; never extract ZIP paths.
 
     The two device identifiers must precede the data array, as in the profiled
     archives. Unknown layouts fail explicitly rather than guess an identity.
     """
-    try:
-        ijson = importlib.import_module("ijson")
-    except ModuleNotFoundError as error:
-        raise RuntimeError("AI-Hub reader requires the 'aihub' extra") from error
+    ijson = _ijson()
     with ZipFile(path) as archive:
         if archive.namelist().count(member) != 1:
             raise ValueError("member must identify exactly one archive entry")
-        header: dict[str, str] = {}
-        found_data = False
-        with archive.open(member) as stream:
-            for prefix, event, value in ijson.parse(stream, use_float=True):
-                if prefix == "data" and event == "start_array":
-                    found_data = True
-                    break
-                if prefix in {"DEVICE_ID", "DEVICE_BD_ID"} and event in {"string", "number"}:
-                    if isinstance(value, bool) or not isinstance(value, (str, int)):
-                        raise ValueError("device identifiers must be strings or integers")
-                    header[prefix] = str(value)
-        if (
-            not found_data
-            or set(header) != {"DEVICE_ID", "DEVICE_BD_ID"}
-            or not all(header.values())
-        ):
-            raise ValueError("DEVICE_ID and DEVICE_BD_ID must precede the data array")
+        header = _member_header(archive, member, ijson)
         with archive.open(member) as stream:
             for index, raw in enumerate(ijson.items(stream, "data.item", use_float=True)):
                 if not isinstance(raw, dict) or not {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {groupHistory, latestUnit, parseChannels, parseTrend, signalChart, signalName} from "./history.ts";
+import {groupHistory, latestUnit, parseChannels, parseTrend, recordEnd, signalChart, signalName} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -31,6 +31,8 @@ test("a last stored value takes its unit only from the bucket that ends at that 
   // Two unlike meanings both ending at the same instant say nothing about which it was.
   const tied = parseTrend(data([ending("i1", "2026-10-01T00:59:00Z"), ending("i2", "2026-10-01T00:59:00Z")]), "motor", "R");
   assert.equal(latestUnit(tied, latest("2026-10-01T00:59:00Z")), null);
+  // A whole record ends at its last stored measurement, not at the query's exclusive edge.
+  assert.equal(recordEnd(trend), "2026-10-01T00:59:00Z");
 });
 
 test("channels are strictly for the selected asset", () => {

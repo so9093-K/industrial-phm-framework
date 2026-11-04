@@ -31,6 +31,7 @@ def configured_provider() -> ExplanationProvider:
         model=os.environ.get("INDUSTRIAL_PHM_GENAI_MODEL", "local-main"),
         api_key=os.environ.get("INDUSTRIAL_PHM_GENAI_API_KEY"),
         allow_remote=os.environ.get("INDUSTRIAL_PHM_GENAI_ALLOW_REMOTE", "") == "1",
+        timeout_seconds=float(os.environ.get("INDUSTRIAL_PHM_GENAI_TIMEOUT_SECONDS", "120")),
     )
 
 
