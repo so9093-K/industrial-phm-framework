@@ -27,7 +27,7 @@ export const CONDITION:Record<Condition,string>={
   failed:"실패 · 로그 확인 필요",
   unavailable:"상태 미확인",
 };
-export const COMPONENT={collection:"데이터 수집기",analysis:"분석 실행기",ui:"Web 화면"};
+export const COMPONENT={collection:"데이터 수집 서비스",analysis:"분석 서비스",ui:"Web 화면"};
 
 function invalid(what:string):never{
   throw new Error(what+"의 형식이 올바르지 않습니다.");

@@ -239,7 +239,7 @@
   }
   let connectedNotice=$state("");
   // The notice outlives the panel that asked, since the model list is read again right after.
-  function connected(bindingId:string,notice="모델을 연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다."){
+  function connected(bindingId:string,notice="모델을 연결했습니다. 분석 서비스가 입력을 분석하면 점수가 나타납니다."){
     selectedBinding=bindingId;selectedPosition="";followLatest=true;
     connectedNotice=notice;
     void loadBindings();

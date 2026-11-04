@@ -36,7 +36,7 @@
 
 <section class="ui-panel" aria-labelledby="runtime-title">
   <h2 id="runtime-title">실행 상태</h2>
-  <p class="context">이 컴퓨터에서 도는 감독 프로세스·데이터 수집기·분석 실행기·Web 화면의 상태입니다. 센서 수신이나 설비 상태가 아닙니다.</p>
+  <p class="context">이 컴퓨터에서 도는 운영 서비스·데이터 수집 서비스·분석 서비스·Web 화면의 상태입니다. 센서 수신이나 설비 상태가 아닙니다.</p>
   {#if runtimeState === "loading"}
     <StatusNotice message="실행 상태를 확인하고 있습니다." />
   {:else if runtimeState === "failed" || !runtime}
@@ -46,7 +46,7 @@
     <p class="summary" class:attention={!runtime.ready}>{runtime.ready ? "로컬 서비스가 실행 중입니다."
       : "로컬 서비스가 모두 준비됐는지 확인되지 않습니다. 아래 상태를 보고 필요하면 터미널 로그를 확인하세요."}</p>
     <ul class="components">
-      <li><strong>감독 프로세스</strong><span>{CONDITION[runtime.supervisor.condition]}</span>
+      <li><strong>운영 서비스</strong><span>{CONDITION[runtime.supervisor.condition]}</span>
         <span class="context">마지막 응답 {clock(runtime.supervisor.heartbeatAt)}</span></li>
       {#each runtime.components as part (part.kind)}
         <!-- A running part without its own heartbeat (the Web screen) needs no "기록 없음" line. -->
@@ -58,7 +58,7 @@
       <summary>기술 상세</summary>
       <dl>
         <div><dt>조회 시각</dt><dd>{clock(runtime.assessedAt)}</dd></div>
-        <div><dt>감독 프로세스 PID</dt><dd>{runtime.supervisor.pid ?? "없음"}</dd></div>
+        <div><dt>운영 서비스 PID</dt><dd>{runtime.supervisor.pid ?? "없음"}</dd></div>
         {#each runtime.components as part (part.kind)}
           <div><dt>{COMPONENT[part.kind]} PID · 런타임 상태</dt><dd>{part.pid ?? "없음"} · {part.runtimeState ?? "기록 없음"}</dd></div>
         {/each}
@@ -84,8 +84,8 @@
   <dl class="counts">
     <div><dt>조회 시각</dt><dd>{clock(snapshot.assessedAt)}</dd></div>
     <div><dt>설비</dt><dd>{snapshot.assets.length}{snapshot.truncated ? " (일부)" : ""}</dd></div>
-    <div><dt>분석 결과</dt><dd>{snapshot.analyses.available ? snapshot.analyses.records.length + (snapshot.analyses.truncated ? " (일부)" : "") : "확인 안 됨"}</dd></div>
-    <div><dt>분석 결과 검토</dt><dd>{snapshot.reviewInbox.available ? snapshot.reviewInbox.reviews.length + (snapshot.reviewInbox.partial ? " (일부)" : "") : "확인 안 됨"}</dd></div>
+    <div><dt>CSV 파일 분석 기록</dt><dd>{snapshot.analyses.available ? snapshot.analyses.records.length + (snapshot.analyses.truncated ? " (일부)" : "") : "확인 안 됨"}</dd></div>
+    <div><dt>CSV 파일 분석 검토 요청</dt><dd>{snapshot.reviewInbox.available ? snapshot.reviewInbox.reviews.length + (snapshot.reviewInbox.partial ? " (일부)" : "") : "확인 안 됨"}</dd></div>
   </dl>
   {/if}
 </section>

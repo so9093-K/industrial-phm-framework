@@ -82,3 +82,17 @@ test("KST inputs are sent as the same instant with an explicit offset",()=>{
   assert.equal(kstInstant("2020-11-13T10:00"),"2020-11-13T10:00:00+09:00");
   assert.throws(()=>kstInstant("2020-11-13 10:00"),/시각 형식/);
 });
+
+test("minutes in a row that read the same are one time to check, with their end and count",()=>{
+  const at=(minute:number)=>"2020-11-20T18:"+String(23+minute).padStart(2,"0")+":35+00:00";
+  const stopped=ready(analyzed({
+    pattern:{state:"scored",threshold:2.5,above_reference_count:5,scored_samples:60,above_reference_percent:8,
+      notable:[0,1,2,3,4].map(minute=>({at:at(minute),score:4,above_reference:true,channel_id:"iS",value:0,
+        reference_p05:23.5,reference_p95:73.38,unit:"A"}))},
+    timeline:[0,1,2,3,4].map(minute=>({at:at(minute),current_mean_a:0,voltage_phase_v:[222,224,222],current_phase_a:[0,0,0]})),
+  }));
+  const checks=firstChecks(stopped);
+  assert.equal(checks.length,1);
+  assert.equal(checks[0].label,"2020. 11. 21. 오전 3:23:35 ~ 오전 3:27:35 · 5회");
+  assert.equal(checks[0].at,at(0));
+});

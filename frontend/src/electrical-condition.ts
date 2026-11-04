@@ -188,9 +188,21 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
 }
 
 /** Times to look at first: the observations over the reference pattern, or else the largest values. */
+/** Times a few minutes apart that read the same are one stretch, said once with its end and count. */
+function mergeAdjacent(checks:{at:string;label:string;detail:string;metric:Metric}[]){
+  const sorted=[...checks].sort((x,y)=>Date.parse(x.at)-Date.parse(y.at));
+  const runs:{first:typeof checks[number];last:string;count:number}[]=[];
+  for(const check of sorted){
+    const run=runs.at(-1);
+    if(run&&run.first.detail===check.detail&&Date.parse(check.at)-Date.parse(run.last)<=3*60_000){run.last=check.at;run.count++;}
+    else runs.push({first:check,last:check.at,count:1});
+  }
+  return runs.map(run=>run.count===1?run.first
+    :{...run.first,label:kstTime(run.first.at)+" ~ "+kstTime(run.last).replace(/^.*\. /,"")+" · "+run.count+"회"});
+}
 export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:string;label:string;detail:string;metric:Metric}[]{
   const notable=condition.pattern.scored?condition.pattern.notable:[];
-  if(notable.length)return notable.map(item=>{
+  if(notable.length)return mergeAdjacent(notable.map(item=>{
     const unit=" "+item.unit,range="기준 5–95% 범위 "+measured(item.low)+"–"+measured(item.high,unit);
     // The server names the one phase farthest from its range. Alone it reads like a lost phase
     // even when all three phases read 0 A, so the same moment's R/S/T values come with it.
@@ -201,7 +213,7 @@ export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:st
         +" · 가장 멀리 벗어난 "+item.channel+"의 "+range
       :item.channel+" "+measured(item.value,unit)+" · "+range;
     return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail};
-  });
+  }));
   return ([["최대 전류",condition.target.currentPeakAt,"currentMean"],["최대 전압 불평형",condition.target.voltageUnbalanceMaxAt,"voltageUnbalance"]] as const)
     .flatMap(([label,at,metric])=>at?[{at,label:label+" · "+kstTime(at),detail:"",metric}]:[]);
 }
