@@ -47,7 +47,10 @@ class ExplanationProvider:
     model: str = "local-main"
     api_key: str | None = None
     allow_remote: bool = False
-    timeout_seconds: float = 45.0
+    # Explanations are written in the background. A local model that sat idle took 64 s to
+    # answer its first request (its weights came back from swap), so 45 s turned that first
+    # answer into the computed summary every time.
+    timeout_seconds: float = 120.0
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.base_url)

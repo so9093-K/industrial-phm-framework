@@ -16,9 +16,23 @@ from industrial_phm.genai.local_explanation import (
 )
 from industrial_phm.runtime.operations_web_phm_explanation import (
     ExplanationManager,
+    configured_provider,
     request_phm_review,
 )
 from tests.support.phm import analyze, deliver, phm_workspace
+
+
+def test_the_model_server_gets_time_to_wake_before_the_computed_summary_is_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A local model idle long enough to be swapped out took 64 s to answer its first request.
+    monkeypatch.delenv("INDUSTRIAL_PHM_GENAI_TIMEOUT_SECONDS", raising=False)
+    assert configured_provider().timeout_seconds == 120
+    monkeypatch.setenv("INDUSTRIAL_PHM_GENAI_TIMEOUT_SECONDS", "90")
+    assert configured_provider().timeout_seconds == 90
+    monkeypatch.setenv("INDUSTRIAL_PHM_GENAI_TIMEOUT_SECONDS", "600")
+    with pytest.raises(AnalysisExplanationError):
+        configured_provider()
 
 
 def test_job_records_immutable_context_and_interrupted_generation_is_not_success(

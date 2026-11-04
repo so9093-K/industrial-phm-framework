@@ -1,5 +1,6 @@
 <script lang="ts">
   import {onMount, tick} from "svelte";
+  import {yTicks} from "../chart-axis";
   import {systemUrl} from "../routes";
   import {
     EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, kstTime, measured, readCondition, segments,
@@ -7,6 +8,7 @@
   } from "../electrical-condition";
   import CautionNote from "./CautionNote.svelte";
   import StatusNotice from "./StatusNotice.svelte";
+  import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
 
   /** 3-phase load, unbalance and the reference-pattern score of a recent period against an
@@ -52,7 +54,7 @@
     // The plot spans the observations themselves; a few minutes of a 24-hour window fill it.
     const first = current?.timeline[0]?.at, last = current?.timeline[current.timeline.length - 1]?.at;
     const start = first ? Date.parse(first) : 0, end = last && Date.parse(last) > start ? Date.parse(last) : start + 1;
-    return {high, low, start, end,
+    return {high, low, start, end, ticks: yTicks(min, max, TOP, BOTTOM),
       x: (at: string) => LEFT + ((Date.parse(at) - start) / Math.max(1, end - start)) * (RIGHT - LEFT),
       y: (value: number) => BOTTOM - ((value - min) / (max - min || 1)) * (BOTTOM - TOP)};
   });
@@ -181,8 +183,10 @@
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
       {:else}
         <p class="axis-note">최고 {measured(scale.high, METRICS[metric].unit)} · 최저 {measured(scale.low, METRICS[metric].unit)}{#if threshold !== null}<span class="dash"> · 점선: 기준 기간 점수 99% {measured(threshold)}</span>{/if}</p>
+        <ValueAxis ticks={scale.ticks} height={H} unit={METRICS[metric].unit.trim() || null}>
         <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img"
           aria-label={METRICS[metric].label + " · " + kstTime(analyzed.targetStart) + "부터 " + kstTime(analyzed.targetEnd) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
+          {#each scale.ticks as mark (mark.value)}<line x1={LEFT} x2={RIGHT} y1={mark.y} y2={mark.y} class="gridline" />{/each}
           <path d={"M" + LEFT + " " + TOP + " V" + BOTTOM + " H" + RIGHT} class="axis" />
           {#each runs as run (run[0].at)}<path d={path(run)} class="line" />{/each}
           {#if threshold !== null}
@@ -191,7 +195,8 @@
           {#if selected}<line x1={scale.x(selected.at)} x2={scale.x(selected.at)} y1={TOP} y2={BOTTOM} class="chosen" />{/if}
           <rect x={LEFT} y={TOP} width={RIGHT - LEFT} height={BOTTOM - TOP} class="hit" onclick={pick} role="presentation" />
         </svg>
-        <XAxis lo={scale.start} hi={scale.end} scale={{kind: "clock"}} />
+        {#snippet footer()}<XAxis lo={scale.start} hi={scale.end} scale={{kind: "clock"}} />{/snippet}
+        </ValueAxis>
         <label class="scrub">시각 고르기
           <input type="range" min="0" max={analyzed.timeline.length - 1} value={Math.max(0, selectedIndex)}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />
@@ -278,6 +283,7 @@
   svg { width: 100%; height: 200px; display: block; }
   svg :global(path), svg line { vector-effect: non-scaling-stroke; }
   .axis { fill: none; stroke: var(--color-border); }
+  .gridline { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; vector-effect: non-scaling-stroke; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .chosen { stroke: var(--color-ink); stroke-width: 1.5; }

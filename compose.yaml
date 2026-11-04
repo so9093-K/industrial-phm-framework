@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: deploy/container/Dockerfile
+      args:
+        CODE_REVISION: ${INDUSTRIAL_PHM_CODE_REVISION:-}
     init: true
     # The web proxy forwards loopback :9400 (AI explanations) to a model server on the host.
     # Docker Desktop resolves this name already; Linux Docker needs the mapping.
@@ -13,6 +15,8 @@ services:
     stop_grace_period: 60s
     volumes:
       - workspace:/var/lib/industrial-phm
+      # Public datasets prepared in the repository's data folder, offered for import on the Web.
+      - ./data:/var/lib/industrial-phm-data:ro
     # The proxy shares this network namespace; the supervisor stays on loopback.
     ports:
       - "127.0.0.1:2718:8080"

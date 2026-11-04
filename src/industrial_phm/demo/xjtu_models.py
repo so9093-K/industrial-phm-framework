@@ -104,7 +104,7 @@ def prepare_xjtu_model_demo(
     packages = existing_packages(workspace.models_path)
     missing = [recipe for recipe in (IFOREST_RECIPE, LSTM_RECIPE) if recipe not in packages]
     if missing:
-        packages.update(_fit_packages(preset, workspace, missing, code_revision(), report))
+        packages.update(fit_xjtu_packages(preset, workspace, missing, code_revision(), report))
     for recipe in (IFOREST_RECIPE, LSTM_RECIPE):
         create_phm_binding(
             workspace,
@@ -126,13 +126,17 @@ def prepare_xjtu_model_demo(
     )
 
 
-def _fit_packages(
+def fit_xjtu_packages(
     preset: XjtuModelDemoConfig,
     workspace: OperationsWorkspace,
     recipes: list[str],
     checkout_revision: str | None,
     report: Callable[[str], None],
 ) -> dict[str, str]:
+    """Fit the packaged models of ``recipes`` on the fold-1 train bearings.
+
+    Returns the new package ID of each recipe.
+    """
     from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
     from industrial_phm.experiments.xjtu import get_xjtu_reference_split
     from industrial_phm.experiments.xjtu_lstm_operational_package import build_xjtu_lstm_packages

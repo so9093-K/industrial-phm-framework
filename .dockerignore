@@ -15,5 +15,8 @@ src/industrial_phm/apps/web_next/
 !deploy/
 !deploy/container/
 !deploy/container/**
+# Research evidence the packaged XJTU-SY models record when the Web prepares them.
+!docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json
+!docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json
 **/.env*
 **/__pycache__/

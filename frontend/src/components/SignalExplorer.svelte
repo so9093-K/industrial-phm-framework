@@ -8,7 +8,7 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import {num, propertyLabel} from "../format";
   import {
-    groupHistory, latestUnit, readChannels, readTrend, signalChart, signalName, RANGE_PRESETS,
+    groupHistory, latestUnit, readChannels, recordEnd, readTrend, signalChart, signalName, RANGE_PRESETS,
     type ChannelList, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
   } from "../history";
   import {
@@ -337,7 +337,7 @@
         message="고른 기간에 저장된 측정이 없습니다. 다른 기간이나 신호를 고르세요." />
     {:else if trend}
       <p class="context">
-        {recorded(trend.startAt)} ~ {recorded(trend.endAt)}
+        {recorded(trend.startAt)} ~ {recorded(range === "all" ? recordEnd(trend) ?? trend.endAt : trend.endAt)}
         · {range === "all" ? "저장된 전체 기록" : range === "window" ? "그래프에서 고른 구간을 확대" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
       {#if focus}

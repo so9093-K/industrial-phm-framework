@@ -93,6 +93,7 @@ from industrial_phm.runtime.operations_web_signals import (
 )
 from industrial_phm.runtime.operations_web_writer import WorkspaceWriterBusy, web_workspace_writer
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+from industrial_phm.runtime.public_datasets import list_public_datasets
 
 _MAX_WEB_CSV_UPLOAD = 20 * 1024 * 1024
 # Base64 of the largest upload plus the bounded JSON setup fields.
@@ -403,6 +404,19 @@ def create_operations_web_read_server(
                     can_ask=command_client is not None,
                 )
                 self._send_json(status, capabilities)
+                return
+            if parts.path == "/api/v1/datasets":
+                if parts.query:
+                    self._error(HTTPStatus.BAD_REQUEST, "invalid_query")
+                    return
+                try:
+                    datasets = list_public_datasets(OperationsWorkspace(root))
+                except OSError, ValueError, RuntimeError:
+                    self._error(HTTPStatus.SERVICE_UNAVAILABLE, "datasets_unavailable")
+                    return
+                # Imports are written by the supervisor; a preview server only lists.
+                can_import = command_client is not None
+                self._send_json(HTTPStatus.OK, {**datasets, "can_import": can_import})
                 return
             if parts.path in EXPLORE_READ_ROUTES:
                 status, explore_payload = handle_explore_read(

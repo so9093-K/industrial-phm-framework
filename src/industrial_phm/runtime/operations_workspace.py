@@ -132,6 +132,11 @@ class OperationsWorkspace:
         return self.root / "runtime" / "web-file-history.json"
 
     @property
+    def public_dataset_job_path(self) -> Path:
+        """Ephemeral status of supervisor-run public dataset imports; not durable evidence."""
+        return self.root / "runtime" / "public-datasets.json"
+
+    @property
     def runtime_state_files(self) -> tuple[Path, ...]:
         """Return durable/local state files owned by this workspace layout."""
         return (

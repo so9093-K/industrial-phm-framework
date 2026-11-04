@@ -40,16 +40,12 @@ macOS의 `make up`은 Linux 컨테이너를 사용하고, Linux의 기본 실행
 
 원본 데이터셋은 이 저장소에 재배포하지 않습니다. 각 제공자의 이용 조건에 따라 로컬에 준비하세요.
 
-**XJTU-SY 베어링 진동 기록:** 학습에 사용하지 않은 베어링의 실측 파형을 작업공간에 재생하고 두 이상 탐지 모델의 점수와 원본 근거를 확인할 수 있습니다.
+[데이터 안내](data/README.md)에 따라 `data/` 폴더에 준비한 기록은 웹의 **데이터 연결 › 공개 실측 데이터로 시작**에 나타나며, 하나를 골라 가져오면 같은 분석 화면에서 봅니다. `make up`은 이 폴더를 읽기 전용으로 연결합니다.
 
-```bash
-uv sync --locked --extra operations
-uv run industrial-phm demo xjtu --until 100
-```
+- **AI-Hub 239 설비 전력 기록:** 원천 JSON 하나가 설비 하나의 저장된 이력이 됩니다(공기압축기·보일러·압출기·펌프 등, 설비당 약 한 달). 원본 시각에 시간대가 없어 한국 표준시로 저장합니다.
+- **XJTU-SY 베어링 진동 기록:** 모델 학습에 쓰지 않은 베어링의 실측 파형을 넣고 Isolation Forest·LSTM 오토인코더를 연결합니다. 처음 가져올 때 두 모델을 학습용 베어링으로 한 번 준비합니다(몇 분).
 
-실측 원본은 `data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets`에 준비합니다. `--until` 없이 실행하면 해당 베어링의 전체 기록을 사용하며, `--source`·`--bearing`·`--workspace` 옵션으로 입력을 바꿀 수 있습니다. 실측 기록은 `industrial-phm demo xjtu`가 지정한 로컬 Operations 작업공간에 재생합니다. `--prepare-only`를 사용하면 모델 준비와 실측 기록 재생 후 Web을 시작하지 않고 종료합니다.
-
-**AI-Hub 239:** 보일러·압출기·공기압축기의 전기적 측정 이력을 로컬에서 준비하고, 파일 이력 및 기록 기반 OPC UA 재생에 활용합니다. 보일러 기록 재생은 `uv run industrial-phm demo aihub-boiler`를 사용하며 원본 아카이브와 관련 선택 의존성이 필요합니다.
+개발용 재생 명령(`industrial-phm demo xjtu`, `demo aihub-boiler`)은 [Operations 실행 안내](apps/README.md)에 있습니다.
 
 IMS 및 MIMII DUE 등 공개 데이터는 별도의 연구용 어댑터·결과와 함께 유지합니다. 합성 데이터를 이용한 별도 제품 시연과 캡처 배포물은 제공하지 않습니다.
 

@@ -6,6 +6,7 @@
   import ConnectionList from "./ConnectionList.svelte";
   import ConnectionRegistration from "./ConnectionRegistration.svelte";
   import CsvStart from "./CsvStart.svelte";
+  import PublicDatasets from "./PublicDatasets.svelte";
   import SystemStatus from "./SystemStatus.svelte";
 
   /** 운영 관리: connect data and move each connection forward, or check that the local
@@ -52,6 +53,7 @@
 
 {#if section === "connections"}
   <CsvStart {writable} onSaved={reload} />
+  <PublicDatasets {writable} onImported={reload} />
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
     onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />
   <ConnectionRegistration {writable} onRegistered={reload} />
