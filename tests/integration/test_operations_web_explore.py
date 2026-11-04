@@ -452,6 +452,48 @@ def test_all_signals_are_checked_even_when_nothing_could_be_judged(
         stop()
 
 
+def test_a_steady_rise_is_a_finding_unless_the_source_declares_a_running_total(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    # Both rise in every step; only the energy register's name says it is a running total.
+    rising = {"온도": lambda i: 40 + 0.2 * i, "누적전력량": lambda i: 1000.0 + 5 * i}
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:rise:{'a' * 64}:{channel}:{index}",
+                source_id="rise-file",
+                asset_id="rise-01",
+                channel_id=channel,
+                source_file="rise.csv",
+                source_sha256="a" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 100 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=value(index),
+            )
+            for offset, (channel, value) in enumerate(rising.items())
+            for index in range(100)
+        ),
+        batch_id="rise",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="rise-01")
+        assert status == 200
+        states = {row["channel"]: row for row in found["signals"]}
+        assert states["온도"]["state"] != "cumulative"
+        assert states["누적전력량"]["state"] == "cumulative"
+        assert (states["누적전력량"]["first"], states["누적전력량"]["last"]) == (1000.0, 1495.0)
+        assert [item["channel"] for item in found["intervals"]] == ["온도"]
+    finally:
+        stop()
+
+
 def test_findings_cover_all_signals_and_compare_only_the_same_measurement_source(
     tmp_path: Path,
 ) -> None:

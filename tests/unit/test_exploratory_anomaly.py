@@ -8,7 +8,7 @@ import pytest
 
 from industrial_phm.application.exploratory_anomaly import (
     THRESHOLD,
-    accumulates,
+    declared_running_total,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -98,13 +98,11 @@ def test_related_signal_comparison_separates_typical_change_from_stable_values()
     assert interval_comparison([], reference, interval) is None
 
 
-def test_a_counter_that_only_adds_up_is_told_apart_from_a_signal_that_drifts() -> None:
-    # Shaped like AI-Hub 누적전력량: flat while stopped, one reset to 0 after a gap, then rising.
-    rising, held = [float(10 * i) for i in range(40)], [390.0] * 10
-    counter = rising + held + [0.0] + [400.0 + 10 * i for i in range(50)]
-    assert accumulates(counter)
-    # A measured value that drifts up still falls back in many steps.
-    drifting = [10 + 0.1 * i + (1.5 if i % 3 == 0 else -1.0) for i in range(100)]
-    assert not accumulates(drifting)
-    assert not accumulates([5.0] * 50)
-    assert not accumulates([1.0, 2.0, 3.0])
+def test_only_a_signal_the_source_declares_a_running_total_is_left_unjudged() -> None:
+    # AI-Hub leaves the energy unit unresolved; its item name still says what it is.
+    assert declared_running_total(name="누적전력량 누적전력량", unit=None, meaning=None)
+    assert declared_running_total(name="kwh_total", unit="kWh", meaning=None)
+    assert declared_running_total(name="e1", unit=None, meaning="Accumulated active energy")
+    # A temperature that keeps rising is a change to find, whatever its values look like.
+    assert not declared_running_total(name="온도 온도", unit=None, meaning=None)
+    assert not declared_running_total(name="vib_rms", unit="g", meaning="vibration RMS")

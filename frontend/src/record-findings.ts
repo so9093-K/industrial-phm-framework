@@ -25,7 +25,7 @@ export type CheckedSignal = {
   channel: string; label: string; unit: string | null; state: SignalState;
   /** For a baseline held at one value: that value, and the range the record took afterwards. */
   held: number | null; later: {low: number; high: number} | null;
-  /** For a counter that only adds up: where the record began and ended. */
+  /** For a running total its source declares: where the record began and ended. */
   first?: number | null; last?: number | null;
 };
 export type RecordFindings = {
@@ -164,7 +164,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
 const WHY: Record<Exclude<SignalState, "scored">, string> = {
   "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
   constant: "기록 처음 30% 동안 값이 일정해 벗어난 정도를 계산할 수 없음",
-  cumulative: "누적값처럼 계속 늘어나 기록 처음과 견준 변화로 판단하지 않음",
+  cumulative: "누적값이라 기록 처음과 견준 변화로 판단하지 않음",
   "no-values": "저장된 값이 없음",
 };
 /** Why a signal was not judged, with what a held baseline and the record afterwards showed. */

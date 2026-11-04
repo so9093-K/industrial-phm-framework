@@ -16,7 +16,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import (
-    accumulates,
+    declared_running_total,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -33,6 +33,7 @@ from industrial_phm.application.signal_exploration import (
     acquisition_spectrum,
     history_relation,
     history_series,
+    interpretation_property,
     interpretation_unit,
     is_current_in_amperes,
     strongest_identity,
@@ -512,12 +513,17 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         label, unit = names.get(channel, (None, None))
         return label or channel, unit or units.get(channel)
 
-    # A counter that only adds up always leaves its early range; it is stated, not judged.
-    cumulative = {
-        channel: values
-        for channel, values in points.items()
-        if accumulates([value for _, _, value in values])
-    }
+    def running_total(channel: str) -> bool:
+        label, unit = named(channel)
+        identity = identities.get(channel)
+        return declared_running_total(
+            name=f"{channel} {label}",
+            unit=unit,
+            meaning=interpretation_property(identity[2]) if identity else None,
+        )
+
+    # A declared running total always leaves its early range; it is stated, not judged.
+    cumulative = {channel: values for channel, values in points.items() if running_total(channel)}
     try:
         found = record_changes(
             {channel: values for channel, values in points.items() if channel not in cumulative},
