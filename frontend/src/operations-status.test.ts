@@ -46,4 +46,10 @@ test("an imported source reads as what it is; its content digest stays out of th
   assert.equal(readableSourceId("csv-pump-a1b2"),"csv-pump-a1b2");
   // A name someone registered always wins.
   assert.equal(sourceLabel(new Map([["xjtu-sy-replay","베어링 시험대"]]),"xjtu-sy-replay"),"베어링 시험대");
+  // Imports of one device shown together keep apart by their source content.
+  const shown=["aihub239-training-1306-1","aihub239-training-1306-1-"+digest,"aihub239-validation-1306-1"];
+  assert.deepEqual(shown.map(id=>readableSourceId(id,shown)),[
+    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 없음",
+    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 "+digest.slice(0,8),
+    "AI-Hub 239 원천 기록 (검증용)"]);
 });

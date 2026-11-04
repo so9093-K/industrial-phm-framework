@@ -286,13 +286,13 @@
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
           {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId)}</option>
+            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
           {/each}
         </select>
       </label>
     {/if}
     {#if binding}
-      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId)}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}

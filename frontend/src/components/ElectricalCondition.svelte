@@ -154,7 +154,7 @@
         <select value={sourceKey} onchange={(event) => { sourceKey = event.currentTarget.value; void analyze(); }}>
           <option value="">데이터 출처 고르기</option>
           {#each sources as source (keyOf(source))}
-            <option value={keyOf(source)}>{readableSourceId(source.sourceId)} · {source.pointId ?? "측정 위치 지정 없음"}</option>
+            <option value={keyOf(source)}>{readableSourceId(source.sourceId, sources.map((item) => item.sourceId))} · {source.pointId ?? "측정 위치 지정 없음"}</option>
           {/each}
         </select>
       </label>
