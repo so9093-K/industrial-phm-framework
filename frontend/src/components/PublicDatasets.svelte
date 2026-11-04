@@ -79,7 +79,12 @@
     {#if job && job.state !== "succeeded"}
       <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
     {/if}
-    {#if item.partial}<span class="status">기존 기록 있음 · 가져오기 완료 확인 전</span>{/if}
+    {#if item.sourceChanged}
+      <span class="status" role="status">준비된 원본의 내용 또는 위치가 달라졌습니다. 기존 기록은 보존되며, 다시 가져오면 새 내용은 별도 출처로 저장합니다.</span>
+    {:else if item.partial}<span class="status">기존 기록 있음 · 현재 원본의 가져오기 완료 확인 전</span>{/if}
+    {#if item.kind === "xjtu-sy" && (item.stored || item.partial || job)}
+      <span class="status">파형은 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다.</span>
+    {/if}
     {#if item.stored && job?.state !== "running"}
       <a href={assetHref(item.assetId)}>설비 화면 보기 →</a>
     {:else if job?.state !== "running"}
@@ -113,7 +118,7 @@
       <details>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
-          ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다."
+          ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다. 파형은 작업공간에 복사하지 않고 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다."
           : "설비 하나의 약 한 달 기록입니다. 원본 시각에 시간대가 없어 한국 표준시로 저장합니다."}</p>
         <ul>{#each group.items as item (item.datasetId)}{@render row(item, false)}{/each}</ul>
       </details>

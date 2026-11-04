@@ -15,13 +15,14 @@ A dataset that is missing or incomplete is never replaced by another one.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
 import threading
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,48 @@ class PublicDataset:
     path: Path
     member: str | None = None
     description: Mapping[str, object] = field(default_factory=dict)
+    source_id: str | None = None
+
+
+def _source_files(item: PublicDataset) -> tuple[Path, ...]:
+    if item.kind == "aihub-239":
+        return (item.path,)
+    from industrial_phm.adapters import list_xjtu_acquisition_files
+
+    return tuple(f.path for f in list_xjtu_acquisition_files(item.path, item.asset_id))
+
+
+def _source_signature(item: PublicDataset) -> str:
+    """Cheap change detection for a previously hashed source, including file replacement.
+
+    ctime and inode also catch same-size edits with a restored mtime. A signature change
+    invalidates completion; only the worker hashes bytes and establishes a source version.
+    """
+    files = []
+    for path in _source_files(item):
+        stat = path.stat()
+        files.append(
+            (
+                str(path.resolve()),
+                stat.st_dev,
+                stat.st_ino,
+                stat.st_size,
+                stat.st_mtime_ns,
+                stat.st_ctime_ns,
+            )
+        )
+    return hashlib.sha256(json.dumps(files).encode()).hexdigest()
+
+
+def _source_digest(item: PublicDataset) -> str:
+    from industrial_phm.application.acquisition_snapshot import file_sha256
+
+    if item.kind == "aihub-239":
+        return file_sha256(item.path)
+    # XJTU evidence retains absolute file references; moving identical bytes needs a new
+    # stream too, otherwise an idempotent replay would keep the now-missing old path.
+    files = [(str(path.resolve()), file_sha256(path)) for path in _source_files(item)]
+    return hashlib.sha256(json.dumps(files).encode()).hexdigest()
 
 
 def datasets_root() -> Path:
@@ -71,7 +114,7 @@ def _equipment(stem: str) -> str:
     return re.sub(r"^\d+\.", "", stem).replace("_", "·")
 
 
-_IDENTITY_CACHE: dict[tuple[str, int, int], dict[str, tuple[str, str]]] = {}
+_IDENTITY_CACHE: dict[tuple[str, int, int, int, int], dict[str, tuple[str, str]]] = {}
 _CACHE_LOCK = threading.Lock()
 
 
@@ -84,14 +127,20 @@ def _identities(archive: Path, index: Mapping[str, Any]) -> dict[str, tuple[str,
     from industrial_phm.adapters.aihub_power import read_power_member_identities
 
     stat = archive.stat()
-    key = (str(archive.resolve()), stat.st_size, stat.st_mtime_ns)
+    key = (str(archive.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_ino)
     with _CACHE_LOCK:
         held = _IDENTITY_CACHE.get(key)
     if held is None:
         entry = index.get(key[0])
         if (
             isinstance(entry, dict)
-            and (entry.get("size"), entry.get("mtime_ns")) == key[1:]
+            and (
+                entry.get("size"),
+                entry.get("mtime_ns"),
+                entry.get("ctime_ns"),
+                entry.get("inode"),
+            )
+            == key[1:]
             and isinstance(entry.get("members"), dict)
         ):
             held = {member: (str(ids[0]), str(ids[1])) for member, ids in entry["members"].items()}
@@ -129,6 +178,8 @@ def write_public_dataset_index(workspace: OperationsWorkspace, root: Path | None
         index[str(archive.resolve())] = {
             "size": stat.st_size,
             "mtime_ns": stat.st_mtime_ns,
+            "ctime_ns": stat.st_ctime_ns,
+            "inode": stat.st_ino,
             "members": {member: list(ids) for member, ids in identities.items()},
         }
     target = workspace.public_dataset_index_path
@@ -235,9 +286,19 @@ def _aihub_source(dataset_id: str, description: Mapping[str, object]) -> str:
     return f"aihub239-{split}-{description['device_id']}-{description['device_board_id']}"
 
 
+def _base_source(item: PublicDataset) -> str:
+    from industrial_phm.demo.xjtu_models import XJTU_DEMO_SOURCE_ID
+
+    return (
+        _aihub_source(item.dataset_id, item.description)
+        if item.kind == "aihub-239"
+        else XJTU_DEMO_SOURCE_ID
+    )
+
+
 def _stored(
     workspace: OperationsWorkspace, assets: set[str]
-) -> tuple[set[tuple[str, str]], dict[str, int]]:
+) -> tuple[set[tuple[str, str]], dict[tuple[str, str], int]]:
     """Stored (asset, source) history among ``assets``, and acquisitions per XJTU-SY bearing."""
     from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
     from industrial_phm.demo.xjtu_models import XJTU_DEMO_SOURCE_ID
@@ -255,11 +316,13 @@ def _stored(
                     (summary.asset_id, stream.source_id)
                     for stream in history.list_history_streams(summary.asset_id)
                 }
-    replayed: dict[str, int] = {}
+    replayed: dict[tuple[str, str], int] = {}
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
     for stream in snapshots.list_streams():
-        if stream.source_id == XJTU_DEMO_SOURCE_ID:
-            replayed[stream.asset_id] = stream.ordinal
+        if stream.source_id == XJTU_DEMO_SOURCE_ID or stream.source_id.startswith(
+            XJTU_DEMO_SOURCE_ID + "-"
+        ):
+            replayed[(stream.asset_id, stream.source_id)] = stream.ordinal
     return sources, replayed
 
 
@@ -279,19 +342,32 @@ def list_public_datasets(
     items = []
     for item in datasets:
         job = jobs.get(item.dataset_id)
-        present = (
-            (item.asset_id, _aihub_source(item.dataset_id, item.description)) in sources
-            if item.kind == "aihub-239"
-            else item.asset_id in replayed
+        base = _base_source(item)
+        source_id = str(job.get("source_id", base)) if job else base
+        streams = sources if item.kind == "aihub-239" else set(replayed)
+        present = any(
+            asset == item.asset_id and (source == base or source.startswith(base + "-"))
+            for asset, source in streams
         )
-        # A partially written stream is not proof of a completed import.
-        # Full XJTU replays without a job may be identified by the last acquisition.
+        previous_signature = job.get("source_signature") if job else None
+        try:
+            signature = _source_signature(item) if previous_signature is not None else None
+        except OSError, ValueError:
+            signature = None
+        matches = signature is not None and previous_signature == signature
+        verified = matches and job is not None and isinstance(job.get("source_digest"), str)
+        changed = previous_signature is not None and not matches
+        # A success belongs to one source version, not just a stable dataset name.
+        completed = job is not None and job.get("state") == "succeeded" and verified
         if item.kind == "aihub-239":
-            stored = present and job is not None and job.get("state") == "succeeded"
+            stored = (item.asset_id, source_id) in sources and completed
         else:
             expected = item.description["acquisitions"]
-            complete = isinstance(expected, int) and replayed.get(item.asset_id, 0) >= expected
-            stored = present and complete and (job is None or job.get("state") == "succeeded")
+            complete = (
+                isinstance(expected, int)
+                and replayed.get((item.asset_id, source_id), 0) >= expected
+            )
+            stored = complete and completed
         items.append(
             {
                 "dataset_id": item.dataset_id,
@@ -299,6 +375,7 @@ def list_public_datasets(
                 "asset_id": item.asset_id,
                 "stored": stored,
                 "partial": present and not stored,
+                "source_changed": changed,
                 **item.description,
             }
         )
@@ -321,7 +398,7 @@ def _import_aihub(
 
     device, board = str(item.description["device_id"]), str(item.description["device_board_id"])
     binding = PowerHistoryBinding(
-        source_id=_aihub_source(item.dataset_id, item.description),
+        source_id=item.source_id or _aihub_source(item.dataset_id, item.description),
         asset_id=item.asset_id,
         device_id=device,
         device_board_id=board,
@@ -384,11 +461,12 @@ def _import_xjtu(
             packages.update(fit_xjtu_packages(preset, workspace, missing, revision, lambda _: None))
         except ValueError as error:
             raise DatasetImportError("source-incomplete") from error
+    source_id = item.source_id or XJTU_DEMO_SOURCE_ID
     for recipe in (IFOREST_RECIPE, LSTM_RECIPE):
         create_phm_binding(
             workspace,
             package_id=packages[recipe],
-            source_id=XJTU_DEMO_SOURCE_ID,
+            source_id=source_id,
             asset_id=item.asset_id,
             recorded_replay=True,
         )
@@ -404,7 +482,7 @@ def _import_xjtu(
         SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
         item.path,
         asset_id=item.asset_id,
-        source_id=XJTU_DEMO_SOURCE_ID,
+        source_id=source_id,
         interval_seconds=0.0,
         on_delivered=counted,
     )
@@ -481,6 +559,7 @@ class PublicDatasetJobs:
                 "step": "history" if item.kind == "aihub-239" else "replay",
                 "done": 0,
                 "started_at": _now(),
+                "source_signature": _source_signature(item),
             }
             self._write()
             self._thread = threading.Thread(
@@ -505,10 +584,18 @@ class PublicDatasetJobs:
             self._update(key, step=name, force=True)
 
         try:
+            signature = self._jobs[key]["source_signature"]
+            digest = _source_digest(item)
+            if _source_signature(item) != signature:
+                raise DatasetImportError("source-changed")
+            item = replace(item, source_id=f"{_base_source(item)}-{digest}")
+            self._update(key, force=True, source_id=item.source_id, source_digest=digest)
             if item.kind == "aihub-239":
                 _import_aihub(self._workspace, item, progress)
             else:
                 _import_xjtu(self._workspace, item, progress, step)
+            if _source_signature(item) != signature:
+                raise DatasetImportError("source-changed")
             update: dict[str, object] = {"state": "succeeded"}
         except Exception as error:  # A job records a bounded failure code only.
             update = {"state": "failed", "failure": _failure(error)}

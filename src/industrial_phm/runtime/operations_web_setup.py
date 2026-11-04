@@ -46,11 +46,9 @@ from industrial_phm.runtime.operations_app_actions import (
     OperationsDiagnosticKind,
 )
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
-from industrial_phm.runtime.operations_app_wiring import (
-    OperationsAppPaths,
-    resolve_operations_app_paths,
-)
+from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
 from industrial_phm.runtime.operations_web_read import _utc
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MAX_SOURCES = 100
 # Reuse the Operations monitor's existing heartbeat and receive-silence budgets.
@@ -697,7 +695,7 @@ def preflight_uploaded_csv_source(
     known = next(
         (
             item
-            for item in JsonSourceRepository(paths.registry).list_sources()
+            for item in JsonSourceRepository(paths.source_registry_path).list_sources()
             if item.source_id == source_id
         ),
         None,
@@ -828,10 +826,10 @@ def receive_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
 
 def _checked_workspace_file(
     root: Path, source_id: str
-) -> tuple[OperationsAppPaths, JsonSourceRepository, RegisteredSource]:
+) -> tuple[OperationsWorkspace, JsonSourceRepository, RegisteredSource]:
     """Recheck single-writer Web scope before each explicit FILE mutation."""
     paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
-    registry = JsonSourceRepository(paths.registry)
+    registry = JsonSourceRepository(paths.source_registry_path)
     source = registry.get(source_id)
     if not isinstance(source.config, FileSourceConfig):
         raise SourceControlConflict("Web FILE action requires a FILE source")
@@ -872,7 +870,7 @@ def analyze_workspace_file_source(root: Path, payload: dict[str, object]) -> dic
     assert isinstance(source.config, FileSourceConfig)
     if Path(source.config.source_path).stat().st_size > _MAX_WEB_HISTORY_BYTES:
         raise SourceControlConflict("FILE too large for synchronous Web analysis")
-    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+    if JsonSourceRuntimeRepository(paths.source_runtime_path).get_latest_receipt(source_id) is None:
         raise SourceControlConflict("validate FILE receipt before analysis")
 
     result, _ = OperationsAppActions(paths).record_file_analysis(source)
@@ -901,13 +899,13 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
     file_path = Path(source.config.source_path)
     if file_path.stat().st_size > _MAX_WEB_HISTORY_BYTES:
         raise SourceControlConflict("FILE too large for synchronous phase analysis")
-    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+    if JsonSourceRuntimeRepository(paths.source_runtime_path).get_latest_receipt(source_id) is None:
         raise SourceControlConflict("validate FILE receipt before phase analysis")
-    if not paths.history_catalog.is_file():
+    if not paths.history_catalog_path.is_file():
         raise SourceControlConflict("persist FILE history before phase analysis")
 
     history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
+        DuckLakeAssetHistoryConfig(paths.history_catalog_path, paths.history_data_path)
     )
     events = history.query_file_events(source_id)
     if not events or len(events) > 100_000:
@@ -949,7 +947,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
         measurement_point_id=source.measurement_point_id,
         snapshot_id=snapshot,
     )
-    SqlitePhaseUnbalanceRepository(paths.phase_analysis).record(result)
+    SqlitePhaseUnbalanceRepository(paths.phase_unbalance_state_path).record(result)
     return {
         "schema_version": 1,
         "source_id": source_id,
@@ -965,7 +963,7 @@ def analyze_workspace_file_phase(root: Path, payload: dict[str, object]) -> dict
 
 def check_file_history_backfill(
     root: Path, payload: dict[str, object], *, max_bytes: int
-) -> tuple[OperationsAppPaths, JsonSourceRepository, str]:
+) -> tuple[OperationsWorkspace, JsonSourceRepository, str]:
     """Validate one FILE history request before any history write starts."""
     if set(payload) != {"source_id"}:
         raise ValueError("unexpected FILE history fields")
@@ -977,19 +975,19 @@ def check_file_history_backfill(
         raise SourceControlConflict("historical FILE backfill needs explicit timestamps")
     if Path(source.config.source_path).stat().st_size > max_bytes:
         raise SourceControlConflict("FILE too large for this Web history path")
-    if JsonSourceRuntimeRepository(paths.source_runtime).get_latest_receipt(source_id) is None:
+    if JsonSourceRuntimeRepository(paths.source_runtime_path).get_latest_receipt(source_id) is None:
         raise SourceControlConflict("validate FILE receipt before history backfill")
     return paths, registry, source_id
 
 
 def run_file_history_backfill(
-    paths: OperationsAppPaths, registry: JsonSourceRepository, source_id: str
+    paths: OperationsWorkspace, registry: JsonSourceRepository, source_id: str
 ) -> dict[str, object]:
     """Append or recover the checked FILE batch; a retry reuses an existing commit."""
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(
-            catalog_path=paths.history_catalog,
-            data_path=paths.history_data,
+            catalog_path=paths.history_catalog_path,
+            data_path=paths.history_data_path,
         )
     )
     result = backfill_registered_file_source(registry, history, source_id)

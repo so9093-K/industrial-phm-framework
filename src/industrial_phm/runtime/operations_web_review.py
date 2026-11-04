@@ -33,7 +33,6 @@ from industrial_phm.application.maintenance_review import (
 from industrial_phm.application.operational import OperationalAnalysisResult
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.runtime.operations_app_actions import OperationsAppActions
-from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
@@ -63,15 +62,16 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
         raise ValueError("unexpected analysis review fields")
     run_id = _id(payload, "analysis_run_id")
     evidence_id = _id(payload, "evidence_id")
-    workspace = OperationsWorkspace(root)
-    paths = OperationsAppPaths(workspace)
-    phase_results = SqlitePhaseUnbalanceRepository(paths.phase_analysis).find_results({run_id})
+    paths = OperationsWorkspace(root)
+    phase_results = SqlitePhaseUnbalanceRepository(paths.phase_unbalance_state_path).find_results(
+        {run_id}
+    )
     matches: list[OperationalAnalysisResult] = []
     for item in phase_results:
         if item.evidence.evidence_id == evidence_id:
             matches.append(item)
     if not matches:
-        file_repository = JsonFileFeatureAnalysisRepository(paths.file_feature_analysis)
+        file_repository = JsonFileFeatureAnalysisRepository(paths.file_feature_analysis_path)
         for file_result in file_repository.list_results():
             if (
                 file_result.run.analysis_run_id == run_id
@@ -82,7 +82,9 @@ def request_web_analysis_review(root: Path, payload: dict[str, object]) -> dict[
         raise WebReviewNotFound("exact analysis evidence unavailable")
     finding, _ = OperationsAppActions(paths).request_review(matches[0])
     # The finding is idempotent, but its human disposition may have advanced.
-    status = JsonFindingReviewRepository(paths.review).status_for(finding.finding_id)
+    status = JsonFindingReviewRepository(paths.maintenance_review_state_path).status_for(
+        finding.finding_id
+    )
     return {
         "schema_version": 1,
         "finding_id": finding.finding_id,
@@ -130,18 +132,18 @@ def record_web_review_action(root: Path, payload: dict[str, object]) -> dict[str
     if action == "note" and not note:
         raise ValueError("note action requires a note")
     decision = review_decision(payload.get("decision"), FindingReviewAction(action))
-    paths = OperationsAppPaths(OperationsWorkspace(root))
+    paths = OperationsWorkspace(root)
     finding = next(
         (
             item
-            for item in JsonOperationalFindingRepository(paths.findings).list_findings()
+            for item in JsonOperationalFindingRepository(paths.finding_state_path).list_findings()
             if item.finding_id == finding_id
         ),
         None,
     )
     if finding is None:
         raise WebReviewNotFound("finding identity unavailable")
-    reviews = JsonFindingReviewRepository(paths.review)
+    reviews = JsonFindingReviewRepository(paths.maintenance_review_state_path)
     if request_id is not None:
         saved = next(
             (

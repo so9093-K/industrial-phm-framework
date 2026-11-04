@@ -2,6 +2,10 @@
 
 Status: Accepted
 
+> 2026-11-04 개정: 경로 별칭만 제공하던 `OperationsAppPaths`를 제거했습니다. 읽기·쓰기 조합은
+> `OperationsWorkspace`를 직접 공유합니다. 아래 내용은 도입 당시의 결정이며, 개별 경로 환경변수는
+> ADR-0021에서, marimo 운영 UI는 ADR-0030에서 대체했습니다.
+
 ## Context
 
 ADR-0018 moved concrete read repositories out of the marimo Operations V2 app.

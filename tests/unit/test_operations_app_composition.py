@@ -13,21 +13,7 @@ def test_operations_app_paths_use_single_workspace_root(tmp_path: Path) -> None:
         {"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(workspace.root)}
     )
 
-    assert paths.workspace == workspace
-    assert paths.registry == workspace.source_registry_path
-    assert paths.source_runtime == workspace.source_runtime_path
-    assert paths.acquisition_telemetry == workspace.acquisition_telemetry_path
-    assert paths.acquisition_spool == workspace.acquisition_spool_path
-    assert paths.collection_control == workspace.collection_control_path
-    assert paths.file_feature_analysis == workspace.file_feature_analysis_path
-    assert paths.phase_analysis == workspace.phase_unbalance_state_path
-    assert paths.analysis_runtime == workspace.analysis_runtime_path
-    assert paths.window_state == workspace.window_state_path
-    assert paths.analysis_ledger == workspace.analysis_ledger_path
-    assert paths.findings == workspace.finding_state_path
-    assert paths.review == workspace.maintenance_review_state_path
-    assert paths.history_catalog == workspace.history_catalog_path
-    assert paths.history_data == workspace.history_data_path
+    assert paths == workspace
 
 
 def test_operations_app_paths_require_workspace_root() -> None:
@@ -52,9 +38,9 @@ def test_operations_app_paths_ignore_granular_path_environment(tmp_path: Path) -
         }
     )
 
-    assert paths.registry == workspace.source_registry_path
-    assert paths.phase_analysis == workspace.phase_unbalance_state_path
-    assert paths.analysis_runtime == workspace.analysis_runtime_path
+    assert paths.source_registry_path == workspace.source_registry_path
+    assert paths.phase_unbalance_state_path == workspace.phase_unbalance_state_path
+    assert paths.analysis_runtime_path == workspace.analysis_runtime_path
 
 
 def test_operations_app_snapshot_is_error_tolerant_for_one_bad_repository(

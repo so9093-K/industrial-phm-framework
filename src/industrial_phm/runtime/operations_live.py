@@ -30,7 +30,7 @@ from industrial_phm.runtime.acquisition_spool import (
     SqliteAcquisitionSpoolConfig,
 )
 from industrial_phm.runtime.acquisition_telemetry import SqliteAcquisitionTelemetryRepository
-from industrial_phm.runtime.operations_app_wiring import OperationsAppPaths
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 DEFAULT_LIVE_LOOKBACK_SECONDS = 60.0
 DEFAULT_LIVE_POINT_BUDGET = 600
@@ -131,7 +131,7 @@ def query_operations_multi_signal_measurement_aggregation(
 
 
 def load_operations_live_observation(
-    paths: OperationsAppPaths,
+    paths: OperationsWorkspace,
     *,
     asset_id: str,
     channel_id: str,
@@ -143,8 +143,8 @@ def load_operations_live_observation(
 ) -> LiveObservationView:
     """Read only the selected live signal; do not reload the full Operations snapshot."""
 
-    if not isinstance(paths, OperationsAppPaths):
-        raise ValueError("paths must be OperationsAppPaths")
+    if not isinstance(paths, OperationsWorkspace):
+        raise ValueError("paths must be OperationsWorkspace")
     if sampled_at.utcoffset() is None:
         raise ValueError("sampled_at must be timezone-aware")
     if (
@@ -171,9 +171,9 @@ def load_operations_live_observation(
     latest_points: tuple[MeasurementHistoryPoint, ...] = ()
     recent_page = MeasurementHistoryPage((), False, point_budget)
 
-    if paths.history_catalog.is_file():
+    if paths.history_catalog_path.is_file():
         history = DuckLakeAssetHistory(
-            DuckLakeAssetHistoryConfig(paths.history_catalog, paths.history_data)
+            DuckLakeAssetHistoryConfig(paths.history_catalog_path, paths.history_data_path)
         )
         latest_points = query_operations_latest_measurements(
             history,
@@ -220,19 +220,19 @@ def load_operations_live_observation(
 
 
 def _load_live_acquisition_surfaces(
-    paths: OperationsAppPaths,
+    paths: OperationsWorkspace,
     *,
     source_ids: Sequence[str],
     sampled_at: datetime,
 ) -> tuple[AcquisitionTelemetrySurface, ...]:
-    if not source_ids or not paths.acquisition_telemetry.is_file():
+    if not source_ids or not paths.acquisition_telemetry_path.is_file():
         return ()
-    if not paths.acquisition_spool.is_file():
+    if not paths.acquisition_spool_path.is_file():
         return ()
 
-    telemetry = SqliteAcquisitionTelemetryRepository(paths.acquisition_telemetry)
+    telemetry = SqliteAcquisitionTelemetryRepository(paths.acquisition_telemetry_path)
     spool = SqliteAcquisitionSpool(
-        SqliteAcquisitionSpoolConfig(path=paths.acquisition_spool)
+        SqliteAcquisitionSpoolConfig(path=paths.acquisition_spool_path)
     ).telemetry_snapshot(sampled_at=sampled_at)
     surfaces: list[AcquisitionTelemetrySurface] = []
     for source_id in source_ids:

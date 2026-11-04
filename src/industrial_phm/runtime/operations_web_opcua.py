@@ -156,7 +156,7 @@ def diagnose_local_opcua(root: Path, payload: dict[str, object]) -> dict[str, ob
     source_id = _text(payload, "source_id")
     assert isinstance(source_id, str)
     paths = resolve_operations_app_paths({"INDUSTRIAL_PHM_OPERATIONS_WORKSPACE": str(root)})
-    repository = JsonSourceRepository(paths.registry)
+    repository = JsonSourceRepository(paths.source_registry_path)
     source = repository.get(source_id)
     if not isinstance(source.config, OpcUaSourceConfig):
         raise SourceControlConflict("OPC UA diagnostic requires an OPC UA source")

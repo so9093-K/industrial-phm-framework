@@ -20,69 +20,6 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
 @dataclass(frozen=True, slots=True)
-class OperationsAppPaths:
-    """Compatibility projection over the authoritative Operations workspace layout."""
-
-    workspace: OperationsWorkspace
-
-    @property
-    def registry(self) -> Path:
-        return self.workspace.source_registry_path
-
-    @property
-    def source_runtime(self) -> Path:
-        return self.workspace.source_runtime_path
-
-    @property
-    def acquisition_telemetry(self) -> Path:
-        return self.workspace.acquisition_telemetry_path
-
-    @property
-    def acquisition_spool(self) -> Path:
-        return self.workspace.acquisition_spool_path
-
-    @property
-    def collection_control(self) -> Path:
-        return self.workspace.collection_control_path
-
-    @property
-    def file_feature_analysis(self) -> Path:
-        return self.workspace.file_feature_analysis_path
-
-    @property
-    def phase_analysis(self) -> Path:
-        return self.workspace.phase_unbalance_state_path
-
-    @property
-    def analysis_runtime(self) -> Path:
-        return self.workspace.analysis_runtime_path
-
-    @property
-    def window_state(self) -> Path:
-        return self.workspace.window_state_path
-
-    @property
-    def analysis_ledger(self) -> Path:
-        return self.workspace.analysis_ledger_path
-
-    @property
-    def findings(self) -> Path:
-        return self.workspace.finding_state_path
-
-    @property
-    def review(self) -> Path:
-        return self.workspace.maintenance_review_state_path
-
-    @property
-    def history_catalog(self) -> Path:
-        return self.workspace.history_catalog_path
-
-    @property
-    def history_data(self) -> Path:
-        return self.workspace.history_data_path
-
-
-@dataclass(frozen=True, slots=True)
 class OperationsSourceRegistryState:
     """Post-read/write source registry state shared by snapshot and actions."""
 
@@ -93,7 +30,7 @@ class OperationsSourceRegistryState:
 
 def resolve_operations_app_paths(
     environ: Mapping[str, str] | None = None,
-) -> OperationsAppPaths:
+) -> OperationsWorkspace:
     """Resolve packaged Operations paths from one authoritative workspace root."""
     values = os.environ if environ is None else environ
     workspace_root = values.get("INDUSTRIAL_PHM_OPERATIONS_WORKSPACE")
@@ -101,9 +38,7 @@ def resolve_operations_app_paths(
         raise ValueError(
             "INDUSTRIAL_PHM_OPERATIONS_WORKSPACE is required for the packaged Operations app"
         )
-    workspace = OperationsWorkspace(Path(workspace_root))
-
-    return OperationsAppPaths(workspace=workspace)
+    return OperationsWorkspace(Path(workspace_root))
 
 
 def load_operations_source_registry_state(
