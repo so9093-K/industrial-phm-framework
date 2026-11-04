@@ -34,6 +34,9 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 assert "monitor_asset=bearing-a" in page.url
                 page.reload()
                 pw.expect(page.get_by_role("group", name="2번째 측정 모델 결과")).to_be_visible()
+                page.get_by_role("button", name="이 측정의 원본 확인 →", exact=True).click()
+                pw.expect(page.locator("#selected-model-input")).to_be_focused()
+                pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("2")
                 for suffix in (
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=absent",
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=999",

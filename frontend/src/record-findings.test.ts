@@ -16,6 +16,7 @@ const body = () => ({
 
 test("what the whole record held reads as when, how long, against which range, and what else moved", () => {
   const found = parseRecordFindings(body(), "comp");
+  assert.deepEqual(found.record, body().record);
   assert.equal(found.count, 9);
   const told = findingText(found.intervals[0], found.bucketSeconds);
   assert.equal(told.when, "10. 24. 16:10 ~ 10. 26. 08:19 (약 1일 16시간)");

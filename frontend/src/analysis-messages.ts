@@ -17,6 +17,25 @@ export type AnalysisMessage = {
   next: NextStep[];
 };
 
+/** Explain the server's verdict for one selected model result without inventing a verdict
+ * from the score, or treating a below-threshold result as evidence of a healthy asset. */
+export function selectedScoreMessage(summary: {score: number | null; threshold: number | null; exceeds: boolean | null},
+  next: NextStep[] = []): AnalysisMessage {
+  const numbers = summary.score === null ? "이 측정의 모델 점수가 기록되지 않았습니다."
+    : "이 측정의 모델 점수는 " + short(summary.score)
+      + (summary.threshold === null ? "이며, 비교 기준값은 기록되지 않았습니다." : ", 모델 기준은 " + short(summary.threshold) + "입니다.");
+  const judged = summary.score !== null && summary.threshold !== null && summary.exceeds !== null;
+  return {
+    headline: judged ? "선택한 측정이 이 모델의 기준을 " + (summary.exceeds ? "넘었습니다." : "넘지 않았습니다.") : "이 측정의 기준 초과 여부를 확인할 수 없습니다.",
+    meaning: numbers,
+    certainty: judged && summary.exceeds
+      ? "이 모델이 정한 비교 기준에서 벗어났다는 뜻입니다. 같은 측정의 원본 값과 앞선 측정의 차이를 함께 확인하세요."
+      : judged ? "이 모델에서는 기준 초과로 표시하지 않았습니다. 설비가 정상이라거나 다른 신호에도 변화가 없다는 판정은 아닙니다."
+        : "점수나 기준, 저장된 판정 정보가 부족합니다. 숫자만으로 초과 여부를 추정하지 않습니다.",
+    next,
+  };
+}
+
 /** A value as people read it in a sentence: three significant digits. */
 export function short(value: number): string {
   return value.toLocaleString("ko-KR", {maximumSignificantDigits: 3});
@@ -71,7 +90,8 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
   const range = a.low !== null && a.high !== null ? short(a.low) + "~" + short(a.high) + unit : null;
   const ratio = facts.medianChangePercent !== null ? 1 + facts.medianChangePercent / 100 : null;
   const medians = "중앙값은 " + short(a.median) + " → " + short(b.median) + unit
-    + (ratio !== null && ratio > 0 && (ratio >= 1.5 || ratio <= 1 / 1.5) ? "로 약 " + times(ratio) + "입니다." : "입니다.");
+    + (ratio !== null && ratio >= 0 && ratio <= 1 / 1.5 ? "로 약 " + short(100 * (1 - ratio)) + "% 낮아졌습니다."
+      : ratio !== null && ratio >= 1.5 ? "로 약 " + times(ratio) + "입니다." : "입니다.");
   const share = facts.outsidePercent;
   const count = facts.outsideCount ?? (share === null ? null : Math.round(share * b.usable / 100));
   // "모두" only when every usable measurement is outside; otherwise the count itself, and a
@@ -364,7 +384,7 @@ export function outlookMessage(facts: OutlookFacts, next: NextStep[] = []): Anal
     if (lo > 0 && hi / lo >= 2) spread = true;
   }
   if (!parts.length && !already.length) return null;
-  const headline = [...already, ...parts.map((part, i) => i ? part : "지금 추세가 이어진다고 가정하면 " + part)].join(" ");
+  const headline = [...already, ...parts.map((part, i) => i ? part : "기록 마지막 시점의 추세가 이어진다고 가정하면 " + part)].join(" ");
   const check = facts.checks[0];
   let certainty: string;
   if (!check) certainty = "기록이 짧아 과거 자료로 예측을 확인하지 못했습니다. 도달 시점은 대략의 범위로 읽으세요.";

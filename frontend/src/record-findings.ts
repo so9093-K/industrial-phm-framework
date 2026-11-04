@@ -26,6 +26,7 @@ export type CheckedSignal = {
 export type RecordFindings = {
   assetId: string;
   baseline: {from: string; to: string} | null;
+  record: {from: string; to: string} | null;
   /** Each value is a mean over this many seconds; null when nothing was read. */
   bucketSeconds: number | null;
   signals: CheckedSignal[]; judged: number; unchecked: number;
@@ -72,7 +73,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   if (intervals.length && !judged) invalid();
   const count = finite(root.interval_count);
   if (count < intervals.length) invalid();
-  return {assetId, baseline: range(root.baseline),
+  return {assetId, baseline: range(root.baseline), record: range(root.record ?? null),
     bucketSeconds: root.bucket_seconds === null ? null : finite(root.bucket_seconds),
     signals, judged, unchecked: finite(root.unchecked), intervals, count};
 }

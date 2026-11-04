@@ -2,12 +2,28 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
   comparisonMessage, coefficientSpread, countShare, historyPeriodMessage, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
-  spectrumMessage, tie, times,
+  selectedScoreMessage, spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
 import {elapsedText} from "./time-axis.ts";
 
 const place = (n: number) => n + "번째 측정";
+
+test("a selected model result explains its scope without equating below threshold with normal", () => {
+  const over = selectedScoreMessage({score: 0.8, threshold: 0.5, exceeds: true});
+  assert.match(over.headline, /이 모델의 기준을 넘었습니다/);
+  assert.match(over.meaning!, /0.8.*0.5/);
+  assert.match(over.certainty!, /같은 측정의 원본 값/);
+  const below = selectedScoreMessage({score: 0.4, threshold: 0.5, exceeds: false});
+  assert.match(below.headline, /넘지 않았습니다/);
+  assert.match(below.certainty!, /정상이라거나.*판정은 아닙니다/);
+  // A numeric comparison must not invent a missing stored verdict or conceal missing evidence.
+  for (const summary of [
+    {score: 0.8, threshold: 0.5, exceeds: null},
+    {score: null, threshold: 0.5, exceeds: true},
+    {score: 0.8, threshold: null, exceeds: true},
+  ]) assert.match(selectedScoreMessage(summary).headline, /확인할 수 없습니다/);
+});
 
 // Numbers below are what the screens computed for the XJTU-SY Bearing1_1 replay, #1–75 against #76–100.
 test("a period whose every value left the usual range says so before the medians", () => {
@@ -33,6 +49,15 @@ test("a few values outside the usual range read as possibly brief, a tenth or le
   const few = periodMessage({...base, b: {usable: 3, median: 20}, outsideCount: 3, outsidePercent: 100}, place)!;
   assert.match(few.certainty!, /기간 B 3회/);
   assert.equal(periodMessage({...base, b: {usable: 0, median: null}, outsideCount: null, outsidePercent: null}, place), null);
+});
+
+test("a large decrease is read as a decrease percentage, including a value falling to zero", () => {
+  const base = {unit: null, a: {usable: 100, median: 218, low: 214, high: 223},
+    b: {usable: 100, median: 7.81}, outsideCount: 97, outsidePercent: 97,
+    medianChangePercent: 100 * (7.81 / 218 - 1), onset: null};
+  assert.match(periodMessage(base, place)!.headline, /96.4% 낮아졌습니다/);
+  assert.match(periodMessage({...base, b: {usable: 100, median: 0}, medianChangePercent: -100}, place)!.headline,
+    /100% 낮아졌습니다/);
 });
 
 test("the onset is the first value of B outside A's range, and whether it stayed out", () => {
@@ -147,13 +172,13 @@ test("the outlook gives every reading's reach and how far the past check lets on
       {id: "linear", management: reach("expected", 15), end: reach("beyond")}],
     checks: [{points: 25, error: 1.53, naive: 1.62, coverage: 0}]};
   const message = outlookMessage(facts)!;
-  assert.equal(message.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 4~15회(약 4분~15분) 남았습니다. "
+  assert.equal(message.headline, "기록 마지막 시점의 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 4~15회(약 4분~15분) 남았습니다. "
     + "종료 기준 6 g까지 추가 측정 25~29회(약 25분~29분) 남았습니다(계산 방식 4가지 중 2가지에서 중심 예측이 닿음, 1가지는 예측 범위로만 닿을 수 있음).");
   // When no central forecast reaches a limit, the band alone may still: that is not "never".
   const banded = outlookMessage({...facts, conditions: {management: null, end: 6},
     scenarios: [{id: "current", management: null, end: {state: "possible", expected: null, earliest: 30, latest: null}},
       {id: "linear", management: null, end: reach("beyond")}]})!;
-  assert.equal(banded.headline, "지금 추세가 이어진다고 가정하면 종료 기준 6 g에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, "
+  assert.equal(banded.headline, "기록 마지막 시점의 추세가 이어진다고 가정하면 종료 기준 6 g에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, "
     + "예측 범위로는 빠르면 추가 측정 30회(약 30분) 뒤 닿을 수 있습니다(계산 방식 2가지 중 1가지).");
   // Shaped like compressor 1338 R상전류 against 100 A: the tile shows the current method's
   // 44.5 h, so a sentence naming only the other method's 30.2 h contradicted it.
@@ -161,7 +186,7 @@ test("the outlook gives every reading's reach and how far the past check lets on
     scenarios: [{id: "current", management: null, end: {state: "possible", expected: null, earliest: 160_200, latest: null}},
       {id: "responsive", management: null, end: {state: "possible", expected: null, earliest: 108_720, latest: null}},
       {id: "linear", management: null, end: reach("beyond")}], checks: []})!;
-  assert.equal(spreadBand.headline, "지금 추세가 이어진다고 가정하면 종료 기준 100 g에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, "
+  assert.equal(spreadBand.headline, "기록 마지막 시점의 추세가 이어진다고 가정하면 종료 기준 100 g에는 중심 예측으로는 계산한 범위 안에서 닿지 않지만, "
     + "예측 범위로는 계산 방식에 따라 빠르면 약 " + elapsedText(108_720) + "~" + elapsedText(160_200) + " 뒤 닿을 수 있습니다(계산 방식 3가지 중 2가지).");
   assert.equal(message.certainty, "기록의 마지막 25개를 가리고 같은 방법으로 예측해 보니 실제 값이 예측 범위 안에 든 비율은 0%였고, "
     + "마지막 값을 그대로 이어 쓴 것과 오차가 비슷했습니다. 계산 방식에 따라 도달 시점이 두 배 넘게 갈립니다. "
@@ -173,11 +198,11 @@ test("the outlook gives every reading's reach and how far the past check lets on
   assert.match(rare.certainty!, /비율은 0\.1% 미만이었고,/);
   const good = outlookMessage({...facts, period: null, conditions: {management: 4, end: null},
     scenarios: [{id: "current", management: reach("expected", 10), end: null}], checks: [{points: 20, error: 0.2, naive: 1, coverage: 0.9}]})!;
-  assert.equal(good.headline, "지금 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 10회 남았습니다.");
+  assert.equal(good.headline, "기록 마지막 시점의 추세가 이어진다고 가정하면 관리 기준 4 g까지 추가 측정 10회 남았습니다.");
   assert.match(good.certainty!, /오차가 작았습니다. 과거 확인에서는 예측이 실제 값을 대체로 따라갔습니다/);
   const time = outlookMessage({...facts, axis: "time", period: null, conditions: {management: 4, end: 6},
     scenarios: [{id: "current", management: reach("already"), end: reach("beyond")}], checks: []})!;
-  assert.equal(time.headline, "마지막 측정이 이미 관리 기준 4 g에 닿았습니다. 지금 추세가 이어진다고 가정하면 종료 기준 6 g에는 계산한 범위 안에서 닿지 않습니다.");
+  assert.equal(time.headline, "마지막 측정이 이미 관리 기준 4 g에 닿았습니다. 기록 마지막 시점의 추세가 이어진다고 가정하면 종료 기준 6 g에는 계산한 범위 안에서 닿지 않습니다.");
   assert.match(time.certainty!, /과거 자료로 예측을 확인하지 못했습니다/);
   assert.equal(outlookMessage({...facts, conditions: {management: null, end: null}}), null);
 });

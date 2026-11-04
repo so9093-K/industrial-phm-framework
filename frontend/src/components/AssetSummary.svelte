@@ -108,18 +108,13 @@
     <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
     <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
   </dl>
-  <h3 class="recent">지금 확인할 항목</h3>
-  {#if notesState === "loading"}
-    <p class="context">확인할 항목을 읽고 있습니다.</p>
-  {:else if departures.length || others.length}
-    <ul class="others">
-      {#each [...departures, ...others] as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
-    </ul>
-  {:else if notes}
-    <p class="context">기록의 마지막 측정 기준으로 지금 확인할 항목은 없습니다.</p>
-  {/if}
   {#if data?.history}
     <h3 class="recent">이 기록에서 찾은 변화</h3>
+    {#if findingState === "ready" && findings}
+      {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
+      <p class="coverage" aria-label="변화 분석 범위">전체 신호 {findings.signals.length + findings.unchecked}개 중
+        계산 {findings.judged}개 · 계산 불가 {findings.signals.length - findings.judged}개 · 미검토 {findings.unchecked}개</p>
+    {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
     {:else if findingState === "failed"}
@@ -148,7 +143,18 @@
     {#if findings && findings.signals.some((row) => row.state !== "scored")}
       <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored").map(unjudgedText).join(" · ")}</p>
     {/if}
-    {#if findings?.unchecked}<p class="context small">신호가 많아 앞의 {findings.signals.length}개만 확인했고, 나머지 {findings.unchecked}개는 판단하지 않았습니다.</p>{/if}
+    {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
+      나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
+  {/if}
+  <h3 class="recent">마지막 측정의 확인 항목</h3>
+  {#if notesState === "loading"}
+    <p class="context">확인할 항목을 읽고 있습니다.</p>
+  {:else if departures.length || others.length}
+    <ul class="others">
+      {#each [...departures, ...others] as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
+    </ul>
+  {:else if notes}
+    <p class="context">기록의 마지막 측정 기준으로 추가 확인 항목은 없습니다.</p>
   {/if}
   <p class="context"><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 추이 보기 →</a></p>
 </section>
@@ -222,6 +228,7 @@
   .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .others { list-style: none; margin: 0; padding: 0; }
   .small { font-size: var(--font-small); }
+  .coverage { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); font-size: var(--font-small); overflow-wrap: anywhere; }
   .found { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
   .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
   .found span { color: var(--color-ink-muted); font-size: var(--font-small); }

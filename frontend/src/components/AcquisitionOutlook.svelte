@@ -127,7 +127,7 @@
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
   <h2 id="acq-outlook-title">기준 도달 전망</h2>
-  <p class="context">지금 추세가 이어지면 사용자가 정한 관리·종료 기준에 몇 번째 측정에서 닿는지 계산합니다. 종료 기준까지의 예상 여유는 그 기준을 전제로 한 값이며 실제 고장까지 남은 수명이 아닙니다.</p>
+  <p class="context">기록 마지막 측정의 추세가 이어진다는 가정으로 관리·종료 기준까지 남은 측정 횟수를 계산합니다. 먼저 진동 특징을 고르고 비교할 기준값을 입력하세요.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -191,6 +191,7 @@
     {:else if resultState==="unavailable"}
       <StatusNotice kind="uncertain" title="이 조건으로는 전망할 수 없습니다" message={message}/>
     {:else if outlook}
+      {@const displayFeature=outlook.featureId}
       {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
       {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
@@ -201,10 +202,13 @@
         [{label:"다음 측정이 기준에 다가가는지 특징 추이에서 보기",href:featureTrendHref(outlook.assetId,outlook.featureId)}])}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
-          <h3 id="acq-result-title">결과</h3>
+          <h3 id="acq-result-title">기록 마지막 측정 기준 전망</h3>
           <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
         </div>
-        {#if told}<AnalysisMessage message={told}/>{/if}
+        {#if told}<AnalysisMessage message={told}
+          subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
+          basis={outlook.record.last + "번째 측정까지의 기록 · " + timeBasis(outlook)}
+          boundary="남은 횟수는 기록 마지막 측정 이후의 계산입니다. 실제 고장까지 남은 수명을 뜻하지 않습니다." />{/if}
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
@@ -218,7 +222,8 @@
             {/if}
           </div>
         {:else}
-          <p class="context">관리·종료 기준을 입력하면 몇 번째 측정에서 닿는지 함께 계산합니다.</p>
+          <StatusNotice kind="uncertain" title="기준까지 남은 여유는 아직 계산하지 않았습니다"
+            message="관리·종료 기준을 입력하지 않아 추세 예측만 표시합니다. 기준값을 입력하고 계산하기를 누르면 도달 전망을 함께 확인할 수 있습니다." />
         {/if}
         {#if chart}
           {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
@@ -265,7 +270,7 @@
           </details>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
-        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>
+        <CautionNote message="기록 마지막 측정의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>

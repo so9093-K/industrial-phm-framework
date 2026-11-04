@@ -87,6 +87,11 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     )
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?{urlencode(query)}")
                 panel = page.get_by_role("region", name="기준 도달 전망")
+                result_heading = (
+                    "기록 마지막 시점 기준 전망"
+                    if kind == "history"
+                    else "기록 마지막 측정 기준 전망"
+                )
                 panel.get_by_text("예측 계산 설정", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.12")
                 pw.expect(panel.get_by_label("최근 학습 개수")).to_have_value(
@@ -100,9 +105,9 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                 ):
                     panel.get_by_role("button", name="계산하기", exact=True).click()
                 results = {"forecast": forecast.value.json(), "outlook": outlook.value.json()}
-                pw.expect(panel.get_by_role("heading", name="결과", exact=True)).to_be_visible(
-                    timeout=60_000
-                )
+                pw.expect(
+                    panel.get_by_role("heading", name=result_heading, exact=True)
+                ).to_be_visible(timeout=60_000)
                 assert results["forecast"]["horizon"] == "1h"
                 assert results["forecast"]["model"]["training_points"] == int(
                     query["forecast_training"]
@@ -119,7 +124,9 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                 ).to_be_visible()
                 assert results["forecast"]["rolling_backtests"]
                 panel.get_by_label("추세 민감도").fill("0.2")
-                pw.expect(panel.get_by_role("heading", name="결과", exact=True)).to_have_count(0)
+                pw.expect(
+                    panel.get_by_role("heading", name=result_heading, exact=True)
+                ).to_have_count(0)
                 page.reload()
                 panel.get_by_text("예측 계산 설정", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.2")

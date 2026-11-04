@@ -35,7 +35,7 @@ export const QUESTION:Record<GuideId,string>={
   relation:"신호끼리 함께 움직이나요?",
   spectrum:"진동이 어느 주파수에서 커졌나요?",
   electrical:"3상 전류가 언제 얼마나 흘렀고, 상끼리 고르게 흐르나요?",
-  forecast:"지금 추세라면 정한 기준까지 얼마나 남았나요?",
+  forecast:"기록의 추세가 이어지면 정한 기준까지 얼마나 남았나요?",
   "ai-question":"이 결과가 무슨 뜻인지 근거와 함께 물어보기",
 };
 export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수"};

@@ -116,7 +116,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 page.goto(base + "&monitor_asset=bearing-a")
                 pw.expect(rows).to_have_count(6)
                 pw.expect(options).to_contain_text(
-                    "지금 추세라면 정한 기준까지 얼마나 남았나요? — "
+                    "기록의 추세가 이어지면 정한 기준까지 얼마나 남았나요? — "
                     "기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
                 pw.expect(row("period-compare")).to_contain_text("1~8번째 측정")
