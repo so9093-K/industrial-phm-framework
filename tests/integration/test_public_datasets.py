@@ -176,6 +176,7 @@ def test_interrupted_aihub_import_can_retry_committed_batches(
     assert completed["jobs"][target["dataset_id"]]["done"] == 2001
     assert (completed["items"][0]["stored"], completed["items"][0]["partial"]) == (True, False)
 
+
 def test_unreadable_aihub_archive_does_not_hide_valid_datasets(tmp_path: Path) -> None:
     from industrial_phm.runtime.public_datasets import write_public_dataset_index
 
