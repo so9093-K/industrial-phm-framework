@@ -1,5 +1,6 @@
 <script lang="ts">
   import {short} from "../analysis-messages";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
   import {elapsedText} from "../time-axis";
   import { onMount } from "svelte";
   import { readChannels, signalName, type ChannelList } from "../history";
@@ -210,7 +211,24 @@
         <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
           message="기준 구간의 변동 폭이 0이라 달라진 정도를 계산할 수 없습니다." />
       {:else}
-        <p class="summary">기준에서 크게 벗어난 구간 <strong>{result.intervalCount}개</strong></p>
+        {@const first = result.intervals[0]}
+        {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
+        {@const links = first ? intervalLinks(result, first.start, first.end) : null}
+        <AnalysisMessage
+          subject={signalName(channels?.names, result.selectedChannel)}
+          basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, unit)}
+          message={{
+            headline: result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
+              : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
+            meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
+              + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
+              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준과 집계 간격에서의 결과입니다. 다른 신호나 더 짧은 변화까지 없다는 뜻은 아닙니다.",
+            certainty: "선택한 신호 하나의 집계값을 기준 구간과 비교했습니다. 기준 구간은 정상 상태로 확인된 기간이 아닙니다.",
+            next: links ? [
+              ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
+              ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),
+            ] : [],
+          }} />
         {#if result.intervalCount === 0}
           <p class="context">고른 기록과 기준 구간에서는 기준을 넘는 차이를 찾지 못했습니다.</p>
         {:else}
@@ -298,7 +316,6 @@
   select { min-width: 0; width: 100%; padding: var(--space-3); color: var(--color-ink);
     background: var(--color-surface); border: 1px solid var(--color-border);
     border-radius: var(--radius-control); }
-  .summary { font-size: var(--font-section); }
   .intervals { padding-inline-start: var(--space-5); }
   .intervals li { padding-block: var(--space-3); border-bottom: 1px solid var(--color-border); }
   .intervals span { display: block; color: var(--color-ink-muted); overflow-wrap: anywhere; }

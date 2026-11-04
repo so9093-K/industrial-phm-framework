@@ -1677,8 +1677,8 @@ class DuckLakeAssetHistory:
         for channel_id in channels:
             _validate_identifier(channel_id, "channel_id")
         _validate_positive_int(bucket_count, "bucket_count")
-        if bucket_count > 240:
-            raise ValueError("bucket_count must not exceed 240")
+        if bucket_count > 1000:
+            raise ValueError("bucket_count must not exceed 1000")
         width = (end_at - start_at).total_seconds() / bucket_count
         connection = self._connect()
         try:

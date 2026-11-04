@@ -16,11 +16,11 @@ const body = () => ({
 
 test("what the whole record held reads as when, how long, against which range, and what else moved", () => {
   const found = parseRecordFindings(body(), "comp");
+  assert.deepEqual(found.record, body().record);
   assert.equal(found.count, 9);
   const told = findingText(found.intervals[0], found.bucketSeconds);
   assert.equal(told.when, "10. 24. 16:10 ~ 10. 26. 08:19 (약 1일 16시간)");
-  assert.equal(told.what, "T상전류 · 기록 처음 30%의 평소 범위(46.2~78.4 A)보다 낮았습니다 · 10분 평균으로 가장 낮을 때 0 A"
-    + " · 같은 구간 안에서 평소 범위를 벗어난 다른 신호: R상전류, S상전류, 온도");
+  assert.equal(told.what, "T상전류 · 기록 처음 30%의 평소 범위(46.2~78.4 A)보다 낮았습니다 · 10분 평균으로 가장 낮을 때 0 A");
   // Signals not judged say why, never "no change"; a held baseline also says what came after.
   assert.deepEqual(found.signals.filter((row) => row.state !== "scored").map(unjudgedText), [
     "압력(기록 처음 30% 동안 값이 일정해 벗어난 정도를 계산할 수 없음 · 처음 30%는 6 bar, 그 뒤 0~6.2 bar)",
@@ -35,4 +35,30 @@ test("what the whole record held reads as when, how long, against which range, a
   assert.throws(() => parseRecordFindings({...body(), interval_count: 0}, "comp"));
   const reversed = body(); reversed.intervals[0].usual = {low: 80, high: 40};
   assert.throws(() => parseRecordFindings(reversed, "comp"));
+});
+
+
+test("representative changes keep their reference and preceding-period navigation", () => {
+  const original=body();
+  const interval={...original.intervals[0],reason:"sustained",baseline:original.baseline,
+    reference_value:60,typical_value:0,
+    related:[{channel:"R상전류",label:"R상전류",unit:"A",reference:60,current:60,state:"within"}]};
+  const found=parseRecordFindings({...original,intervals:[interval]},"comp");
+  const item=found.intervals[0];
+  assert.equal(item.reason,"sustained");
+  assert.equal(findingText(item,found.bucketSeconds).what,"대표값 60 → 0 A");
+  assert.equal(item.related[0].state,"within");
+  const links=findingLinks("comp",item,null,found.bucketSeconds,found.record);
+  assert.match(links.previous!,/compare_origin=previous/);
+  const params=new URL(links.previous!,"http://local").searchParams;
+  const [a,b]=[params.get("compare_a")!,params.get("compare_b")!].map(raw=>raw.split("~").map(Date.parse));
+  assert.equal(a[1],b[0]);
+  assert.equal(a[1]-a[0],b[1]-b[0]);
+  assert.ok(links.compare); // The interval's own reference survives even without a root reference.
+  const early={...item,start:original.record.from};
+  assert.equal(findingLinks("comp",early,found.baseline,found.bucketSeconds,found.record).previous,null);
+  const long={...item,start:"2020-01-01T00:00:00Z",end:"2020-05-01T00:00:00Z"};
+  const longLinks=findingLinks("comp",long,found.baseline,found.bucketSeconds);
+  assert.ok(longLinks.signal);
+  assert.equal(longLinks.compare,null); // The API cannot compare a period longer than 31 days.
 });

@@ -25,19 +25,8 @@ export const NAME:Record<CapabilityId,string>={
   measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",electrical:"부하·불평형",
   forecast:"상태 전망",anomaly:"이상 징후","ai-question":"AI 해설",
 };
-/** What each analysis answers, as the question a person brings, and what data it needs. The
- * method name stays beside the question so the screens it opens are still recognisable. */
+/** Analysis names and input requirements used before an asset has stored data. */
 export type GuideId=CapabilityId;
-export const QUESTION:Record<GuideId,string>={
-  measurements:"값이 시간에 따라 어떻게 움직였나요?",
-  anomaly:"언제 평소와 달라졌나요?",
-  "period-compare":"두 시기는 무엇이 다른가요?",
-  relation:"신호끼리 함께 움직이나요?",
-  spectrum:"진동이 어느 주파수에서 커졌나요?",
-  electrical:"3상 전류가 언제 얼마나 흘렀고, 상끼리 고르게 흐르나요?",
-  forecast:"지금 추세라면 정한 기준까지 얼마나 남았나요?",
-  "ai-question":"이 결과가 무슨 뜻인지 근거와 함께 물어보기",
-};
 export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수"};
 export const NEEDS:Record<GuideId,string>={
   measurements:"시각 열과 숫자 열이 있는 CSV, 또는 OPC UA로 받은 기록",
@@ -116,7 +105,7 @@ export function fact(item:Capability,capabilities:Capabilities):string{
     case "stored-flow-count":return "기준까지 남은 여유 · 측정 횟수 기준";
     case "outlook-only":return "기준까지 남은 여유 · 기록이 짧아 예측 그래프는 없음";
     case "short-history":return "기록이 짧음 (예측 기간의 2배 이상 필요)";
-    case "connected":return "모델 결과 "+n("results")+"건"+(facts.recorded_replay===true?" · 기록 재생":"");
+    case "connected":return "모델 분석 결과 있음"+(facts.recorded_replay===true?" · 기록 재생":"");
     case "model-results":return "모델 결과마다 이전 측정과 비교해 해설";
     case "outlook":return "상태 전망을 근거로 해설";
     case "compatible-model":return "입력이 맞는 모델 "+n("packages")+"개";

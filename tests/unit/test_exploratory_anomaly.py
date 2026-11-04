@@ -9,7 +9,9 @@ import pytest
 from industrial_phm.application.exploratory_anomaly import (
     THRESHOLD,
     find_departures,
+    interval_comparison,
     latest_departure,
+    record_changes,
 )
 
 T0 = datetime(2026, 10, 14, tzinfo=UTC)
@@ -63,3 +65,33 @@ def test_only_a_record_that_ends_away_from_its_baseline_needs_a_look_now() -> No
     assert now["since"] <= _points(drifting)[-1][0]
     assert latest_departure(find_departures({"current": _points(returned)})) is None
     assert latest_departure(find_departures({"current": _points(steady)})) is None
+
+
+def test_record_changes_find_late_signals_and_keep_sustained_changes_ahead_of_spikes() -> None:
+    base = [10 + (i % 5) * 0.1 for i in range(100)]
+    signals = {f"signal-{i:02}": _points(base) for i in range(35)}
+    signals["signal-34"] = _points(base[:40] + [20.0] * 30 + base[70:])
+    signals["signal-00"] = _points([*base[:85], 1000.0, *base[86:]])
+    found = record_changes(signals)
+    assert len(found["channels"]) == 35
+    assert found["intervals"][0]["channel"] == "signal-34"
+    assert found["intervals"][0]["reason"] == "sustained"
+    assert any(item["channel"] == "signal-00" for item in found["intervals"])
+    assert len(found["intervals"]) <= 3
+    # Similar signals in one event do not consume all three cards.
+    signals["signal-33"] = signals["signal-34"]
+    found = record_changes(signals)
+    starts = [item["start"] for item in found["intervals"]]
+    assert starts.count(T0 + timedelta(minutes=40)) == 1
+
+
+def test_related_signal_comparison_separates_typical_change_from_stable_values() -> None:
+    base = [10 + (i % 5) * 0.1 for i in range(100)]
+    reference = (T0, T0 + timedelta(minutes=30))
+    interval = (T0 + timedelta(minutes=60), T0 + timedelta(minutes=90))
+    same = interval_comparison(_points(base), reference, interval)
+    changed = interval_comparison(_points(base[:60] + [20.0] * 30 + base[90:]), reference, interval)
+    assert same is not None and same["state"] == "within"
+    assert changed is not None and changed["state"] == "higher"
+    assert changed["current"] == 20.0
+    assert interval_comparison([], reference, interval) is None

@@ -9,6 +9,8 @@
   import ScoreTrend from "./ScoreTrend.svelte";
   import ModelScoreOverlay from "./ModelScoreOverlay.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
+  import AnalysisMessage from "./AnalysisMessage.svelte";
+  import {selectedScoreMessage} from "../analysis-messages";
   import {num} from "../format";
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
@@ -83,6 +85,13 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
+  function showSelectedInput() {
+    followLatest = false;
+    const input = document.getElementById("selected-model-input") as HTMLDetailsElement | null;
+    if (input) input.open = true;
+    input?.focus({preventScroll: true});
+    input?.scrollIntoView({block: "start"});
+  }
   const place=(position:number)=>binding&&isTimeWindow(binding.stepKind)
     ?windowLabel(position):measurementLabel(position);
   const timelinePlace=(position:number)=>binding&&isTimeWindow(binding.stepKind) ? place(position) : measurementLabel(position,period);
@@ -328,11 +337,21 @@
               message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
           {:else}
             {@const summary=scoreSummary(result.output)}
+            <AnalysisMessage message={selectedScoreMessage(summary)}
+              subject={(names.get(binding.bindingId) ?? "모델") + " · "
+                + (result.eventStart ? clock(result.eventStart)
+                  + (result.eventEnd && result.eventEnd !== result.eventStart ? " ~ " + clock(result.eventEnd) : "")
+                  : place(result.position) + " · 측정 시각 기록 없음")}
+              basis={builtModelNote(binding) ?? "모델에 저장된 비교 기준"}
+              boundary="모델마다 점수의 척도와 기준이 다릅니다. 이상 점수는 고장 확률이 아닙니다." />
+            <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button>
+            <details><summary>점수·판정 상세</summary>
             <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>
               <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
               <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
               <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
             </div>
+            </details>
           {/if}
           <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
@@ -341,7 +360,9 @@
             {#if links.length}<p class="continue">같은 측정으로 이어서 보기
               {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
           {/if}
-          {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
+          <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
+            {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
+          </details>
           {#if result.state!=="skipped"}
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
@@ -351,7 +372,7 @@
                   subject={reviewSubject(binding, result)}/>{/if}
               </details>
             {/key}
-            <CautionNote message="모델 점수는 학습한 평소 상태와의 차이입니다. 고장 확률이나 고장 원인이 아닙니다. AI 해설은 저장된 측정값 비교를 설명할 뿐 원인을 진단하지 않습니다."/>
+            <CautionNote message="AI 해설은 저장된 측정값 비교를 설명하며 고장 원인을 진단하지 않습니다."/>
           {/if}
           <details>
             <summary>기술 상세</summary>

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {drawTrend,priorityIntervals,beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -127,4 +127,24 @@ test("the raw input check says what was verified before drawing, and only what t
     channels: [{channel_id: "a", points: [{at: "x", value: 1, quality: "good"}, {at: "y", value: null, quality: "unusable"},
       {at: "z", value: 2, quality: "conflict"}]}]}, 7);
   assert.equal(inputCheck(window), "원본 확인 · 측정값 3개 · 쓸 수 없는 값 1개 · 값 충돌 1개");
+});
+
+
+test("dense rendering preserves isolated extremes and a skipped-measurement gap", () => {
+  const points: TrendPoint[] = Array.from({length:1000}, (_,i)=>({
+    pointer:{position:i+1,runId:"r"+i,state:"analyzed",stepKey:"k"+i,changeSeq:i,reason:null},
+    score:i===457?100:i===655?-20:1,threshold:2,exceeds:i===457,eventStart:null,
+  }));
+  points[500]={...points[500],score:null,exceeds:null};
+  const drawn=drawTrend(points,20);
+  assert.ok(drawn.length<points.length/2);
+  assert.ok(drawn.some(point=>point.score===100));
+  assert.ok(drawn.some(point=>point.score===-20));
+  assert.ok(drawn.some(point=>point.pointer.position===501&&point.score===null));
+  assert.equal(drawn[0].pointer.position,1);
+  assert.equal(drawn.at(-1)!.pointer.position,1000);
+  const intervals=[{start:1,end:2,steps:2,peak:8,open:false},
+    {start:4,end:70,steps:67,peak:3,open:false},{start:90,end:100,steps:11,peak:4,open:true}];
+  assert.deepEqual(priorityIntervals(intervals).map(row=>row.interval.start),[90,4,1]);
+  assert.equal(priorityIntervals([intervals[0]]).length,1);
 });

@@ -11,8 +11,8 @@
 </script>
 
 <fieldset class="roles">
-  <legend>3상 역할 (선택 · 부하·불평형 분석에 필요)</legend>
-  <p class="context">전압 또는 전류의 R/S/T 세 개를 한 세트로 지정하고, 단위와 상 배선을 무엇으로 확인했는지 적으세요.</p>
+  <legend>3상 채널 설정</legend>
+  <p class="context">부하·불평형 분석 시 필요합니다. 전압 또는 전류의 R·S·T 채널과 단위·상 배선의 확인 방법을 지정합니다.</p>
   {#if canSuggest}
     <button type="button" class="ui-button" {disabled} onclick={suggest}>열 이름으로 역할 채우기</button>
   {/if}

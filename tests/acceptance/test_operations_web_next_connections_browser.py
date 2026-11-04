@@ -49,7 +49,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                 connections = page.get_by_role("region", name="등록한 연결")
                 pw.expect(connections).to_contain_text("아직 등록한 데이터 연결이 없습니다")
 
-                start = page.get_by_role("region", name="CSV 파일로 시작")
+                start = page.get_by_role("region", name="CSV 데이터 등록")
                 start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
                     files=[{"name": "pump.csv", "mimeType": "text/csv", "buffer": _csv()}]
                 )
@@ -65,7 +65,7 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                 pw.expect(preview).to_contain_text("측정 간격 · 보통 1초")
 
                 start.get_by_label("설비 이름·번호").fill("pump-01")
-                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                start.get_by_role("button", name="등록 전 검증").click()
                 pw.expect(start.get_by_text("점검 통과")).to_be_visible()
                 assert JsonSourceRepository(workspace.source_registry_path).list_sources() == ()
 
@@ -86,8 +86,8 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     route.fulfill(response=response)
 
                 page.route("**/api/v1/sources/file/upload", lose_once)
-                save = start.get_by_role("region", name="등록하고 이력 저장")
-                save.get_by_role("button", name="등록하고 이력 저장").click()
+                save = start.get_by_role("region", name="등록·이력 저장")
+                save.get_by_role("button", name="등록·이력 저장").click()
                 pw.expect(save.get_by_role("listitem").first).to_contain_text("결과 확인 필요")
                 save.get_by_role("button", name="실패한 단계부터 다시 시도").click()
                 pw.expect(save).to_contain_text("저장했습니다", timeout=30_000)
@@ -102,12 +102,10 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
                 # Where the data arrived: what it supports now, and what it cannot support.
-                options = done.get_by_role("region", name="무엇을 알아볼까요?")
+                options = done.get_by_role("region", name="사용 가능한 분석")
                 pw.expect(options.get_by_role("link", name="두 기간 비교 열기")).to_be_visible()
-                options.get_by_text("지금 답할 수 없는 질문", exact=True).click()
-                pw.expect(options).to_contain_text(
-                    "진동이 어느 주파수에서 커졌나요? — 원본 진동 파형 없음"
-                )
+                options.get_by_text("추가 데이터가 필요한 분석", exact=True).click()
+                pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
 
                 card = connections.get_by_role("article", name="pump.csv")
                 pw.expect(card.locator(".badge")).to_have_text("파일 읽기 확인됨")
@@ -170,7 +168,7 @@ def test_local_and_offset_times_preview_and_preflight_use_the_same_instants(
                     timezone_id="America/New_York",
                 )
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
-                panel = page.get_by_role("region", name="CSV 파일로 시작")
+                panel = page.get_by_role("region", name="CSV 데이터 등록")
                 panel.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
                     {"name": "mixed.csv", "mimeType": "text/csv", "buffer": csv}
                 )
@@ -191,7 +189,7 @@ def test_local_and_offset_times_preview_and_preflight_use_the_same_instants(
                     exact=False,
                 ).check()
                 with page.expect_response("**/api/v1/sources/file/upload/preflight") as checked:
-                    panel.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                    panel.get_by_role("button", name="등록 전 검증").click()
                 payload = checked.value.json()
                 assert payload["status"] == "ready"
                 assert datetime.fromisoformat(payload["first_timestamp"]) == datetime(
@@ -240,7 +238,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                 errors: list[str] = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.goto(f"http://127.0.0.1:{server.server_port}/web/?page=system")
-                start = page.get_by_role("region", name="CSV 파일로 시작")
+                start = page.get_by_role("region", name="CSV 데이터 등록")
                 start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
                     files=[
                         {"name": "motor.csv", "mimeType": "text/csv", "buffer": _three_phase_csv()}
@@ -248,12 +246,12 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                 )
                 start.get_by_label("설비 이름·번호").fill("motor-01")
                 start.get_by_text("3상 전압·전류 역할 지정", exact=False).click()
-                roles = start.get_by_role("group", name="3상 역할", exact=False)
+                roles = start.get_by_role("group", name="3상 채널 설정", exact=False)
                 roles.get_by_role("button", name="열 이름으로 역할 채우기").click()
                 pw.expect(roles.get_by_label("전압 R상")).to_have_value("vR")
                 pw.expect(roles.get_by_label("전류 T상")).to_have_value("iT")
                 # Suggested columns still need the person's own evidence.
-                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                start.get_by_role("button", name="등록 전 검증").click()
                 pw.expect(start).to_contain_text("역할마다 단위 근거와 해석 근거를 적으세요")
                 for unit, meaning in zip(
                     roles.get_by_label("단위 근거").all(),
@@ -262,7 +260,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                 ):
                     unit.fill("계측기 표시 단위 확인")
                     meaning.fill("배선도에서 상 확인")
-                start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                start.get_by_role("button", name="등록 전 검증").click()
                 pw.expect(start.get_by_text("점검 통과")).to_be_visible()
                 if resume_after_reload:
 
@@ -275,7 +273,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                         )
 
                     page.route("**/api/v1/sources/file/upload", lose_registration_response)
-                    start.get_by_role("button", name="등록하고 이력 저장").click()
+                    start.get_by_role("button", name="등록·이력 저장").click()
                     pw.expect(start).to_contain_text("결과 확인 필요")
                     page.reload()
                     start.get_by_label("CSV 파일 (UTF-8 · 20MiB 이하)").set_input_files(
@@ -294,9 +292,9 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                         pw.expect(unit).to_have_value("계측기 표시 단위 확인")
                     for meaning in roles.get_by_label("해석 근거").all():
                         pw.expect(meaning).to_have_value("배선도에서 상 확인")
-                    start.get_by_role("button", name="서버에서 점검 (저장 안 함)").click()
+                    start.get_by_role("button", name="등록 전 검증").click()
                     pw.expect(start.get_by_text("점검 통과")).to_be_visible()
-                start.get_by_role("button", name="등록하고 이력 저장").click()
+                start.get_by_role("button", name="등록·이력 저장").click()
                 done = start.get_by_role("region", name="다음 할 일")
                 pw.expect(done).to_be_visible(timeout=60_000)
                 (source,) = JsonSourceRepository(workspace.source_registry_path).list_sources()

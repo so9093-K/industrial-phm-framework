@@ -3,26 +3,22 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {historyPeriodMessage, type NextStep} from "../analysis-messages";
-  import {windowParams, zoomWindow} from "../signal-selection";
+  import {comparisonWindows, windowParams} from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import {ORIGIN_TEXT, periodOrigin, type PeriodOrigin} from "../signal-selection";
   // What one source's two periods show, first: what changed, how plain it is, where to look next.
   function told(read: ProfileResult, row: ProfileSeries) {
     const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
     const next: NextStep[] = [];
-    const from = Date.parse(read.periods.a.from), to = Date.parse(read.periods.b.to);
-    const window = zoomWindow({from, to}) ? {from, to} : null;
-    if (window && to - from <= 31 * 86400000) {
+    for (const view of comparisonWindows(read.periods)) {
       const url = new URL(assetTabUrl(assetId, "signals", null, null, row.channel), location.origin);
-      const pick = {from: Date.parse(read.periods.b.from), to};
-      for (const [key, value] of Object.entries(windowParams(window, pick))) url.searchParams.set(key, value);
-      next.push({label: "두 기간을 신호 그래프에서 보기", href: url.pathname + url.search});
+      for (const [key, value] of Object.entries(windowParams(view.window, view.pick))) url.searchParams.set(key, value);
+      next.push({label: view.label, href: url.pathname + url.search});
     }
     const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
     if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
@@ -76,7 +72,7 @@
     return input + ":00+09:00";
   };
   const showTime = (iso: string): string =>
-    new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+    new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 19).replace("T", " ");
 
   function loadPeriodUrl(fallback: Periods): Periods {
     const params = new URLSearchParams(location.search);
@@ -209,6 +205,8 @@
       message="이 설비에는 저장된 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
+    <details class="conditions" open={compareState !== "ready"}>
+      <summary>비교 조건 확인·변경 · {signalName(names, selected)}</summary>
     <div class="controls">
       <label for="compare-channel">신호
         <select id="compare-channel" value={selected}
@@ -250,6 +248,7 @@
     <button class="ui-button ui-button-primary" type="button" disabled={!!formError}
       onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
+    </details>
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
     {:else if compareState === "failed"}
@@ -265,23 +264,27 @@
       <StatusNotice title="고른 기간에 측정이 없습니다"
         message="두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요." />
     {:else if result}
-      <p class="context">기간 A {showTime(result.periods.a.from)} ~ {showTime(result.periods.a.to)}
-        · 기간 B {showTime(result.periods.b.from)} ~ {showTime(result.periods.b.to)}</p>
       {#each result.series as row (row.key)}
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
         {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <h3>{signalName(names, row.channel)} · {sourceLabel(sources_, row.source)}</h3>
+          <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
+          {#if result.series.length > 1}<p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}</p>{/if}
+          {#if message}<AnalysisMessage {message}
+            basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
+              + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
+            boundary="기간 A는 비교 대상으로 고른 기록입니다. 정상 상태로 확인된 기간은 아니며, 차이가 곧 원인이나 고장을 뜻하지 않습니다." />
+          {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다"
+            message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
+          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
+          <details class="statistics">
+            <summary>기간별 수치와 데이터 품질</summary>
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
-          {#if message}<AnalysisMessage {message}/>{/if}
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
               {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
             </p>
-          {:else}
-            <StatusNotice kind="uncertain" message="두 기간을 비교할 대표값이 부족합니다. 0으로 채우지 않습니다." />
           {/if}
-          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
           <div class="table-wrap">
             <table>
               <caption>이 출처·측정 위치의 기간별 통계 (개별 측정값 아님)</caption>
@@ -300,19 +303,21 @@
               </tbody>
             </table>
           </div>
+          </details>
           <details>
             <summary>기술 상세</summary>
             <p class="context">측정 의미 ID {row.interpretation} · ‘평소 범위 밖’은 기간 A의 분위수 범위를 벗어난 B 값의 비율입니다.</p>
           </details>
         </section>
       {/each}
-      <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다. 두 기간의 차이는 원인이나 고장을 뜻하지 않습니다." />
     {/if}
   {/if}
 </section>
 
 <style>
   .compare { min-width: 0; }
+  .conditions { margin-block: var(--space-4); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  summary { cursor: pointer; font-weight: 650; padding-block: var(--space-2); overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .controls { margin-block: var(--space-4); }
   label { display: grid; gap: var(--space-2); font-weight: 600; }

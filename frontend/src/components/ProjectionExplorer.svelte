@@ -136,7 +136,7 @@
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
   <h2 id="projection-title">기준 도달 전망</h2>
-  <p class="intro">지금 추세가 이어지면 사용자가 정한 관리·종료 기준에 언제 닿는지 계산합니다. 종료 기준까지의 예상 여유는 그 기준을 전제로 한 값이며 실제 고장까지 남은 수명이 아닙니다.</p>
+  <p class="intro">기록 마지막 시점의 추세가 이어진다는 가정으로 관리·종료 기준까지의 여유를 계산합니다. 먼저 신호를 고르고 비교할 기준값을 입력하세요.</p>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
   {:else if optionsState === "failed"}
@@ -205,11 +205,14 @@
         scenarios:projection.scenarios,checks:projection.reachChecks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
-          <h3 id="projection-result-title">결과</h3>
+          <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
           <span class="intro">{clock(projection.record.last)}까지의 기록으로 계산</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
-        {#if told}<AnalysisMessage message={told}/>{/if}
+        {#if told}<AnalysisMessage message={told}
+          subject={signalName(names, projection.channel)}
+          basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
+          boundary="남은 시간은 기록 마지막 측정부터의 여유입니다. 오늘부터 남은 시간이나 실제 고장까지의 수명이 아닙니다." />{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
@@ -223,7 +226,8 @@
             {/if}
           </div>
         {:else}
-          <p class="intro">관리·종료 기준을 입력하면 기준에 언제 닿는지 함께 계산합니다.</p>
+          <StatusNotice kind="uncertain" title="기준까지 남은 여유는 아직 계산하지 않았습니다"
+            message="관리·종료 기준을 입력하지 않아 추세 예측만 표시합니다. 기준값을 입력하고 계산하기를 누르면 도달 전망을 함께 확인할 수 있습니다." />
         {/if}
         {#if chart}
           <figure class="chart">
@@ -269,7 +273,7 @@
           </details>
         {/key}
         <ForecastValidation checks={projection.checks}/>
-        <CautionNote message="지금까지의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다." />
+        <CautionNote message="기록 마지막 시점의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다." />
         <details>
           <summary>예측값 표 · {HORIZON_LABEL[projection.horizon]}</summary>
           {#if projection.future.length}

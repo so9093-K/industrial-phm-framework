@@ -11,7 +11,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import asset_list, start_web, stop_web
+from tests.support.web_next import asset_list, expect_place, start_web, stop_web
 
 BASE = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -74,24 +74,23 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
             try:
                 base = f"http://127.0.0.1:{server.server_port}/web/?page=assets"
                 page.goto(base + "&monitor_asset=motor-01")
-                options = page.get_by_role("region", name="무엇을 알아볼까요?")
+                page.get_by_text("추가 분석", exact=True).click()
+                options = page.get_by_role("region", name="사용 가능한 분석")
                 rows = options.get_by_role("listitem")
 
                 def row(capability: str) -> Any:
                     return options.locator(f'li[data-capability="{capability}"]')
 
-                pw.expect(rows).to_have_count(6)
+                pw.expect(rows).to_have_count(5)
                 pw.expect(row("measurements")).to_contain_text("시계열 신호 2개 ·")
                 pw.expect(row("anomaly")).to_contain_text("모델 없이 기준 구간에서 벗어난 값 찾기")
                 pw.expect(row("forecast")).to_contain_text("기록이 짧아 예측 그래프는 없음")
-                pw.expect(row("ai-question")).to_contain_text("상태 전망을 근거로 해설")
-                # Each analysis is offered as the question it answers, in the usual order.
-                pw.expect(row("anomaly")).to_contain_text("언제 평소와 달라졌나요?")
-                pw.expect(rows.first).to_contain_text("값이 시간에 따라 어떻게 움직였나요?")
+                assert row("ai-question").count() == 0
+                # Analyses use method names in the usual order; questions stay within each result.
+                pw.expect(row("anomaly")).to_contain_text("기준 구간 이탈")
+                pw.expect(rows.first).to_contain_text("시계열 신호")
                 # What this data cannot support stays one quiet line, each with its reason.
-                pw.expect(options).to_contain_text(
-                    "진동이 어느 주파수에서 커졌나요? — 원본 진동 파형 없음"
-                )
+                pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )
@@ -104,20 +103,23 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 heading = page.get_by_role("heading", name="두 기간 비교", exact=True)
                 pw.expect(heading).to_be_visible()
                 page.go_back()
+                page.get_by_text("추가 분석", exact=True).click()
                 options.get_by_role("link", name="신호 관계 열기").click()
                 pw.expect(page).to_have_url(
                     base + "&tab=change&method=relation&data=history&monitor_asset=motor-01"
                 )
                 page.go_back()
-                options.get_by_role("link", name="AI 해설 열기").click()
-                pw.expect(page).to_have_url(base + "&tab=outlook&monitor_asset=motor-01")
+                page.get_by_text("추가 분석", exact=True).click()
+                options.get_by_role("link", name="상태 전망 열기").click()
+                expect_place(pw, page, "상태 전망")
+                pw.expect(page.get_by_role("heading", name="기준 도달 전망")).to_be_visible()
 
                 # Vibration with a connected model: every analysis but the outlook.
                 page.goto(base + "&monitor_asset=bearing-a")
-                pw.expect(rows).to_have_count(6)
+                page.get_by_text("추가 분석", exact=True).click()
+                pw.expect(rows).to_have_count(5)
                 pw.expect(options).to_contain_text(
-                    "지금 추세라면 정한 기준까지 얼마나 남았나요? — "
-                    "기록이 짧음 (예측 기간의 2배 이상 필요)"
+                    "상태 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
                 pw.expect(row("period-compare")).to_contain_text("1~8번째 측정")
                 options.get_by_role("link", name="주파수 분석 열기").click()
@@ -125,7 +127,8 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                     base + "&tab=change&method=spectrum&monitor_asset=bearing-a"
                 )
                 page.go_back()
-                options.get_by_role("link", name="AI 해설 열기").click()
+                page.get_by_text("추가 분석", exact=True).click()
+                options.get_by_role("link", name="이상 징후 열기").click()
                 pw.expect(page).to_have_url(
                     base + "&tab=anomaly&method=model&monitor_asset=bearing-a"
                 )
@@ -153,7 +156,8 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
                     f"http://127.0.0.1:{server.server_port}/web/"
                     "?page=assets&monitor_asset=bearing-a"
                 )
-                options = page.get_by_role("region", name="무엇을 알아볼까요?")
+                page.get_by_text("추가 분석", exact=True).click()
+                options = page.get_by_role("region", name="사용 가능한 분석")
                 anomaly = options.locator('li[data-capability="anomaly"]')
                 pw.expect(anomaly).to_contain_text("맞는 모델 2개 연결 가능")
                 anomaly.get_by_role("link", name="이상 징후 모델 연결하기").click()

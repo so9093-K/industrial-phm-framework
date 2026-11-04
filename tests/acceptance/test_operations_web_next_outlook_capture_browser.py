@@ -511,7 +511,12 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                     page.get_by_role("heading", name="데이터가 바뀌어 결과를 다시 계산해야 합니다")
                 ).to_be_visible()
                 pw.expect(page.locator("main")).to_contain_text("남기지 않았습니다")
-                assert page.get_by_role("heading", name="결과", exact=True).count() == 0
+                assert (
+                    page.get_by_role(
+                        "heading", name="기록 마지막 시점 기준 전망", exact=True
+                    ).count()
+                    == 0
+                )
                 assert state["saved"] == []
                 assert set(state["posted"][0]) == SELECTION_KEYS - {"end_limit"}
                 assert state["posted"][0]["source_id"] == "source-a"

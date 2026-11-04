@@ -7,6 +7,47 @@ import {sinceStart} from "./time-axis.ts";
 export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null};
 export type Interval={start:number;end:number;steps:number;peak:number|null;open:boolean};
 export type ScoreTrend={points:TrendPoint[];intervals:Interval[];truncated:boolean};
+
+/** Reduce dense drawing without averaging away a peak or joining across skipped input.
+ * Each horizontal bin retains its first, last, minimum and maximum actual measurement. */
+export function drawTrend(points: TrendPoint[], bins: number): TrendPoint[] {
+  if (points.length <= bins * 4 || bins < 1) return points;
+  const first = points[0].pointer.position, span = Math.max(1, points.at(-1)!.pointer.position-first);
+  const drawn: TrendPoint[] = [];
+  let group: TrendPoint[] = [], held = -1;
+  const flush = () => {
+    if (!group.length) return;
+    const low = group.reduce((a,b)=>a.score! <= b.score! ? a : b);
+    const high = group.reduce((a,b)=>a.score! >= b.score! ? a : b);
+    const kept = new Map([group[0],low,high,group.at(-1)!].map(point=>[point.pointer.position,point]));
+    drawn.push(...[...kept.values()].sort((a,b)=>a.pointer.position-b.pointer.position));
+    group=[];
+  };
+  for (const point of points) {
+    if (point.score === null) { flush(); drawn.push(point); held=-1; continue; }
+    const bin = Math.min(bins-1,Math.floor((point.pointer.position-first)/span*bins));
+    if (bin !== held) flush();
+    group.push(point); held=bin;
+  }
+  flush();
+  return drawn;
+}
+
+/** Representative runs on this model's own scale. Keep the full chronology available
+ * separately rather than making a person scan every run before inspecting a result. */
+export function priorityIntervals(intervals: Interval[]): {label: string; interval: Interval}[] {
+  if (!intervals.length) return [];
+  const chosen: {label: string; interval: Interval}[] = [];
+  const pick = (label: string, sorted: Interval[]) => {
+    const interval = sorted[0];
+    if (interval && !chosen.some(row => row.interval.start === interval.start && row.interval.end === interval.end))
+      chosen.push({label, interval});
+  };
+  pick("가장 최근 구간", [...intervals].sort((a,b) => b.end - a.end));
+  pick("가장 길게 이어진 구간", [...intervals].sort((a,b) => (b.end-b.start)-(a.end-a.start) || b.steps-a.steps));
+  pick("점수가 가장 높았던 구간", [...intervals].filter(row=>row.peak!==null).sort((a,b)=>(b.peak! - a.peak!)));
+  return chosen;
+}
 export type ThresholdExceedance = TrendPoint & {score: number; threshold: number; exceeds: true};
 
 /** The first stored exceedance in the displayed measurements, including isolated ones that

@@ -412,7 +412,7 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         stop()
 
 
-def test_signals_past_the_limit_are_reported_even_when_nothing_could_be_judged(
+def test_all_signals_are_checked_even_when_nothing_could_be_judged(
     tmp_path: Path,
 ) -> None:
     if find_spec("duckdb") is None:
@@ -421,7 +421,7 @@ def test_signals_past_the_limit_are_reported_even_when_nothing_could_be_judged(
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
     )
-    # Thirteen signals, every stored value empty: nothing to judge, one signal past the limit.
+    # Even the thirteenth signal is read; empty input is distinct from an unchecked signal.
     history.append_file_batch(
         tuple(
             FileBackfillEvent(
@@ -446,7 +446,52 @@ def test_signals_past_the_limit_are_reported_even_when_nothing_could_be_judged(
         status, found = get("/api/v1/explore/findings", asset_id="empty-01")
         assert status == 200
         assert found["judged"] == 0 and found["intervals"] == []
-        assert len(found["signals"]) == 12 and found["unchecked"] == 1
+        assert len(found["signals"]) == 13 and found["unchecked"] == 0
         assert {row["state"] for row in found["signals"]} == {"no-values"}
+    finally:
+        stop()
+
+
+def test_findings_cover_all_signals_and_compare_only_the_same_measurement_source(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    events = []
+    for channel in range(35):
+        for index in range(100):
+            value = 1.0 + (index % 3) * 0.1
+            if 40 <= index < 70 and channel >= 32:
+                value = 40.0 if channel == 34 else 5.0
+            events.append(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:all:{'f' * 64}:{channel}:{index}",
+                    source_id="different" if channel == 33 else "shared",
+                    asset_id="all-signals",
+                    channel_id=f"signal-{channel:02}",
+                    source_file="all.csv",
+                    source_sha256="f" * 64,
+                    source_size_bytes=10,
+                    sample_index=channel * 100 + index,
+                    event_at=BASE + timedelta(minutes=index),
+                    value=value,
+                )
+            )
+    history.append_file_batch(tuple(events), batch_id="all")
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="all-signals")
+        assert status == 200 and found["judged"] == 35 and found["unchecked"] == 0
+        change = found["intervals"][0]
+        assert change["channel"] == "signal-34" and change["reason"] == "sustained"
+        assert change["reference_value"] == pytest.approx(1.1)
+        assert change["typical_value"] == 40.0
+        related = {row["channel"]: row["state"] for row in change["related"]}
+        assert related["signal-32"] == "higher"
+        assert "within" in related.values()
+        assert "signal-33" not in related  # A different source is not a simultaneous comparison.
     finally:
         stop()

@@ -10,7 +10,6 @@
   import {ORIGIN_TEXT,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import {strength} from "../relation";
   import {assetTabUrl} from "../routes";
   let {assetId}:{assetId:string}=$props();
@@ -195,7 +194,12 @@
         {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null):null}
         <section class="group">
           <h3>{sourceLabel(sourceNames, pair.source)} / {pair.point??"측정 위치 미확인"}</h3>
-          {#if message}<AnalysisMessage {message}/>{/if}
+          {#if message}<AnalysisMessage {message}
+            subject={signalName(names,x) + " × " + signalName(names,y) + " · " + sourceLabel(sourceNames, pair.source)}
+            basis={"기간 A " + periodText("a") + " / 기간 B " + periodText("b")}
+            boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
+          {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
+            message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다." />{/if}
           <div class="sides">
             {#each ["a","b"] as name(name)}
               {@const n=name as "a"|"b"}
@@ -257,7 +261,6 @@
           {/each}
         </section>
       {/each}
-      <CautionNote message="두 신호가 함께 움직여도 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다. 고장 여부도 판단하지 않습니다."/>
     {/if}
   {/if}
 </section>
