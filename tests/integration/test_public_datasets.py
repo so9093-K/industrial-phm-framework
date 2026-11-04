@@ -175,3 +175,17 @@ def test_interrupted_aihub_import_can_retry_committed_batches(
     assert completed["jobs"][target["dataset_id"]]["state"] == "succeeded"
     assert completed["jobs"][target["dataset_id"]]["done"] == 2001
     assert (completed["items"][0]["stored"], completed["items"][0]["partial"]) == (True, False)
+
+def test_unreadable_aihub_archive_does_not_hide_valid_datasets(tmp_path: Path) -> None:
+    from industrial_phm.runtime.public_datasets import write_public_dataset_index
+
+    root = tmp_path / "data"
+    _aihub(root)
+    broken = root / "raw/aihub/239/archives/training/raw/8.보일러.zip"
+    broken.write_bytes(b"unfinished ZIP download")
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+
+    write_public_dataset_index(workspace, root)
+    listed = list_public_datasets(workspace, root)["items"]
+    assert {item["asset_id"] for item in listed} == {"공기압축기 1338", "공기압축기 902"}

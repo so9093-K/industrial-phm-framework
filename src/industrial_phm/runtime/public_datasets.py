@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -124,7 +124,7 @@ def write_public_dataset_index(workspace: OperationsWorkspace, root: Path | None
         try:
             identities = _identities(archive, {})
             stat = archive.stat()
-        except OSError, ValueError, RuntimeError:
+        except OSError, ValueError, RuntimeError, BadZipFile:
             continue
         index[str(archive.resolve())] = {
             "size": stat.st_size,
@@ -147,7 +147,7 @@ def _aihub_datasets(root: Path, index: Mapping[str, Any]) -> list[PublicDataset]
             identities = _identities(archive, index)
             with ZipFile(archive) as opened:
                 sizes = {info.filename: info.file_size for info in opened.infolist()}
-        except OSError, ValueError, RuntimeError:
+        except OSError, ValueError, RuntimeError, BadZipFile:
             # An unreadable archive is left out rather than listed with guessed devices.
             continue
         for member, (device, board) in sorted(
@@ -446,7 +446,7 @@ class PublicDatasetJobs:
 
     def _index(self) -> None:
         # A missing index only makes the next listing slower; it is never required.
-        with contextlib.suppress(OSError, ValueError, RuntimeError):
+        with contextlib.suppress(OSError, ValueError, RuntimeError, BadZipFile):
             write_public_dataset_index(self._workspace, self._root)
 
     def start(self, payload: dict[str, object]) -> dict[str, object]:

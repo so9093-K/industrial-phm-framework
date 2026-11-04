@@ -22,6 +22,8 @@
     const current: PublicDatasets | null = datasets;
     return current ? Object.values(current.jobs).some((job) => job.state === "running") : false;
   });
+  // The import may have started before its first successful status read.
+  let expectingStatus = false;
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -30,11 +32,12 @@
     if (timer) clearTimeout(timer);
     timer = null;
     const current = new AbortController(); request = current;
-    const wasRunning = running;
+    const wasRunning = running || expectingStatus;
     try {
       const value = await readPublicDatasets(current.signal);
       if (current.signal.aborted) return;
       datasets = value; loadState = "ready"; readUncertain = false;
+      expectingStatus = false;
       const stillRunning = Object.values(value.jobs).some((job) => job.state === "running");
       if (stillRunning) timer = setTimeout(() => void reload(), 2000);
       if (wasRunning && !stillRunning) await onImported?.();
@@ -53,6 +56,7 @@
     pending = datasetId; message = "";
     try {
       await startImport(datasetId, new AbortController().signal);
+      expectingStatus = true;
     } catch (cause: unknown) {
       message = explainWrite(cause);
     } finally {
