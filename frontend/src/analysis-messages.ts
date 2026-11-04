@@ -28,6 +28,15 @@ export function times(ratio: number): string {
   return text + "배";
 }
 const percent = (share: number) => Math.round(share * 100) + "%";
+/** A share of counted measurements as a percentage that reads as all or none only when it is:
+ * between 1% and 99% it rounds as usual, above 99% it rounds down and below 1% up, to one decimal. */
+export function countShare(part: number, whole: number): string {
+  if (whole <= 0 || part <= 0) return "0%";
+  if (part >= whole) return "100%";
+  const share = 100 * part / whole;
+  if (share >= 1 && share <= 99) return Math.round(share) + "%";
+  return (share > 99 ? Math.floor(share * 10) / 10 : Math.ceil(share * 10) / 10).toFixed(1) + "%";
+}
 const hz = (value: number) => Math.round(value).toLocaleString("ko-KR");
 
 export type PeriodFacts = {
@@ -65,8 +74,7 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
   // "모두" only when every usable measurement is outside; otherwise the count itself, and a
   // percentage that never rounds 99.5% up to 100% or 0.4% down to 0%.
   const all = count !== null && b.usable > 0 && count === b.usable;
-  const pct = share === null ? "" : (share > 99 && !all) || (share > 0 && share < 1)
-    ? share.toFixed(1) + "%" : Math.round(share) + "%";
+  const pct = share === null ? "" : count !== null ? countShare(count, b.usable) : Math.round(share) + "%";
   let headline: string;
   if (share === null || range === null) headline = "기간 A와 B의 " + medians;
   else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
@@ -470,10 +478,11 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
   let lowDiffers = false;
   if (facts.lowCurrent) {
     const a = portion(facts.lowCurrent.a, facts.a.usable), b = portion(facts.lowCurrent.b, facts.b.usable);
+    const shareA = countShare(facts.lowCurrent.a, facts.a.usable), shareB = countShare(facts.lowCurrent.b, facts.b.usable);
     lowDiffers = Math.abs(a - b) >= 0.1;
     // A share of stored measurements, not of time, and a low reading, not a stop: spacing can
     // differ, one phase below 1 A says nothing of the others, and a similar share settles no cause.
-    notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + percent(a) + ", 기간 B " + percent(b)
+    notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + shareA + ", 기간 B " + shareB
       + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리도 견줘 보세요."
         : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요.")
       + " 1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다.");

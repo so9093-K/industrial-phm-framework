@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
-  comparisonMessage, coefficientSpread, historyPeriodMessage, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
+  comparisonMessage, coefficientSpread, countShare, historyPeriodMessage, movedShare, withoutTwins, formulaLink, modelMessage, modelOnset, outlookMessage, periodMessage, periodOnset, relationMessage, shiftedBand,
   spectrumMessage, tie, times,
 } from "./analysis-messages.ts";
 import {thresholdRatios, type Interval, type TrendPoint} from "./model-trend.ts";
@@ -240,6 +240,11 @@ test("a stored time series compares the share of measurements with no current wi
   // "모두" needs every usable measurement outside: 199 of 200 is said as it is, never as 100%.
   const nearly = historyPeriodMessage({...facts, b: {usable: 200, median: 65}, outsideCount: 199, outsidePercent: 99.5, lowCurrent: null})!;
   assert.match(nearly.headline, /^기간 B 측정 200회 중 199회\(99\.5%\)가 기간 A의 평소 범위/);
+  // A large record: 2,499 of 2,500 must not read as 100%.
+  const large = historyPeriodMessage({...facts, b: {usable: 2500, median: 65}, outsideCount: 2499, outsidePercent: 99.96, lowCurrent: null})!;
+  assert.match(large.headline, /^기간 B 측정 2500회 중 2499회\(99\.9%\)가/);
+  assert.deepEqual([countShare(1, 2500), countShare(0, 10), countShare(10, 10), countShare(7, 20), countShare(995, 1000)],
+    ["0.1%", "0%", "100%", "35%", "99.5%"]);
   const every = historyPeriodMessage({...facts, b: {usable: 200, median: 65}, outsideCount: 200, outsidePercent: 100, lowCurrent: null})!;
   assert.match(every.headline, /^기간 B의 측정 200회가 모두/);
   assert.match(half.certainty!, /^절반이 벗어났지만/);

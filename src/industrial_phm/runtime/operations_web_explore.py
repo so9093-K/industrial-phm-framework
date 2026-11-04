@@ -451,6 +451,8 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         return held[3]
     channels = list(history.list_history_channels(asset_id))
     checked = channels[:_FINDING_CHANNELS]
+    # Said on every path, so signals past the limit are never silently left out.
+    body["unchecked"] = len(channels) - len(checked)
     points: dict[str, list[tuple[datetime, datetime, float]]] = {}
     units: dict[str, str | None] = {}
     width = 0.0
@@ -549,7 +551,6 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             "record": {"from": iso(summary.start_at), "to": iso(summary.end_at)},
             # Each value is a bucket mean over this many seconds, not a single measurement.
             "bucket_seconds": width,
-            "unchecked": len(channels) - len(checked),
             "intervals": shown,
             "interval_count": len(found["intervals"]),
         }

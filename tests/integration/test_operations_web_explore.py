@@ -408,3 +408,43 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         assert series["periods"]["b"]["low_current"] == {"below": 1.0, "count": 30}
     finally:
         stop()
+
+
+def test_signals_past_the_limit_are_reported_even_when_nothing_could_be_judged(
+    tmp_path: Path,
+) -> None:
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    # Thirteen signals, every stored value empty: nothing to judge, one signal past the limit.
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:empty:{'e' * 64}:{channel}:{index}",
+                source_id="empty-file",
+                asset_id="empty-01",
+                channel_id=f"s{channel:02d}",
+                source_file="empty.csv",
+                source_sha256="e" * 64,
+                source_size_bytes=10,
+                sample_index=channel * 100 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=None,
+            )
+            for channel in range(13)
+            for index in range(20)
+        ),
+        batch_id="empty",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="empty-01")
+        assert status == 200
+        assert found["judged"] == 0 and found["intervals"] == []
+        assert len(found["signals"]) == 12 and found["unchecked"] == 1
+        assert {row["state"] for row in found["signals"]} == {"no-values"}
+    finally:
+        stop()
