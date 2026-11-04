@@ -325,6 +325,116 @@ def test_import_without_source_fingerprint_is_not_proof_of_current_completion(
     assert (item["stored"], item["partial"]) == (False, True)
 
 
+def _legacy_job(workspace: OperationsWorkspace, item: PublicDataset) -> None:
+    """The job a Web import left before imports recorded a source digest."""
+    from industrial_phm.runtime import public_datasets
+
+    job = {"kind": item.kind, "asset_id": item.asset_id, "state": "succeeded", "done": 2}
+    workspace.public_dataset_job_path.parent.mkdir(parents=True, exist_ok=True)
+    workspace.public_dataset_job_path.write_text(
+        json.dumps({"schema": public_datasets._SCHEMA, "jobs": {item.dataset_id: job}})
+    )
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_aihub_history_stored_before_source_digests_is_versioned_not_stored_twice(
+    tmp_path: Path, changed: bool
+) -> None:
+    from industrial_phm.runtime import public_datasets
+
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    item = public_datasets.find_public_datasets(root, workspace)[0]
+    base = public_datasets._base_source(item)
+    public_datasets._import_aihub(workspace, item, lambda _: None)
+    _legacy_job(workspace, item)
+    assert list_public_datasets(workspace, root)["items"][0]["partial"] is True
+    if changed:
+        with ZipFile(item.path) as opened:
+            members = {name: opened.read(name) for name in opened.namelist()}
+        with ZipFile(item.path, "w") as opened:
+            for name, content in members.items():
+                opened.writestr(name, content.replace(b"68.0", b"79.0"))
+
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    jobs.start({"dataset_id": item.dataset_id})
+    jobs.close()
+    listing = list_public_datasets(workspace, root)
+    job = listing["jobs"][item.dataset_id]
+    assert (job["state"], listing["items"][0]["stored"]) == ("succeeded", True)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    streams = {stream.source_id for stream in history.list_history_streams(item.asset_id)}
+    assert [r.value for r in history.query_file_events(base)] == [68.0, 0.0]
+    if changed:
+        # Other bytes never join the earlier stream; they become a version of their own.
+        assert job["source_id"] == f"{base}-{job['source_digest']}"
+        assert streams == {base, job["source_id"]}
+        assert [r.value for r in history.query_file_events(job["source_id"])] == [79.0, 0.0]
+    else:
+        assert (job["source_id"], streams) == (base, {base})
+        # Importing the same bytes again keeps to the stream that took their digest.
+        jobs = PublicDatasetJobs(workspace.root, root=root)
+        jobs.start({"dataset_id": item.dataset_id})
+        jobs.close()
+        assert list_public_datasets(workspace, root)["jobs"][item.dataset_id]["source_id"] == base
+        assert [r.value for r in history.query_file_events(base)] == [68.0, 0.0]
+
+
+@pytest.mark.parametrize("moved", [False, True])
+def test_xjtu_replay_stored_before_source_digests_is_versioned_unless_its_files_moved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, moved: bool
+) -> None:
+    from industrial_phm.adapters import XJTU_SY_CHANNELS
+    from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+    from industrial_phm.demo import xjtu_models
+    from industrial_phm.runtime import operations_web_phm_models, public_datasets
+
+    root = tmp_path / "data"
+    bearing = xjtu_models.held_out_bearings()[0]
+    folder = root / public_datasets.XJTU_SOURCE / "35Hz12kN" / bearing
+    folder.mkdir(parents=True)
+    (folder / "1.csv").write_text(",".join(XJTU_SY_CHANNELS) + "\n0.1,0.2\n")
+    monkeypatch.setattr(
+        xjtu_models,
+        "existing_packages",
+        lambda _: {xjtu_models.IFOREST_RECIPE: "iforest", xjtu_models.LSTM_RECIPE: "lstm"},
+    )
+    bindings: list[str] = []
+    monkeypatch.setattr(
+        operations_web_phm_models,
+        "create_phm_binding",
+        lambda *_, **kwargs: bindings.append(kwargs["source_id"]),
+    )
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    item = public_datasets.find_public_datasets(root, workspace)[0]
+    public_datasets._import_xjtu(workspace, item, lambda _: None, lambda _: None)
+    _legacy_job(workspace, item)
+    data = root.rename(tmp_path / "moved-data") if moved else root
+
+    jobs = PublicDatasetJobs(workspace.root, root=data)
+    jobs.start({"dataset_id": item.dataset_id})
+    jobs.close()
+    listing = list_public_datasets(workspace, data)
+    job = listing["jobs"][item.dataset_id]
+    assert (job["state"], listing["items"][0]["stored"]) == ("succeeded", True)
+    legacy = xjtu_models.XJTU_DEMO_SOURCE_ID
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    streams = {stream.source_id for stream in snapshots.list_streams()}
+    if moved:
+        # The earlier stream keeps the old path, so the moved files get a stream of their own.
+        assert job["source_id"] == f"{legacy}-{job['source_digest']}"
+        assert streams == {legacy, job["source_id"]}
+        assert snapshots.get(job["source_id"], bearing, 1).file_path.is_file()
+    else:
+        assert (job["source_id"], streams) == (legacy, {legacy})
+    assert bindings == [legacy, legacy, job["source_id"], job["source_id"]]
+
+
 def test_source_change_during_import_cannot_be_recorded_as_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
