@@ -14,7 +14,11 @@ from industrial_phm.runtime.operations_web_actions import (
     WEB_SUPERVISOR_ONLY_ACTION_ROUTES,
     execute_web_source_action,
 )
-from industrial_phm.runtime.public_datasets import PublicDataset, PublicDatasetJobs, list_public_datasets
+from industrial_phm.runtime.public_datasets import (
+    PublicDataset,
+    PublicDatasetJobs,
+    list_public_datasets,
+)
 
 pytest.importorskip("ijson")
 pytest.importorskip("duckdb")
@@ -113,6 +117,7 @@ def test_a_restarted_web_lists_archives_from_the_index_without_rereading_them(
     monkeypatch.setattr(aihub_power, "read_power_member_identities", unread)
     assets = {item["asset_id"] for item in list_public_datasets(workspace, root)["items"]}
     assert assets == {"공기압축기 1338", "공기압축기 902"}
+
 
 def test_interrupted_aihub_import_can_retry_committed_batches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
