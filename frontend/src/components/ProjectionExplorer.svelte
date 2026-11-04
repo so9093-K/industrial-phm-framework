@@ -91,7 +91,7 @@
       if (abort.signal.aborted) return;
       options=data;
       if (!data.channels.length){optionsState="empty";return;}
-      if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다. 다른 신호로 대신하지 않습니다.");
+      if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다.");
       if(!channel)channel=await defaultChannel(assetId,data.channels,abort.signal);
       if (abort.signal.aborted) return;
       if (!savedHorizon && data.horizons[horizon] !== null) {
@@ -100,6 +100,7 @@
       }
       optionsState="ready";
       save();
+      if (data.horizons[horizon] === null) await calculate();
     } catch(cause:unknown) {
       if(abort.signal.aborted)return;
       optionsState="failed";
@@ -136,7 +137,7 @@
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
   <h2 id="projection-title">기준 도달 전망</h2>
-  <p class="intro">기록 마지막 시점의 추세가 이어진다는 가정으로 관리·종료 기준까지의 여유를 계산합니다. 먼저 신호를 고르고 비교할 기준값을 입력하세요.</p>
+  <p class="intro">선택한 신호의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
   {:else if optionsState === "failed"}
@@ -144,26 +145,22 @@
       actionLabel="다시 불러오기" onAction={()=>void loadSourceOptions()} />
   {:else if optionsState === "empty"}
     <StatusNotice kind="uncertain" title="전망할 시계열 기록이 없습니다"
-      message="이 설비에는 저장된 시계열 신호가 없습니다. 이상이 없다는 뜻은 아닙니다."
+      message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options}
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
-          onchange={e=>{channel=e.currentTarget.value;invalidate();}}>
+          onchange={e=>{channel=e.currentTarget.value;invalidate();void calculate();}}>
           {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
-      <label for="projection-horizon">예측 기간
-        <select id="projection-horizon" value={horizon}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;invalidate();}}>
-          {#each horizons as value (value)}
-            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
-              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
-          {/each}
-        </select>
-      </label>
-      <label for="projection-direction">기준 방향
+
+    </div>
+    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="controls">      <label for="projection-direction">기준 방향
         <select id="projection-direction" value={direction}
           onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
           <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
@@ -177,8 +174,23 @@
         <input id="projection-end" type="number" step="any"
           value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
       </label>
-    </div>
+      </div>
+    </details>
+    <details class="calculation-options" open={customSettings}>
+      <summary>계산 조건 변경</summary>
+      <div class="controls">      <label for="projection-horizon">예측 기간
+        <select id="projection-horizon" value={horizon}
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;invalidate();}}>
+          {#each horizons as value (value)}
+            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
+              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
+          {/each}
+        </select>
+      </label>
+
+      </div>
     <ForecastSettings value={settings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
+    </details>
     <button type="button" class="ui-button ui-button-primary"
       onclick={()=>void calculate()} disabled={!horizons.some(key=>options?.horizons[key]===null)}>
       계산하기
@@ -212,7 +224,7 @@
         {#if told}<AnalysisMessage message={told}
           subject={signalName(names, projection.channel)}
           basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
-          boundary="남은 시간은 기록 마지막 측정부터의 여유입니다. 오늘부터 남은 시간이나 실제 고장까지의 수명이 아닙니다." />{/if}
+          boundary="예상 여유의 시작은 기록 마지막 측정 시점입니다." />{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
@@ -226,8 +238,7 @@
             {/if}
           </div>
         {:else}
-          <StatusNotice kind="uncertain" title="기준까지 남은 여유는 아직 계산하지 않았습니다"
-            message="관리·종료 기준을 입력하지 않아 추세 예측만 표시합니다. 기준값을 입력하고 계산하기를 누르면 도달 전망을 함께 확인할 수 있습니다." />
+          <p class="intro">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
         {#if chart}
           <figure class="chart">
@@ -352,6 +363,7 @@
   .key.management { border-color: var(--color-caution-ink); border-top-style: dashed; }
   .key.end { border-color: var(--color-failure-ink); border-top-style: dashed; }
   .intro { color: var(--color-ink-muted); overflow-wrap: anywhere; }
+  summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
   .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
     gap: var(--space-4); margin-block: var(--space-5); }
   label { display: grid; gap: var(--space-2); font-weight: 650; font-size: var(--font-small); }

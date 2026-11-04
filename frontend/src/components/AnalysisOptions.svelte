@@ -45,7 +45,7 @@
   {#if loadState === "loading"}
     <p class="context">저장된 데이터로 할 수 있는 분석을 확인하고 있습니다.</p>
   {:else if loadState === "failed" || !capabilities}
-    <StatusNotice kind="uncertain" message="분석할 수 있는 항목을 확인하지 못했습니다. 데이터가 없다는 뜻은 아닙니다."
+    <StatusNotice kind="uncertain" message="분석할 수 있는 항목을 확인하지 못했습니다."
       actionLabel="다시 불러오기" onAction={reload} />
   {:else if empty}
     <p>{empty === "not-received" ? "등록한 데이터 연결에서 아직 저장된 측정이 없습니다." : "저장된 측정이 없습니다."}

@@ -46,7 +46,10 @@
   });
   /** A stream offers only its own signals and period. */
   function pick(index: number) {
-    streamIndex = index; chosen = (streams[index]?.channels ?? []).slice(0, 4);
+    streamIndex = index;
+    const channels = streams[index]?.channels ?? [];
+    const selected = new URLSearchParams(location.search).get("monitor_channel");
+    chosen = selected && channels.includes(selected) ? [selected] : channels.slice(0, 4);
   }
 
   function toggle(channel: string, on: boolean) {
@@ -80,10 +83,10 @@
 
 {#if load === "failed"}
   <StatusNotice kind="failure" title="모델 만들기에 쓸 기록 정보를 읽지 못했습니다"
-    message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다. 기록이 없다는 뜻은 아닙니다."
+    message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다."
     actionLabel="다시 불러오기" onAction={readStreams} />
 {:else if stream}
-  <details class="build" open={!hasModel}>
+  <details class="build">
     <summary>{hasModel ? "이 설비 데이터로 다른 모델 만들기" : "이 설비 데이터로 모델 만들기"}</summary>
     <p class="context">고른 기준 기간을 평소 모습으로 삼아 Isolation Forest 모델을 학습하고 이 설비에 연결합니다.
       이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다.</p>

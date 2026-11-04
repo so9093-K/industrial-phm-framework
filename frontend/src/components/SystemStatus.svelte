@@ -41,7 +41,7 @@
     <StatusNotice message="실행 상태를 확인하고 있습니다." />
   {:else if runtimeState === "failed" || !runtime}
     <StatusNotice kind="failure" title="실행 상태를 확인하지 못했습니다"
-      message="서비스가 멈췄다는 뜻은 아닙니다. 터미널의 operations status·logs로 확인하세요." />
+      message="터미널의 operations status·logs로 서비스 상태를 확인하세요." />
   {:else}
     <p class="summary" class:attention={!runtime.ready}>{runtime.ready ? "로컬 서비스가 실행 중입니다."
       : "로컬 서비스가 모두 준비됐는지 확인되지 않습니다. 아래 상태를 보고 필요하면 터미널 로그를 확인하세요."}</p>
@@ -72,7 +72,7 @@
   {#if storeState === "loading"}
     <StatusNotice message="저장소를 읽고 있습니다." />
   {:else if !snapshot}
-    <StatusNotice kind="failure" title="저장소를 읽지 못했습니다" message={storeError + " 기록이 없다는 뜻은 아닙니다."} />
+    <StatusNotice kind="failure" title="저장소를 읽지 못했습니다" message={storeError + ""} />
   {:else if snapshot.errorScopes.length}
     <StatusNotice kind="uncertain" message={"일부 저장소를 읽지 못했습니다: " + snapshot.errorScopes.join(", ") + ". 보이지 않는 관측·분석·검토 기록이 있을 수 있습니다."} />
   {:else if snapshot.systemReadUncertain}

@@ -60,7 +60,7 @@
   {#if loadState === "loading"}
     <StatusNotice message="이 측정의 원본을 확인하고 있습니다." />
   {:else if loadState === "failed" || !input}
-    <StatusNotice kind="uncertain" message="원본을 불러오지 못했습니다. 원본이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="uncertain" message="원본을 불러오지 못했습니다." />
   {:else if !input.available}
     <StatusNotice kind="uncertain" title="원본을 보여 줄 수 없습니다" message={input.reason} />
   {:else if "fileName" in input}

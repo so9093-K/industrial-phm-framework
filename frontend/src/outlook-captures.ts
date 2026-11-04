@@ -276,7 +276,7 @@ export async function readCaptures(
   if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error("검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+    throw new Error("검토 요청 목록을 불러오지 못했습니다.");
   }
   return parseCapturePage(await response.json() as unknown,assetId,captureId);
 }

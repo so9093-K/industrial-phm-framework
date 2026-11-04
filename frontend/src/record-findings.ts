@@ -130,7 +130,7 @@ export function findingText(item: FoundInterval, bucketSeconds: number | null): 
 
 /** The interval in the signal graph, and compared with the first 30% it was judged against. */
 export function findingLinks(assetId: string, item: FoundInterval, baseline: RecordFindings["baseline"],
-  bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null} {
+  bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null; relation: {href: string; label: string} | null; outlook: string} {
   const link = (href: string, params: Record<string, string>) => {
     const url = new URL(href, "http://local");
     for (const [key, entry] of Object.entries(params)) url.searchParams.set(key, entry);
@@ -158,7 +158,17 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
       compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "departure"));
     } catch { compare = null; }
   }
-  return {signal, compare, previous};
+  const other = item.related.find(row => row.state !== "within") ?? item.related[0];
+  const compared = previous ?? compare;
+  let relation: {href: string; label: string} | null = null;
+  if (other && compared) {
+    const url = new URL(compared, "http://local");
+    url.searchParams.set("method", "relation");
+    url.searchParams.set("relation_x", item.channel);
+    url.searchParams.set("relation_y", other.channel);
+    relation = {href: url.pathname + url.search, label: other.label + "와의 관계 비교"};
+  }
+  return {signal, compare, previous, relation, outlook: assetTabUrl(assetId, "outlook", null, "history", item.channel)};
 }
 
 const WHY: Record<Exclude<SignalState, "scored">, string> = {

@@ -159,7 +159,9 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 }
                 assert payload["binding_id"] == "anomaly-a"
                 assert payload["time_basis"] == "recorded"
-                # Repeating the explicit request names the same immutable record.
+                # Reopening this result and requesting again names the same immutable record.
+                page.locator("details.optional-review > summary").click()
+                _show_optional_review(page)
                 request_button.click()
                 pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=60000)
                 assert len(confirmed) == 2

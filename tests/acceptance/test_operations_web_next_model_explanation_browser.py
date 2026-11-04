@@ -13,7 +13,7 @@ from industrial_phm.genai import phm_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
-from tests.support.web_next import asset_list, expect_place, start_web, stop_web
+from tests.support.web_next import asset_list, expect_place, same_origin, start_web, stop_web
 
 RMS = "feature.Horizontal_vibration_signals.rms"
 SUMMARY = "이상 점수가 증가했고 수평 진동 RMS가 함께 커졌습니다."
@@ -176,10 +176,10 @@ def test_model_result_explanation_and_review_request(
 
                 page.locator("details.optional-review > summary").click()
                 review = page.get_by_role("region", name="사람 검토")
-                pw.expect(review).to_contain_text("위의 AI 해설을 정비 검토함에 남깁니다")
-                review.get_by_role("button", name="검토 요청").click()
-                pw.expect(review).to_contain_text("정비 검토함에 남겼습니다")
-                pw.expect(review).to_contain_text("정비 검토함에 있습니다 · 검토 대기")
+                pw.expect(review.get_by_role("button", name="판단 저장")).to_be_disabled()
+                review.get_by_role("button", name="검토함에 보류").click()
+                pw.expect(review).to_contain_text("정비 검토함에 보류했습니다")
+                pw.expect(review).to_contain_text("검토 대기")
                 link = review.get_by_role("link", name="정비 검토함에서 보기")
                 href = link.get_attribute("href") or ""
                 finding = parse_qs(urlsplit(href).query)["finding_id"][0]
@@ -212,7 +212,7 @@ def test_model_result_explanation_and_review_request(
                 assert watched.get_by_role("button", name="해설 만들기").count() == 0
                 observer.locator("details.optional-review > summary").click()
                 pw.expect(observer.get_by_role("region", name="사람 검토")).to_contain_text(
-                    "정비 검토함에 있습니다"
+                    "검토 대기"
                 )
                 assert not errors, errors
             finally:
@@ -296,3 +296,72 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
     finally:
         for server, thread in running:
             stop_web(server, thread)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_decision_and_optional_note_are_saved_once_without_leaving_the_model_result(
+    tmp_path: Path, width: int
+) -> None:
+    import json
+
+    from industrial_phm.application import JsonFindingReviewRepository
+
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "inline-review")
+    for ordinal, scale in enumerate((0.5, 0.6, 3.0), 1):
+        deliver(workspace, tmp_path / "waves", ordinal, scale)
+    analyze(workspace)
+    running = start_web(workspace.root.resolve(), writer=True)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = _open(browser, width)
+                url = (
+                    f"http://127.0.0.1:{running[0].server_port}/web/?page=assets&tab=anomaly"
+                    "&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=3"
+                )
+                page.goto(url)
+                page.locator("details.optional-review > summary").click()
+                panel = page.get_by_role("region", name="사람 검토")
+                save = panel.get_by_role("button", name="판단 저장", exact=True)
+                pw.expect(save).to_be_disabled()
+                panel.get_by_role("radio", name="계속 관찰", exact=True).check()
+                panel.get_by_label("메모 (선택)").fill("다음 측정에서 같은 변화가 이어지는지 확인")
+                writes = []
+
+                def lose_once(route: Any) -> None:
+                    writes.append(route.request.post_data_json)
+                    response = route.fetch(headers=same_origin(route))
+                    if len(writes) == 1:
+                        route.fulfill(
+                            status=503,
+                            content_type="application/json",
+                            body=json.dumps({"error": {"code": "command_outcome_unknown"}}),
+                        )
+                    else:
+                        route.fulfill(response=response)
+
+                page.route("**/api/v1/reviews/action", lose_once)
+                save.click()
+                pw.expect(panel.get_by_role("status").last).to_contain_text("다시 시도해도")
+                save.click()
+                pw.expect(panel.get_by_role("status").last).to_have_text("검토 기록을 남겼습니다.")
+                assert len(writes) == 2 and writes[0] == writes[1]
+                events = JsonFindingReviewRepository(
+                    workspace.maintenance_review_state_path
+                ).list_events()
+                assert len(events) == 1
+                assert events[0].decision.value == "observe"
+                assert events[0].note == "다음 측정에서 같은 변화가 이어지는지 확인"
+                pw.expect(page).to_have_url(url)
+                panel.get_by_role("button", name="검토 종료", exact=True).click()
+                panel.get_by_role("button", name="종료하기", exact=True).click()
+                pw.expect(
+                    panel.get_by_text("검토가 종료되어 기록을 더 남길 수 없습니다.", exact=True)
+                ).to_be_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)

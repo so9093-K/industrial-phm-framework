@@ -119,7 +119,7 @@
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
     {:else if findingState === "failed"}
-      <p class="context">기록에서 찾은 변화를 읽지 못했습니다. 변화가 없다는 뜻은 아닙니다.
+      <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 직접 보기 →</a></p>
     {:else if findings && findings.intervals.length}
       <ul class="found">
@@ -128,7 +128,7 @@
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
           <li>
             <span class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</span>
-            <strong>{item.label} · {told.what}</strong><span>{told.when}</span>
+            <strong>{#if links.signal}<a href={links.signal}>{item.label}</a>{:else}{item.label}{/if} · {told.what}</strong><span>{told.when}</span>
             {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
               {#each item.related as other (other.channel)}
                 {@const target = findingLinks(asset.assetId, {...item, channel:other.channel}, findings.baseline, findings.bucketSeconds, findings.record)}
@@ -137,10 +137,14 @@
                   · {other.state === "within" ? "대표값이 기준 범위 안" : other.state === "higher" ? "함께 높아짐" : "함께 낮아짐"}</li>
               {/each}
             </ul>{/if}
-            <span class="go">{#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
-              {#if links.previous}<a href={links.previous}>변화 직전과 비교 →</a>
-              {:else if links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}</span>
-            {#if links.previous && links.compare}<details><summary>처음 기준과 비교</summary><a href={links.compare}>기록 처음 30%와 비교 →</a></details>{/if}
+            <span class="go">{#if links.previous}<a class="ui-button ui-button-primary" href={links.previous}>변화 직전과 비교 →</a>
+              {:else if links.compare}<a class="ui-button ui-button-primary" href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
+              {#if links.relation}<a href={links.relation.href}>{links.relation.label} →</a>{/if}</span>
+            <details><summary>신호·추가 비교</summary>
+              {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
+              {#if links.previous && links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
+              {#if item.reason === "record-end"}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
+            </details>
           </li>
         {/each}
       </ul>
@@ -179,7 +183,7 @@
   {#if scoreState === "loading"}
     <p class="context">최근 모델 점수를 불러오고 있습니다.</p>
   {:else if scoreState === "failed"}
-    <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다. 이상이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다." />
   {:else if !scores.length}
     <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
       {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}
@@ -201,7 +205,7 @@
     </ul>
     {#if split?.same}
       <p class="split">같은 측정에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
-        기준 이하가 정상이라는 뜻은 아니므로 측정별 점수와 원본을 함께 확인하세요.</p>
+        같은 측정의 점수와 원본을 함께 확인하세요.</p>
     {:else if split?.why === "stream"}
       <p class="split">모델들이 서로 다른 데이터 출처나 측정 위치를 분석해, 같은 출처·측정 위치·측정의 결과가 아니므로 직접 견줄 수 없습니다.
         모델마다 위에 적힌 결과를 따로 확인하세요.</p>

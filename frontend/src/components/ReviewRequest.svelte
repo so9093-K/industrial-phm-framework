@@ -1,8 +1,9 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {BriefingEvidenceChanged, readPermission, type BriefingProjection} from "../outlook-briefings";
-  import {captureUrl, confirmCapture, CaptureRejected} from "../outlook-captures";
+  import {captureUrl, confirmCapture, readCaptures, recordReview, CaptureRejected, type Capture} from "../outlook-captures";
   import {OutcomeUnknown} from "../review-writes";
+  import ReviewActions from "./ReviewActions.svelte";
   import {routeUrl} from "../routes";
 
   /** Leaves the shown result in the maintenance review queue. The supervisor recomputes and
@@ -14,20 +15,35 @@
   let message = $state("");
   let kind: "information" | "uncertain" | "failure" = $state("information");
   let savedId: string | null = $state(null);
+  let capture: Capture | null = $state(null);
   let request: AbortController | null = null;
   const queueUrl = $derived(routeUrl({page: "maintenance", assetId: projection.assetId, tab: "summary",
     method: null, data: null}));
 
+  async function reload(signal: AbortSignal): Promise<boolean> {
+    if (!savedId) return false;
+    try {
+      const found = await readCaptures(projection.assetId, {captureId: savedId}, signal);
+      if (signal.aborted || found.captures.length !== 1) return false;
+      capture = found.captures[0]; return true;
+    } catch { return false; }
+  }
+  async function ensureCapture(signal: AbortSignal): Promise<Capture> {
+    if (!savedId) savedId = await confirmCapture(projection, signal);
+    if (!capture && !await reload(signal)) throw new Error("저장한 검토 기록을 불러오지 못했습니다.");
+    return capture!;
+  }
   async function submit() {
     if (!writable || saving) return;
     request?.abort();
     const pending = new AbortController(); request = pending;
-    saving = true; savedId = null; kind = "information";
+    saving = true; kind = "information";
     message = "요청 직전에 결과를 다시 계산해 확인하고 있습니다.";
     try {
       savedId = await confirmCapture(projection, pending.signal);
       if (pending.signal.aborted) return;
       message = "정비 검토함에 남겼습니다.";
+      await reload(pending.signal);
     } catch (cause: unknown) {
       if (pending.signal.aborted) return;
       if (cause instanceof BriefingEvidenceChanged || cause instanceof CaptureRejected) {
@@ -53,16 +69,32 @@
 </script>
 
 <div class="review-request">
+  <ReviewActions id={projection.measurementVersion} status={capture?.review.status ?? "open"}
+    events={capture?.review.events ?? []} writable={writable && !saving} confirmLabel="판단 저장"
+    closeQuestion="검토를 종료할까요? 종료하면 이 전망에 기록을 더 남길 수 없습니다."
+    submit={async (action, note, eventId, signal, decision) => {
+      try {
+        const saved = await ensureCapture(signal);
+        return await recordReview(saved, action, note, eventId, signal, decision);
+      } catch (cause) {
+        if (cause instanceof BriefingEvidenceChanged || cause instanceof CaptureRejected)
+          onEvidenceChanged(cause.message);
+        throw cause;
+      }
+    }} {reload} />
+  {#if !capture}
   <div class="row">
     <button type="button" class="ui-button ui-button-primary" disabled={!writable || saving}
       onclick={() => void submit()}>검토 요청</button>
     <span class="context">{writable ? "지금 결과와 조건을 정비 검토함에 남깁니다."
       : "보기 전용이라 검토를 요청할 수 없습니다."}</span>
   </div>
+  {/if}
+  {#if capture}<p><a href={captureUrl(projection.assetId,capture.id)}>정비 검토함에서 보기 →</a></p>{/if}
   {#if message}
     <p class="message" class:uncertain={kind === "uncertain"} class:failure={kind === "failure"}
       role={kind === "failure" ? "alert" : "status"}>{message}
-      {#if savedId}<a href={captureUrl(projection.assetId, savedId)}>정비 검토함에서 보기 →</a>
+      {#if savedId && !capture}<a href={captureUrl(projection.assetId, savedId)}>정비 검토함에서 보기 →</a>
       {:else if kind === "uncertain"}<a href={queueUrl}>정비 검토함 열기 →</a>{/if}</p>
   {/if}
 </div>

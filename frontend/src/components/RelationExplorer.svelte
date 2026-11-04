@@ -144,7 +144,7 @@
     <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error} actionLabel="다시 불러오기" onAction={()=>void sourceList()}/>
   {:else if listState==="empty"||listState==="unavailable"}
     <StatusNotice kind="uncertain" title="비교할 신호가 부족합니다"
-      message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
+      message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
     <div class="controls">
@@ -199,7 +199,7 @@
             basis={"기간 A " + periodText("a") + " / 기간 B " + periodText("b")}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
-            message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다." />{/if}
+            message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
           <div class="sides">
             {#each ["a","b"] as name(name)}
               {@const n=name as "a"|"b"}
@@ -219,7 +219,7 @@
                     <StatusNotice kind="uncertain" message="짝이 많아 일부만 골라 계산했습니다. 전체 분포로 단정하지 마세요."/>
                   {/if}
                   {#if group.pairCount<3||group.pearson===null||group.spearman===null}
-                    <StatusNotice kind="uncertain" message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
+                    <StatusNotice kind="uncertain" message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다."/>
                   {/if}
                   {#if axes&&group.points.length}
                     <FeatureScatter bounds={axes} points={group.points.map(p=>({x:p.x,y:p.y,label:asTime(p.at)}))}

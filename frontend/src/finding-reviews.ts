@@ -117,7 +117,7 @@ export async function readFindingReviews(assetId:string,signal:AbortSignal):Prom
     {signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
-    throw new Error("분석 결과 검토 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+    throw new Error("분석 결과 검토 목록을 불러오지 못했습니다.");
   }
   return parseFindingReviews(await response.json() as unknown,assetId);
 }

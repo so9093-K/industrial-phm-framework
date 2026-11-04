@@ -161,6 +161,7 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
                 anomaly = options.locator('li[data-capability="anomaly"]')
                 pw.expect(anomaly).to_contain_text("맞는 모델 2개 연결 가능")
                 anomaly.get_by_role("link", name="이상 징후 모델 연결하기").click()
+                page.get_by_text("이상 탐지 모델 설정", exact=True).click()
                 offer = page.get_by_role("region", name="연결할 수 있는 이상 탐지 모델")
                 pw.expect(offer.get_by_role("listitem")).to_have_count(2)
                 assert not errors, errors
@@ -235,10 +236,9 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                 # the connected vibration features support it instead.
                 page.goto(base + "&tab=change&method=relation&monitor_asset=bearing-a")
                 pw.expect(
-                    page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?")
+                    page.get_by_role("heading", name="진동 특징 관계", exact=True)
                 ).to_be_visible()
-                pw.expect(page.get_by_role("link", name="진동 측정으로 확인")).to_be_visible()
-                assert page.get_by_role("link", name="시계열 기록으로 확인").count() == 0
+                assert page.get_by_role("heading", name="분석할 데이터 선택").count() == 0
                 page.goto(base + "&tab=change&method=relation&data=history&monitor_asset=bearing-a")
                 pw.expect(
                     page.get_by_text("선택한 분석을 이 데이터에서 사용할 수 없습니다")
@@ -246,9 +246,7 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
 
                 # Mixed-input assets must not silently pick history over vibration.
                 page.goto(base + "&tab=outlook&monitor_asset=bearing-a")
-                pw.expect(
-                    page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?")
-                ).to_be_visible()
+                pw.expect(page.get_by_role("heading", name="분석할 데이터 선택")).to_be_visible()
                 pw.expect(page.get_by_role("link", name="시계열 기록으로 확인")).to_be_visible()
                 pw.expect(page.get_by_role("link", name="진동 측정으로 확인")).to_be_visible()
 
@@ -256,7 +254,7 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                 pw.expect(page).to_have_url(
                     base + "&tab=outlook&data=vibration&monitor_asset=bearing-a"
                 )
-                assert page.get_by_role("heading", name="어떤 측정 근거로 확인할까요?").count() == 0
+                assert page.get_by_role("heading", name="분석할 데이터 선택").count() == 0
                 assert page.evaluate(
                     "document.documentElement.scrollWidth <= window.innerWidth + 2"
                 )

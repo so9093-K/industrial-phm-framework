@@ -79,7 +79,7 @@ def test_review_evidence_failures_and_other_input_are_not_shown_as_absent(
                 pw.expect(retry).to_be_visible()
                 if part == "ai":
                     pw.expect(detail).to_contain_text(
-                        "해설을 읽지 못했습니다. 해설이 없다는 뜻은 아닙니다."
+                        "해설을 읽지 못했습니다."
                     )
                     pw.expect(detail.get_by_text("아직 없습니다.", exact=False)).to_have_count(0)
                 if part == "different-input":
@@ -165,7 +165,7 @@ def test_model_result_review_is_written_once_and_opens_its_exact_result(
 
                 page.route("**/api/v1/reviews/action", lose_once)
                 # A structured decision is enough: no free-text memo is requested.
-                assert detail.get_by_role("textbox").count() == 0
+                pw.expect(detail.get_by_label("메모 (선택)")).to_be_empty()
                 pw.expect(detail.get_by_role("button", name="확인함으로 표시")).to_be_disabled()
                 detail.get_by_role("radio", name="추가 점검 필요").check()
                 detail.get_by_role("button", name="확인함으로 표시").click()

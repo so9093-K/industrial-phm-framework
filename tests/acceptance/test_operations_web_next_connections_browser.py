@@ -95,12 +95,16 @@ def test_csv_first_data_and_connection_steps(tmp_path: Path, width: int) -> None
                     pw.expect(item).to_contain_text("완료")
                 registered = JsonSourceRepository(workspace.source_registry_path).list_sources()
                 assert [source.asset_id for source in registered] == ["pump-01"]
-                done = start.get_by_role("region", name="다음 할 일")
-                pw.expect(done.get_by_role("heading", name="다음 할 일")).to_be_focused()
-                signals = done.get_by_role("link", name="설비 화면에서 신호 보기")
+                done = start.get_by_role("region", name="등록 완료")
+                pw.expect(done.get_by_role("heading", name="등록 완료")).to_be_focused()
+                signals = done.get_by_role("link", name="원본 신호 보기")
                 pw.expect(signals).to_have_attribute(
                     "href", "/web/?page=assets&tab=signals&monitor_asset=pump-01"
                 )
+                pw.expect(
+                    done.get_by_role("link", name="주요 변화와 측정 상태 보기")
+                ).to_have_attribute("href", "/web/?page=assets&monitor_asset=pump-01")
+                done.get_by_text("사용 가능한 다른 분석", exact=True).click()
                 # Where the data arrived: what it supports now, and what it cannot support.
                 options = done.get_by_role("region", name="사용 가능한 분석")
                 pw.expect(options.get_by_role("link", name="두 기간 비교 열기")).to_be_visible()
@@ -295,7 +299,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                     start.get_by_role("button", name="등록 전 검증").click()
                     pw.expect(start.get_by_text("점검 통과")).to_be_visible()
                 start.get_by_role("button", name="등록·이력 저장").click()
-                done = start.get_by_role("region", name="다음 할 일")
+                done = start.get_by_role("region", name="등록 완료")
                 pw.expect(done).to_be_visible(timeout=60_000)
                 (source,) = JsonSourceRepository(workspace.source_registry_path).list_sources()
                 assert len(source.config.semantic_bindings) == 6  # type: ignore[union-attr]

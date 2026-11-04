@@ -3,7 +3,7 @@
   let {value,onChange}:{value:ForecastSettings;onChange:(value:ForecastSettings)=>void}=$props();
 </script>
 <details class="settings"><summary>예측 계산 설정</summary>
-  <p>설정을 바꾸면 결과를 다시 계산해야 합니다. 과거 오차는 앞으로의 정확도나 고장 확률이 아닙니다.</p>
+  <p>설정을 바꾸면 새 조건으로 다시 계산합니다.</p>
   <div class="fields">
     <label>추세 민감도 (0.001~0.5)<input type="number" min="0.001" max="0.5" step="0.001" value={value.changepointPriorScale} oninput={e=>onChange({...value,changepointPriorScale:Number(e.currentTarget.value)})}/></label>
     <label>변화점 탐색 범위 (0.5~0.95)<input type="number" min="0.5" max="0.95" step="0.01" value={value.changepointRange} oninput={e=>onChange({...value,changepointRange:Number(e.currentTarget.value)})}/></label>
