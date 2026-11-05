@@ -1,13 +1,14 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {BriefingEvidenceChanged, readPermission, type BriefingProjection} from "../outlook-briefings";
-  import {captureUrl, confirmCapture, readCaptures, recordReview, CaptureRejected, type Capture} from "../outlook-captures";
+  import {captureUrl, confirmCapture, readCaptures, readProjectionCapture, recordReview, CaptureRejected, type Capture} from "../outlook-captures";
+  import StatusNotice from "./StatusNotice.svelte";
   import {OutcomeUnknown} from "../review-writes";
   import ReviewActions from "./ReviewActions.svelte";
   import {routeUrl} from "../routes";
 
-  /** Leaves the shown result in the maintenance review queue. The supervisor recomputes and
-   * stores every number; this button only names the selection the user is looking at. */
+  /** Restore the shown result's durable review before offering actions. New captures are
+   * recomputed by the supervisor; the browser only names the current selection. */
   type Props = {projection: BriefingProjection; onEvidenceChanged: (message: string) => void};
   let {projection, onEvidenceChanged}: Props = $props();
   let writable = $state(false);
@@ -16,9 +17,25 @@
   let kind: "information" | "uncertain" | "failure" = $state("information");
   let savedId: string | null = $state(null);
   let capture: Capture | null = $state(null);
+  let readState: "loading" | "ready" | "failed" = $state("loading");
   let request: AbortController | null = null;
   const queueUrl = $derived(routeUrl({page: "maintenance", assetId: projection.assetId, tab: "summary",
     method: null, data: null}));
+
+  async function loadExisting() {
+    request?.abort();
+    const pending = new AbortController(); request = pending;
+    readState = "loading"; message = ""; capture = null; savedId = null;
+    try {
+      const found = await readProjectionCapture(projection, pending.signal);
+      if (pending.signal.aborted) return;
+      capture = found; savedId = found?.id ?? null; readState = "ready";
+    } catch (cause) {
+      if (pending.signal.aborted) return;
+      readState = "failed";
+      message = cause instanceof Error ? cause.message : "저장된 검토 기록을 불러오지 못했습니다.";
+    }
+  }
 
   async function reload(signal: AbortSignal): Promise<boolean> {
     if (!savedId) return false;
@@ -34,7 +51,7 @@
     return capture!;
   }
   async function submit() {
-    if (!writable || saving) return;
+    if (!writable || saving || readState !== "ready") return;
     request?.abort();
     const pending = new AbortController(); request = pending;
     saving = true; kind = "information";
@@ -64,11 +81,18 @@
     void readPermission(permission.signal).then((allowed) => {
       if (!permission.signal.aborted) writable = allowed;
     }).catch(() => {});
+    void loadExisting();
     return () => { permission.abort(); request?.abort(); };
   });
 </script>
 
 <div class="review-request">
+  {#if readState === "loading"}
+    <StatusNotice message="이 전망의 저장된 검토 기록을 확인하고 있습니다." />
+  {:else if readState === "failed"}
+    <StatusNotice kind="failure" title="저장된 검토 기록을 확인하지 못했습니다" message={message}
+      actionLabel="검토 기록 다시 확인" onAction={() => void loadExisting()} />
+  {:else}
   <ReviewActions id={projection.measurementVersion} status={capture?.review.status ?? "open"}
     events={capture?.review.events ?? []} writable={writable && !saving} confirmLabel="판단 저장"
     closeQuestion="검토를 종료할까요? 종료하면 이 전망에 기록을 더 남길 수 없습니다."
@@ -96,6 +120,7 @@
       role={kind === "failure" ? "alert" : "status"}>{message}
       {#if savedId && !capture}<a href={captureUrl(projection.assetId, savedId)}>정비 검토함에서 보기 →</a>
       {:else if kind === "uncertain"}<a href={queueUrl}>정비 검토함 열기 →</a>{/if}</p>
+  {/if}
   {/if}
 </div>
 

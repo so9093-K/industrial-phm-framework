@@ -14,7 +14,7 @@
   import {reachText, recordAgeText, reachCalendarText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
-  import OutlookBriefings from "./OutlookBriefings.svelte";
+  import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
@@ -267,14 +267,12 @@
           </figure>
         {/if}
         {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
-          <details class="optional-ai"><summary>AI 해설·추가 질문</summary>
-          <OutlookBriefings {projection} onEvidenceChanged={()=>{
+          <OutlookBriefingPanel {projection} onEvidenceChanged={()=>{
             requestProjection?.abort();
             projection=null;
             resultState="unverified";
             error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
           }}/>
-          </details>
           <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && projection ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
             {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
             requestProjection?.abort();

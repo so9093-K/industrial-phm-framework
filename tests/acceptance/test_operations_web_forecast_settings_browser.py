@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import pytest
 
@@ -56,6 +56,32 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
             browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
+                page.clock.install()
+                briefing_reads: list[str] = []
+
+                def pending_briefing(route: Any) -> None:
+                    briefing_reads.append(route.request.url)
+                    pairs = parse_qs(urlsplit(route.request.url).query)
+                    selection = urlencode(sorted((key, value[0]) for key, value in pairs.items()))
+                    route.fulfill(
+                        json={
+                            "schema_version": 1,
+                            "selection": selection,
+                            "briefings": [
+                                {
+                                    "id": "pending-test",
+                                    "status": "pending",
+                                    "question": "현재 상태는 어떤가요?",
+                                    "requested_at": "2026-10-16T00:00:00Z",
+                                    "finished_at": None,
+                                    "model": "local-main",
+                                    "answer": None,
+                                }
+                            ],
+                        }
+                    )
+
+                page.route("**/api/v1/outlook/briefings?**", pending_briefing)
 
                 def endpoint(name: str) -> Any:
                     return lambda response: response.url.split("?")[0].endswith("/" + name)
@@ -118,6 +144,32 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     results["forecast"]["measurement_version"]
                     == results["outlook"]["measurement_version"]
                 )
+                # Both outlook kinds stay idle while collapsed, poll only while open,
+                # and resume from the stored server status when reopened.
+                assert not briefing_reads
+                ai = panel.locator("details.optional-ai")
+                ai.get_by_text("AI 해설·추가 질문", exact=True).click()
+                pw.expect(ai.get_by_role("button", name="결과 다시 확인")).to_be_visible(
+                    timeout=30000
+                )
+                with page.expect_response("**/api/v1/outlook/briefings?**"):
+                    page.clock.run_for(1600)
+                pw.expect(ai.get_by_role("button", name="결과 다시 확인")).to_be_visible(
+                    timeout=30000
+                )
+                assert len(briefing_reads) >= 2
+                ai.get_by_text("AI 해설·추가 질문", exact=True).click()
+                pw.expect(ai.locator(".briefings")).to_have_count(0)
+                stopped = len(briefing_reads)
+                page.clock.run_for(10000)
+                page.wait_for_timeout(100)
+                assert len(briefing_reads) == stopped
+                ai.get_by_text("AI 해설·추가 질문", exact=True).click()
+                pw.expect(ai.get_by_role("button", name="결과 다시 확인")).to_be_visible(
+                    timeout=30000
+                )
+                assert len(briefing_reads) > stopped
+                ai.get_by_text("AI 해설·추가 질문", exact=True).click()
                 panel.get_by_text("과거 자료로 예측 확인", exact=True).click()
                 pw.expect(
                     panel.get_by_role("table", name="첫 행은 최근 과거 검증", exact=False)
@@ -127,7 +179,12 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                 pw.expect(
                     panel.get_by_role("heading", name=result_heading, exact=True)
                 ).to_have_count(0)
+                stopped = len(briefing_reads)
                 page.reload()
+                pw.expect(
+                    panel.get_by_role("heading", name=result_heading, exact=True)
+                ).to_be_visible(timeout=60000)
+                assert len(briefing_reads) == stopped
                 panel.get_by_text("예측 계산 설정", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.2")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

@@ -159,12 +159,12 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 }
                 assert payload["binding_id"] == "anomaly-a"
                 assert payload["time_basis"] == "recorded"
-                # Reopening this result and requesting again names the same immutable record.
+                # Reopening restores the saved subject instead of offering another request.
                 page.locator("details.optional-review > summary").click()
                 _show_optional_review(page)
-                request_button.click()
-                pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=60000)
-                assert len(confirmed) == 2
+                pw.expect(page.get_by_role("link", name="정비 검토함에서 보기 →")).to_be_visible()
+                pw.expect(request_button).to_have_count(0)
+                assert len(confirmed) == 1
                 page.get_by_role("link", name="정비 검토함에서 보기 →").click()
 
                 queue = page.get_by_role("region", name="검토함")
@@ -257,6 +257,21 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(detail.locator(".badge")).to_have_text("검토 종료", timeout=30000)
                 pw.expect(detail.locator(".events li")).to_have_count(2)
+
+                # The same forecast restores the durable closed review after reopening the asset.
+                page.goto(f"http://127.0.0.1:{writer.server_port}/web/{outlook_query}")
+                _show_optional_review(page)
+                inline = page.locator("details.optional-review")
+                pw.expect(inline).to_contain_text("검토가 종료되어", timeout=60000)
+                pw.expect(inline.locator(".events li")).to_have_count(2)
+                pw.expect(inline).to_contain_text("추가 점검 필요")
+                pw.expect(inline.get_by_role("button", name="판단 저장")).to_have_count(0)
+                pw.expect(
+                    inline.get_by_text("아직 남긴 검토 기록이 없습니다.", exact=True)
+                ).to_have_count(0)
+                assert len(confirmed) == 1
+                page.goto(f"http://127.0.0.1:{writer.server_port}{deep_link}")
+                detail = page.get_by_role("region", name="고른 검토 항목")
 
                 # Later measurements change the projection; the archived result stays as saved.
                 for ordinal in range(65, 71):
@@ -508,6 +523,13 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 calculate.click()
                 _show_optional_review(page)
                 request = page.get_by_role("button", name="검토 요청")
+                inline = page.locator("details.optional-review")
+                pw.expect(inline).to_contain_text("저장된 검토 기록을 확인하지 못했습니다")
+                pw.expect(inline.get_by_role("button", name="판단 저장")).to_have_count(0)
+                pw.expect(
+                    inline.get_by_text("아직 남긴 검토 기록이 없습니다.", exact=True)
+                ).to_have_count(0)
+                inline.get_by_role("button", name="검토 기록 다시 확인").click()
                 pw.expect(request).to_be_enabled(timeout=15000)
                 request.click()
                 # The supervisor's recomputation differed: nothing saved, result discarded.
@@ -533,6 +555,43 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 request.click()
                 pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=15000)
                 assert state["posted"][1]["measurement_version"] == "d" * 64
+                state["saved"][0]["review"] = {
+                    "status": "acknowledged",
+                    "events": [
+                        {
+                            "event_id": "00000000-0000-4000-8000-000000000001",
+                            "action": "acknowledge",
+                            "decision": "observe",
+                            "note": "다음 측정 확인",
+                            "recorded_at": "2026-10-16T01:00:00Z",
+                        }
+                    ],
+                }
+                page.locator("details.optional-review > summary").click()
+                _show_optional_review(page)
+                pw.expect(inline).to_contain_text("현재 판단 · 계속 관찰")
+                pw.expect(inline).to_contain_text("다음 측정 확인")
+                pw.expect(inline.get_by_role("button", name="판단 저장")).to_have_count(0)
+                pw.expect(
+                    inline.get_by_role("button", name="검토 종료", exact=True)
+                ).to_be_visible()
+                state["saved"][0]["review"]["status"] = "closed"
+                state["saved"][0]["review"]["events"].append(
+                    {
+                        "event_id": "00000000-0000-4000-8000-000000000002",
+                        "action": "close",
+                        "decision": "observe",
+                        "note": "검토 완료",
+                        "recorded_at": "2026-10-16T02:00:00Z",
+                    }
+                )
+                page.reload()
+                _show_optional_review(page)
+                pw.expect(inline).to_contain_text("검토가 종료되어", timeout=15000)
+                pw.expect(inline).to_contain_text("검토 완료")
+                pw.expect(inline.get_by_role("button", name="판단 저장")).to_have_count(0)
+                assert len(state["posted"]) == 2
+                state["read_failures"] = 1
                 page.get_by_role("link", name="정비 검토함에서 보기 →").click()
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 # One asset's request list failed; that is reported, never shown as empty.
@@ -542,6 +601,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 pw.expect(detail).to_contain_text("마지막 기록 후 약 2.0시간 닿음")
 
                 state["writable"] = False
+                state["measurement"] = "e" * 64
                 page.goto(address)
                 calculate.click()
                 _show_optional_review(page)

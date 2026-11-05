@@ -331,7 +331,7 @@
           </select>
         </label>
         {#if trace.steps.length===trace.limit}
-          <p class="context">최근 {trace.limit}회만 고를 수 있습니다. 이전</p>
+          <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
         {/if}
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
