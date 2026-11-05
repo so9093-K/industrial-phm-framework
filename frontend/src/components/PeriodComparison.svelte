@@ -202,7 +202,7 @@
       actionLabel="다시 불러오기" onAction={() => void loadSources()} />
   {:else if sourceState === "unavailable" || sourceState === "empty"}
     <StatusNotice kind="uncertain" title="비교할 시계열 기록이 없습니다"
-      message="이 설비에는 저장된 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다."
+      message="이 설비에는 저장된 시계열 기록이 없습니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
     <details class="conditions" open={compareState !== "ready"}>
@@ -259,7 +259,7 @@
         message="이전 조건의 분석 결과는 숨겼습니다. 새 기간으로 비교하기를 눌러 다시 계산하세요." />
     {:else if compareState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 기록이 없습니다"
-        message="이 설비에는 비교할 시계열 기록이 없습니다. 이상이 없다는 뜻은 아닙니다." />
+        message="이 설비에는 비교할 시계열 기록이 없습니다." />
     {:else if compareState === "empty"}
       <StatusNotice title="고른 기간에 측정이 없습니다"
         message="두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요." />
@@ -273,7 +273,7 @@
           {#if message}<AnalysisMessage {message}
             basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
               + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
-            boundary="기간 A는 비교 대상으로 고른 기록입니다. 정상 상태로 확인된 기간은 아니며, 차이가 곧 원인이나 고장을 뜻하지 않습니다." />
+            boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다"
             message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />

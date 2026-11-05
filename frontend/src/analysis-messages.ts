@@ -33,9 +33,8 @@ export function selectedScoreMessage(summary: {score: number | null; threshold: 
     headline: judged ? "선택한 측정이 이 모델의 기준을 " + (summary.exceeds ? "넘었습니다." : "넘지 않았습니다.") : "이 측정의 기준 초과 여부를 확인할 수 없습니다.",
     meaning: numbers,
     certainty: judged && summary.exceeds
-      ? "이 모델이 정한 비교 기준에서 벗어났다는 뜻입니다. 같은 측정의 원본 값과 앞선 측정의 차이를 함께 확인하세요."
-      : judged ? "이 모델에서는 기준 초과로 표시하지 않았습니다. 설비가 정상이라거나 다른 신호에도 변화가 없다는 판정은 아닙니다."
-        : "점수나 기준, 저장된 판정 정보가 부족합니다. 숫자만으로 초과 여부를 추정하지 않습니다.",
+      ? "같은 측정의 원본 값과 앞선 측정의 차이를 함께 확인하세요."
+      : judged ? null : "점수·비교 기준·판정 기록이 부족합니다.",
     next,
   };
 }

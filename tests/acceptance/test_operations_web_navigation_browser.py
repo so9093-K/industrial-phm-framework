@@ -44,7 +44,7 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 ):
                     page.goto(base + "/web/" + suffix)
                     pw.expect(
-                        page.get_by_text("다른 모델 결과로 대신하지 않습니다", exact=False)
+                        page.get_by_text("북마크의 적용 모델은 이 설비에 없습니다", exact=False)
                         if "absent" in suffix
                         else page.get_by_text("모델 결과를 읽지 못했습니다", exact=False)
                     ).to_be_visible()

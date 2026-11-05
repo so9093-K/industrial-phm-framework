@@ -11,7 +11,6 @@
   } from "../departures";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import XAxis from "./XAxis.svelte";
   let scoreTable: HTMLDetailsElement | null = $state(null);
   function showFirstExceedance() {
@@ -200,13 +199,13 @@
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
     {:else if analysisState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 저장 기록이 없습니다"
-        message="이상이 없다는 뜻은 아닙니다. 신호의 저장 기록을 확인하세요."
+        message="저장 기록을 신호 화면에서 확인하세요."
         actionLabel="신호 보기"
         actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
       {#if result.scored.state === "short-baseline"}
         <StatusNotice kind="uncertain" title="기준 구간의 기록이 부족합니다"
-          message="이 신호는 고른 기준 구간의 기록이 적어 달라진 정도를 계산할 수 없습니다. 이상이 없다는 뜻은 아닙니다." />
+          message="이 신호는 고른 기준 구간의 기록이 적어 달라진 정도를 계산할 수 없습니다." />
       {:else if result.scored.state === "constant"}
         <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
           message="기준 구간의 변동 폭이 0이라 달라진 정도를 계산할 수 없습니다." />
@@ -222,8 +221,8 @@
               : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
             meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
               + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
-              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준과 집계 간격에서의 결과입니다. 다른 신호나 더 짧은 변화까지 없다는 뜻은 아닙니다.",
-            certainty: "선택한 신호 하나의 집계값을 기준 구간과 비교했습니다. 기준 구간은 정상 상태로 확인된 기간이 아닙니다.",
+              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
+            certainty: "선택한 신호의 집계값을 화면에 표시한 기준 기간과 비교했습니다.",
             next: links ? [
               ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
               ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),
@@ -293,7 +292,6 @@
             </div>
           </details>
         {/if}
-        <CautionNote message="기준 구간은 고른 기록의 일부이며 정상 상태로 확인된 구간이 아닙니다. 벗어난 정도는 모델 점수나 고장 가능성이 아닙니다." />
       {/if}
       <details>
         <summary>기술 상세</summary>

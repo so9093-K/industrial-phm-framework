@@ -153,7 +153,7 @@
       actionLabel="다시 불러오기" onAction={()=>void load()}/>
   {:else if sourceState==="empty"||sourceState==="unavailable"}
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
-      message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다. 이상이 없다는 뜻은 아닙니다."}/>
+      message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다."}/>
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)}</p>
@@ -205,7 +205,7 @@
           {/if}
           {#if group.pairs<3||group.pearson===null||group.spearman===null}
             <StatusNotice kind="uncertain"
-              message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다. 관계가 없다는 뜻은 아닙니다."/>
+              message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다."/>
           {/if}
           {#if group.points.length}
             {#if axes}<FeatureScatter bounds={axes}

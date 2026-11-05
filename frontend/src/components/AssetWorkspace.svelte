@@ -42,16 +42,16 @@
   const method: Method | null = $derived(route.method ?? (route.tab === "change"
     ? methodsFor("change", data, capabilities, route.data ?? defaultKind(data))[0] ?? "compare"
     : route.tab === "anomaly" ? anomalyDefault : null));
-  const kind: DataKind | null = $derived(
-    usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) : null);
-  const chooseKind = $derived(
-    usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
-  const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
   // Mixed inputs stay an explicit choice, but do not offer the wrong source
   // for a method the server cannot execute on that source kind.
   const eligibleKinds = $derived(kindsOf(data).filter(option =>
     route.tab !== "change" || method === null ||
       methodsFor(route.tab, data, capabilities, option).includes(method)));
+  const kind: DataKind | null = $derived(
+    usesDataKind(route.tab, method) ? route.data ?? defaultKind(data) ?? (eligibleKinds.length === 1 ? eligibleKinds[0] : null) : null);
+  const chooseKind = $derived(
+    usesDataKind(route.tab, method) && kind === null && kindsOf(data).length > 1);
+  const methods = $derived(methodsFor(route.tab, data, capabilities, kind));
   const needsCapability = $derived(route.tab === "anomaly" || route.tab === "change");
   const noAvailableChange = $derived(route.tab === "change" && methods.length === 0);
   const waitingForDefault = $derived((dataState === "loading" || (needsCapability && capabilityState === "loading"))
@@ -80,10 +80,15 @@
     link.href = tabSelectionUrl(link.href, location.href);
   }
   let tabBar: HTMLElement | null = $state(null);
+  let tabWidth = $state(0);
   // On a phone the tab row scrolls; keep the current tab in view when it changes.
   $effect(() => {
-    route.tab;
-    tabBar?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({block: "nearest", inline: "nearest"});
+    route.tab; tabWidth;
+    const active = tabBar?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (tabBar && active) {
+      const row = tabBar.getBoundingClientRect(), item = active.getBoundingClientRect();
+      tabBar.scrollLeft += item.left - row.left - (tabWidth - item.width) / 2;
+    }
   });
   let dataRequest: AbortController | null = null;
   let capabilityRequest: AbortController | null = null;
@@ -143,7 +148,7 @@
 
   <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
-  <nav class="tabs" aria-label="설비 화면" bind:this={tabBar}>
+  <nav class="tabs" aria-label="설비 화면" bind:this={tabBar} bind:clientWidth={tabWidth}>
     {#each TABS as tab (tab)}
       <a href={at(tab)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
         aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
@@ -179,23 +184,23 @@
 
   {#if dataState === "failed"}
     <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
-      message="분석 방법을 추측해 보여 주지 않습니다. 다시 조회하거나 다른 설비를 선택하세요."
+      message="다시 불러오거나 다른 설비를 선택하세요."
       actionLabel="다시 불러오기" onAction={reloadData} />
     {#if route.tab === "summary"}<AssetSummary {asset} {data} {dataState} {observed} />{/if}
   {:else if needsCapability && capabilityState === "failed" && route.tab !== "summary"}
     <StatusNotice kind="uncertain" title="분석 가능 여부를 확인하지 못했습니다"
-      message="서버의 분석 조건을 확인하지 못했습니다. 가능한 분석을 추측하지 않습니다."
+      message="서버의 분석 조건을 다시 확인하세요."
       actionLabel="다시 확인" onAction={reloadCapability} />
   {:else if waitingForDefault}
     <StatusNotice message="분석 가능한 항목을 확인하고 있습니다." />
   {:else if unsupportedSelection}
     <StatusNotice kind="uncertain" title="선택한 분석을 이 데이터에서 사용할 수 없습니다"
-      message="지원하는 분석 방법을 선택하세요. 다른 데이터의 결과로 대체하지 않습니다."
+      message="지원하는 분석 방법을 선택하세요."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else if route.tab !== "summary" && kindsOf(data).length === 0
     && !(route.tab === "anomaly" && method === "model")}
     <StatusNotice kind="uncertain" title="분석할 저장 데이터가 없습니다"
-      message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다. 다른 종류로 대체해 보여 주지 않습니다."
+      message="측정이 아직 없거나 분석에 필요한 데이터가 준비되지 않았습니다."
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else if noAvailableChange}
     <StatusNotice kind="uncertain" title="현재 입력에서 가능한 변화 분석이 없습니다"
@@ -203,7 +208,7 @@
       actionLabel="설비 요약 보기" actionHref={at("summary")} />
   {:else if chooseKind}
     <section class="task-chooser ui-panel" aria-labelledby="task-source-title">
-      <h2 id="task-source-title">어떤 측정 근거로 확인할까요?</h2>
+      <h2 id="task-source-title">분석할 데이터 선택</h2>
       <p class="context">분석할 측정 종류를 선택하세요.</p>
       <ul>
         {#each eligibleKinds as option (option)}

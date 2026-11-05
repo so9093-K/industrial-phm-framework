@@ -17,15 +17,10 @@
   <p class="label">핵심 결과</p>
   <p class="headline">{message.headline}</p>
   {#if message.meaning}<p><strong>결과 해석</strong> · {message.meaning}</p>{/if}
-  {#if message.certainty || boundary}
-    <div class="limits">
-      <p class="label">해석 범위</p>
-      {#if message.certainty}<p>{message.certainty}</p>{/if}
-      {#if boundary}<p>{boundary}</p>{/if}
-    </div>
-  {/if}
+  {#if message.certainty}<p class="certainty">{message.certainty}</p>{/if}
+  {#if boundary}<details class="limits"><summary>계산 조건·해석 안내</summary><p>{boundary}</p></details>{/if}
   {#if message.next.length}
-    <p class="next"><strong>근거 이어서 확인</strong>
+    <p class="next"><strong>다음 확인</strong>
       {#each message.next as step (step.href)}<a href={step.href}>{step.label} →</a>{/each}
     </p>
   {/if}
@@ -44,7 +39,8 @@
   .scope div { display: grid; grid-template-columns: 5rem minmax(0, 1fr); gap: var(--space-2); }
   dt { color: var(--color-ink-muted); font-size: var(--font-small); }
   dd { margin: 0; overflow-wrap: anywhere; }
-  .limits { display: grid; gap: var(--space-1); }
+  .certainty { color: var(--color-ink-muted); }
+  .limits summary { cursor: pointer; color: var(--color-ink-muted); font-size: var(--font-small); }
   .next { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
   a { color: var(--color-action); font-weight: 650; }
   @media (max-width: 480px) { .scope div { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } }

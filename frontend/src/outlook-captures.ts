@@ -145,7 +145,8 @@ function parseCapturedOutlook(raw:unknown,assetId:string):CapturedOutlook{
     "axis","time_basis","measurement_version","data_version"])
     ||!same(saved,record,["first","last","points"])
     ||!same(savedConditions,conditions,["direction","management","end"])
-    ||JSON.stringify(savedSettings)!==JSON.stringify(settings))
+    ||JSON.stringify(savedSettings)!==JSON.stringify(settings)
+    ||("binding_id" in identity&&identity.binding_id!==outlook.binding_id))
     throw new Error("검토 요청의 식별 정보와 보존된 결과가 맞지 않아 표시하지 않았습니다.");
   return outlookFacts(outlook,assetId,finiteOrNull(identity.assumed_period_seconds,"가정 간격"));
 }
@@ -276,9 +277,46 @@ export async function readCaptures(
   if(response.status===404)throw new CaptureNotFound(NOT_FOUND);
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error("검토 요청 목록을 불러오지 못했습니다. 기록이 없다는 뜻은 아닙니다.");
+    throw new Error("검토 요청 목록을 불러오지 못했습니다.");
   }
   return parseCapturePage(await response.json() as unknown,assetId,captureId);
+}
+
+/** Match the canonical inputs of a saved capture, not the drawn forecast horizon or floats. */
+export function matchesProjection(saved:CapturedOutlook,projection:BriefingProjection):boolean{
+  const acquisition=isAcquisition(projection);
+  return saved.assetId===projection.assetId&&saved.kind===(acquisition?"acquisition":"history")
+    &&saved.series===(acquisition?projection.featureId:projection.channel)
+    &&saved.sourceId===projection.sourceId&&saved.pointId===(acquisition?null:projection.pointId)
+    &&(!acquisition||saved.bindingId===projection.bindingId)
+    &&saved.timeBasis===(acquisition?projection.timeBasis:null)
+    &&saved.assumedPeriod===(acquisition&&projection.timeBasis==="assumed"?projection.assumedPeriod:null)
+    &&saved.measurementVersion===projection.measurementVersion&&saved.dataVersion===projection.dataVersion
+    &&samePosition(saved.record.first,projection.record.first)&&samePosition(saved.record.last,projection.record.last)
+    &&saved.record.points===projection.record.points
+    &&saved.conditions.direction===projection.conditions.direction
+    &&saved.conditions.management===projection.conditions.management&&saved.conditions.end===projection.conditions.end
+    &&!!projection.outlookSettings&&saved.settings.changepointPriorScale===projection.outlookSettings.changepointPriorScale
+    &&saved.settings.changepointRange===projection.outlookSettings.changepointRange
+    &&saved.settings.trainingPoints===projection.outlookSettings.trainingPoints
+    &&saved.settings.seasonality===projection.outlookSettings.seasonality;
+}
+
+/** Search every page before declaring a result unreviewed; a read failure stays a failure. */
+export async function readProjectionCapture(projection:BriefingProjection,signal:AbortSignal):Promise<Capture|null>{
+  let before:string|null=null;
+  const seen=new Set<string>();
+  do{
+    const page=await readCaptures(projection.assetId,{before},signal);
+    const found=page.captures.find(item=>matchesProjection(item.outlook,projection));
+    if(found)return found;
+    before=page.nextBefore;
+    if(before!==null){
+      if(seen.has(before))throw new Error("검토 기록의 다음 목록을 확인하지 못했습니다.");
+      seen.add(before);
+    }
+  }while(before!==null);
+  return null;
 }
 
 /** Re-verify, then ask the supervisor to recompute and persist. Returns the capture ID. */

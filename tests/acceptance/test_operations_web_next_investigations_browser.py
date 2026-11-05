@@ -56,7 +56,9 @@ def test_stored_analysis_is_listed_and_review_requested_once(tmp_path: Path, wid
                     lambda route: route.fulfill(status=503, body="{}"),
                 )
                 record.locator("details.optional-review > summary").click()
-                pw.expect(record.get_by_text("기록이 없다는 뜻은 아닙니다.")).to_be_visible()
+                pw.expect(
+                    record.get_by_text("검토 기록을 확인하지 못했습니다", exact=False)
+                ).to_be_visible()
                 assert record.get_by_role("button", name="검토 요청").count() == 0
                 page.unroute("**/api/v1/reviews?*")
                 # A bounded response is not proof that an older review is absent.

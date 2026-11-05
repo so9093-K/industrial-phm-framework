@@ -279,7 +279,7 @@
         <div><dt>시각 근거</dt><dd>{analyzed.details.timeEvidence.join(" · ") || "입력의 관측 시각을 그대로 사용 · 장비 시계가 맞는지는 확인하지 않음"}</dd></div>
         <div><dt>센서 품질</dt><dd>{analyzed.details.fileQuality ? "원본 기록에 품질 판정이 없음" : "관측별 원본 상태를 사용"}</dd></div>
         <div><dt>패턴 비교 모델</dt><dd>{analyzed.pattern.scored ? (analyzed.pattern.model ?? "기록 없음") + " · 학습 관측 " + measured(analyzed.pattern.fitSamples) : "기준 데이터 부족으로 실행하지 않음"}</dd></div>
-        <div><dt>비교 기준</dt><dd>고른 앞선 기간으로만 학습하고 점수 기준을 계산합니다. 정상 기간으로 확인됐다는 뜻은 아닙니다.</dd></div>
+        <div><dt>비교 기준</dt><dd>고른 앞선 기간의 측정값으로 학습하고 점수 기준을 계산합니다.</dd></div>
         <div><dt>불평형 계산</dt><dd>세 상 값의 평균에서 가장 먼 값까지의 차이 ÷ 평균 × 100 · 전압 50V 미만, 전류 1A 미만은 제외</dd></div>
         <div><dt>저장 시점</dt><dd>{analyzed.details.snapshotId ?? "기록 없음"}</dd></div>
       </dl>

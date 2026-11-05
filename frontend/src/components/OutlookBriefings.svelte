@@ -18,7 +18,8 @@
   let question=$state("");
   let request:AbortController|null=null;
   let timer:ReturnType<typeof setTimeout>|null=null;
-  let remaining=20;
+  // Poll for up to six minutes, with an explicit refresh action while pending.
+  let remaining=240;
   const checkedSource=(record:Briefing):string=>
     record.answer?.source==="computed"?"계산 결과 요약(AI 미사용)":
     record.answer?.source==="model-trimmed"?"AI 해설 · 근거 없는 문장 제외":
@@ -59,7 +60,7 @@
     if(!writable||requesting||!readyVersion||!text.trim())return;
     cancel();
     const pending=new AbortController();request=pending;requesting=true;
-    briefingState="loading";error="";records=[];remaining=20;
+    briefingState="loading";error="";records=[];remaining=240;
     try{
       await requestBriefing(projection,text,pending.signal);
       question="";
@@ -100,12 +101,12 @@
     <StatusNotice message="이 결과에 대한 해설을 확인하고 있습니다."/>
   {:else if briefingState==="failed"}
     <StatusNotice kind="failure" title="해설을 확인하지 못했습니다" message={error}
-      actionLabel="다시 확인" onAction={()=>{remaining=20;void refresh();}}/>
+      actionLabel="다시 확인" onAction={()=>{remaining=240;void refresh();}}/>
   {:else if briefingState==="changed"}
     <StatusNotice kind="uncertain" title="결과가 바뀌어 이전 해설을 숨겼습니다" message={error}/>
   {:else if latest&&latest.answer}
     {#if waiting}
-      <StatusNotice message="새 질문의 해설을 만들고 있습니다. 아래는 앞서 완료한 해설입니다."/>
+      <StatusNotice message="새 질문의 해설을 만들고 있습니다. 아래는 앞서 완료한 해설입니다." actionLabel="결과 다시 확인" onAction={()=>{remaining=240;void refresh();}}/>
     {/if}
     <p class="context">질문 · {latest.question}</p>
     <p class="summary">{latest.answer.summary}</p>
@@ -131,7 +132,7 @@
       </dl>
     </details>
   {:else if waiting}
-    <StatusNotice message="해설을 만들고 있습니다. 잠시 후 자동으로 다시 확인합니다."/>
+    <StatusNotice message="해설을 만들고 있습니다." actionLabel="결과 다시 확인" onAction={()=>{remaining=240;void refresh();}}/>
   {:else}
     <p class="context">아직 이 결과에 대한 해설이 없습니다.</p>
     {#if writable}
@@ -153,7 +154,7 @@
         onclick={()=>void ask(question)} disabled={!writable||requesting||!question.trim()||!readyVersion}>
         질문 보내기
       </button>
-      <button type="button" class="ui-button" onclick={()=>{remaining=20;void refresh();}}
+      <button type="button" class="ui-button" onclick={()=>{remaining=240;void refresh();}}
         disabled={requesting||!readyVersion}>해설 다시 확인</button>
     </div>
     {#each earlier as item (item.id)}

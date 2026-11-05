@@ -9,7 +9,6 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import CautionNote from "./CautionNote.svelte";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {periodMessage,periodOnset,type NextStep} from "../analysis-messages";
@@ -51,7 +50,7 @@
       for(const key of ["a","b"] as const)
         if(candidate[key].from<src.first||candidate[key].to>src.last)throw new Error("고른 측정 구간이 현재 데이터 범위를 벗어났습니다.");
       return candidate;
-    }catch{throw new Error("고른 측정 구간을 확인할 수 없어 다른 구간으로 대신하지 않습니다.");}
+    }catch{throw new Error("고른 측정 구간을 확인하지 못했습니다.");}
   }
   function remember(){
     if(!spans)return;
@@ -155,7 +154,7 @@
       actionLabel="다시 불러오기" onAction={()=>void loadSource()} />
   {:else if listState==="empty" || listState==="unavailable"}
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 없습니다"
-      message={message||"이 설비에는 분석된 진동 측정이 없습니다. 이상이 없다는 뜻은 아닙니다."}
+      message={message||"이 설비에는 분석된 진동 측정이 없습니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
@@ -223,7 +222,6 @@
         {#if profile.a.sampled||profile.b.sampled}
           <StatusNotice kind="uncertain" message="측정이 많아 특징 통계는 일부 측정만 골라 계산했습니다. 측정 건수는 전체 기준입니다." />
         {/if}
-        <CautionNote message="기간 A는 고른 비교 기준이며 정상 상태로 확인된 기간이 아닙니다." />
         <details>
           <summary>기술 상세</summary>
           <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}

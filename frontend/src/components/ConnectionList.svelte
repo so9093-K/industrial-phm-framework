@@ -95,7 +95,7 @@
   {#if loadState === "loading" && !sources}
     <StatusNotice message="데이터 연결을 확인하고 있습니다." />
   {:else if loadState === "failed" || !sources}
-    <StatusNotice kind="failure" title="데이터 연결 목록을 불러오지 못했습니다" message="연결이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="failure" title="데이터 연결 목록을 불러오지 못했습니다" message="다시 불러오기를 시도하세요." />
   {:else}
     {#if sources.readErrors.length || sources.liveErrors.length}
       <StatusNotice kind="uncertain" message={"일부 연결 정보를 읽지 못했습니다 (" + [...sources.readErrors, ...sources.liveErrors].join(", ") + "). 보이는 상태가 전부가 아닐 수 있습니다."} />

@@ -117,7 +117,7 @@ export async function readModelExplanations(
   binding:ModelBinding,run:ModelRun,signal:AbortSignal,
 ):Promise<ModelExplanation[]>{
   return parseModelExplanations(await read("/api/v1/phm/explanations?"+query(binding,run),signal,
-    "해설을 불러오지 못했습니다. 해설이 없다는 뜻은 아닙니다."),binding,run);
+    "해설을 불러오지 못했습니다."),binding,run);
 }
 
 export async function requestModelExplanation(
