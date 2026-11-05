@@ -565,7 +565,9 @@ def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path)
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
     )
 
-    def append(source: str, point: str | None, start: datetime, count: int, changing: bool) -> None:
+    def append(
+        source: str, point: str | None, start: datetime, count: int, changing: bool | None
+    ) -> None:
         history.append_file_batch(
             tuple(
                 FileBackfillEvent(
@@ -578,7 +580,7 @@ def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path)
                     source_size_bytes=10,
                     sample_index=i,
                     event_at=start + timedelta(minutes=i),
-                    value=float(100 if changing and i >= 60 else 0),
+                    value=None if changing is None else float(100 if changing and i >= 60 else 0),
                     measurement_point_id=point,
                 )
                 for i in range(count)
@@ -611,5 +613,10 @@ def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path)
         assert {key: body["baseline"][key] for key in ("from", "to")} == chosen["baseline"]
         assert body["intervals"][0]["start"] == chosen["start"]
         assert len(body["records"]) == 3
+        # An empty record stays selectable but cannot mask usable records on the first visit.
+        append("0-empty", None, BASE, 30, None)
+        status, default = get("/api/v1/explore/anomaly", asset_id="motor", series="temperature")
+        assert status == 200 and default["record"]["source_id"] != "0-empty"
+        assert any(record["source_id"] == "0-empty" for record in default["records"])
     finally:
         stop()

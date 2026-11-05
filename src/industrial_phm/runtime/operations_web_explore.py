@@ -329,7 +329,10 @@ def _departures(
     baseline = (query.get("baseline") or ["first-30"])[0]
     records = signal_records(history, asset_id, series)
     selected_key = next(iter(query.get("record_key", [])), None)
-    record = next((r for r in records if selected_key is None or r["key"] == selected_key), None)
+    record = next(
+        (r for r in records if (selected_key is None and r["points"]) or r["key"] == selected_key),
+        None,
+    )
     if record is None:
         raise LookupError("no matching source/point/meaning record")
     channel = record["channel"]
