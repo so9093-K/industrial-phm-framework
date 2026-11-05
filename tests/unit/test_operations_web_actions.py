@@ -24,6 +24,8 @@ from industrial_phm.runtime import operations_web_actions as actions
         ("/api/v1/sources/collection", "change_web_source_control", "collection"),
         ("/api/v1/reviews/request", "request_web_analysis_review", None),
         ("/api/v1/reviews/action", "record_web_review_action", None),
+        ("/api/v1/explore/change-reviews/confirm", "capture_change", None),
+        ("/api/v1/explore/change-reviews/action", "review_change", None),
     ],
 )
 def test_allowlisted_web_route_dispatches_to_exact_existing_action(

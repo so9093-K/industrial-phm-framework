@@ -3,7 +3,7 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {historyPeriodMessage, type NextStep} from "../analysis-messages";
-  import {comparisonWindows, windowParams} from "../signal-selection";
+  import {comparisonWindows, focusFrom, focusParams, windowParams} from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -17,7 +17,7 @@
     const next: NextStep[] = [];
     for (const view of comparisonWindows(read.periods)) {
       const url = new URL(assetTabUrl(assetId, "signals", null, null, row.channel), location.origin);
-      for (const [key, value] of Object.entries(windowParams(view.window, view.pick))) url.searchParams.set(key, value);
+      for (const [key, value] of Object.entries({...windowParams(view.window, view.pick), ...focusParams({source:row.source, point:row.point, interpretation:row.interpretation})})) url.searchParams.set(key, value);
       next.push({label: view.label, href: url.pathname + url.search});
     }
     const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
@@ -46,6 +46,7 @@
   let sourceState: State = $state("loading");
   let compareState: State = $state("loading");
   let sources: SourceHistory | null = $state(null);
+  let focus = $state(focusFrom(new URLSearchParams(location.search)));
   let selected = $state(new URLSearchParams(location.search).get("monitor_channel") ?? "");
   let periods: Periods | null = $state(null);
   // Periods handed over from a span picked on the signal chart; said on screen until edited.
@@ -107,6 +108,8 @@
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selected);
+    for(const key of ["monitor_source","monitor_point","monitor_interpretation"]) url.searchParams.delete(key);
+    if(focus) for(const [key,value] of Object.entries(focusParams(focus))) url.searchParams.set(key,value);
     url.searchParams.set("compare_a", periods.a.from + "~" + periods.a.to);
     url.searchParams.set("compare_b", periods.b.from + "~" + periods.b.to);
     if (!handedOver) url.searchParams.delete("compare_origin");
@@ -137,7 +140,7 @@
   }
   function selectChannel(id: string) {
     if (!sources?.channels.includes(id)) return;
-    selected = id;
+    selected = id; if(focus) focus = {...focus, interpretation: undefined};
     remember();
     if (!formError) void compare();
   }
@@ -179,7 +182,7 @@
       const expected: Periods = {a: {...periods.a}, b: {...periods.b}};
       const data = await readProfile(assetId, selected, expected, request.signal);
       if (request.signal.aborted) return;
-      result = data; compareState = data.series.length ? "ready" : "empty"; remember();
+      result = {...data, series: data.series.filter(row => !focus || (row.source === focus.source && (focus.point === undefined || row.point === focus.point) && (!focus.interpretation || row.interpretation === focus.interpretation)))}; compareState = result.series.length ? "ready" : "empty"; remember();
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
       compareState = cause instanceof NoHistoryError ? "unavailable" : "failed";
@@ -269,13 +272,15 @@
         {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
-          {#if result.series.length > 1}<p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}</p>{/if}
+          <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : " · 측정 위치 미지정"}</p>
           {#if message}<AnalysisMessage {message}
             basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
               + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
             boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다"
             message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
+          {#if row.periods.a.quantiles && row.periods.b.quantiles}<p class="context">값의 퍼짐 · 가운데 50% 범위의 폭
+            {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""} (A → B)</p>{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>

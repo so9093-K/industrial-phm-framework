@@ -125,3 +125,11 @@ test("the stored values the forecast continues are drawn with it, and must lie i
   assert.throws(()=>paired({...forecast(),history:[[65,2.0]]}),/계산 범위/);
   assert.throws(()=>paired({...forecast(),history:[[2,1],[1,1]]}),/계산 범위/);
 });
+
+test("a far vibration criterion stays outside the default value scale",()=>{
+  const data=paired({...forecast(),history:[[1,1],[64,2]]});
+  const distant={...data,conditions:{...data.conditions,end:1000}};
+  assert.equal(acquisitionChart(distant)!.endLimit,null);
+  assert.ok(acquisitionChart(distant)!.high<10);
+  assert.equal(acquisitionChart(distant,true)!.high,1000);
+});

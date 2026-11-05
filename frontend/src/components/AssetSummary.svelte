@@ -1,4 +1,10 @@
 <script lang="ts">
+  import ChangeReview from "./ChangeReview.svelte";
+  import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
+  let reviewRevision = $state(0);
+  let archiveOpen = $state(false);
+  let openReviews:Record<string,boolean> = $state({});
+  import {readableSourceId} from "../operations-status";
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
@@ -102,30 +108,23 @@
 
 {#snippet cumulativeRecords()}
   <ul aria-label="누적 기록">
-    {#each cumulative as row (row.channel)}<li><strong>{row.label}</strong> ·
+    {#each cumulative as row (row.context?.key ?? row.channel)}<li><strong>{row.label}</strong> ·
       {row.first == null ? "처음 값 미확인" : changeValue(row.first, null)} → {row.last == null ? "마지막 값 미확인" : changeValue(row.last, row.unit)}</li>{/each}
   </ul>
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <h2 id="summary-title">측정 현황</h2>
+  <h2 id="summary-title">설비 상태와 주요 변화</h2>
   {#if notesState === "partial" || notesState === "failed"}
     <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
       actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
   {/if}
-  <dl class="facts">
-    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
-    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
-      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
-    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
-    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
-  </dl>
   {#if data?.history}
-    <h3 class="recent">주요 변화</h3>
+
     {#if findingState === "ready" && findings}
       {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
-      <p class="coverage" aria-label="변화 분석 범위">전체 신호 {findings.signals.length + findings.unchecked}개 중
+      <p class="coverage" aria-label="변화 분석 범위">출처·위치·측정 의미로 구분한 기록 {findings.signals.length + findings.unchecked}개 중
         계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length}개 · 미검토 {findings.unchecked}개</p>
     {/if}
     {#if findingState === "loading"}
@@ -135,15 +134,16 @@
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 직접 보기 →</a></p>
     {:else if findings && findings.intervals.length}
       <ul class="found">
-        {#each findings.intervals as item (item.start + item.channel)}
-          {@const told = findingText(item, findings.bucketSeconds)}
+        {#each findings.intervals as item (item.start + (item.context?.key ?? item.channel))}
+          {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
           <li>
+            {#if item.context}<span class="context small">{readableSourceId(item.context.sourceId)} · {item.context.pointId ?? "측정 위치 미지정"}{item.context.meaningLabel?" · "+item.context.meaningLabel:""}</span>{/if}
             <span class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</span>
             <strong>{#if links.signal}<a href={links.signal}>{item.label}</a>{:else}{item.label}{/if} · {told.what}</strong><span>{told.when}</span>
             {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
               {#each item.related as other (other.channel)}
-                {@const target = findingLinks(asset.assetId, {...item, channel:other.channel}, findings.baseline, findings.bucketSeconds, findings.record)}
+                {@const target = findingLinks(asset.assetId, {...item, channel:other.channel, context:other.context ?? item.context}, findings.baseline, findings.bucketSeconds, findings.record)}
                 <li>{#if target.signal}<a href={target.signal}>{other.label}</a>{:else}{other.label}{/if}
                   · {changeValue(other.reference, null)} → {changeValue(other.current, other.unit)}
                   · {other.state === "within" ? "대표값이 기준 범위 안" : other.state === "higher" ? "함께 높아짐" : "함께 낮아짐"}</li>
@@ -152,10 +152,14 @@
             <span class="go">{#if links.previous}<a class="ui-button ui-button-primary" href={links.previous}>변화 직전과 비교 →</a>
               {:else if links.compare}<a class="ui-button ui-button-primary" href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
               {#if links.relation}<a href={links.relation.href}>{links.relation.label} →</a>{/if}</span>
+            {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
+              {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
+            </details>{/if}
             <details><summary>신호·추가 비교</summary>
+              {#if item.baseline}<p class="context small">비교 기준 · 이 기록의 처음 30% · {observed(item.baseline.from)} ~ {observed(item.baseline.to)}</p>{/if}
               {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
               {#if links.previous && links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
-              {#if item.reason === "record-end"}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
+              {#if item.reason === "record-end" && !item.context}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
             </details>
           </li>
         {/each}
@@ -174,12 +178,24 @@
         <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
     {/if}
     {#if cumulative.length && findings?.judged}<details><summary>누적 기록</summary>{@render cumulativeRecords()}</details>{/if}
-    {#if findings && findings.signals.some((row) => row.state !== "scored" && row.state !== "cumulative")}
-      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored" && row.state !== "cumulative").map(unjudgedText).join(" · ")}</p>
+    {#if findings && findings.signals.some((row) => row.state !== "scored" && row.state !== "level-change" && row.state !== "constant" && row.state !== "cumulative")}
+      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored" && row.state !== "level-change" && row.state !== "constant" && row.state !== "cumulative").map(unjudgedText).join(" · ")}</p>
     {/if}
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
       나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
   {/if}
+  <details ontoggle={event=>archiveOpen=event.currentTarget.open}><summary>저장한 주요 변화 검토</summary>
+    {#if archiveOpen}<ChangeReviewArchive assetId={asset.assetId} revision={reviewRevision} />{/if}
+  </details>
+  <details class="measurement-context"><summary>측정·수신 현황 · {lastMeasured}</summary>
+  <dl class="facts">
+    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
+    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
+      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
+    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
+    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
+  </dl>
+  </details>
   <h3 class="recent">마지막 측정의 확인 항목</h3>
   {#if notesState === "loading"}
     <p class="context">확인할 항목을 읽고 있습니다.</p>

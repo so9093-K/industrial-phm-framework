@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from industrial_phm.runtime.operations_web_change_review import (
+    CHANGE_REVIEWS_ROUTE,
+    capture_change,
+    review_change,
+)
 from industrial_phm.runtime.operations_web_history_model import (
     HISTORY_MODEL_BUILD_ROUTE,
     build_web_history_model,
@@ -66,6 +71,8 @@ WEB_SOURCE_ACTION_ROUTES: frozenset[str] = frozenset(
         "/api/v1/phm/bindings/create",
         HISTORY_MODEL_BUILD_ROUTE,
         "/api/v1/outlook/briefings/request",
+        CHANGE_REVIEWS_ROUTE + "/confirm",
+        CHANGE_REVIEWS_ROUTE + "/action",
         "/api/v1/outlook/captures/confirm",
         "/api/v1/outlook/captures/review/action",
         "/api/v1/reviews/request",
@@ -87,6 +94,8 @@ WEB_SUPERVISOR_ONLY_ACTION_ROUTES = frozenset(
         "/api/v1/phm/reviews/request",
         # Briefings ask the configured model in the supervisor's background.
         "/api/v1/outlook/briefings/request",
+        CHANGE_REVIEWS_ROUTE + "/confirm",
+        CHANGE_REVIEWS_ROUTE + "/action",
         "/api/v1/outlook/captures/confirm",
         "/api/v1/outlook/captures/review/action",
         # Model connection changes what the supervisor's analysis runner executes.
@@ -126,6 +135,10 @@ def execute_web_source_action(
         return build_web_history_model(root, payload)
     if route == "/api/v1/outlook/briefings/request":
         return request_outlook_briefing(root, payload)
+    if route == CHANGE_REVIEWS_ROUTE + "/confirm":
+        return capture_change(root, payload)
+    if route == CHANGE_REVIEWS_ROUTE + "/action":
+        return review_change(root, payload)
     if route == "/api/v1/outlook/captures/confirm":
         return capture_outlook(root, payload)
     if route == "/api/v1/outlook/captures/review/action":

@@ -2,7 +2,7 @@
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {outlookMessage} from "../analysis-messages";
+  import {outlookMessage, forecastMessage} from "../analysis-messages";
   import {savedSettings,rememberSettings} from "../forecast-settings";
   import { defaultChannel } from "../monitor-attention";
   import {onMount} from "svelte";
@@ -30,6 +30,7 @@
   let resultState: State = $state("empty");
   let options: Options | null = $state(null);
   let projection: Projection | null = $state(null);
+  let includeLimits = $state(false);
   let error = $state("");
   let horizonNotice = $state("");
   let now = $state(Date.now());
@@ -218,11 +219,13 @@
       {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
       {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
-      {@const chart=outlookChart(projection)}
+      {@const chart=outlookChart(projection, includeLimits)}
       {@const age=recordAgeText(projection.record.last, now)}
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
-        scenarios:projection.scenarios,checks:projection.reachChecks??[]})}
+        scenarios:projection.scenarios,checks:projection.reachChecks??[]}) ?? forecastMessage({
+          last:projection.history?.at(-1)?.value??null,end:projection.future.at(-1)!,unit:projection.unit??names.get(projection.channel)?.unit??null,
+          horizon:clock(projection.future.at(-1)!.at),checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
@@ -249,6 +252,9 @@
           <p class="intro">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
         {#if chart}
+          {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
+          {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
+          {#if projection.conditions.end!==null&&chart.endLimit===null}<p class="intro">종료 기준 {measure(projection.conditions.end,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
           <figure class="chart">
             <p class="axis-note">최고 {measure(chart.high, (projection.unit ?? names.get(projection.channel)?.unit ?? null))} · 최저 {measure(chart.low, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={(projection.unit ?? names.get(projection.channel)?.unit ?? null)}>
@@ -350,6 +356,8 @@
 </section>
 
 <style>
+  .axis-toggle{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
+  .axis-toggle input{width:auto;min-height:20px;margin:0;padding:0;flex:none}
   .projection { min-width: 0; }
   .chart { margin: var(--space-4) 0; min-width: 0; }
   .chart svg { display: block; width: 100%; height: 220px;  }

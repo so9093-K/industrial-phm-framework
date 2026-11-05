@@ -168,7 +168,7 @@ export type OutlookChart = {
 
 /** Recent stored values, the forecast with its range and the user's limits on one plot.
  * The window shows twice the forecast span of history so the forecast stays readable. */
-export function outlookChart(projection: Projection): OutlookChart | null {
+export function outlookChart(projection: Projection, includeLimits = false): OutlookChart | null {
   const future = projection.future;
   if (!future.length) return null;
   const width = 800, height = 220, top = 8, bottom = 212;
@@ -181,7 +181,7 @@ export function outlookChart(projection: Projection): OutlookChart | null {
   const values = [
     ...shown.map((item) => item.value),
     ...future.flatMap((item) => [item.estimate, item.lower ?? item.estimate, item.upper ?? item.estimate]),
-    ...[management, endLimit].filter((limit): limit is number => limit !== null),
+    ...(includeLimits ? [management, endLimit].filter((limit): limit is number => limit !== null) : []),
   ];
   const low = Math.min(...values), high = Math.max(...values);
   const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.06;
@@ -202,8 +202,8 @@ export function outlookChart(projection: Projection): OutlookChart | null {
     history: line(shown.map((item) => [item.at, item.value])),
     estimate: line(future.map((item) => [item.at, item.estimate])),
     band,
-    management: management === null ? null : y(management),
-    endLimit: endLimit === null ? null : y(endLimit),
+    management: management === null || management < lo || management > hi ? null : y(management),
+    endLimit: endLimit === null || endLimit < lo || endLimit > hi ? null : y(endLimit),
     ticks: yTicks(lo, hi, top, bottom),
   };
 }

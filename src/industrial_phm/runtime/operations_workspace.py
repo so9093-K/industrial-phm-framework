@@ -89,6 +89,11 @@ class OperationsWorkspace:
         return self.root / "outlook-briefings.sqlite"
 
     @property
+    def change_review_path(self) -> Path:
+        """Immutable major changes and their human review history."""
+        return self.root / "change-reviews.sqlite"
+
+    @property
     def outlook_capture_path(self) -> Path:
         """Immutable reviewed condition-outlook evidence; AI answers are separate."""
         return self.root / "outlook-captures.sqlite"
@@ -160,6 +165,7 @@ class OperationsWorkspace:
             self.phm_explanation_path,
             self.outlook_briefing_path,
             self.outlook_capture_path,
+            self.change_review_path,
             self.finding_state_path,
             self.maintenance_review_state_path,
             self.history_catalog_path,

@@ -1,6 +1,7 @@
 /** What one asset's whole stored record held: where its signals left the first 30% of the record,
  * representative sustained, recent and large changes (GET /api/v1/explore/findings). The summary says these as observed facts: when,
  * for how long, which signal, against which range, and how far. It never names a cause. */
+import {recordContext, recordParams, type RecordContext} from "./record-context.ts";
 import {assetTabUrl} from "./routes.ts";
 import {elapsedText} from "./time-axis.ts";
 import {validatePeriods} from "./comparison.ts";
@@ -8,6 +9,7 @@ import {periodParams, windowParams, zoomWindow} from "./signal-selection.ts";
 import {object} from "./writes.ts";
 
 export type FoundInterval = {
+  reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
   start: string; end: string; channel: string; label: string; unit: string | null;
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
@@ -17,12 +19,12 @@ export type FoundInterval = {
   reason: "sustained" | "record-end" | "largest" | null;
   baseline: {from: string; to: string} | null;
   reference: number | null; typical: number | null;
-  related: {channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
+  related: {context?: RecordContext|null; channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
 };
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
-export type SignalState = "scored" | "short-baseline" | "constant" | "cumulative" | "no-values";
+export type SignalState = "scored" | "level-change" | "short-baseline" | "constant" | "cumulative" | "no-values";
 export type CheckedSignal = {
-  channel: string; label: string; unit: string | null; state: SignalState;
+  context?: RecordContext | null; channel: string; label: string; unit: string | null; state: SignalState;
   /** For a baseline held at one value: that value, and the range the record took afterwards. */
   held: number | null; later: {low: number; high: number} | null;
   /** For a running total its source declares: where the record began and ended. */
@@ -58,7 +60,8 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
     const low = finite(usual.low), high = finite(usual.high);
     if (low > high) invalid();
-    return {start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
+    return {reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
+      bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
       value: finite(row.value), usual: {low, high}, within: row.within.map(text),
       reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as FoundInterval["reason"] : null,
@@ -68,17 +71,17 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
       related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
         const other = object(entry);
         if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
-        return {channel: text(other.channel), label: text(other.label), unit: typeof other.unit === "string" ? other.unit : null,
+        return {context:recordContext(other), channel: text(other.channel), label: text(other.label), unit: typeof other.unit === "string" ? other.unit : null,
           reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
       })};
   });
-  const states: readonly SignalState[] = ["scored", "short-baseline", "constant", "cumulative", "no-values"];
+  const states: readonly SignalState[] = ["scored", "level-change", "short-baseline", "constant", "cumulative", "no-values"];
   const signals = root.signals.map((item: unknown): CheckedSignal => {
     const row = object(item);
     if (!row || !states.includes(row.state as SignalState)) invalid();
     const later = row.later === undefined || row.later === null ? null : object(row.later);
     if (row.later !== undefined && row.later !== null && !later) invalid();
-    return {channel: text(row.channel), label: text(row.label),
+    return {context: recordContext(row), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, state: row.state as SignalState,
       held: row.held === undefined || row.held === null ? null : finite(row.held),
       first: row.first === undefined || row.first === null ? null : finite(row.first),
@@ -86,7 +89,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
       later: later ? {low: finite(later.low), high: finite(later.high)} : null};
   });
   const judged = finite(root.judged);
-  if (judged !== signals.filter((row) => row.state === "scored").length) invalid();
+  if (judged !== signals.filter((row) => (row.state === "scored" || row.state === "level-change" || row.state === "constant")).length) invalid();
   if (intervals.length && !judged) invalid();
   const count = finite(root.interval_count);
   if (count < intervals.length) invalid();
@@ -115,14 +118,15 @@ export const changeValue = value;
 
 /** When, for how long, and what was observed; a value is a bucket mean, so it says so. */
 export function findingText(item: FoundInterval, bucketSeconds: number | null): {when: string; what: string} {
+  bucketSeconds = item.bucketSeconds ?? bucketSeconds;
   const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
   const down = item.direction === "down";
   const mean = bucketSeconds ? elapsedText(bucketSeconds) + " 평균으로 " : "";
   return {
     when: clock(item.start) + " ~ " + clock(item.end) + (seconds >= 60 ? " (약 " + elapsedText(seconds) + ")" : ""),
     what: item.reference !== null && item.typical !== null
-      ? "대표값 " + value(item.reference, null) + " → " + value(item.typical, item.unit)
-      : item.label + " · 기록 처음 30%의 평소 범위(" + value(item.usual.low, null) + "~" + value(item.usual.high, item.unit)
+      ? (item.kind === "level-change" ? "일정하던 값의 변화 · " : "대표값 ") + value(item.reference, null) + " → " + value(item.typical, item.unit)
+      : item.label + " · 기록 처음 30%의 비교 범위(" + value(item.usual.low, null) + "~" + value(item.usual.high, item.unit)
       + ")보다 " + (down ? "낮았습니다" : "높았습니다") + " · " + mean + "가장 " + (down ? "낮을" : "높을") + " 때 "
       + value(item.value, item.unit),
   };
@@ -133,9 +137,11 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
   bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null; relation: {href: string; label: string} | null; outlook: string} {
   const link = (href: string, params: Record<string, string>) => {
     const url = new URL(href, "http://local");
-    for (const [key, entry] of Object.entries(params)) url.searchParams.set(key, entry);
+    for (const [key, entry] of Object.entries({...recordParams(item.context), ...params})) url.searchParams.set(key, entry);
     return url.pathname + url.search;
   };
+  record = item.context?.record ?? record;
+  bucketSeconds = item.bucketSeconds ?? bucketSeconds;
   const from = Date.parse(item.start);
   const span = {from, to: Math.max(Date.parse(item.end), from + Math.max((bucketSeconds ?? 0) * 1000, 1000))};
   const inspection = {...span, to: Math.min(span.to, span.from + 31 * 86400000)};
@@ -171,15 +177,15 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
   return {signal, compare, previous, relation, outlook: assetTabUrl(assetId, "outlook", null, "history", item.channel)};
 }
 
-const WHY: Record<Exclude<SignalState, "scored">, string> = {
+const WHY: Record<Exclude<SignalState, "scored" | "level-change">, string> = {
   "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
-  constant: "기록 처음 30% 동안 값이 일정해 벗어난 정도를 계산할 수 없음",
+  constant: "기준 기간과 이후 기록에서 같은 값이 유지됨",
   cumulative: "누적값이라 기록 처음과 견준 변화로 판단하지 않음",
   "no-values": "저장된 값이 없음",
 };
 /** Why a signal was not judged, with what a held baseline and the record afterwards showed. */
 export function unjudgedText(signal: CheckedSignal): string {
-  if (signal.state === "scored") return signal.label;
+  if (signal.state === "scored" || signal.state === "level-change") return signal.label;
   const held = signal.state === "constant" && signal.held !== null
     ? " · 처음 30%는 " + value(signal.held, signal.unit) + (signal.later
       ? ", 그 뒤 " + value(signal.later.low, null) + "~" + value(signal.later.high, signal.unit) : "")

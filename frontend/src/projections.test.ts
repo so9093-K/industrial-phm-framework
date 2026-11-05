@@ -77,3 +77,13 @@ test("the outlook chart shows recent records, the forecast range and both limits
   assert.ok(chart.lastX>0&&chart.lastX<chart.width);
   assert.deepEqual(spreadRows([1,2,3,4,5,6,7,8,9,10],4),[1,4,7,10]);
 });
+
+test("a distant criterion cannot flatten the forecast unless the reader includes it",()=>{
+  const data=parsePairedProjection({...forecast(),history:[["2026-10-16T00:00:00Z",11]]},outlook(),"a","R","1h",conditions);
+  const distant={...data,conditions:{...data.conditions,end:1000}};
+  const chart=outlookChart(distant)!;
+  assert.equal(chart.high,16);
+  assert.equal(chart.endLimit,null);
+  assert.equal(outlookChart(distant,true)!.high,1000);
+  assert.notEqual(outlookChart(distant,true)!.endLimit,null);
+});

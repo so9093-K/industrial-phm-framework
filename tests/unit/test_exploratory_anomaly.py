@@ -49,7 +49,10 @@ def test_the_baseline_choice_moves_what_counts_as_usual() -> None:
 
 def test_constant_or_unknown_inputs_are_named_not_scored() -> None:
     found = find_departures({"flat": _points([2.0] * 40)})
-    assert found["channels"] == [{"key": "flat", "state": "constant", "median": 2.0, "marked": 0}]
+    assert found["channels"][0]["state"] == "constant"
+    assert found["channels"][0]["median"] == 2.0
+    assert found["channels"][0]["marked"] == 0
+    assert found["score"] == [] and found["intervals"] == []
     with pytest.raises(ValueError, match="baseline"):
         find_departures({"x": _points([1.0] * 10)}, baseline="last-10")
     with pytest.raises(LookupError):
@@ -106,3 +109,52 @@ def test_only_a_signal_the_source_declares_a_running_total_is_left_unjudged() ->
     # A temperature that keeps rising is a change to find, whatever its values look like.
     assert not declared_running_total(name="온도 온도", unit=None, meaning=None)
     assert not declared_running_total(name="vib_rms", unit="g", meaning="vibration RMS")
+
+
+def test_a_constant_baseline_finds_level_changes_without_inventing_a_score() -> None:
+    found = find_departures({"x": _points([0.0] * 40 + [1.0] * 10 + [-2.0] * 10 + [0.0] * 20)})
+    assert found["channels"][0]["state"] == "level-change"
+    assert found["score"] == []
+    assert [
+        (item["direction"], item["value"], item["distance"]) for item in found["intervals"]
+    ] == [("up", 1.0, None), ("down", -2.0, None)]
+    assert latest_departure(found) is None
+    assert (
+        latest_departure(find_departures({"x": _points([0.0] * 40 + [1.0] * 40)}))["kind"]
+        == "level-change"
+    )
+    assert find_departures({"x": _points([1.0] * 40 + [1.0 + 1e-11] * 40)})["intervals"] == []
+
+
+def test_overlapping_changes_from_distinct_sources_keep_their_own_reference() -> None:
+    values = [0.0] * 40 + [1.0] * 40
+    later = [
+        (start + timedelta(days=1), end + timedelta(days=1), value)
+        for start, end, value in _points(values)
+    ]
+    found = record_changes(
+        {"a": _points(values), "b": later}, streams={"a": ("a", None), "b": ("b", None)}
+    )
+    assert found["baseline"] is None
+    assert {item["channel"] for item in found["intervals"]} == {"a", "b"}
+    assert {item["baseline"]["from"] for item in found["intervals"]} == {T0, T0 + timedelta(days=1)}
+    same_time = record_changes(
+        {"a": _points(values), "b": _points(values)}, streams={"a": ("a", None), "b": ("b", None)}
+    )
+    assert len(same_time["intervals"]) == 2
+
+
+def test_sustained_changes_use_duration_and_constant_changes_get_no_size_ranking() -> None:
+    short = _points([0.0] * 40 + [1.0] * 40)
+    sparse = [
+        (T0 + (start - T0) * 10, T0 + (end - T0) * 10, value)
+        for start, end, value in _points([0.0] * 40 + [1.0] * 20)
+    ]
+    brief = _points([0.0] * 70 + [1.0] * 10)
+    found = record_changes(
+        {"short": short, "sparse": sparse, "brief": brief},
+        streams={name: (name, None) for name in ("short", "sparse", "brief")},
+    )
+    assert found["intervals"][0]["channel"] == "sparse"
+    assert len(found["intervals"]) == 3
+    assert all(item["reason"] != "largest" for item in found["intervals"])

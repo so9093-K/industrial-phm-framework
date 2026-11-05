@@ -178,7 +178,7 @@ export async function recomputeForComparison(saved:CapturedOutlook,signal:AbortS
   return parseCurrentOutlook(await response.json() as unknown,saved);
 }
 
-function parseReview(raw:unknown):Capture["review"]{
+export function parseReview(raw:unknown):Capture["review"]{
   const review=object(raw);
   if(!review||!Array.isArray(review.events)||review.events.length>500)invalid("검토 기록");
   const seen=new Set<string>();

@@ -77,6 +77,9 @@ class OutlookCaptureCorrupted(RuntimeError):
 class OutlookCaptureStore:
     """Durable capture content remains unchanged, even after later observations arrive."""
 
+    payload_key = "outlook"
+    id_prefix = "outlook-capture-"
+
     def __init__(self, path: Path) -> None:
         self.path = path
 
@@ -112,21 +115,21 @@ class OutlookCaptureStore:
             raise ValueError("outlook capture exceeds bounded evidence size")
         digest = _digest(rendered)
         identity = json.dumps(snapshot["identity"], sort_keys=True, separators=(",", ":"))
-        identifier = "outlook-capture-" + _digest(identity)
-        asset_id = snapshot["outlook"]["asset_id"]
+        identifier = self.id_prefix + _digest(identity)
+        asset_id = snapshot[self.payload_key]["asset_id"]
         if snapshot["identity"].get("binding_id") is not None:
             # Earlier IDs omitted the model. Reuse only a verified same-model capture;
             # keep other-model and unknown-model evidence immutable and separate.
             legacy_identity = {
                 key: value for key, value in snapshot["identity"].items() if key != "binding_id"
             }
-            legacy_id = "outlook-capture-" + _digest(
+            legacy_id = self.id_prefix + _digest(
                 json.dumps(legacy_identity, sort_keys=True, separators=(",", ":"))
             )
             legacy = self.list_for(asset_id, capture_id=legacy_id)
             if (
                 legacy
-                and legacy[0]["snapshot"]["outlook"].get("binding_id")
+                and legacy[0]["snapshot"][self.payload_key].get("binding_id")
                 == snapshot["identity"]["binding_id"]
             ):
                 return {"capture_id": legacy_id, "captured_at": legacy[0]["captured_at"]}
@@ -142,7 +145,7 @@ class OutlookCaptureStore:
             if stored is None or _digest(stored[1]) != stored[0]:
                 raise OutlookCaptureCorrupted("stored outlook evidence digest mismatch")
             previous = json.loads(stored[1])
-            previous_id = "outlook-capture-" + _digest(
+            previous_id = self.id_prefix + _digest(
                 json.dumps(previous["identity"], sort_keys=True, separators=(",", ":"))
             )
             if previous_id != identifier:
@@ -205,16 +208,16 @@ class OutlookCaptureStore:
                 raise OutlookCaptureCorrupted("stored outlook evidence digest mismatch")
             try:
                 snapshot = json.loads(rendered)
-                expected_id = "outlook-capture-" + _digest(
+                expected_id = self.id_prefix + _digest(
                     json.dumps(snapshot["identity"], sort_keys=True, separators=(",", ":"))
                 )
             except (ValueError, TypeError, KeyError) as error:
                 raise OutlookCaptureCorrupted("invalid captured evidence shape") from error
             if identifier != expected_id:
                 raise OutlookCaptureCorrupted("stored outlook identity mismatch")
-            if not isinstance(snapshot.get("outlook"), dict):
+            if not isinstance(snapshot.get(self.payload_key), dict):
                 raise OutlookCaptureCorrupted("invalid captured evidence shape")
-            if snapshot["outlook"].get("asset_id") != asset_id:
+            if snapshot[self.payload_key].get("asset_id") != asset_id:
                 raise OutlookCaptureCorrupted("stored outlook identity mismatch")
             result.append(
                 {

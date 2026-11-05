@@ -3,7 +3,8 @@
 Each signal is compared with a baseline part of its own record: the distance from the baseline
 median in units of the baseline spread (median absolute deviation, scaled to a standard
 deviation for normal data). Values at least ``THRESHOLD`` away are marked, and neighbouring
-marks become one interval named by the signal that went furthest. This is an exploration aid,
+marks become one interval named by the signal that went furthest. A constant baseline instead
+records level changes in measured units, with no standardized distance. This is an exploration aid,
 not a fault diagnosis: the baseline is only the part of the record the user chose to compare
 against.
 """
@@ -65,49 +66,85 @@ def find_departures(
     involved: dict[datetime, set[str]] = {}
     score: dict[datetime, tuple[float, str, datetime]] = {}
     for name, points in series.items():
+        own_first = min((point[0] for point in points), default=first)
+        own_last = max((point[1] for point in points), default=own_first)
+        own_cut = own_first + (own_last - own_first) * BASELINES[baseline]
+        own_baseline = {
+            "name": baseline,
+            "from": own_first,
+            "to": own_last if baseline == "all" else own_cut,
+        }
         values = np.asarray([value for _, _, value in points], dtype=float)
         reference = np.asarray(
-            [value for start, _, value in points if baseline == "all" or start < cut], dtype=float
+            [value for start, _, value in points if baseline == "all" or start < own_cut],
+            dtype=float,
         )
         if reference.size < 5:
-            channels.append({"key": name, "state": "short-baseline", "marked": 0})
+            channels.append(
+                {"key": name, "state": "short-baseline", "marked": 0, "baseline": own_baseline}
+            )
             continue
         median, spread = float(np.median(reference)), robust_spread(reference)
-        if spread == 0:
-            channels.append({"key": name, "state": "constant", "median": median, "marked": 0})
-            continue
-        distance = (values - median) / spread
+        constant = spread == 0
+        tolerance = 1e-9 * max(1.0, abs(median))
+        distance = (values - median) / spread if not constant else values - median
         marked = 0
         for (start, end, value), z in zip(points, distance, strict=True):
             size = abs(float(z))
-            if size > score.get(start, (-1.0, "", end))[0]:
+            if not constant and size > score.get(start, (-1.0, "", end))[0]:
                 score[start] = (size, name, end)
-            if size >= THRESHOLD:
+            changed = start >= own_cut and size > tolerance if constant else size >= THRESHOLD
+            if changed:
                 marked += 1
                 current = marks.get(start)
-                if current is None or size > current["distance"]:
+                if current is None or (not constant and size > (current["distance"] or 0)):
                     marks[start] = {
                         "start": start,
                         "end": end,
                         "channel": name,
                         "value": float(value),
                         "median": median,
-                        "distance": size,
+                        "distance": None if constant else size,
+                        "kind": "level-change" if constant else "departure",
+                        "baseline": own_baseline,
                         "direction": "up" if z > 0 else "down",
                     }
                 involved.setdefault(start, set()).add(name)
         channels.append(
-            {"key": name, "state": "scored", "median": median, "spread": spread, "marked": marked}
+            {
+                "key": name,
+                "state": "level-change"
+                if constant and marked
+                else "constant"
+                if constant
+                else "scored",
+                "median": median,
+                "spread": spread,
+                "marked": marked,
+                "baseline": own_baseline,
+                "ended_changed": constant and abs(float(values[-1]) - median) > tolerance,
+            }
         )
     intervals: list[dict[str, Any]] = []
     for start in sorted(marks):
         mark = marks[start]
         previous = intervals[-1] if intervals else None
-        if previous is not None and start - previous["end"] <= gap:
+        if (
+            previous is not None
+            and start - previous["end"] <= gap
+            and not (
+                mark["kind"] == "level-change"
+                and mark["direction"] != previous["peak"]["direction"]
+            )
+        ):
             previous["end"] = max(previous["end"], mark["end"])
             previous["points"] += 1
             previous["channels"] |= involved[start]
-            if mark["distance"] > previous["peak"]["distance"]:
+            if (mark["distance"] or 0) > (previous["peak"]["distance"] or 0) or (
+                mark["kind"] == previous["peak"]["kind"] == "level-change"
+                and abs(mark["value"] - mark["median"])
+                > abs(previous["peak"]["value"] - previous["peak"]["median"])
+            ):
                 previous["peak"] = mark
             continue
         intervals.append(
@@ -119,7 +156,7 @@ def find_departures(
                 "peak": mark,
             }
         )
-    intervals.sort(key=lambda item: -item["peak"]["distance"])
+    intervals.sort(key=lambda item: -(item["peak"]["distance"] or 0))
     return {
         "threshold": THRESHOLD,
         "baseline": {"name": baseline, "from": first, "to": last if baseline == "all" else cut},
@@ -136,6 +173,8 @@ def find_departures(
                 "median": item["peak"]["median"],
                 "distance": item["peak"]["distance"],
                 "direction": item["peak"]["direction"],
+                "kind": item["peak"]["kind"],
+                "baseline": item["peak"]["baseline"],
             }
             for item in intervals
         ],
@@ -171,6 +210,7 @@ def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,
     limit: int = 3,
+    streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str]] | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
@@ -182,7 +222,7 @@ def record_changes(
     if not analyses:
         raise LookupError("no stored values")
     candidates = [
-        {**interval, "baseline": read["baseline"]}
+        {**interval, "baseline": interval["baseline"]}
         for read in analyses.values()
         for interval in read["intervals"]
     ]
@@ -190,6 +230,8 @@ def record_changes(
 
     def distinct(item: dict[str, Any]) -> bool:
         for chosen in selected:
+            if streams is not None and streams[item["channel"]] != streams[chosen["channel"]]:
+                continue
             intersection = max(
                 0.0,
                 (
@@ -211,26 +253,32 @@ def record_changes(
     sustained = sorted(
         candidates,
         key=lambda item: (
+            -(item["end"] - item["start"]).total_seconds(),
             -item["points"],
-            -item["distance"],
+            -(item["distance"] or 0),
             item["channel"],
             item["start"],
         ),
     )
     take(sustained, "sustained")
-    last = max(point[1] for points in series.values() for point in points)
-    spacing = max(
-        (point[1] - point[0] for points in series.values() for point in points),
-        default=timedelta(0),
-    )
+    ends = {name: max(point[1] for point in points) for name, points in series.items() if points}
+    spacing = {
+        name: max(point[1] - point[0] for point in points)
+        for name, points in series.items()
+        if points
+    }
     recent = sorted(
-        [item for item in candidates if last - item["end"] <= spacing * 1.5],
-        key=lambda item: (-item["points"], -item["distance"], item["channel"]),
+        [
+            item
+            for item in candidates
+            if ends[item["channel"]] - item["end"] <= spacing[item["channel"]] * 1.5
+        ],
+        key=lambda item: (-(item["end"] - item["start"]).total_seconds(), item["channel"]),
     )
     take(recent, "record-end")
     take(
         sorted(
-            candidates,
+            [item for item in candidates if item["distance"] is not None],
             key=lambda item: (
                 -item["distance"],
                 -item["points"],
@@ -248,9 +296,13 @@ def record_changes(
         "threshold": THRESHOLD,
         "intervals": selected,
         "interval_count": len(candidates),
-        "baseline": min(
-            (read["baseline"] for read in analyses.values()), key=lambda row: row["from"]
-        ),
+        "baselines": {name: read["baseline"] for name, read in analyses.items()},
+        "baseline": next(iter(analyses.values()))["baseline"]
+        if all(
+            read["baseline"] == next(iter(analyses.values()))["baseline"]
+            for read in analyses.values()
+        )
+        else None,
     }
 
 
@@ -271,7 +323,18 @@ def interval_comparison(
     median, current = float(np.median(before)), float(np.median(after))
     spread = robust_spread(before)
     if spread <= 0:
-        return None
+        delta = current - median
+        return {
+            "reference": median,
+            "current": current,
+            "state": "higher"
+            if delta > 1e-9 * max(1, abs(median))
+            else "lower"
+            if delta < -1e-9 * max(1, abs(median))
+            else "within",
+            "distance": abs(delta),
+            "kind": "level-change",
+        }
     distance = (current - median) / spread
     return {
         "reference": median,
@@ -292,11 +355,25 @@ def latest_departure(found: Mapping[str, Any]) -> dict[str, Any] | None:
     still far away does. Returns the signal furthest away at the end, how far, and since when.
     """
     score = found["score"]
+    changed = next((row for row in found["channels"] if row.get("ended_changed")), None)
+    level_change = None
+    if changed is not None:
+        last = max(
+            (item for item in found["intervals"] if item["channel"] == changed["key"]),
+            key=lambda item: item["end"],
+        )
+        level_change = {
+            "channel": changed["key"],
+            "distance": None,
+            "since": last["start"],
+            "direction": last["direction"],
+            "kind": "level-change",
+        }
     if not score:
-        return None
+        return level_change
     at, distance, channel = score[-1]
     if distance < found["threshold"]:
-        return None
+        return level_change
     holding = next(
         (item for item in found["intervals"] if item["start"] <= at <= item["end"]), None
     )

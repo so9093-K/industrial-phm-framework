@@ -109,19 +109,19 @@ export function zoomWindow(span: Span): Span | null {
 /** A source handed over from another screen. `point` absent means any measurement point of it;
  * null means only the records stored without a measurement point (sent as an empty value,
  * which no real identifier can be). */
-export type SourceFocus = {source: string; point?: string | null};
+export type SourceFocus = {source: string; point?: string | null; interpretation?: string};
 export function focusFrom(params: URLSearchParams): SourceFocus | null {
   const source = params.get("monitor_source");
   if (!source) return null;
-  if (!params.has("monitor_point")) return {source};
-  return {source, point: params.get("monitor_point") || null};
+  return {source, ...(params.has("monitor_point") ? {point: params.get("monitor_point") || null} : {}),
+    ...(params.get("monitor_interpretation") ? {interpretation: params.get("monitor_interpretation")!} : {})};
 }
 export function focusParams(focus: SourceFocus): Record<string, string> {
-  return {monitor_source: focus.source, ...(focus.point !== undefined ? {monitor_point: focus.point ?? ""} : {})};
+  return {monitor_source: focus.source, ...(focus.point !== undefined ? {monitor_point: focus.point ?? ""} : {}), ...(focus.interpretation ? {monitor_interpretation: focus.interpretation} : {})};
 }
-export function focusGroups<T extends {sourceId: string; pointId: string | null}>(groups: T[], focus: SourceFocus | null): T[] {
+export function focusGroups<T extends {sourceId: string; pointId: string | null; interpretationId?: string}>(groups: T[], focus: SourceFocus | null): T[] {
   return focus ? groups.filter((group) => group.sourceId === focus.source
-    && (focus.point === undefined || group.pointId === focus.point)) : groups;
+    && (focus.point === undefined || group.pointId === focus.point) && (!focus.interpretation || group.interpretationId === focus.interpretation)) : groups;
 }
 
 /** A narrow look around one moment of a period: a tenth of the period but at least an hour,

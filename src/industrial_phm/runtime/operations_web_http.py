@@ -39,6 +39,10 @@ from industrial_phm.runtime.operations_web_capabilities import (
     CAPABILITIES_ROUTE,
     handle_capabilities_read,
 )
+from industrial_phm.runtime.operations_web_change_review import (
+    CHANGE_REVIEWS_ROUTE,
+    handle_change_reviews_read,
+)
 from industrial_phm.runtime.operations_web_command import (
     WebCommandClient,
     WebCommandOutcomeUnknown,
@@ -378,6 +382,10 @@ def create_operations_web_read_server(
             if parts.path == BRIEFINGS_ROUTE:
                 status, briefings = handle_briefings_read(OperationsWorkspace(root), parts.query)
                 self._send_json(status, briefings)
+                return
+            if parts.path == CHANGE_REVIEWS_ROUTE:
+                status, reviews = handle_change_reviews_read(OperationsWorkspace(root), parts.query)
+                self._send_json(status, reviews)
                 return
             if parts.path == CAPTURES_ROUTE:
                 status, captures = handle_outlook_captures_read(

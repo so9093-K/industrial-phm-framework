@@ -215,7 +215,7 @@ export function parseAcquisitionPair(
 export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;
   lastX:number;history:string;estimate:string;band:string;management:number|null;endLimit:number|null;ticks:Tick[]};
 /** Stored values and the forecast on one measurement axis, with the user's limits. */
-export function acquisitionChart(projection:AcquisitionProjection):AcquisitionChart|null{
+export function acquisitionChart(projection:AcquisitionProjection, includeLimits = false):AcquisitionChart|null{
   const future=projection.forecast;
   if(!future.length)return null;
   const width=800,height=220,top=8,bottom=212;
@@ -224,7 +224,7 @@ export function acquisitionChart(projection:AcquisitionProjection):AcquisitionCh
   const {management,end:endLimit}=projection.conditions;
   const values=[...shown.map(item=>item.value),
     ...future.flatMap(item=>[item.estimate,item.lower??item.estimate,item.upper??item.estimate]),
-    ...[management,endLimit].filter((limit):limit is number=>limit!==null)];
+    ...(includeLimits?[management,endLimit].filter((limit):limit is number=>limit!==null):[])];
   const low=Math.min(...values),high=Math.max(...values);
   const padding=low===high?Math.max(Math.abs(low)*0.05,1):(high-low)*0.06;
   const lo=low-padding,hi=high+padding;
@@ -239,7 +239,7 @@ export function acquisitionChart(projection:AcquisitionProjection):AcquisitionCh
   return {width,height,low,high,first,last:projection.record.last,end,lastX:x(projection.record.last),
     history:line(shown.map(item=>[item.ordinal,item.value])),
     estimate:line(future.map(item=>[item.ordinal,item.estimate])),band,
-    management:management===null?null:y(management),endLimit:endLimit===null?null:y(endLimit),
+    management:management===null||management<lo||management>hi?null:y(management),endLimit:endLimit===null||endLimit<lo||endLimit>hi?null:y(endLimit),
     ticks:yTicks(lo,hi,top,bottom)};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{

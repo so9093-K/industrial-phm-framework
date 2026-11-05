@@ -376,17 +376,16 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
         assert found["meaning"] == "departures-from-the-first-30-percent-not-fault-diagnosis"
         assert [(row["label"], row["state"]) for row in found["signals"]] == [
             ("R상전류", "scored"),
-            ("T상전류", "constant"),
+            ("T상전류", "level-change"),
         ]
-        assert found["judged"] == 1 and found["unchecked"] == 0
-        # A signal held at one value through the baseline cannot be judged by spread: it is
-        # said as not judged, with what it held and what the record did afterwards.
+        assert found["judged"] == 2 and found["unchecked"] == 0
+        # A constant baseline still exposes its level change and observed values.
         held = found["signals"][1]
         assert held["held"] == 60.0 and held["later"] == {"low": 0.0, "high": 60.0}
         assert found["interval_count"] >= 1 and found["bucket_seconds"] > 0
         stop_interval = found["intervals"][0]
         assert stop_interval["direction"] == "down" and stop_interval["value"] == 0.0
-        assert stop_interval["unit"] == "A" and stop_interval["within"] == []
+        assert stop_interval["unit"] == "A" and stop_interval["within"] == ["T상전류"]
         assert stop_interval["usual"]["low"] < 60 < stop_interval["usual"]["high"]
         start = datetime.fromisoformat(stop_interval["start"])
         assert BASE + timedelta(minutes=59) <= start <= BASE + timedelta(minutes=60)
@@ -556,3 +555,61 @@ def test_a_change_on_an_electrical_asset_always_says_what_the_current_did() -> N
     ]
     # Without a current signal nothing is added.
     assert len(related(changed[:2], similar)) == 3
+
+
+def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path) -> None:
+    from industrial_phm.runtime.operations_web_explore import record_findings
+
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def append(source: str, point: str | None, start: datetime, count: int, changing: bool) -> None:
+        history.append_file_batch(
+            tuple(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:{source}:{point}:{'a' * 64}:{i}",
+                    source_id=source,
+                    asset_id="motor",
+                    channel_id="temperature",
+                    source_file=source + ".csv",
+                    source_sha256="a" * 64,
+                    source_size_bytes=10,
+                    sample_index=i,
+                    event_at=start + timedelta(minutes=i),
+                    value=float(100 if changing and i >= 60 else 0),
+                    measurement_point_id=point,
+                )
+                for i in range(count)
+            ),
+            batch_id=f"{source}-{point}",
+        )
+
+    append("b", "bearing", BASE, 120, True)
+    original = record_findings(workspace, "motor")["intervals"]
+    assert len(original) == 1 and original[0]["kind"] == "level-change"
+    # A far longer stable source must not coarsen B's grid, baseline or result identity.
+    append("a", None, BASE - timedelta(days=5), 800, False)
+    mixed = record_findings(workspace, "motor")
+    assert mixed["intervals"] == original
+    # Another point in the same source is a separate record, even with an identical channel.
+    append("b", "motor", BASE + timedelta(days=1), 120, True)
+    mixed = record_findings(workspace, "motor")
+    assert {row["measurement_point_id"] for row in mixed["intervals"]} == {"bearing", "motor"}
+    assert mixed["baseline"] is None
+    get, stop = _serve(workspace.root)
+    try:
+        chosen = original[0]
+        status, body = get(
+            "/api/v1/explore/anomaly",
+            asset_id="motor",
+            series="temperature",
+            record_key=chosen["key"],
+        )
+        assert status == 200 and body["record"]["measurement_point_id"] == "bearing"
+        assert {key: body["baseline"][key] for key in ("from", "to")} == chosen["baseline"]
+        assert body["intervals"][0]["start"] == chosen["start"]
+        assert len(body["records"]) == 3
+    finally:
+        stop()

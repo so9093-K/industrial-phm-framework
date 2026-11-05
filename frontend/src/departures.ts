@@ -3,11 +3,12 @@
  * Results are a server-owned exploration aid, never health, fault probability,
  * root-cause evidence, or a calibrated anomaly-model score.
  */
+import {recordContext, type RecordContext} from "./record-context.ts";
 export type Baseline = "first-30" | "first-50" | "all";
 
 export type ScoredSignal = {
   id: string;
-  state: "scored" | "short-baseline" | "constant";
+  state: "scored" | "level-change" | "short-baseline" | "constant";
   median: number | null;
   spread: number | null;
   marked: number;
@@ -21,10 +22,12 @@ export type DepartureInterval = {
   direction: "up" | "down";
   median: number;
   value: number;
-  distance: number;
+  distance: number | null;
+  kind: "departure" | "level-change";
 };
 
 export type Departures = {
+  context: RecordContext | null; records: RecordContext[];
   assetId: string;
   selectedChannel: string;
   baseline: { name: Baseline; from: string; to: string };
@@ -84,7 +87,7 @@ export function parseDepartures(
     throw new Error("받은 결과가 고른 설비·신호·기준 구간과 맞지 않아 표시하지 않았습니다.");
   }
   const rawScored = data.channels.map(obj).find(row => row?.key === selectedChannel);
-  if (!rawScored || !["scored", "short-baseline", "constant"].includes(String(rawScored.state)))
+  if (!rawScored || !["scored", "level-change", "short-baseline", "constant"].includes(String(rawScored.state)))
     throw new Error("선택한 신호의 계산 상태를 확인할 수 없습니다.");
   const state = rawScored.state as ScoredSignal["state"];
   const scored = {
@@ -111,7 +114,8 @@ export function parseDepartures(
     return {
       start, end, channel: selectedChannel, channels: item.channels.map(nonEmpty),
       direction: item.direction as DepartureInterval["direction"],
-      median: amount(item.median), value: amount(item.value), distance: amount(item.distance),
+      median: amount(item.median), value: amount(item.value), distance: item.kind === "level-change" && item.distance === null ? null : amount(item.distance),
+      kind: item.kind === "level-change" ? "level-change" as const : "departure" as const,
     };
   });
   const intervalCount = total(data.interval_count);
@@ -124,6 +128,7 @@ export function parseDepartures(
     throw new Error("기준 이탈 계산 조건을 확인할 수 없습니다.");
   const unit = units[selectedChannel];
   return {
+    context: recordContext(data.record), records: Array.isArray(data.records) ? data.records.map(recordContext).filter((r): r is RecordContext => r !== null) : [],
     assetId, selectedChannel, baseline: {name: baselineName, from, to},
     threshold, unit: typeof unit === "string" ? unit : null,
     bucketSeconds, scored, score, intervals, intervalCount,
@@ -176,14 +181,16 @@ export function departureChart(data: Departures): DepartureChart | null {
 }
 
 export async function readDepartures(
-  assetId: string, series: string, baseline: Baseline, signal: AbortSignal,
+  assetId: string, series: string, baseline: Baseline, signal: AbortSignal, recordKey?: string,
 ): Promise<Departures> {
   const query = new URLSearchParams({ asset_id: assetId, series, baseline });
+  if (recordKey) query.set("record_key", recordKey);
   const response = await fetch("/api/v1/explore/anomaly?" + query, {
     signal, cache: "no-store", credentials: "same-origin",
   });
   if (response.status === 404) {
     const error = await response.json().catch(() => null) as unknown;
+    if (obj(error)?.error === "nothing_to_explore" && recordKey) throw new Error("선택한 출처·측정 위치·측정 의미의 기록을 찾지 못했습니다. 다른 기록을 명시적으로 선택하세요.");
     if (obj(error)?.error === "nothing_to_explore") {
       throw new NoStoredEvidenceError("이 설비에는 비교할 저장 기록이 없습니다.");
     }

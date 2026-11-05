@@ -6,7 +6,7 @@ export type PairedGroup = {
   period: "a" | "b";
   source: string;
   point: string | null;
-  meaning: string;
+  meaning: string; xMeaning?:string|null; yMeaning?:string|null;
   xUnit: string | null;
   yUnit: string | null;
   xUsable: number;
@@ -76,6 +76,8 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
     if(pairCount<points.length) throw new Error("측정 짝 수가 그래프 자료보다 적어 결과를 표시하지 않았습니다.");
     return {
       id,period,source,point,meaning,
+      xMeaning:typeof group.x_interpretation_id === "string" ? group.x_interpretation_id : null,
+      yMeaning:typeof group.y_interpretation_id === "string" ? group.y_interpretation_id : null,
       xUnit:typeof group.x_unit==="string"?group.x_unit:null,
       yUnit:typeof group.y_unit==="string"?group.y_unit:null,
       xUsable:nonnegative(group.x_usable_count),
