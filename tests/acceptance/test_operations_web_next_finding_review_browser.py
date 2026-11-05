@@ -78,9 +78,7 @@ def test_review_evidence_failures_and_other_input_are_not_shown_as_absent(
                 retry = detail.get_by_role("button", name="판단 근거 다시 읽기")
                 pw.expect(retry).to_be_visible()
                 if part == "ai":
-                    pw.expect(detail).to_contain_text(
-                        "해설을 읽지 못했습니다."
-                    )
+                    pw.expect(detail).to_contain_text("해설을 읽지 못했습니다.")
                     pw.expect(detail.get_by_text("아직 없습니다.", exact=False)).to_have_count(0)
                 if part == "different-input":
                     pw.expect(detail).to_contain_text("같은 원본의 다른 모델")
