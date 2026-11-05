@@ -12,7 +12,7 @@
   import CautionNote from "./CautionNote.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {spectrumMessage,times} from "../analysis-messages";
-  import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakFrequencies,
+  import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakSummary, frequencyText,
     SpectrumUnavailable,WaveformUnavailable,
     type Acquisition,type Spans,type Spectrum,type SpectrumChannel} from "../spectrum";
 
@@ -177,7 +177,6 @@
         {@const frequencies=result.frequencies}
         {@const axis=axisFor(channel,decibel)}
         {@const step=frequencies.length>1?frequencies[1]-frequencies[0]:null}
-        {@const hz=(value:number)=>Math.round(value).toLocaleString("ko-KR")}
         <section class="series">
           <h3>{channel.label}</h3>
           <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
@@ -195,9 +194,9 @@
           <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span></p>
           <!-- Where each period is strongest, before how the two differ. -->
           <h4>가장 센 주파수</h4>
-          <p class="peaks">기간 A · {peakFrequencies(frequencies,channel.a).map(hz).join(", ")||"없음"} Hz
-            <span class="sep">/</span> 기간 B · {peakFrequencies(frequencies,channel.b).map(hz).join(", ")||"없음"} Hz</p>
-          {#if step}<p class="context">센 순서로 최대 3개 · 약 {hz(step)} Hz 간격으로 묶은 세기라 정확한 주파수는 그 간격 안에 있습니다.</p>{/if}
+          <p class="peaks">기간 A · {peakSummary(frequencies,channel.a)}
+            <span class="sep">/</span> 기간 B · {peakSummary(frequencies,channel.b)}</p>
+          {#if step}<p class="context">센 순서로 최대 3개 · 약 {frequencyText(step)} Hz 간격으로 묶은 세기라 정확한 주파수는 그 간격 안에 있습니다.</p>{/if}
           {#if changed.length}
             <h4>세기가 크게 달라진 주파수</h4>
             <ol>

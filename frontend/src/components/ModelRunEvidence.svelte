@@ -16,7 +16,7 @@
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,strongestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
+    loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
@@ -111,7 +111,8 @@
   // Models on the same measurement stream share positions, so they can be drawn together.
   const comparable=$derived.by(():ModelBinding[]=>{
     const current=binding;
-    return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId):[];
+    return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId
+      &&item.lastAnalyzed!==null&&item.lastAnalyzed===current.lastAnalyzed):[];
   });
   // A measurement inside an over-threshold run is compared with the last one before the run.
   const suggested=$derived.by(():number|null=>{
@@ -148,12 +149,12 @@
       bindings=available;
       if(!available.length){listState="empty";return;}
       listState="ready";
-      // Without a bookmark, open the model furthest above its threshold; a failed read keeps the first.
-      const strongest=selectedBinding||available.length<2?null
-        :await loadLatestScores(assetId,request.signal).then(strongestModel).catch(()=>null);
+      // Without a bookmark, open the latest measurement; a failed read keeps the first.
+      const latest=selectedBinding||available.length<2?null
+        :await loadLatestScores(assetId,request.signal,available).then(latestModel).catch(()=>null);
       if(request.signal.aborted)return;
       const desired=selectedBinding?available.find(b=>b.bindingId===selectedBinding)
-        :available.find(b=>b.bindingId===strongest?.bindingId)??available[0];
+        :available.find(b=>b.bindingId===latest?.bindingId)??available[0];
       if(!desired){listState="unavailable";error="북마크의 적용 모델은 이 설비에 없습니다.";return;}
       await chooseBinding(desired.bindingId);
     }catch(cause:unknown){

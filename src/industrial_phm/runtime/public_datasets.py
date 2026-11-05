@@ -460,12 +460,18 @@ def _holds_source(
         for f in list_xjtu_acquisition_files(item.path.resolve(), item.asset_id)
     }
     latest = snapshots.latest(source_id, item.asset_id)
-    if latest is None or latest.ordinal not in files:
+    if latest is None:
+        return False
+    stored_ordinals = {
+        ordinal
+        for ordinal, _ in snapshots.ordinals_between(source_id, item.asset_id, 1, latest.ordinal)
+    }
+    if stored_ordinals != set(files):
         return False
     for ordinal, path in files.items():
         stored = snapshots.get(source_id, item.asset_id, ordinal)
         # The replay keeps a stored path, so moved identical bytes do not qualify either.
-        if stored is not None and (stored.file_path != path or stored.sha256 != file_sha256(path)):
+        if stored is None or stored.file_path != path or stored.sha256 != file_sha256(path):
             return False
     return True
 

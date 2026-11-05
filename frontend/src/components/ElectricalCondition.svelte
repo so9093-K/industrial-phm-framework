@@ -4,7 +4,7 @@
   import {yTicks} from "../chart-axis";
   import {systemUrl} from "../routes";
   import {
-    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, kstTime, measured, readCondition, segments,
+    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, shiftedPeriod, kstTime, measured, readCondition, segments,
     type Condition, type ConditionPeriod, type ConditionSource, type Metric, type PeriodSummary, type TimelinePoint,
   } from "../electrical-condition";
   import CautionNote from "./CautionNote.svelte";
@@ -23,6 +23,7 @@
   let period: ConditionPeriod = $state("24h");
   let sources: ConditionSource[] = $state([]);
   let sourceKey = $state("");
+  let referenceMode: "previous" | "fixed" = $state("previous");
   let custom = $state({end: "", referenceStart: "", referenceEnd: ""});
   let condition: Condition | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
@@ -80,7 +81,8 @@
     const source = sources.find((item) => keyOf(item) === sourceKey) ?? null;
     loadState = "loading"; condition = null; selectedAt = null; error = "";
     try {
-      const value = await readCondition(assetId, period, source, custom, pending.signal);
+      const value = await readCondition(assetId, period, source, referenceMode === "fixed" ? custom
+        : {...custom, referenceStart:"", referenceEnd:""}, pending.signal);
       if (pending.signal.aborted) return;
       // Keep the chosen source by identity even when a new one changes the list order.
       sources = value.sources;
@@ -93,15 +95,10 @@
       error = failure instanceof Error ? failure.message : "분석할 데이터를 읽지 못했습니다.";
     }
   }
-  // The same length of period moved back or forward, compared with the period just before it.
-  const kstInput = (ms: number) => new Date(ms + 9 * 3_600_000).toISOString().slice(0, 19);
   function shift(current: Analyzed, direction: -1 | 1) {
-    const end = Date.parse(current.targetEnd), length = end - Date.parse(current.targetStart);
-    custom = {end: kstInput(end + direction * length), referenceStart: "", referenceEnd: ""};
+    custom = shiftedPeriod(current, direction, custom);
     return analyze();
   }
-  const canAdvance = (current: Analyzed) =>
-    current.lastObservedAt !== null && Date.parse(current.targetEnd) <= Date.parse(current.lastObservedAt);
   async function choose(at: string, nextMetric: Metric | null = null, focus = true) {
     if (nextMetric) metric = nextMetric;
     selectedAt = at;
@@ -163,10 +160,13 @@
       <summary>분석·기준 기간 직접 지정</summary>
       <div class="times">
         <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
-        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} /></label>
-        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} /></label>
+        <label>비교 기준<select bind:value={referenceMode}>
+          <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
+        </select></label>
+        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
+        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>
       </div>
-      <p class="context">비워 두면 마지막 저장 기록까지와 그 직전 같은 길이의 기간을 비교합니다. 직접 고른 기준 기간은 분석 기간보다 앞서야 합니다.</p>
+      <p class="context">분석 끝 시각을 비우면 마지막 저장 기록까지 분석합니다. 직전 비교는 이동할 때마다 기준도 이동하고, 직접 지정한 기준은 유지합니다. 기준 기간은 분석 기간보다 앞서야 합니다.</p>
     </details>
     <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
   </form>
@@ -186,7 +186,7 @@
     <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
     <p class="shift">
       <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
-      <button type="button" class="ui-button" disabled={!canAdvance(analyzed)} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
+      <button type="button" class="ui-button" disabled={!analyzed.nextPeriodAvailable} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
     </p>
     {@render summaryCards(analyzed.target, analyzed.reference)}
 
