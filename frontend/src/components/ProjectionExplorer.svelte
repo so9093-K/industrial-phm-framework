@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ForecastFit from "./ForecastFit.svelte";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
@@ -251,6 +252,7 @@
         {:else}
           <p class="intro">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
+        <ForecastFit fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
         {#if chart}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
@@ -265,6 +267,8 @@
               <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
               {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
               {#if chart.endLimit!==null}<line x1="0" x2={chart.width} y1={chart.endLimit} y2={chart.endLimit} class="end" />{/if}
+              {#if chart.fitted}<path d={chart.fitted} class="fitted" />{/if}
+              {#if chart.gap}<line x1={chart.gap.x} x2={chart.gap.x} y1={chart.gap.observed} y2={chart.gap.modeled} class="fit-gap" />{/if}
               <path d={chart.history} class="history" />
               <path d={chart.estimate} class="estimate" />
               <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
@@ -273,7 +277,8 @@
               note={"세로선 · 마지막 기록 " + clock(chart.lastRecord)} />{/snippet}
             </ValueAxis>
             <figcaption class="legend">
-              <span><i class="key history"></i>저장된 측정</span>
+              <span><i class="key history"></i>집계 측정값</span>
+              {#if chart.fitted}<span><i class="key fitted"></i>모델이 학습한 값</span>{/if}
               <span><i class="key estimate"></i>추세 예측</span>
               <span><i class="key band"></i>예측 범위</span>
               {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
@@ -356,6 +361,9 @@
 </section>
 
 <style>
+  .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
+  .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
+  .key.fitted{border-color:#8366a5;border-top-style:dotted}
   .axis-toggle{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
   .axis-toggle input{width:auto;min-height:20px;margin:0;padding:0;flex:none}
   .projection { min-width: 0; }

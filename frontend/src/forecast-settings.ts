@@ -33,7 +33,7 @@ export function verifySettings(forecast:unknown,outlook:unknown,expected?:Foreca
     ||actual.trainingPoints!==expected.trainingPoints||actual.seasonality!==expected.seasonality)
     throw new Error("예측과 기준 도달 계산의 설정이 입력한 값과 달라 결과를 표시하지 않았습니다.");
 }
-export type Backtest={points:number;error:number;naive:number;coverage:number};
+export type Backtest={points:number;error:number;naive:number;coverage:number;baselineValue?:number;hiddenSeconds?:number;requestedSeconds?:number};
 export function backtests(raw:unknown):Backtest[] {
   const data=raw as {backtest?:unknown;rolling_backtests?:unknown};
   const values=[...(data.backtest?[data.backtest]:[]),...(Array.isArray(data.rolling_backtests)?data.rolling_backtests:[])];
@@ -42,6 +42,6 @@ export function backtests(raw:unknown):Backtest[] {
       ||![v.mean_absolute_error,v.naive_mean_absolute_error,v.inside_interval].every(n=>typeof n==="number"&&Number.isFinite(n))
       ||Number(v.mean_absolute_error)<0||Number(v.naive_mean_absolute_error)<0||Number(v.inside_interval)<0||Number(v.inside_interval)>1)
       throw new Error("과거 예측 검증값의 형식이 올바르지 않습니다.");
-    return {points:v.points,error:Number(v.mean_absolute_error),naive:Number(v.naive_mean_absolute_error),coverage:Number(v.inside_interval)};
+    return {baselineValue:typeof v.baseline_value==="number"?v.baseline_value:undefined,hiddenSeconds:typeof v.hidden_seconds==="number"?v.hidden_seconds:undefined,requestedSeconds:typeof v.requested_seconds==="number"?v.requested_seconds:undefined,points:v.points,error:Number(v.mean_absolute_error),naive:Number(v.naive_mean_absolute_error),coverage:Number(v.inside_interval)};
   });
 }

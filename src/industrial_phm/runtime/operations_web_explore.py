@@ -40,7 +40,10 @@ from industrial_phm.application.signal_exploration import (
 )
 from industrial_phm.application.source_registry import JsonSourceRepository
 from industrial_phm.history import DuckLakeAssetHistory
-from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
+from industrial_phm.history.ducklake import (
+    DuckLakeAssetHistoryConfig,
+    MeasurementAggregationLimitError,
+)
 from industrial_phm.models.package import SUPPORTED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -448,15 +451,23 @@ def signal_records(
     for stream in history.list_history_streams(asset_id):
         selected = [channel for channel in channels if channel in stream.channels]
         for offset in range(0, len(selected), 4):
-            aggregation = history.query_multi_signal_measurement_aggregation(
-                asset_id,
-                channel_ids=selected[offset : offset + 4],
-                start_at=stream.start_at,
-                end_at=stream.end_at + timedelta(seconds=1),
-                bucket_count=_DEPARTURE_BUCKETS,
-                source_id=stream.source_id,
-                measurement_point_id=stream.measurement_point_id,
-            )
+            discovery_buckets = _DEPARTURE_BUCKETS
+            while True:
+                try:
+                    aggregation = history.query_multi_signal_measurement_aggregation(
+                        asset_id,
+                        channel_ids=selected[offset : offset + 4],
+                        start_at=stream.start_at,
+                        end_at=stream.end_at + timedelta(seconds=1),
+                        bucket_count=discovery_buckets,
+                        source_id=stream.source_id,
+                        measurement_point_id=stream.measurement_point_id,
+                    )
+                    break
+                except MeasurementAggregationLimitError:
+                    if discovery_buckets == 1:
+                        raise
+                    discovery_buckets = max(1, discovery_buckets // 2)
             groups: dict[tuple[str, str], list[Any]] = {}
             for bucket in aggregation.buckets:
                 groups.setdefault((bucket.channel_id, bucket.interpretation_json), []).append(
@@ -466,7 +477,11 @@ def signal_records(
                 first = min(bucket.first_event_at for bucket in buckets)
                 last = max(bucket.last_event_at for bucket in buckets) + timedelta(seconds=1)
                 width = aggregation.bucket_seconds
-                if first != aggregation.start_at or last != aggregation.end_at:
+                if (
+                    discovery_buckets != _DEPARTURE_BUCKETS
+                    or first != aggregation.start_at
+                    or last != aggregation.end_at
+                ):
                     narrowed = history.query_multi_signal_measurement_aggregation(
                         asset_id,
                         channel_ids=[channel],
@@ -491,6 +506,12 @@ def signal_records(
                         "interpretation": meaning,
                         "interpretation_id": hashlib.sha256(meaning.encode()).hexdigest(),
                         "unit": interpretation_unit(meaning),
+                        "usable_count": sum(bucket.usable_count for bucket in buckets),
+                        "observations": [
+                            (bucket.last_event_at, float(bucket.mean))
+                            for bucket in buckets
+                            if bucket.mean is not None
+                        ],
                         "bucket_seconds": width,
                         "record": {"from": iso(first), "to": iso(last)},
                         "points": [

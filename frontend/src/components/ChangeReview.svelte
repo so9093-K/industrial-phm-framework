@@ -5,7 +5,7 @@
   import {readPermission} from "../outlook-briefings";
   import ReviewActions from "./ReviewActions.svelte";
   import StatusNotice from "./StatusNotice.svelte";
-  let {assetId, finding, saved = null, onSaved = () => {}}: {assetId:string;finding:FoundInterval;saved?:ChangeCapture|null;onSaved?:()=>void} = $props();
+  let {assetId, finding, saved = null, onSaved = () => {}}: {assetId:string;finding:FoundInterval;saved?:ChangeCapture|null;onSaved?:(capture:ChangeCapture)=>void} = $props();
   let capture:ChangeCapture|null = $state(null);
   let writable = $state(false);
   let readState:"loading"|"ready"|"failed" = $state("loading");
@@ -14,14 +14,14 @@
   async function load() {
     request?.abort(); const req = new AbortController(); request=req; readState="loading";
     try {
-      const page = saved ? {captures:[saved]} : await readChangeReviews(assetId,req.signal,{finding_id:finding.reviewKey!});
+      const page = await readChangeReviews(assetId,req.signal,saved ? {capture_id:saved.id} : {finding_id:finding.reviewKey!});
       if(req.signal.aborted)return;
       capture=page.captures[0]??null; readState="ready";
     } catch(cause) {if(!req.signal.aborted){readState="failed";error=cause instanceof Error?cause.message:"검토 기록 조회 실패";}}
   }
   async function reload(signal:AbortSignal):Promise<boolean> {
     if(!capture)return false;
-    try { const page=await readChangeReviews(assetId,signal,{capture_id:capture.id}); if(signal.aborted)return false;capture=page.captures[0];onSaved();return true; } catch{return false;}
+    try { const page=await readChangeReviews(assetId,signal,{capture_id:capture.id}); if(signal.aborted)return false;capture=page.captures[0];onSaved(capture);return true; } catch{return false;}
   }
   onMount(()=>{const req=new AbortController();void readPermission(req.signal).then(value=>{if(!req.signal.aborted)writable=value;}).catch(()=>{});void load();return()=>{req.abort();request?.abort();};});
 </script>

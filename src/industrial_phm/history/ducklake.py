@@ -92,6 +92,10 @@ _SNAPSHOT_FINGERPRINT_TABLES = (
 )
 
 
+class MeasurementAggregationLimitError(ValueError):
+    """Aggregation contains too many identity/bucket rows; retry a coarser discovery grid."""
+
+
 class DuckLakeRuntimeUnavailableError(RuntimeError):
     """Raised when the optional DuckDB/DuckLake history runtime is unavailable."""
 
@@ -1778,7 +1782,7 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
         if len(rows) > 10000:
-            raise ValueError(
+            raise MeasurementAggregationLimitError(
                 "multi-signal aggregate exceeds 10000 channel/source/point buckets; narrow range"
             )
         return MultiSignalMeasurementHistoryAggregation(

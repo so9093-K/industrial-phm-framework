@@ -447,3 +447,35 @@ def test_a_vibration_only_asset_shows_its_stored_feature_per_acquisition(tmp_pat
         assert get("/api/v1/acquisition/trend", asset_id="other", feature=feature)[0] == 404
     finally:
         stop()
+
+
+def test_forecast_aggregates_are_stamped_when_their_last_input_is_known(tmp_path: Path) -> None:
+    from industrial_phm.runtime.operations_web_forecast import history_points
+
+    workspace = phm_workspace(tmp_path / "timestamps", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:end:{index}",
+                source_id="motor-file",
+                asset_id="motor",
+                channel_id="current",
+                source_file="current.csv",
+                source_sha256="b" * 64,
+                source_size_bytes=1,
+                sample_index=index,
+                event_at=BASE + timedelta(minutes=index),
+                value=float(index % 20),
+            )
+            for index in range(2100)
+        ),
+        batch_id="many-observations",
+    )
+    times, values, meta = history_points(workspace, "motor", "current")
+    assert len(times) <= 1000 and len(times) == len(values)
+    assert times[-1] == BASE + timedelta(minutes=2099)
+    assert times[0] > BASE  # first mean has multiple inputs; it cannot be known at its midpoint
+    assert meta["raw_count"] == 2100 and meta["bucket_seconds"] > 120

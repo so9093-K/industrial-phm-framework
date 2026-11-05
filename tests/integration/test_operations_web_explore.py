@@ -620,3 +620,66 @@ def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path)
         assert any(record["source_id"] == "0-empty" for record in default["records"])
     finally:
         stop()
+
+
+def test_overlapping_meanings_recover_discovery_budget_without_coarsening_results(
+    tmp_path: Path,
+) -> None:
+    from industrial_phm.history.ducklake import MeasurementAggregationLimitError
+
+    workspace = phm_workspace(tmp_path / "versions", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:versions:{version}:{index}",
+                source_id="versions",
+                asset_id="motor",
+                channel_id="temperature",
+                source_file=f"v{version}.csv",
+                source_sha256=f"{version + 1:064x}",
+                source_size_bytes=1,
+                sample_index=index,
+                event_at=BASE + timedelta(minutes=index),
+                value=0 if index < 500 else 1,
+                source_metadata_json=json.dumps(
+                    {
+                        "binding": {
+                            "definition": {
+                                "observed_property": "temperature",
+                                "unit": "C",
+                                "version": version,
+                            }
+                        }
+                    }
+                ),
+            )
+            for version in range(12)
+            for index in range(950)
+        ),
+        batch_id="overlapping-versions",
+    )
+    with pytest.raises(MeasurementAggregationLimitError):
+        history.query_multi_signal_measurement_aggregation(
+            "motor",
+            channel_ids=["temperature"],
+            start_at=BASE,
+            end_at=BASE + timedelta(minutes=949, seconds=1),
+            bucket_count=1000,
+            source_id="versions",
+        )
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="motor")
+        assert status == 200 and len(found["signals"]) == 12 and found["judged"] == 12
+        assert len({row["interpretation_id"] for row in found["signals"]}) == 12
+        assert found["interval_count"] == 12
+        assert found["bucket_seconds"] == pytest.approx((949 * 60 + 1) / 1000)
+        assert all(
+            item["reference_value"] == 0 and item["typical_value"] == 1
+            for item in found["intervals"]
+        )
+    finally:
+        stop()

@@ -176,9 +176,7 @@ def forecast_values(
     )
     # The model's own reading of the history, drawn under the measurements: where it lags them,
     # the forecast starts from that reading, not from the last value.
-    shown = list(times[:: max(1, len(times) // 300)])
-    if shown[-1] != times[-1]:
-        shown.append(times[-1])
+    shown = list(times)
     fitted = _predict(model, shown)["yhat"].to_numpy(dtype=float)
     last = times[-1]
     steps = future_acquisitions if future_acquisitions is not None else FUTURE_POINTS
@@ -367,6 +365,13 @@ def backtest(
     cut = times[-1] - timedelta(seconds=hidden)
     train = [i for i, t in enumerate(times) if t <= cut]
     test = [i for i, t in enumerate(times) if t > cut]
+    # A long record can still have fewer than five aggregate values in a short horizon.
+    # Use the last five observed aggregates and report the actual longer validation span.
+    if len(test) < 5 and len(times) >= MIN_POINTS + 5:
+        cut = times[-6]
+        train = list(range(len(times) - 5))
+        test = list(range(len(times) - 5, len(times)))
+        hidden = (times[-1] - cut).total_seconds()
     if len(train) < MIN_POINTS or len(test) < 5:
         return None
     model = _fit(
@@ -384,6 +389,8 @@ def backtest(
     )
     return {
         "hidden_seconds": hidden,
+        "requested_seconds": horizon_seconds,
+        "baseline_value": float(observed[train[-1]]),
         "points": len(test),
         "mean_absolute_error": float(np.mean(np.abs(actual - yhat))),
         "naive_mean_absolute_error": float(np.mean(np.abs(actual - observed[train[-1]]))),

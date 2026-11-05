@@ -36,14 +36,13 @@ from industrial_phm.application.phm_signal_comparison import (
 from industrial_phm.application.phm_signal_comparison import feature_unit as comparison_feature_unit
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
-    interpretation_unit,
-    strongest_identity,
 )
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_web_explore import (
     _history,
     acquisition_period,
     explore_sources,
+    signal_records,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -430,39 +429,26 @@ def history_points(
     reader = _history(workspace)
     if reader is None:
         raise LookupError("no stored measurement history")
-    summary = next((a for a in reader.list_history_assets() if a.asset_id == asset_id), None)
-    if summary is None:
+    records = signal_records(reader, asset_id, [channel])
+    if not records:
         raise LookupError("no stored measurement history")
-    aggregation = reader.query_measurement_aggregation(
-        asset_id,
-        channel_id=channel,
-        start_at=summary.start_at,
-        end_at=summary.end_at + timedelta(seconds=1),
-        bucket_count=_BUCKETS,
-    )
-    key, buckets = strongest_identity(aggregation.buckets)
-    points = sorted(
-        (b.first_event_at + (b.last_event_at - b.first_event_at) / 2, float(b.mean))
-        for b in buckets
-        if b.mean is not None
-    )
+    record = max(records, key=lambda row: row["usable_count"])
+    points = record["observations"]
+    if not points:
+        raise LookupError("no usable measurement history")
+    # A bucket's mean is known only after its last observation. Midpoint timestamps
+    # placed the start of the forecast before measurements already used in fitting.
     return (
         [t for t, _ in points],
         [v for _, v in points],
         {
             "label": channel,
-            "unit": interpretation_unit(key[2]),
-            "source_id": key[0],
-            "measurement_point_id": key[1],
-            "raw_count": sum(b.usable_count for b in buckets),
-            "bucket_seconds": aggregation.bucket_seconds,
-            "other_identities": len(
-                {
-                    (b.source_id, b.measurement_point_id, b.interpretation_json)
-                    for b in aggregation.buckets
-                }
-            )
-            - 1,
+            "unit": record["unit"],
+            "source_id": record["source_id"],
+            "measurement_point_id": record["point_id"],
+            "raw_count": record["usable_count"],
+            "bucket_seconds": record["bucket_seconds"],
+            "other_identities": len(records) - 1,
         },
     )
 
