@@ -19,3 +19,10 @@ test("the model start gap remains an observed difference, without offsetting its
   assert.match(told.headline,/마지막 값 유지보다 모델 예측 오차가 큽니다/);
   assert.match(told.meaning!,/42.96|43/);
 });
+
+
+test("the fitted start gap is separate from movement during the forecast horizon",()=>{
+  const message=forecastMessage({last:42.96,start:50.99,end:{estimate:50.97,lower:37,upper:64},unit:null,horizon:"1시간 뒤",checks:[]});
+  assert.match(message.meaning!,/중심값 변화는 -0.02/);
+  assert.match(message.meaning!,/모델 시작값의 차이는 8.03/);
+});

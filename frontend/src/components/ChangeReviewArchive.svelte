@@ -11,7 +11,11 @@
   let opened:Record<string,boolean>=$state({});
   const clock=(value:string)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
   async function load(more=false){request?.abort();const req=new AbortController();request=req;busy=true;error="";
-    try{const page=await readChangeReviews(assetId,req.signal,more&&next?{before_id:next}:{});if(req.signal.aborted)return;captures=more?[...captures,...page.captures]:page.captures;next=page.next;}
+    try{const page=await readChangeReviews(assetId,req.signal,more&&next?{before_id:next}:{});if(req.signal.aborted)return;const incoming=page.captures.map(row=>{
+        const known=captures.find(previous=>previous.id===row.id);
+        return known&&known.review.events.length>row.review.events.length?known:row;
+      });
+      captures=more?[...captures,...incoming]:incoming;next=page.next;}
     catch(cause){if(!req.signal.aborted)error=cause instanceof Error?cause.message:"검토 목록 조회 실패";}
     finally{if(request===req)busy=false;}
   }

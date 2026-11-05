@@ -225,7 +225,7 @@
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
         scenarios:projection.scenarios,checks:projection.reachChecks??[]}) ?? forecastMessage({
-          last:projection.history?.at(-1)?.value??null,end:projection.future.at(-1)!,unit:projection.unit??names.get(projection.channel)?.unit??null,
+          last:projection.history?.at(-1)?.value??null,start:projection.future[0].estimate,end:projection.future.at(-1)!,unit:projection.unit??names.get(projection.channel)?.unit??null,
           horizon:clock(projection.future.at(-1)!.at),checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
@@ -252,7 +252,7 @@
         {:else}
           <p class="intro">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
-        <ForecastFit fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
+        <ForecastFit showValues={limited} fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
         {#if chart}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}

@@ -479,3 +479,40 @@ def test_forecast_aggregates_are_stamped_when_their_last_input_is_known(tmp_path
     assert times[-1] == BASE + timedelta(minutes=2099)
     assert times[0] > BASE  # first mean has multiple inputs; it cannot be known at its midpoint
     assert meta["raw_count"] == 2100 and meta["bucket_seconds"] > 120
+
+
+def test_the_same_parallel_aggregations_keep_the_exact_measurement_version(tmp_path: Path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from industrial_phm.runtime.operations_web_forecast import history_points, measurement_version
+
+    workspace = phm_workspace(tmp_path / "stable-means", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:stable:{index:05}",
+                source_id="motor-file",
+                asset_id="motor",
+                channel_id="current",
+                source_file="current.csv",
+                source_sha256="c" * 64,
+                source_size_bytes=1,
+                sample_index=index,
+                event_at=BASE + timedelta(seconds=index),
+                value=42.96 + (index % 53) * 0.013,
+            )
+            for index in range(12000)
+        ),
+        batch_id="mean-input",
+    )
+
+    def read(_: int) -> str:
+        times, values, meta = history_points(workspace, "motor", "current")
+        return measurement_version("motor", "history", "current", times, values, meta)
+
+    with ThreadPoolExecutor(4) as executor:
+        versions = list(executor.map(read, range(8)))
+    assert len(set(versions)) == 1

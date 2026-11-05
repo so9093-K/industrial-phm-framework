@@ -1750,7 +1750,10 @@ class DuckLakeAssetHistory:
                     min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
                     count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
                     count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
-                    max(value) FILTER (WHERE usable), avg(value) FILTER (WHERE usable),
+                    max(value) FILTER (WHERE usable),
+                    -- The exact mean feeds forecast/capture identities. A hash join may
+                    -- reorder equal input populations between requests, so sum in ID order.
+                    avg(value ORDER BY raw_evidence_id) FILTER (WHERE usable),
                     interpretation
                 FROM prepared
                 WHERE (? IS NULL OR interpretation = ?)

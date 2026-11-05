@@ -17,6 +17,7 @@
       const page = await readChangeReviews(assetId,req.signal,saved ? {capture_id:saved.id} : {finding_id:finding.reviewKey!});
       if(req.signal.aborted)return;
       capture=page.captures[0]??null; readState="ready";
+      if(capture)onSaved(capture);
     } catch(cause) {if(!req.signal.aborted){readState="failed";error=cause instanceof Error?cause.message:"검토 기록 조회 실패";}}
   }
   async function reload(signal:AbortSignal):Promise<boolean> {
