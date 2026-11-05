@@ -263,7 +263,8 @@ def test_bookmarked_history_outlook_opens_a_supported_period_or_explains_unavail
                     assert parse_qs(urlsplit(page.url).query)["projection_management"] == ["12"]
                     if saved_horizon != "1h":
                         pw.expect(panel).to_contain_text(
-                            "저장된 예측 기간 24시간은 현재 기록이 지원하지 않아 1시간으로 변경했습니다."
+                            "저장된 예측 기간 24시간은 현재 기록이 지원하지 않아 "
+                            "1시간으로 변경했습니다."
                         )
                     else:
                         pw.expect(panel.get_by_text("저장된 예측 기간", exact=False)).to_have_count(
