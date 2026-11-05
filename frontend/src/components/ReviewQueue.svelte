@@ -279,7 +279,7 @@
           actionLabel="다시 불러오기" onAction={() => location.reload()} />
       {:else if assetIndexProblem}
         <StatusNotice kind="failure" title="검토 대상 목록을 불러오지 못했습니다"
-          message="검토 기록이 없다는 뜻은 아닙니다. 다시 불러오거나 아래에 설비 ID를 넣어 그 설비의 검토를 직접 여세요."
+          message="검토 다시 불러오거나 아래에 설비 ID를 넣어 그 설비의 검토를 직접 여세요."
           actionLabel="다시 불러오기" onAction={() => location.reload()} />
       {:else if partialAssetScope}
         <StatusNotice kind="uncertain" message="검토 대상 설비를 일부만 불러왔습니다. 계속 불러오거나 설비 ID로 직접 조회할 수 있습니다." />
@@ -307,7 +307,7 @@
       <StatusNotice message="검토 목록을 불러오고 있습니다." />
     {:else}
       {#if failedAssets.length}
-        <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + ". 검토가 없다는 뜻은 아닙니다."}
+        <StatusNotice kind="uncertain" message={"다음 설비의 검토 항목을 불러오지 못했습니다: " + failedAssets.join(", ") + "."}
           actionLabel="검토 목록 다시 읽기" onAction={() => location.reload()} />
       {/if}
       {#if partialCounts}
@@ -323,7 +323,7 @@
           {loadingAssets ? "다음 설비의 검토를 읽고 있습니다." : "다음 설비의 검토 더 보기"}
         </button>
       {/if}
-      {#if hiddenFindings}<StatusNotice kind="uncertain" message="일부 분석 검토 기록은 조회 범위 밖에 있습니다. 목록에서 찾지 못했다고 기록이 없다는 뜻은 아닙니다." />{/if}
+      {#if hiddenFindings}<StatusNotice kind="uncertain" message="일부 분석 검토 기록은 조회 범위 밖에 있습니다. 목록에서 찾지 못했다고" />{/if}
       {#if shown.length}
         <ul class="items">
           {#each shown as item (item.key)}
@@ -334,7 +334,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록이 없다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
+        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체" : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}
         <button type="button" class="ui-button" disabled={loadingMore} onclick={() => void loadOlderCaptures()}>
@@ -350,7 +350,7 @@
       <StatusNotice message="검토 항목을 불러오고 있습니다." />
     {:else if missingFocus && !ignoreFocus}
       <StatusNotice kind="uncertain" title="검토 항목을 찾을 수 없습니다"
-        message="이 설비에서 해당 검토 항목을 찾을 수 없습니다. 다른 설비의 기록으로 대신 보여 주지 않습니다." />
+        message="이 설비에서 해당 검토 항목을 찾을 수 없습니다." />
     {:else if !selected && (focusCaptureId || focusFindingId) && !ignoreFocus
       && failedAssets.includes(focusAssetId)}
       <StatusNotice kind="uncertain" title="요청한 검토 기록을 확인하지 못했습니다"

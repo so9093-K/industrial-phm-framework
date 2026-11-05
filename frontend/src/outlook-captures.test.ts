@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
   capturePayload,compareReobservation,parseCapturePage,parseCurrentOutlook,positionText,
-  reobservationUrl,captureUrl,CaptureNotFound,CaptureRejected,
+  reobservationUrl,captureUrl,CaptureNotFound,CaptureRejected,matchesProjection,readProjectionCapture,
 } from "./outlook-captures.ts";
 import type {Projection} from "./projections.ts";
 import type {AcquisitionProjection} from "./acquisition-outlook.ts";
@@ -149,6 +149,61 @@ test("a captured outlook's review status is replayed from its append-only events
   assert.throws(()=>parseCapturePage(page(forged),"motor-a"),/일치하지/);
   const repeated=row("history",undefined,{review:{status:"open",events:[event("1","note","a"),event("1","note","b")]}});
   assert.throws(()=>parseCapturePage(page(repeated),"motor-a"),/식별자/);
+});
+
+test("restoring a review requires the same canonical outlook inputs",()=>{
+  const saved=parseCapturePage(page(row("history")),"motor-a").captures[0].outlook;
+  assert.equal(matchesProjection(saved,history),true);
+  for(const changed of [
+    {...history,channel:"S"},{...history,sourceId:"other"},{...history,pointId:"other"},
+    {...history,measurementVersion:"c".repeat(64)},{...history,dataVersion:"c".repeat(64)},
+    {...history,conditions:{...history.conditions,management:13}},
+    {...history,outlookSettings:{...settings,trainingPoints:80}},
+    {...history,record:{...history.record,points:179}},
+  ])assert.equal(matchesProjection(saved,changed),false);
+  // A different drawing horizon does not create a new immutable review subject.
+  assert.equal(matchesProjection(saved,{...history,horizon:"24h"}),true);
+  const acquired=parseCapturePage(page(row("acquisition")),"bearing-a").captures[0].outlook;
+  assert.equal(matchesProjection(acquired,acquisition),true);
+  assert.equal(matchesProjection(acquired,{...acquisition,bindingId:"anomaly-b"}),false);
+  assert.equal(matchesProjection({...acquired,bindingId:null},acquisition),false);
+  const inconsistent=row("acquisition");
+  inconsistent.snapshot.identity.binding_id="anomaly-b";
+  assert.throws(()=>parseCapturePage(page(inconsistent),"bearing-a"),/식별 정보/);
+  assert.equal(matchesProjection(acquired,{...acquisition,timeBasis:"assumed",assumedPeriod:60}),false);
+});
+
+test("acquisition review restoration skips other and unknown models with the same versions",async()=>{
+  const original=globalThis.fetch;
+  const other=row("acquisition","1",{snapshot:snapshot("acquisition",{binding_id:"anomaly-b"})});
+  const unknown=row("acquisition","2",{snapshot:snapshot("acquisition",{binding_id:null})});
+  const matching=row("acquisition","3");
+  let includeMatching=true;
+  globalThis.fetch=async()=>Response.json(includeMatching?page(other,unknown,matching):page(other,unknown));
+  try{
+    assert.equal((await readProjectionCapture(acquisition,new AbortController().signal))?.id,matching.capture_id);
+    includeMatching=false;
+    assert.equal(await readProjectionCapture(acquisition,new AbortController().signal),null);
+  }finally{globalThis.fetch=original;}
+});
+
+test("review restoration searches beyond the first page and never treats a failed read as empty",async()=>{
+  const original=globalThis.fetch;
+  const unrelated=row("history","2",{snapshot:snapshot("history",{series:"S"})});
+  const saved=row("history","3",{review:{status:"closed",events:[event("1","acknowledge"),event("2","close","점검 완료")]}});
+  const calls:string[]=[];
+  let fail=false;
+  globalThis.fetch=async(input)=>{
+    const url=new URL(String(input),"http://localhost");calls.push(url.searchParams.get("before_id")??"");
+    if(fail)return new Response("{}",{status:503});
+    return Response.json(url.searchParams.has("before_id")?page(saved):{...page(unrelated),next_before:unrelated.capture_id});
+  };
+  try{
+    const restored=await readProjectionCapture(history,new AbortController().signal);
+    assert.equal(restored?.id,saved.capture_id);assert.equal(restored?.review.status,"closed");
+    assert.equal(restored?.review.events[1].note,"점검 완료");assert.deepEqual(calls,["",unrelated.capture_id]);
+    fail=true;await assert.rejects(readProjectionCapture(history,new AbortController().signal),/불러오지 못했습니다/);
+  }finally{globalThis.fetch=original;}
 });
 
 test("reobservation compares only the same subject and assumptions",()=>{

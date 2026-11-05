@@ -60,8 +60,8 @@ _SELECTION = frozenset(
     }
 )
 _VERSIONS = frozenset({"measurement_version", "data_version"})
-# Optional exact provenance the browser displayed. Checked before saving, but not part
-# of the stored selection or identity, so existing capture IDs stay unchanged.
+# Exact provenance is checked before saving. Acquisition identities also retain the model;
+# existing same-model capture IDs are preserved by the store's legacy lookup.
 _PROVENANCE = frozenset({"source_id", "binding_id", "time_basis", "recorded_period_seconds"})
 _MAX_SNAPSHOT_BYTES = 64 * 1024
 
@@ -114,6 +114,22 @@ class OutlookCaptureStore:
         identity = json.dumps(snapshot["identity"], sort_keys=True, separators=(",", ":"))
         identifier = "outlook-capture-" + _digest(identity)
         asset_id = snapshot["outlook"]["asset_id"]
+        if snapshot["identity"].get("binding_id") is not None:
+            # Earlier IDs omitted the model. Reuse only a verified same-model capture;
+            # keep other-model and unknown-model evidence immutable and separate.
+            legacy_identity = {
+                key: value for key, value in snapshot["identity"].items() if key != "binding_id"
+            }
+            legacy_id = "outlook-capture-" + _digest(
+                json.dumps(legacy_identity, sort_keys=True, separators=(",", ":"))
+            )
+            legacy = self.list_for(asset_id, capture_id=legacy_id)
+            if (
+                legacy
+                and legacy[0]["snapshot"]["outlook"].get("binding_id")
+                == snapshot["identity"]["binding_id"]
+            ):
+                return {"capture_id": legacy_id, "captured_at": legacy[0]["captured_at"]}
         with self._connect() as connection:
             connection.execute(
                 "INSERT OR IGNORE INTO capture(id, asset_id, captured_at, digest, snapshot)"
@@ -371,6 +387,8 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
         "measurement_version": outlook["measurement_version"],
         "data_version": outlook["data_version"],
     }
+    if outlook["kind"] == "acquisition":
+        identity["binding_id"] = outlook["binding_id"]
     snapshot = {
         "schema_version": 1,
         "identity": identity,

@@ -46,7 +46,10 @@
   });
   /** A stream offers only its own signals and period. */
   function pick(index: number) {
-    streamIndex = index; chosen = (streams[index]?.channels ?? []).slice(0, 4);
+    streamIndex = index;
+    const channels = streams[index]?.channels ?? [];
+    const selected = new URLSearchParams(location.search).get("monitor_channel");
+    chosen = selected && channels.includes(selected) ? [selected] : channels.slice(0, 4);
   }
 
   function toggle(channel: string, on: boolean) {
@@ -80,10 +83,10 @@
 
 {#if load === "failed"}
   <StatusNotice kind="failure" title="모델 만들기에 쓸 기록 정보를 읽지 못했습니다"
-    message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다. 기록이 없다는 뜻은 아닙니다."
+    message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다."
     actionLabel="다시 불러오기" onAction={readStreams} />
 {:else if stream}
-  <details class="build" open={!hasModel}>
+  <details class="build">
     <summary>{hasModel ? "이 설비 데이터로 다른 모델 만들기" : "이 설비 데이터로 모델 만들기"}</summary>
     <p class="context">고른 기준 기간을 평소 모습으로 삼아 Isolation Forest 모델을 학습하고 이 설비에 연결합니다.
       이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다.</p>
@@ -113,7 +116,7 @@
     </fieldset>
     <label class="field">구간 길이<select bind:value={windowSeconds} disabled={busy}>
       {#each WINDOW_CHOICES as item (item.seconds)}<option value={item.seconds}>{item.label}</option>{/each}</select></label>
-    <p class="context">기준 기간은 비교 기준일 뿐 정상으로 확인된 기간이 아니며, 만든 모델은 현장 검증을 거친 모델이 아닙니다.</p>
+    <p class="context">학습 기준으로 사용할 운전 상태가 포함된 기간을 선택하세요. 모델 결과는 설비 운전 조건과 함께 검토하세요.</p>
     {#if writable}
       <button type="button" class="ui-button ui-button-primary" disabled={busy || !chosen.length} onclick={() => void build()}>
         {busy ? "만드는 중" : "이 기간으로 모델 만들기"}</button>

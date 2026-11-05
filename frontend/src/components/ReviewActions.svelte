@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount, tick} from "svelte";
   import {
-    latestDecision, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict, WriteForbidden,
+    latestDecision, reviewNote, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict,
     type ReviewAction, type ReviewDecision, type ReviewEvent, type ReviewStatus,
   } from "../review-writes";
 
@@ -11,18 +11,19 @@
    * this keeps a retried action on its first event ID. */
   type Props = {
     id: string; status: ReviewStatus; events: ReviewEvent[]; eventsTotal?: number; writable: boolean;
-    closeQuestion: string;
+    closeQuestion: string; confirmLabel?: string;
     submit: (action: ReviewAction, note: string, eventId: string, signal: AbortSignal,
       decision: ReviewDecision | null) => Promise<unknown>;
     reload: (signal: AbortSignal) => Promise<boolean>;
   };
-  let {id, status, events, eventsTotal = events.length, writable, closeQuestion, submit, reload}: Props = $props();
+  let {id, status, events, eventsTotal = events.length, writable, closeQuestion, confirmLabel = "확인함으로 표시", submit, reload}: Props = $props();
   // The current judgement; a close starts from it and may change it.
   const judged = $derived(latestDecision(events));
   let decision: ReviewDecision | null = $state(null);
   // On a concurrent review update, rebase the next decision on the persisted judgment.
   // User edits do not trigger this effect; only a changed stored judgment does.
   $effect(() => { decision = judged; });
+  let note = $state("");
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
@@ -47,8 +48,10 @@
   async function act(action: "acknowledge" | "close") {
     if (busy || !writable || status === "closed") return;
     if (!decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
-    const text = ""; // Structured decision only; existing saved notes remain readable.
-    const key = action + "\n" + decision;
+    let text: string;
+    try { text = reviewNote(action, note); }
+    catch (cause) { messageKind = "failure"; message = cause instanceof Error ? cause.message : "메모를 확인하세요."; return; }
+    const key = action + "\n" + decision + "\n" + text;
     if (!pending || pending.key !== key) pending = {key, eventId: crypto.randomUUID()};
     controller?.abort();
     const request = new AbortController(); controller = request;
@@ -56,7 +59,7 @@
     try {
       await submit(action, text, pending.eventId, request.signal, decision);
       if (request.signal.aborted) return;
-      pending = null; confirmingClose = false;
+      pending = null; confirmingClose = false; note = "";
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -67,8 +70,9 @@
         return;
       }
       messageKind = cause instanceof OutcomeUnknown ? "uncertain" : "failure";
-      message = cause instanceof WriteForbidden ? cause.message
-        : "처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다.";
+      message = cause instanceof OutcomeUnknown
+        ? "처리 결과를 확인하지 못했습니다. 같은 작업을 다시 시도해도 기록이 겹치지 않습니다."
+        : cause instanceof Error ? cause.message : "검토 기록을 저장하지 못했습니다. 다시 시도하세요.";
     } finally {
       if (controller === request) busy = false;
     }
@@ -86,6 +90,7 @@
         onchange={() => decision = option} /> {DECISION_LABEL[option]}</label>
     {/each}
   </fieldset>
+  <label class="note">메모 (선택)<textarea maxlength="1000" rows="2" bind:value={note} disabled={busy}></textarea></label>
 {/snippet}
 
 <section aria-labelledby={"review-" + id}>
@@ -110,7 +115,7 @@
     {#if status === "open"}
       {@render decisionField()}
       <div class="actions">
-        <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("acknowledge")}>확인함으로 표시</button>
+        <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("acknowledge")}>{confirmLabel}</button>
       </div>
       <p class="context">판단을 남기면 확인함이 되고, 그 뒤에 검토를 종료할 수 있습니다.</p>
     {:else if !confirmingClose}
@@ -137,6 +142,8 @@
 </section>
 
 <style>
+  .note { display: grid; gap: var(--space-1); margin-top: var(--space-3); color: var(--color-ink-muted); font-size: var(--font-small); }
+  textarea { box-sizing: border-box; width: 100%; padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); font: inherit; resize: vertical; }
   h3 { font-size: var(--font-section); margin: var(--space-4) 0 var(--space-2); }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .events { padding-inline-start: var(--space-5); }

@@ -480,16 +480,17 @@
 
     {#if stored && progress}
       <section aria-labelledby="csv-done-title">
-        <h3 id="csv-done-title" tabindex="-1" bind:this={doneHeading}>다음 할 일</h3>
+        <h3 id="csv-done-title" tabindex="-1" bind:this={doneHeading}>등록 완료</h3>
+        <p>{progress.setup.asset_id}의 측정 기록을 저장했습니다. 설비 요약에서 주요 변화와 마지막 측정 상태를 확인하세요.</p>
         <p class="links">
-          <a class="ui-button ui-button-primary" href={assetTabUrl(progress.setup.asset_id, "signals")}>설비 화면에서 신호 보기 →</a>
-          <a href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>설비 요약 보기 →</a>
+          <a class="ui-button ui-button-primary" href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>주요 변화와 측정 상태 보기 →</a>
+          <a href={assetTabUrl(progress.setup.asset_id, "signals")}>원본 신호 보기 →</a>
           {#if progress.setup.phase_channels?.length}
             <a href={assetTabUrl(progress.setup.asset_id, "change", "electrical")}>부하·불평형 보기 →</a>
           {/if}
         </p>
-        <AnalysisOptions assetId={progress.setup.asset_id} level={4} />
-        <button type="button" class="ui-button" onclick={() => void restart()}>다른 파일로 시작</button>
+        <details><summary>사용 가능한 다른 분석</summary><AnalysisOptions assetId={progress.setup.asset_id} level={4} /></details>
+        <button type="button" class="ui-button" onclick={() => void restart()}>다른 파일 등록</button>
       </section>
     {/if}
   {/if}

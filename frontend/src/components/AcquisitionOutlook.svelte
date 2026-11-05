@@ -13,11 +13,10 @@
   import XAxis from "./XAxis.svelte";
   import {elapsedText,measurementScale} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
-  import CautionNote from "./CautionNote.svelte";
   import {reachDuration,reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
-  import OutlookBriefings from "./OutlookBriefings.svelte";
+  import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
@@ -91,7 +90,8 @@
       if(featureId&&!valid.some(f=>f.id===featureId))throw new Error("고른 진동 특징이 이 데이터 출처에 없거나 전망할 수 없습니다.");
       // Opens on RMS like the other vibration screens, so one feature is followed from trend to outlook.
       if(!featureId)featureId=preferredFeature(valid)!.id;
-      listState="ready";remember();
+      if (!params.has("acq_forecast_count")) countText=String(Math.min(30,Math.max(1,Math.floor(selectedFeature()!.validPoints/2))));
+      listState="ready";remember();await calculate();
     }catch(cause:unknown){
       if(request.signal.aborted)return;
       listState="failed";message=cause instanceof Error?cause.message:"획득 특징 목록을 읽지 못했습니다.";
@@ -129,8 +129,8 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
-  <h2 id="acq-outlook-title">기준 도달 전망</h2>
-  <p class="context">기록 마지막 측정의 추세가 이어진다는 가정으로 관리·종료 기준까지 남은 측정 횟수를 계산합니다. 먼저 진동 특징을 고르고 비교할 기준값을 입력하세요.</p>
+  <h2 id="acq-outlook-title">추세·기준 도달 전망</h2>
+  <p class="context">선택한 진동 특징의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -138,7 +138,7 @@
       actionLabel="다시 불러오기" onAction={()=>void loadOptions()}/>
   {:else if listState==="empty"||listState==="unavailable"}
     <StatusNotice kind="uncertain" title="전망에 필요한 진동 측정이 부족합니다"
-      message="분석된 진동 측정이 20회 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
+      message="분석된 진동 측정이 20회 이상 있어야 합니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
     <p class="context">데이터 출처 <strong>{readableSourceId(options.sourceId)}</strong>
@@ -146,7 +146,7 @@
       · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
     <div class="inputs">
       <label>진동 특징
-        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();}}>
+        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
           {#each options.features as item (item.id)}
             <option value={item.id} disabled={!item.countForecast}>
               {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
@@ -154,18 +154,12 @@
           {/each}
         </select>
       </label>
-      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
-      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
-      <label>앞으로 볼 측정 횟수 (1~2000)
-        <input type="number" min="1" max="2000" step="1" value={countText}
-          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label>측정 간격 가정 (선택 · 초, 1~86400)
-        <input type="number" min="1" max="86400" step="any" value={assumedText}
-          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
-          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label>기준 방향
+
+    </div>
+    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="inputs">      <label>기준 방향
         <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
           <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
         </select>
@@ -178,8 +172,25 @@
         <input type="number" step="any" value={endText}
           oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
       </label>
-    </div>
+      </div>
+    </details>
+    <details class="calculation-options" open={customSettings}>
+      <summary>계산 조건 변경</summary>
+      <div class="inputs">      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
+      <label>앞으로 볼 측정 횟수 (1~2000)
+        <input type="number" min="1" max="2000" step="1" value={countText}
+          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
+      </label>
+      <label>측정 간격 가정 (선택 · 초, 1~86400)
+        <input type="number" min="1" max="86400" step="any" value={assumedText}
+          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
+          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
+      </label>
+
+      </div>
     <ForecastSettings value={settings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
+    </details>
     <button type="button" class="ui-button ui-button-primary"
       onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
     <p class="context">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
@@ -211,7 +222,7 @@
         {#if told}<AnalysisMessage message={told}
           subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
           basis={outlook.record.last + "번째 측정까지의 기록 · " + timeBasis(outlook)}
-          boundary="남은 횟수는 기록 마지막 측정 이후의 계산입니다. 실제 고장까지 남은 수명을 뜻하지 않습니다." />{/if}
+          boundary="예상 여유의 시작은 기록 마지막 측정입니다." />{/if}
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
@@ -225,8 +236,7 @@
             {/if}
           </div>
         {:else}
-          <StatusNotice kind="uncertain" title="기준까지 남은 여유는 아직 계산하지 않았습니다"
-            message="관리·종료 기준을 입력하지 않아 추세 예측만 표시합니다. 기준값을 입력하고 계산하기를 누르면 도달 전망을 함께 확인할 수 있습니다." />
+          <p class="context">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
         {#if chart}
           {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
@@ -257,7 +267,7 @@
           </figure>
         {/if}
         {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
-          <OutlookBriefings projection={outlook} onEvidenceChanged={()=>{
+          <OutlookBriefingPanel projection={outlook} onEvidenceChanged={()=>{
             resultAbort?.abort();
             outlook=null;
             resultState="mismatch";
@@ -273,7 +283,6 @@
           </details>
         {/key}
         <ForecastValidation checks={outlook.checks}/>
-        <CautionNote message="기록 마지막 측정의 추세가 이어진다고 가정한 계산이며, 기준은 사용자가 정한 값입니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 날짜가 아닙니다."/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
           <div class="scroll"><table>
@@ -324,6 +333,7 @@
   {/if}
 </section>
 <style>
+  summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--space-4);margin-block:var(--space-5)}
   label{display:grid;gap:var(--space-2);font-weight:650;font-size:var(--font-small)}

@@ -54,6 +54,13 @@ test("representative changes keep their reference and preceding-period navigatio
   const [a,b]=[params.get("compare_a")!,params.get("compare_b")!].map(raw=>raw.split("~").map(Date.parse));
   assert.equal(a[1],b[0]);
   assert.equal(a[1]-a[0],b[1]-b[0]);
+  assert.ok(links.relation);
+  const relation=new URL(links.relation.href,"http://local").searchParams;
+  assert.equal(relation.get("relation_x"),item.channel);
+  assert.equal(relation.get("relation_y"),item.related[0].channel);
+  assert.equal(relation.get("compare_a"),params.get("compare_a"));
+  assert.equal(relation.get("compare_b"),params.get("compare_b"));
+  assert.match(links.outlook,/tab=outlook.*data=history.*monitor_channel=/);
   assert.ok(links.compare); // The interval's own reference survives even without a root reference.
   const early={...item,start:original.record.from};
   assert.equal(findingLinks("comp",early,found.baseline,found.bucketSeconds,found.record).previous,null);

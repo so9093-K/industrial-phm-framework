@@ -155,7 +155,7 @@
       if(request.signal.aborted)return;
       const desired=selectedBinding?available.find(b=>b.bindingId===selectedBinding)
         :available.find(b=>b.bindingId===latest?.bindingId)??available[0];
-      if(!desired){listState="unavailable";error="북마크의 적용 모델은 이 설비에 없습니다. 다른 모델 결과로 대신하지 않습니다.";return;}
+      if(!desired){listState="unavailable";error="북마크의 적용 모델은 이 설비에 없습니다.";return;}
       await chooseBinding(desired.bindingId);
     }catch(cause:unknown){
       if(request.signal.aborted)return;
@@ -231,7 +231,7 @@
         ??[...data.steps].reverse().find(item=>item.state==="analyzed")??data.steps.at(-1);
       if(next&&(!result||next.runId!==result.runId))await chooseStep(next);
     }catch(cause:unknown){
-      if(!request.signal.aborted&&followLatest){result=null;detailState="failed";error="최신 모델 결과를 다시 읽지 못했습니다. 이전 결과로 대신하지 않습니다.";}
+      if(!request.signal.aborted&&followLatest){result=null;detailState="failed";error="최신 모델 결과를 다시 읽지 못했습니다.";}
     }finally{polling=false;}
   }
   function pick(position:number){
@@ -270,10 +270,12 @@
       actionLabel="다시 불러오기" onAction={()=>void loadBindings()}/>
   {:else if listState==="empty"}
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
-      message="모델 점수가 없다고 이상이 없다는 뜻은 아닙니다. 기준 구간 이탈로 변화를 확인할 수 있습니다."
+      message="저장된 신호의 변화를 기준 구간 이탈에서 확인할 수 있습니다."
       actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
-    <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
+    <details><summary>이상 탐지 모델 설정</summary>
+      <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
       <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>
+    </details>
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
@@ -329,7 +331,7 @@
           </select>
         </label>
         {#if trace.steps.length===trace.limit}
-          <p class="context">최근 {trace.limit}회만 고를 수 있습니다. 이전 기록이 없다는 뜻은 아닙니다.</p>
+          <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
         {/if}
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
@@ -350,7 +352,7 @@
                   + (result.eventEnd && result.eventEnd !== result.eventStart ? " ~ " + clock(result.eventEnd) : "")
                   : place(result.position) + " · 측정 시각 기록 없음")}
               basis={builtModelNote(binding) ?? "모델에 저장된 비교 기준"}
-              boundary="모델마다 점수의 척도와 기준이 다릅니다. 이상 점수는 고장 확률이 아닙니다." />
+              boundary="점수가 해당 모델의 기준을 넘은 측정을 기준 초과로 표시합니다." />
             <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button>
             <details><summary>점수·판정 상세</summary>
             <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>

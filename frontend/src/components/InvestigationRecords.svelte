@@ -126,10 +126,10 @@
   <p class="context">저장된 3상 불평형 분석과 파일 특징 분석입니다. 분석을 새로 실행하려면
     <a href={systemUrl("connections")}>운영 관리 › 데이터 연결</a>에서 해당 연결의 분석을 실행하세요.</p>
   {#if !snapshot.analyses.available}
-    <StatusNotice kind="uncertain" message="이번 조회에 분석 결과 목록이 없습니다. 분석이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="uncertain" message="이번 조회에 분석 결과 목록이 없습니다." />
   {:else}
     {#if snapshot.analyses.truncated}
-      <StatusNotice kind="uncertain" message="분석 기록이 많아 최근 일부만 보여 줍니다. 보이지 않는 기록이 없다는 뜻은 아닙니다." />
+      <StatusNotice kind="uncertain" message="분석 기록이 많아 최근 일부만 보여 줍니다. 보이지 않는" />
     {/if}
     {#if !records.length}
       <p class="context">{chosen ? "이 설비에" : "아직"} 저장된 분석 결과가 없습니다.</p>
@@ -187,7 +187,7 @@
               {#if loadingReviewAssets[item.assetId] && !current}
                 <p class="context" role="status">검토 기록을 확인하고 있습니다.</p>
               {:else if failedReviewAssets[item.assetId]}
-                <StatusNotice kind="uncertain" message="검토 기록을 확인하지 못했습니다. 기록이 없다는 뜻은 아닙니다."
+                <StatusNotice kind="uncertain" message="검토 기록을 확인하지 못했습니다."
                   actionLabel="다시 확인" onAction={() => void loadReviewFor(item.assetId, true)} />
               {:else if partialReviewAssets[item.assetId] && !current}
                 <StatusNotice kind="uncertain" message="최근 검토 기록 일부만 확인했습니다. 이전 기록이 없다고 판단하지 않습니다."
@@ -234,7 +234,7 @@
   {#if bindingState === "loading"}
     <StatusNotice message="적용한 모델을 확인하고 있습니다." />
   {:else if bindingState === "failed"}
-    <StatusNotice kind="uncertain" message="적용한 모델 목록을 불러오지 못했습니다. 모델이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="uncertain" message="적용한 모델 목록을 불러오지 못했습니다." />
   {:else if !models.length}
     <p class="context">{chosen ? "이 설비에" : "아직"} 적용한 이상 탐지 모델이 없습니다.</p>
   {:else}
@@ -257,7 +257,7 @@
 <section class="ui-panel" aria-labelledby="skipped-title">
   <h2 id="skipped-title">실행되지 않은 분석</h2>
   {#if !snapshot.analyses.skippedComplete}
-    <StatusNotice kind="uncertain" message="실행되지 않은 분석 기록을 모두 읽지 못했습니다. 보이지 않는 기록이 없다는 뜻은 아닙니다." />
+    <StatusNotice kind="uncertain" message="실행되지 않은 분석 기록을 모두 읽지 못했습니다. 보이지 않는" />
   {/if}
   {#if !skipped.length}
     <p class="context">{snapshot.analyses.skippedComplete ? "실행되지 않은 분석 기록이 없습니다." : "표시할 기록이 없습니다."}</p>
