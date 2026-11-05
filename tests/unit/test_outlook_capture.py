@@ -75,6 +75,29 @@ def test_captured_content_digest_is_checked_instead_of_trusting_saved_bytes(tmp_
         store.list_for("bearing-a")
 
 
+@pytest.mark.parametrize("stored_binding", ["anomaly-a", "anomaly-b", None])
+def test_model_scoped_capture_reuses_only_known_same_model_legacy_evidence(
+    tmp_path: Path, stored_binding: str | None
+) -> None:
+    store = OutlookCaptureStore(tmp_path / "outlook.sqlite")
+    legacy = _snapshot()
+    legacy["outlook"]["binding_id"] = stored_binding
+    first = store.save(legacy)
+    store.write_review(
+        "bearing-a", first["capture_id"], FindingReviewAction.ACKNOWLEDGE, "기존 판단", str(uuid4())
+    )
+    current = _snapshot()
+    current["identity"]["binding_id"] = "anomaly-a"
+    current["outlook"]["binding_id"] = "anomaly-a"
+    saved = store.save(current)
+    assert (saved == first) == (stored_binding == "anomaly-a")
+    assert store.save(current) == saved
+    assert store.read_review(first["capture_id"])["status"] == "acknowledged"
+    if stored_binding != "anomaly-a":
+        assert store.read_review(saved["capture_id"])["status"] == "open"
+        assert len(store.list_for("bearing-a")) == 2
+
+
 def test_review_events_are_exact_scoped_idempotent_and_persisted(tmp_path: Path) -> None:
     path = tmp_path / "outlook.sqlite"
     store = OutlookCaptureStore(path)
@@ -274,6 +297,11 @@ def test_capture_rejects_changed_acquisition_provenance_before_saving(
     (saved,) = store.list_for("bearing-a")
     assert "binding_id" not in saved["snapshot"]["selection"]
     assert saved["snapshot"]["outlook"]["binding_id"] == "anomaly-a"
+    assert saved["snapshot"]["identity"]["binding_id"] == "anomaly-a"
+    recomputed["binding_id"] = "anomaly-b"
+    other = capture_outlook(workspace.root, {**exact, "binding_id": "anomaly-b"})
+    assert other["capture_id"] != with_provenance["capture_id"]
+    assert len(store.list_for("bearing-a")) == 2
     with pytest.raises(ValueError, match="unexpected capture fields"):
         capture_outlook(workspace.root, {**exact, "package_id": "model-a"})
 

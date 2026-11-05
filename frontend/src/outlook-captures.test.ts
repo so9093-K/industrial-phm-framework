@@ -165,7 +165,26 @@ test("restoring a review requires the same canonical outlook inputs",()=>{
   assert.equal(matchesProjection(saved,{...history,horizon:"24h"}),true);
   const acquired=parseCapturePage(page(row("acquisition")),"bearing-a").captures[0].outlook;
   assert.equal(matchesProjection(acquired,acquisition),true);
+  assert.equal(matchesProjection(acquired,{...acquisition,bindingId:"anomaly-b"}),false);
+  assert.equal(matchesProjection({...acquired,bindingId:null},acquisition),false);
+  const inconsistent=row("acquisition");
+  inconsistent.snapshot.identity.binding_id="anomaly-b";
+  assert.throws(()=>parseCapturePage(page(inconsistent),"bearing-a"),/식별 정보/);
   assert.equal(matchesProjection(acquired,{...acquisition,timeBasis:"assumed",assumedPeriod:60}),false);
+});
+
+test("acquisition review restoration skips other and unknown models with the same versions",async()=>{
+  const original=globalThis.fetch;
+  const other=row("acquisition","1",{snapshot:snapshot("acquisition",{binding_id:"anomaly-b"})});
+  const unknown=row("acquisition","2",{snapshot:snapshot("acquisition",{binding_id:null})});
+  const matching=row("acquisition","3");
+  let includeMatching=true;
+  globalThis.fetch=async()=>Response.json(includeMatching?page(other,unknown,matching):page(other,unknown));
+  try{
+    assert.equal((await readProjectionCapture(acquisition,new AbortController().signal))?.id,matching.capture_id);
+    includeMatching=false;
+    assert.equal(await readProjectionCapture(acquisition,new AbortController().signal),null);
+  }finally{globalThis.fetch=original;}
 });
 
 test("review restoration searches beyond the first page and never treats a failed read as empty",async()=>{

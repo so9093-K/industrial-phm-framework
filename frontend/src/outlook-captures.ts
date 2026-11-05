@@ -145,7 +145,8 @@ function parseCapturedOutlook(raw:unknown,assetId:string):CapturedOutlook{
     "axis","time_basis","measurement_version","data_version"])
     ||!same(saved,record,["first","last","points"])
     ||!same(savedConditions,conditions,["direction","management","end"])
-    ||JSON.stringify(savedSettings)!==JSON.stringify(settings))
+    ||JSON.stringify(savedSettings)!==JSON.stringify(settings)
+    ||("binding_id" in identity&&identity.binding_id!==outlook.binding_id))
     throw new Error("검토 요청의 식별 정보와 보존된 결과가 맞지 않아 표시하지 않았습니다.");
   return outlookFacts(outlook,assetId,finiteOrNull(identity.assumed_period_seconds,"가정 간격"));
 }
@@ -287,6 +288,7 @@ export function matchesProjection(saved:CapturedOutlook,projection:BriefingProje
   return saved.assetId===projection.assetId&&saved.kind===(acquisition?"acquisition":"history")
     &&saved.series===(acquisition?projection.featureId:projection.channel)
     &&saved.sourceId===projection.sourceId&&saved.pointId===(acquisition?null:projection.pointId)
+    &&(!acquisition||saved.bindingId===projection.bindingId)
     &&saved.timeBasis===(acquisition?projection.timeBasis:null)
     &&saved.assumedPeriod===(acquisition&&projection.timeBasis==="assumed"?projection.assumedPeriod:null)
     &&saved.measurementVersion===projection.measurementVersion&&saved.dataVersion===projection.dataVersion

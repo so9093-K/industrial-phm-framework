@@ -31,6 +31,7 @@
   let options: Options | null = $state(null);
   let projection: Projection | null = $state(null);
   let error = $state("");
+  let horizonNotice = $state("");
   let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
   let settings=$state(savedSettings(params));
@@ -84,7 +85,7 @@
     requestOptions?.abort();
     requestProjection?.abort();
     const abort=new AbortController(); requestOptions=abort;
-    optionsState="loading"; resultState="empty"; options=null; projection=null; error="";
+    optionsState="loading"; resultState="empty"; options=null; projection=null; error=""; horizonNotice="";
     try {
       const data=await loadOptions(assetId,abort.signal);
       if (abort.signal.aborted) return;
@@ -93,9 +94,16 @@
       if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다.");
       if(!channel)channel=await defaultChannel(assetId,data.channels,abort.signal);
       if (abort.signal.aborted) return;
-      if (!savedHorizon && data.horizons[horizon] !== null) {
+      if (data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
-        if (allowed) horizon=allowed;
+        if (!allowed) {
+          optionsState="ready"; resultState="unavailable";
+          error="저장된 기록으로 전망할 수 있는 예측 기간이 없습니다.";
+          return;
+        }
+        if (savedHorizon) horizonNotice="저장된 예측 기간 "+HORIZON_LABEL[horizon]
+          +"은 현재 기록이 지원하지 않아 "+HORIZON_LABEL[allowed]+"으로 변경했습니다.";
+        horizon=allowed;
       }
       optionsState="ready";
       save();
@@ -147,6 +155,7 @@
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options}
+    {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
@@ -179,7 +188,7 @@
       <summary>계산 조건 변경</summary>
       <div class="controls">      <label for="projection-horizon">예측 기간
         <select id="projection-horizon" value={horizon}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;invalidate();}}>
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonNotice="";invalidate();}}>
           {#each horizons as value (value)}
             <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
               {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>

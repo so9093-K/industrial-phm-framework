@@ -1,7 +1,7 @@
 <script lang="ts">
   import {onMount} from "svelte";
   import {BriefingEvidenceChanged, readPermission, type BriefingProjection} from "../outlook-briefings";
-  import {captureUrl, confirmCapture, readCaptures, readProjectionCapture, recordReview, CaptureRejected, type Capture} from "../outlook-captures";
+  import {captureUrl, confirmCapture, readCaptures, readProjectionCapture, matchesProjection, recordReview, CaptureRejected, type Capture} from "../outlook-captures";
   import StatusNotice from "./StatusNotice.svelte";
   import {OutcomeUnknown} from "../review-writes";
   import ReviewActions from "./ReviewActions.svelte";
@@ -41,7 +41,7 @@
     if (!savedId) return false;
     try {
       const found = await readCaptures(projection.assetId, {captureId: savedId}, signal);
-      if (signal.aborted || found.captures.length !== 1) return false;
+      if (signal.aborted || found.captures.length !== 1 || !matchesProjection(found.captures[0].outlook, projection)) return false;
       capture = found.captures[0]; return true;
     } catch { return false; }
   }

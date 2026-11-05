@@ -15,6 +15,30 @@ from tests.support.phm import analyze, deliver, phm_workspace
 from tests.support.web_next import start_web, stop_web
 
 
+def _store_history(workspace: Any) -> None:
+    DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    ).append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:motor:{'b' * 64}:{index}",
+                source_id="motor-file",
+                asset_id="motor-01",
+                channel_id="current",
+                source_file="motor.csv",
+                source_sha256="b" * 64,
+                source_size_bytes=10,
+                sample_index=index,
+                event_at=datetime(2026, 10, 14, tzinfo=UTC) + timedelta(minutes=index),
+                value=10.0 + 0.02 * index,
+                source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
+            )
+            for index in range(180)
+        ),
+        batch_id="motor",
+    )
+
+
 @pytest.mark.parametrize("kind", ["history", "acquisition"])
 def test_current_forecast_settings_and_time_horizon_use_real_evidence(
     tmp_path: Path, kind: str
@@ -24,27 +48,7 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
     workspace = phm_workspace(tmp_path / "ws", bind=kind == "acquisition")
     feature = "feature.Horizontal_vibration_signals.rms"
     if kind == "history":
-        DuckLakeAssetHistory(
-            DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
-        ).append_file_batch(
-            tuple(
-                FileBackfillEvent(
-                    raw_evidence_id=f"file:motor:{'b' * 64}:{index}",
-                    source_id="motor-file",
-                    asset_id="motor-01",
-                    channel_id="current",
-                    source_file="motor.csv",
-                    source_sha256="b" * 64,
-                    source_size_bytes=10,
-                    sample_index=index,
-                    event_at=datetime(2026, 10, 14, tzinfo=UTC) + timedelta(minutes=index),
-                    value=10.0 + 0.02 * index,
-                    source_metadata_json='{"binding":{"definition":{"unit":"A"}}}',
-                )
-                for index in range(180)
-            ),
-            batch_id="motor",
-        )
+        _store_history(workspace)
     else:
         for ordinal in range(1, 65):
             deliver(workspace, tmp_path / "waves", ordinal, 0.5 + ordinal / 100)
@@ -188,6 +192,86 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                 panel.get_by_text("예측 계산 설정", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.2")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize(
+    ("saved_horizon", "none_supported"), [("24h", False), ("1h", False), ("24h", True)]
+)
+def test_bookmarked_history_outlook_opens_a_supported_period_or_explains_unavailability(
+    tmp_path: Path, saved_horizon: str, none_supported: bool
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("prophet")
+    workspace = phm_workspace(tmp_path / "bookmark", bind=False)
+    _store_history(workspace)
+    running = start_web(workspace.root, writer=False)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 390, "height": 900})
+                forecast_periods: list[str] = []
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+
+                def forecast(route: Any) -> None:
+                    forecast_periods.append(
+                        parse_qs(urlsplit(route.request.url).query)["horizon"][0]
+                    )
+                    route.continue_()
+
+                def options(route: Any) -> None:
+                    response = route.fetch()
+                    body = response.json()
+                    if none_supported:
+                        body["history"]["horizons"] = {
+                            key: "short-history" for key in ("1h", "24h", "7d", "30d")
+                        }
+                    route.fulfill(json=body)
+
+                page.route("**/api/v1/forecast?**", forecast)
+                page.route("**/api/v1/forecast/options?**", options)
+                query = {
+                    "page": "assets",
+                    "tab": "outlook",
+                    "data": "history",
+                    "monitor_asset": "motor-01",
+                    "monitor_channel": "current",
+                    "projection_horizon": saved_horizon,
+                    "projection_management": "12",
+                }
+                page.goto(f"http://127.0.0.1:{running[0].server_port}/web/?{urlencode(query)}")
+                panel = page.get_by_role("region", name="추세·기준 도달 전망")
+                if none_supported:
+                    pw.expect(panel).to_contain_text(
+                        "저장된 기록으로 전망할 수 있는 예측 기간이 없습니다."
+                    )
+                    pw.expect(
+                        panel.get_by_role("button", name="계산하기", exact=True)
+                    ).to_be_disabled()
+                    assert not forecast_periods
+                else:
+                    pw.expect(
+                        panel.get_by_role("heading", name="기록 마지막 시점 기준 전망", exact=True)
+                    ).to_be_visible(timeout=60000)
+                    assert forecast_periods == ["1h"]
+                    assert parse_qs(urlsplit(page.url).query)["projection_horizon"] == ["1h"]
+                    assert parse_qs(urlsplit(page.url).query)["projection_management"] == ["12"]
+                    if saved_horizon != "1h":
+                        pw.expect(panel).to_contain_text(
+                            "저장된 예측 기간 24시간은 현재 기록이 지원하지 않아 1시간으로 변경했습니다."
+                        )
+                    else:
+                        pw.expect(panel.get_by_text("저장된 예측 기간", exact=False)).to_have_count(
+                            0
+                        )
+                assert panel.locator("details.calculation-options").get_attribute("open") is None
+                assert not errors, errors
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
             finally:
                 browser.close()
     finally:
