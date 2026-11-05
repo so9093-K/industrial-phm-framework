@@ -1,6 +1,7 @@
 /** The message an analysis screen leads with: what changed, how plain that is, and what to look at
  * next. Every sentence is built from numbers the screen already shows; nothing is fitted or
  * guessed, and no sentence names a cause or a fault. */
+import {worseThanPersistence} from "./forecast-fit.ts";
 import type {BandShare} from "./spectrum.ts";
 import type {RatioLine} from "./model-trend.ts";
 import {elapsedText} from "./time-axis.ts";
@@ -532,4 +533,22 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
         + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
   }
   return {...base, meaning: notes.length ? notes.join(" ") : base.meaning};
+}
+
+
+/** A forecast still has a numerical result when no operating criterion has been supplied. */
+export function forecastMessage(facts: {last:number|null; start?:number; end:{estimate:number;lower:number|null;upper:number|null};
+  unit:string|null; horizon:string; checks:{points:number;error:number;naive:number;coverage:number}[]}):AnalysisMessage {
+  const value=(v:number)=>short(v)+(facts.unit?" "+facts.unit:"");
+  const difference=facts.last===null?null:facts.end.estimate-facts.last;
+  const check=facts.checks[0];
+  return {
+    headline:worseThanPersistence(check) ? "최근 과거 비교에서 마지막 값 유지보다 모델 예측 오차가 큽니다." : facts.horizon+"의 예상값은 "+value(facts.end.estimate)+"입니다.",
+    meaning:(facts.start===undefined?"":"모델 예측은 "+value(facts.start)+"에서 시작하며, 예측 기간 안의 중심값 변화는 "+(facts.end.estimate-facts.start>0?"+":"")+value(facts.end.estimate-facts.start)+"입니다. ")
+      +(facts.start!==undefined&&facts.last!==null?"마지막 집계값 "+value(facts.last)+"과 모델 시작값의 차이는 "+value(facts.start-facts.last)+"입니다. ":facts.last===null?"":"마지막 집계값 "+value(facts.last)+" 대비 "+(difference!>0?"+":"")+value(difference!)+"입니다. ")
+      +(facts.end.lower!==null&&facts.end.upper!==null?"해당 시점의 예측 범위는 "+value(facts.end.lower)+"~"+value(facts.end.upper)+"입니다.":"해당 시점의 예측 범위는 제공되지 않았습니다."),
+    certainty:check?"과거 마지막 "+check.points+"개를 가리고 확인한 평균 오차는 "+value(check.error)+"였습니다. 실제 값이 예측 범위 안에 든 비율은 "+short(check.coverage*100)+"%였습니다."
+      :"과거 자료를 가린 예측 검증 결과가 없어, 예상값과 범위를 잠정적으로 확인하세요.",
+    next:[],
+  };
 }

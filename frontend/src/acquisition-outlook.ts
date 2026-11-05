@@ -1,3 +1,4 @@
+import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Two server-owned acquisition projections, never an invented observation clock. */
 import {parseOutlookSettings,type Conditions,type OutlookSettings,type Horizon,type Reach,type Scenario} from "./projections.ts";
@@ -18,6 +19,7 @@ export type AcquisitionProjection={
   horizonCount:number;searchCount:number;searchUntil:number;outlookSettings:OutlookSettings;
   conditions:Conditions;record:{first:number;last:number;points:number};
   forecast:Array<{ordinal:number;estimate:number;lower:number|null;upper:number|null}>;
+  fitted?:Array<{ordinal:number;value:number}>;fit?:ForecastFit|null;
   history:Array<{ordinal:number;value:number}>;unit:string|null;
   scenarios:Scenario[];checks?:Backtest[];
   /** The outlook's own check over its reach search; `checks` belong to the drawn forecast. */
@@ -195,6 +197,11 @@ export function parseAcquisitionPair(
     before=position;
     return {ordinal:position,value:finite(raw[1])};
   });
+  const fitted=(Array.isArray(forecast.fitted)?forecast.fitted:[]).map((raw:unknown)=>{
+    if(!Array.isArray(raw)||raw.length!==2)throw new Error("모델 학습값의 형식이 올바르지 않습니다.");
+    const ordinal=finite(raw[0]);if(ordinal<first||ordinal>last)throw new Error("모델 학습값이 기록 범위를 벗어났습니다.");
+    return {ordinal,value:finite(raw[1])};
+  });
   const seen=new Set<string>();
   const scenarios=outlook.scenarios.map((raw:unknown):Scenario=>{
     const row=obj(raw),limits=obj(row?.limits);
@@ -208,23 +215,24 @@ export function parseAcquisitionPair(
     featureId,measurementVersion:fVersion,dataVersion:version(outlook.data_version),
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
     horizonCount:forecastCount,searchCount,searchUntil,outlookSettings,
-    conditions,record:{first,last,points},forecast:future,history,scenarios,
+    conditions,record:{first,last,points},forecast:future,history,fitted,fit:parseForecastFit(forecast),scenarios,
     unit:typeof forecast.unit==="string"&&forecast.unit.trim()?forecast.unit:null};
 }
 
 export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;
-  lastX:number;history:string;estimate:string;band:string;management:number|null;endLimit:number|null;ticks:Tick[]};
+  lastX:number;history:string;fitted:string;gap:{x:number;observed:number;modeled:number}|null;estimate:string;band:string;management:number|null;endLimit:number|null;ticks:Tick[]};
 /** Stored values and the forecast on one measurement axis, with the user's limits. */
-export function acquisitionChart(projection:AcquisitionProjection):AcquisitionChart|null{
+export function acquisitionChart(projection:AcquisitionProjection, includeLimits = false):AcquisitionChart|null{
   const future=projection.forecast;
   if(!future.length)return null;
   const width=800,height=220,top=8,bottom=212;
   const shown=projection.history;
   const first=shown.length?shown[0].ordinal:future[0].ordinal,end=Math.max(future[future.length-1].ordinal,first+1);
   const {management,end:endLimit}=projection.conditions;
-  const values=[...shown.map(item=>item.value),
+  const fitted=projection.fitted??[];
+  const values=[...shown.map(item=>item.value),...fitted.map(item=>item.value),
     ...future.flatMap(item=>[item.estimate,item.lower??item.estimate,item.upper??item.estimate]),
-    ...[management,endLimit].filter((limit):limit is number=>limit!==null)];
+    ...(includeLimits?[management,endLimit].filter((limit):limit is number=>limit!==null):[])];
   const low=Math.min(...values),high=Math.max(...values);
   const padding=low===high?Math.max(Math.abs(low)*0.05,1):(high-low)*0.06;
   const lo=low-padding,hi=high+padding;
@@ -238,8 +246,10 @@ export function acquisitionChart(projection:AcquisitionProjection):AcquisitionCh
     :"";
   return {width,height,low,high,first,last:projection.record.last,end,lastX:x(projection.record.last),
     history:line(shown.map(item=>[item.ordinal,item.value])),
+    fitted:line(fitted.map(item=>[item.ordinal,item.value])),
+    gap:shown.length?{x:x(future[0].ordinal),observed:y(shown.at(-1)!.value),modeled:y(future[0].estimate)}:null,
     estimate:line(future.map(item=>[item.ordinal,item.estimate])),band,
-    management:management===null?null:y(management),endLimit:endLimit===null?null:y(endLimit),
+    management:management===null||management<lo||management>hi?null:y(management),endLimit:endLimit===null||endLimit<lo||endLimit>hi?null:y(endLimit),
     ticks:yTicks(lo,hi,top,bottom)};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{

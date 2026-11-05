@@ -40,7 +40,7 @@
   });
   const threshold = $derived(scored.find((point) => point.threshold !== null)?.threshold ?? null);
   // What to read first: a run still going on, else a latest one-off crossing, else "below now".
-  const story = $derived.by(() => { const current: ScoreTrend | null = trend; return current ? exceedanceStory(current) : null; });
+  const story = $derived.by(() => { const current: ScoreTrend | null = trend; return current && !current.truncated ? exceedanceStory(current) : null; });
   const told = $derived(story ? exceedanceText(story, place) : null);
   const first = $derived(story?.anchor ?? null);
   const priorities = $derived.by(() => { const read: ScoreTrend | null = trend; return priorityIntervals(read?.intervals ?? []); });

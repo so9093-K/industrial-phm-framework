@@ -281,7 +281,7 @@
   {:else}
     {#if comparable.length>1}
       {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
-        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} place={timelinePlace} {period}
+        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} selectedPosition={selectedStep?.position??null} place={timelinePlace} {period}
           onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
       {/key}
     {/if}

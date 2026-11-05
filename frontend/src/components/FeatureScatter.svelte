@@ -41,7 +41,7 @@
       viewBox="0 0 640 240" preserveAspectRatio="none">
       {#each yTicks(scale.bottom,scale.top,0,240) as tick(tick.value)}<line x1="0" x2="640" y1={tick.y} y2={tick.y} class="grid"/>{/each}
       {#each niceTicks(scale.lo,scale.hi) as tick(tick)}<line x1={scale.x(tick)} x2={scale.x(tick)} y1="0" y2="240" class="grid"/>{/each}
-      {#each points as point,i(i)}<circle cx={scale.x(point.x)} cy={scale.y(point.y)} r="3">
+      {#each points as point,i(i)}<circle cx={scale.x(point.x)} cy={scale.y(point.y)} r="3" style:fill-opacity={0.3+0.65*i/Math.max(1,points.length-1)}>
         <title>{point.label} · {xLabel} {num(point.x)} · {yLabel} {num(point.y)}</title>
       </circle>{/each}
       {#if picked!==null&&points[picked]}
@@ -51,7 +51,15 @@
     </svg>
     {#snippet footer()}<XAxis lo={scale.lo} hi={scale.hi} scale={{kind:"value"}} note={"가로축 · "+xLabel}/>{/snippet}
   </ValueAxis>
-  <figcaption>{caption}</figcaption>
+  {#if onPick && points.length}
+    <label class="point-picker">측정 순서로 점 선택
+      <input type="range" min="0" max={points.length-1} step="1" value={picked??0}
+        aria-valuetext={points[picked??0]?.label} oninput={event=>onPick?.(Number(event.currentTarget.value))}
+        onfocus={()=>{if(picked===null)onPick?.(0);}} />
+    </label>
+    <p class="note" aria-live="polite">{picked!==null&&points[picked]?points[picked].label+" · "+xLabel+" "+num(points[picked].x)+" · "+yLabel+" "+num(points[picked].y):"슬라이더에서 방향키로 이전·다음 측정을 선택하세요."}</p>
+  {/if}
+  <figcaption>{caption} 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.</figcaption>
 </figure>
 
 <style>
@@ -60,5 +68,7 @@
   .grid{stroke:var(--color-border);stroke-width:1}svg circle,svg line{vector-effect:non-scaling-stroke}
   .picked{stroke:var(--color-focus);stroke-width:12;stroke-linecap:round}
   .hit{fill:transparent;cursor:crosshair}
+  .point-picker{display:grid;gap:var(--space-2);font-size:var(--font-small)}
+  .point-picker input{width:100%;min-height:32px}
   .note,figcaption{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-2) 0;overflow-wrap:anywhere}
 </style>

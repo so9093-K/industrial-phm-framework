@@ -168,7 +168,7 @@ def history_series(
                 "source_id": source,
                 "source_type": source_type,
                 "measurement_point_id": point or None,
-                "interpretation_id": hashlib.sha256(interpretation.encode()).hexdigest()[:16],
+                "interpretation_id": hashlib.sha256(interpretation.encode()).hexdigest(),
                 "periods": stats,
                 "histogram": histogram,
                 "comparison": comparison(
@@ -368,6 +368,8 @@ def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, A
             "period": group.period,
             "source_id": group.source_id,
             "measurement_point_id": group.measurement_point_id,
+            "x_interpretation_id": hashlib.sha256(group.x_interpretation_json.encode()).hexdigest(),
+            "y_interpretation_id": hashlib.sha256(group.y_interpretation_json.encode()).hexdigest(),
             "x_unit": interpretation_unit(group.x_interpretation_json),
             "y_unit": interpretation_unit(group.y_interpretation_json),
             "meaning_id": hashlib.sha256(

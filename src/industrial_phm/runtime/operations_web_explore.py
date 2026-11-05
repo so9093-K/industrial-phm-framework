@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import time
@@ -36,11 +37,13 @@ from industrial_phm.application.signal_exploration import (
     interpretation_property,
     interpretation_unit,
     is_current_in_amperes,
-    strongest_identity,
 )
 from industrial_phm.application.source_registry import JsonSourceRepository
 from industrial_phm.history import DuckLakeAssetHistory
-from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
+from industrial_phm.history.ducklake import (
+    DuckLakeAssetHistoryConfig,
+    MeasurementAggregationLimitError,
+)
 from industrial_phm.models.package import SUPPORTED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -315,7 +318,7 @@ def package_task(workspace: OperationsWorkspace, package_id: str) -> str | None:
 def _departures(
     workspace: OperationsWorkspace, asset_id: str, query: dict[str, list[str]]
 ) -> dict[str, Any]:
-    """Where up to six stored signals leave their baseline range, from at most 1,000 buckets."""
+    """One selected source/point/meaning record, from at most 1,000 buckets."""
     history = _history(workspace)
     if history is None:
         raise LookupError("no stored measurement history")
@@ -323,45 +326,44 @@ def _departures(
     if summary is None:
         raise LookupError("no stored measurement history")
     channels = list(history.list_history_channels(asset_id))
-    series = [value for value in query.get("series", []) if value] or channels[:3]
-    if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
-        raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")
+    series = [value for value in query.get("series", []) if value] or channels[:1]
+    if len(series) != 1:
+        raise ValueError("choose one signal and its source record")
     baseline = (query.get("baseline") or ["first-30"])[0]
-    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
-    units: dict[str, str | None] = {}
-    width = 0.0
-    for channel in series:
-        aggregation = history.query_measurement_aggregation(
-            asset_id,
-            channel_id=channel,
-            start_at=summary.start_at,
-            end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=_DEPARTURE_BUCKETS,
-        )
-        width = aggregation.bucket_seconds
-        key, buckets = strongest_identity(aggregation.buckets)
-        units[channel] = interpretation_unit(key[2])
-        points[channel] = [
-            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
-        ]
-    found = find_departures(points, baseline=baseline)
+    records = signal_records(history, asset_id, series)
+    selected_key = next(iter(query.get("record_key", [])), None)
+    record = next(
+        (r for r in records if (selected_key is None and r["points"]) or r["key"] == selected_key),
+        None,
+    )
+    if record is None:
+        raise LookupError("no matching source/point/meaning record")
+    channel = record["channel"]
+    found = find_departures({channel: record["points"]}, baseline=baseline)
+
+    def span(value: dict[str, Any]) -> dict[str, Any]:
+        return {**value, "from": iso(value["from"]), "to": iso(value["to"])}
+
     return {
         "schema_version": 1,
         "asset_id": asset_id,
         "available": channels[:200],
-        "series": series,
-        "units": units,
-        "bucket_seconds": width,
+        "series": [channel],
+        "units": {channel: record["unit"]},
+        "record": record_context(record),
+        "records": [record_context(r) for r in records],
+        "bucket_seconds": record["bucket_seconds"],
         "threshold": found["threshold"],
-        "baseline": {
-            "name": found["baseline"]["name"],
-            "from": iso(found["baseline"]["from"]),
-            "to": iso(found["baseline"]["to"]),
-        },
-        "channels": found["channels"],
-        "score": [[iso(start), value, name] for start, value, name in found["score"]],
+        "baseline": span(found["baseline"]),
+        "channels": [{**row, "baseline": span(row["baseline"])} for row in found["channels"]],
+        "score": [[iso(at), value, name] for at, value, name in found["score"]],
         "intervals": [
-            {**item, "start": iso(item["start"]), "end": iso(item["end"])}
+            {
+                **item,
+                "start": iso(item["start"]),
+                "end": iso(item["end"]),
+                "baseline": span(item["baseline"]),
+            }
             for item in found["intervals"][:50]
         ],
         "interval_count": len(found["intervals"]),
@@ -406,33 +408,139 @@ def departure_attention(
         found = held[3]
         if found is None:
             continue
-        label, unit = resolve_channel_labels(sources, summary.asset_id).get(
-            found["channel"], (None, found["unit"])
-        )
+        label, unit = resolve_channel_labels(
+            tuple(s for s in sources if s.source_id == found["source_id"]), summary.asset_id
+        ).get(found["channel"], (None, found["unit"]))
         body["items"].append(
             {
                 "asset_id": summary.asset_id,
-                "channel": found["channel"],
+                **{
+                    k: found[k]
+                    for k in (
+                        "key",
+                        "channel",
+                        "source_id",
+                        "measurement_point_id",
+                        "interpretation_id",
+                        "record",
+                    )
+                },
+                "kind": found.get("kind", "departure"),
                 "label": label,
-                "unit": unit or found["unit"],
+                "unit": found["unit"] or unit,
                 "distance": found["distance"],
                 "direction": found["direction"],
                 "usual": found.get("usual"),
                 "since": found["since"].astimezone(UTC).isoformat(),
                 # The record end this check judged; a reused check never borrows a newer time.
-                "last_at": held[0].astimezone(UTC).isoformat(),
+                "last_at": iso(
+                    (
+                        datetime.fromisoformat(found["record"]["to"]) - timedelta(seconds=1)
+                    ).astimezone(UTC)
+                ),
             }
         )
     return body
 
 
-def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
-    """Where one asset's whole stored record left the first 30% of itself, largest first.
+def signal_records(
+    history: DuckLakeAssetHistory, asset_id: str, channels: list[str]
+) -> list[dict[str, Any]]:
+    """Each source/point/meaning keeps its own time grid and observation bounds."""
+    records = []
+    for stream in history.list_history_streams(asset_id):
+        selected = [channel for channel in channels if channel in stream.channels]
+        for offset in range(0, len(selected), 4):
+            discovery_buckets = _DEPARTURE_BUCKETS
+            while True:
+                try:
+                    aggregation = history.query_multi_signal_measurement_aggregation(
+                        asset_id,
+                        channel_ids=selected[offset : offset + 4],
+                        start_at=stream.start_at,
+                        end_at=stream.end_at + timedelta(seconds=1),
+                        bucket_count=discovery_buckets,
+                        source_id=stream.source_id,
+                        measurement_point_id=stream.measurement_point_id,
+                    )
+                    break
+                except MeasurementAggregationLimitError:
+                    if discovery_buckets == 1:
+                        raise
+                    discovery_buckets = max(1, discovery_buckets // 2)
+            groups: dict[tuple[str, str], list[Any]] = {}
+            for bucket in aggregation.buckets:
+                groups.setdefault((bucket.channel_id, bucket.interpretation_json), []).append(
+                    bucket
+                )
+            for (channel, meaning), buckets in groups.items():
+                first = min(bucket.first_event_at for bucket in buckets)
+                last = max(bucket.last_event_at for bucket in buckets) + timedelta(seconds=1)
+                width = aggregation.bucket_seconds
+                if (
+                    discovery_buckets != _DEPARTURE_BUCKETS
+                    or first != aggregation.start_at
+                    or last != aggregation.end_at
+                ):
+                    narrowed = history.query_multi_signal_measurement_aggregation(
+                        asset_id,
+                        channel_ids=[channel],
+                        start_at=first,
+                        end_at=last,
+                        bucket_count=_DEPARTURE_BUCKETS,
+                        source_id=stream.source_id,
+                        measurement_point_id=stream.measurement_point_id,
+                        interpretation_json=meaning,
+                    )
+                    buckets = list(narrowed.buckets)
+                    width = narrowed.bucket_seconds
+                identity = [channel, stream.source_id, stream.measurement_point_id, meaning]
+                records.append(
+                    {
+                        "key": hashlib.sha256(
+                            json.dumps(identity, ensure_ascii=False).encode()
+                        ).hexdigest(),
+                        "channel": channel,
+                        "source_id": stream.source_id,
+                        "point_id": stream.measurement_point_id,
+                        "interpretation": meaning,
+                        "interpretation_id": hashlib.sha256(meaning.encode()).hexdigest(),
+                        "unit": interpretation_unit(meaning),
+                        "usable_count": sum(bucket.usable_count for bucket in buckets),
+                        "observations": [
+                            (bucket.last_event_at, float(bucket.mean))
+                            for bucket in buckets
+                            if bucket.mean is not None
+                        ],
+                        "bucket_seconds": width,
+                        "record": {"from": iso(first), "to": iso(last)},
+                        "points": [
+                            (bucket.bucket_start, bucket.bucket_end, float(bucket.mean))
+                            for bucket in buckets
+                            if bucket.mean is not None
+                        ],
+                    }
+                )
+    return records
 
-    Unlike 관측 현황's check, which asks whether the record *ends* away from its baseline, this
-    says what the record held: a long stop or a level change that came back still counts. The
-    signals are scored together exactly as the 기준 구간 이탈 screen scores the signals it
-    shows, so the same interval reads the same in both places.
+
+def record_context(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "key": record["key"],
+        "channel": record["channel"],
+        "source_id": record["source_id"],
+        "measurement_point_id": record["point_id"],
+        "interpretation_id": record["interpretation_id"],
+        "observed_property": interpretation_property(record["interpretation"]),
+        "record": record["record"],
+    }
+
+
+def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+    """Representative changes from each source/point/meaning record's own first 30%.
+
+    A change that came back still counts. Each record owns its aggregation grid, baseline,
+    units and links; adding another source cannot alter the facts already found in it.
     """
     body: dict[str, Any] = {
         "schema_version": 1,
@@ -459,67 +567,25 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         return held[3]
     channels = list(history.list_history_channels(asset_id))
     checked = channels
-    points: dict[str, list[tuple[datetime, datetime, float]]] = {}
-    units: dict[str, str | None] = {}
-    identities: dict[str, tuple[str, str | None, str]] = {}
-    width = 0.0
-    for offset in range(0, len(checked), 4):
-        group = checked[offset : offset + 4]
-        try:
-            reads = [
-                history.query_multi_signal_measurement_aggregation(
-                    asset_id,
-                    channel_ids=group,
-                    start_at=summary.start_at,
-                    end_at=summary.end_at + timedelta(seconds=1),
-                    bucket_count=_DEPARTURE_BUCKETS,
-                )
-            ]
-        except ValueError as error:
-            if "exceeds 10000" not in str(error):
-                raise
-            # Several versions of one signal can exceed a batch's bounded row budget.
-            reads = [
-                history.query_multi_signal_measurement_aggregation(
-                    asset_id,
-                    channel_ids=[channel],
-                    start_at=summary.start_at,
-                    end_at=summary.end_at + timedelta(seconds=1),
-                    bucket_count=_DEPARTURE_BUCKETS,
-                )
-                for channel in group
-            ]
-        for aggregation in reads:
-            width = aggregation.bucket_seconds
-            for channel in group:
-                channel_buckets = [b for b in aggregation.buckets if b.channel_id == channel]
-                if not channel_buckets:
-                    continue
-                identity, buckets = strongest_identity(channel_buckets)
-                identities[channel] = identity
-                units[channel] = interpretation_unit(identity[2])
-                values = [
-                    (b.bucket_start, b.bucket_end, float(b.mean))
-                    for b in buckets
-                    if b.mean is not None
-                ]
-                if values:
-                    points[channel] = values
+    records = signal_records(history, asset_id, checked)
+    points = {record["key"]: record["points"] for record in records}
+    by_key = {record["key"]: record for record in records}
     registry = workspace.source_registry_path
     sources = JsonSourceRepository(registry).list_sources() if registry.is_file() else ()
-    names = resolve_channel_labels(sources, asset_id)
+    labels = {source.source_id: resolve_channel_labels((source,), asset_id) for source in sources}
 
-    def named(channel: str) -> tuple[str, str | None]:
-        label, unit = names.get(channel, (None, None))
-        return label or channel, unit or units.get(channel)
+    def named(key: str) -> tuple[str, str | None]:
+        record = by_key[key]
+        label, unit = labels.get(record["source_id"], {}).get(record["channel"], (None, None))
+        return label or record["channel"], record["unit"] or unit
 
     def running_total(channel: str) -> bool:
         label, unit = named(channel)
-        identity = identities.get(channel)
+        record = by_key[channel]
         return declared_running_total(
-            name=f"{channel} {label}",
+            name=f"{record['channel']} {label}",
             unit=unit,
-            meaning=interpretation_property(identity[2]) if identity else None,
+            meaning=interpretation_property(record["interpretation"]),
         )
 
     # A declared running total always leaves its early range; it is stated, not judged.
@@ -528,19 +594,23 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         found = record_changes(
             {channel: values for channel, values in points.items() if channel not in cumulative},
             limit=_FINDINGS_SHOWN,
+            streams={
+                r["key"]: (r["source_id"], r["point_id"], r["channel"], r["interpretation"])
+                for r in records
+            },
         )
     except LookupError, ValueError:
         found = None
     # Every signal says whether it was judged, and if not why: a signal that could not be judged
     # is never counted as one that showed no change.
     states = {item["key"]: item for item in found["channels"]} if found else {}
-    cut = found["baseline"]["to"] if found else None
     signals = []
-    for channel in checked:
+    for record in records:
+        channel = record["key"]
         label, unit = named(channel)
         state = states.get(channel)
         row: dict[str, Any] = {
-            "channel": channel,
+            **record_context(record),
             "label": label,
             "unit": unit,
             "state": (
@@ -550,34 +620,44 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         if channel in cumulative:
             row["first"] = cumulative[channel][0][2]
             row["last"] = cumulative[channel][-1][2]
-        if state and state["state"] == "constant" and cut is not None:
+        if state and state["state"] in {"constant", "level-change"}:
             # Held one value through the baseline: no spread to judge a distance by, but what
             # the record did afterwards is still a fact worth stating.
-            later = [value for start, _, value in points[channel] if start >= cut]
+            later = [
+                value for start, _, value in points[channel] if start >= state["baseline"]["to"]
+            ]
             row["held"] = state["median"]
             row["later"] = {"low": min(later), "high": max(later)} if later else None
         signals.append(row)
     body["signals"] = signals
-    body["judged"] = sum(row["state"] == "scored" for row in signals)
+    body["judged"] = sum(row["state"] in {"scored", "level-change", "constant"} for row in signals)
+    body["signal_count"] = len(checked)
+    body["record_count"] = len(records)
     if found is None:
         return body
     usual = {
         item["key"]: (item["median"], item["spread"])
         for item in found["channels"]
-        if item["state"] == "scored"
+        if item["state"] in {"scored", "level-change"}
     }
 
     shown = []
     for item in found["intervals"]:
         median, spread = usual[item["channel"]]
         label, unit = named(item["channel"])
+        record = by_key[item["channel"]]
         reference = (item["baseline"]["from"], item["baseline"]["to"])
         period = (item["start"], item["end"])
         comparisons = []
-        identity = identities[item["channel"]]
         for channel, values in points.items():
             # Compare simultaneous signals from the same source and measurement point.
-            if identities[channel][:2] != identity[:2]:
+            other_record = by_key[channel]
+            if (other_record["source_id"], other_record["point_id"]) != (
+                record["source_id"],
+                record["point_id"],
+            ):
+                continue
+            if other_record["channel"] == record["channel"] and channel != item["channel"]:
                 continue
             comparison = interval_comparison(values, reference, period)
             if comparison is not None:
@@ -588,7 +668,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                         "channel": channel,
                         "label": other_label,
                         "unit": other_unit,
-                        "current_signal": is_current_in_amperes(identities[channel][2]),
+                        "current_signal": is_current_in_amperes(other_record["interpretation"]),
                     }
                 )
         own = next((row for row in comparisons if row["channel"] == item["channel"]), None)
@@ -612,20 +692,25 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             {
                 "start": iso(item["start"]),
                 "end": iso(item["end"]),
-                "channel": item["channel"],
+                **record_context(record),
                 "label": label,
                 "unit": unit,
                 "direction": item["direction"],
                 "value": item["value"],
                 "reason": item["reason"],
+                "kind": item["kind"],
+                "bucket_seconds": record["bucket_seconds"],
                 "baseline": {"from": iso(reference[0]), "to": iso(reference[1])},
                 "reference_value": own["reference"] if own else None,
                 "typical_value": own["current"] if own else None,
                 "related": [
                     {
-                        key: value
-                        for key, value in row.items()
-                        if key not in {"distance", "current_signal"}
+                        **{
+                            key: value
+                            for key, value in row.items()
+                            if key not in {"distance", "current_signal", "channel"}
+                        },
+                        **record_context(by_key[row["channel"]]),
                     }
                     for row in related(changed, similar)
                 ],
@@ -638,15 +723,36 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "within": [row["label"] for row in changed],
             }
         )
+    for item in shown:
+        owned = {
+            key: item[key]
+            for key in (
+                "key",
+                "start",
+                "end",
+                "baseline",
+                "record",
+                "usual",
+                "value",
+                "reference_value",
+                "typical_value",
+                "kind",
+            )
+        }
+        item["review_key"] = hashlib.sha256(json.dumps(owned, sort_keys=True).encode()).hexdigest()
     body.update(
         {
             "baseline": {
                 "from": iso(found["baseline"]["from"]),
                 "to": iso(found["baseline"]["to"]),
-            },
+            }
+            if found["baseline"] is not None
+            else None,
             "record": {"from": iso(summary.start_at), "to": iso(summary.end_at)},
             # Each value is a bucket mean over this many seconds, not a single measurement.
-            "bucket_seconds": width,
+            "bucket_seconds": records[0]["bucket_seconds"]
+            if records and len({r["bucket_seconds"] for r in records}) == 1
+            else None,
             "intervals": shown,
             "interval_count": found["interval_count"],
         }
@@ -675,28 +781,30 @@ def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any
     """The signal whose record ends farthest outside its own baseline, judged one signal at a
     time exactly as the 기준 구간 이탈 screen judges the signal it shows."""
     farthest: dict[str, Any] | None = None
-    for channel in history.list_history_channels(summary.asset_id)[:_ATTENTION_CHANNELS]:
-        aggregation = history.query_measurement_aggregation(
-            summary.asset_id,
-            channel_id=channel,
-            start_at=summary.start_at,
-            end_at=summary.end_at + timedelta(seconds=1),
-            bucket_count=_DEPARTURE_BUCKETS,
-        )
-        if not aggregation.buckets:
+    for record in signal_records(
+        history,
+        summary.asset_id,
+        list(history.list_history_channels(summary.asset_id))[:_ATTENTION_CHANNELS],
+    ):
+        channel = record["channel"]
+        if declared_running_total(
+            name=channel,
+            unit=record["unit"],
+            meaning=interpretation_property(record["interpretation"]),
+        ):
             continue
-        key, buckets = strongest_identity(aggregation.buckets)
-        points = [
-            (b.bucket_start, b.bucket_end, float(b.mean)) for b in buckets if b.mean is not None
-        ]
         try:
-            judged = find_departures({channel: points}, baseline="first-30")
+            judged = find_departures({channel: record["points"]}, baseline="first-30")
             found = latest_departure(judged)
         except LookupError, ValueError:
             continue
-        if found is not None and (farthest is None or found["distance"] > farthest["distance"]):
-            scored = next((item for item in judged["channels"] if item["state"] == "scored"), None)
-            # The range the end was judged against, so the note can say it in the signal's values.
+        if found is not None and (
+            farthest is None or (found["distance"] or 0) > (farthest["distance"] or 0)
+        ):
+            scored = next(
+                (row for row in judged["channels"] if row["state"] in {"scored", "level-change"}),
+                None,
+            )
             usual = (
                 {
                     "low": scored["median"] - judged["threshold"] * scored["spread"],
@@ -705,7 +813,7 @@ def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any
                 if scored
                 else None
             )
-            farthest = {**found, "unit": interpretation_unit(key[2]), "usual": usual}
+            farthest = {**found, **record_context(record), "unit": record["unit"], "usual": usual}
     return farthest
 
 

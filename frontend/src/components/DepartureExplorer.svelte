@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {recordParams} from "../record-context";
+  import {readableSourceId} from "../operations-status";
   import {short} from "../analysis-messages";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {elapsedText} from "../time-axis";
@@ -32,6 +34,7 @@
   let error = $state("");
   let channelError = $state("");
   const params = new URLSearchParams(location.search);
+  let selectedRecord = $state(new URLSearchParams(location.search).get("record_key") ?? "");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
   const requestedBaseline = params.get("departure_baseline");
   let baseline: Baseline = $state(
@@ -58,11 +61,12 @@
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selectedChannel);
     url.searchParams.set("departure_baseline", baseline);
+    if(selectedRecord) url.searchParams.set("record_key",selectedRecord); else url.searchParams.delete("record_key");
     history.replaceState(history.state, "", url);
   }
   function changeChannel(channel: string) {
     if (!channels?.ids.includes(channel)) return;
-    selectedChannel = channel;
+    selectedChannel = channel; selectedRecord = "";
     rememberSelection();
     void analyze();
   }
@@ -110,9 +114,9 @@
     analysisState = "loading";
     error = "";
     try {
-      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal);
+      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal, selectedRecord || undefined);
       if (request.signal.aborted) return;
-      result = evidence;
+      result = evidence; selectedRecord = evidence.context?.key ?? ""; rememberSelection();
       analysisState = "ready";
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -130,7 +134,7 @@
   const BASELINE_TEXT: Record<string, string> = {"first-30": "기록 처음 30%", "first-50": "기록 처음 50%", all: "기록 전체"};
   function usualRange(found: Departures, unit: string | null): string {
     const {median, spread} = found.scored;
-    const name = (BASELINE_TEXT[found.baseline.name] ?? "기준 구간") + "의 평소 범위";
+    const name = (BASELINE_TEXT[found.baseline.name] ?? "기준 구간") + "의 비교 범위";
     if (median === null || spread === null) return name;
     return name + "(" + short(median - found.threshold * spread) + "~" + short(median + found.threshold * spread) + (unit ? " " + unit : "") + ")";
   }
@@ -139,7 +143,7 @@
     const span: Span = {from: Date.parse(start), to: Math.max(Date.parse(end), Date.parse(start) + Math.max(step, 1000))};
     const link = (href: string, params: Record<string, string>) => {
       const url = new URL(href, location.origin);
-      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+      for (const [key, value] of Object.entries({...recordParams(found.context), ...params})) url.searchParams.set(key, value);
       return url.pathname + url.search;
     };
     const periods = {a: {from: found.baseline.from, to: found.baseline.to},
@@ -197,18 +201,23 @@
     {:else if analysisState === "failed"}
       <StatusNotice kind="failure" title="기준 이탈 결과를 불러오지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
+      {#if selectedRecord}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
     {:else if analysisState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 저장 기록이 없습니다"
         message="저장 기록을 신호 화면에서 확인하세요."
         actionLabel="신호 보기"
         actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
+      {#if result.context}<p class="context">분석 대상 · {readableSourceId(result.context.sourceId)} · {result.context.pointId ?? "측정 위치 미지정"}</p>{/if}
+      {#if result.records.length > 1}<label>분석할 기록 <select value={selectedRecord} onchange={(event) => {selectedRecord=event.currentTarget.value;rememberSelection();void analyze();}}>
+        {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 의미 미지정"}</option>{/each}
+      </select></label>{/if}
       {#if result.scored.state === "short-baseline"}
         <StatusNotice kind="uncertain" title="기준 구간의 기록이 부족합니다"
           message="이 신호는 고른 기준 구간의 기록이 적어 달라진 정도를 계산할 수 없습니다." />
       {:else if result.scored.state === "constant"}
         <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
-          message="기준 구간의 변동 폭이 0이라 달라진 정도를 계산할 수 없습니다." />
+          message="기준 기간과 이후 기록에서 같은 값이 유지됩니다." />
       {:else}
         {@const first = result.intervals[0]}
         {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
@@ -217,7 +226,7 @@
           subject={signalName(channels?.names, result.selectedChannel)}
           basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, unit)}
           message={{
-            headline: result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
+            headline: result.scored.state === "level-change" ? "일정하던 측정값이 달라진 구간이 " + result.intervalCount + "개 있습니다." : result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
               : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
             meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
               + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "

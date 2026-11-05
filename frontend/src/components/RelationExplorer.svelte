@@ -7,7 +7,7 @@
   import FeatureScatter from "./FeatureScatter.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {relationMessage} from "../analysis-messages";
-  import {ORIGIN_TEXT,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
+  import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import {strength} from "../relation";
@@ -23,20 +23,23 @@
   let available:SourceHistory|null=$state(null);
   let relation:Relation|null=$state(null);
   let error=$state("");
+  let focus=$state(focusFrom(new URLSearchParams(location.search)));
   let x=$state(new URLSearchParams(location.search).get("relation_x")??"");
   let y=$state(new URLSearchParams(location.search).get("relation_y")??"");
   let periods:Periods|null=$state(null);
   // Periods handed over from a span picked on the signal chart; said on screen until edited.
   let handedOver:PeriodOrigin|null=$state(periodOrigin(location.search));
   // Each source, point and meaning shows both periods side by side on one shared axis range.
-  type Pair={key:string;source:string;point:string|null;a:PairedGroup|null;b:PairedGroup|null};
+  type Pair={key:string;source:string;point:string|null;xMeaning?:string|null;yMeaning?:string|null;a:PairedGroup|null;b:PairedGroup|null};
   const pairs=$derived.by(():Pair[]=>{
     const current:Relation|null=relation;
     if(!current)return [];
     const found=new Map<string,Pair>();
     for(const group of current.groups){
+      if(focus && (group.source!==focus.source || (focus.point!==undefined && group.point!==focus.point))) continue;
+      if(focus?.interpretation && group.xMeaning !== focus.interpretation) continue;
       const key=JSON.stringify([group.source,group.point,group.meaning]);
-      const pair=found.get(key)??{key,source:group.source,point:group.point,a:null,b:null};
+      const pair=found.get(key)??{key,source:group.source,point:group.point,xMeaning:group.xMeaning,yMeaning:group.yMeaning,a:null,b:null};
       pair[group.period]=group;found.set(key,pair);
     }
     return [...found.values()];
@@ -54,7 +57,7 @@
     const length=periods?Date.parse(periods[period].to)-Date.parse(periods[period].from):0;
     const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
     const params={...windowParams(momentWindow(middle,length),{from:middle,to:middle}),
-      ...focusParams({source:pair.source,point:pair.point})};
+      ...focusParams({source:pair.source,point:pair.point,interpretation:(channel===x?pair.xMeaning:pair.yMeaning)??undefined})};
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }
@@ -78,6 +81,8 @@
     if(!periods)return;
     const url=new URL(location.href);
     url.searchParams.set("monitor_asset",assetId);
+    for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
+    if(focus)for(const[key,value]of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
     url.searchParams.set("relation_x",x);
     url.searchParams.set("relation_y",y);
     url.searchParams.set("compare_a",periods.a.from+"~"+periods.a.to);
@@ -107,7 +112,7 @@
   }
   function switchChannel(which:"x"|"y",value:string){
     if(!available?.channels.includes(value))return;
-    if(which==="x")x=value;else y=value;
+    if(which==="x"){x=value;if(focus)focus={...focus,interpretation:undefined};}else y=value;
     relationAbort?.abort();relation=null;resultState="empty";remember();
   }
   function editPeriod(n:"a"|"b",edge:"from"|"to",value:string){

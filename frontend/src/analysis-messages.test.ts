@@ -292,3 +292,12 @@ test("a stored time series compares the share of measurements with no current wi
   assert.match(every.headline, /^기간 B의 측정 200회가 모두/);
   assert.match(half.certainty!, /^절반이 벗어났지만/);
 });
+
+test("a forecast without criteria explains its endpoint and its own backtest",async()=>{
+  const {forecastMessage}=await import("./analysis-messages.ts");
+  const message=forecastMessage({last:10,end:{estimate:12,lower:9,upper:15},unit:"A",horizon:"24시간 뒤",
+    checks:[{points:20,error:0.5,naive:1,coverage:0.8}]});
+  assert.match(message.headline,/12 A/);
+  assert.match(message.meaning!,/10 A.*\+2 A.*9 A~15 A/);
+  assert.match(message.certainty!,/20개.*0.5 A.*80%/);
+});

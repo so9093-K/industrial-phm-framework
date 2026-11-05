@@ -110,7 +110,7 @@
       url.searchParams.set("monitor_from", new Date(zoom.from).toISOString());
       url.searchParams.set("monitor_to", new Date(zoom.to).toISOString());
     } else {url.searchParams.delete("monitor_from"); url.searchParams.delete("monitor_to");}
-    url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point");
+    url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point"); url.searchParams.delete("monitor_interpretation");
     for (const [key, value] of Object.entries(focus ? focusParams(focus) : {})) url.searchParams.set(key, value);
     url.searchParams.delete("monitor_pick");
     history.replaceState(history.state, "", url);
@@ -118,7 +118,7 @@
 
   function changeChannel(value: string) {
     if (!channels?.ids.includes(value)) return;
-    selectedChannel = value;
+    selectedChannel = value; if(focus) focus={...focus,interpretation:undefined};
     rememberChannel();
     void loadTrend();
   }

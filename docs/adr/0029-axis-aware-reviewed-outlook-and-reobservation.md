@@ -119,3 +119,21 @@ the original input is still retrievable and independently reproducible.
   The UI exposes this limitation via source re-check. Separately measuring
   screen-reader usability, 200% zoom and longer-term live-history retention
   remains a product evaluation responsibility, not an implicit capability claim.
+
+## Extension: source-owned change reviews (2026-11-05)
+
+Major changes in stored signals can also be reviewed directly from the asset summary.
+Each change retains its channel, source, measurement point, measurement meaning, aggregation
+interval, own first-30% reference period and observed values. A constant reference records
+an observed level change without inventing a standardized anomaly score.
+
+An authorized capture submits only the asset and the server-issued change identity. The
+server resolves that exact current result or rejects a changed selection. Immutable snapshots
+and append-only review events reuse the existing capture transaction and human status policy,
+with separate `change-reviews.sqlite` storage included in workspace backup/restore. Repeated
+requests preserve the first saved facts; new observations never overwrite them. This snapshot
+preserves the computed facts and context, and does not pin or copy the raw measurements.
+
+Saved change reviews are revisited within the asset summary, independently of the current
+three representative changes. They do not create a maintenance order or an unrelated
+AnalysisRun. An acknowledged review can receive follow-up notes before it is closed.

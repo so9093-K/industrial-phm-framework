@@ -71,7 +71,9 @@ def test_a_rising_series_rises_and_its_level_is_reached_inside_the_horizon() -> 
     assert len(result["forecast"]) == 201
     assert result["fitted"][-1][0] == result["history"][-1][0]
     check = result["backtest"]
-    assert check["hidden_seconds"] == 2685.0 and check["points"] >= 40
+    # The 25% split falls 15 seconds after the final training value. The prediction
+    # actually covers 45 minutes from that value, not the nominal 44m45s boundary.
+    assert check["hidden_seconds"] == 2700.0 and check["points"] == 45
     assert check["mean_absolute_error"] < check["naive_mean_absolute_error"]
 
 
@@ -225,3 +227,16 @@ def test_count_horizon_forecasts_only_whole_acquisition_steps() -> None:
     assert future[-1] == times[-1] + timedelta(minutes=30)
     assert all(right - left == timedelta(minutes=1) for left, right in pairwise(future))
     assert result["model"]["future_acquisitions"] == 30
+
+
+def test_a_short_forecast_on_coarse_history_reports_the_real_validation_span() -> None:
+    times = _minutes(100, 53)
+    values = [10.0 + 0.001 * index for index in range(100)]
+    result = forecast_values(times, values, 3600, seasonal=False)
+    check = result["backtest"]
+    assert check["points"] == 5
+    assert check["requested_seconds"] == 3600
+    assert check["baseline_value"] == values[-6]
+    assert check["hidden_seconds"] == 5 * 53 * 60
+    assert result["fitted"][-1][0] == result["history"][-1][0]
+    assert result["fitted"][-1][1] == pytest.approx(result["forecast"][0][1])

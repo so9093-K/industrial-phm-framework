@@ -1,4 +1,5 @@
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
+import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {yTicks, type Tick} from "./chart-axis.ts";
 /** Read-only version-coupled history forecast and conditional outlook. */
 export type Horizon = "1h" | "24h" | "7d" | "30d";
@@ -20,6 +21,7 @@ export type Projection = {
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
   /** The stored values the forecast was fitted on, for drawing; never edited or filled. */
   history?: Array<{at:string; value:number}>;
+  fitted?: Array<{at:string; value:number}>; fit?:ForecastFit|null;
   checks?: Backtest[];
   /** The outlook's own check over its reach search, which is what the reach sentence rests on;
    * `checks` belong to the drawn forecast's shorter horizon. */
@@ -53,7 +55,7 @@ function count(raw: unknown): number {
     throw new Error("전망에 쓴 측정 개수가 올바르지 않습니다.");
   return raw;
 }
-export function parseOptions(payload: unknown, assetId: string): Options {
+export function parseOptions(payload: unknown, assetId: string, channel?:string): Options {
   const data = object(payload), history = object(data?.history);
   if (data?.schema_version !== 1 || data.asset_id !== assetId)
     throw new Error("다른 설비의 전망 선택지가 돌아왔습니다.");
@@ -62,9 +64,13 @@ export function parseOptions(payload: unknown, assetId: string): Options {
       "7d":"no-history","30d":"no-history"}};
   if (!history || !Array.isArray(history.series) || !object(history.horizons))
     throw new Error("전망 선택지의 형식이 올바르지 않습니다.");
+  const selection=object(data.selection);
+  if(channel && (selection?.kind!=="history"||selection.series!==channel||!object(selection.horizons)))
+    throw new Error("선택한 신호의 예측 가능 기간을 확인할 수 없습니다.");
+  const support=channel?object(selection?.horizons):object(history.horizons);
   const horizons = {} as Record<Horizon, string | null>;
   for (const key of ["1h","24h","7d","30d"] as const) {
-    const value = object(history.horizons)?.[key];
+    const value = support?.[key];
     if (value !== null && typeof value !== "string")
       throw new Error("예측 기간을 쓸 수 있는지 확인할 수 없습니다.");
     horizons[key] = value as string | null;
@@ -143,6 +149,11 @@ export function parsePairedProjection(
   const history = (Array.isArray(forecast.history) ? forecast.history : []).flatMap((row: unknown) =>
     Array.isArray(row) && typeof row[1] === "number" && Number.isFinite(row[1])
       ? [{at:date(row[0]), value:row[1]}] : []);
+  const fitted = (Array.isArray(forecast.fitted) ? forecast.fitted : []).map((row:unknown) => {
+    if(!Array.isArray(row)||row.length!==2)throw new Error("모델 학습값의 형식이 올바르지 않습니다.");
+    const value=numberOrNull(row[1]);if(value===null)throw new Error("모델 학습값이 빠져 있습니다.");
+    return {at:date(row[0]),value};
+  });
   const scenarios = outlook.scenarios.map((raw: unknown) => {
     const item = object(raw), limits = object(item?.limits);
     if (!item || !limits) throw new Error("계산 방식별 결과의 형식이 올바르지 않습니다.");
@@ -153,7 +164,7 @@ export function parsePairedProjection(
     dataVersion:str(outlook.data_version), sourceId:fs,
     pointId:fp === null ? null : str(fp), unit:typeof forecast.unit === "string" ? forecast.unit : null,
     record: {first:date(record.first),last:date(record.last),points:count(record.points)},
-    future, history, scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
+    future, history, fitted, fit:parseForecastFit(forecast), scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
 }
 
 export const HORIZON_LABEL: Record<Horizon, string> = {"1h":"1시간","24h":"24시간","7d":"7일","30d":"30일"};
@@ -161,27 +172,28 @@ export const HORIZON_LABEL: Record<Horizon, string> = {"1h":"1시간","24h":"24�
 export type OutlookChart = {
   width: number; height: number; low: number; high: number;
   start: string; lastRecord: string; end: string; lastX: number;
-  history: string; estimate: string; band: string;
+  history: string; fitted:string; gap:{x:number;observed:number;modeled:number}|null; estimate: string; band: string;
   management: number | null; endLimit: number | null;
   ticks: Tick[];
 };
 
 /** Recent stored values, the forecast with its range and the user's limits on one plot.
  * The window shows twice the forecast span of history so the forecast stays readable. */
-export function outlookChart(projection: Projection): OutlookChart | null {
+export function outlookChart(projection: Projection, includeLimits = false): OutlookChart | null {
   const future = projection.future;
   if (!future.length) return null;
   const width = 800, height = 220, top = 8, bottom = 212;
   const futureStart = Date.parse(future[0].at), futureEnd = Date.parse(future[future.length - 1].at);
   const span = Math.max(futureEnd - futureStart, 1);
   const shown = (projection.history ?? []).filter((item) => Date.parse(item.at) >= futureStart - 2 * span);
+  const fitted=(projection.fitted??[]).filter(item=>Date.parse(item.at)>=futureStart-2*span);
   const start = Math.min(shown.length ? Date.parse(shown[0].at) : futureStart, futureStart);
   const end = Math.max(futureEnd, start + 1);
   const {management, end: endLimit} = projection.conditions;
   const values = [
-    ...shown.map((item) => item.value),
+    ...shown.map((item) => item.value), ...fitted.map(item=>item.value),
     ...future.flatMap((item) => [item.estimate, item.lower ?? item.estimate, item.upper ?? item.estimate]),
-    ...[management, endLimit].filter((limit): limit is number => limit !== null),
+    ...(includeLimits ? [management, endLimit].filter((limit): limit is number => limit !== null) : []),
   ];
   const low = Math.min(...values), high = Math.max(...values);
   const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.06;
@@ -200,10 +212,12 @@ export function outlookChart(projection: Projection): OutlookChart | null {
     start: new Date(start).toISOString(), lastRecord: projection.record.last, end: future[future.length - 1].at,
     lastX: x(projection.record.last),
     history: line(shown.map((item) => [item.at, item.value])),
+    fitted:line(fitted.map(item=>[item.at,item.value])),
+    gap:shown.length?{x:x(future[0].at),observed:y(shown.at(-1)!.value),modeled:y(future[0].estimate)}:null,
     estimate: line(future.map((item) => [item.at, item.estimate])),
     band,
-    management: management === null ? null : y(management),
-    endLimit: endLimit === null ? null : y(endLimit),
+    management: management === null || management < lo || management > hi ? null : y(management),
+    endLimit: endLimit === null || endLimit < lo || endLimit > hi ? null : y(endLimit),
     ticks: yTicks(lo, hi, top, bottom),
   };
 }
@@ -233,9 +247,11 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
   }
   return await response.json() as unknown;
 }
-export async function loadOptions(assetId: string, signal: AbortSignal): Promise<Options> {
+export async function loadOptions(assetId: string, signal: AbortSignal,selection?:{channel:string;trainingPoints:number|null}): Promise<Options> {
+  const query={asset_id:assetId,...(selection?{kind:"history",series:selection.channel,
+    ...(selection.trainingPoints===null?{}:{training_points:String(selection.trainingPoints)})}:{})};
   return parseOptions(await json(
-    "/api/v1/forecast/options?" + new URLSearchParams({asset_id:assetId}),signal),assetId);
+    "/api/v1/forecast/options?" + new URLSearchParams(query),signal),assetId,selection?.channel);
 }
 export async function loadPaired(
   assetId: string, channel: string, horizon: Horizon,

@@ -45,9 +45,9 @@
     }
     return false;
   }
-  async function act(action: "acknowledge" | "close") {
+  async function act(action: ReviewAction) {
     if (busy || !writable || status === "closed") return;
-    if (!decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
+    if (action !== "note" && !decision) { messageKind = "failure"; message = "판단을 고르세요."; return; }
     let text: string;
     try { text = reviewNote(action, note); }
     catch (cause) { messageKind = "failure"; message = cause instanceof Error ? cause.message : "메모를 확인하세요."; return; }
@@ -57,7 +57,7 @@
     const request = new AbortController(); controller = request;
     busy = true; messageKind = "information"; message = "검토 기록을 남기고 있습니다.";
     try {
-      await submit(action, text, pending.eventId, request.signal, decision);
+      await submit(action, text, pending.eventId, request.signal, action === "note" ? null : decision);
       if (request.signal.aborted) return;
       pending = null; confirmingClose = false; note = "";
       if (await refreshed(request.signal)) { messageKind = "information"; message = "검토 기록을 남겼습니다."; }
@@ -120,7 +120,9 @@
       <p class="context">판단을 남기면 확인함이 되고, 그 뒤에 검토를 종료할 수 있습니다.</p>
     {:else if !confirmingClose}
       {#if judged}<p class="current">현재 판단 · <strong>{DECISION_LABEL[judged]}</strong></p>{/if}
+      <label class="note">후속 메모<textarea maxlength="1000" rows="2" bind:value={note} disabled={busy}></textarea></label>
       <div class="actions">
+        <button type="button" class="ui-button" disabled={busy || !note.trim()} onclick={() => void act("note")}>메모 추가</button>
         <button type="button" class="ui-button ui-button-primary" disabled={busy} onclick={() => void askClose()}>검토 종료</button>
       </div>
     {/if}

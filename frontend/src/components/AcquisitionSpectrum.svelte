@@ -45,6 +45,24 @@
   const fmt=(value:number)=>value.toExponential(3);
   // Vibration energy is usually dominated by one low band; dB keeps the other bands readable.
   let decibel=$state(true);
+  let focused:Record<string,{from:number;to:number}|null>=$state({});
+  function view(channel:SpectrumChannel, frequencies:number[]) {
+    const selected=focused[channel.id];
+    const indices=frequencies.map((_,i)=>i).filter(i=>!selected||(frequencies[i]>=selected.from&&frequencies[i]<=selected.to));
+    // A display bin can be wider than a reported full-resolution change band.
+    if(indices.length<2)return {frequencies,a:channel.a,b:channel.b,zoomed:false};
+    return {frequencies:indices.map(i=>frequencies[i]),a:indices.map(i=>channel.a[i]),b:indices.map(i=>channel.b[i]),zoomed:!!selected};
+  }
+  function bandRect(band:{from:number;to:number}, frequencies:number[]) {
+    const lo=frequencies[0],hi=frequencies.at(-1)!;
+    const start=Math.max(lo,band.from),end=Math.min(hi,band.to);
+    return end>=start?{x:800*(start-lo)/Math.max(hi-lo,1e-12),width:Math.max(2,800*(end-start)/Math.max(hi-lo,1e-12))}:null;
+  }
+  function zoomBand(id:string, band:{from:number;to:number}, frequencies:number[]) {
+    const step=frequencies.length>1?frequencies[1]-frequencies[0]:1;
+    const padding=Math.max(band.to-band.from,step*3);
+    focused={...focused,[id]:{from:Math.max(frequencies[0],band.from-padding),to:Math.min(frequencies.at(-1)!,band.to+padding)}};
+  }
   type Axis={lo:number;hi:number;map:(value:number)=>number};
   // Linear shows power as stored. dB is relative to the channel's strongest band (0 dB) and
   // floored at -60 dB, so small bands stay readable next to one dominant low-frequency peak.
@@ -174,34 +192,40 @@
       <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
-        {@const frequencies=result.frequencies}
+        {@const displayed=view(channel,result.frequencies)}
+        {@const frequencies=displayed.frequencies}
         {@const axis=axisFor(channel,decibel)}
         {@const step=frequencies.length>1?frequencies[1]-frequencies[0]:null}
         <section class="series">
           <h3>{channel.label}</h3>
           <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
+          {#if displayed.zoomed}<button type="button" class="ui-button" onclick={()=>focused={...focused,[channel.id]:null}}>전체 주파수 보기</button>{/if}
           <ValueAxis ticks={yTicks(axis.lo,axis.hi,0,180)} height={180} unit={decibel?"dB":null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
-            aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + result.frequencies[0].toFixed(0) + "Hz부터 " + result.frequencies[result.frequencies.length-1].toFixed(0) + "Hz까지. 정확한 값은 표에 있습니다."}>
+            aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + frequencies[0].toFixed(1) + "Hz부터 " + frequencies[frequencies.length-1].toFixed(1) + "Hz까지. 정확한 값은 표에 있습니다."}>
             {#each yTicks(axis.lo,axis.hi,0,180) as tick(tick.value)}<line x1="0" x2="800" y1={tick.y} y2={tick.y} class="grid"/>{/each}
-            <polyline points={trace(channel.a,axis,result.frequencies)} class="line-a"/>
-            <polyline points={trace(channel.b,axis,result.frequencies)} class="line-b"/>
+            {#each changed as band,i(i)}
+              {@const area=bandRect(band,frequencies)}
+              {#if area}<rect x={area.x} width={area.width} y="0" height="180" class="changed-band"><title>{frequencyText(band.from)}~{frequencyText(band.to)} Hz · {band.changeDb.toFixed(1)} dB 변화</title></rect>{/if}
+            {/each}
+            <polyline points={trace(displayed.a,axis,frequencies)} class="line-a"/>
+            <polyline points={trace(displayed.b,axis,frequencies)} class="line-b"/>
             <path d="M0 0 V180 H800" class="axis"/>
           </svg>
           {#snippet footer()}<XAxis lo={frequencies[0]} hi={frequencies[frequencies.length-1]}
             scale={{kind:"value"}} note="가로축 · 주파수 (Hz)"/>{/snippet}
           </ValueAxis>
-          <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span></p>
+          <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span><span>음영 · {MEANINGFUL_DB} dB 이상 달라진 대역</span></p>
           <!-- Where each period is strongest, before how the two differ. -->
           <h4>가장 센 주파수</h4>
-          <p class="peaks">기간 A · {peakSummary(frequencies,channel.a)}
-            <span class="sep">/</span> 기간 B · {peakSummary(frequencies,channel.b)}</p>
+          <p class="peaks">기간 A · {peakSummary(result.frequencies,channel.a)}
+            <span class="sep">/</span> 기간 B · {peakSummary(result.frequencies,channel.b)}</p>
           {#if step}<p class="context">센 순서로 최대 3개 · 약 {frequencyText(step)} Hz 간격으로 묶은 세기라 정확한 주파수는 그 간격 안에 있습니다.</p>{/if}
           {#if changed.length}
             <h4>세기가 크게 달라진 주파수</h4>
             <ol>
               {#each changed as band,i(i)}
-                <li>{band.from.toFixed(1)}–{band.to.toFixed(1)}Hz
+                <li><button type="button" class="band-button" onclick={()=>zoomBand(channel.id,band,result!.frequencies)}>{frequencyText(band.from)}–{frequencyText(band.to)} Hz 확대</button>
                   · 기간 B 세기가 기간 A의 {times(10**(band.changeDb/10))} ({band.changeDb.toFixed(1)} dB)</li>
               {/each}
             </ol>
@@ -249,6 +273,8 @@
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
   .series{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
+  .changed-band{fill:var(--color-caution-ink);opacity:.12}
+  .band-button{font:inherit;color:var(--color-action);border:0;background:none;text-decoration:underline;cursor:pointer;padding:var(--space-2)}
   svg{display:block;width:100%;height:180px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
   .grid{stroke:var(--color-border);stroke-width:1}
   .scale{display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-3);font-size:var(--font-small)}

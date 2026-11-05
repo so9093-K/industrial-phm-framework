@@ -92,6 +92,10 @@ _SNAPSHOT_FINGERPRINT_TABLES = (
 )
 
 
+class MeasurementAggregationLimitError(ValueError):
+    """Aggregation contains too many identity/bucket rows; retry a coarser discovery grid."""
+
+
 class DuckLakeRuntimeUnavailableError(RuntimeError):
     """Raised when the optional DuckDB/DuckLake history runtime is unavailable."""
 
@@ -1660,6 +1664,9 @@ class DuckLakeAssetHistory:
         start_at: datetime,
         end_at: datetime,
         bucket_count: int = 120,
+        source_id: str | None = None,
+        measurement_point_id: str | None = None,
+        interpretation_json: str | None = None,
     ) -> MultiSignalMeasurementHistoryAggregation:
         """Bounded small-multiple buckets for several channels on one event-time axis.
 
@@ -1694,6 +1701,8 @@ class DuckLakeAssetHistory:
                     WHERE asset_id = ?
                         AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                         AND event_at >= ? AND event_at < ?
+                        AND (? IS NULL OR (source_id = ?
+                            AND measurement_point_id IS NOT DISTINCT FROM ?))
                     WINDOW identity_window AS (
                         PARTITION BY source_id, measurement_point_id, channel_id, event_at
                     )
@@ -1741,9 +1750,13 @@ class DuckLakeAssetHistory:
                     min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
                     count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
                     count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
-                    max(value) FILTER (WHERE usable), avg(value) FILTER (WHERE usable),
+                    max(value) FILTER (WHERE usable),
+                    -- The exact mean feeds forecast/capture identities. A hash join may
+                    -- reorder equal input populations between requests, so sum in ID order.
+                    avg(value ORDER BY raw_evidence_id) FILTER (WHERE usable),
                     interpretation
                 FROM prepared
+                WHERE (? IS NULL OR interpretation = ?)
                 GROUP BY channel_id, source_id, source_type, measurement_point_id,
                     bucket_index, interpretation
                 ORDER BY channel_id, bucket_index, source_id, measurement_point_id,
@@ -1751,10 +1764,19 @@ class DuckLakeAssetHistory:
                 LIMIT 10001
                 """,
                 [
-                    *(asset_id, list(channels), start_at, end_at) * 3,
+                    asset_id,
+                    list(channels),
+                    start_at,
+                    end_at,
+                    source_id,
+                    source_id,
+                    measurement_point_id,
+                    *(asset_id, list(channels), start_at, end_at) * 2,
                     start_at,
                     width,
                     bucket_count - 1,
+                    interpretation_json,
+                    interpretation_json,
                 ],
             ).fetchall()
             snapshot = connection.execute(
@@ -1763,7 +1785,7 @@ class DuckLakeAssetHistory:
         finally:
             connection.close()
         if len(rows) > 10000:
-            raise ValueError(
+            raise MeasurementAggregationLimitError(
                 "multi-signal aggregate exceeds 10000 channel/source/point buckets; narrow range"
             )
         return MultiSignalMeasurementHistoryAggregation(
