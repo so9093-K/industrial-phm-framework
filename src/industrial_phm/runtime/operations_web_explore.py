@@ -571,7 +571,8 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             {channel: values for channel, values in points.items() if channel not in cumulative},
             limit=_FINDINGS_SHOWN,
             streams={
-                r["key"]: (r["source_id"], r["point_id"], r["interpretation"]) for r in records
+                r["key"]: (r["source_id"], r["point_id"], r["channel"], r["interpretation"])
+                for r in records
             },
         )
     except LookupError, ValueError:

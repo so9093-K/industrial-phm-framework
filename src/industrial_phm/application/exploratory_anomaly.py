@@ -210,7 +210,7 @@ def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,
     limit: int = 3,
-    streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str]] | None = None,
+    streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str, str]] | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
@@ -230,8 +230,14 @@ def record_changes(
 
     def distinct(item: dict[str, Any]) -> bool:
         for chosen in selected:
-            if streams is not None and streams[item["channel"]] != streams[chosen["channel"]]:
-                continue
+            if streams is not None:
+                own, other = streams[item["channel"]], streams[chosen["channel"]]
+                if own[:2] != other[:2]:
+                    continue
+                # Related channels can describe the same event, even though their measured
+                # meanings differ. Versions of the *same* channel remain separate records.
+                if len(own) == len(other) == 4 and own[2] == other[2] and own[3] != other[3]:
+                    continue
             intersection = max(
                 0.0,
                 (

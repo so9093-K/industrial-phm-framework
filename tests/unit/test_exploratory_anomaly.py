@@ -158,3 +158,23 @@ def test_sustained_changes_use_duration_and_constant_changes_get_no_size_ranking
     assert found["intervals"][0]["channel"] == "sparse"
     assert len(found["intervals"]) == 3
     assert all(item["reason"] != "largest" for item in found["intervals"])
+
+
+def test_related_channels_share_a_card_but_versions_of_one_channel_do_not() -> None:
+    points = _points([0.0] * 40 + [1.0] * 40)
+    related = record_changes(
+        {"r": points, "s": points},
+        streams={
+            "r": ("source", None, "R", "phase-r"),
+            "s": ("source", None, "S", "phase-s"),
+        },
+    )
+    assert len(related["intervals"]) == 1
+    versions = record_changes(
+        {"old": points, "new": points},
+        streams={
+            "old": ("source", None, "R", "old-meaning"),
+            "new": ("source", None, "R", "new-meaning"),
+        },
+    )
+    assert len(versions["intervals"]) == 2
