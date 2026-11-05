@@ -55,7 +55,7 @@ function count(raw: unknown): number {
     throw new Error("전망에 쓴 측정 개수가 올바르지 않습니다.");
   return raw;
 }
-export function parseOptions(payload: unknown, assetId: string): Options {
+export function parseOptions(payload: unknown, assetId: string, channel?:string): Options {
   const data = object(payload), history = object(data?.history);
   if (data?.schema_version !== 1 || data.asset_id !== assetId)
     throw new Error("다른 설비의 전망 선택지가 돌아왔습니다.");
@@ -64,9 +64,13 @@ export function parseOptions(payload: unknown, assetId: string): Options {
       "7d":"no-history","30d":"no-history"}};
   if (!history || !Array.isArray(history.series) || !object(history.horizons))
     throw new Error("전망 선택지의 형식이 올바르지 않습니다.");
+  const selection=object(data.selection);
+  if(channel && (selection?.kind!=="history"||selection.series!==channel||!object(selection.horizons)))
+    throw new Error("선택한 신호의 예측 가능 기간을 확인할 수 없습니다.");
+  const support=channel?object(selection?.horizons):object(history.horizons);
   const horizons = {} as Record<Horizon, string | null>;
   for (const key of ["1h","24h","7d","30d"] as const) {
-    const value = object(history.horizons)?.[key];
+    const value = support?.[key];
     if (value !== null && typeof value !== "string")
       throw new Error("예측 기간을 쓸 수 있는지 확인할 수 없습니다.");
     horizons[key] = value as string | null;
@@ -243,9 +247,11 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
   }
   return await response.json() as unknown;
 }
-export async function loadOptions(assetId: string, signal: AbortSignal): Promise<Options> {
+export async function loadOptions(assetId: string, signal: AbortSignal,selection?:{channel:string;trainingPoints:number|null}): Promise<Options> {
+  const query={asset_id:assetId,...(selection?{kind:"history",series:selection.channel,
+    ...(selection.trainingPoints===null?{}:{training_points:String(selection.trainingPoints)})}:{})};
   return parseOptions(await json(
-    "/api/v1/forecast/options?" + new URLSearchParams({asset_id:assetId}),signal),assetId);
+    "/api/v1/forecast/options?" + new URLSearchParams(query),signal),assetId,selection?.channel);
 }
 export async function loadPaired(
   assetId: string, channel: string, horizon: Horizon,

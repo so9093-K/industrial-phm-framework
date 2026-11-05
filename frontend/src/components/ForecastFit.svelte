@@ -4,9 +4,10 @@
   import {elapsedText} from "../time-axis";
   import {num} from "../format";
   import {measure} from "../chart-axis";
-  let {fit,checks=[],unit,axis="time",showValues=true}:{fit:ForecastFit|null;checks?:Backtest[];unit:string|null;axis?:"time"|"acquisition";showValues?:boolean}=$props();
+  let {fit,checks=[],unit,axis="time",showValues=true,requestedCount=null,effectivePeriod=null}:{fit:ForecastFit|null;checks?:Backtest[];unit:string|null;axis?:"time"|"acquisition";showValues?:boolean;requestedCount?:number|null;effectivePeriod?:number|null}=$props();
   const amount=(value:number)=>num(value)+(unit?" "+unit:"");
   const check=$derived(checks[0]);
+  const checkedCount=$derived(check?.hiddenSeconds!==undefined&&effectivePeriod!==null&&effectivePeriod>0?check.hiddenSeconds/effectivePeriod:null);
 </script>
 {#if fit}
 <section class="fit" aria-label="예측 시작값과 검증 상태">
@@ -19,7 +20,10 @@
     <p class="caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> 같은 과거 구간에서 모델 평균 오차 {measure(check!.error,unit)}, 마지막 값 유지 오차 {measure(check!.naive,unit)}로 모델의 오차가 더 컸습니다.</p>
   {:else if !check}<p class="caution">과거 검증 결과가 없어 이번 예측의 정확도를 확인하지 못했습니다.</p>{/if}
   {#if fit.bucketSeconds}<p>입력값은 약 {elapsedText(fit.bucketSeconds)} 단위의 평균입니다.{fit.points!==null?" 학습에 사용한 집계값 "+fit.points+"개.":""}</p>{/if}
-  {#if check?.hiddenSeconds!==undefined && check?.requestedSeconds!==undefined && Math.abs(check.hiddenSeconds-check.requestedSeconds)>1 && axis==="time"}
+  {#if axis==="acquisition" && requestedCount!==null && check}
+    <p>요청한 예측 범위 {num(requestedCount)}회 · 과거 검증 {check.points}개 측정값{checkedCount!==null?", 약 "+num(checkedCount)+"회 구간":""}.</p>
+    {#if checkedCount!==null && Math.abs(checkedCount-requestedCount)>1e-6}<p>과거 검증 범위가 요청한 예측 횟수와 다릅니다. 요청한 {num(requestedCount)}회 앞 예측의 성능을 직접 확인한 결과와 구분해 읽으세요.</p>{/if}
+  {:else if check?.hiddenSeconds!==undefined && check?.requestedSeconds!==undefined && Math.abs(check.hiddenSeconds-check.requestedSeconds)>1}
     <p>과거 검증은 {check.points}개 값에 걸친 약 {elapsedText(check.hiddenSeconds)} 구간입니다. 요청한 예측 기간 {elapsedText(check.requestedSeconds)}을 직접 확인한 결과와 구분해 읽으세요.</p>
   {/if}
   <details><summary>학습·검증 조건</summary>

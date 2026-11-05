@@ -374,6 +374,9 @@ def backtest(
         hidden = (times[-1] - cut).total_seconds()
     if len(train) < MIN_POINTS or len(test) < 5:
         return None
+    # The split boundary can fall between observations. Report the horizon from the
+    # final actual training value, where this validation forecast really starts.
+    hidden = (times[-1] - times[train[-1]]).total_seconds()
     model = _fit(
         [times[i] for i in train],
         observed[train],

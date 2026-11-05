@@ -71,7 +71,9 @@ def test_a_rising_series_rises_and_its_level_is_reached_inside_the_horizon() -> 
     assert len(result["forecast"]) == 201
     assert result["fitted"][-1][0] == result["history"][-1][0]
     check = result["backtest"]
-    assert check["hidden_seconds"] == 2685.0 and check["points"] >= 40
+    # The 25% split falls 15 seconds after the final training value. The prediction
+    # actually covers 45 minutes from that value, not the nominal 44m45s boundary.
+    assert check["hidden_seconds"] == 2700.0 and check["points"] == 45
     assert check["mean_absolute_error"] < check["naive_mean_absolute_error"]
 
 

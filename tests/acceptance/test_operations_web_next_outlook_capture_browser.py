@@ -471,6 +471,17 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                                     "30d": "short-history",
                                 },
                             },
+                            "selection": {
+                                "kind": "history",
+                                "series": "R",
+                                "points": 180,
+                                "horizons": {
+                                    "1h": None,
+                                    "24h": "short-history",
+                                    "7d": "short-history",
+                                    "30d": "short-history",
+                                },
+                            },
                         },
                     ),
                 )

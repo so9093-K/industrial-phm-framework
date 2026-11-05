@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {loadPaired, outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
+import {loadOptions, loadPaired, outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
   type Conditions} from "./projections.ts";
 const conditions:Conditions={direction:"upper",management:12,end:16};
 const forecast=()=>({
@@ -27,6 +27,26 @@ test("forecast options are scoped to the selected asset and supported horizon",(
   assert.equal(parseOptions(src,"a").channels[0],"R");
   assert.equal(parseOptions(src,"a").horizons["24h"],"short-history");
   assert.throws(()=>parseOptions(src,"b"),/다른 설비/);
+});
+test("selected forecast readiness uses its own inputs and training limit",async()=>{
+  const original=globalThis.fetch;
+  const reasons={"1h":"few-points","24h":"few-points","7d":"few-points","30d":"few-points"};
+  const payload={schema_version:1,asset_id:"a",history:{series:[{key:"long"},{key:"short"}],
+    horizons:{"1h":null,"24h":null,"7d":null,"30d":null}},
+    selection:{kind:"history",series:"short",points:10,horizons:reasons}};
+  globalThis.fetch=(async(url:string|URL|Request)=>{
+    const query=new URL(String(url),"http://localhost").searchParams;
+    assert.equal(query.get("series"),"short");
+    assert.equal(query.get("kind"),"history");
+    assert.equal(query.get("training_points"),"100");
+    return new Response(JSON.stringify(payload));
+  }) as typeof fetch;
+  try{
+    const options=await loadOptions("a",new AbortController().signal,{channel:"short",trainingPoints:100});
+    assert.deepEqual(options.horizons,reasons);
+    assert.throws(()=>parseOptions(payload,"a","long"),/선택한 신호/);
+    assert.throws(()=>parseOptions({...payload,selection:undefined},"a","short"),/선택한 신호/);
+  }finally{globalThis.fetch=original;}
 });
 test("same measurement/version/source allows read-only joined evidence",()=>{
   const data=parsePairedProjection(forecast(),outlook(),"a","R","1h",conditions);

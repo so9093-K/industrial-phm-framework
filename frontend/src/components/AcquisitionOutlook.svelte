@@ -241,7 +241,8 @@
         {:else}
           <p class="context">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
-        <ForecastFit showValues={limited} fit={outlook.fit??null} checks={outlook.checks} unit={outlook.unit} axis="acquisition" />
+        <ForecastFit showValues={limited} fit={outlook.fit??null} checks={outlook.checks} unit={outlook.unit} axis="acquisition"
+          requestedCount={timeHorizon===null?outlook.horizonCount:null} effectivePeriod={outlook.effectivePeriod} />
         {#if chart}
           {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}

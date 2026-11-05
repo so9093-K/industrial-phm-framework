@@ -135,6 +135,8 @@ def handle_forecast_read(
                     times = times[-training:]
                 span = (times[-1] - times[0]).total_seconds() if times else 0
                 body["selection"] = {
+                    "kind": kind,
+                    "series": params["series"],
                     "horizons": (
                         {key: "unknown-interval" for key in HORIZONS}
                         if kind == "acquisition" and meta["time_basis"] == "ordinal"

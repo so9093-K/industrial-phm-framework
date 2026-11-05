@@ -34,6 +34,8 @@
   let includeLimits = $state(false);
   let error = $state("");
   let horizonNotice = $state("");
+  let selectionLoading = $state(false);
+  let selectionReady = $state(false);
   let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
   let settings=$state(savedSettings(params));
@@ -96,27 +98,47 @@
       if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다.");
       if(!channel)channel=await defaultChannel(assetId,data.channels,abort.signal);
       if (abort.signal.aborted) return;
-      if (data.horizons[horizon] !== null) {
-        const allowed = horizons.find(key=>data.horizons[key]===null);
-        if (!allowed) {
-          optionsState="ready"; resultState="unavailable";
-          error="저장된 기록으로 전망할 수 있는 예측 기간이 없습니다.";
-          return;
-        }
-        if (savedHorizon) horizonNotice="저장된 예측 기간 "+HORIZON_LABEL[horizon]
-          +"은 현재 기록이 지원하지 않아 "+HORIZON_LABEL[allowed]+"으로 변경했습니다.";
-        horizon=allowed;
-      }
       optionsState="ready";
-      save();
-      if (data.horizons[horizon] === null) await calculate();
+      await loadSelectedOptions(true,Boolean(savedHorizon));
     } catch(cause:unknown) {
       if(abort.signal.aborted)return;
       optionsState="failed";
       error=cause instanceof Error?cause.message:"전망 가능한 측정 목록을 읽지 못했습니다.";
     }
   }
-  async function calculate() {
+  async function loadSelectedOptions(autoCalculate:boolean,bookmarked=false):Promise<void> {
+    requestOptions?.abort();
+    requestProjection?.abort();
+    const abort=new AbortController();requestOptions=abort;
+    selectionLoading=true;selectionReady=false;resultState="empty";projection=null;error="";horizonNotice="";
+    try {
+      const data=await loadOptions(assetId,abort.signal,{channel,trainingPoints:settings.trainingPoints});
+      if(abort.signal.aborted)return;
+      options=data;selectionReady=true;
+      if (data.horizons[horizon] !== null) {
+        const allowed = horizons.find(key=>data.horizons[key]===null);
+        if (!allowed) {
+          resultState="unavailable";
+          error="선택한 신호와 학습 범위로 전망할 수 있는 예측 기간이 없습니다.";
+          return;
+        }
+        horizonNotice=(bookmarked?"저장된":"선택한")+" 예측 기간 "+HORIZON_LABEL[horizon]
+          +"은 선택한 신호와 학습 범위가 지원하지 않아 "+HORIZON_LABEL[allowed]+"으로 변경했습니다.";
+        horizon=allowed;
+      }
+      save();
+      selectionLoading=false;
+      if (autoCalculate) await calculate();
+    } catch(cause:unknown) {
+      if(abort.signal.aborted)return;
+      resultState="failed";
+      error=cause instanceof Error?cause.message:"선택한 신호의 예측 가능 기간을 읽지 못했습니다.";
+    } finally {
+      if(!abort.signal.aborted)selectionLoading=false;
+    }
+  }
+  async function calculate():Promise<void> {
+    if(!selectionReady){await loadSelectedOptions(true);return;}
     requestProjection?.abort();
     const abort=new AbortController();requestProjection=abort;
     resultState="loading";projection=null;error="";
@@ -156,12 +178,12 @@
     <StatusNotice kind="uncertain" title="전망할 시계열 기록이 없습니다"
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
-  {:else if options}
+  {:else if options!==null}
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
-          onchange={e=>{channel=e.currentTarget.value;invalidate();void calculate();}}>
+          onchange={e=>{channel=e.currentTarget.value;invalidate();void loadSelectedOptions(true);}}>
           {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
@@ -189,7 +211,7 @@
     <details class="calculation-options" open={customSettings}>
       <summary>계산 조건 변경</summary>
       <div class="controls">      <label for="projection-horizon">예측 기간
-        <select id="projection-horizon" value={horizon}
+        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
           onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonNotice="";invalidate();}}>
           {#each horizons as value (value)}
             <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
@@ -199,13 +221,14 @@
       </label>
 
       </div>
-    <ForecastSettings value={settings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
+    <ForecastSettings value={settings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
     </details>
     <button type="button" class="ui-button ui-button-primary"
-      onclick={()=>void calculate()} disabled={!horizons.some(key=>options?.horizons[key]===null)}>
+      onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
       계산하기
     </button>
     <p class="intro">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
+    {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
       <StatusNotice message="전망을 계산하고 있습니다." />
     {:else if resultState === "failed"}
