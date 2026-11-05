@@ -1,9 +1,10 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import {onMount, tick} from "svelte";
   import {yTicks} from "../chart-axis";
   import {systemUrl} from "../routes";
   import {
-    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, kstTime, measured, readCondition, segments,
+    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, shiftedPeriod, kstTime, measured, readCondition, segments,
     type Condition, type ConditionPeriod, type ConditionSource, type Metric, type PeriodSummary, type TimelinePoint,
   } from "../electrical-condition";
   import CautionNote from "./CautionNote.svelte";
@@ -22,11 +23,15 @@
   let period: ConditionPeriod = $state("24h");
   let sources: ConditionSource[] = $state([]);
   let sourceKey = $state("");
+  let referenceMode: "previous" | "fixed" = $state("previous");
   let custom = $state({end: "", referenceStart: "", referenceEnd: ""});
   let condition: Condition | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let error = $state("");
   let metric: Metric = $state("currentMean");
+  // 3-phase current over time reads as three lines; the mean alone hides which phase moved.
+  let byPhase = $state(true);
+  const PHASES = ["R", "S", "T"] as const;
   let selectedAt: string | null = $state(null);
   let detail: HTMLElement | null = $state(null);
   let request: AbortController | null = null;
@@ -36,10 +41,16 @@
     const current: Condition | null = condition;
     return current && current.analyzed ? current : null;
   });
-  const runs = $derived.by((): TimelinePoint[][] => {
+  const phased = $derived(metric === "currentMean" && byPhase);
+  // One run list per line: the chosen value, or each phase's current read in its place.
+  const lines = $derived.by((): TimelinePoint[][][] => {
     const current: Analyzed | null = analyzed;
-    return current ? segments(current.timeline, metric) : [];
+    if (!current) return [];
+    if (!phased) return [segments(current.timeline, metric)];
+    return PHASES.map((_, index) => segments(current.timeline.map((point) =>
+      ({...point, currentMean: point.current ? point.current[index] : null})), "currentMean"));
   });
+  const runs = $derived(lines.flat());
   const threshold = $derived.by((): number | null => {
     const current: Analyzed | null = analyzed;
     return metric === "patternScore" && current?.pattern.scored ? current.pattern.threshold : null;
@@ -70,7 +81,8 @@
     const source = sources.find((item) => keyOf(item) === sourceKey) ?? null;
     loadState = "loading"; condition = null; selectedAt = null; error = "";
     try {
-      const value = await readCondition(assetId, period, source, custom, pending.signal);
+      const value = await readCondition(assetId, period, source, referenceMode === "fixed" ? custom
+        : {...custom, referenceStart:"", referenceEnd:""}, pending.signal);
       if (pending.signal.aborted) return;
       // Keep the chosen source by identity even when a new one changes the list order.
       sources = value.sources;
@@ -82,6 +94,10 @@
       condition = null; loadState = "failed";
       error = failure instanceof Error ? failure.message : "분석할 데이터를 읽지 못했습니다.";
     }
+  }
+  function shift(current: Analyzed, direction: -1 | 1) {
+    custom = shiftedPeriod(current, direction, custom);
+    return analyze();
   }
   async function choose(at: string, nextMetric: Metric | null = null, focus = true) {
     if (nextMetric) metric = nextMetric;
@@ -135,7 +151,7 @@
         <select value={sourceKey} onchange={(event) => { sourceKey = event.currentTarget.value; void analyze(); }}>
           <option value="">데이터 출처 고르기</option>
           {#each sources as source (keyOf(source))}
-            <option value={keyOf(source)}>{source.sourceId} · {source.pointId ?? "측정 위치 지정 없음"}</option>
+            <option value={keyOf(source)}>{readableSourceId(source.sourceId, sources.map((item) => item.sourceId))} · {source.pointId ?? "측정 위치 지정 없음"}</option>
           {/each}
         </select>
       </label>
@@ -144,10 +160,13 @@
       <summary>분석·기준 기간 직접 지정</summary>
       <div class="times">
         <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
-        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} /></label>
-        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} /></label>
+        <label>비교 기준<select bind:value={referenceMode}>
+          <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
+        </select></label>
+        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
+        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>
       </div>
-      <p class="context">비워 두면 마지막 저장 기록까지와 그 직전 같은 길이의 기간을 비교합니다. 직접 고른 기준 기간은 분석 기간보다 앞서야 합니다.</p>
+      <p class="context">분석 끝 시각을 비우면 마지막 저장 기록까지 분석합니다. 직전 비교는 이동할 때마다 기준도 이동하고, 직접 지정한 기준은 유지합니다. 기준 기간은 분석 기간보다 앞서야 합니다.</p>
     </details>
     <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
   </form>
@@ -164,6 +183,11 @@
   {:else if analyzed}
     <p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
       <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
+    <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
+    <p class="shift">
+      <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
+      <button type="button" class="ui-button" disabled={!analyzed.nextPeriodAvailable} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
+    </p>
     {@render summaryCards(analyzed.target, analyzed.reference)}
 
     <section class="block" aria-labelledby="condition-insights">
@@ -174,11 +198,14 @@
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
         <h3 id="condition-chart">어느 시각에 달라졌나</h3>
-        <label>그래프 값
+        <div class="graph-controls"><label>그래프 값
           <select bind:value={metric}>
             {#each Object.entries(METRICS) as [value, info] (value)}<option {value}>{info.label}{info.unit ? " ·" + info.unit : ""}</option>{/each}
           </select>
         </label>
+        {#if metric === "currentMean"}
+          <label class="toggle"><input type="checkbox" bind:checked={byPhase} /> R·S·T 상별로 보기</label>
+        {/if}</div>
       </div>
       {#if !runs.length}
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
@@ -186,10 +213,12 @@
         <p class="axis-note">최고 {measured(scale.high, METRICS[metric].unit)} · 최저 {measured(scale.low, METRICS[metric].unit)}{#if threshold !== null}<span class="dash"> · 점선: 기준 기간 점수 99% {measured(threshold)}</span>{/if}</p>
         <ValueAxis ticks={scale.ticks} height={H} unit={METRICS[metric].unit.trim() || null}>
         <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img"
-          aria-label={METRICS[metric].label + " · " + kstTime(analyzed.targetStart) + "부터 " + kstTime(analyzed.targetEnd) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
+          aria-label={(phased ? "R·S·T 상별 전류" : METRICS[metric].label) + " · " + kstTime(analyzed.targetStart) + "부터 " + kstTime(analyzed.targetEnd) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
           {#each scale.ticks as mark (mark.value)}<line x1={LEFT} x2={RIGHT} y1={mark.y} y2={mark.y} class="gridline" />{/each}
           <path d={"M" + LEFT + " " + TOP + " V" + BOTTOM + " H" + RIGHT} class="axis" />
-          {#each runs as run (run[0].at)}<path d={path(run)} class="line" />{/each}
+          {#each lines as phaseRuns, index (index)}
+            {#each phaseRuns as run (run[0].at)}<path d={path(run)} class={phased ? "line phase-" + PHASES[index] : "line"} />{/each}
+          {/each}
           {#if threshold !== null}
             <line x1={LEFT} x2={RIGHT} y1={scale.y(threshold)} y2={scale.y(threshold)} class="threshold" />
           {/if}
@@ -198,6 +227,9 @@
         </svg>
         {#snippet footer()}<XAxis lo={scale.start} hi={scale.end} scale={{kind: "clock"}} />{/snippet}
         </ValueAxis>
+        {#if phased}
+          <p class="legend">{#each PHASES as phase (phase)}<span><i class={"key phase-" + phase}></i>{phase}상 전류</span>{/each}</p>
+        {/if}
         <label class="scrub">시각 고르기
           <input type="range" min="0" max={analyzed.timeline.length - 1} value={Math.max(0, selectedIndex)}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />
@@ -286,6 +318,19 @@
   .axis { fill: none; stroke: var(--color-border); }
   .gridline { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; vector-effect: non-scaling-stroke; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
+  /* Three phases differ by line pattern as well as color, so they read without color too. */
+  .phase-R { stroke: #2a78d6; }
+  .phase-S { stroke: #eb6834; stroke-dasharray: 6 3; }
+  .phase-T { stroke: #1baf7a; stroke-dasharray: 2 3; }
+  .legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .legend span { display: inline-flex; align-items: center; gap: var(--space-1); }
+  .key { display: inline-block; width: 22px; height: 0; border-top: 2px solid; }
+  .key.phase-R { border-color: #2a78d6; }
+  .key.phase-S { border-color: #eb6834; border-top-style: dashed; }
+  .key.phase-T { border-color: #1baf7a; border-top-style: dotted; }
+  .toggle { display: inline-flex; gap: var(--space-1); align-items: center; font-weight: 400; white-space: nowrap; }
+  .graph-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3); }
+  .shift { display: flex; gap: var(--space-2); margin: 0; }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .chosen { stroke: var(--color-ink); stroke-width: 1.5; }
   .hit { fill: transparent; cursor: crosshair; }

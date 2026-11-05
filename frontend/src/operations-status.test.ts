@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseRuntimeStatus,parseSources,receiptText} from "./operations-status.ts";
+import {parseRuntimeStatus,parseSources,readableSourceId,receiptText,sourceLabel} from "./operations-status.ts";
 
 const runtime={schema_version:1,assessed_at:"2026-10-17T00:00:00Z",
   meaning:"local-process-readiness-not-collection-receipt-or-asset-health",ready:false,
@@ -35,4 +35,25 @@ test("registration is not receipt, and a connection claim needs live evidence",(
   assert.equal(receiptText(live({last_live_receive_fresh:true,opcua_session_last_state:"DISCONNECTED"})),"현재 연결 미확인");
   assert.equal(receiptText(live({live_telemetry_read_error:true})),"수신 상태 조회 실패");
   assert.throws(()=>parseSources({...sources(),meaning:"connected"}),/데이터 연결 목록/);
+});
+
+test("an imported source reads as what it is; its version stays distinct even when shown alone",()=>{
+  const digest="ba8f9d1820f137f198263c7a594c6a12a6599f6c8ab21673810d15d4bb652801";
+  assert.equal(readableSourceId("xjtu-sy-replay-"+digest),"XJTU-SY 측정 기록 · 원본 지문 "+digest.slice(0,8));
+  assert.equal(readableSourceId("xjtu-sy-replay"),"XJTU-SY 측정 기록 · 원본 지문 없음");
+  assert.equal(readableSourceId("aihub239-training-1338-1-"+digest),"AI-Hub 239 원천 기록 (학습용) · 원본 지문 "+digest.slice(0,8));
+  assert.equal(readableSourceId("aihub239-validation-2194-1"),"AI-Hub 239 원천 기록 (검증용) · 원본 지문 없음");
+  assert.equal(readableSourceId("csv-pump-a1b2"),"csv-pump-a1b2");
+  assert.equal(readableSourceId("operator-"+digest),"operator-"+digest);
+  const versions=["xjtu-sy-replay-"+digest,"xjtu-sy-replay-"+"f".repeat(64)];
+  assert.notEqual(readableSourceId(versions[0]),readableSourceId(versions[1]));
+  assert.equal(readableSourceId(versions[0]),readableSourceId(versions[0],versions));
+  // A name someone registered always wins.
+  assert.equal(sourceLabel(new Map([["xjtu-sy-replay","베어링 시험대"]]),"xjtu-sy-replay"),"베어링 시험대");
+  // Imports of one device shown together keep apart by their source content.
+  const shown=["aihub239-training-1306-1","aihub239-training-1306-1-"+digest,"aihub239-validation-1306-1"];
+  assert.deepEqual(shown.map(id=>readableSourceId(id,shown)),[
+    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 없음",
+    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 "+digest.slice(0,8),
+    "AI-Hub 239 원천 기록 (검증용) · 원본 지문 없음"]);
 });

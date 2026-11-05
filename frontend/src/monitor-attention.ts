@@ -138,7 +138,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
       detail:[...new Set(refused.map(model=>refusalReason(model.reason)))].join(" · ")+" · "+refused.length+"개 모델",
       href:at(refused[0],refused[0].processed),action:"입력·모델 확인"});
     const down=list.filter(model=>model.state==="unavailable");
-    if(down.length)add(assetId,{id:"unavailable",kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 실행기 상태를 확인하세요",
+    if(down.length)add(assetId,{id:"unavailable",kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 서비스 상태를 확인하세요",
       href:at(down[0],null),action:"모델 확인"});
     const warmups=list.filter(model=>model.state==="warmup");
     if(warmups.length)add(assetId,{id:"warmup",kind:"warmup",label:"모델 입력을 모으는 중",detail:warmups.length+"개 모델 · "+(warmups[0].reason??"준비할 입력이 더 필요합니다"),href:at(warmups[0],warmups[0].processed),action:"입력 준비 상태 보기"});

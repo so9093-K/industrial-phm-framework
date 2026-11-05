@@ -60,6 +60,8 @@
     const current: HistoryTrend | null = trend;
     return focusGroups(current ? groupHistory(current) : [], focus);
   });
+  // Every stored source, so a focused one still reads apart from those it was shown with.
+  const shownSources = $derived(trend ? groupHistory(trend).map((group) => group.sourceId) : []);
 
   function recorded(at: string | null): string {
     if (!at) return "관측 시각 없음";
@@ -247,7 +249,7 @@
   {@const now = summarize(group, span)}
   {@const before = grid && covers(grid, previousSpan(span)) ? summarize(group, previousSpan(span)) : null}
   {@const periods = periodsBefore(span)}
-  <section class="pick" bind:this={cards[group.key]} aria-label={(single ? "선택한 시점" : "선택한 구간") + " · " + sourceLabel(sources, group.sourceId)}>
+  <section class="pick" bind:this={cards[group.key]} aria-label={(single ? "선택한 시점" : "선택한 구간") + " · " + sourceLabel(sources, group.sourceId, shownSources)}>
     <div class="pick-head"><h4>{single ? "선택한 시점" : "선택한 구간"}</h4><span>{spanText(span)}</span></div>
     {#if !now || now.mean === null}
       <p>고른 {single ? "시점" : "구간"}에 쓸 수 있는 측정이 없습니다. 빈 곳을 0으로 채우지 않습니다.</p>
@@ -341,7 +343,7 @@
         · {range === "all" ? "저장된 전체 기록" : range === "window" ? "그래프에서 고른 구간을 확대" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
       {#if focus}
-        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
+        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source, shownSources)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
           <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
       {/if}
       {#if range === "window"}
@@ -358,10 +360,10 @@
       {/if}
       {#each groups as group (group.key)}
         {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
-        <section class="series" aria-label={"측정 기록 " + group.sourceId}>
-          <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId) : ""}</h3>
+        <section class="series" aria-label={"측정 기록 · " + sourceLabel(sources, group.sourceId, shownSources)}>
+          <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId, shownSources) : ""}</h3>
           <p class="context">
-            데이터 출처 {sourceLabel(sources, group.sourceId)}{group.pointId ? " · 측정 위치 " + group.pointId : ""}
+            데이터 출처 {sourceLabel(sources, group.sourceId, shownSources)}{group.pointId ? " · 측정 위치 " + group.pointId : ""}
             {#if group.observedProperty} · 측정 의미 {propertyLabel(group.observedProperty)}{/if}
             {#if group.unit ?? channels?.names.get(selectedChannel)?.unit} · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit}{/if}
           </p>
@@ -435,7 +437,7 @@
           <ul>
             {#each trend.latest as item (JSON.stringify([item.sourceId,item.pointId,item.channelId]))}
               {@const unit = latestUnit(trend, item)}
-              <li>{sourceLabel(sources, item.sourceId)}{item.pointId ? " · 측정 위치 " + item.pointId : ""}
+              <li>{sourceLabel(sources, item.sourceId, shownSources)}{item.pointId ? " · 측정 위치 " + item.pointId : ""}
                 · {recorded(item.eventAt)} · {item.usable ? num(item.value, "값 없음") + (item.value !== null && unit ? " " + unit : "") : "품질 문제로 표시 안 함"}
                 · 원본 품질 {QUALITY[item.quality] ?? item.quality}</li>
             {/each}

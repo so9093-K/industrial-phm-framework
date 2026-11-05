@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {builtModelNote,modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {builtModelNote,latestModel,modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
 import type {ModelBinding} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
@@ -114,4 +114,18 @@ test("a model built from a chosen period says so next to its result, a packaged 
   assert.equal(builtModelNote({reference:"기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개"}),
     "직접 고른 기준 기간으로 만든 모델 · 현장 검증 전 · 기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개");
   assert.equal(builtModelNote({}),null);
+});
+
+test("default model follows measurement time, never cross-model score ratios",()=>{
+  const binding=(bindingId:string,sourceId="s")=>({bindingId,sourceId,pointId:null,stepKind:"acquisition-snapshot"} as ModelBinding);
+  const run=(position:number,score:number,at:string|null=null)=>({position,eventStart:at,eventEnd:at,
+    output:{score,threshold:1,exceeds_threshold:score>1}}) as never;
+  const current={binding:binding("current"),run:run(100,0.5)};
+  const older={binding:binding("older"),run:run(90,1000)};
+  assert.equal(latestModel([older,current])?.bindingId,"current");
+  assert.equal(latestModel([current,{binding:binding("same"),run:run(100,1000)}])?.bindingId,"current");
+  assert.equal(latestModel([current,{binding:binding("other","other-source"),run:run(10000,1000)}])?.bindingId,"current");
+  assert.equal(latestModel([{binding:binding("a"),run:run(10,1000,"2026-11-01T00:00:00Z")},
+    {binding:binding("b","other-source"),run:run(1,0.5,"2026-11-02T00:00:00Z")}])?.bindingId,"b");
+  assert.equal(latestModel([{binding:binding("waiting"),run:null}]),null);
 });

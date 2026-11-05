@@ -16,6 +16,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import (
+    declared_running_total,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -32,6 +33,7 @@ from industrial_phm.application.signal_exploration import (
     acquisition_spectrum,
     history_relation,
     history_series,
+    interpretation_property,
     interpretation_unit,
     is_current_in_amperes,
     strongest_identity,
@@ -511,8 +513,22 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         label, unit = names.get(channel, (None, None))
         return label or channel, unit or units.get(channel)
 
+    def running_total(channel: str) -> bool:
+        label, unit = named(channel)
+        identity = identities.get(channel)
+        return declared_running_total(
+            name=f"{channel} {label}",
+            unit=unit,
+            meaning=interpretation_property(identity[2]) if identity else None,
+        )
+
+    # A declared running total always leaves its early range; it is stated, not judged.
+    cumulative = {channel: values for channel, values in points.items() if running_total(channel)}
     try:
-        found = record_changes(points, limit=_FINDINGS_SHOWN)
+        found = record_changes(
+            {channel: values for channel, values in points.items() if channel not in cumulative},
+            limit=_FINDINGS_SHOWN,
+        )
     except LookupError, ValueError:
         found = None
     # Every signal says whether it was judged, and if not why: a signal that could not be judged
@@ -527,8 +543,13 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             "channel": channel,
             "label": label,
             "unit": unit,
-            "state": state["state"] if state else "no-values",
+            "state": (
+                "cumulative" if channel in cumulative else state["state"] if state else "no-values"
+            ),
         }
+        if channel in cumulative:
+            row["first"] = cumulative[channel][0][2]
+            row["last"] = cumulative[channel][-1][2]
         if state and state["state"] == "constant" and cut is not None:
             # Held one value through the baseline: no spread to judge a distance by, but what
             # the record did afterwards is still a fact worth stating.
@@ -606,7 +627,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                         for key, value in row.items()
                         if key not in {"distance", "current_signal"}
                     }
-                    for row in [*changed[:2], *similar[:1]]
+                    for row in related(changed, similar)
                 ],
                 # The usual range is the one the departure was judged by.
                 "usual": {
@@ -634,6 +655,20 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         _findings_cache.clear()
     _findings_cache[key] = (summary.end_at, summary.measurement_count, time.monotonic(), body)
     return body
+
+
+def related(changed: list[dict[str, Any]], similar: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The other signals shown with one change: the two that moved most and one that held.
+
+    A current in amperes says whether the equipment ran, so one is always included: a stop
+    first reads as a power factor falling to 0 and needs its current beside it.
+    """
+    rows = [*changed[:2], *similar[:1]]
+    if not any(row["current_signal"] for row in rows):
+        current = next((row for row in [*changed, *similar] if row["current_signal"]), None)
+        if current is not None:
+            rows.append(current)
+    return rows
 
 
 def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:

@@ -303,5 +303,5 @@
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
   dl { display: grid; gap: var(--space-2); margin: var(--space-2) 0; }
   dt { color: var(--color-ink-muted); font-size: var(--font-small); }
-  dd { margin: 0; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+  dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
@@ -103,7 +104,7 @@
 </script>
 
 {#snippet operation(item: OperationAttention)}
-  <li><strong>{attentionLabel(item)}</strong><span>{item.assetId ? assetLabel(snapshot.assets, item.assetId) : "공통 운영 서비스"}{item.sourceId?" · 데이터 출처 "+item.sourceId:""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
+  <li><strong>{attentionLabel(item)}</strong><span>{item.assetId ? assetLabel(snapshot.assets, item.assetId) : "공통 운영 서비스"}{item.sourceId?" · 데이터 출처 "+readableSourceId(item.sourceId):""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
     {#if destination(item)}<a href={destination(item)!}>상세 확인 →</a>{/if}</li>
 {/snippet}
 

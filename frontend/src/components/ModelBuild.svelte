@@ -66,7 +66,7 @@
           + result.referenceWindows + "개로 학습한 모델입니다."
         : "모델을 만들어 연결했습니다 · 기준 구간 " + result.referenceWindows + "개로 학습"
           + (result.skippedWindows ? " (값이 부족한 구간 " + result.skippedWindows + "개 제외)" : "")
-          + ". 분석 실행기가 기록을 구간마다 채점하면 점수가 나타납니다.";
+          + ". 분석 서비스가 기록을 구간마다 채점하면 점수가 나타납니다.";
       onBuilt(result.bindingId, message);
     } catch (cause: unknown) {
       failed = true;

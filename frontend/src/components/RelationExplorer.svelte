@@ -193,9 +193,9 @@
         {@const side=(group:PairedGroup|null)=>({pearson:group?.pearson??null,spearman:group?.spearman??null,pairs:group?.pairCount??0})}
         {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null):null}
         <section class="group">
-          <h3>{sourceLabel(sourceNames, pair.source)} / {pair.point??"측정 위치 미확인"}</h3>
+          <h3>{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))} / {pair.point??"측정 위치 미확인"}</h3>
           {#if message}<AnalysisMessage {message}
-            subject={signalName(names,x) + " × " + signalName(names,y) + " · " + sourceLabel(sourceNames, pair.source)}
+            subject={signalName(names,x) + " × " + signalName(names,y) + " · " + sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}
             basis={"기간 A " + periodText("a") + " / 기간 B " + periodText("b")}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"

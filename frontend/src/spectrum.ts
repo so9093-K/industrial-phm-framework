@@ -11,6 +11,17 @@ export type SpectrumChannel={id:string;label:string;unit?:string|null;a:number[]
 export type Spectrum={asset:string;source:string;samplingRate:number;segment:number;
   frequencies:number[];used:{a:number[];b:number[]};channels:SpectrumChannel[]};
 export class SpectrumUnavailable extends Error {}
+
+/** The strongest peaks of one averaged spectrum, strongest first: points higher than both
+ * neighbours, leaving out the lowest frequency, whose power is the waveform's offset. */
+export function peakFrequencies(frequencies:number[],power:number[],count=3):number[]{
+  const peaks:number[]=[];
+  for(let i=1;i<power.length;i++){
+    const before=power[i-1],after=i+1<power.length?power[i+1]:-Infinity;
+    if(power[i]>before&&power[i]>=after&&power[i]>0)peaks.push(i);
+  }
+  return peaks.sort((x,y)=>power[y]-power[x]).slice(0,count).map(i=>frequencies[i]);
+}
 export class WaveformUnavailable extends Error {}
 function record(value:unknown):Record<string,unknown>|null{
   return value && typeof value==="object" && !Array.isArray(value)?value as Record<string,unknown>:null;
@@ -144,4 +155,11 @@ export async function readSpectrum(
     a_from:String(spans.a.from),a_to:String(spans.a.to),
     b_from:String(spans.b.from),b_to:String(spans.b.to)});
   return parseSpectrum(await json("/api/v1/explore/spectrum?"+query,signal),asset,acq,spans);
+}
+
+/** Preserve sub-hertz resolution instead of rounding a non-zero spacing to zero. */
+export const frequencyText=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:6});
+export function peakSummary(frequencies:number[],power:number[]):string{
+  const peaks=peakFrequencies(frequencies,power);
+  return peaks.length?peaks.map(frequencyText).join(", ")+" Hz":"뚜렷한 피크 없음";
 }

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
+  import {preferredFeature} from "../acquisition-profile";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
@@ -87,7 +89,8 @@
       const valid=next.features.filter(f=>f.countForecast);
       if(!valid.length){listState="unavailable";return;}
       if(featureId&&!valid.some(f=>f.id===featureId))throw new Error("고른 진동 특징이 이 데이터 출처에 없거나 전망할 수 없습니다.");
-      if(!featureId)featureId=valid[0].id;
+      // Opens on RMS like the other vibration screens, so one feature is followed from trend to outlook.
+      if(!featureId)featureId=preferredFeature(valid)!.id;
       listState="ready";remember();
     }catch(cause:unknown){
       if(request.signal.aborted)return;
@@ -138,7 +141,7 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다. 이상이 없다는 뜻은 아닙니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <p class="context">데이터 출처 <strong>{options.sourceId}</strong>
+    <p class="context">데이터 출처 <strong>{readableSourceId(options.sourceId)}</strong>
       · {options.first}~{options.last}번째 측정 · 분석 {options.count}회
       · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
     <div class="inputs">

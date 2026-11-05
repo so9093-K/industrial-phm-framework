@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +46,79 @@ def batch_id(selection_id: str, index: int) -> str:
     return f"aihub239:{selection_id}:{index}"
 
 
+def _selected_batches(
+    archive: Path,
+    member: str,
+    binding: PowerHistoryBinding,
+    start: datetime,
+    end: datetime,
+    batch_size: int,
+    digest: str,
+) -> Iterator[list[FileBackfillEvent]]:
+    archive_bytes = archive.stat().st_size
+    batch: list[FileBackfillEvent] = []
+    for record in iter_power_observations(archive, member):
+        if (record.device_id, record.device_board_id) != (
+            binding.device_id,
+            binding.device_board_id,
+        ):
+            raise ValueError("member source identifiers do not match the explicit binding")
+        local = datetime.fromisoformat(record.timestamp_text)
+        if not start <= local < end:
+            continue
+        batch.append(
+            project_power_observation(
+                record,
+                archive=archive,
+                archive_digest=digest,
+                archive_bytes=archive_bytes,
+                binding=binding,
+            )
+        )
+        if len(batch) == batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
+def holds_selection(
+    archive: Path,
+    member: str,
+    binding: PowerHistoryBinding,
+    start: datetime,
+    end: datetime,
+    history: DuckLakeAssetHistory,
+    *,
+    batch_size: int = 2000,
+    archive_digest: str | None = None,
+) -> bool:
+    """Whether ``history`` already holds this selection's first batch from these archive bytes.
+
+    Batch IDs carry the archive digest, so a stream filled from other bytes of the same member
+    never qualifies. This is what lets a stream stored without a source version take one.
+
+    Args:
+        archive: AI-Hub 239 ZIP archive.
+        member: JSON member inside ``archive``.
+        binding: The binding the stream was imported with, including its source ID.
+        start: Inclusive naive source-local selection start.
+        end: Exclusive naive source-local selection end.
+        history: Asset history to look in.
+        batch_size: Batch size the stream was imported with.
+        archive_digest: SHA-256 of ``archive`` when the caller already has it.
+
+    Returns:
+        True when the first batch is stored identically under the same selection.
+    """
+    digest = archive_digest or archive_sha256(archive)
+    _, selection_id = selection_identity(digest, member, binding, start, end, batch_size)
+    first = next(_selected_batches(archive, member, binding, start, end, batch_size, digest), None)
+    if first is None:
+        return False
+    return history.get_file_batch_commit(first, batch_id=batch_id(selection_id, 0)) is not None
+
+
 def import_history(
     archive: Path,
     member: str,
@@ -73,9 +146,7 @@ def import_history(
     if isinstance(flush_every_batches, bool) or not 1 <= flush_every_batches <= 10000:
         raise ValueError("flush_every_batches must be between 1 and 10000")
     digest = archive_sha256(archive)
-    archive_bytes = archive.stat().st_size
     selection, selection_id = selection_identity(digest, member, binding, start, end, batch_size)
-    batch: list[FileBackfillEvent] = []
     count, batches, recovered, unflushed, flushed_rows = 0, 0, 0, 0, 0
 
     def flush() -> None:
@@ -83,7 +154,7 @@ def import_history(
         flushed_rows += history.flush_inlined_data().flushed_row_count
         unflushed = 0
 
-    def commit() -> None:
+    def commit(batch: list[FileBackfillEvent]) -> None:
         nonlocal count, batches, recovered, unflushed
         current = batch_id(selection_id, batches)
         existing = history.get_file_batch_commit(batch, batch_id=current)
@@ -94,34 +165,13 @@ def import_history(
             unflushed += 1
         count += len(batch)
         batches += 1
-        batch.clear()
         if unflushed >= flush_every_batches:
             flush()
         if progress is not None:
             progress(count)
 
-    for record in iter_power_observations(archive, member):
-        if (record.device_id, record.device_board_id) != (
-            binding.device_id,
-            binding.device_board_id,
-        ):
-            raise ValueError("member source identifiers do not match the explicit binding")
-        local = datetime.fromisoformat(record.timestamp_text)
-        if not start <= local < end:
-            continue
-        batch.append(
-            project_power_observation(
-                record,
-                archive=archive,
-                archive_digest=digest,
-                archive_bytes=archive_bytes,
-                binding=binding,
-            )
-        )
-        if len(batch) == batch_size:
-            commit()
-    if batch:
-        commit()
+    for batch in _selected_batches(archive, member, binding, start, end, batch_size, digest):
+        commit(batch)
     if unflushed:
         flush()
     # The result states which interpretation was written.

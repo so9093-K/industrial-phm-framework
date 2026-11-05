@@ -25,11 +25,14 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from zipfile import BadZipFile, ZipFile
 
 from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+if TYPE_CHECKING:
+    from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
 
 AIHUB_ARCHIVES = Path("raw/aihub/239/archives")
 XJTU_SOURCE = Path("interim/xjtu-sy/XJTU-SY_Bearing_Datasets")
@@ -388,24 +391,31 @@ def list_public_datasets(
     }
 
 
-def _import_aihub(
-    workspace: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
-) -> None:
+def _aihub_binding(item: PublicDataset, source_id: str) -> PowerHistoryBinding:
+    # Part of every batch ID: a change here stops reruns from recovering stored batches.
     from industrial_phm.adapters.aihub_power_history import PowerHistoryBinding
-    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-    from industrial_phm.runtime.aihub_history_import import import_history
-    from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
 
-    device, board = str(item.description["device_id"]), str(item.description["device_board_id"])
-    binding = PowerHistoryBinding(
-        source_id=item.source_id or _aihub_source(item.dataset_id, item.description),
+    return PowerHistoryBinding(
+        source_id=source_id,
         asset_id=item.asset_id,
-        device_id=device,
-        device_board_id=board,
+        device_id=str(item.description["device_id"]),
+        device_board_id=str(item.description["device_board_id"]),
         timezone="Asia/Seoul",
         identity_evidence="AI-Hub 239 원천 JSON의 DEVICE_ID·DEVICE_BD_ID; 실제 설비 확인 전",
         timezone_evidence="원본 시각에 시간대 표기가 없어 국내 구축 데이터로 보고 KST로 가정",
         version="research-v1",
+    )
+
+
+def _import_aihub(
+    workspace: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+) -> None:
+    from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+    from industrial_phm.runtime.aihub_history_import import import_history
+    from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
+
+    binding = _aihub_binding(
+        item, item.source_id or _aihub_source(item.dataset_id, item.description)
     )
     assert item.member is not None
     history = DuckLakeAssetHistory(
@@ -413,6 +423,90 @@ def _import_aihub(
     )
     with HISTORY_WRITE_LOCK:
         import_history(item.path, item.member, binding, *_WHOLE_MEMBER, history, progress=progress)
+
+
+def _holds_source(
+    workspace: OperationsWorkspace, item: PublicDataset, source_id: str, digest: str
+) -> bool:
+    """Whether ``source_id`` already holds exactly this dataset's current bytes."""
+    if item.kind == "aihub-239":
+        from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+        from industrial_phm.runtime.aihub_history_import import holds_selection
+        from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
+
+        assert item.member is not None
+        history = DuckLakeAssetHistory(
+            DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+        )
+        with HISTORY_WRITE_LOCK:
+            # An AI-Hub source digest is the archive's own SHA-256.
+            return holds_selection(
+                item.path,
+                item.member,
+                _aihub_binding(item, source_id),
+                *_WHOLE_MEMBER,
+                history,
+                archive_digest=digest,
+            )
+    from industrial_phm.adapters import list_xjtu_acquisition_files
+    from industrial_phm.application.acquisition_snapshot import (
+        SqliteAcquisitionSnapshotRepository,
+        file_sha256,
+    )
+
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    files = {
+        f.acquisition_index: f.path.resolve()
+        for f in list_xjtu_acquisition_files(item.path.resolve(), item.asset_id)
+    }
+    latest = snapshots.latest(source_id, item.asset_id)
+    if latest is None:
+        return False
+    stored_ordinals = {
+        ordinal
+        for ordinal, _ in snapshots.ordinals_between(source_id, item.asset_id, 1, latest.ordinal)
+    }
+    if stored_ordinals != set(files):
+        return False
+    for ordinal, path in files.items():
+        stored = snapshots.get(source_id, item.asset_id, ordinal)
+        # The replay keeps a stored path, so moved identical bytes do not qualify either.
+        if stored is None or stored.file_path != path or stored.sha256 != file_sha256(path):
+            return False
+    return True
+
+
+def _target_source(
+    workspace: OperationsWorkspace,
+    item: PublicDataset,
+    digest: str,
+    previous: Mapping[str, object] | None,
+) -> str:
+    """The source an import of these bytes writes to.
+
+    A source version is the base source ID with the content digest. Web imports made before
+    imports recorded a digest stored the bare base ID; when that stream provably holds these
+    bytes it takes their digest, instead of the same records being stored again beside it.
+
+    Args:
+        workspace: Workspace the import writes to.
+        item: Dataset being imported.
+        digest: Content digest of the dataset's current bytes.
+        previous: The dataset's job before this import started, if any.
+
+    Returns:
+        The source ID to import into.
+    """
+    base = _base_source(item)
+    versioned = f"{base}-{digest}"
+    if previous is None:
+        return versioned
+    if previous.get("source_digest") == digest and previous.get("source_id") in (base, versioned):
+        # Continues the stream an earlier attempt chose for the same bytes.
+        return str(previous["source_id"])
+    if "source_digest" not in previous and _holds_source(workspace, item, base, digest):
+        return base
+    return versioned
 
 
 def _code_revision() -> str | None:
@@ -552,6 +646,7 @@ class PublicDatasetJobs:
             )
             if item is None:
                 raise ValueError("unknown public dataset")
+            previous = self._jobs.get(dataset_id)
             self._jobs[dataset_id] = {
                 "kind": item.kind,
                 "asset_id": item.asset_id,
@@ -563,7 +658,7 @@ class PublicDatasetJobs:
             }
             self._write()
             self._thread = threading.Thread(
-                target=self._execute, args=(item,), name="public-dataset-import"
+                target=self._execute, args=(item, previous), name="public-dataset-import"
             )
             self._thread.start()
             return self._view(dataset_id)
@@ -574,7 +669,7 @@ class PublicDatasetJobs:
             if force or time.monotonic() - self._written >= _PROGRESS_WRITE_SECONDS:
                 self._write()
 
-    def _execute(self, item: PublicDataset) -> None:
+    def _execute(self, item: PublicDataset, previous: Mapping[str, object] | None) -> None:
         key = item.dataset_id
 
         def progress(done: int) -> None:
@@ -588,7 +683,7 @@ class PublicDatasetJobs:
             digest = _source_digest(item)
             if _source_signature(item) != signature:
                 raise DatasetImportError("source-changed")
-            item = replace(item, source_id=f"{_base_source(item)}-{digest}")
+            item = replace(item, source_id=_target_source(self._workspace, item, digest, previous))
             self._update(key, force=True, source_id=item.source_id, source_digest=digest)
             if item.kind == "aihub-239":
                 _import_aihub(self._workspace, item, progress)

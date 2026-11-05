@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
@@ -15,7 +16,7 @@
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
+    loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
@@ -110,7 +111,8 @@
   // Models on the same measurement stream share positions, so they can be drawn together.
   const comparable=$derived.by(():ModelBinding[]=>{
     const current=binding;
-    return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId):[];
+    return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId
+      &&item.lastAnalyzed!==null&&item.lastAnalyzed===current.lastAnalyzed):[];
   });
   // A measurement inside an over-threshold run is compared with the last one before the run.
   const suggested=$derived.by(():number|null=>{
@@ -147,7 +149,12 @@
       bindings=available;
       if(!available.length){listState="empty";return;}
       listState="ready";
-      const desired=selectedBinding?available.find(b=>b.bindingId===selectedBinding):available[0];
+      // Without a bookmark, open the latest measurement; a failed read keeps the first.
+      const latest=selectedBinding||available.length<2?null
+        :await loadLatestScores(assetId,request.signal,available).then(latestModel).catch(()=>null);
+      if(request.signal.aborted)return;
+      const desired=selectedBinding?available.find(b=>b.bindingId===selectedBinding)
+        :available.find(b=>b.bindingId===latest?.bindingId)??available[0];
       if(!desired){listState="unavailable";error="북마크의 적용 모델은 이 설비에 없습니다. 다른 모델 결과로 대신하지 않습니다.";return;}
       await chooseBinding(desired.bindingId);
     }catch(cause:unknown){
@@ -233,7 +240,7 @@
   }
   let connectedNotice=$state("");
   // The notice outlives the panel that asked, since the model list is read again right after.
-  function connected(bindingId:string,notice="모델을 연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다."){
+  function connected(bindingId:string,notice="모델을 연결했습니다. 분석 서비스가 입력을 분석하면 점수가 나타납니다."){
     selectedBinding=bindingId;selectedPosition="";followLatest=true;
     connectedNotice=notice;
     void loadBindings();
@@ -280,13 +287,13 @@
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
           {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {item.sourceId}</option>
+            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
           {/each}
         </select>
       </label>
     {/if}
     {#if binding}
-      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {binding.sourceId}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}

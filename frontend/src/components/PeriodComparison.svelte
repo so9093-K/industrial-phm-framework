@@ -269,7 +269,7 @@
         {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
-          {#if result.series.length > 1}<p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}</p>{/if}
+          {#if result.series.length > 1}<p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}</p>{/if}
           {#if message}<AnalysisMessage {message}
             basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
               + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
@@ -279,7 +279,7 @@
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
-          <p class="context">데이터 출처 {sourceLabel(sources_, row.source)}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
+          <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
               {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}

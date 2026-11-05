@@ -8,6 +8,7 @@ import pytest
 
 from industrial_phm.application.exploratory_anomaly import (
     THRESHOLD,
+    declared_running_total,
     find_departures,
     interval_comparison,
     latest_departure,
@@ -95,3 +96,13 @@ def test_related_signal_comparison_separates_typical_change_from_stable_values()
     assert changed is not None and changed["state"] == "higher"
     assert changed["current"] == 20.0
     assert interval_comparison([], reference, interval) is None
+
+
+def test_only_a_signal_the_source_declares_a_running_total_is_left_unjudged() -> None:
+    # AI-Hub leaves the energy unit unresolved; its item name still says what it is.
+    assert declared_running_total(name="누적전력량 누적전력량", unit=None, meaning=None)
+    assert declared_running_total(name="kwh_total", unit="kWh", meaning=None)
+    assert declared_running_total(name="e1", unit=None, meaning="Accumulated active energy")
+    # A temperature that keeps rising is a change to find, whatever its values look like.
+    assert not declared_running_total(name="온도 온도", unit=None, meaning=None)
+    assert not declared_running_total(name="vib_rms", unit="g", meaning="vibration RMS")

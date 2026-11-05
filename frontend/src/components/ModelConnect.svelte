@@ -34,7 +34,7 @@
     busy = true; messageFailed = false; message = "모델을 연결하고 있습니다.";
     try {
       const bindingId = await connectModel(assetId, item, new AbortController().signal);
-      message = "연결했습니다. 분석 실행기가 입력을 분석하면 점수가 나타납니다.";
+      message = "연결했습니다. 분석 서비스가 입력을 분석하면 점수가 나타납니다.";
       onConnected(bindingId);
     } catch (cause: unknown) {
       messageFailed = true;

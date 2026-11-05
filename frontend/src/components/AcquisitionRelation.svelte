@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import FeatureScatter from "./FeatureScatter.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
@@ -154,7 +155,7 @@
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다. 이상이 없다는 뜻은 아닙니다."}/>
   {:else if source && spans}
-    <p class="context">데이터 출처 <strong>{source.sourceId}</strong>
+    <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)}</p>
     <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
     <div class="controls">

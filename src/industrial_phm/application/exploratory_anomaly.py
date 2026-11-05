@@ -142,6 +142,31 @@ def find_departures(
     }
 
 
+# Units of an energy register, which counts up for as long as the equipment draws power.
+_REGISTER_UNITS = frozenset({"Wh", "kWh", "MWh", "varh", "kvarh", "Mvarh", "VAh", "kVAh"})
+_RUNNING_TOTAL_WORDS = ("누적", "적산", "cumulative", "accumulated")
+
+
+def declared_running_total(*, name: str, unit: str | None, meaning: str | None) -> bool:
+    """Whether the source declares a signal as a running total, like a cumulative energy register.
+
+    A running total leaves its early range for as long as the equipment runs, so that departure
+    says nothing about a change. Only what the source states decides it, never the values: a
+    measured quantity that keeps rising, such as a temperature or a vibration RMS, is exactly
+    the change the summary has to find.
+
+    Args:
+        name: The signal's names as the source and any registration give them.
+        unit: Declared unit, if any.
+        meaning: Declared observed property, if any.
+
+    Returns:
+        True when the unit is an energy register's or a name or the meaning says running total.
+    """
+    words = " ".join(text for text in (name, meaning) if text).lower()
+    return unit in _REGISTER_UNITS or any(word in words for word in _RUNNING_TOTAL_WORDS)
+
+
 def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,

@@ -264,9 +264,26 @@ export function scoreSummary(output:Record<string,unknown>):ScoreSummary{
 }
 
 export type LatestScore={binding:ModelBinding;run:ModelRun|null};
-/** The latest analyzed step of each model bound to the asset (at most three models). */
-export async function loadLatestScores(assetId:string,signal:AbortSignal):Promise<LatestScore[]>{
-  const bindings=(await loadModelBindings(assetId,signal)).slice(0,3);
+/** Open the latest recorded measurement, without ranking unrelated model score scales.
+ * Without event timestamps, ordinals are comparable only within one measurement stream. */
+export function latestModel(scores:LatestScore[]):ModelBinding|null{
+  const available=scores.filter((item):item is LatestScore & {run:ModelRun}=>item.run!==null);
+  if(!available.length)return null;
+  const streams=new Map<string,typeof available[number]>();
+  for(const item of available){
+    const key=JSON.stringify([item.binding.sourceId,item.binding.pointId,item.binding.stepKind]);
+    const current=streams.get(key);
+    if(!current||item.run.position>current.run.position)streams.set(key,item);
+  }
+  const latest=[...streams.values()];
+  const time=(run:ModelRun)=>Date.parse(run.eventEnd??run.eventStart??"");
+  // Missing clocks cannot order different streams. Keep the first stream in that case.
+  if(!latest.every(item=>Number.isFinite(time(item.run))))return latest[0].binding;
+  return latest.reduce((best,item)=>time(item.run)>time(best.run)?item:best).binding;
+}
+/** Read all explicitly supplied models; the asset summary defaults to its first three. */
+export async function loadLatestScores(assetId:string,signal:AbortSignal,available?:readonly ModelBinding[]):Promise<LatestScore[]>{
+  const bindings=available??(await loadModelBindings(assetId,signal)).slice(0,3);
   return Promise.all(bindings.map(async(binding):Promise<LatestScore>=>{
     const trace=await loadModelTrace(binding,signal);
     const step=trace.steps.find(item=>item.position===binding.lastAnalyzed&&item.state==="analyzed")

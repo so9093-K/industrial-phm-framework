@@ -171,6 +171,22 @@ def project_electrical_condition(
         return {**base, "state": "no-target-observations"}
     if not any(sample.voltage is not None or sample.current is not None for sample in target):
         return {**base, "state": "no-usable-target", "excluded": target_excluded}
+    next_available = False
+    if max(stored_times) >= end:
+        try:
+            following = reader.query_channel_observations(
+                asset_id,
+                source_id=source_id,
+                channel_ids=channels,
+                start_at=end,
+                end_at=end + (end - start),
+                snapshot_id=snapshot_id,
+                max_rows=22_000,
+            )
+            next_available = any(row.measurement_point_id == point_id for row in following)
+        except ValueError:
+            # A period beyond the supported read budget cannot be opened with this control.
+            next_available = False
     result = analyze_electrical_condition(
         reference,
         target,
@@ -185,6 +201,7 @@ def project_electrical_condition(
     return {
         **base,
         "state": "analyzed",
+        "next_period_available": next_available,
         **result,
         "excluded": {"reference": reference_excluded, "target": target_excluded},
     }

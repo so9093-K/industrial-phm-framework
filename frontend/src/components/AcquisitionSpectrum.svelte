@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {readableSourceId} from "../operations-status";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
@@ -11,7 +12,7 @@
   import CautionNote from "./CautionNote.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {spectrumMessage,times} from "../analysis-messages";
-  import {readAcquisition,readSpectrum,defaultSpans,validateSpans,
+  import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakSummary, frequencyText,
     SpectrumUnavailable,WaveformUnavailable,
     type Acquisition,type Spans,type Spectrum,type SpectrumChannel} from "../spectrum";
 
@@ -144,7 +145,7 @@
     <StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
-    <p class="context">데이터 출처 <strong>{acquisition.source}</strong>
+    <p class="context">데이터 출처 <strong>{readableSourceId(acquisition.source)}</strong>
       · {place(acquisition.first)} ~ {place(acquisition.last)}</p>
     <div class="periods">
       {#each ["a","b"] as label(label)}
@@ -175,8 +176,9 @@
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         {@const frequencies=result.frequencies}
         {@const axis=axisFor(channel,decibel)}
+        {@const step=frequencies.length>1?frequencies[1]-frequencies[0]:null}
         <section class="series">
-          <h3>{channel.label} · {channel.id}</h3>
+          <h3>{channel.label}</h3>
           <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
           <ValueAxis ticks={yTicks(axis.lo,axis.hi,0,180)} height={180} unit={decibel?"dB":null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
@@ -190,6 +192,11 @@
             scale={{kind:"value"}} note="가로축 · 주파수 (Hz)"/>{/snippet}
           </ValueAxis>
           <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span></p>
+          <!-- Where each period is strongest, before how the two differ. -->
+          <h4>가장 센 주파수</h4>
+          <p class="peaks">기간 A · {peakSummary(frequencies,channel.a)}
+            <span class="sep">/</span> 기간 B · {peakSummary(frequencies,channel.b)}</p>
+          {#if step}<p class="context">센 순서로 최대 3개 · 약 {frequencyText(step)} Hz 간격으로 묶은 세기라 정확한 주파수는 그 간격 안에 있습니다.</p>{/if}
           {#if changed.length}
             <h4>세기가 크게 달라진 주파수</h4>
             <ol>
@@ -248,6 +255,7 @@
   .line-a{fill:none;stroke:var(--color-action);stroke-width:2}
   .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:5 4}
   .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
+  .peaks{margin:0;font-weight:650}.peaks .sep{color:var(--color-ink-muted);font-weight:400;margin-inline:var(--space-2)}
   .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
   .key{display:inline-block;width:18px;height:0;border-top:2px solid var(--color-action);vertical-align:middle;margin-inline-end:var(--space-1)}
   .key.b{border-top:2px dashed var(--color-ink-muted)}li{overflow-wrap:anywhere}

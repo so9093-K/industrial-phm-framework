@@ -27,7 +27,7 @@ export const CONDITION:Record<Condition,string>={
   failed:"실패 · 로그 확인 필요",
   unavailable:"상태 미확인",
 };
-export const COMPONENT={collection:"데이터 수집기",analysis:"분석 실행기",ui:"Web 화면"};
+export const COMPONENT={collection:"데이터 수집 서비스",analysis:"분석 서비스",ui:"Web 화면"};
 
 function invalid(what:string):never{
   throw new Error(what+"의 형식이 올바르지 않습니다.");
@@ -141,6 +141,23 @@ export function readSourceNames(): Promise<Map<string, string>> {
   return named.names;
 }
 /** A source as people know it: its registered connection name, else its ID. */
-export function sourceLabel(names: Map<string, string> | null | undefined, id: string): string {
-  return names?.get(id) ?? id;
+function plainSourceName(id: string): string {
+  const aihub = /^aihub239-(training|validation)-[^-]+-[^-]+(?:-[0-9a-f]{64})?$/.exec(id);
+  if (aihub) return "AI-Hub 239 원천 기록 (" + (aihub[1] === "training" ? "학습용" : "검증용") + ")";
+  if (/^xjtu-sy-replay(?:-[0-9a-f]{64})?$/.test(id)) return "XJTU-SY 측정 기록";
+  return id;
+}
+
+/** Public imports keep a short version fingerprint even when shown alone.
+ * General source IDs and user-registered names stay verbatim. */
+export function readableSourceId(id: string, _among: readonly string[] = []): string {
+  const name = plainSourceName(id);
+  if(name===id)return id;
+  const digest = /-([0-9a-f]{64})$/.exec(id);
+  return name + (digest ? " · 원본 지문 " + digest[1].slice(0, 8) : " · 원본 지문 없음");
+}
+export function sourceLabel(
+  names: Map<string, string> | null | undefined, id: string, among: readonly string[] = [],
+): string {
+  return names?.get(id) ?? readableSourceId(id, among);
 }

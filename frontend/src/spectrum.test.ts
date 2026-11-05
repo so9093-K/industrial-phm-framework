@@ -1,6 +1,7 @@
+import {peakSummary,frequencyText} from "./spectrum.ts";
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {defaultSpans,parseAcquisition,parseSpectrum,type Spans} from "./spectrum.ts";
+import {defaultSpans,parseAcquisition,parseSpectrum,peakFrequencies,type Spans} from "./spectrum.ts";
 const acq={source:"src",binding:"binding",first:1,last:30,count:30};
 const spans:Spans={a:{from:1,to:15},b:{from:16,to:30}};
 const spectrum=()=>({
@@ -40,4 +41,19 @@ test("a full-resolution Welch band can extend above the last DISPLAYED mean bin"
   const impossible=spectrum();
   impossible.channels[0].band_changes[0].to_hz=6500; // Nyquist is 6000 Hz.
   assert.throws(()=>parseSpectrum(impossible,"motor",acq,spans),/범위/);
+});
+
+test("the strongest frequencies are peaks, strongest first, never the offset at 0 Hz",()=>{
+  const frequencies=[0,50,100,150,200,250,300];
+  // The 0 Hz offset is largest; the peaks are at 100 Hz and 250 Hz.
+  assert.deepEqual(peakFrequencies(frequencies,[9,1,4,2,3,5,1]),[250,100]);
+  assert.deepEqual(peakFrequencies(frequencies,[0,0,0,0,0,0,0]),[]);
+});
+
+
+test("a flat spectrum has no peaks and sub-hertz resolution stays non-zero",()=>{
+  assert.equal(peakSummary([0,0.125,0.25],[0,0,0]),"뚜렷한 피크 없음");
+  assert.equal(peakSummary([0,0.125,0.25],[0,10,0]),"0.125 Hz");
+  assert.equal(frequencyText(0.125),"0.125");
+  assert.notEqual(frequencyText(0.000001),"0");
 });

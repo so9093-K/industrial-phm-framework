@@ -25,7 +25,7 @@ export type ConditionDetails={timeEvidence:string[];snapshotId:string|null;fileQ
 export type Condition=
   |{analyzed:false;state:string;sources:ConditionSource[]}
   |{analyzed:true;sources:ConditionSource[];sourceId:string;pointId:string|null;targetStart:string;targetEnd:string;
-    referenceStart:string;referenceEnd:string;lastObservedAt:string|null;reference:PeriodSummary;target:PeriodSummary;
+    referenceStart:string;referenceEnd:string;lastObservedAt:string|null;nextPeriodAvailable:boolean;reference:PeriodSummary;target:PeriodSummary;
     pattern:Pattern;timeline:TimelinePoint[];details:ConditionDetails};
 
 export const STATE_TEXT:Record<string,string>={
@@ -98,7 +98,7 @@ export function parseCondition(raw:unknown,assetId:string,expected:ConditionSour
   });
   const range=(key:string)=>{const value=text(root[key]);if(!value)invalid();return value;};
   return {analyzed:true,sources,sourceId,pointId:text(root.point_id),targetStart:range("target_start"),targetEnd:range("target_end"),
-    referenceStart:range("reference_start"),referenceEnd:range("reference_end"),lastObservedAt:text(root.last_observed_at),
+    referenceStart:range("reference_start"),referenceEnd:range("reference_end"),lastObservedAt:text(root.last_observed_at),nextPeriodAvailable:root.next_period_available===true,
     reference:summary(root.reference),target:summary(root.target),timeline,
     details:{timeEvidence:Array.isArray(root.time_evidence)?root.time_evidence.filter((item:unknown)=>typeof item==="string"):[],
       snapshotId:root.snapshot_id===null||root.snapshot_id===undefined?null:String(root.snapshot_id),
@@ -128,6 +128,13 @@ export async function readCondition(
     throw new Error(response.status===400?"분석 기간과 그보다 앞선 기준 기간을 확인하세요. 시각은 한국 시각입니다.":unread);
   }
   return parseCondition(await response.json().catch(()=>null) as unknown,assetId,source);
+}
+
+/** Move the target while keeping a user-selected reference unchanged. */
+export function shiftedPeriod(current:Extract<Condition,{analyzed:true}>,direction:-1|1,
+  custom:{end:string;referenceStart:string;referenceEnd:string}){
+  const end=Date.parse(current.targetEnd), length=end-Date.parse(current.targetStart);
+  return {...custom,end:new Date(end+direction*length+9*3_600_000).toISOString().slice(0,19)};
 }
 
 export type Metric="currentMean"|"voltageUnbalance"|"currentUnbalance"|"patternScore";
@@ -188,9 +195,21 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
 }
 
 /** Times to look at first: the observations over the reference pattern, or else the largest values. */
+/** Times a few minutes apart that read the same are one stretch, said once with its end and count. */
+function mergeAdjacent(checks:{at:string;label:string;detail:string;metric:Metric}[]){
+  const sorted=[...checks].sort((x,y)=>Date.parse(x.at)-Date.parse(y.at));
+  const runs:{first:typeof checks[number];last:string;count:number}[]=[];
+  for(const check of sorted){
+    const run=runs.at(-1);
+    if(run&&run.first.detail===check.detail&&Date.parse(check.at)-Date.parse(run.last)<=3*60_000){run.last=check.at;run.count++;}
+    else runs.push({first:check,last:check.at,count:1});
+  }
+  return runs.map(run=>run.count===1?run.first
+    :{...run.first,label:kstTime(run.first.at)+" ~ "+kstTime(run.last).replace(/^.*\. /,"")+" · "+run.count+"회"});
+}
 export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:string;label:string;detail:string;metric:Metric}[]{
   const notable=condition.pattern.scored?condition.pattern.notable:[];
-  if(notable.length)return notable.map(item=>{
+  if(notable.length)return mergeAdjacent(notable.map(item=>{
     const unit=" "+item.unit,range="기준 5–95% 범위 "+measured(item.low)+"–"+measured(item.high,unit);
     // The server names the one phase farthest from its range. Alone it reads like a lost phase
     // even when all three phases read 0 A, so the same moment's R/S/T values come with it.
@@ -201,7 +220,7 @@ export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:st
         +" · 가장 멀리 벗어난 "+item.channel+"의 "+range
       :item.channel+" "+measured(item.value,unit)+" · "+range;
     return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail};
-  });
+  }));
   return ([["최대 전류",condition.target.currentPeakAt,"currentMean"],["최대 전압 불평형",condition.target.voltageUnbalanceMaxAt,"voltageUnbalance"]] as const)
     .flatMap(([label,at,metric])=>at?[{at,label:label+" · "+kstTime(at),detail:"",metric}]:[]);
 }
