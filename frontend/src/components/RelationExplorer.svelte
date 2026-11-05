@@ -80,9 +80,15 @@
   function remember(){
     if(!periods)return;
     const url=new URL(location.href);
+    url.searchParams.delete("record_key");
+    url.searchParams.set("monitor_range","window");
+    url.searchParams.set("monitor_from",periods.b.from);
+    url.searchParams.set("monitor_to",periods.b.to);
+    url.searchParams.set("monitor_pick",periods.b.from+"~"+periods.b.to);
     url.searchParams.set("monitor_asset",assetId);
     for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
     if(focus)for(const[key,value]of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
+    url.searchParams.set("monitor_channel",x);
     url.searchParams.set("relation_x",x);
     url.searchParams.set("relation_y",y);
     url.searchParams.set("compare_a",periods.a.from+"~"+periods.a.to);

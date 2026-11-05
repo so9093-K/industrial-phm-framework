@@ -1,7 +1,7 @@
 import {object} from "./writes.ts";
 import {focusParams} from "./signal-selection.ts";
 /** The stored observations a result belongs to, independent of labels or current data bounds. */
-export type RecordContext = {key: string; sourceId: string; pointId: string | null; interpretationId: string; meaningLabel?: string | null;
+export type RecordContext = {key: string; sourceId: string; pointId: string | null; interpretationId: string; unit?:string|null; meaningLabel?: string | null;
   record: {from: string; to: string}};
 export function recordContext(raw: unknown): RecordContext | null {
   const row = object(raw), span = object(row?.record);
@@ -13,8 +13,8 @@ export function recordContext(raw: unknown): RecordContext | null {
     || !Number.isFinite(Date.parse(span.from)) || !Number.isFinite(Date.parse(span.to))
     || Date.parse(span.from) >= Date.parse(span.to)) throw new Error("분석 대상 기록을 확인할 수 없습니다.");
   return {key: row.key, sourceId: row.source_id, pointId: row.measurement_point_id,
-    interpretationId: row.interpretation_id, meaningLabel:typeof row.observed_property === "string" ? row.observed_property : null, record: {from: span.from, to: span.to}};
+    interpretationId: row.interpretation_id, unit:typeof row.unit==="string"?row.unit:null, meaningLabel:typeof row.observed_property === "string" ? row.observed_property : null, record: {from: span.from, to: span.to}};
 }
 export function recordParams(record: RecordContext | null | undefined): Record<string,string> {
-  return record ? focusParams({source: record.sourceId, point: record.pointId, interpretation: record.interpretationId}) : {};
+  return record ? {record_key:record.key, ...focusParams({source: record.sourceId, point: record.pointId, interpretation: record.interpretationId})} : {};
 }

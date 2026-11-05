@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ChangeInterval from "./ChangeInterval.svelte";
   import ChangeReview from "./ChangeReview.svelte";
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   let reviewRevision = $state(0);
@@ -123,9 +124,10 @@
   {#if data?.history}
 
     {#if findingState === "ready" && findings}
+      <details class="finding-coverage"><summary>분석한 기록과 계산 범위</summary>
       {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
       <p class="coverage" aria-label="변화 분석 범위">출처·위치·측정 의미로 구분한 기록 {findings.signals.length + findings.unchecked}개 중
-        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length}개 · 미검토 {findings.unchecked}개</p>
+        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length}개 · 미검토 {findings.unchecked}개</p></details>
     {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
@@ -138,9 +140,18 @@
           {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
           <li>
-            {#if item.context}<span class="context small">{readableSourceId(item.context.sourceId)} · {item.context.pointId ?? "측정 위치 미지정"}{item.context.meaningLabel?" · "+item.context.meaningLabel:""}</span>{/if}
-            <span class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</span>
-            <strong>{#if links.signal}<a href={links.signal}>{item.label}</a>{:else}{item.label}{/if} · {told.what}</strong><span>{told.when}</span>
+            <div class="finding-head"><h3>{item.label} · {item.kind==="level-change"?"일정하던 값이 ":"기준 구간보다 "}{item.direction==="up"?"상승":"하락"}</h3>
+            {#if item.context}<span class="context small">출처 {readableSourceId(item.context.sourceId)} · 측정 위치 {item.context.pointId ?? "미지정"}</span>{/if}
+            </div>
+            <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
+            <p class="change-time">{told.when}</p>
+            <ChangeInterval finding={item} />
+            <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
+            {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
+              {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
+            </details>{/if}</div>
+            <details><summary>직전 기간·함께 달라진 신호 비교</summary>
+            <p class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</p>
             {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
               {#each item.related as other (other.channel)}
                 {@const target = findingLinks(asset.assetId, {...item, channel:other.channel, context:other.context ?? item.context}, findings.baseline, findings.bucketSeconds, findings.record)}
@@ -152,14 +163,11 @@
             <span class="go">{#if links.previous}<a class="ui-button ui-button-primary" href={links.previous}>변화 직전과 비교 →</a>
               {:else if links.compare}<a class="ui-button ui-button-primary" href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
               {#if links.relation}<a href={links.relation.href}>{links.relation.label} →</a>{/if}</span>
-            {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
-              {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
-            </details>{/if}
-            <details><summary>신호·추가 비교</summary>
+
               {#if item.baseline}<p class="context small">비교 기준 · 이 기록의 처음 30% · {observed(item.baseline.from)} ~ {observed(item.baseline.to)}</p>{/if}
               {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}
               {#if links.previous && links.compare}<a href={links.compare}>기록 처음 30%와 비교 →</a>{/if}
-              {#if item.reason === "record-end" && !item.context}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
+              {#if item.reason === "record-end"}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
             </details>
           </li>
         {/each}
@@ -283,6 +291,7 @@
   .found { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
   .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
   .found > li { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .finding-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}.finding-head h3{margin:0;font-size:var(--font-body);font-weight:650}.change-values{font-size:clamp(1.25rem,3vw,1.65rem);line-height:1.4}.change-time{margin:var(--space-1) 0;color:var(--color-ink-muted);font-size:var(--font-small)}.finding-actions{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-3)}.finding-actions details{flex:1;min-width:180px}.finding-coverage{margin-bottom:var(--space-3)}
   .found .reason { color: var(--color-action); font-weight: 650; font-size: var(--font-small); }
   .related { list-style: none; padding: 0; margin-block: var(--space-2); font-size: var(--font-small); }
   .related li { display: block; padding-block: var(--space-1); color: var(--color-ink-muted); }

@@ -12,7 +12,7 @@
     type ChannelList, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
   } from "../history";
   import {
-    atFinest, covers, EDGE_MS, focusFrom, focusGroups, focusParams, type SourceFocus, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, MAX_SPAN_MS,
+    atFinest, covers, EDGE_MS, focusFrom, focusGroups, focusParams, type SourceFocus, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, windowParams, MAX_SPAN_MS,
     type Span,
   } from "../signal-selection";
   import { defaultChannel } from "../monitor-attention";
@@ -104,6 +104,7 @@
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selectedChannel);
+    url.searchParams.delete("record_key");
     url.searchParams.set("monitor_range", range);
     url.searchParams.set("monitor_anchor", anchor);
     if (range === "window" && zoom) {
@@ -222,9 +223,13 @@
     const x = (at: number) => ((at - chart.start) / (chart.end - chart.start)) * chart.width;
     return {x: x(from), width: Math.max(x(to) - x(from), 2)};
   }
+  function contextParams():Record<string,string> {
+    const window=zoom??(picked?zoomWindow(picked):null);
+    return window?windowParams(window,picked):{};
+  }
   function linkTo(href: string, extra: Record<string, string>): string {
     const url = new URL(href, location.origin);
-    for (const [key, value] of Object.entries(extra)) url.searchParams.set(key, value);
+    for (const [key, value] of Object.entries({...contextParams(),...(focus?focusParams(focus):{}), ...extra})) url.searchParams.set(key, value);
     return url.pathname + url.search;
   }
   const spanText = (span: Span) => span.to - span.from < 1000 ? recorded(new Date(span.from).toISOString())
@@ -322,9 +327,9 @@
     </div>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
-      <a href={assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel)}>기준 구간 이탈 →</a>
-      <a href={assetTabUrl(assetId, "change", "compare", "history", selectedChannel)}>두 기간 비교 →</a>
-      <a href={assetTabUrl(assetId, "outlook", null, "history", selectedChannel)}>기준 도달 전망 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기준 구간 이탈 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
     </nav>
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />

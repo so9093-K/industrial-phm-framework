@@ -9,7 +9,7 @@ import {periodParams, windowParams, zoomWindow} from "./signal-selection.ts";
 import {object} from "./writes.ts";
 
 export type FoundInterval = {
-  reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
+  trace?:{at:string;value:number}[]; reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
   start: string; end: string; channel: string; label: string; unit: string | null;
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
@@ -60,7 +60,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
     const low = finite(usual.low), high = finite(usual.high);
     if (low > high) invalid();
-    return {reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
+    return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1])};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
       bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
       value: finite(row.value), usual: {low, high}, within: row.within.map(text),
@@ -174,7 +174,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     url.searchParams.set("relation_y", other.channel);
     relation = {href: url.pathname + url.search, label: other.label + " 관계 비교"};
   }
-  return {signal, compare, previous, relation, outlook: assetTabUrl(assetId, "outlook", null, "history", item.channel)};
+  return {signal, compare, previous, relation, outlook: link(assetTabUrl(assetId, "outlook", null, "history", item.channel), {})};
 }
 
 const WHY: Record<Exclude<SignalState, "scored" | "level-change">, string> = {

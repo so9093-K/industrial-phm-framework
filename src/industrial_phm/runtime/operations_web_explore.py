@@ -331,13 +331,7 @@ def _departures(
         raise ValueError("choose one signal and its source record")
     baseline = (query.get("baseline") or ["first-30"])[0]
     records = signal_records(history, asset_id, series)
-    selected_key = next(iter(query.get("record_key", [])), None)
-    record = next(
-        (r for r in records if (selected_key is None and r["points"]) or r["key"] == selected_key),
-        None,
-    )
-    if record is None:
-        raise LookupError("no matching source/point/meaning record")
+    record = select_signal_record(records, {key: values[0] for key, values in query.items()})
     channel = record["channel"]
     found = find_departures({channel: record["points"]}, baseline=baseline)
 
@@ -524,6 +518,35 @@ def signal_records(
     return records
 
 
+def record_selection(params: dict[str, str]) -> dict[str, str]:
+    selectors: dict[str, str] = {
+        key: params[key]
+        for key in ("record_key", "monitor_source", "monitor_point", "monitor_interpretation")
+        if key in params
+    }
+    if any(len(value) > 512 for value in selectors.values()):
+        raise ValueError("invalid record selector")
+    return selectors
+
+
+def select_signal_record(
+    records: list[dict[str, Any]], params: dict[str, str], *, largest: bool = False
+) -> dict[str, Any]:
+    selected = records if record_selection(params) else [row for row in records if row["points"]]
+    for selector, field in (
+        ("record_key", "key"),
+        ("monitor_source", "source_id"),
+        ("monitor_point", "point_id"),
+        ("monitor_interpretation", "interpretation_id"),
+    ):
+        if selector in params:
+            value = params[selector] or None
+            selected = [row for row in selected if row[field] == value]
+    if not selected:
+        raise LookupError("no matching source/point/meaning record")
+    return max(selected, key=lambda row: row["usable_count"]) if largest else selected[0]
+
+
 def record_context(record: dict[str, Any]) -> dict[str, Any]:
     return {
         "key": record["key"],
@@ -531,6 +554,7 @@ def record_context(record: dict[str, Any]) -> dict[str, Any]:
         "source_id": record["source_id"],
         "measurement_point_id": record["point_id"],
         "interpretation_id": record["interpretation_id"],
+        "unit": record["unit"],
         "observed_property": interpretation_property(record["interpretation"]),
         "record": record["record"],
     }
@@ -688,6 +712,15 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             ],
             key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
         )
+        trace_indices = {round(i * (len(record["points"]) - 1) / 47) for i in range(48)}
+        for boundary in (item["start"], item["end"]):
+            near = min(
+                range(len(record["points"])),
+                key=lambda i: abs((record["points"][i][0] - boundary).total_seconds()),
+            )
+            trace_indices.update(
+                i for i in (near - 1, near, near + 1) if 0 <= i < len(record["points"])
+            )
         shown.append(
             {
                 "start": iso(item["start"]),
@@ -703,6 +736,10 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "baseline": {"from": iso(reference[0]), "to": iso(reference[1])},
                 "reference_value": own["reference"] if own else None,
                 "typical_value": own["current"] if own else None,
+                "trace": [
+                    [iso(record["points"][i][0]), record["points"][i][2]]
+                    for i in sorted(trace_indices)
+                ],
                 "related": [
                     {
                         **{

@@ -3,13 +3,13 @@
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
-  import {attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AttentionState, type Departure, type PhmMonitor} from "../monitor-attention";
+  import {attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AttentionState, type Departure, type PhmMonitor, type Note} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
   /** What needs a look, read again every few seconds while this page is visible. A failed
    * read hides the earlier items rather than showing them as current. */
-  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>,state:AttentionState) => void};
+  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>,state:AttentionState,primary:Record<string,Note>) => void};
   let {snapshot,onTick, onNotes}: Props = $props();
   const INTERVAL = 3000;
   // The guided demo replays a stored snapshot; reading it again would change nothing.
@@ -39,7 +39,7 @@
     if (!current || loadState === "failed") return "failed";
     return attentionComplete(current,connections,departuresComplete) ? "ready" : "partial";
   });
-  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])]),notesState); });
+  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])]),notesState,Object.fromEntries(groups.filter(group=>group.notes.length).map(group=>[group.assetId,group.notes[0]]))); });
   const clock = (at: Date) => at.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
   // Server assessment and HTTP read time must never be substituted for each other.
   const assessed = $derived.by((): Date | null => {

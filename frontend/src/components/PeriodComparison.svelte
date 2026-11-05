@@ -106,6 +106,11 @@
   function remember() {
     if (!periods) return;
     const url = new URL(location.href);
+    url.searchParams.delete("record_key");
+    url.searchParams.set("monitor_range","window");
+    url.searchParams.set("monitor_from",periods.b.from);
+    url.searchParams.set("monitor_to",periods.b.to);
+    url.searchParams.set("monitor_pick",periods.b.from+"~"+periods.b.to);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selected);
     for(const key of ["monitor_source","monitor_point","monitor_interpretation"]) url.searchParams.delete(key);

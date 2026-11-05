@@ -42,6 +42,9 @@ from industrial_phm.runtime.operations_web_explore import (
     _history,
     acquisition_period,
     explore_sources,
+    record_context,
+    record_selection,
+    select_signal_record,
     signal_records,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -93,7 +96,7 @@ def handle_forecast_read(
     workspace: OperationsWorkspace, path: str, raw_query: str
 ) -> tuple[HTTPStatus, dict[str, Any]]:
     try:
-        query = parse_qs(raw_query, strict_parsing=False)
+        query = parse_qs(raw_query, strict_parsing=False, keep_blank_values=True)
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("repeated query parameter")
         params = {name: values[0] for name, values in query.items()}
@@ -119,7 +122,9 @@ def handle_forecast_read(
                     raise ValueError("invalid assumed_period_seconds")
                 kind = params.get("kind")
                 if kind == "history" and assumed is None:
-                    times, values, _ = history_points(workspace, asset_id, params["series"])
+                    times, values, meta = history_points(
+                        workspace, asset_id, params["series"], record_selection(params)
+                    )
                 elif kind == "acquisition":
                     times, values, meta = acquisition_points(
                         workspace,
@@ -137,6 +142,11 @@ def handle_forecast_read(
                 body["selection"] = {
                     "kind": kind,
                     "series": params["series"],
+                    **(
+                        {"record_key": meta["record_key"], "records": meta["available_records"]}
+                        if kind == "history"
+                        else {}
+                    ),
                     "horizons": (
                         {key: "unknown-interval" for key in HORIZONS}
                         if kind == "acquisition" and meta["time_basis"] == "ordinal"
@@ -201,6 +211,7 @@ def handle_forecast_read(
             horizon_count=count,
             assumed_period_seconds=assumed_period,
             rolling_backtests=backtest == "multi",
+            record_selector=record_selection(params),
         )
     except ForecastUnavailable as error:
         return HTTPStatus.UNPROCESSABLE_ENTITY, {
@@ -351,6 +362,7 @@ def forecast_series(
     horizon_count: int | None = None,
     assumed_period_seconds: float | None = None,
     rolling_backtests: bool = False,
+    record_selector: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """One series continued ``horizon`` ahead, with its interval and a check on the past."""
     if not series:
@@ -358,7 +370,8 @@ def forecast_series(
     if kind == "history":
         if horizon == "count" or assumed_period_seconds is not None:
             raise ValueError("count mode only applies to acquisitions")
-        times, values, meta = history_points(workspace, asset_id, series)
+        times, values, meta = history_points(workspace, asset_id, series, record_selector)
+        meta.pop("available_records", None)
         seasonal = seasonality != "off"
     elif kind == "acquisition":
         times, values, meta = acquisition_points(
@@ -426,7 +439,10 @@ def forecast_series(
 
 
 def history_points(
-    workspace: OperationsWorkspace, asset_id: str, channel: str
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    channel: str,
+    selection: dict[str, str] | None = None,
 ) -> tuple[list[datetime], list[float], dict[str, Any]]:
     reader = _history(workspace)
     if reader is None:
@@ -434,7 +450,7 @@ def history_points(
     records = signal_records(reader, asset_id, [channel])
     if not records:
         raise LookupError("no stored measurement history")
-    record = max(records, key=lambda row: row["usable_count"])
+    record = select_signal_record(records, selection or {}, largest=True)
     points = record["observations"]
     if not points:
         raise LookupError("no usable measurement history")
@@ -445,6 +461,13 @@ def history_points(
         [v for _, v in points],
         {
             "label": channel,
+            "record_key": record["key"],
+            "source_point_records": sum(
+                row["source_id"] == record["source_id"] and row["point_id"] == record["point_id"]
+                for row in records
+            ),
+            "interpretation_id": record["interpretation_id"],
+            "available_records": [record_context(row) for row in records],
             "unit": record["unit"],
             "source_id": record["source_id"],
             "measurement_point_id": record["point_id"],

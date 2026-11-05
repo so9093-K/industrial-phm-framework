@@ -154,7 +154,7 @@
         aria-current={route.tab === tab ? "page" : undefined}>{TAB_INFO[tab]}</a>
     {/each}
   </nav>
-  <p class="tabs-hint">다른 설비 화면은 탭을 가로로 밀어 확인하세요.</p>
+  <p class="tabs-hint">다른 분석 화면은 탭을 가로로 밀어 확인하세요.</p>
 
   {#if dataState === "ready" && (!needsCapability || capabilityState === "ready")
     && !chooseKind && (methods.length || kind)}

@@ -49,6 +49,7 @@ _SELECTION = frozenset(
         "asset_id",
         "kind",
         "series",
+        "record_key",
         "management_limit",
         "end_limit",
         "direction",
@@ -390,6 +391,8 @@ def capture_outlook(root: Path, payload: dict[str, object]) -> dict[str, object]
         "measurement_version": outlook["measurement_version"],
         "data_version": outlook["data_version"],
     }
+    if outlook.get("record_key"):
+        identity["record_key"] = outlook["record_key"]
     if outlook["kind"] == "acquisition":
         identity["binding_id"] = outlook["binding_id"]
     snapshot = {
@@ -408,7 +411,11 @@ def current_measurement_recheck(
     snapshot: dict[str, Any],
     *,
     projection_cache: (
-        dict[tuple[str, str, str, str | None], tuple[str, dict[str, Any]] | None] | None
+        dict[
+            tuple[str, str, str, str | None, str | None, str, str | None],
+            tuple[str, dict[str, Any]] | None,
+        ]
+        | None
     ) = None,
 ) -> str:
     """Compare today's measurement projection without re-reading the same stream per record.
@@ -420,13 +427,32 @@ def current_measurement_recheck(
     selection = snapshot["selection"]
     asset_id, kind, series = identity["asset_id"], identity["kind"], identity["series"]
     assumed = selection.get("assumed_period_seconds")
-    key = (asset_id, kind, series, assumed)
+    selected_record = selection.get("record_key") or identity.get("record_key")
+    key = (
+        asset_id,
+        kind,
+        series,
+        assumed,
+        selected_record,
+        identity["source_id"],
+        identity.get("measurement_point_id"),
+    )
     try:
         if projection_cache is not None and key in projection_cache:
             projection = projection_cache[key]
         else:
             if kind == "history":
-                times, values, meta = history_points(workspace, asset_id, series)
+                times, values, meta = history_points(
+                    workspace,
+                    asset_id,
+                    series,
+                    {"record_key": selected_record}
+                    if selected_record
+                    else {
+                        "monitor_source": identity["source_id"],
+                        "monitor_point": identity.get("measurement_point_id") or "",
+                    },
+                )
             elif kind == "acquisition":
                 times, values, meta = acquisition_points(
                     workspace,
@@ -436,6 +462,12 @@ def current_measurement_recheck(
                     count_mode=True,
                 )
             else:
+                return "unavailable"
+            if (
+                kind == "history"
+                and not selected_record
+                and meta.get("source_point_records", 1) != 1
+            ):
                 return "unavailable"
             finite = [
                 (time, value)
@@ -466,6 +498,10 @@ def current_measurement_recheck(
             meta["source_id"] != identity["source_id"]
             or meta.get("measurement_point_id") != identity.get("measurement_point_id")
             or meta.get("time_basis") != identity.get("time_basis")
+            or (
+                identity.get("record_key") is not None
+                and meta.get("record_key") != identity["record_key"]
+            )
         ):
             return "different_source"
         if actual == identity["measurement_version"]:
@@ -507,7 +543,8 @@ def handle_outlook_captures_read(
             return HTTPStatus.NOT_FOUND, {"error": "outlook_capture_not_found"}
         records = page[:20]
         projection_cache: dict[
-            tuple[str, str, str, str | None], tuple[str, dict[str, Any]] | None
+            tuple[str, str, str, str | None, str | None, str, str | None],
+            tuple[str, dict[str, Any]] | None,
         ] = {}
         for item in records:
             item["source_recheck"] = current_measurement_recheck(

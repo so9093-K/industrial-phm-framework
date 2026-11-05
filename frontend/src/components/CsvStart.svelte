@@ -17,7 +17,7 @@
   import PhaseRoles from "./PhaseRoles.svelte";
 
   /** One CSV file to stored measurements: see the file's own values, let the server check it
-   * without saving, then register, put in use, read once and store history as visible steps.
+   * without saving, then register, put in use, read once and store history as recoverable steps behind one confirmation.
    * A retry resumes from the server's state and never registers or stores twice. */
   type Props = {writable: boolean; onSaved: () => Promise<void>};
   let {writable, onSaved}: Props = $props();
@@ -245,6 +245,11 @@
     return done;
   }
 
+  async function confirmAndSave() {
+    if(checking||saving)return;
+    if(!checked)await check();
+    if(checked)await save();
+  }
   async function save() {
     if (!file || !checked || !timeZoneReady || saving || !writable) return;
     const current = file;
@@ -305,9 +310,9 @@
 
 <section class="ui-panel csv-start" aria-labelledby="csv-start-title">
   <h2 id="csv-start-title">CSV 데이터 등록</h2>
-  <p class="context">파일 미리보기와 측정 설정을 확인한 뒤 등록합니다. 저장한 데이터는 설비 화면에서 분석할 수 있습니다.</p>
+  <p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>
   <ol class="flow" aria-label="진행 순서">
-    <li>파일 선택</li><li>측정·설비 설정</li><li>등록 전 검증</li><li>등록·이력 저장</li>
+    <li>파일 선택</li><li>미리보기·설비 확인</li><li>저장하고 분석</li>
   </ol>
 
   <div class="field">
@@ -323,7 +328,7 @@
   {#if table}
     <section aria-labelledby="csv-preview-title">
       <h3 id="csv-preview-title">파일 미리보기</h3>
-      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "이 브라우저에서 읽은 값 · 서버가 확인함 · 아직 저장 전" : "이 브라우저에서 읽은 값 · 아직 서버 점검·저장 전"}</p>
+      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "미리보기 · 저장 전 검증을 통과했습니다" : "미리보기 · 아직 저장하지 않았습니다"}</p>
       <div class="columns">
         <label class="field">시각 열
           <select value={String(timeIndex)} disabled={locked} onchange={(event) => chooseTime(event.currentTarget.value)}>
@@ -343,60 +348,13 @@
             이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다. 저장되는 측정 시각에 영향을 줍니다.
           </label>
         {/if}
-        <fieldset>
-          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
-          {#each choices as choice (choice.name)}
-            <label class="choice">
-              <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
-                || (!channels.includes(choice.name) && channels.length >= MAX_CHANNELS)}
-                onchange={(event) => toggle(choice.name, event.currentTarget.checked)} />
-              {choice.name}{choice.note ? " · " + choice.note : ""}
-            </label>
-          {/each}
-        </fieldset>
+
       </div>
       {#if problems.length}
         <ul class="problems" aria-label="저장 전에 고칠 것">
           {#each problems as problem, i (i)}<li>{problem}</li>{/each}
         </ul>
-      {:else}
-        <p class="ok">이 브라우저에서 찾은 구조 문제는 없습니다. 서버 점검으로 최종 확인합니다.</p>
-      {/if}
-      {#if channels.length}
-        <fieldset class="names">
-          <legend>표시명·단위 설정</legend>
-          <p class="context">선택 입력입니다. 미입력 시 원본 열 이름을 사용하고, 단위는 ‘미확인’으로 표시합니다.</p>
-          {#if unfilledExamples.length && !locked}
-            <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
-            <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
-              {unfilledExamples.map((name) => shown(name) + " " + unitExample(name)).join(" · ")} · 실제 계측 단위와 다르면 고치세요.</p>
-          {/if}
-          {#each channels as name (name)}
-            <div class="name-row">
-              <span class="column">{name}</span>
-              <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
-                value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
-              <input maxlength="16" placeholder={unitExample(name) ? "단위 예: " + unitExample(name) : "단위"} aria-label={name + " 단위"} disabled={locked}
-                value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
-            </div>
-          {/each}
-        </fieldset>
-        <div class="scroll"><table>
-          <caption>측정값 요약</caption>
-          <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
-            <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
-          <tbody>
-            {#each channels as name (name)}
-              {@const summary = summarize(table, name)}
-              <tr><th scope="row">{shown(name)}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
-                <td>{num(summary.min, "—")}</td><td>{num(summary.median, "—")}</td><td>{num(summary.max, "—")}</td><td>{num(summary.mean, "—")}</td></tr>
-            {/each}
-          </tbody>
-        </table></div>
-      {/if}
-      {#if gaps}
-        <p class="context">측정 간격 · 보통 {duration(gaps.usualSeconds)} · 간격이 크게 다른 곳 {gaps.uneven}곳 · 가장 긴 공백 {duration(gaps.longestSeconds)}
-          {gaps.longestAfter !== null ? " (" + clock(new Date(gaps.longestAfter).toISOString()) + " 이후)" : ""}</p>
+
       {/if}
       {#if channels.length && points.length}
         <label class="field">미리보기 신호
@@ -423,6 +381,49 @@
         <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
+      <details><summary>측정값 상세 설정·통계</summary><fieldset>
+          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
+          {#each choices as choice (choice.name)}
+            <label class="choice">
+              <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
+                || (!channels.includes(choice.name) && channels.length >= MAX_CHANNELS)}
+                onchange={(event) => toggle(choice.name, event.currentTarget.checked)} />
+              {choice.name}{choice.note ? " · " + choice.note : ""}
+            </label>
+          {/each}
+        </fieldset>{#if channels.length}<fieldset class="names">
+          <legend>표시명·단위 설정</legend>
+          <p class="context">선택 입력입니다. 미입력 시 원본 열 이름을 사용하고, 단위는 ‘미확인’으로 표시합니다.</p>
+          {#if unfilledExamples.length && !locked}
+            <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
+            <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
+              {unfilledExamples.map((name) => shown(name) + " " + unitExample(name)).join(" · ")} · 실제 계측 단위와 다르면 고치세요.</p>
+          {/if}
+          {#each channels as name (name)}
+            <div class="name-row">
+              <span class="column">{name}</span>
+              <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
+                value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
+              <input maxlength="16" placeholder={unitExample(name) ? "단위 예: " + unitExample(name) : "단위"} aria-label={name + " 단위"} disabled={locked}
+                value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
+            </div>
+          {/each}
+        </fieldset><div class="scroll"><table>
+          <caption>측정값 요약</caption>
+          <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
+            <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
+          <tbody>
+            {#each channels as name (name)}
+              {@const summary = summarize(table, name)}
+              <tr><th scope="row">{shown(name)}</th><td>{summary.count.toLocaleString("ko-KR")}</td><td>{summary.missing}</td>
+                <td>{num(summary.min, "—")}</td><td>{num(summary.median, "—")}</td><td>{num(summary.max, "—")}</td><td>{num(summary.mean, "—")}</td></tr>
+            {/each}
+          </tbody>
+        </table></div>{/if}      {#if gaps}
+        <p class="context">측정 간격 · 보통 {duration(gaps.usualSeconds)} · 간격이 크게 다른 곳 {gaps.uneven}곳 · 가장 긴 공백 {duration(gaps.longestSeconds)}
+          {gaps.longestAfter !== null ? " (" + clock(new Date(gaps.longestAfter).toISOString()) + " 이후)" : ""}</p>
+      {/if}
+</details>
     </section>
 
     <section aria-labelledby="csv-asset-title">
@@ -430,11 +431,12 @@
       <div class="grid">
         <label class="field">설비 이름·번호<input maxlength="128" placeholder="예: 1호 펌프" autocomplete="off" disabled={locked}
           value={assetId} oninput={(event) => { assetId = event.currentTarget.value; changed(); }} /></label>
-        <label class="field">측정 위치 (선택)<input maxlength="128" placeholder="예: panel-main" autocomplete="off" disabled={locked}
-          value={pointId} oninput={(event) => { pointId = event.currentTarget.value; changed(); }} /></label>
       </div>
       <details>
-        <summary>연결 ID·이름 (자동으로 만듦 · 필요하면 수정)</summary>
+        <summary>측정 위치·연결 상세 설정 (선택)</summary>
+        <label class="field">측정 위치 (선택)<input maxlength="128" placeholder="예: panel-main" autocomplete="off" disabled={locked}
+          value={pointId} oninput={(event) => { pointId = event.currentTarget.value; changed(); }} /></label>
+        <p class="context">연결 ID와 이름은 자동으로 만듭니다. 필요한 경우 수정하세요.</p>
         <div class="grid">
           <label class="field">연결 ID<input maxlength="128" autocomplete="off" disabled={locked}
             value={sourceId} oninput={(event) => { sourceId = event.currentTarget.value; changed(); }} /></label>
@@ -450,9 +452,9 @@
       {#if !writable}
         <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
       {:else}
-        <button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
+        <details><summary>저장 전 점검만 실행 (선택)</summary><button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
           aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
-          onclick={() => void check()}>등록 전 검증</button>
+          onclick={() => void check()}>등록 전 검증</button></details>
         {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
       {/if}
       {#if checkMessage}
@@ -461,17 +463,18 @@
     </section>
 
     <section aria-labelledby="csv-save-title">
-      <h3 id="csv-save-title">등록·이력 저장</h3>
-      <p class="context">중간에 실패해도 입력은 남고, 다시 시도하면 끝난 단계는 건너뜁니다.</p>
-      <ol class="steps">
+      <h3 id="csv-save-title">확인하고 저장하기</h3>
+      <p class="context">파일과 설정을 검증한 뒤 측정 기록을 저장합니다.</p>
+      {#if saveFailed}<p class="context">입력은 남아 있습니다. 다시 시도하면 완료한 단계부터 이어집니다.</p>{/if}
+      <details open={saveFailed}><summary>저장 처리 내역</summary><ol class="steps">
         {#each STEPS as item (item.id)}
           <li data-state={steps[item.id].state}><strong>{item.title}</strong><span>{item.text}</span>
             {#if progress || steps[item.id].state !== "pending"}<em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em>{/if}</li>
         {/each}
-      </ol>
+      </ol></details>
       {#if !stored}
-        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !checked || !timeZoneReady || saving}
-          onclick={() => void save()}>{saveFailed && progress ? "실패한 단계부터 다시 시도" : "등록·이력 저장"}</button>
+        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem}
+          onclick={() => void confirmAndSave()}>{checking?"저장 전 검증 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
       {/if}
       {#if saveMessage}
         <p class="message" class:failure={saveFailed} role={saveFailed ? "alert" : "status"}>{saveMessage}</p>
@@ -520,7 +523,6 @@
   .choice { display: flex; gap: var(--space-2); align-items: flex-start; padding-block: var(--space-1); overflow-wrap: anywhere; }
   .tag { font-size: var(--font-small); color: var(--color-ink-muted); }
   .problems { margin: 0; padding-inline-start: var(--space-5); color: var(--color-failure-ink); }
-  .ok { color: var(--color-ink-muted); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
   .scroll { max-width: 100%; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; }

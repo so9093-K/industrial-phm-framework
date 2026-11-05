@@ -65,7 +65,7 @@ export function routeUrl(route: Route, channel: string | null = null): string {
 }
 
 /** Resolve tab links when activated, after the child may have changed its URL selection.
- * Only the selected signal/feature follows; forecast settings and comparison ranges do not. */
+ * The selected observations and periods follow; model settings and review identities do not. */
 export function tabSelectionUrl(href: string, currentHref: string): string {
   const current = new URL(currentHref), next = new URL(href, current);
   const from = parseRoute(current.search), to = parseRoute(next.search);
@@ -74,6 +74,8 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
     || !from.assetId || from.assetId !== to.assetId) return next.pathname + next.search + next.hash;
   const channel = current.searchParams.get("monitor_channel");
   if (channel) next.searchParams.set("monitor_channel", channel);
+  for(const key of ["record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin"])
+    if(current.searchParams.has(key))next.searchParams.set(key,current.searchParams.get(key)!);
   const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
   const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];
   const feature = (sourceKey ? current.searchParams.get(sourceKey) : null)

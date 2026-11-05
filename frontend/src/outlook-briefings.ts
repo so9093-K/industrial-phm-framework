@@ -50,6 +50,7 @@ export function briefingSelection(projection:BriefingProjection):string{
     changepoint_range:String(projection.outlookSettings.changepointRange),
     seasonality:projection.outlookSettings.seasonality,
   };
+  if(!isAcquisition(projection)&&projection.recordKey)entries.record_key=projection.recordKey;
   if(isAcquisition(projection)){
     entries.source_id=projection.sourceId;
     entries.binding_id=projection.bindingId;
@@ -98,6 +99,7 @@ export function verifyOutlookVersion(raw:unknown,projection:BriefingProjection):
   );
   if(!root||root.schema_version!==1||root.asset_id!==projection.assetId
     ||root.kind!==expectedKind||root.series!==stream||root.axis!==expectedAxis
+    ||(!acquisition&&(root.record_key??undefined)!==projection.recordKey)
     ||root.source_id!==projection.sourceId
     ||(root.measurement_point_id??null)!==(acquisition?null:projection.pointId)
     ||!acquireMatches

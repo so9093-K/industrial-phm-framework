@@ -1,4 +1,7 @@
 <script lang="ts">
+  import {focusFrom,focusParams,pickFrom,type SourceFocus} from "../signal-selection";
+  import {recordParams} from "../record-context";
+  import {readableSourceId} from "../operations-status";
   import ForecastFit from "./ForecastFit.svelte";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
@@ -38,6 +41,9 @@
   let selectionReady = $state(false);
   let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
+  const investigation=pickFrom(params.get("monitor_pick"));
+  let focus:SourceFocus|null=$state(focusFrom(params));
+  let selectedRecord=$state(params.get("record_key")??"");
   let settings=$state(savedSettings(params));
   let customSettings=$state([...params.keys()].some(key=>/^forecast_(prior|range|training|seasonality|backtest)$/.test(key)));
   let channel = $state(params.get("monitor_channel") ?? "");
@@ -53,6 +59,12 @@
   let requestProjection: AbortController | null = null;
   const horizons: Horizon[] = ["1h", "24h", "7d", "30d"];
 
+  function signalHref():string {
+    const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
+    const record=options?.records?.find(row=>row.key===projection?.recordKey);
+    for(const [key,value] of Object.entries(record?recordParams(record):focus?focusParams(focus):{}))url.searchParams.set(key,value);
+    return url.pathname+url.search;
+  }
   function parseLimit(value: string): number | null {
     if (value.trim() === "") return null;
     const n = Number(value);
@@ -69,6 +81,9 @@
     const url=new URL(location.href);
     url.searchParams.set("monitor_asset",assetId);
     url.searchParams.set("monitor_channel",channel);
+    if(selectedRecord)url.searchParams.set("record_key",selectedRecord);else url.searchParams.delete("record_key");
+    for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
+    if(focus)for(const [key,value] of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
     url.searchParams.set("projection_horizon",horizon);
     url.searchParams.set("projection_direction",direction);
     if (management.trim()) url.searchParams.set("projection_management",management);
@@ -112,9 +127,11 @@
     const abort=new AbortController();requestOptions=abort;
     selectionLoading=true;selectionReady=false;resultState="empty";projection=null;error="";horizonNotice="";
     try {
-      const data=await loadOptions(assetId,abort.signal,{channel,trainingPoints:settings.trainingPoints});
+      const data=await loadOptions(assetId,abort.signal,{channel,trainingPoints:settings.trainingPoints,recordKey:selectedRecord||undefined,focus:selectedRecord?null:focus});
       if(abort.signal.aborted)return;
-      options=data;selectionReady=true;
+      options=data;selectionReady=true;selectedRecord=data.recordKey??"";
+      const chosen=data.records?.find(row=>row.key===selectedRecord);
+      if(chosen)focus={source:chosen.sourceId,point:chosen.pointId,interpretation:chosen.interpretationId};
       if (data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
         if (!allowed) {
@@ -149,7 +166,7 @@
       );
       const conditions:Conditions={direction,management:parseLimit(management),end:parseLimit(endLimit)};
       save();
-      const data=await loadPaired(assetId,channel,horizon,conditions,abort.signal,customSettings?settings:undefined);
+      const data=await loadPaired(assetId,channel,horizon,conditions,abort.signal,customSettings?settings:undefined, selectedRecord||undefined);
       if(abort.signal.aborted)return;
       projection=data;resultState="ready";
     }catch(cause:unknown){
@@ -183,11 +200,15 @@
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
-          onchange={e=>{channel=e.currentTarget.value;invalidate();void loadSelectedOptions(true);}}>
+          onchange={e=>{channel=e.currentTarget.value;selectedRecord="";if(focus)focus={...focus,interpretation:undefined};invalidate();void loadSelectedOptions(true);}}>
           {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
-
+      {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
+        <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
+          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 의미 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
+        </select>
+      </label>{/if}
     </div>
     <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
       <summary>관리·종료 기준 추가 (선택)</summary>
@@ -227,6 +248,7 @@
       onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
       계산하기
     </button>
+    {#if investigation}<p class="intro">이어서 조사하는 구간 · {clock(new Date(investigation.from).toISOString())} ~ {clock(new Date(investigation.to).toISOString())}. 전망은 해당 구간으로 학습을 제한하지 않고, 선택한 기록의 마지막 시점을 기준으로 계산합니다.</p>{/if}
     <p class="intro">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
@@ -234,6 +256,7 @@
     {:else if resultState === "failed"}
       <StatusNotice kind="failure" title="전망을 계산하지 못했습니다" message={error}
         actionLabel="다시 계산하기" onAction={()=>void calculate()} />
+      {#if selectedRecord||focus}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";focus=null;save();void loadSelectedOptions(true);}}>이 신호의 다른 기록 선택</button>{/if}
     {:else if resultState === "unverified"}
       <StatusNotice kind="uncertain" title="데이터가 바뀌어 결과를 다시 계산해야 합니다" message={error}
         actionLabel="다시 계산하기" onAction={()=>void calculate()} />
@@ -253,6 +276,8 @@
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
+          <p class="record-context">분석 대상 · {readableSourceId(projection.sourceId)} · {projection.pointId??"측정 위치 미지정"}
+            {#if options.records?.find(row=>row.key===projection?.recordKey)?.meaningLabel} · {options.records.find(row=>row.key===projection?.recordKey)!.meaningLabel}{/if}</p>
           <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
@@ -377,7 +402,7 @@
             <dt>해설 근거 버전 (data_version)</dt><dd>{projection.dataVersion}</dd>
           </dl>
         </details>
-        <p class="intro"><a href={assetTabUrl(assetId, "signals", null, null, channel)}>이 신호의 원본 측정 보기 →</a></p>
+        <p class="intro"><a href={signalHref()}>이 신호의 원본 측정 보기 →</a></p>
       </section>
     {/if}
   {/if}

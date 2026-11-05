@@ -20,6 +20,7 @@ from tests.support.web_next import InProcessSupervisor, asset_list, stop_web
 @pytest.mark.parametrize("width", [390, 1280])
 def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width: int) -> None:
     pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("prophet")
     workspace = phm_workspace(tmp_path / "ws", bind=False)
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
@@ -71,8 +72,12 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             )
             page.goto(url)
             card = page.locator(".found > li").first
-            pw.expect(card).to_contain_text("일정하던 값의 변화")
+            pw.expect(card).to_contain_text("일정하던 값이 상승")
             assert card.bounding_box()["y"] < 844
+            signal_href = card.get_by_role(
+                "link", name="변화 구간 조사", exact=False
+            ).get_attribute("href")
+            pw.expect(card.locator("svg path.trace")).to_have_count(1)
             compare = card.get_by_role(
                 "link", name="기록 처음 30%와 비교 →", include_hidden=True
             ).first.get_attribute("href")
@@ -132,6 +137,37 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             slider.focus()
             slider.press("ArrowRight")
             pw.expect(slider).to_have_value("1")
+            page.goto(f"http://127.0.0.1:{server.server_port}" + signal_href)
+            pw.expect(page.get_by_text("데이터 출처 source-b", exact=False).first).to_be_visible()
+            departure_href = page.get_by_role(
+                "link", name="기준 구간 이탈 →", exact=True
+            ).get_attribute("href")
+            outlook_href = page.get_by_role(
+                "link", name="기준 도달 전망 →", exact=True
+            ).get_attribute("href")
+            for href in (departure_href, outlook_href):
+                assert "monitor_source=source-b" in href and "monitor_point=bearing" in href
+            with page.expect_response("**/api/v1/explore/anomaly?**") as departure:
+                page.goto(f"http://127.0.0.1:{server.server_port}" + departure_href)
+            assert departure.value.json()["record"]["source_id"] == "source-b"
+            with page.expect_response("**/api/v1/forecast?**", timeout=60000) as forecast:
+                page.goto(f"http://127.0.0.1:{server.server_port}" + outlook_href)
+            forecast_body = forecast.value.json()
+            assert forecast_body["source_id"] == "source-b"
+            assert forecast_body["measurement_point_id"] == "bearing"
+            panel = page.get_by_role("region", name="추세·기준 도달 전망")
+            pw.expect(
+                panel.get_by_role("heading", name="기록 마지막 시점 기준 전망", exact=True)
+            ).to_be_visible(timeout=60000)
+            pw.expect(panel.locator(".record-context")).to_contain_text("source-b")
+            panel.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
+            panel.get_by_role("radio", name="계속 관찰").check()
+            panel.get_by_role("button", name="판단 저장", exact=True).click()
+            pw.expect(panel).to_contain_text("현재 판단 · 계속 관찰", timeout=60000)
+            page.reload()
+            panel.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
+            pw.expect(panel).to_contain_text("현재 판단 · 계속 관찰", timeout=60000)
+            assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
             assert errors == []
             browser.close()
     finally:

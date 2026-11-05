@@ -106,6 +106,18 @@ test("a capture names the shown selection and provenance, never calculated facts
   assert.throws(()=>capturePayload({...history,measurementVersion:"measure-v1"}),CaptureRejected);
   assert.throws(()=>capturePayload({...history,outlookSettings:null}),CaptureRejected);
 });
+test("history review matching and revisiting retain the exact source record",()=>{
+  const projection={...history,recordKey:"record-b"};
+  const saved={...parseCapturePage(page(row("history")),history.assetId).captures[0].outlook,recordKey:"record-b"};
+  assert.equal(capturePayload(projection).record_key,"record-b");
+  assert.equal(matchesProjection(saved,projection),true);
+  assert.equal(matchesProjection({...saved,recordKey:"other-meaning"},projection),false);
+  const legacy={...saved,recordKey:undefined,unit:history.unit};
+  assert.equal(matchesProjection(legacy,{...projection,sourcePointRecords:1}),true);
+  assert.equal(matchesProjection(legacy,{...projection,sourcePointRecords:2}),false);
+  assert.equal(matchesProjection({...legacy,unit:"different"},{...projection,sourcePointRecords:1}),false);
+  assert.equal(new URL(reobservationUrl(saved),"http://local").searchParams.get("record_key"),"record-b");
+});
 
 test("saved records are scoped to one asset and their identity must match the archived facts",()=>{
   const parsed=parseCapturePage(page(row("history"),row("history","2")),"motor-a").captures;
@@ -250,7 +262,7 @@ test("positions stay on their axis and links reopen the same subject and conditi
     acq_management:"2.4",acq_end:"3",acq_assumed_period:"30"});
   const savedHistory=parseCapturePage(page(row("history")),"motor-a").captures[0].outlook;
   assert.deepEqual(Object.fromEntries(new URL(reobservationUrl(savedHistory),"http://localhost").searchParams),
-    {page:"assets",tab:"outlook",data:"history",monitor_asset:"motor-a",monitor_channel:"R",
+    {page:"assets",tab:"outlook",data:"history",monitor_asset:"motor-a",monitor_channel:"R",monitor_source:"source-a",monitor_point:"point-a",
       projection_direction:"upper",projection_management:"12"});
   assert.equal(captureUrl("a b","outlook-capture-x"),
     "/web/?page=maintenance&monitor_asset=a+b&capture_id=outlook-capture-x");

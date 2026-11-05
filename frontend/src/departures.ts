@@ -1,3 +1,4 @@
+import {focusGroups,focusParams} from "./signal-selection.ts";
 /**
  * Read-only, model-free departures from a user-selected baseline.
  * Results are a server-owned exploration aid, never health, fault probability,
@@ -181,16 +182,17 @@ export function departureChart(data: Departures): DepartureChart | null {
 }
 
 export async function readDepartures(
-  assetId: string, series: string, baseline: Baseline, signal: AbortSignal, recordKey?: string,
+  assetId: string, series: string, baseline: Baseline, signal: AbortSignal, recordKey?: string, focus?: import("./signal-selection.ts").SourceFocus|null,
 ): Promise<Departures> {
   const query = new URLSearchParams({ asset_id: assetId, series, baseline });
   if (recordKey) query.set("record_key", recordKey);
+  if(focus) for(const [key,value] of Object.entries(focusParams(focus)))query.set(key,value);
   const response = await fetch("/api/v1/explore/anomaly?" + query, {
     signal, cache: "no-store", credentials: "same-origin",
   });
   if (response.status === 404) {
     const error = await response.json().catch(() => null) as unknown;
-    if (obj(error)?.error === "nothing_to_explore" && recordKey) throw new Error("선택한 출처·측정 위치·측정 의미의 기록을 찾지 못했습니다. 다른 기록을 명시적으로 선택하세요.");
+    if (obj(error)?.error === "nothing_to_explore" && (recordKey||focus)) throw new Error("선택한 출처·측정 위치·측정 의미의 기록을 찾지 못했습니다. 다른 기록을 명시적으로 선택하세요.");
     if (obj(error)?.error === "nothing_to_explore") {
       throw new NoStoredEvidenceError("이 설비에는 비교할 저장 기록이 없습니다.");
     }
@@ -200,5 +202,8 @@ export async function readDepartures(
     await response.body?.cancel().catch(() => {});
     throw new Error("기준 이탈 결과를 읽지 못했습니다. 이상이 없다는 뜻은 아닙니다.");
   }
-  return parseDepartures(await response.json() as unknown, assetId, series, baseline);
+  const result=parseDepartures(await response.json() as unknown, assetId, series, baseline);
+  if((recordKey&&result.context?.key!==recordKey)||(focus&&(!result.context||!focusGroups([result.context],focus).length)))
+    throw new Error("선택한 출처·측정 위치·측정 의미와 다른 결과가 돌아왔습니다.");
+  return result;
 }

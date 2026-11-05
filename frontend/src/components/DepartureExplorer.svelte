@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
   import {short} from "../analysis-messages";
@@ -22,7 +23,7 @@
   }
   import {assetTabUrl, systemUrl} from "../routes";
   import {validatePeriods} from "../comparison";
-  import {periodParams, windowParams, zoomWindow, type Span} from "../signal-selection";
+  import {periodParams, windowParams, zoomWindow, pickFrom, type Span} from "../signal-selection";
 
   type Props = { assetId: string };
   type LoadState = "loading" | "ready" | "empty" | "unavailable" | "failed";
@@ -34,6 +35,8 @@
   let error = $state("");
   let channelError = $state("");
   const params = new URLSearchParams(location.search);
+  const investigation=pickFrom(params.get("monitor_pick"));
+  let focus:SourceFocus|null=$state(focusFrom(params));
   let selectedRecord = $state(new URLSearchParams(location.search).get("record_key") ?? "");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
   const requestedBaseline = params.get("departure_baseline");
@@ -62,11 +65,13 @@
     url.searchParams.set("monitor_channel", selectedChannel);
     url.searchParams.set("departure_baseline", baseline);
     if(selectedRecord) url.searchParams.set("record_key",selectedRecord); else url.searchParams.delete("record_key");
+    for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
+    if(focus)for(const [key,value] of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
     history.replaceState(history.state, "", url);
   }
   function changeChannel(channel: string) {
     if (!channels?.ids.includes(channel)) return;
-    selectedChannel = channel; selectedRecord = "";
+    selectedChannel = channel; selectedRecord = ""; if(focus)focus={...focus,interpretation:undefined};
     rememberSelection();
     void analyze();
   }
@@ -114,9 +119,9 @@
     analysisState = "loading";
     error = "";
     try {
-      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal, selectedRecord || undefined);
+      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal, selectedRecord || undefined, focus);
       if (request.signal.aborted) return;
-      result = evidence; selectedRecord = evidence.context?.key ?? ""; rememberSelection();
+      result = evidence; if(evidence.context)focus={source:evidence.context.sourceId,point:evidence.context.pointId,interpretation:evidence.context.interpretationId}; selectedRecord = evidence.context?.key ?? ""; rememberSelection();
       analysisState = "ready";
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -166,6 +171,7 @@
 <section class="ui-panel departures" aria-labelledby="departures-title">
   <h2 id="departures-title">기준 구간 이탈</h2>
   <p class="context">모델 없이, 고른 신호가 기록 초반(기준 구간)과 비교해 언제 크게 달라졌는지 찾습니다.</p>
+  {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 기준 이탈은 선택한 기록 전체에서 고른 기준 구간과 비교합니다.</p>{/if}
 
   {#if channelState === "loading"}
     <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
@@ -201,7 +207,7 @@
     {:else if analysisState === "failed"}
       <StatusNotice kind="failure" title="기준 이탈 결과를 불러오지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
-      {#if selectedRecord}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
+      {#if selectedRecord}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";focus=null;rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
     {:else if analysisState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 저장 기록이 없습니다"
         message="저장 기록을 신호 화면에서 확인하세요."
@@ -209,8 +215,8 @@
         actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
       {#if result.context}<p class="context">분석 대상 · {readableSourceId(result.context.sourceId)} · {result.context.pointId ?? "측정 위치 미지정"}</p>{/if}
-      {#if result.records.length > 1}<label>분석할 기록 <select value={selectedRecord} onchange={(event) => {selectedRecord=event.currentTarget.value;rememberSelection();void analyze();}}>
-        {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 의미 미지정"}</option>{/each}
+      {#if result.records.length > 1}<label>분석할 기록 <select value={selectedRecord} onchange={(event) => {selectedRecord=event.currentTarget.value;focus=null;rememberSelection();void analyze();}}>
+        {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 의미 미지정"}{record.unit?" · "+record.unit:""}</option>{/each}
       </select></label>{/if}
       {#if result.scored.state === "short-baseline"}
         <StatusNotice kind="uncertain" title="기준 구간의 기록이 부족합니다"

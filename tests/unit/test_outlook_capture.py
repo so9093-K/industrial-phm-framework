@@ -216,7 +216,12 @@ def test_page_rechecks_each_distinct_measurement_projection_once(
         store.save(snapshot)
     requests = []
 
-    def history(workspace: OperationsWorkspace, asset_id: str, name: str):
+    def history(
+        workspace: OperationsWorkspace,
+        asset_id: str,
+        name: str,
+        selection: dict[str, str] | None = None,
+    ):
         requests.append((asset_id, name))
         return times, values, meta
 
@@ -230,6 +235,53 @@ def test_page_rechecks_each_distinct_measurement_projection_once(
         "changed",
     }
     assert requests == [(asset, series)]
+
+
+def test_legacy_history_reviews_recheck_each_sources_own_projection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace = OperationsWorkspace(tmp_path)
+    store = OutlookCaptureStore(workspace.outlook_capture_path)
+    times = [datetime(2026, 10, 1, tzinfo=UTC) + timedelta(minutes=i) for i in range(25)]
+    values = [float(i) for i in range(25)]
+    for source in ("a", "b"):
+        meta = {"source_id": source, "measurement_point_id": None, "time_basis": "recorded"}
+        snapshot = _snapshot()
+        snapshot["identity"].update(
+            kind="history",
+            source_id=source,
+            measurement_point_id=None,
+            time_basis="recorded",
+            measurement_version=measurement_version(
+                "bearing-a", "history", "rms", times, values, meta
+            ),
+        )
+        snapshot["selection"]["kind"] = "history"
+        snapshot["outlook"]["kind"] = "history"
+        store.save(snapshot)
+    requested = []
+
+    def history(workspace, asset_id, series, selection):
+        requested.append(selection["monitor_source"])
+        assert selection["monitor_point"] == ""
+        return (
+            times,
+            values,
+            {
+                "source_id": selection["monitor_source"],
+                "measurement_point_id": None,
+                "time_basis": "recorded",
+                "source_point_records": 1,
+            },
+        )
+
+    monkeypatch.setattr(
+        "industrial_phm.runtime.operations_web_outlook_capture.history_points", history
+    )
+    status, page = handle_outlook_captures_read(workspace, "asset_id=bearing-a")
+    assert status == 200
+    assert sorted(requested) == ["a", "b"]
+    assert {item["source_recheck"] for item in page["captures"]} == {"same_measurement_projection"}
 
 
 def test_capture_rejects_changed_acquisition_provenance_before_saving(
