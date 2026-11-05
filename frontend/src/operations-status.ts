@@ -145,21 +145,14 @@ function plainSourceName(id: string): string {
   const aihub = /^aihub239-(training|validation)-[^-]+-[^-]+(?:-[0-9a-f]{64})?$/.exec(id);
   if (aihub) return "AI-Hub 239 원천 기록 (" + (aihub[1] === "training" ? "학습용" : "검증용") + ")";
   if (/^xjtu-sy-replay(?:-[0-9a-f]{64})?$/.test(id)) return "XJTU-SY 측정 기록";
-  return id.replace(/-[0-9a-f]{64}$/, "");
+  return id;
 }
 
-/** A source as people read it when nobody registered a name for it. Imported public records and
- * replays say what they are; the content digest in their ID is shown only under 기술 상세.
- *
- * Args:
- *   id: Source ID as stored.
- *   among: Sources shown together with it. Two imports of different source contents, or one
- *     made before imports carried a digest, read the same, so only then the name keeps them
- *     apart by the first digest characters.
- */
-export function readableSourceId(id: string, among: readonly string[] = []): string {
+/** Public imports keep a short version fingerprint even when shown alone.
+ * General source IDs and user-registered names stay verbatim. */
+export function readableSourceId(id: string, _among: readonly string[] = []): string {
   const name = plainSourceName(id);
-  if (!among.some((other) => other !== id && plainSourceName(other) === name)) return name;
+  if(name===id)return id;
   const digest = /-([0-9a-f]{64})$/.exec(id);
   return name + (digest ? " · 원본 지문 " + digest[1].slice(0, 8) : " · 원본 지문 없음");
 }

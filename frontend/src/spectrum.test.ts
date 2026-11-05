@@ -1,3 +1,4 @@
+import {peakSummary,frequencyText} from "./spectrum.ts";
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {defaultSpans,parseAcquisition,parseSpectrum,peakFrequencies,type Spans} from "./spectrum.ts";
@@ -47,4 +48,12 @@ test("the strongest frequencies are peaks, strongest first, never the offset at 
   // The 0 Hz offset is largest; the peaks are at 100 Hz and 250 Hz.
   assert.deepEqual(peakFrequencies(frequencies,[9,1,4,2,3,5,1]),[250,100]);
   assert.deepEqual(peakFrequencies(frequencies,[0,0,0,0,0,0,0]),[]);
+});
+
+
+test("a flat spectrum has no peaks and sub-hertz resolution stays non-zero",()=>{
+  assert.equal(peakSummary([0,0.125,0.25],[0,0,0]),"뚜렷한 피크 없음");
+  assert.equal(peakSummary([0,0.125,0.25],[0,10,0]),"0.125 Hz");
+  assert.equal(frequencyText(0.125),"0.125");
+  assert.notEqual(frequencyText(0.000001),"0");
 });

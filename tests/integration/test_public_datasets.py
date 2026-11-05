@@ -384,9 +384,9 @@ def test_aihub_history_stored_before_source_digests_is_versioned_not_stored_twic
         assert [r.value for r in history.query_file_events(base)] == [68.0, 0.0]
 
 
-@pytest.mark.parametrize("moved", [False, True])
-def test_xjtu_replay_stored_before_source_digests_is_versioned_unless_its_files_moved(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, moved: bool
+@pytest.mark.parametrize("change", ["same", "moved", "added", "removed"])
+def test_legacy_xjtu_source_is_reused_only_when_its_file_composition_matches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
 ) -> None:
     from industrial_phm.adapters import XJTU_SY_CHANNELS
     from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
@@ -409,12 +409,18 @@ def test_xjtu_replay_stored_before_source_digests_is_versioned_unless_its_files_
         "create_phm_binding",
         lambda *_, **kwargs: bindings.append(kwargs["source_id"]),
     )
+    if change == "removed":
+        (folder / "2.csv").write_text((folder / "1.csv").read_text())
     workspace = OperationsWorkspace(tmp_path / "ws")
     initialize_operations_workspace(workspace)
     item = public_datasets.find_public_datasets(root, workspace)[0]
     public_datasets._import_xjtu(workspace, item, lambda _: None, lambda _: None)
     _legacy_job(workspace, item)
-    data = root.rename(tmp_path / "moved-data") if moved else root
+    if change == "added":
+        (folder / "2.csv").write_text((folder / "1.csv").read_text())
+    elif change == "removed":
+        (folder / "2.csv").unlink()
+    data = root.rename(tmp_path / "moved-data") if change == "moved" else root
 
     jobs = PublicDatasetJobs(workspace.root, root=data)
     jobs.start({"dataset_id": item.dataset_id})
@@ -425,11 +431,13 @@ def test_xjtu_replay_stored_before_source_digests_is_versioned_unless_its_files_
     legacy = xjtu_models.XJTU_DEMO_SOURCE_ID
     snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
     streams = {stream.source_id for stream in snapshots.list_streams()}
-    if moved:
-        # The earlier stream keeps the old path, so the moved files get a stream of their own.
+    if change != "same":
+        # A moved, added or removed file gives the current composition a separate stream.
         assert job["source_id"] == f"{legacy}-{job['source_digest']}"
         assert streams == {legacy, job["source_id"]}
         assert snapshots.get(job["source_id"], bearing, 1).file_path.is_file()
+        assert (snapshots.get(legacy, bearing, 2) is not None) == (change == "removed")
+        assert (snapshots.get(job["source_id"], bearing, 2) is not None) == (change == "added")
     else:
         assert (job["source_id"], streams) == (legacy, {legacy})
     assert bindings == [legacy, legacy, job["source_id"], job["source_id"]]

@@ -18,13 +18,15 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
 
 
-def condition_workspace(root: Path) -> OperationsWorkspace:
+def condition_workspace(root: Path, *, missing: range = range(0)) -> OperationsWorkspace:
     workspace = OperationsWorkspace(root)
     initialize_operations_workspace(workspace)
     source_path = root / "synthetic-phase.csv"
     at = datetime(2020, 11, 13, tzinfo=UTC)
     lines = ["timestamp,vR,vS,vT,iR,iS,iT"]
     for index in range(240):
+        if index in missing:
+            continue
         current = 10 if index < 180 else 80
         values = [
             230 + sin(index),

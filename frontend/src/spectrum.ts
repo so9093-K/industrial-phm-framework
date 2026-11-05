@@ -156,3 +156,10 @@ export async function readSpectrum(
     b_from:String(spans.b.from),b_to:String(spans.b.to)});
   return parseSpectrum(await json("/api/v1/explore/spectrum?"+query,signal),asset,acq,spans);
 }
+
+/** Preserve sub-hertz resolution instead of rounding a non-zero spacing to zero. */
+export const frequencyText=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:6});
+export function peakSummary(frequencies:number[],power:number[]):string{
+  const peaks=peakFrequencies(frequencies,power);
+  return peaks.length?peaks.map(frequencyText).join(", ")+" Hz":"뚜렷한 피크 없음";
+}

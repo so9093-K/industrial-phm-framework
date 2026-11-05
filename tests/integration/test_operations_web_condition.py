@@ -1,6 +1,7 @@
 """Real history to condition analysis, with source and temporal query boundaries."""
 
 import json
+from datetime import UTC, datetime
 from http.client import HTTPConnection
 from pathlib import Path
 from threading import Thread
@@ -85,3 +86,32 @@ def test_monitor_says_when_a_file_was_measured_not_when_it_was_read(tmp_path: Pa
         server.shutdown()
         server.server_close()
         thread.join(timeout=10)
+
+
+@pytest.mark.parametrize(
+    "missing,end,available", [(range(0), "03", True), (range(120, 180), "02", False)]
+)
+def test_next_period_checks_its_own_measurements_not_only_the_last_record(
+    tmp_path: Path, missing: range, end: str, available: bool
+) -> None:
+    from tests.support.web_next import start_web, stop_web
+
+    pytest.importorskip("duckdb")
+    workspace = condition_workspace(tmp_path / "next-period", missing=missing)
+    server, thread = start_web(workspace.root, writer=False)
+    connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+    try:
+        connection.request(
+            "GET",
+            f"/api/v1/condition?asset_id=condition-motor&period=1h&end_at=2020-11-13T{end}:00:00Z",
+        )
+        response = connection.getresponse()
+        body = json.loads(response.read())
+        assert response.status == 200 and body["state"] == "analyzed"
+        assert body["next_period_available"] is available
+        assert datetime.fromisoformat(body["last_observed_at"]).astimezone(UTC) == datetime(
+            2020, 11, 13, 3, 59, tzinfo=UTC
+        )
+    finally:
+        connection.close()
+        stop_web(server, thread)

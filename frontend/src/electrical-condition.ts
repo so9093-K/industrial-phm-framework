@@ -25,7 +25,7 @@ export type ConditionDetails={timeEvidence:string[];snapshotId:string|null;fileQ
 export type Condition=
   |{analyzed:false;state:string;sources:ConditionSource[]}
   |{analyzed:true;sources:ConditionSource[];sourceId:string;pointId:string|null;targetStart:string;targetEnd:string;
-    referenceStart:string;referenceEnd:string;lastObservedAt:string|null;reference:PeriodSummary;target:PeriodSummary;
+    referenceStart:string;referenceEnd:string;lastObservedAt:string|null;nextPeriodAvailable:boolean;reference:PeriodSummary;target:PeriodSummary;
     pattern:Pattern;timeline:TimelinePoint[];details:ConditionDetails};
 
 export const STATE_TEXT:Record<string,string>={
@@ -98,7 +98,7 @@ export function parseCondition(raw:unknown,assetId:string,expected:ConditionSour
   });
   const range=(key:string)=>{const value=text(root[key]);if(!value)invalid();return value;};
   return {analyzed:true,sources,sourceId,pointId:text(root.point_id),targetStart:range("target_start"),targetEnd:range("target_end"),
-    referenceStart:range("reference_start"),referenceEnd:range("reference_end"),lastObservedAt:text(root.last_observed_at),
+    referenceStart:range("reference_start"),referenceEnd:range("reference_end"),lastObservedAt:text(root.last_observed_at),nextPeriodAvailable:root.next_period_available===true,
     reference:summary(root.reference),target:summary(root.target),timeline,
     details:{timeEvidence:Array.isArray(root.time_evidence)?root.time_evidence.filter((item:unknown)=>typeof item==="string"):[],
       snapshotId:root.snapshot_id===null||root.snapshot_id===undefined?null:String(root.snapshot_id),
@@ -128,6 +128,13 @@ export async function readCondition(
     throw new Error(response.status===400?"분석 기간과 그보다 앞선 기준 기간을 확인하세요. 시각은 한국 시각입니다.":unread);
   }
   return parseCondition(await response.json().catch(()=>null) as unknown,assetId,source);
+}
+
+/** Move the target while keeping a user-selected reference unchanged. */
+export function shiftedPeriod(current:Extract<Condition,{analyzed:true}>,direction:-1|1,
+  custom:{end:string;referenceStart:string;referenceEnd:string}){
+  const end=Date.parse(current.targetEnd), length=end-Date.parse(current.targetStart);
+  return {...custom,end:new Date(end+direction*length+9*3_600_000).toISOString().slice(0,19)};
 }
 
 export type Metric="currentMean"|"voltageUnbalance"|"currentUnbalance"|"patternScore";

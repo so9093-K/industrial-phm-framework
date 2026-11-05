@@ -9,7 +9,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, findingLinks, findingText, readRecordFindings, unjudgedText, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, findingLinks, findingText, readRecordFindings, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -47,6 +47,10 @@
   // What the whole stored record held, not only whether it ends away from its start.
   let findings: RecordFindings | null = $state(null);
   let findingState: "idle" | "loading" | "ready" | "failed" = $state("idle");
+  const cumulative = $derived.by((): CheckedSignal[] => {
+    const read: RecordFindings | null = findings;
+    return read?.signals.filter(row => row.state === "cumulative") ?? [];
+  });
   let showOptions = $state(false);
   $effect(() => {
     if (!data?.history) return;
@@ -96,6 +100,14 @@
   }
 </script>
 
+{#snippet cumulativeRecords()}
+  <ul aria-label="누적 기록">
+    {#each cumulative as row (row.channel)}<li><strong>{row.label}</strong> ·
+      {row.first == null ? "처음 값 미확인" : changeValue(row.first, null)} → {row.last == null ? "마지막 값 미확인" : changeValue(row.last, row.unit)}</li>{/each}
+  </ul>
+  <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
+{/snippet}
+
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
   <h2 id="summary-title">측정 현황</h2>
   {#if notesState === "partial" || notesState === "failed"}
@@ -114,7 +126,7 @@
     {#if findingState === "ready" && findings}
       {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
       <p class="coverage" aria-label="변화 분석 범위">전체 신호 {findings.signals.length + findings.unchecked}개 중
-        계산 {findings.judged}개 · 계산 불가 {findings.signals.length - findings.judged}개 · 미검토 {findings.unchecked}개</p>
+        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length}개 · 미검토 {findings.unchecked}개</p>
     {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
@@ -151,12 +163,15 @@
     {:else if findings && findings.judged}
       <p class="context">판단한 신호 {findings.judged}개에서 기록 처음 30%의 평소 범위를 크게 벗어난 구간을 찾지 못했습니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈 보기 →</a></p>
+    {:else if cumulative.length}
+      {@render cumulativeRecords()}
     {:else if findings}
       <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
         <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
     {/if}
-    {#if findings && findings.signals.some((row) => row.state !== "scored")}
-      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored").map(unjudgedText).join(" · ")}</p>
+    {#if cumulative.length && findings?.judged}<details><summary>누적 기록</summary>{@render cumulativeRecords()}</details>{/if}
+    {#if findings && findings.signals.some((row) => row.state !== "scored" && row.state !== "cumulative")}
+      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored" && row.state !== "cumulative").map(unjudgedText).join(" · ")}</p>
     {/if}
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
       나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}

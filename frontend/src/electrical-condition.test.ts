@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {firstChecks,insights,kstInstant,parseCondition,segments,type Condition} from "./electrical-condition.ts";
+import {firstChecks,insights,shiftedPeriod,kstInstant,parseCondition,segments,type Condition} from "./electrical-condition.ts";
 
 const MEANING="measured-operating-change-and-reference-pattern-not-fault-diagnosis";
 function analyzed(extra:Record<string,unknown>={}){
@@ -95,4 +95,17 @@ test("minutes in a row that read the same are one time to check, with their end 
   assert.equal(checks.length,1);
   assert.equal(checks[0].label,"2020. 11. 21. 오전 3:23:35 ~ 오전 3:27:35 · 5회");
   assert.equal(checks[0].at,at(0));
+});
+
+
+test("period movement preserves an explicitly chosen reference; next availability is server-owned",()=>{
+  const current=ready(analyzed());
+  const fixed={end:"",referenceStart:"2020-11-01T00:00",referenceEnd:"2020-11-02T00:00"};
+  const next=shiftedPeriod(current,1,fixed), previous=shiftedPeriod(current,-1,fixed);
+  assert.equal(next.end,"2020-11-13T14:00:00");
+  assert.equal(previous.end,"2020-11-13T12:00:00");
+  assert.equal(next.referenceStart,fixed.referenceStart);
+  assert.equal(previous.referenceEnd,fixed.referenceEnd);
+  assert.equal(current.nextPeriodAvailable,false);
+  assert.equal(ready(analyzed({next_period_available:true})).nextPeriodAvailable,true);
 });

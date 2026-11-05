@@ -265,3 +265,78 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                 browser.close()
     finally:
         stop_web(server, thread)
+
+
+def test_cumulative_only_record_leads_with_its_values(tmp_path: Path) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "cumulative")
+    _history(workspace, "meter-01", ("누적전력량",), 40)
+    server, thread = start_web(workspace.root.resolve(), writer=False)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser, page, errors = _page(runtime, server.server_port, 390, "meter-01")
+            try:
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?page=assets&monitor_asset=meter-01"
+                )
+                records = page.get_by_role("list", name="누적 기록")
+                pw.expect(records).to_be_visible()
+                pw.expect(records).to_contain_text("누적전력량 · 10 → 49")
+                assert (
+                    page.get_by_text("변화가 있었는지 말할 수 없습니다", exact=False).count() == 0
+                )
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
+
+
+def test_electrical_period_navigation_keeps_the_explicit_reference(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+    from urllib.parse import parse_qs, urlsplit
+
+    from tests.support.electrical_condition import condition_workspace
+
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("duckdb")
+    workspace = condition_workspace(tmp_path / "fixed-reference")
+    server, thread = start_web(workspace.root, writer=False)
+    try:
+        with pw.sync_playwright() as runtime:
+            browser, page, errors = _page(runtime, server.server_port, 390, "condition-motor")
+            try:
+                page.goto(
+                    f"http://127.0.0.1:{server.server_port}/web/?page=assets"
+                    "&monitor_asset=condition-motor&tab=change&method=electrical"
+                )
+                panel = page.get_by_role("region", name="부하·불평형 변화", exact=True)
+                panel.get_by_label("분석 기간").select_option("1h")
+                panel.get_by_text("분석·기준 기간 직접 지정", exact=True).click()
+                panel.get_by_label("분석 끝 시각 (KST)", exact=True).fill("2020-11-13T11:00")
+                panel.get_by_label("비교 기준").select_option("fixed")
+                panel.get_by_label("기준 기간 시작 (KST)", exact=True).fill("2020-11-13T09:00")
+                panel.get_by_label("기준 기간 끝 (KST)", exact=True).fill("2020-11-13T10:00")
+                panel.get_by_role("button", name="분석하기", exact=True).click()
+                following = panel.get_by_role("button", name="다음 기간 →", exact=True)
+                pw.expect(following).to_be_enabled()
+                with page.expect_response("**/api/v1/condition?**") as moved:
+                    following.click()
+                params = parse_qs(urlsplit(moved.value.url).query)
+                assert params["reference_start"] == ["2020-11-13T09:00:00+09:00"]
+                assert params["reference_end"] == ["2020-11-13T10:00:00+09:00"]
+                assert datetime.fromisoformat(moved.value.json()["target_end"]).astimezone(
+                    UTC
+                ) == datetime(2020, 11, 13, 3, tzinfo=UTC)
+                pw.expect(following).to_be_enabled()
+                with page.expect_response("**/api/v1/condition?**") as last:
+                    following.click()
+                assert last.value.json()["next_period_available"] is False
+                pw.expect(following).to_be_disabled()
+                assert not errors, errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(server, thread)
