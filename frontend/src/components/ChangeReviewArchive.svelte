@@ -32,7 +32,7 @@
     <p>{text.when} · {finding.context?readableSourceId(finding.context.sourceId):""} · {finding.context?.pointId??"측정 위치 미지정"}</p>
     {#if finding.baseline}<p>비교 기준 · {clock(finding.baseline.from)} ~ {clock(finding.baseline.to)}</p>{/if}
     <p>{#if links.signal}<a href={links.signal}>당시 구간의 원본 신호 →</a>{/if} {#if links.compare}<a href={links.compare}>당시 기준과 비교 →</a>{/if}</p>
-    {#if opened[capture.id]}<ChangeReview {assetId} {finding} saved={capture} onSaved={updated=>captures=captures.map(row=>row.id===updated.id?updated:row)} />{/if}
+    {#if opened[capture.id]}<ChangeReview {assetId} {finding} saved={capture} onSaved={updated=>captures=captures.map(row=>row.id===updated.id&&updated.review.events.length>=row.review.events.length?updated:row)} />{/if}
   </details>
 {/each}
 {#if busy}<p role="status">저장한 변화 검토를 읽고 있습니다.</p>{/if}

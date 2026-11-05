@@ -16,7 +16,10 @@
     try {
       const page = await readChangeReviews(assetId,req.signal,saved ? {capture_id:saved.id} : {finding_id:finding.reviewKey!});
       if(req.signal.aborted)return;
-      capture=page.captures[0]??null; readState="ready";
+      const found=page.captures[0]??null;
+      // Review events are append-only; a slower read cannot replace a newer known history.
+      capture=saved&&found&&saved.review.events.length>found.review.events.length?saved:found;
+      readState="ready";
       if(capture)onSaved(capture);
     } catch(cause) {if(!req.signal.aborted){readState="failed";error=cause instanceof Error?cause.message:"검토 기록 조회 실패";}}
   }
