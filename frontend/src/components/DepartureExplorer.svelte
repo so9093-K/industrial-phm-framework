@@ -207,7 +207,7 @@
     {:else if analysisState === "failed"}
       <StatusNotice kind="failure" title="기준 이탈 결과를 불러오지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
-      {#if selectedRecord}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";focus=null;rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
+      {#if selectedRecord||focus}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";focus=null;rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
     {:else if analysisState === "unavailable"}
       <StatusNotice kind="uncertain" title="비교할 저장 기록이 없습니다"
         message="저장 기록을 신호 화면에서 확인하세요."

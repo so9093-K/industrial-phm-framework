@@ -62,6 +62,8 @@ def test_analyses_and_saved_outlook_keep_the_selected_record(tmp_path: Path) -> 
     assert found["source_id"] == "b" and found["measurement_point_id"] == "end"
     assert 2 <= len(found["trace"]) <= 54
     assert {row[1] for row in found["trace"]} == {40.0, 65.0}
+    assert all(len(row) == 2 for row in found["trace"])
+    assert len(found["trace_join"]) == len(found["trace"])
     query = {"asset_id": "motor", "kind": "history", "series": "temperature"}
     focus = {
         "monitor_source": "b",

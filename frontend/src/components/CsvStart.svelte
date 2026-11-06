@@ -73,9 +73,19 @@
   let stored: {eventCount: number} | null = $state(null);
   let fileInput: HTMLInputElement | null = $state(null);
   let doneHeading: HTMLElement | null = $state(null);
+  let columnsDetail: HTMLDetailsElement | null = $state(null);
+  async function showColumns() {
+    if(!columnsDetail)return;
+    columnsDetail.open=true;
+    await tick();
+    columnsDetail.scrollIntoView({block:"center"});
+    columnsDetail.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:disabled)')?.focus({preventScroll:true});
+  }
 
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
+  const numericColumns = $derived(choices.filter(choice=>choice.usable));
+  const excludedColumns = $derived(numericColumns.filter(choice=>!channels.includes(choice.name)));
   const problems = $derived(table ? previewProblems(table, timeIndex, channels, offset) : []);
   const timing = $derived(table && timeIndex >= 0 ? readTimes(table, timeIndex, offset) : null);
   const timeZoneReady = $derived(!timing?.naive || timeZoneConfirmed);
@@ -356,6 +366,14 @@
         </ul>
 
       {/if}
+      <div class="selection-summary" aria-label="저장 대상 측정값">
+        <strong>저장할 측정값 {channels.length}개 · 제외된 숫자 열 {excludedColumns.length}개</strong>
+        <p>저장 대상: {channels.length?channels.map(shown).join(", "):"선택한 열 없음"}</p>
+        {#if excludedColumns.length}<p class="selection-caution" role="status">저장에서 제외: {excludedColumns.map(choice=>choice.name).join(", ")}.
+          {#if numericColumns.length>MAX_CHANNELS}숫자 열 {numericColumns.length}개 중 최대 {MAX_CHANNELS}개를 저장할 수 있습니다.{/if}
+          필요한 측정 열이 포함됐는지 확인하세요.</p>{/if}
+        <button type="button" class="ui-button" disabled={locked} onclick={()=>void showColumns()}>저장 대상 확인·변경</button>
+      </div>
       {#if channels.length && points.length}
         <label class="field">미리보기 신호
           <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{shown(name)}</option>{/each}</select>
@@ -381,7 +399,7 @@
         <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
-      <details><summary>측정값 상세 설정·통계</summary><fieldset>
+      <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
           <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
             <label class="choice">
@@ -500,6 +518,8 @@
 </section>
 
 <style>
+  .selection-summary{margin-block:var(--space-3);overflow-wrap:anywhere;font-size:var(--font-small)}
+  .selection-summary p{margin-block:var(--space-2)}.selection-caution{border-left:3px solid var(--color-caution-ink);padding:var(--space-2);background:var(--color-uncertain-surface)}
   .csv-start { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
   .csv-start > section { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
   h2, h3 { margin: 0; }

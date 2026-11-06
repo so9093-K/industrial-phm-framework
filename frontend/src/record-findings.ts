@@ -9,7 +9,7 @@ import {periodParams, windowParams, zoomWindow} from "./signal-selection.ts";
 import {object} from "./writes.ts";
 
 export type FoundInterval = {
-  trace?:{at:string;value:number}[]; reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
+  trace?:{at:string;value:number;join?:boolean}[]; reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
   start: string; end: string; channel: string; label: string; unit: string | null;
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
@@ -58,9 +58,11 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   const intervals = root.intervals.map((item: unknown): FoundInterval => {
     const row = object(item), usual = object(row?.usual);
     if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
+    if(row.trace_join!==undefined&&(!Array.isArray(row.trace_join)||!Array.isArray(row.trace)||row.trace_join.length!==row.trace.length||!row.trace_join.every(value=>typeof value==="boolean")))invalid();
+    const joins=Array.isArray(row.trace_join)?row.trace_join:[];
     const low = finite(usual.low), high = finite(usual.high);
     if (low > high) invalid();
-    return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1])};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
+    return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown,i:number)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1]),join:joins[i] as boolean|undefined};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
       bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
       value: finite(row.value), usual: {low, high}, within: row.within.map(text),

@@ -8,6 +8,7 @@ import sqlite3
 import time
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
+from itertools import pairwise
 from typing import Any
 from urllib.parse import parse_qs
 
@@ -560,6 +561,36 @@ def record_context(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def change_trace(
+    points: list[tuple[datetime, datetime, float]],
+    bucket_seconds: float,
+    start: datetime,
+    end: datetime,
+) -> list[list[Any]]:
+    """Bounded display samples retain gaps from the full aggregation, before decimation."""
+    if not points:
+        return []
+    indices = {round(i * (len(points) - 1) / 47) for i in range(48)}
+    for boundary in (start, end):
+        near = min(range(len(points)), key=lambda i: abs((points[i][0] - boundary).total_seconds()))
+        indices.update(i for i in (near - 1, near, near + 1) if 0 <= i < len(points))
+    # Match the original signal chart's continuity rule. A skipped display sample is
+    # different from a missing source bucket: only the latter starts a new path.
+    breaks = [0]
+    for left, right in pairwise(points):
+        gap = bucket_seconds <= 0 or (right[0] - left[0]).total_seconds() > bucket_seconds * 1.5
+        breaks.append(breaks[-1] + int(gap))
+    selected = sorted(indices)
+    return [
+        [
+            iso(points[i][0]),
+            points[i][2],
+            position > 0 and breaks[i] == breaks[selected[position - 1]],
+        ]
+        for position, i in enumerate(selected)
+    ]
+
+
 def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
     """Representative changes from each source/point/meaning record's own first 30%.
 
@@ -712,15 +743,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             ],
             key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
         )
-        trace_indices = {round(i * (len(record["points"]) - 1) / 47) for i in range(48)}
-        for boundary in (item["start"], item["end"]):
-            near = min(
-                range(len(record["points"])),
-                key=lambda i: abs((record["points"][i][0] - boundary).total_seconds()),
-            )
-            trace_indices.update(
-                i for i in (near - 1, near, near + 1) if 0 <= i < len(record["points"])
-            )
+        trace = change_trace(record["points"], record["bucket_seconds"], item["start"], item["end"])
         shown.append(
             {
                 "start": iso(item["start"]),
@@ -736,10 +759,8 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "baseline": {"from": iso(reference[0]), "to": iso(reference[1])},
                 "reference_value": own["reference"] if own else None,
                 "typical_value": own["current"] if own else None,
-                "trace": [
-                    [iso(record["points"][i][0]), record["points"][i][2]]
-                    for i in sorted(trace_indices)
-                ],
+                "trace": [row[:2] for row in trace],
+                "trace_join": [row[2] for row in trace],
                 "related": [
                     {
                         **{

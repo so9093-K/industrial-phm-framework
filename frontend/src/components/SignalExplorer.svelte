@@ -334,6 +334,10 @@
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
     {/if}
+      {#if focus}
+        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source, shownSources)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
+          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
+      {/if}
     {#if trendState === "loading"}
       <StatusNotice message="고른 신호의 측정 기록과 품질을 불러오고 있습니다." />
     {:else if trendState === "failed"}
@@ -347,10 +351,6 @@
         {recorded(trend.startAt)} ~ {recorded(range === "all" ? recordEnd(trend) ?? trend.endAt : trend.endAt)}
         · {range === "all" ? "저장된 전체 기록" : range === "window" ? "그래프에서 고른 구간을 확대" : anchor === "latest" ? "마지막 저장 기록 기준" : "지금 기준"}
       </p>
-      {#if focus}
-        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source, shownSources)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
-          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
-      {/if}
       {#if range === "window"}
         <p class="zoomed"><span>고른 구간을 확대해서 보고 있습니다.</span>
           <button type="button" class="ui-button" onclick={unzoom}>전체 기록으로 돌아가기</button></p>
