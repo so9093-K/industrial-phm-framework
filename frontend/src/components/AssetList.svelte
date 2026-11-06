@@ -20,6 +20,11 @@
     .map((asset, index) => ({asset, index}))
     .sort((a, b) => (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
+  function showReasons(assetId:string) {
+    const heading=document.getElementById("attention-"+assetId);
+    const detail=heading?.closest("details");
+    if(detail)detail.open=true;
+  }
   function attention(count: number | null): string {
     return "확인할 항목 " + attentionText(count, notesState);
   }
@@ -39,7 +44,7 @@
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
         </a>
         {#if reasons && (notes[asset.assetId] ?? 0) > 0}
-          <a class="reason-link" href={"#attention-" + encodeURIComponent(asset.assetId)}>
+          <a class="reason-link" href={"#attention-" + encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>
             이 설비의 확인 사유와 다음 행동 보기 →
           </a>
         {/if}

@@ -6,7 +6,7 @@ export function parseForecastFit(raw:unknown):ForecastFit|null {
   if(!root||!Array.isArray(root.history)||!Array.isArray(root.forecast)||!root.history.length||!root.forecast.length)return null;
   const observed=root.history.filter((row:unknown)=>Array.isArray(row)&&typeof row[1]==="number"&&Number.isFinite(row[1])).at(-1)?.[1],modeled=root.forecast[0]?.[1];
   if(observed===undefined)return null;
-  if(typeof observed!=="number"||!Number.isFinite(observed)||typeof modeled!=="number"||!Number.isFinite(modeled))throw new Error("예측 시작값과 마지막 집계값을 확인할 수 없습니다.");
+  if(typeof observed!=="number"||!Number.isFinite(observed)||typeof modeled!=="number"||!Number.isFinite(modeled))throw new Error("예측 시작값과 마지막 구간 평균을 확인할 수 없습니다.");
   const history=root.history.filter((row:unknown)=>Array.isArray(row)&&typeof row[1]==="number"&&Number.isFinite(row[1]));
   const coordinate=(value:unknown)=>typeof value==="string"?Date.parse(value):typeof value==="number"?value:NaN;
   const from=coordinate(root.forecast[0]?.[0]),to=coordinate(root.forecast.at(-1)?.[0]);

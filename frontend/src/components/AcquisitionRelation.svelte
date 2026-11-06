@@ -83,7 +83,7 @@
           first:result.first,last:result.last,count:result.count,
         }),result);
       }catch(cause:unknown){
-        sourceState="unavailable";error=cause instanceof Error?cause.message:"획득 범위가 부족합니다.";return;
+        sourceState="unavailable";error=cause instanceof Error?cause.message:"측정 범위가 부족합니다.";return;
       }
       sourceState="ready";remember();await compare();
     }catch(cause:unknown){
@@ -106,7 +106,7 @@
     const pending=new AbortController();relationAbort=pending;
     relation=null;resultState="loading";error="";
     try{
-      if(!source||!spans)throw new Error("저장 출처와 획득 회차를 확인하세요.");
+      if(!source||!spans)throw new Error("저장 출처와 측정 회차를 확인하세요.");
       validateSpans(spans);
       const frozen:Spans={a:{...spans.a},b:{...spans.b}};
       const response=await readAcquisitionRelation(assetId,source,x,y,frozen,pending.signal);
@@ -114,7 +114,7 @@
       relation=response;resultState="ready";remember();
     }catch(cause:unknown){
       if(pending.signal.aborted)return;
-      error=cause instanceof Error?cause.message:"획득 특징 짝 관계를 확인하지 못했습니다.";
+      error=cause instanceof Error?cause.message:"두 진동 특징의 관계를 확인하지 못했습니다.";
       resultState=cause instanceof AcquisitionRelationUnavailable?"unavailable":"failed";
     }
   }

@@ -3,6 +3,7 @@
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
   import ForecastFit from "./ForecastFit.svelte";
+  import {worseThanPersistence} from "../forecast-fit";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
@@ -206,9 +207,22 @@
       </label>
       {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
         <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
-          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 의미 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
+          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 항목 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
         </select>
       </label>{/if}
+      <label for="projection-horizon">예측 기간
+        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonNotice="";invalidate();}}>
+          {#each horizons as value (value)}
+            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
+              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
+          {/each}
+        </select>
+      </label>
+      <button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
+        계산하기
+      </button>
     </div>
     <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
       <summary>관리·종료 기준 추가 (선택)</summary>
@@ -229,25 +243,8 @@
       </label>
       </div>
     </details>
-    <details class="calculation-options" open={customSettings}>
-      <summary>계산 조건 변경</summary>
-      <div class="controls">      <label for="projection-horizon">예측 기간
-        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonNotice="";invalidate();}}>
-          {#each horizons as value (value)}
-            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
-              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
-          {/each}
-        </select>
-      </label>
+    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
 
-      </div>
-    <ForecastSettings value={settings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
-    </details>
-    <button type="button" class="ui-button ui-button-primary"
-      onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
-      계산하기
-    </button>
     {#if investigation}<p class="intro">이어서 조사하는 구간 · {clock(new Date(investigation.from).toISOString())} ~ {clock(new Date(investigation.to).toISOString())}. 전망은 해당 구간으로 학습을 제한하지 않고, 선택한 기록의 마지막 시점을 기준으로 계산합니다.</p>{/if}
     <p class="intro">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
@@ -281,10 +278,10 @@
           <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
-        {#if told}<AnalysisMessage message={told}
-          subject={signalName(names, projection.channel)}
-          basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
-          boundary="예상 여유의 시작은 기록 마지막 측정 시점입니다." />{/if}
+        {#if worseThanPersistence(projection.checks?.[0])}
+          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong></p>
+        {/if}
+        {#if told}<p class="outlook-summary">{told.headline}</p>{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
@@ -297,10 +294,7 @@
                 <span>조건부 잔여수명(RUL) · 고른 종료 기준을 전제로 한 값</span></div>
             {/if}
           </div>
-        {:else}
-          <p class="intro">추세 예측을 표시합니다. 관리·종료 기준을 추가하면 해당 값까지의 예상 여유를 계산합니다.</p>
         {/if}
-        <ForecastFit showValues={limited} fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
         {#if chart}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
@@ -325,7 +319,7 @@
               note={"세로선 · 마지막 기록 " + clock(chart.lastRecord)} />{/snippet}
             </ValueAxis>
             <figcaption class="legend">
-              <span><i class="key history"></i>집계 측정값</span>
+              <span><i class="key history"></i>측정값 (구간 평균)</span>
               {#if chart.fitted}<span><i class="key fitted"></i>모델이 학습한 값</span>{/if}
               <span><i class="key estimate"></i>추세 예측</span>
               <span><i class="key band"></i>예측 범위</span>
@@ -334,6 +328,11 @@
             </figcaption>
           </figure>
         {/if}
+        {#if told}<AnalysisMessage message={told}
+          subject={signalName(names, projection.channel)}
+          basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
+          boundary="예상 여유의 시작은 기록 마지막 측정 시점입니다." />{/if}
+        <ForecastFit showValues={limited} fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
         {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
           <OutlookBriefingPanel {projection} onEvidenceChanged={()=>{
             requestProjection?.abort();
@@ -409,6 +408,10 @@
 </section>
 
 <style>
+  .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
+
+  .outlook-summary{font-weight:650;line-height:1.6;overflow-wrap:anywhere}
+  .controls>button{align-self:end;min-height:44px}
   .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
   .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
   .key.fitted{border-color:#8366a5;border-top-style:dotted}

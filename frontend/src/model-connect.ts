@@ -58,7 +58,7 @@ export function parseModelChoices(raw:unknown,assetId:string):ModelChoices{
 
 /** Why nothing can be connected, in what the person can do about it. */
 export function noModelReason(choices:ModelChoices):string{
-  if(!choices.streams.length)return "이 설비에는 모델 입력으로 쓸 진동 파형이나 OPC UA 관측 데이터가 없습니다. CSV로 저장한 측정값은 신호 탭과 기준 구간 이탈에서 볼 수 있습니다.";
+  if(!choices.streams.length)return "이 설비에는 모델 입력으로 쓸 진동 파형이나 OPC UA 관측 데이터가 없습니다. CSV로 저장한 측정값은 신호 탭과 달라진 구간 찾기에서 볼 수 있습니다.";
   if(!choices.packages)return "작업공간에 이상 탐지 모델이 없습니다. 모델 패키지를 작업공간 models 폴더에 넣으면 여기에서 연결할 수 있습니다.";
   return "이 설비의 데이터와 입력 형식이 맞는 이상 탐지 모델이 없습니다.";
 }

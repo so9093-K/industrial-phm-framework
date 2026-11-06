@@ -543,9 +543,9 @@ export function forecastMessage(facts: {last:number|null; start?:number; end:{es
   const difference=facts.last===null?null:facts.end.estimate-facts.last;
   const check=facts.checks[0];
   return {
-    headline:worseThanPersistence(check) ? "최근 과거 비교에서 마지막 값 유지보다 모델 예측 오차가 큽니다." : facts.horizon+"의 예상값은 "+value(facts.end.estimate)+"입니다.",
-    meaning:(facts.start===undefined?"":"모델 예측은 "+value(facts.start)+"에서 시작하며, 예측 기간 안의 중심값 변화는 "+(facts.end.estimate-facts.start>0?"+":"")+value(facts.end.estimate-facts.start)+"입니다. ")
-      +(facts.start!==undefined&&facts.last!==null?"마지막 집계값 "+value(facts.last)+"과 모델 시작값의 차이는 "+value(facts.start-facts.last)+"입니다. ":facts.last===null?"":"마지막 집계값 "+value(facts.last)+" 대비 "+(difference!>0?"+":"")+value(difference!)+"입니다. ")
+    headline:worseThanPersistence(check) ? "과거 기록에서는 마지막 값이 계속된다고 가정했을 때보다 모델 예측의 오차가 컸습니다." : facts.horizon+"의 예상값은 "+value(facts.end.estimate)+"입니다.",
+    meaning:(facts.start===undefined?"":"모델 예측은 "+value(facts.start)+"에서 시작하며, 예측값은 이 기간 동안 "+(facts.end.estimate-facts.start>0?"+":"")+value(facts.end.estimate-facts.start)+"만큼 변합니다. ")
+      +(facts.start!==undefined&&facts.last!==null?"마지막 구간 평균 "+value(facts.last)+"과 모델 시작값의 차이는 "+value(facts.start-facts.last)+"입니다. ":facts.last===null?"":"마지막 구간 평균 "+value(facts.last)+" 대비 "+(difference!>0?"+":"")+value(difference!)+"입니다. ")
       +(facts.end.lower!==null&&facts.end.upper!==null?"해당 시점의 예측 범위는 "+value(facts.end.lower)+"~"+value(facts.end.upper)+"입니다.":"해당 시점의 예측 범위는 제공되지 않았습니다."),
     certainty:check?"과거 마지막 "+check.points+"개를 가리고 확인한 평균 오차는 "+value(check.error)+"였습니다. 실제 값이 예측 범위 안에 든 비율은 "+short(check.coverage*100)+"%였습니다."
       :"과거 자료를 가린 예측 검증 결과가 없어, 예상값과 범위를 잠정적으로 확인하세요.",

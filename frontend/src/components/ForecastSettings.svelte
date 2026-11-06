@@ -1,8 +1,8 @@
 <script lang="ts">
   import type {ForecastSettings} from "../forecast-settings";
-  let {value,onChange}:{value:ForecastSettings;onChange:(value:ForecastSettings)=>void}=$props();
+  let {value,onChange,expanded=false}:{expanded?:boolean;value:ForecastSettings;onChange:(value:ForecastSettings)=>void}=$props();
 </script>
-<details class="settings"><summary>예측 계산 설정</summary>
+<details class="settings calculation-options" open={expanded}><summary>고급 설정 · 모델 계산</summary>
   <p>설정을 바꾸면 새 조건으로 다시 계산합니다.</p>
   <div class="fields">
     <label>추세 민감도 (0.001~0.5)<input type="number" min="0.001" max="0.5" step="0.001" value={value.changepointPriorScale} oninput={e=>onChange({...value,changepointPriorScale:Number(e.currentTarget.value)})}/></label>

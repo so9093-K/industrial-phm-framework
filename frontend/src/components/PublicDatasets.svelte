@@ -105,7 +105,11 @@
   {:else if loadState === "failed" || !datasets}
     <p class="context">공개 데이터 목록을 읽지 못했습니다. <button type="button" class="ui-button" onclick={() => void reload()}>다시 읽기</button></p>
   {:else if !datasets.items.length}
-    <p class="context">data 폴더에서 가져올 AI-Hub 239·XJTU-SY 기록을 찾지 못했습니다.</p>
+    <p class="context">아직 준비된 AI-Hub 239·XJTU-SY 원본이 없습니다. 저장소의 <code>data/</code> 폴더에 원본을 준비한 뒤 다시 찾아보세요.</p>
+    <ul class="preparation"><li><strong>AI-Hub 239</strong><code>data/raw/aihub/239/archives/*/raw/*.zip</code></li>
+      <li><strong>XJTU-SY</strong><code>data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets/</code></li></ul>
+    <p><a href="https://github.com/so9093-K/industrial-phm-framework/blob/main/data/README.md" target="_blank" rel="noopener noreferrer">데이터 준비 방법 · data/README.md ↗</a></p>
+    <button type="button" class="ui-button" onclick={()=>void reload()}>준비한 데이터 다시 찾기</button>
   {:else}
     <p class="context">data 폴더에 있는 AI-Hub 239 설비 전력 기록과 XJTU-SY 베어링 진동 기록입니다. 고르면 이 작업공간에 가져와 설비 화면에서 분석합니다.</p>
     {#if readUncertain}<p class="context" role="status">가져오기 상태를 잠시 읽지 못했습니다. 자동으로 다시 확인합니다.</p>{/if}
@@ -131,6 +135,7 @@
 </section>
 
 <style>
+  .preparation li{display:grid;grid-template-columns:1fr;gap:var(--space-1)}code{overflow-wrap:anywhere;white-space:normal}
   .datasets { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); min-width: 0; }
   h2, h3 { margin: 0; }
   h3 { font-size: var(--font-body); }

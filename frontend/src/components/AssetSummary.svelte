@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {recordParams} from "../record-context";
   import ChangeInterval from "./ChangeInterval.svelte";
   import ChangeReview from "./ChangeReview.svelte";
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
@@ -58,6 +59,12 @@
     const read: RecordFindings | null = findings;
     return read?.signals.filter(row => row.state === "cumulative") ?? [];
   });
+  const quietSignal=$derived.by(():CheckedSignal|undefined=>{const current:RecordFindings|null=findings;return current?.signals.find(row=>row.state==="constant"||row.state==="scored");});
+  function signalHref(signal:CheckedSignal|undefined):string {
+    const url=new URL(assetTabUrl(asset.assetId,"signals",null,"history",signal?.channel??null),location.origin);
+    for(const [key,value] of Object.entries(recordParams(signal?.context)))url.searchParams.set(key,value);
+    return url.pathname+url.search;
+  }
   let showOptions = $state(false);
   $effect(() => {
     if (!data?.history) return;
@@ -133,7 +140,7 @@
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
     {:else if findingState === "failed"}
       <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 직접 보기 →</a></p>
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
     {:else if findings && findings.intervals.length}
       <ul class="found">
         {#each findings.intervals as item (item.start + (item.context?.key ?? item.channel))}
@@ -175,10 +182,17 @@
       <details class="context small"><summary>변화 선정 방식과 전체 신호</summary>
         <p>계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
           대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.</p>
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 다른 신호 보기 →</a></details>
+        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></details>
     {:else if findings && findings.judged}
-      <p class="context">판단한 신호 {findings.judged}개에서 기록 처음 30%의 평소 범위를 크게 벗어난 구간을 찾지 못했습니다.
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈 보기 →</a></p>
+      <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
+        <p class="context">확인한 기록 {findings.judged}개에서 기록 초반과 비교해 크게 달라진 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
+        {#if quietSignal}<p><strong>{quietSignal.label}</strong>{#if quietSignal.context} · 출처 {readableSourceId(quietSignal.context.sourceId)} · 측정 위치 {quietSignal.context.pointId??"미지정"}{/if}</p>
+          {#if quietSignal.latest}<p>마지막 구간 평균 <strong>{changeValue(quietSignal.latest.value,quietSignal.unit)}</strong> · {observed(quietSignal.latest.at)}</p>{/if}
+          {#if quietSignal.range}<p>구간별 평균의 범위 {changeValue(quietSignal.range.low,null)} ~ {changeValue(quietSignal.range.high,quietSignal.unit)}</p>{/if}
+        {/if}
+        <a class="ui-button ui-button-primary" href={signalHref(quietSignal)}>원본 신호 추세 보기 →</a>
+        <details><summary>기준 구간과 다른 신호 확인</summary><a href={assetTabUrl(asset.assetId,"anomaly","baseline")}>달라진 구간 찾기 →</a></details>
+      </section>
     {:else if cumulative.length}
       {@render cumulativeRecords()}
     {:else if findings}
@@ -190,7 +204,7 @@
       <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored" && row.state !== "level-change" && row.state !== "constant" && row.state !== "cumulative").map(unjudgedText).join(" · ")}</p>
     {/if}
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
-      나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기준 구간 이탈에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
+      나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>달라진 구간 찾기에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
   {/if}
   <details ontoggle={event=>archiveOpen=event.currentTarget.open}><summary>저장한 주요 변화 검토</summary>
     {#if archiveOpen}<ChangeReviewArchive assetId={asset.assetId} revision={reviewRevision} />{/if}
@@ -225,7 +239,7 @@
     <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다." />
   {:else if !scores.length}
     <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
-      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기준 구간 이탈 보기 →</a>{/if}
+      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 달라진 구간 찾기 →</a>{/if}
       {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
   {:else}
     <ul class="scores">

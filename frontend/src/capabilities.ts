@@ -27,7 +27,7 @@ export const NAME:Record<CapabilityId,string>={
 };
 /** Analysis names and input requirements used before an asset has stored data. */
 export type GuideId=CapabilityId;
-export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기준 구간 이탈 · 모델 점수"};
+export const METHOD:Record<GuideId,string>={...NAME,anomaly:"달라진 구간 찾기 · 모델 점수"};
 export const NEEDS:Record<GuideId,string>={
   measurements:"시각 열과 숫자 열이 있는 CSV, 또는 OPC UA로 받은 기록",
   anomaly:"같은 신호의 시간 순서 기록 (모델 점수는 기준 기간을 골라 모델을 만들거나 연결)",

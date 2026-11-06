@@ -146,10 +146,12 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 page.goto(f"http://127.0.0.1:{writer.server_port}/web/{outlook_query}")
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 _show_optional_review(page)
-                request_button = page.get_by_role("button", name="검토 요청")
+                request_button = page.get_by_role("button", name="결과만 저장")
                 pw.expect(request_button).to_be_enabled(timeout=60000)
                 request_button.click()
-                pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=60000)
+                pw.expect(page.get_by_text("결과를 검토함에 저장했습니다")).to_be_visible(
+                    timeout=60000
+                )
                 (payload,) = confirmed
                 # The browser names the shown selection and provenance, never numbers.
                 assert set(payload) == SELECTION_KEYS | {
@@ -170,9 +172,9 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 queue = page.get_by_role("region", name="검토함")
                 detail = page.get_by_role("region", name="고른 검토 항목")
                 pw.expect(page.get_by_role("heading", name="정비 검토", level=1)).to_be_visible()
-                pw.expect(
-                    queue.get_by_role("link").filter(has_text="검토 요청한 전망")
-                ).to_have_count(1, timeout=30000)
+                pw.expect(queue.get_by_role("link").filter(has_text="저장한 전망")).to_have_count(
+                    1, timeout=30000
+                )
                 # The saved review keeps the feature ID; people read the feature's name.
                 pw.expect(detail.get_by_role("heading", level=2)).to_have_text(
                     "bearing-a · 수평 진동 RMS 전망"
@@ -290,15 +292,19 @@ def test_review_request_queue_restart_and_reobservation_on_stored_acquisitions(
                 detail.get_by_role("link", name="설비 화면에서 이 조건으로 다시 보기 →").click()
                 page.get_by_role("button", name="계산하기", exact=True).click()
                 _show_optional_review(page)
-                pw.expect(page.get_by_role("button", name="검토 요청")).to_be_enabled(timeout=60000)
+                pw.expect(page.get_by_role("button", name="결과만 저장")).to_be_enabled(
+                    timeout=60000
+                )
                 _show_optional_review(page)
-                page.get_by_role("button", name="검토 요청").click()
-                pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=60000)
+                page.get_by_role("button", name="결과만 저장").click()
+                pw.expect(page.get_by_text("결과를 검토함에 저장했습니다")).to_be_visible(
+                    timeout=60000
+                )
                 page.get_by_role("link", name="정비 검토함에서 보기 →").click()
                 queue = page.get_by_role("region", name="검토함")
-                pw.expect(
-                    queue.get_by_role("link").filter(has_text="검토 요청한 전망")
-                ).to_have_count(2, timeout=30000)
+                pw.expect(queue.get_by_role("link").filter(has_text="저장한 전망")).to_have_count(
+                    2, timeout=30000
+                )
                 assert not errors, errors
             finally:
                 browser.close()
@@ -533,7 +539,7 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 calculate = page.get_by_role("button", name="계산하기", exact=True)
                 calculate.click()
                 _show_optional_review(page)
-                request = page.get_by_role("button", name="검토 요청")
+                request = page.get_by_role("button", name="결과만 저장")
                 inline = page.locator("details.optional-review")
                 pw.expect(inline).to_contain_text("저장된 검토 기록을 확인하지 못했습니다")
                 pw.expect(inline.get_by_role("button", name="판단 저장")).to_have_count(0)
@@ -564,7 +570,9 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 # A changed result opens as a fresh analysis, with optional capture collapsed.
                 _show_optional_review(page)
                 request.click()
-                pw.expect(page.get_by_text("정비 검토함에 남겼습니다")).to_be_visible(timeout=15000)
+                pw.expect(page.get_by_text("결과를 검토함에 저장했습니다")).to_be_visible(
+                    timeout=15000
+                )
                 assert state["posted"][1]["measurement_version"] == "d" * 64
                 state["saved"][0]["review"] = {
                     "status": "acknowledged",
@@ -616,11 +624,11 @@ def test_history_capture_fails_closed_and_separates_read_failure(tmp_path: Path)
                 page.goto(address)
                 calculate.click()
                 _show_optional_review(page)
-                pw.expect(page.get_by_role("button", name="검토 요청")).to_be_disabled(
+                pw.expect(page.get_by_role("button", name="결과만 저장")).to_be_disabled(
                     timeout=15000
                 )
                 pw.expect(page.locator("main")).to_contain_text(
-                    "보기 전용이라 검토를 요청할 수 없습니다"
+                    "보기 전용이라 결과를 저장할 수 없습니다"
                 )
                 assert len(state["posted"]) == 2
                 assert not errors, errors

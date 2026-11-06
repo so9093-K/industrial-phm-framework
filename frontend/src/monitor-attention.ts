@@ -155,7 +155,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
     add(item.assetId,{id:"departure:"+item.channel,kind:"departure",label:item.kind==="level-change"?"일정하던 측정값이 달라짐":"기준 구간에서 크게 벗어남",
       detail:(item.label??item.channel)+" · 마지막 측정이 "+range+(item.direction==="down"?"보다 낮음":item.direction==="up"?"보다 높음":" 밖")
         +" · 벗어난 구간 시작 "+since,
-      href:assetTabUrl(item.assetId,"anomaly","baseline",null,item.channel)+(item.context?"&record_key="+encodeURIComponent(item.context.key):""),action:"기준 구간 이탈 보기"});
+      href:assetTabUrl(item.assetId,"anomaly","baseline",null,item.channel)+(item.context?"&record_key="+encodeURIComponent(item.context.key):""),action:"달라진 구간 찾기"});
   }
   for(const source of sources??[]){
     // A collection someone asked to run that has not received recently; paused or stopped is expected.
@@ -178,7 +178,7 @@ export async function readPhmMonitor(signal:AbortSignal):Promise<PhmMonitor>{
 
 export function parseDepartures(raw:unknown):Departure[]{
   const root=object(raw);
-  if(!root||root.schema_version!==1||!Array.isArray(root.items))throw new Error("기준 구간 이탈 확인 결과의 형식이 올바르지 않습니다.");
+  if(!root||root.schema_version!==1||!Array.isArray(root.items))throw new Error("변화 분석 결과의 형식이 올바르지 않습니다.");
   return root.items.flatMap((value:unknown):Departure[]=>{
     const row=object(value);
     const assetId=text(row?.asset_id),channel=text(row?.channel),since=text(row?.since);
@@ -196,7 +196,7 @@ export async function readDepartureStatus(signal:AbortSignal,assetId?:string):Pr
   const response=await fetch("/api/v1/explore/attention"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
-    throw new Error("기준 구간 이탈을 확인하지 못했습니다.");
+    throw new Error("변화 구간을 확인하지 못했습니다.");
   }
   const raw = await response.json() as unknown;
   const items = parseDepartures(raw), root = object(raw)!;

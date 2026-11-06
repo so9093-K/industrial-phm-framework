@@ -123,7 +123,7 @@
     }catch(cause:unknown){
       if(req.signal.aborted)return;
       sourceState="failed";
-      error=cause instanceof Error?cause.message:"획득 원본 목록을 조회할 수 없습니다.";
+      error=cause instanceof Error?cause.message:"측정 원본 목록을 조회할 수 없습니다.";
     }
   }
   function change(n:"a"|"b",edge:"from"|"to",input:string){
@@ -136,7 +136,7 @@
     const req=new AbortController();spectrumRequest=req;
     result=null;resultState="loading";error="";
     try{
-      if(!spans||!acquisition)throw new Error("파형 원본과 획득 구간을 확인하세요.");
+      if(!spans||!acquisition)throw new Error("파형 원본과 측정 구간을 확인하세요.");
       validateSpans(spans);
       const frozen:Spans={a:{...spans.a},b:{...spans.b}};
       const data=await readSpectrum(assetId,acquisition,frozen,req.signal);

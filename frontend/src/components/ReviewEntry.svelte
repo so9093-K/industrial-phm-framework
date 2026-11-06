@@ -17,7 +17,7 @@
 </script>
 
 {#if total}
-  <p class="review-entry">검토 요청이 있는 설비 {total}곳 · <a {href}>정비 검토함 열기 →</a></p>
+  <p class="review-entry">저장한 검토가 있는 설비 {total}곳 · <a {href}>정비 검토함 열기 →</a></p>
 {/if}
 
 <style>

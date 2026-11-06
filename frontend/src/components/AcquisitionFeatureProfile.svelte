@@ -83,14 +83,14 @@
       }
       catch(cause:unknown){
         listState="unavailable";
-        message=cause instanceof Error?cause.message:"비교할 획득 회차가 부족합니다.";
+        message=cause instanceof Error?cause.message:"비교할 측정 회차가 부족합니다.";
         return;
       }
       listState="ready";remember();await compare();
     }catch(cause:unknown){
       if(request.signal.aborted)return;
       listState=cause instanceof FeatureEvidenceUnavailable?"unavailable":"failed";
-      message=cause instanceof Error?cause.message:"획득 특징 목록 조회 실패";
+      message=cause instanceof Error?cause.message:"측정 특징 목록 조회 실패";
     }
   }
   function selectFeature(value:string){
@@ -108,11 +108,11 @@
     const request=new AbortController();profileAbort=request;
     profile=null;profileState="loading";message="";
     try{
-      if(!source||!spans)throw new Error("획득 원본과 회차 범위를 확인하세요.");
+      if(!source||!spans)throw new Error("측정 원본과 회차 범위를 확인하세요.");
       validateSpans(spans);
       for(const key of ["a","b"] as const)
         if(spans[key].from<source.first||spans[key].to>source.last)
-          throw new Error("서버가 알려준 전체 획득 회차 안에서 범위를 선택하세요.");
+          throw new Error("서버가 알려준 전체 측정 회차 안에서 범위를 선택하세요.");
       const expected:Spans={a:{...spans.a},b:{...spans.b}};
       const response=await loadFeatureProfile(assetId,source,selected,expected,request.signal);
       if(request.signal.aborted)return;

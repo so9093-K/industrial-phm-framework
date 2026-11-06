@@ -140,7 +140,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             page.goto(f"http://127.0.0.1:{server.server_port}" + signal_href)
             pw.expect(page.get_by_text("데이터 출처 source-b", exact=False).first).to_be_visible()
             departure_href = page.get_by_role(
-                "link", name="기준 구간 이탈 →", exact=True
+                "link", name="달라진 구간 찾기 →", exact=True
             ).get_attribute("href")
             outlook_href = page.get_by_role(
                 "link", name="기준 도달 전망 →", exact=True

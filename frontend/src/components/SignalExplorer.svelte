@@ -227,9 +227,10 @@
     const window=zoom??(picked?zoomWindow(picked):null);
     return window?windowParams(window,picked):{};
   }
-  function linkTo(href: string, extra: Record<string, string>): string {
+  function linkTo(href: string, extra: Record<string, string>, group?:HistoryGroup): string {
     const url = new URL(href, location.origin);
-    for (const [key, value] of Object.entries({...contextParams(),...(focus?focusParams(focus):{}), ...extra})) url.searchParams.set(key, value);
+    const target=group?{source:group.sourceId,point:group.pointId,interpretation:group.interpretationId}:focus;
+    for (const [key, value] of Object.entries({...contextParams(),...(target?focusParams(target):{}), ...extra})) url.searchParams.set(key, value);
     return url.pathname + url.search;
   }
   const spanText = (span: Span) => span.to - span.from < 1000 ? recorded(new Date(span.from).toISOString())
@@ -273,9 +274,9 @@
     {#if now}<p class="context">유효 측정 {now.usable} · 결측 {now.missing} · 품질 불량 {now.nonGood} · 값 충돌 {now.conflict}</p>{/if}
     <div class="pick-actions">
       {#if periods}
-        <a class="ui-button ui-button-primary" href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), periodParams(periods))}>바로 앞 기간과 비교하기 →</a>
+        <a class="ui-button ui-button-primary" href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), periodParams(periods), group)}>바로 앞 기간과 비교하기 →</a>
         {#if (channels?.ids.length ?? 0) > 1}
-          <a class="ui-button" href={linkTo(assetTabUrl(assetId, "change", "relation", "history"), {...periodParams(periods), relation_x: selectedChannel})}>다른 신호와 관계 보기 →</a>
+          <a class="ui-button" href={linkTo(assetTabUrl(assetId, "change", "relation", "history"), {...periodParams(periods), relation_x: selectedChannel}, group)}>다른 신호와 관계 보기 →</a>
         {/if}
       {:else}
         <span class="context">31일 이하로 고르면 바로 앞 기간과 비교할 수 있습니다.</span>
@@ -327,7 +328,7 @@
     </div>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
-      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기준 구간 이탈 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>달라진 구간 찾기 →</a>
       <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
       <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
     </nav>
@@ -369,10 +370,10 @@
           <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId, shownSources) : ""}</h3>
           <p class="context">
             데이터 출처 {sourceLabel(sources, group.sourceId, shownSources)}{group.pointId ? " · 측정 위치 " + group.pointId : ""}
-            {#if group.observedProperty} · 측정 의미 {propertyLabel(group.observedProperty)}{/if}
+            {#if group.observedProperty} · 측정 항목 {propertyLabel(group.observedProperty)}{/if}
             {#if group.unit ?? channels?.names.get(selectedChannel)?.unit} · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit}{/if}
           </p>
-          {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 의미의 근거</summary><p class="context">단위 근거 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">해석 근거 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
+          {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 항목·단위 확인</summary><p class="context">단위 확인 자료 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">측정 항목 확인 자료 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
           {#if chart}
             {@const unit = group.unit ?? channels?.names.get(selectedChannel)?.unit ?? null}
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>

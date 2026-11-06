@@ -68,6 +68,55 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 path = card.locator("path.trace").get_attribute("d")
                 assert path.count("M") == 2 and "L" in path
                 pw.expect(card.locator("circle.sample")).not_to_have_count(0)
+                page.goto(
+                    origin
+                    + "/web/?"
+                    + urlencode(
+                        {
+                            "page": "assets",
+                            "monitor_asset": "motor",
+                            "tab": "signals",
+                            "monitor_channel": "temperature",
+                        }
+                    )
+                )
+                all_signals = page.get_by_role("region", name="측정 신호", exact=True)
+                group_b = all_signals.get_by_role("region", name="측정 기록 · b", exact=True)
+                group_a = all_signals.get_by_role("region", name="측정 기록 · a", exact=True)
+                pw.expect(group_b).to_be_visible()
+                group_b.locator('input[type="range"]').focus()
+                group_b.locator('input[type="range"]').press("Home")
+                group_b.locator('input[type="range"]').press("ArrowRight")
+                chosen_b = group_b.locator(".pick")
+                compare_href = chosen_b.get_by_role(
+                    "link", name="바로 앞 기간과 비교하기", exact=False
+                ).get_attribute("href")
+                relation_href = chosen_b.get_by_role(
+                    "link", name="다른 신호와 관계 보기", exact=False
+                ).get_attribute("href")
+                for href in (compare_href, relation_href):
+                    scope = parse_qs(urlsplit(href).query)
+                    assert scope["monitor_source"] == ["b"] and scope["monitor_point"] == [
+                        "bearing"
+                    ]
+                    assert len(scope["monitor_interpretation"][0]) == 64
+                own_a = (
+                    group_a.locator(".pick")
+                    .get_by_role("link", name="바로 앞 기간과 비교하기", exact=False)
+                    .get_attribute("href")
+                )
+                assert parse_qs(urlsplit(own_a).query)["monitor_source"] == ["a"]
+                page.goto(origin + compare_href)
+                pw.expect(
+                    page.get_by_role("region", name="데이터 출처 b", exact=True)
+                ).to_be_visible()
+                pw.expect(
+                    page.get_by_role("region", name="데이터 출처 a", exact=True)
+                ).to_have_count(0)
+                page.goto(origin + relation_href)
+                pw.expect(page.get_by_role("region", name="신호 관계", exact=True)).to_contain_text(
+                    "선택한 출처에서는 함께 기록된 신호가 없습니다"
+                )
                 focus = {
                     "page": "assets",
                     "monitor_asset": "motor",
@@ -78,7 +127,7 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 page.goto(
                     origin + "/web/?" + urlencode({**focus, "tab": "anomaly", "method": "baseline"})
                 )
-                panel = page.get_by_role("region", name="기준 구간 이탈", exact=True)
+                panel = page.get_by_role("region", name="달라진 구간 찾기", exact=True)
                 pw.expect(panel).to_contain_text("분석 대상 · b")
                 panel.locator("#departure-channel").select_option("current")
                 recover = panel.get_by_role("button", name="이 신호의 다른 기록 보기", exact=True)

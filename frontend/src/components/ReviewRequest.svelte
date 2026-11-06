@@ -55,23 +55,23 @@
     request?.abort();
     const pending = new AbortController(); request = pending;
     saving = true; kind = "information";
-    message = "요청 직전에 결과를 다시 계산해 확인하고 있습니다.";
+    message = "결과를 저장하기 전에 최신 기록을 확인하고 있습니다.";
     try {
       savedId = await confirmCapture(projection, pending.signal);
       if (pending.signal.aborted) return;
-      message = "정비 검토함에 남겼습니다.";
+      message = "결과를 검토함에 저장했습니다.";
       await reload(pending.signal);
     } catch (cause: unknown) {
       if (pending.signal.aborted) return;
       if (cause instanceof BriefingEvidenceChanged || cause instanceof CaptureRejected) {
         onEvidenceChanged(cause instanceof CaptureRejected ? cause.message
-          : "요청하는 사이 데이터나 계산 조건이 바뀌어 검토를 요청하지 않았습니다. 다시 계산하세요.");
+          : "저장하는 사이 데이터나 계산 조건이 바뀌어 결과를 저장하지 못했습니다. 다시 계산하세요.");
         return;
       }
       kind = cause instanceof OutcomeUnknown ? "uncertain" : "failure";
       message = cause instanceof OutcomeUnknown
-        ? "요청이 처리됐는지 확인하지 못했습니다. 정비 검토함에서 확인하거나 다시 요청하세요. 다시 요청해도 기록이 겹치지 않습니다."
-        : cause instanceof Error ? cause.message : "검토를 요청하지 못했습니다.";
+        ? "저장 결과를 확인하지 못했습니다. 검토함에서 확인하거나 다시 저장하세요. 다시 시도해도 기록이 겹치지 않습니다."
+        : cause instanceof Error ? cause.message : "결과를 저장하지 못했습니다.";
     } finally {
       if (request === pending) saving = false;
     }
@@ -108,10 +108,10 @@
     }} {reload} />
   {#if !capture}
   <div class="row">
-    <button type="button" class="ui-button ui-button-primary" disabled={!writable || saving}
-      onclick={() => void submit()}>검토 요청</button>
-    <span class="context">{writable ? "지금 결과와 조건을 정비 검토함에 남깁니다."
-      : "보기 전용이라 검토를 요청할 수 없습니다."}</span>
+    <span class="context">{writable ? "판단을 나중에 남기려면 현재 결과와 조건만 검토함에 보관할 수 있습니다."
+      : "보기 전용이라 결과를 저장할 수 없습니다."}</span>
+    <button type="button" class="ui-button" disabled={!writable || saving}
+      onclick={() => void submit()}>결과만 저장</button>
   </div>
   {/if}
   {#if capture}<p><a href={captureUrl(projection.assetId,capture.id)}>정비 검토함에서 보기 →</a></p>{/if}

@@ -672,6 +672,11 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "cumulative" if channel in cumulative else state["state"] if state else "no-values"
             ),
         }
+        if record["observations"]:
+            last_at, last_value = record["observations"][-1]
+            row["latest"] = {"at": iso(last_at), "value": last_value}
+            values = [value for _, value in record["observations"]]
+            row["range"] = {"low": min(values), "high": max(values)}
         if channel in cumulative:
             row["first"] = cumulative[channel][0][2]
             row["last"] = cumulative[channel][-1][2]

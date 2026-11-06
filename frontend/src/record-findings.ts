@@ -29,6 +29,7 @@ export type CheckedSignal = {
   held: number | null; later: {low: number; high: number} | null;
   /** For a running total its source declares: where the record began and ended. */
   first?: number | null; last?: number | null;
+  latest?:{at:string;value:number}|null; range?:{low:number;high:number}|null;
 };
 export type RecordFindings = {
   assetId: string;
@@ -83,7 +84,10 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     if (!row || !states.includes(row.state as SignalState)) invalid();
     const later = row.later === undefined || row.later === null ? null : object(row.later);
     if (row.later !== undefined && row.later !== null && !later) invalid();
-    return {context: recordContext(row), channel: text(row.channel), label: text(row.label),
+    const latest=object(row.latest),extent=object(row.range);
+    return {latest:latest?{at:instant(latest.at),value:finite(latest.value)}:null,
+      range:extent?{low:finite(extent.low),high:finite(extent.high)}:null,
+      context: recordContext(row), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, state: row.state as SignalState,
       held: row.held === undefined || row.held === null ? null : finite(row.held),
       first: row.first === undefined || row.first === null ? null : finite(row.first),
