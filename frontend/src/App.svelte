@@ -298,7 +298,7 @@
     {:else}
       <PageHeading title={PAGE_INFO[route.page].label} description={PAGE_INFO[route.page].description}
         loading={false} onRefresh={() => void refresh()} />
-      <p class="meta">{observed(snapshot.assessedAt)} 기준</p>
+      <p class="meta">목록 확인 시각 · {observed(snapshot.assessedAt)}</p>
       {#if snapshot.systemReadUncertain}
         <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
       {/if}

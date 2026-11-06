@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
@@ -214,7 +215,7 @@
         actionLabel="신호 보기"
         actionHref={assetTabUrl(assetId, "signals")} />
     {:else if result}
-      {#if result.context}<p class="context">분석 대상 · {readableSourceId(result.context.sourceId)} · {result.context.pointId ?? "측정 위치 미지정"}</p>{/if}
+      {#if result.context}<SourceIdentity id={result.context.sourceId} pointId={result.context.pointId} interpretationId={result.context.interpretationId} among={result.records.map(row=>row.sourceId)}/>{/if}
       {#if result.records.length > 1}<label>분석할 기록 <select value={selectedRecord} onchange={(event) => {selectedRecord=event.currentTarget.value;focus=null;rememberSelection();void analyze();}}>
         {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 항목 미지정"}{record.unit?" · "+record.unit:""}</option>{/each}
       </select></label>{/if}

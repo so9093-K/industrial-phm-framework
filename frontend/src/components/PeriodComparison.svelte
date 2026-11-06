@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIdentity from "./SourceIdentity.svelte";
   import RangeCompare from "./RangeCompare.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
   import AnalysisMessage from "./AnalysisMessage.svelte";
@@ -213,7 +214,7 @@
       message="이 설비에는 저장된 시계열 기록이 없습니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
-    {#if focus}<p class="context">선택한 출처 {sourceLabel(sources_,focus.source)}{focus.point===undefined?"":" · 측정 위치 "+(focus.point??"미지정")}의 기록을 비교합니다.</p>
+    {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
       <button type="button" class="ui-button" disabled={!!formError}
         onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     <details class="conditions" open={compareState !== "ready"}>
@@ -280,7 +281,7 @@
         {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
-          <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : " · 측정 위치 미지정"}</p>
+          <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
           {#if message}<AnalysisMessage {message}
             basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
               + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
