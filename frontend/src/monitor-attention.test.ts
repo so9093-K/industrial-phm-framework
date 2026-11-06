@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {attentionByAsset,attentionComplete,attentionText,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
+import {attentionByAsset,departureSignalHref,attentionComplete,attentionText,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
 import {parseSources} from "./operations-status.ts";
 
 function model(extra:Record<string,unknown>){
@@ -84,7 +84,8 @@ test("only a collection someone asked to run is flagged when it stops receiving"
 
 test("a stored signal that ends far from its baseline asks for a look and opens that signal", () => {
   const departures=parseDepartures({schema_version:1,items:[
-    {asset_id:"pump-2",channel:"current_a",label:"전류",unit:"A",distance:96.4,direction:"up",since:"2026-10-01T02:05:57Z",
+    {asset_id:"pump-2",channel:"current_a",label:"전류",unit:"A",distance:96.4,direction:"up",since:"2020-10-01T02:05:57Z",last_at:"2020-10-02T02:05:57Z",
+      key:"record-a",source_id:"source-b",measurement_point_id:null,interpretation_id:"b".repeat(64),record:{from:"2020-09-01T00:00:00Z",to:"2020-10-02T02:05:58Z"},
       usual:{low:42.1,high:73.2}},
     {asset_id:"pump-3",channel:"x"},
   ]});
@@ -92,8 +93,16 @@ test("a stored signal that ends far from its baseline asks for a look and opens 
   const [group]=attentionByAsset([],null,departures);
   assert.equal(group.assetId,"pump-2");
   assert.equal(group.notes[0].kind,"departure");
-  assert.match(group.notes[0].detail,/^전류 · 마지막 측정이 기록 처음 30%의 평소 범위\(42\.1~73\.2 A\)보다 높음 · 벗어난 구간 시작 /);
-  assert.match(group.notes[0].href,/tab=anomaly&method=baseline/);
+  assert.equal(group.notes[0].label,"전류 · 기준 범위보다 높아짐");
+  assert.match(group.notes[0].detail,/비교 범위 42\.1~73\.2 A.*2020/);
+  assert.match(group.notes[0].href,/tab=signals/);
+  const link=new URL(group.notes[0].href,"http://local");
+  assert.equal(link.searchParams.get("monitor_source"),"source-b");
+  assert.equal(link.searchParams.get("monitor_point"),"");
+  assert.equal(link.searchParams.get("monitor_interpretation"),"b".repeat(64));
+  assert.equal(link.searchParams.get("record_key"),"record-a");
+  assert.equal(link.searchParams.get("monitor_range"),"window");
+  assert.equal(group.notes[0].departure?.lastAt,"2020-10-02T02:05:57Z");
   assert.match(group.notes[0].href,/monitor_channel=current_a/);
 });
 
@@ -108,4 +117,16 @@ test("a partial or failed attention read never turns an unverified zero into no 
   assert.equal(attentionComplete(monitor(),sources,false),false);
   assert.equal(attentionComplete({...monitor(),truncated:true},sources,true),false);
   assert.equal(attentionComplete(monitor(),{...sources,readErrors:["registry"]},true),false);
+});
+
+
+test("a long change opens its start within the signal limit; missing measurement clocks are not guessed",()=>{
+  const item={assetId:"pump",channel:"current",label:null,unit:null,distance:4,direction:"up" as const,since:"2020-01-01T00:00:00Z",lastAt:"2020-04-01T00:00:00Z",usual:null};
+  const url=new URL(departureSignalHref(item),"http://local");
+  const [start,end]=url.searchParams.get("monitor_pick")!.split("~").map(Date.parse);
+  assert.equal(start,Date.parse(item.since));
+  assert.equal(end-start,31*86400000);
+  const missing=new URL(departureSignalHref({...item,lastAt:null}),"http://local");
+  assert.equal(missing.searchParams.has("monitor_pick"),false);
+  assert.equal(missing.searchParams.get("monitor_channel"),"current");
 });

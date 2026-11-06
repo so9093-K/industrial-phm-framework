@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount, tick} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {measure} from "../chart-axis";
@@ -113,7 +114,9 @@
     } else {url.searchParams.delete("monitor_from"); url.searchParams.delete("monitor_to");}
     url.searchParams.delete("monitor_source"); url.searchParams.delete("monitor_point"); url.searchParams.delete("monitor_interpretation");
     for (const [key, value] of Object.entries(focus ? focusParams(focus) : {})) url.searchParams.set(key, value);
-    url.searchParams.delete("monitor_pick");
+    const selection=picked??pending;
+    if(selection)url.searchParams.set("monitor_pick",new Date(selection.from).toISOString()+"~"+new Date(selection.to).toISOString());
+    else url.searchParams.delete("monitor_pick");
     history.replaceState(history.state, "", url);
   }
 
@@ -151,6 +154,7 @@
         // A new window has its own buckets; the shown span stays exactly the buckets summed.
         picked = snapInside(picked, read.from, read.to, step);
       }
+      rememberChannel();
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
       trendState = "failed";
@@ -336,7 +340,7 @@
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
     {/if}
       {#if focus}
-        <p class="zoomed"><span>데이터 출처 {sourceLabel(sources, focus.source, shownSources)}{focus.point === undefined ? "" : focus.point === null ? " · 측정 위치 지정 없음" : " · 측정 위치 " + focus.point}만 보고 있습니다.</span>
+        <p class="zoomed"><span>선택한 데이터 출처{focus.point ? " · 측정 위치 "+focus.point : ""}의 기록만 보고 있습니다.</span>
           <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
       {/if}
     {#if trendState === "loading"}
@@ -367,10 +371,9 @@
       {#each groups as group (group.key)}
         {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
         <section class="series" aria-label={"측정 기록 · " + sourceLabel(sources, group.sourceId, shownSources)}>
-          <h3>{signalName(channels?.names, selectedChannel)}{groups.length > 1 ? " · 데이터 출처 " + sourceLabel(sources, group.sourceId, shownSources) : ""}</h3>
-          <p class="context">
-            데이터 출처 {sourceLabel(sources, group.sourceId, shownSources)}{group.pointId ? " · 측정 위치 " + group.pointId : ""}
-            {#if group.observedProperty} · 측정 항목 {propertyLabel(group.observedProperty)}{/if}
+          <h3>{signalName(channels?.names,selectedChannel)}</h3>
+          <SourceIdentity id={group.sourceId} name={sources.get(group.sourceId)} pointId={group.pointId} interpretationId={group.interpretationId} among={shownSources}/>
+          <p class="context">{#if group.observedProperty}{propertyLabel(group.observedProperty)}{/if}
             {#if group.unit ?? channels?.names.get(selectedChannel)?.unit} · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit}{/if}
           </p>
           {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 항목·단위 확인</summary><p class="context">단위 확인 자료 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">측정 항목 확인 자료 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}

@@ -33,14 +33,16 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
             tuple(
                 FileBackfillEvent(
                     raw_evidence_id=f"file:{asset}:{i}",
-                    source_id=asset + "-source",
+                    source_id="aihub239-training-1306-1"
+                    if asset == "changing"
+                    else asset + "-source",
                     asset_id=asset,
                     channel_id="temperature",
                     source_file=asset + ".csv",
                     source_sha256="a" * 64,
                     source_size_bytes=10,
                     sample_index=i,
-                    event_at=datetime(2026, 11, 1, tzinfo=UTC) + timedelta(minutes=i),
+                    event_at=datetime(2020, 10, 22, tzinfo=UTC) + timedelta(minutes=i),
                     value=65.0 if asset == "changing" and i >= 100 else 40.0,
                     source_metadata_json='{"binding":{"definition":{"unit":"°C"}}}',
                 )
@@ -119,6 +121,28 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 rows = assets.locator(".row")
                 pw.expect(rows.first).to_contain_text("확인할 항목 1건")
                 pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.first).to_contain_text("과거 저장 기록")
+                pw.expect(rows.first).to_contain_text("현재 수신 중인 데이터가 아닙니다")
+                pw.expect(rows.first).to_contain_text("분석한 마지막 측정 · 2020")
+                pw.expect(rows.first.locator(".primary-reason")).to_contain_text("temperature")
+                pw.expect(rows.first.locator(".source-name")).to_have_text(
+                    "AI-Hub 239 공개 실측 데이터"
+                )
+                pw.expect(page.locator(".meta").first).to_contain_text("목록 확인 시각")
+                assert rows.first.locator(".source-identity details").get_attribute("open") is None
+                pw.expect(rows.first.get_by_text("기록되지 않음", exact=True)).to_be_hidden()
+                direct = rows.first.get_by_role("link", name="변화 구간 조사하기", exact=False)
+                picked = parse_qs(
+                    urlsplit(direct.get_attribute("href")).query, keep_blank_values=True
+                )
+                assert picked["tab"] == ["signals"] and picked["monitor_channel"] == ["temperature"]
+                assert picked["monitor_source"] == ["aihub239-training-1306-1"]
+                assert (
+                    picked["monitor_point"] == [""]
+                    and len(picked["monitor_interpretation"][0]) == 64
+                )
+                assert picked["monitor_range"] == ["window"]
+                assert picked["monitor_pick"][0].startswith("2020-")
                 assert operations.get_attribute("open") is None
                 assert assets.bounding_box()["y"] < operations.bounding_box()["y"]
                 assets.locator(".reason-link").first.click()
@@ -171,6 +195,26 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 pw.expect(rows.first).to_contain_text("changing")
                 pw.expect(rows.first).to_contain_text("최소 1건 · 일부 미확인")
                 page.unroute("**/api/v1/phm/monitor")
+                rows.first.get_by_role("link", name="변화 구간 조사하기", exact=False).click()
+                series = page.locator(".series")
+                pw.expect(series).to_have_count(1)
+                pw.expect(series.locator("svg").first).to_be_visible()
+                pw.expect(page.locator(".pick")).to_be_visible()
+                restored_pick = parse_qs(urlsplit(page.url).query)["monitor_pick"]
+                page.reload()
+                pw.expect(page.locator(".pick")).to_be_visible()
+                assert parse_qs(urlsplit(page.url).query)["monitor_pick"] == restored_pick
+                pw.expect(series.locator(".source-name")).to_have_text(
+                    "AI-Hub 239 공개 실측 데이터"
+                )
+                source_details = series.locator(".source-identity details")
+                assert source_details.get_attribute("open") is None
+                pw.expect(source_details.get_by_text("지정되지 않음", exact=True)).to_be_hidden()
+                source_details.locator("summary").click()
+                pw.expect(
+                    source_details.get_by_text("aihub239-training-1306-1", exact=True)
+                ).to_be_visible()
+                pw.expect(source_details.get_by_text("지정되지 않음", exact=True)).to_be_visible()
                 page.goto(origin + "/web/?page=assets&monitor_asset=stable")
                 quiet = page.get_by_role("region", name="변화가 없는 기록 살펴보기")
                 pw.expect(quiet).to_contain_text("마지막 구간 평균 40 °C")

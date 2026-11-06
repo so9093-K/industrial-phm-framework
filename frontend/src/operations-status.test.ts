@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {parseRuntimeStatus,parseSources,readableSourceId,receiptText,sourceLabel} from "./operations-status.ts";
+import {parseRuntimeStatus,parseSources,readableSourceId,sourceSummary,publicSourceInfo,receiptText,sourceLabel} from "./operations-status.ts";
 
 const runtime={schema_version:1,assessed_at:"2026-10-17T00:00:00Z",
   meaning:"local-process-readiness-not-collection-receipt-or-asset-health",ready:false,
@@ -39,10 +39,10 @@ test("registration is not receipt, and a connection claim needs live evidence",(
 
 test("an imported source reads as what it is; its version stays distinct even when shown alone",()=>{
   const digest="ba8f9d1820f137f198263c7a594c6a12a6599f6c8ab21673810d15d4bb652801";
-  assert.equal(readableSourceId("xjtu-sy-replay-"+digest),"XJTU-SY 측정 기록 · 원본 지문 "+digest.slice(0,8));
-  assert.equal(readableSourceId("xjtu-sy-replay"),"XJTU-SY 측정 기록 · 원본 지문 없음");
-  assert.equal(readableSourceId("aihub239-training-1338-1-"+digest),"AI-Hub 239 원천 기록 (학습용) · 원본 지문 "+digest.slice(0,8));
-  assert.equal(readableSourceId("aihub239-validation-2194-1"),"AI-Hub 239 원천 기록 (검증용) · 원본 지문 없음");
+  assert.equal(readableSourceId("xjtu-sy-replay-"+digest),"XJTU-SY 공개 실측 데이터 · 원본 버전 "+digest.slice(0,8));
+  assert.equal(readableSourceId("xjtu-sy-replay"),"XJTU-SY 공개 실측 데이터");
+  assert.equal(readableSourceId("aihub239-training-1338-1-"+digest),"AI-Hub 239 공개 실측 데이터 · 원본 분류 Training · 원본 버전 "+digest.slice(0,8));
+  assert.equal(readableSourceId("aihub239-validation-2194-1"),"AI-Hub 239 공개 실측 데이터 · 원본 분류 Validation");
   assert.equal(readableSourceId("csv-pump-a1b2"),"csv-pump-a1b2");
   assert.equal(readableSourceId("operator-"+digest),"operator-"+digest);
   const versions=["xjtu-sy-replay-"+digest,"xjtu-sy-replay-"+"f".repeat(64)];
@@ -53,7 +53,16 @@ test("an imported source reads as what it is; its version stays distinct even wh
   // Imports of one device shown together keep apart by their source content.
   const shown=["aihub239-training-1306-1","aihub239-training-1306-1-"+digest,"aihub239-validation-1306-1"];
   assert.deepEqual(shown.map(id=>readableSourceId(id,shown)),[
-    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 없음",
-    "AI-Hub 239 원천 기록 (학습용) · 원본 지문 "+digest.slice(0,8),
-    "AI-Hub 239 원천 기록 (검증용) · 원본 지문 없음"]);
+    "AI-Hub 239 공개 실측 데이터 · 원본 분류 Training",
+    "AI-Hub 239 공개 실측 데이터 · 원본 분류 Training · 원본 버전 "+digest.slice(0,8),
+    "AI-Hub 239 공개 실측 데이터 · 원본 분류 Validation"]);
+});
+
+
+test("public data has a brief identity while partition and original fingerprint stay available as details",()=>{
+  const id="aihub239-training-1306-1";
+  assert.equal(sourceSummary(id),"AI-Hub 239 공개 실측 데이터");
+  assert.deepEqual(publicSourceInfo(id),{name:"AI-Hub 239 공개 실측 데이터",partition:"Training",fingerprint:null});
+  assert.equal(sourceSummary("operator-chosen-id"),"operator-chosen-id");
+  assert.equal(publicSourceInfo("operator-chosen-id"),null);
 });

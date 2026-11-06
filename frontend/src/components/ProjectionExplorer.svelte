@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,pickFrom,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
@@ -273,8 +274,7 @@
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
           <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
-          <p class="record-context">분석 대상 · {readableSourceId(projection.sourceId)} · {projection.pointId??"측정 위치 미지정"}
-            {#if options.records?.find(row=>row.key===projection?.recordKey)?.meaningLabel} · {options.records.find(row=>row.key===projection?.recordKey)!.meaningLabel}{/if}</p>
+          <SourceIdentity id={projection.sourceId} pointId={projection.pointId} among={options.records?.map(row=>row.sourceId)??[]}/>
           <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}

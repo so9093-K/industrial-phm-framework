@@ -138,7 +138,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             slider.press("ArrowRight")
             pw.expect(slider).to_have_value("1")
             page.goto(f"http://127.0.0.1:{server.server_port}" + signal_href)
-            pw.expect(page.get_by_text("데이터 출처 source-b", exact=False).first).to_be_visible()
+            pw.expect(page.locator(".series .source-name").first).to_contain_text("source-b")
             departure_href = page.get_by_role(
                 "link", name="달라진 구간 찾기 →", exact=True
             ).get_attribute("href")
@@ -159,7 +159,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             pw.expect(
                 panel.get_by_role("heading", name="기록 마지막 시점 기준 전망", exact=True)
             ).to_be_visible(timeout=60000)
-            pw.expect(panel.locator(".record-context")).to_contain_text("source-b")
+            pw.expect(panel.locator(".source-name")).to_contain_text("source-b")
             panel.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
             panel.get_by_role("radio", name="계속 관찰").check()
             panel.get_by_role("button", name="판단 저장", exact=True).click()

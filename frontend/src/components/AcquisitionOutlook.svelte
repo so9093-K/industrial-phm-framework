@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {readableSourceId} from "../operations-status";
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
   import {worseThanPersistence} from "../forecast-fit";
@@ -144,8 +144,7 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <p class="context">데이터 출처 <strong>{readableSourceId(options.sourceId)}</strong>
-      · {options.first}~{options.last}번째 측정 · 분석 {options.count}회
+    <SourceIdentity id={options.sourceId}/><p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회
       · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
     <div class="inputs">
       <label>진동 특징

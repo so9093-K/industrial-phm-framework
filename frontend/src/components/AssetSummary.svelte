@@ -6,7 +6,7 @@
   let reviewRevision = $state(0);
   let archiveOpen = $state(false);
   let openReviews:Record<string,boolean> = $state({});
-  import {readableSourceId} from "../operations-status";
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
@@ -148,7 +148,7 @@
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
           <li>
             <div class="finding-head"><h3>{item.label} · {item.kind==="level-change"?"일정하던 값이 ":"기준 구간보다 "}{item.direction==="up"?"상승":"하락"}</h3>
-            {#if item.context}<span class="context small">출처 {readableSourceId(item.context.sourceId)} · 측정 위치 {item.context.pointId ?? "미지정"}</span>{/if}
+            {#if item.context}<SourceIdentity id={item.context.sourceId} pointId={item.context.pointId} interpretationId={item.context.interpretationId} among={findings.signals.flatMap(row=>row.context?[row.context.sourceId]:[])}/>{/if}
             </div>
             <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
             <p class="change-time">{told.when}</p>
@@ -186,7 +186,7 @@
     {:else if findings && findings.judged}
       <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
         <p class="context">확인한 기록 {findings.judged}개에서 기록 초반과 비교해 크게 달라진 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
-        {#if quietSignal}<p><strong>{quietSignal.label}</strong>{#if quietSignal.context} · 출처 {readableSourceId(quietSignal.context.sourceId)} · 측정 위치 {quietSignal.context.pointId??"미지정"}{/if}</p>
+        {#if quietSignal}<p><strong>{quietSignal.label}</strong></p>{#if quietSignal.context}<SourceIdentity id={quietSignal.context.sourceId} pointId={quietSignal.context.pointId} interpretationId={quietSignal.context.interpretationId}/>{/if}
           {#if quietSignal.latest}<p>마지막 구간 평균 <strong>{changeValue(quietSignal.latest.value,quietSignal.unit)}</strong> · {observed(quietSignal.latest.at)}</p>{/if}
           {#if quietSignal.range}<p>구간별 평균의 범위 {changeValue(quietSignal.range.low,null)} ~ {changeValue(quietSignal.range.high,quietSignal.unit)}</p>{/if}
         {/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {readableSourceId} from "../operations-status";
+  import SourceIdentity from "./SourceIdentity.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
@@ -163,8 +163,7 @@
     <StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
-    <p class="context">데이터 출처 <strong>{readableSourceId(acquisition.source)}</strong>
-      · {place(acquisition.first)} ~ {place(acquisition.last)}</p>
+    <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
     <div class="periods">
       {#each ["a","b"] as label(label)}
         {@const name=label as "a"|"b"}
