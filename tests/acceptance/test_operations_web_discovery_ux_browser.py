@@ -49,6 +49,20 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
             batch_id=asset,
         )
     snapshot = json.loads(asset_list("stable", "changing"))
+    # Three operating checks plus one pending model must not outrank an actual change.
+    stable = snapshot["assets"]["items"][0]
+    stable["attention_count"] = 3
+    model = {
+        "binding_id": "stable-model",
+        "asset_id": "stable",
+        "step_kind": "history-window",
+        "recipe_id": None,
+        "processing_state": "pending",
+        "latest_analyzed": None,
+        "latest_processed": None,
+    }
+    phm = {"schema_version": 1, "items": [model], "truncated": False}
+    monitor_failed = False
     snapshot["attention"] = {
         "truncated": False,
         "items": [
@@ -77,6 +91,12 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.route("**/api/v1/monitor", lambda route: route.fulfill(json=snapshot))
                 page.route(
+                    "**/api/v1/phm/monitor",
+                    lambda route: (
+                        route.fulfill(status=503) if monitor_failed else route.fulfill(json=phm)
+                    ),
+                )
+                page.route(
                     "**/api/v1/datasets",
                     lambda route: route.fulfill(
                         json={
@@ -96,11 +116,61 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 operations = page.locator("details.monitor-operations")
                 pw.expect(assets.locator(".row").first).to_contain_text("changing", timeout=30000)
                 pw.expect(assets.locator(".primary-reason").first).to_be_visible()
+                rows = assets.locator(".row")
+                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
                 assert operations.get_attribute("open") is None
                 assert assets.bounding_box()["y"] < operations.bounding_box()["y"]
                 assets.locator(".reason-link").first.click()
                 pw.expect(page.locator("#attention-changing")).to_be_visible()
                 assert operations.get_attribute("open") is not None
+                # At equal importance the larger count wins, then the server's original order.
+                model.update(
+                    processing_state="processed",
+                    latest_analyzed={"position": 5, "output": {"exceeds_threshold": True}},
+                    open_interval={"start_position": 3, "step_count": 3},
+                )
+                page.reload()
+                pw.expect(rows.first).to_contain_text("stable")
+                pw.expect(rows.first).to_contain_text("확인할 항목 4건")
+                stable["attention_count"] = 0
+                snapshot["assets"]["items"].reverse()
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 1건")
+                # Server-confirmed operating checks without a primary note still count.
+                operating = json.loads(asset_list("operating"))["assets"]["items"][0]
+                operating["attention_count"] = 4
+                snapshot["assets"]["items"].append(operating)
+                page.reload()
+                # The signal change and model crossing remain ahead of these four checks.
+                pw.expect(rows.nth(2)).to_contain_text("operating")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 4건")
+                model["processing_state"] = "pending"
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.nth(1)).to_contain_text("operating")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.nth(1).locator(".primary-reason")).to_have_count(0)
+                pw.expect(rows.nth(2)).to_contain_text("stable")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 1건")
+                snapshot["assets"]["items"].pop()
+                # A failed read clears old reasons; only counts and source order remain.
+                monitor_failed = True
+                stable["attention_count"] = 3
+                page.reload()
+                pw.expect(rows.first).to_contain_text("stable")
+                pw.expect(rows.first).to_contain_text("일부 미확인")
+                pw.expect(assets.locator(".primary-reason")).to_have_count(0)
+                # A partial read keeps the importance of the reasons it actually returned.
+                monitor_failed = False
+                model["processing_state"] = "pending"
+                phm["truncated"] = True
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.first).to_contain_text("최소 1건 · 일부 미확인")
+                page.unroute("**/api/v1/phm/monitor")
                 page.goto(origin + "/web/?page=assets&monitor_asset=stable")
                 quiet = page.get_by_role("region", name="변화가 없는 기록 살펴보기")
                 pw.expect(quiet).to_contain_text("마지막 구간 평균 40 °C")

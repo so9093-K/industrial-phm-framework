@@ -1,13 +1,13 @@
 <script lang="ts">
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
-  import {attentionText, type AttentionState, type Note} from "../monitor-attention";
+  import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
     href: (assetId: string) => string;
     /** Model, receipt and baseline notes per asset, added to the monitor's own count. */
     notes?: Record<string, number>;
-    /** On 관측 현황 the reasons are on the same page, above the list. */
+    /** On 관측 현황 the reasons are in the operating details on the same page. */
     reasons?: boolean;
     primaryNotes?:Record<string,Note>;
     notesState?: AttentionState;
@@ -15,10 +15,11 @@
   let {assets, observed, href, notes = {}, reasons = false, primaryNotes={}, notesState = "ready"}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
-  // Assets with something to check come first; the server order is kept otherwise.
+  // Use the most important known reason, then the count and stable server order.
   const ordered = $derived(assets
     .map((asset, index) => ({asset, index}))
-    .sort((a, b) => (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
+    .sort((a, b) => notePriority(primaryNotes[a.asset.assetId]) - notePriority(primaryNotes[b.asset.assetId])
+      || (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
   function showReasons(assetId:string) {
     const heading=document.getElementById("attention-"+assetId);
@@ -32,7 +33,7 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <h2 id="asset-list-title">설비 <span>{assets.length}개</span></h2>
-  <p class="context">확인할 항목이 있는 설비를 먼저 보여 줍니다.</p>
+  <p class="context">주요 변화가 있는 설비를 먼저 보여 줍니다. 같은 중요도에서는 확인할 항목이 많은 순서입니다.</p>
   <ul class="rows">
     {#each ordered as asset (asset.assetId)}
       <li>
