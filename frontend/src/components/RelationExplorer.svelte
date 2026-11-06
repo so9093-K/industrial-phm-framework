@@ -80,9 +80,15 @@
   function remember(){
     if(!periods)return;
     const url=new URL(location.href);
+    url.searchParams.delete("record_key");
+    url.searchParams.set("monitor_range","window");
+    url.searchParams.set("monitor_from",periods.b.from);
+    url.searchParams.set("monitor_to",periods.b.to);
+    url.searchParams.set("monitor_pick",periods.b.from+"~"+periods.b.to);
     url.searchParams.set("monitor_asset",assetId);
     for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
     if(focus)for(const[key,value]of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
+    url.searchParams.set("monitor_channel",x);
     url.searchParams.set("relation_x",x);
     url.searchParams.set("relation_y",y);
     url.searchParams.set("compare_a",periods.a.from+"~"+periods.a.to);
@@ -130,7 +136,7 @@
       validatePeriods(frozen);
       const response=await readRelation(assetId,x,y,frozen,req.signal);
       if(req.signal.aborted)return;
-      relation=response;resultState=response.groups.length?"ready":"empty";
+      relation=response;resultState=pairs.length?"ready":"empty";
       remember();
     }catch(cause:unknown){
       if(req.signal.aborted)return;
@@ -164,6 +170,8 @@
         </select>
       </label>
     </div>
+    {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point===undefined?"":" · 측정 위치 "+(focus.point??"미지정")}의 기록을 보고 있습니다.</p>
+      <button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     {#if handedOver}
       <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
     {/if}
@@ -189,8 +197,8 @@
     {:else if resultState==="unavailable"}
       <StatusNotice kind="uncertain" title="비교할 기록이 없습니다" message={error}/>
     {:else if resultState==="empty"}
-      <StatusNotice title="조건에 맞는 측정 짝이 없습니다"
-        message="시각이나 출처가 다른 측정은 짝짓지 않습니다. 기간이나 신호를 바꿔 보세요."/>
+      <StatusNotice title={!relation?"선택한 조건으로 관계를 계산하세요":focus?"선택한 출처에서는 함께 기록된 신호가 없습니다":"조건에 맞는 측정 짝이 없습니다"}
+        message={!relation?"신호나 기간을 바꿨습니다. 관계 계산하기를 눌러 확인하세요.":focus?"고른 신호·기간에서 같은 시각의 측정 짝을 찾지 못했습니다. 신호·기간을 바꾸거나 다른 출처의 기록을 확인하세요.":"시각이나 출처가 다른 측정은 짝짓지 않습니다. 기간이나 신호를 바꿔 보세요."}/>
     {:else if relation}
       <p class="context">기간 A {periodText("a")} · 기간 B {periodText("b")}</p>
       {#each pairs as pair(pair.key)}

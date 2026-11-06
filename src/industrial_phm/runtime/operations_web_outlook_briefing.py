@@ -36,6 +36,7 @@ SELECTION_FIELDS = (
     "asset_id",
     "kind",
     "series",
+    "record_key",
     "management_limit",
     "end_limit",
     "direction",

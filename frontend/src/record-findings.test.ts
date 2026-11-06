@@ -14,6 +14,16 @@ const body = () => ({
     direction: "down", value: 0, usual: {low: 46.196, high: 78.4}, within: ["R상전류", "S상전류", "온도"]}],
 });
 
+test("summary trace preserves source continuity flags and accepts older saved samples",()=>{
+  const root=body();
+  const trace=[["2020-10-24T07:10:33Z",40],["2020-10-24T07:20:33Z",41],["2020-10-25T07:10:33Z",65]];
+  const parsed=parseRecordFindings({...root,intervals:[{...root.intervals[0],trace,trace_join:[false,true,false]}]},"comp");
+  assert.deepEqual(parsed.intervals[0].trace?.map(row=>row.join),[false,true,false]);
+  const older=parseRecordFindings({...root,intervals:[{...root.intervals[0],trace:[[trace[0][0],40]]}]},"comp");
+  assert.equal(older.intervals[0].trace?.[0].join,undefined);
+  assert.throws(()=>parseRecordFindings({...root,intervals:[{...root.intervals[0],trace,trace_join:[false,"yes",false]}]},"comp"));
+});
+
 test("what the whole record held reads as when, how long, against which range, and what else moved", () => {
   const found = parseRecordFindings(body(), "comp");
   assert.deepEqual(found.record, body().record);

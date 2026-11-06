@@ -1,6 +1,6 @@
 <script lang="ts">
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
-  import {attentionText, type AttentionState} from "../monitor-attention";
+  import {attentionText, type AttentionState, type Note} from "../monitor-attention";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -9,9 +9,10 @@
     notes?: Record<string, number>;
     /** On 관측 현황 the reasons are on the same page, above the list. */
     reasons?: boolean;
+    primaryNotes?:Record<string,Note>;
     notesState?: AttentionState;
   };
-  let {assets, observed, href, notes = {}, reasons = false, notesState = "ready"}: Props = $props();
+  let {assets, observed, href, notes = {}, reasons = false, primaryNotes={}, notesState = "ready"}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && notes[asset.assetId] === undefined ? null : (asset.attentionCount ?? 0) + (notes[asset.assetId] ?? 0);
   // Assets with something to check come first; the server order is kept otherwise.
@@ -31,7 +32,8 @@
     {#each ordered as asset (asset.assetId)}
       <li>
         <a class="row" href={href(asset.assetId)}>
-          <strong>{assetOptionLabel(assets, asset.assetId)}</strong>
+          <div class="asset-name"><strong>{assetOptionLabel(assets, asset.assetId)}</strong>
+            {#if primaryNotes[asset.assetId]}<span class="primary-reason">{primaryNotes[asset.assetId].label}</span><span>{primaryNotes[asset.assetId].detail}</span>{/if}</div>
           <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : asset.lastPosition != null ? "최근 " + asset.lastPosition + "번째 측정" : "측정 시각 기록 없음"}</span>
           <span>{flowLabel(asset.flow)}</span>
           <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
@@ -62,6 +64,7 @@
     text-decoration: none;
     overflow-wrap: anywhere;
   }
+  .asset-name{display:grid;gap:var(--space-1)}.row .primary-reason{color:var(--color-ink);font-weight:650}
   .row:hover { background: var(--color-surface-selected); }
   .row span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .reason-link { display: inline-block; padding: var(--space-2) var(--space-3); margin-top: var(--space-1);

@@ -6,11 +6,17 @@ import {
 
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
   const origin="http://127.0.0.1:2770";
-  const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m";
+  const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m&monitor_source=B&monitor_point=&monitor_interpretation=meaning&forecast_prior=0.5&capture_id=old";
   const next=tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=pump",current);
   assert.equal(new URL(next,origin).searchParams.get("monitor_channel"),"temperature");
-  assert.equal(new URL(next,origin).searchParams.has("monitor_range"),false);
+  assert.equal(new URL(next,origin).searchParams.get("monitor_range"),"15m");
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=other",current),origin).searchParams.has("monitor_channel"),false);
+  const retained=new URL(next,origin).searchParams;
+  assert.equal(retained.get("monitor_source"),"B");
+  assert.equal(retained.get("monitor_point"),"");
+  assert.equal(retained.get("monitor_interpretation"),"meaning");
+  assert.equal(retained.has("forecast_prior"),false);
+  assert.equal(retained.has("capture_id"),false);
   const wave=origin+"/web/?page=assets&tab=signals&monitor_asset=bearing&vibration_feature=vertical.rms";
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",wave),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
   const summary=tabSelectionUrl("/web/?page=assets&monitor_asset=bearing",wave);

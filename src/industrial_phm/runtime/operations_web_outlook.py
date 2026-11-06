@@ -37,7 +37,7 @@ from industrial_phm.application.phm_analysis import (
 )
 from industrial_phm.models.package import ModelTask
 from industrial_phm.runtime.operations_live import OperationsReadError
-from industrial_phm.runtime.operations_web_explore import package_task
+from industrial_phm.runtime.operations_web_explore import package_task, record_selection
 from industrial_phm.runtime.operations_web_forecast import (
     _ORIGIN,
     acquisition_points,
@@ -58,7 +58,7 @@ def handle_outlook_read(
     workspace: OperationsWorkspace, raw_query: str
 ) -> tuple[HTTPStatus, dict[str, Any]]:
     try:
-        query = parse_qs(raw_query, strict_parsing=False)
+        query = parse_qs(raw_query, strict_parsing=False, keep_blank_values=True)
         if any(len(values) != 1 for values in query.values()):
             raise ValueError("repeated query parameter")
         params = {name: values[0] for name, values in query.items()}
@@ -118,6 +118,7 @@ def outlook_arguments(params: dict[str, str]) -> dict[str, Any]:
         "training_points": training,
         "seasonal": seasonality != "off",
         "assumed_period_seconds": assumed,
+        "record_selector": record_selection(params),
     }
 
 
@@ -135,7 +136,7 @@ def verify_outlook_provenance(outlook: dict[str, Any], params: dict[str, str]) -
     selector must match the supervisor's freshly computed facts before any write;
     ``measurement_version`` alone does not bind a model or time basis.
     """
-    for selector in ("source_id", "binding_id", "measurement_version", "time_basis"):
+    for selector in ("source_id", "binding_id", "measurement_version", "time_basis", "record_key"):
         if selector in params and outlook.get(selector) != params[selector]:
             raise ValueError(f"outlook evidence changed: {selector}")
     if "recorded_period_seconds" in params:
@@ -157,10 +158,12 @@ def condition_outlook(
     training_points: int | None = None,
     seasonal: bool = True,
     assumed_period_seconds: float | None = None,
+    record_selector: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Degradation indicator, remaining margin under four readings, and the evidence used."""
     if kind == "history":
-        times, values, meta = history_points(workspace, asset_id, series)
+        times, values, meta = history_points(workspace, asset_id, series, record_selector)
+        meta.pop("available_records", None)
     else:
         times, values, meta = acquisition_points(
             workspace,

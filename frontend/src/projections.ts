@@ -1,3 +1,5 @@
+import {recordContext,type RecordContext} from "./record-context.ts";
+import {focusGroups,focusParams,type SourceFocus} from "./signal-selection.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {yTicks, type Tick} from "./chart-axis.ts";
@@ -7,7 +9,7 @@ export type Direction = "upper" | "lower";
 export type Conditions = {
   direction: Direction; management: number | null; end: number | null;
 };
-export type Options = { assetId: string; channels: string[]; horizons: Record<Horizon, string | null> };
+export type Options = { assetId: string; channels: string[]; horizons: Record<Horizon, string | null>; recordKey?:string; records?:RecordContext[] };
 export type Reach = {state: string; expected: number | null; earliest: number | null; latest: number | null};
 export type Scenario = {id: string; management: Reach | null; end: Reach | null};
 export type OutlookSettings = {
@@ -15,7 +17,7 @@ export type OutlookSettings = {
   trainingPoints:number|null;seasonality:"auto"|"off";
 };
 export type Projection = {
-  assetId: string; channel: string; horizon: Horizon; measurementVersion: string;
+  assetId: string; channel: string; horizon: Horizon; measurementVersion: string; recordKey?:string; sourcePointRecords?:number;
   dataVersion: string; sourceId: string; pointId: string | null; unit: string | null;
   record: {first: string; last: string; points: number};
   future: Array<{at:string; estimate: number; lower: number | null; upper: number | null}>;
@@ -76,7 +78,9 @@ export function parseOptions(payload: unknown, assetId: string, channel?:string)
     horizons[key] = value as string | null;
   }
   const channels = history.series.map((item: unknown) => str(object(item)?.key));
-  return {assetId, channels:[...new Set(channels)], horizons};
+  return {assetId, channels:[...new Set(channels)], horizons,
+    recordKey:typeof selection?.record_key==="string"?selection.record_key:undefined,
+    records:Array.isArray(selection?.records)?selection.records.map(recordContext).filter((r):r is RecordContext=>r!==null):[]};
 }
 
 /** Preserve the server's actual calculation settings, which data_version does not hash. */
@@ -126,7 +130,7 @@ export function parsePairedProjection(
   const fs = str(forecast.source_id), os = str(outlook.source_id);
   const fp = forecast.measurement_point_id ?? null;
   const op = outlook.measurement_point_id ?? null;
-  if (fVersion !== oVersion || fs !== os || fp !== op) {
+  if (fVersion !== oVersion || fs !== os || fp !== op || forecast.record_key!==outlook.record_key) {
     throw new MeasurementVersionMismatch(
       "예측과 기준 도달 계산에 쓴 데이터가 서로 달라 결과를 합치지 않았습니다. 다시 계산하세요."
     );
@@ -160,7 +164,7 @@ export function parsePairedProjection(
     return {id:str(item.id), management:parseReach(limits.management),
       end:parseReach(limits.end)};
   });
-  return {assetId, channel, horizon, measurementVersion:fVersion,
+  return {assetId, channel, horizon, measurementVersion:fVersion, recordKey:typeof forecast.record_key==="string"?forecast.record_key:undefined,sourcePointRecords:typeof forecast.source_point_records==="number"?forecast.source_point_records:undefined,
     dataVersion:str(outlook.data_version), sourceId:fs,
     pointId:fp === null ? null : str(fp), unit:typeof forecast.unit === "string" ? forecast.unit : null,
     record: {first:date(record.first),last:date(record.last),points:count(record.points)},
@@ -247,17 +251,25 @@ async function json(url: string, signal: AbortSignal): Promise<unknown> {
   }
   return await response.json() as unknown;
 }
-export async function loadOptions(assetId: string, signal: AbortSignal,selection?:{channel:string;trainingPoints:number|null}): Promise<Options> {
-  const query={asset_id:assetId,...(selection?{kind:"history",series:selection.channel,
+export async function loadOptions(assetId: string, signal: AbortSignal,selection?:{channel:string;trainingPoints:number|null;recordKey?:string;focus?:SourceFocus|null}): Promise<Options> {
+  const query={asset_id:assetId,...(selection?{kind:"history",series:selection.channel,...(selection.recordKey?{record_key:selection.recordKey}:{}),...(selection.focus?focusParams(selection.focus):{}),
     ...(selection.trainingPoints===null?{}:{training_points:String(selection.trainingPoints)})}:{})};
-  return parseOptions(await json(
+  const result=parseOptions(await json(
     "/api/v1/forecast/options?" + new URLSearchParams(query),signal),assetId,selection?.channel);
+  if(selection?.recordKey&&result.recordKey!==selection.recordKey)
+    throw new MeasurementVersionMismatch("선택한 기록과 예측 가능 기간의 대상이 다릅니다.");
+  if(selection?.focus){
+    const record=result.records?.find(row=>row.key===result.recordKey);
+    if(!record||!focusGroups([record],selection.focus).length)
+      throw new MeasurementVersionMismatch("선택한 출처·측정 위치·측정 의미와 다른 기록입니다.");
+  }
+  return result;
 }
 export async function loadPaired(
   assetId: string, channel: string, horizon: Horizon,
-  conditions: Conditions, signal: AbortSignal, settings?:ForecastSettings,
+  conditions: Conditions, signal: AbortSignal, settings?:ForecastSettings, recordKey?:string,
 ): Promise<Projection> {
-  const args={asset_id:assetId,kind:"history",series:channel,...settingsQuery(settings)};
+  const args={asset_id:assetId,kind:"history",series:channel,...settingsQuery(settings),...(recordKey?{record_key:recordKey}:{})};
   const direction={direction:conditions.direction};
   const limits: Record<string,string> = {};
   if (conditions.management !== null) limits.management_limit=String(conditions.management);
@@ -267,6 +279,7 @@ export async function loadPaired(
     json("/api/v1/outlook?" + new URLSearchParams({...args,...direction,...limits}),signal),
   ]);
   verifySettings(forecast,outlook,settings);
+  if(recordKey&&(object(forecast)?.record_key!==recordKey||object(outlook)?.record_key!==recordKey))throw new MeasurementVersionMismatch("선택한 출처의 기록과 계산 결과가 다릅니다.");
   return {...parsePairedProjection(forecast,outlook,assetId,channel,horizon,conditions),checks:backtests(forecast),
     reachChecks:backtests({backtest:object(outlook)?.check})};
 }

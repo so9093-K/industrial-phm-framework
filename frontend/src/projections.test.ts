@@ -44,6 +44,7 @@ test("selected forecast readiness uses its own inputs and training limit",async(
   try{
     const options=await loadOptions("a",new AbortController().signal,{channel:"short",trainingPoints:100});
     assert.deepEqual(options.horizons,reasons);
+    await assert.rejects(loadOptions("a",new AbortController().signal,{channel:"short",trainingPoints:100,recordKey:"different"}),MeasurementVersionMismatch);
     assert.throws(()=>parseOptions(payload,"a","long"),/선택한 신호/);
     assert.throws(()=>parseOptions({...payload,selection:undefined},"a","short"),/선택한 신호/);
   }finally{globalThis.fetch=original;}
@@ -72,6 +73,23 @@ test("changed measurements or source block every joined result",()=>{
     "a","R","1h",conditions),MeasurementVersionMismatch);
   assert.throws(()=>parsePairedProjection(forecast(),{...outlook(),source_id:"other"},
     "a","R","1h",conditions),MeasurementVersionMismatch);
+});
+test("each calculation uses and verifies the exact selected record",async()=>{
+  const original=globalThis.fetch;
+  const recordKey="record-b";
+  const urls:string[]=[];
+  globalThis.fetch=(async(url:string|URL|Request)=>{
+    const parsed=new URL(String(url),"http://local");urls.push(parsed.pathname);
+    assert.equal(parsed.searchParams.get("record_key"),recordKey);
+    return new Response(JSON.stringify(parsed.pathname.endsWith("/forecast")
+      ?{...forecast(),record_key:recordKey}:{...outlook(),record_key:recordKey}));
+  }) as typeof fetch;
+  try{
+    const result=await loadPaired("a","R","1h",conditions,new AbortController().signal,undefined,recordKey);
+    assert.equal(result.recordKey,recordKey);
+    assert.deepEqual(urls.sort(),["/api/v1/forecast","/api/v1/outlook"]);
+    assert.throws(()=>parsePairedProjection({...forecast(),record_key:"other"},{...outlook(),record_key:recordKey},"a","R","1h",conditions),MeasurementVersionMismatch);
+  }finally{globalThis.fetch=original;}
 });
 test("changed conditions, asset and meanings fail closed",()=>{
   assert.throws(()=>parsePairedProjection(forecast(),{...outlook(),

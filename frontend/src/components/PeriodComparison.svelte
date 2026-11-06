@@ -106,6 +106,11 @@
   function remember() {
     if (!periods) return;
     const url = new URL(location.href);
+    url.searchParams.delete("record_key");
+    url.searchParams.set("monitor_range","window");
+    url.searchParams.set("monitor_from",periods.b.from);
+    url.searchParams.set("monitor_to",periods.b.to);
+    url.searchParams.set("monitor_pick",periods.b.from+"~"+periods.b.to);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selected);
     for(const key of ["monitor_source","monitor_point","monitor_interpretation"]) url.searchParams.delete(key);
@@ -208,6 +213,9 @@
       message="이 설비에는 저장된 시계열 기록이 없습니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
+    {#if focus}<p class="context">선택한 출처 {sourceLabel(sources_,focus.source)}{focus.point===undefined?"":" · 측정 위치 "+(focus.point??"미지정")}의 기록을 비교합니다.</p>
+      <button type="button" class="ui-button" disabled={!!formError}
+        onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     <details class="conditions" open={compareState !== "ready"}>
       <summary>비교 조건 확인·변경 · {signalName(names, selected)}</summary>
     <div class="controls">
@@ -264,8 +272,8 @@
       <StatusNotice kind="uncertain" title="비교할 기록이 없습니다"
         message="이 설비에는 비교할 시계열 기록이 없습니다." />
     {:else if compareState === "empty"}
-      <StatusNotice title="고른 기간에 측정이 없습니다"
-        message="두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요." />
+      <StatusNotice title={focus?"선택한 출처에 비교할 측정이 없습니다":"고른 기간에 측정이 없습니다"}
+        message={focus?"고른 신호와 A/B 기간에 맞는 기록이 없습니다. 다른 출처의 기록을 확인하거나 기간·신호를 바꿔 보세요.":"두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요."} />
     {:else if result}
       {#each result.series as row (row.key)}
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}

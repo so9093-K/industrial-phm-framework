@@ -7,7 +7,7 @@
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
-  import { readAttention, type AttentionState } from "./monitor-attention";
+  import { readAttention, type AttentionState, type Note } from "./monitor-attention";
   import { readPublicDatasets } from "./public-datasets";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -27,6 +27,8 @@
   let writable: boolean | null = $state(null);
   let permissionState: "checking" | "ready" | "failed" = $state("checking");
   let permissionController: AbortController | null = null;
+  let primaryNotes:Record<string,Note>=$state({});
+  let listPrimaryNotes:Record<string,Note>=$state({});
   let notes: Record<string, number> = $state({});
   let notesState: AttentionState = $state("loading");
   // The asset list counts the same items as 관측 현황, read once when the list is shown.
@@ -37,10 +39,10 @@
     listNotesRevision;
     if (route.page !== "assets" || route.assetId) return;
     const request = new AbortController();
-    listNotes = {}; listNotesState = "loading";
+    listNotes = {}; listPrimaryNotes={}; listNotesState = "loading";
     void readAttention(request.signal).then((read) => {
-      if (!request.signal.aborted) {listNotes = read.counts; listNotesState = read.state;}
-    }).catch(() => {if (!request.signal.aborted) {listNotes = {}; listNotesState = "failed";}});
+      if (!request.signal.aborted) {listNotes = read.counts; listNotesState = read.state; listPrimaryNotes=Object.fromEntries(read.groups.filter(group=>group.notes.length).map(group=>[group.assetId,group.notes[0]]));}
+    }).catch(() => {if (!request.signal.aborted) {listNotes = {}; listPrimaryNotes={}; listNotesState = "failed";}});
     return () => request.abort();
   });
   // An empty workspace offers the public datasets prepared in the data folder, when there are any.
@@ -321,7 +323,7 @@
         </section>
       {/if}
       {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}
-      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state) => {notes = counts; notesState = state;}} />{/if}
+      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
           <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
@@ -344,7 +346,7 @@
         {/if}
         <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : listNotes}
           notesState={route.page === "monitor" ? notesState : listNotesState}
-          reasons={route.page === "monitor"} />
+          primaryNotes={route.page === "monitor"?primaryNotes:listPrimaryNotes} reasons={route.page === "monitor"} />
       {/if}
     {/if}
   {/if}

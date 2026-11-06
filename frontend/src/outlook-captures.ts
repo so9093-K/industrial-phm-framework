@@ -14,7 +14,7 @@ export type Position=string|number;
 export type OutlookFacts=Omit<CapturedOutlook,"settings">&{settings:OutlookSettings|null};
 export type CapturedOutlook={
   assetId:string;kind:"history"|"acquisition";series:string;sourceId:string;
-  pointId:string|null;bindingId:string|null;timeBasis:TimeBasis|null;
+  sourcePointRecords?:number;unit?:string|null;recordKey?:string;pointId:string|null;bindingId:string|null;timeBasis:TimeBasis|null;
   period:number|null;assumedPeriod:number|null;
   record:{first:Position;last:Position;points:number};
   conditions:Conditions;settings:OutlookSettings;scenarios:Scenario[];
@@ -113,7 +113,7 @@ function outlookFacts(outlook:Record<string,unknown>,assetId:string,assumedPerio
   if(!Array.isArray(rawSentences)||rawSentences.length>16)invalid("서버 설명");
   return {
     assetId,kind:outlook.kind as "history"|"acquisition",series:text(outlook.series,"신호"),
-    sourceId:text(outlook.source_id,"출처"),
+    sourceId:text(outlook.source_id,"출처"),sourcePointRecords:typeof outlook.source_point_records==="number"?outlook.source_point_records:undefined,unit:typeof outlook.unit==="string"?outlook.unit:null,recordKey:typeof outlook.record_key==="string"?outlook.record_key:undefined,
     pointId:outlook.measurement_point_id==null?null:text(outlook.measurement_point_id,"측정점"),
     // Captures made before the server echoed a binding keep it unknown, never guessed.
     bindingId:acquisition&&outlook.binding_id!=null?text(outlook.binding_id,"binding"):null,
@@ -141,7 +141,7 @@ function parseCapturedOutlook(raw:unknown,assetId:string):CapturedOutlook{
   if(!record||!saved||!conditions||!savedConditions||!settings||!savedSettings)invalid("계산 조건");
   const same=(left:Record<string,unknown>,right:Record<string,unknown>,keys:string[])=>
     keys.every(key=>(left[key]??null)===(right[key]??null));
-  if(!same(identity,outlook,["asset_id","kind","series","source_id","measurement_point_id",
+  if(!same(identity,outlook,["asset_id","kind","series","source_id","measurement_point_id","record_key",
     "axis","time_basis","measurement_version","data_version"])
     ||!same(saved,record,["first","last","points"])
     ||!same(savedConditions,conditions,["direction","management","end"])
@@ -164,6 +164,8 @@ export async function recomputeForComparison(saved:CapturedOutlook,signal:AbortS
     direction:saved.conditions.direction,
     changepoint_prior_scale:String(saved.settings.changepointPriorScale),
     changepoint_range:String(saved.settings.changepointRange),seasonality:saved.settings.seasonality});
+  if(saved.recordKey)query.set("record_key",saved.recordKey);
+  else if(saved.kind==="history"){query.set("monitor_source",saved.sourceId);query.set("monitor_point",saved.pointId??"");}
   if(saved.conditions.management!==null)query.set("management_limit",String(saved.conditions.management));
   if(saved.conditions.end!==null)query.set("end_limit",String(saved.conditions.end));
   if(saved.settings.trainingPoints!==null)query.set("training_points",String(saved.settings.trainingPoints));
@@ -239,6 +241,7 @@ export function capturePayload(projection:BriefingProjection):Record<string,stri
   if(projection.conditions.management!==null)
     payload.management_limit=String(projection.conditions.management);
   if(projection.conditions.end!==null)payload.end_limit=String(projection.conditions.end);
+  if(!acquisition&&projection.recordKey)payload.record_key=projection.recordKey;
   if(acquisition){
     payload.binding_id=projection.bindingId;
     payload.time_basis=projection.timeBasis;
@@ -285,7 +288,9 @@ export async function readCaptures(
 /** Match the canonical inputs of a saved capture, not the drawn forecast horizon or floats. */
 export function matchesProjection(saved:CapturedOutlook,projection:BriefingProjection):boolean{
   const acquisition=isAcquisition(projection);
-  return saved.assetId===projection.assetId&&saved.kind===(acquisition?"acquisition":"history")
+  const sameRecord=acquisition||saved.recordKey===projection.recordKey
+    ||(!saved.recordKey&&projection.sourcePointRecords===1&&(saved.unit??null)===projection.unit);
+  return sameRecord&&saved.assetId===projection.assetId&&saved.kind===(acquisition?"acquisition":"history")
     &&saved.series===(acquisition?projection.featureId:projection.channel)
     &&saved.sourceId===projection.sourceId&&saved.pointId===(acquisition?null:projection.pointId)
     &&(!acquisition||saved.bindingId===projection.bindingId)
@@ -362,7 +367,7 @@ export function compareReobservation(saved:CapturedOutlook,current:OutlookFacts)
     &&(acquisition
       ?saved.timeBasis===current.timeBasis
         &&(saved.bindingId===null||saved.bindingId===current.bindingId)
-      :saved.pointId===current.pointId);
+      :saved.pointId===current.pointId&&(saved.recordKey===current.recordKey||(!saved.recordKey&&current.sourcePointRecords===1&&(saved.unit??null)===(current.unit??null))));
   if(!subject)return {kind:"different-subject"};
   const changes:string[]=[];
   if(saved.conditions.direction!==current.conditions.direction)changes.push("기준 방향");
@@ -399,6 +404,8 @@ export function reobservationUrl(saved:CapturedOutlook):string{
   const history=saved.kind==="history";
   const params=new URLSearchParams({page:"assets",tab:"outlook",data:history?"history":"vibration",
     monitor_asset:saved.assetId});
+  if(history&&saved.recordKey)params.set("record_key",saved.recordKey);
+  else if(history){params.set("monitor_source",saved.sourceId);params.set("monitor_point",saved.pointId??"");}
   const prefix=history?"projection_":"acq_";
   params.set(history?"monitor_channel":"acq_forecast_feature",saved.series);
   params.set(prefix+"direction",saved.conditions.direction);

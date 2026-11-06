@@ -323,7 +323,7 @@
           {loadingAssets ? "다음 설비의 검토를 읽고 있습니다." : "다음 설비의 검토 더 보기"}
         </button>
       {/if}
-      {#if hiddenFindings}<StatusNotice kind="uncertain" message="일부 분석 검토 기록은 조회 범위 밖에 있습니다. 목록에서 찾지 못했다고" />{/if}
+      {#if hiddenFindings}<StatusNotice kind="uncertain" message="일부 분석 검토 기록은 조회 범위 밖에 있습니다. 목록에서 찾지 못했다고 저장 기록이 없는 것은 아닙니다." />{/if}
       {#if shown.length}
         <ul class="items">
           {#each shown as item (item.key)}
@@ -334,7 +334,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체" : "이 조건에 맞는 검토 항목이 없습니다."}</p>
+        <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록의 검토가 완료됐다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}
         <button type="button" class="ui-button" disabled={loadingMore} onclick={() => void loadOlderCaptures()}>
