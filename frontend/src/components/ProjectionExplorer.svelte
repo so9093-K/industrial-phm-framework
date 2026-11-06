@@ -3,6 +3,7 @@
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
   import ForecastFit from "./ForecastFit.svelte";
+  import {worseThanPersistence} from "../forecast-fit";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
@@ -277,6 +278,9 @@
           <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
+        {#if worseThanPersistence(projection.checks?.[0])}
+          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong></p>
+        {/if}
         {#if told}<p class="outlook-summary">{told.headline}</p>{/if}
         {#if limited}
           <div class="tiles">
@@ -404,6 +408,8 @@
 </section>
 
 <style>
+  .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
+
   .outlook-summary{font-weight:650;line-height:1.6;overflow-wrap:anywhere}
   .controls>button{align-self:end;min-height:44px}
   .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}

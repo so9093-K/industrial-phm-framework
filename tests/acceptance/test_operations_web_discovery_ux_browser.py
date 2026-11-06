@@ -233,3 +233,83 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
     finally:
         stop_web(server, thread)
         shutil.rmtree(Path(client.socket_path).parent)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+@pytest.mark.parametrize("kind", ["history", "vibration"])
+def test_less_accurate_forecast_warns_before_reach_tiles_and_chart(
+    tmp_path: Path, width: int, kind: str
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    pytest.importorskip("prophet")
+    workspace = phm_workspace(tmp_path / "ws", bind=kind == "vibration")
+    if kind == "history":
+        _store_history(workspace)
+    else:
+        for ordinal in range(1, 65):
+            deliver(workspace, tmp_path / "waves", ordinal, 0.5 + ordinal / 100)
+        analyze(workspace)
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        json=json.loads(asset_list("motor-01", "bearing-a"))
+                    ),
+                )
+                worse = True
+
+                def forecast(route):
+                    # Keep the real prediction; control only the error comparison for this UI case.
+                    response = route.fetch(timeout=60000)
+                    body = response.json()
+                    body["backtest"]["mean_absolute_error"] = 2 if worse else 0.5
+                    body["backtest"]["naive_mean_absolute_error"] = 1
+                    route.fulfill(response=response, json=body)
+
+                page.route("**/api/v1/forecast?**", forecast)
+                query = {
+                    "page": "assets",
+                    "monitor_asset": "motor-01" if kind == "history" else "bearing-a",
+                    "tab": "outlook",
+                    "data": kind,
+                    "monitor_channel": "current",
+                    "acq_forecast_count": "3",
+                }
+                prefix = "projection" if kind == "history" else "acq"
+                panel = page.get_by_role("region", name="추세·기준 도달 전망")
+                for worse, limited in ((True, True), (True, False), (False, True)):
+                    for name, value in (("management", "12"), ("end", "14")):
+                        query.pop(f"{prefix}_{name}", None)
+                        if limited:
+                            query[f"{prefix}_{name}"] = value
+                    page.goto(origin + "/web/?" + urlencode(query))
+                    chart = panel.locator("figure.chart")
+                    pw.expect(chart).to_be_visible(timeout=60000)
+                    caution = panel.locator(".forecast-caution")
+                    pw.expect(caution).to_have_count(1 if worse else 0)
+                    if worse:
+                        pw.expect(caution).to_contain_text("추세 판단을 보류하세요")
+                        assert (
+                            panel.locator(".result-head").bounding_box()["y"]
+                            < caution.bounding_box()["y"]
+                            < chart.bounding_box()["y"]
+                        )
+                        if limited:
+                            assert (
+                                caution.bounding_box()["y"]
+                                < panel.locator(".tiles").bounding_box()["y"]
+                            )
+                        fit = panel.get_by_role("region", name="예측 시작값과 검증 상태")
+                        pw.expect(fit).to_contain_text("추세 판단을 보류하세요")
+                        assert chart.bounding_box()["y"] < fit.bounding_box()["y"]
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
