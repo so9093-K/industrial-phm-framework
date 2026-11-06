@@ -270,8 +270,8 @@
       actionLabel="다시 불러오기" onAction={()=>void loadBindings()}/>
   {:else if listState==="empty"}
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
-      message="저장된 신호의 변화를 기준 구간 이탈에서 확인할 수 있습니다."
-      actionLabel="기준 구간 이탈 보기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
+      message="저장된 신호의 변화를 달라진 구간 찾기에서 확인할 수 있습니다."
+      actionLabel="달라진 구간 찾기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
     <details><summary>이상 탐지 모델 설정</summary>
       <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
       <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>

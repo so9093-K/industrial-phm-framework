@@ -117,16 +117,16 @@
     (paused ? "자동 갱신을 멈췄습니다 · " : "") +
     "모델 상태 평가 " + (assessed ? clock(assessed) : "시각 미확인") +
     " · 수신 조회 " + (sourcesCheckedAt ? clock(sourcesCheckedAt) : "미확인") +
-    " · 기준 이탈 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
-  {#if live && !paused}<p class="context">모델·수신은 약 3초, 기준 이탈은 최대 30초 간격으로 별도 조회합니다.</p>{/if}
+    " · 변화 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
+  {#if live && !paused}<p class="context">모델·수신 상태는 약 3초마다, 기록의 변화는 최대 30초마다 확인합니다.</p>{/if}
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
     <StatusNotice kind="uncertain" message="모델 처리 상태를 다시 읽지 못했습니다. 이전 결과를 지금 상태로 보여 주지 않습니다." />
   {:else}
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
-    {#if departuresFailed}<StatusNotice kind="uncertain" message="기준 구간 이탈을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
-    {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="기준 구간 이탈을 일부만 확인했습니다." />{/if}
+    {#if departuresFailed}<StatusNotice kind="uncertain" message="변화 구간을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
+    {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="변화 구간을 일부만 확인했습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
     <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
     {#if serviceItems.length || dataItems.length || !snapshot.operationsAttention?.complete}

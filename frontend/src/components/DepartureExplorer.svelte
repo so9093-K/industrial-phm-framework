@@ -169,9 +169,9 @@
 </script>
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
-  <h2 id="departures-title">기준 구간 이탈</h2>
-  <p class="context">모델 없이, 고른 신호가 기록 초반(기준 구간)과 비교해 언제 크게 달라졌는지 찾습니다.</p>
-  {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 기준 이탈은 선택한 기록 전체에서 고른 기준 구간과 비교합니다.</p>{/if}
+  <h2 id="departures-title">달라진 구간 찾기</h2>
+  <p class="context">선택한 기간과 비교해 값이 크게 달라진 때를 찾습니다. 처음에는 기록 앞쪽 30%를 비교 기준으로 사용합니다.</p>
+  {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 변화 탐색은 선택한 기록 전체를 비교 기준 기간과 견줍니다.</p>{/if}
 
   {#if channelState === "loading"}
     <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
@@ -203,9 +203,9 @@
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
     {/if}
     {#if analysisState === "loading"}
-      <StatusNotice message="고른 신호의 기준 구간 이탈을 불러오고 있습니다." />
+      <StatusNotice message="고른 신호에서 달라진 구간을 찾고 있습니다." />
     {:else if analysisState === "failed"}
-      <StatusNotice kind="failure" title="기준 이탈 결과를 불러오지 못했습니다" message={error}
+      <StatusNotice kind="failure" title="달라진 구간을 확인하지 못했습니다" message={error}
         actionLabel="같은 조건으로 다시 불러오기" onAction={() => void analyze()} />
       {#if selectedRecord||focus}<button type="button" class="ui-button" onclick={()=>{selectedRecord="";focus=null;rememberSelection();void analyze();}}>이 신호의 다른 기록 보기</button>{/if}
     {:else if analysisState === "unavailable"}
@@ -216,7 +216,7 @@
     {:else if result}
       {#if result.context}<p class="context">분석 대상 · {readableSourceId(result.context.sourceId)} · {result.context.pointId ?? "측정 위치 미지정"}</p>{/if}
       {#if result.records.length > 1}<label>분석할 기록 <select value={selectedRecord} onchange={(event) => {selectedRecord=event.currentTarget.value;focus=null;rememberSelection();void analyze();}}>
-        {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 의미 미지정"}{record.unit?" · "+record.unit:""}</option>{/each}
+        {#each result.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId ?? "위치 미지정"} · {date(record.record.from)} ~ {date(record.record.to)} · {record.meaningLabel ?? "측정 항목 미지정"}{record.unit?" · "+record.unit:""}</option>{/each}
       </select></label>{/if}
       {#if result.scored.state === "short-baseline"}
         <StatusNotice kind="uncertain" title="기준 구간의 기록이 부족합니다"
@@ -237,7 +237,7 @@
             meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
               + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
               + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
-            certainty: "선택한 신호의 집계값을 화면에 표시한 기준 기간과 비교했습니다.",
+            certainty: "선택한 신호의 구간별 평균을 화면에 표시한 기준 기간과 비교했습니다.",
             next: links ? [
               ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
               ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),

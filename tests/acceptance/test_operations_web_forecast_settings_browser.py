@@ -129,7 +129,8 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     if kind == "history"
                     else "기록 마지막 측정 기준 전망"
                 )
-                panel.get_by_text("예측 계산 설정", exact=True).click()
+                if panel.locator("details.calculation-options").get_attribute("open") is None:
+                    panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.12")
                 pw.expect(panel.get_by_label("최근 학습 개수")).to_have_value(
                     query["forecast_training"]
@@ -196,7 +197,8 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     panel.get_by_role("heading", name=result_heading, exact=True)
                 ).to_be_visible(timeout=60000)
                 assert len(briefing_reads) == stopped
-                panel.get_by_text("예측 계산 설정", exact=True).click()
+                if panel.locator("details.calculation-options").get_attribute("open") is None:
+                    panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.2")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
             finally:
@@ -247,8 +249,8 @@ def test_history_periods_follow_selected_signal_identity_and_training_window(
                 pw.expect(panel).to_contain_text(unsupported)
                 pw.expect(button).to_be_disabled()
                 assert not forecasts
-                panel.get_by_text("계산 조건 변경", exact=True).click()
                 selector = panel.locator("#projection-horizon")
+                pw.expect(selector).to_be_visible()
                 assert selector.locator("option:not([disabled])").count() == 0
 
                 panel.locator("#projection-channel").select_option("current")
@@ -259,8 +261,7 @@ def test_history_periods_follow_selected_signal_identity_and_training_window(
                 pw.expect(selector).to_have_value("1h")
                 assert len(forecasts) == 1
                 if panel.locator("details.calculation-options").get_attribute("open") is None:
-                    panel.get_by_text("계산 조건 변경", exact=True).click()
-                panel.get_by_text("예측 계산 설정", exact=True).click()
+                    panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 training = panel.get_by_label("최근 학습 개수", exact=False)
                 training.fill("100")
                 pw.expect(panel).to_contain_text(unsupported)

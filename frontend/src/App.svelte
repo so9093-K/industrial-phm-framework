@@ -310,20 +310,15 @@
         <section class="ui-panel start" aria-labelledby="start-title">
           <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "설비 기록에서 무엇이 달라졌는지 확인합니다"}</h2>
           <p>{snapshot.systemReadUncertain ? "설비 목록을 확인하지 못했습니다. 데이터가 없다는 뜻은 아닙니다." : "아직 연결된 데이터가 없습니다."}
-            측정 기록을 연결하면 시간에 따른 변화, 평소 범위를 벗어난 구간, 두 시기의 차이, 정한 기준까지의 여유를 확인하고,
-            그 근거를 AI 해설과 사람의 검토로 이어 갈 수 있습니다.</p>
+            CSV 측정 기록을 저장하거나 공개 실측 데이터를 준비하면 변화와 원본 추세를 살펴볼 수 있습니다.</p>
           <div class="start-actions">
             <a class="ui-button ui-button-primary" href={systemUrl("connections")}>CSV 파일로 시작하기</a>
-            {#if publicCount}
-              <a class="ui-button" href={systemUrl("connections") + "#public-datasets"}>공개 실측 데이터로 시작하기 ({publicCount}개)</a>
-            {/if}
+            <a class="ui-button" href={systemUrl("connections") + "#public-datasets"}>{publicCount?"공개 실측 데이터로 시작하기 ("+publicCount+"개)":"공개 실측 데이터 준비 방법"}</a>
           </div>
           <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 데이터 연결에서 등록합니다.</p>
           <AnalysisGuide />
         </section>
       {/if}
-      {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}
-      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}<MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />{/if}
       {#if route.page === "maintenance"}
         {#key route.assetId + "\n" + (focus.captureId ?? "") + "\n" + (focus.findingId ?? "")}
           <ReviewQueue {snapshot} writable={writable === true} focusAssetId={route.assetId}
@@ -348,6 +343,18 @@
           notesState={route.page === "monitor" ? notesState : listNotesState}
           primaryNotes={route.page === "monitor"?primaryNotes:listPrimaryNotes} reasons={route.page === "monitor"} />
       {/if}
+      {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}
+      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}
+        <details class="ui-panel monitor-operations"><summary>운영 상태·확인 항목 상세{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":""}</summary>
+          <MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />
+        </details>
+      {/if}
     {/if}
   {/if}
 </main>
+
+<style>
+  .monitor-operations>summary {
+    cursor: pointer; padding-block: var(--space-3); font-weight: 650; color: var(--color-action);
+  }
+</style>

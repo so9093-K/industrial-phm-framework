@@ -150,7 +150,7 @@ export type PeriodOrigin = "signal" | "departure" | "previous";
 export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   previous: "주요 변화 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
-  departure: "기준 구간 이탈에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
+  departure: "달라진 구간 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
 };
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");

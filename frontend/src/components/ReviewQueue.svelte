@@ -94,7 +94,7 @@
       status: capture.review.status, at: capture.capturedAt,
       title: assetLabel(snapshot?.assets ?? [], capture.outlook.assetId) + " · "
         + (seriesNames[capture.outlook.assetId + "\n" + capture.outlook.kind + "\n" + capture.outlook.series] ?? capture.outlook.series) + " 전망",
-      label: "검토 요청한 전망",
+      label: "저장한 전망",
       href: captureUrl(capture.outlook.assetId, capture.id), capture,
     }));
     return [...analysis, ...outlooks].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -300,7 +300,7 @@
     </div>
     <label class="type">종류
       <select value={typeFilter} onchange={(event) => { typeFilter = event.currentTarget.value as typeof typeFilter; keptKey = null; ignoreFocus = true; }}>
-        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="outlook">검토 요청한 전망</option>
+        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="outlook">저장한 전망</option>
       </select>
     </label>
     {#if loadState === "loading"}

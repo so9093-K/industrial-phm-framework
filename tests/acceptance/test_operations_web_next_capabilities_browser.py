@@ -87,7 +87,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 pw.expect(row("forecast")).to_contain_text("기록이 짧아 예측 그래프는 없음")
                 assert row("ai-question").count() == 0
                 # Analyses use method names in the usual order; questions stay within each result.
-                pw.expect(row("anomaly")).to_contain_text("기준 구간 이탈")
+                pw.expect(row("anomaly")).to_contain_text("달라진 구간 찾기")
                 pw.expect(rows.first).to_contain_text("시계열 신호")
                 # What this data cannot support stays one quiet line, each with its reason.
                 pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
@@ -224,13 +224,13 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                 # stays one tab away.
                 page.goto(base + "&tab=anomaly&monitor_asset=motor-01")
                 pw.expect(
-                    page.get_by_role("heading", name="기준 구간 이탈", exact=True)
+                    page.get_by_role("heading", name="달라진 구간 찾기", exact=True)
                 ).to_be_visible()
                 methods = page.get_by_role("navigation", name="분석 방법")
                 pw.expect(methods.get_by_role("link", name="모델 점수")).to_be_visible()
                 page.goto(base + "&tab=anomaly&monitor_asset=bearing-a")
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
-                pw.expect(methods.get_by_role("link", name="기준 구간 이탈")).to_be_visible()
+                pw.expect(methods.get_by_role("link", name="달라진 구간 찾기")).to_be_visible()
 
                 # On the one-signal history source, relation is not eligible;
                 # the connected vibration features support it instead.
