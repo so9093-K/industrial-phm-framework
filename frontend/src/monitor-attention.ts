@@ -48,9 +48,9 @@ export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<t
 
 const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
 const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3,warmup:3};
-/** An unread or absent reason has no inferred importance. */
+/** Unclassified checks share waiting's count-based sorting tier; no severity is inferred. */
 export function notePriority(note:Note|undefined):number {
-  return note ? PRIORITY[note.kind] : Infinity;
+  return note ? PRIORITY[note.kind] : PRIORITY.pending;
 }
 
 function invalid():never{throw new Error("모델 처리 상태의 형식이 올바르지 않습니다.");}

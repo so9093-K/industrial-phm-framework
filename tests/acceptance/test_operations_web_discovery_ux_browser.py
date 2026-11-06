@@ -139,6 +139,23 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 pw.expect(rows.first).to_contain_text("changing")
                 pw.expect(rows.first).to_contain_text("확인할 항목 1건")
                 pw.expect(rows.nth(1)).to_contain_text("확인할 항목 1건")
+                # Server-confirmed operating checks without a primary note still count.
+                operating = json.loads(asset_list("operating"))["assets"]["items"][0]
+                operating["attention_count"] = 4
+                snapshot["assets"]["items"].append(operating)
+                page.reload()
+                # The signal change and model crossing remain ahead of these four checks.
+                pw.expect(rows.nth(2)).to_contain_text("operating")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 4건")
+                model["processing_state"] = "pending"
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.nth(1)).to_contain_text("operating")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.nth(1).locator(".primary-reason")).to_have_count(0)
+                pw.expect(rows.nth(2)).to_contain_text("stable")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 1건")
+                snapshot["assets"]["items"].pop()
                 # A failed read clears old reasons; only counts and source order remain.
                 monitor_failed = True
                 stable["attention_count"] = 3
