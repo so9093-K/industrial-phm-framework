@@ -129,6 +129,44 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 for key in ("relation_x", "relation_y", "compare_a", "compare_b"):
                     assert before[key] == after[key]
                 assert "monitor_source" not in after
+                comparison_periods = {
+                    "compare_a": "2026-11-01T00:05:00Z~2026-11-01T00:45:00Z",
+                    "compare_b": "2026-11-01T01:00:00Z~2026-11-01T01:30:00Z",
+                }
+                page.goto(
+                    origin
+                    + "/web/?"
+                    + urlencode(
+                        {
+                            **focus,
+                            "tab": "change",
+                            "method": "compare",
+                            "data": "history",
+                            **comparison_periods,
+                        }
+                    )
+                )
+                comparison = page.get_by_role("region", name="두 기간 비교", exact=True)
+                pw.expect(
+                    comparison.get_by_role("region", name="데이터 출처 b", exact=True)
+                ).to_be_visible()
+                comparison.locator("details.conditions > summary").click()
+                comparison.locator("#compare-channel").select_option("current")
+                pw.expect(comparison).to_contain_text("선택한 출처에 비교할 측정이 없습니다")
+                before = parse_qs(urlsplit(page.url).query)
+                assert before["monitor_source"] == ["b"]
+                comparison.get_by_role("button", name="다른 출처의 기록 보기", exact=True).click()
+                pw.expect(
+                    comparison.get_by_role("region", name="데이터 출처 a", exact=True)
+                ).to_be_visible()
+                pw.expect(comparison.locator("#compare-channel")).to_have_value("current")
+                after = parse_qs(urlsplit(page.url).query)
+                for key, period in comparison_periods.items():
+                    assert before[key] == after[key] == [period]
+                assert "monitor_source" not in after and "monitor_point" not in after
+                pw.expect(
+                    comparison.get_by_text("선택한 출처에 비교할 측정이 없습니다", exact=False)
+                ).to_have_count(0)
                 assert not errors
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+2")
             finally:
