@@ -2157,7 +2157,8 @@ class DuckLakeAssetHistory:
             start_at: Start of the range, inclusive.
             end_at: End of the range, exclusive.
             edges: At most 256 strictly increasing finite band boundaries.
-            bucket_count: Equal time buckets over the range, at most 1000.
+            bucket_count: Equal time buckets over the range, at most 100000, so that a bucket
+                can match one analysis window over a long record.
 
         Returns:
             The counts per non-empty bucket, with the range's smallest and largest value.
@@ -2173,8 +2174,8 @@ class DuckLakeAssetHistory:
         if any(low >= high for low, high in pairwise(bands)):
             raise ValueError("edges must increase strictly")
         _validate_positive_int(bucket_count, "bucket_count")
-        if bucket_count > 1000:
-            raise ValueError("bucket_count must not exceed 1000")
+        if bucket_count > 100000:
+            raise ValueError("bucket_count must not exceed 100000")
         width = (end_at - start_at).total_seconds() / bucket_count
         band = (
             "CASE "
