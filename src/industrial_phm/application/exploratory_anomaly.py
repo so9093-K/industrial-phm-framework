@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime, timedelta
-from itertools import pairwise
+from itertools import combinations, pairwise
 from typing import Any
 
 import numpy as np
@@ -228,89 +228,91 @@ def copied_spans(
         Per copied signal, ``origin`` (the signal it equals), ``from``/``to`` (the equal
         stretch) and ``points``.
     """
-    grids = {
-        name: {start: (end, value) for start, end, value in points}
-        for name, points in series.items()
-    }
-    names = sorted(grids)
+    names = sorted(series)
+    starts = sorted({point[0] for points in series.values() for point in points})
+    column = {start: position for position, start in enumerate(starts)}
+    values = np.full((len(names), len(starts)), np.nan)
+    ends: dict[str, dict[datetime, datetime]] = {}
+    for row, name in enumerate(names):
+        ends[name] = {}
+        for start, end, value in series[name]:
+            values[row, column[start]] = value
+            ends[name][start] = end
     found: dict[str, dict[str, Any]] = {}
-    for index, first in enumerate(names):
-        for second in names[index + 1 :]:
-            left, right = grids[first], grids[second]
-            # Both at zero (a stopped machine) says nothing about which item was recorded.
-            starts = [
-                start
-                for start in sorted(left.keys() & right.keys())
-                if abs(left[start][1]) > 1e-12 or abs(right[start][1]) > 1e-12
-            ]
-            if len(starts) < 10:
-                continue
-            equal = [
-                abs(left[t][1] - right[t][1]) <= 1e-6 * max(abs(left[t][1]), abs(right[t][1]))
-                for t in starts
-            ]
-            best, run, begin = (0, 0), 0, 0
-            for position, same in enumerate(equal):
-                run = run + 1 if same else 0
-                if same and run == 1:
-                    begin = position
-                if run > best[1] - best[0]:
-                    best = (begin, position + 1)
-            inside = range(*best)
-            outside = [same for position, same in enumerate(equal) if position not in inside]
-            # Equal throughout, or often equal by coincidence, is no change of recording.
-            if len(inside) < max(3, min_share * len(starts)) or len(outside) < 3:
-                continue
-            if sum(outside) > 0.1 * len(outside):
-                continue
-            copy = _copied_one(first, second, left, right, starts, inside, declared)
-            if copy is None:
-                continue
-            origin = second if copy == first else first
-            span = {
-                "origin": origin,
-                "from": starts[inside.start],
-                "to": grids[copy][starts[inside.stop - 1]][0],
-                "points": len(inside),
-            }
-            # Equal to several items at once, the copy names the one with a declared meaning.
-            held = found.get(copy)
-            if (
-                held is None
-                or held["points"] < span["points"]
-                or (
-                    held["points"] == span["points"]
-                    and origin in declared
-                    and held["origin"] not in declared
-                )
-            ):
-                found[copy] = span
+    for first, second in combinations(range(len(names)), 2):
+        left, right = values[first], values[second]
+        # Both at zero (a stopped machine) says nothing about which item was recorded.
+        usable = np.flatnonzero(
+            ~np.isnan(left) & ~np.isnan(right) & ((np.abs(left) > 1e-12) | (np.abs(right) > 1e-12))
+        )
+        if len(usable) < 10:
+            continue
+        a, b = left[usable], right[usable]
+        equal = np.abs(a - b) <= 1e-6 * np.maximum(np.abs(a), np.abs(b))
+        need = max(3.0, min_share * len(usable))
+        if equal.sum() < need:
+            continue
+        inside = _longest_run(equal)
+        outside = np.ones(len(equal), dtype=bool)
+        outside[inside.start : inside.stop] = False
+        # Equal throughout, or often equal by coincidence, is no change of recording.
+        if len(inside) < need or outside.sum() < 3 or equal[outside].mean() > 0.1:
+            continue
+        copy = _copied_one((names[first], a), (names[second], b), inside, outside, declared)
+        if copy is None:
+            continue
+        origin = names[second] if copy == names[first] else names[first]
+        span = {
+            "origin": origin,
+            "from": starts[usable[inside.start]],
+            "to": ends[copy][starts[usable[inside.stop - 1]]],
+            "points": len(inside),
+        }
+        # Equal to several items at once, the copy names the one with a declared meaning.
+        held = found.get(copy)
+        if (
+            held is None
+            or held["points"] < span["points"]
+            or (
+                held["points"] == span["points"]
+                and origin in declared
+                and held["origin"] not in declared
+            )
+        ):
+            found[copy] = span
     return found
 
 
+def _longest_run(flags: np.ndarray) -> range:
+    """Positions of the longest stretch of true flags."""
+    edges = np.diff(np.concatenate(([0], flags.astype(np.int8), [0])))
+    begins, stops = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
+    longest = int(np.argmax(stops - begins))
+    return range(int(begins[longest]), int(stops[longest]))
+
+
 def _copied_one(
-    first: str,
-    second: str,
-    left: Mapping[datetime, tuple[datetime, float]],
-    right: Mapping[datetime, tuple[datetime, float]],
-    starts: Sequence[datetime],
+    first: tuple[str, np.ndarray],
+    second: tuple[str, np.ndarray],
     inside: range,
+    outside: np.ndarray,
     declared: Collection[str],
 ) -> str | None:
-    if (first in declared) != (second in declared):
-        return second if first in declared else first
+    (first_name, first_values), (second_name, second_values) = first, second
+    if (first_name in declared) != (second_name in declared):
+        return second_name if first_name in declared else first_name
 
-    def shift(grid: Mapping[datetime, tuple[datetime, float]]) -> float:
-        within = np.median([abs(grid[starts[i]][1]) for i in inside])
-        beyond = np.median([abs(grid[t][1]) for i, t in enumerate(starts) if i not in inside])
+    def shift(values: np.ndarray) -> float:
+        within = float(np.median(np.abs(values[inside.start : inside.stop])))
+        beyond = float(np.median(np.abs(values[outside])))
         if within <= 0 or beyond <= 0:
             return float("inf") if within != beyond else 0.0
         return abs(float(np.log(beyond / within)))
 
     # The copy is the one whose own level differs once it is recorded correctly.
-    moved = {first: shift(left), second: shift(right)}
+    moved = {first_name: shift(first_values), second_name: shift(second_values)}
     copy = max(moved, key=lambda name: moved[name])
-    other = second if copy == first else first
+    other = second_name if copy == first_name else first_name
     if moved[copy] < np.log(1.05) or moved[copy] - moved[other] < np.log(1.05):
         return None
     return copy
