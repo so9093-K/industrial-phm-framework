@@ -570,8 +570,16 @@ def test_changes_come_from_what_drives_the_equipment_not_from_a_miswritten_colum
         assert datetime.fromisoformat(copied["copied"]["to"]) <= BASE + timedelta(minutes=60)
         labels = [item["label"] for item in found["intervals"]]
         assert "R상선간전압" not in labels
-        # The current's drop is named first, though the derived item moved for longer.
-        assert labels[0] == "R상전류" and "역률" in labels
+        # The current's drop from about 60 A to 30 A is how the compressor ran, and shows as two
+        # levels; the power factor falling while it still ran near 60 A is the change.
+        (operation,) = found["operation"]
+        assert [level["typical"] for level in operation["levels"]] == [
+            pytest.approx(30.5, abs=1),
+            pytest.approx(60.5, abs=1),
+        ]
+        first = found["intervals"][0]
+        assert (first["label"], first["band"], first["direction"]) == ("역률", 2, "down")
+        assert "R상전류" not in labels
         # The note on 관측 현황 names the current, not the column that held another item.
         (note,) = get("/api/v1/explore/attention", asset_id="comp-02")[1]["items"]
         assert note["channel"] == "R상전류" and note["direction"] == "down"
@@ -766,6 +774,167 @@ def test_adding_another_source_does_not_change_existing_findings(tmp_path: Path)
         assert any(record["source_id"] == "0-empty" for record in default["records"])
     finally:
         stop()
+
+
+def test_two_periods_compare_within_one_operating_level(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    current = json.dumps(
+        {"semantics": {"definition": {"observed_property": "phase current", "unit": "A"}}}
+    )
+    volts = json.dumps(
+        {"semantics": {"definition": {"observed_property": "phase voltage", "unit": "V"}}}
+    )
+
+    def value(channel: str, index: int) -> float:
+        # Alternating minutes at 10 A and 60 A; in the second hour the voltage falls at 60 A only.
+        loaded = index % 2 == 1
+        if channel == "전류":
+            return (60.0 if loaded else 10.0) + (index % 3) * 0.1
+        if not loaded:
+            return 230.0 + (index % 3) * 0.1
+        return (210.0 if index >= 60 else 220.0) + (index % 3) * 0.1
+
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:levels:{'f' * 64}:{offset}:{index}",
+                source_id="levels-file",
+                asset_id="motor-03",
+                channel_id=channel,
+                source_file="levels.csv",
+                source_sha256="f" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=value(channel, index),
+                source_metadata_json=meaning,
+            )
+            for offset, (channel, meaning) in enumerate({"전류": current, "전압": volts}.items())
+            for index in range(120)
+        ),
+        batch_id="motor-03",
+    )
+    periods = {
+        "a_from": BASE.isoformat(),
+        "a_to": (BASE + timedelta(hours=1)).isoformat(),
+        "b_from": (BASE + timedelta(hours=1)).isoformat(),
+        "b_to": (BASE + timedelta(hours=2)).isoformat(),
+    }
+    get, stop = _serve(workspace.root)
+    try:
+
+        def compare(**level: str) -> dict[str, Any]:
+            status, body = get(
+                "/api/v1/explore/profile",
+                asset_id="motor-03",
+                kind="history",
+                series=["전압"],
+                **periods,
+                **level,
+            )
+            assert status == 200
+            return body
+
+        whole = compare()
+        operation = whole["operation"]
+        assert operation["label"] == "전류" and len(operation["levels"]) == 2
+        assert operation["shares"]["a"] == [0.0, 0.5, 0.5]
+        assert whole["level"] is None
+        (series,) = whole["series"]
+        assert series["periods"]["a"]["usable_count"] == 60
+        # Within the 60 A level only the loaded minutes are compared, and the fall shows.
+        (loaded,) = compare(level="2")["series"]
+        assert loaded["periods"]["a"]["usable_count"] == 30
+        assert loaded["comparison"]["median_change"] == pytest.approx(-10.0)
+        (light,) = compare(level="1")["series"]
+        assert light["comparison"]["median_change"] == pytest.approx(0.0)
+        assert (
+            get(
+                "/api/v1/explore/profile",
+                asset_id="motor-03",
+                kind="history",
+                series=["전압"],
+                level="9",
+                **periods,
+            )[0]
+            == 400
+        )
+    finally:
+        stop()
+
+
+def test_one_read_per_source_gives_the_records_the_summary_has_always_read(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    from industrial_phm.runtime.operations_web_explore import signal_records, stream_records
+
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def meaning(unit: str, version: int = 1) -> str:
+        definition = {"observed_property": "x", "unit": unit, "version": version}
+        return json.dumps({"binding": {"definition": definition}})
+
+    def event(source: str, channel: str, index: int, minute: int, value: float | None, how: str):
+        return FileBackfillEvent(
+            raw_evidence_id=f"file:{source}:{channel}:{index}",
+            source_id=source,
+            asset_id="motor",
+            channel_id=channel,
+            source_file=f"{source}.csv",
+            source_sha256="e" * 64,
+            source_size_bytes=1,
+            sample_index=index,
+            event_at=BASE + timedelta(minutes=minute),
+            value=value,
+            source_metadata_json=how,
+        )
+
+    events = [event("a", "current", i, i, 10.0 + (i % 7), meaning("A")) for i in range(200)]
+    # The temperature's meaning changes half way; one timestamp conflicts, one is missing.
+    events += [
+        event(
+            "a",
+            "temp",
+            1000 + i,
+            i,
+            20.0 + i * 0.1 if i != 60 else None,
+            meaning("C", 1 + i // 100),
+        )
+        for i in range(200)
+    ]
+    events.append(event("a", "temp", 2000, 50, 99.0, meaning("C")))
+    events += [
+        event("b", "voltage", 3000 + i, 30 + i, 220.0 + (i % 3), meaning("V")) for i in range(150)
+    ]
+    history.append_file_batch(tuple(events), batch_id="records")
+    channels = list(history.list_history_channels("motor"))
+    expected = signal_records(history, "motor", channels)
+    actual = stream_records(history, "motor", channels)[0]
+    fields = (
+        "key",
+        "channel",
+        "source_id",
+        "point_id",
+        "interpretation",
+        "unit",
+        "usable_count",
+        "observations",
+        "bucket_seconds",
+        "record",
+        "points",
+    )
+    assert len(expected) == 4
+    assert [{f: r[f] for f in fields} for r in actual] == [
+        {f: r[f] for f in fields} for r in expected
+    ]
 
 
 def test_overlapping_meanings_recover_discovery_budget_without_coarsening_results(

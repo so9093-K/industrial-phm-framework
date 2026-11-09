@@ -47,3 +47,18 @@ test("unordered quantiles are rejected, ties are valid",()=>{
   tied.periods.a.quantiles=[0,1,1,3,4];
   assert.equal(parseProfile(response([tied]),"motor","current",periods).series.length,1);
 });
+
+test("a comparison says how the source ran in each period and which level it compared within", () => {
+  const periods = {a: {from: "2026-10-14T00:00:00Z", to: "2026-10-14T01:00:00Z"}, b: {from: "2026-10-14T01:00:00Z", to: "2026-10-14T02:00:00Z"}};
+  const payload = (extra: Record<string, unknown>) => ({schema_version: 1, asset_id: "m", kind: "history",
+    meaning: "stored-measurements-compared-not-asset-health", periods, series: [], ...extra});
+  const operation = {source_id: "s", point_id: null, label: "전류", unit: "A", stopped_below: 1,
+    levels: [{low: 1, high: 35, typical: 10}, {low: 35, high: null, typical: 60}], shares: {a: [0, 0.5, 0.5], b: null}};
+  const read = parseProfile(payload({operation, level: 2}), "m", "전압", periods);
+  assert.equal(read.level, 2);
+  assert.deepEqual(read.operation?.shares, {a: [0, 0.5, 0.5], b: null});
+  assert.equal(read.operation?.names.levels[1].typical, 60);
+  assert.equal(parseProfile(payload({}), "m", "전압", periods).operation, null);
+  assert.throws(() => parseProfile(payload({operation, level: 3}), "m", "전압", periods));
+  assert.throws(() => parseProfile(payload({operation: {...operation, shares: {a: [1], b: null}}}), "m", "전압", periods));
+});

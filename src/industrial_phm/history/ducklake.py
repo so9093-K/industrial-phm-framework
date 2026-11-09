@@ -40,6 +40,7 @@ from industrial_phm.application.measurement_history import (
     SMALL_VALUE_LIMIT,
     HistoryAssetSummary,
     HistoryStream,
+    LevelAggregationBucket,
     MeasurementHistoryAggregation,
     MeasurementHistoryBucket,
     MeasurementHistoryPage,
@@ -48,6 +49,8 @@ from industrial_phm.application.measurement_history import (
     MeasurementProfile,
     MultiSignalMeasurementHistoryAggregation,
     MultiSignalMeasurementHistoryBucket,
+    ProfileLevel,
+    StreamAggregation,
     ValueOccupancy,
     ValueOccupancyBucket,
 )
@@ -1820,6 +1823,313 @@ class DuckLakeAssetHistory:
             ),
         )
 
+    def list_stream_meanings(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        measurement_point_id: str | None,
+        start_at: datetime,
+        end_at: datetime,
+    ) -> tuple[tuple[str, str], ...]:
+        """Each channel's stored meanings in one source and point, without reading values.
+
+        Args:
+            asset_id: The asset whose history is read.
+            source_id: The source.
+            measurement_point_id: The measurement point, or None.
+            start_at: Start of the range, inclusive.
+            end_at: End of the range, exclusive.
+
+        Returns:
+            ``(channel_id, interpretation_json)`` pairs, in channel then meaning order.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(source_id, "source_id")
+        if measurement_point_id is not None:
+            _validate_identifier(measurement_point_id, "measurement_point_id")
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH selected AS (
+                    SELECT raw_evidence_id, source_type, channel_id
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND source_id = ?
+                        AND measurement_point_id IS NOT DISTINCT FROM ?
+                        AND event_at >= ? AND event_at < ?
+                ), raw_metadata AS (
+                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    WHERE f.asset_id = ? AND f.source_timestamp >= ? AND f.source_timestamp < ?
+                    UNION ALL
+                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                                = o.source_id
+                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                                = o.channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(o.semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    WHERE o.asset_id = ? AND o.event_at >= ? AND o.event_at < ?
+                )
+                SELECT DISTINCT s.channel_id,
+                    json_object(
+                        'binding', json_extract(f.source_metadata_json, '$.binding'),
+                        'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                    )::VARCHAR AS interpretation
+                FROM selected s LEFT JOIN raw_metadata f
+                    ON s.raw_evidence_id = f.raw_evidence_id AND s.source_type = f.source_type
+                ORDER BY 1, 2
+                """,
+                [
+                    asset_id,
+                    source_id,
+                    measurement_point_id,
+                    start_at,
+                    end_at,
+                    *(asset_id, start_at, end_at) * 2,
+                ],
+            ).fetchall()
+        finally:
+            connection.close()
+        return tuple((_require_str(row[0], "channel_id"), str(row[1])) for row in rows)
+
+    def query_stream_aggregation(
+        self,
+        asset_id: str,
+        *,
+        source_id: str,
+        measurement_point_id: str | None,
+        channel_ids: Sequence[str],
+        start_at: datetime,
+        end_at: datetime,
+        bucket_count: int,
+        level: tuple[str, str, Sequence[float]] | None = None,
+    ) -> StreamAggregation:
+        """Each signal identity of one source and point on its own grid, read in one pass.
+
+        Every channel and meaning gets ``bucket_count`` equal buckets from its first to one
+        second past its last observation, so adding another meaning or channel cannot change
+        the buckets of one already read. Null, protocol non-good and conflicting observations
+        are counted but kept out of min/max/mean.
+
+        With ``level``, each usable value is also counted in the band of the level signal's
+        usable value at its own timestamp, so a bucket in which the equipment moved between
+        levels gives each level the mean of its own values. Values with no level reading at
+        their timestamp are left out of the bands only.
+
+        Args:
+            asset_id: The asset whose history is read.
+            source_id: The source.
+            measurement_point_id: The measurement point, or None.
+            channel_ids: The channels to aggregate.
+            start_at: Start of the range, inclusive.
+            end_at: End of the range, exclusive.
+            bucket_count: Buckets per identity, at most 1000.
+            level: The level channel, its stored meaning and at most 32 increasing band edges.
+
+        Returns:
+            The buckets of every identity, and the band buckets when a level was given.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        channels = tuple(dict.fromkeys(channel_ids))
+        if not channels:
+            raise ValueError("channel_ids must not be empty")
+        for channel_id in channels:
+            _validate_identifier(channel_id, "channel_id")
+        _validate_identifier(source_id, "source_id")
+        if measurement_point_id is not None:
+            _validate_identifier(measurement_point_id, "measurement_point_id")
+        _validate_positive_int(bucket_count, "bucket_count")
+        if bucket_count > 1000:
+            raise ValueError("bucket_count must not exceed 1000")
+        bands: tuple[float, ...] = ()
+        if level is not None:
+            _validate_identifier(level[0], "channel_id")
+            bands = tuple(float(edge) for edge in level[2])
+            if not bands or len(bands) > 32 or not all(isfinite(edge) for edge in bands):
+                raise ValueError("edges must be 1 to 32 finite values")
+            if any(low >= high for low, high in pairwise(bands)):
+                raise ValueError("edges must increase strictly")
+        read = list(dict.fromkeys((*channels, *((level[0],) if level else ()))))
+        if level is None:
+            band, levels, grouping, whole = "NULL::INTEGER", "", "GROUP BY ALL", "1"
+            level_parameters: list[Any] = []
+        else:
+            band = (
+                "CASE WHEN l.level IS NULL THEN NULL "
+                + " ".join(f"WHEN l.level < ? THEN {index}" for index in range(len(bands)))
+                + f" ELSE {len(bands)} END"
+            )
+            levels = """
+                , levels AS (
+                    SELECT event_at, any_value(value) AS level FROM points
+                    WHERE usable AND channel_id = ? AND interpretation = ?
+                    GROUP BY event_at
+                )"""
+            keys = "channel_id, interpretation, first_at, last_at, bucket_index, source_type"
+            grouping = f"GROUP BY GROUPING SETS (({keys}), ({keys}, band))"
+            whole = "GROUPING(band)"
+            level_parameters = [level[0], level[1]]
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            rows = connection.execute(
+                f"""
+                WITH selected AS (
+                    SELECT *,
+                        count(DISTINCT value) OVER identity_window
+                        + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                        > 1 AS conflict
+                    FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ?
+                        AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND event_at >= ? AND event_at < ?
+                        AND source_id = ? AND measurement_point_id IS NOT DISTINCT FROM ?
+                    WINDOW identity_window AS (
+                        PARTITION BY source_id, measurement_point_id, channel_id, event_at
+                    )
+                ), raw_metadata AS (
+                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    INNER JOIN selected s
+                        ON f.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'file'
+                    WHERE f.asset_id = ?
+                        AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND f.source_timestamp >= ? AND f.source_timestamp < ?
+                    UNION ALL
+                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                                = o.source_id
+                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                                = o.channel_id
+                        THEN json_object(
+                            'schema', 'opcua-semantic-snapshot',
+                            'semantics', json(o.semantic_binding_json)
+                        )::VARCHAR END AS source_metadata_json
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    INNER JOIN selected s
+                        ON o.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'opcua'
+                    WHERE o.asset_id = ?
+                        AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                        AND o.event_at >= ? AND o.event_at < ?
+                ), points AS MATERIALIZED (
+                    SELECT *, min(event_at) OVER identity AS first_at,
+                        max(event_at) OVER identity AS last_at
+                    FROM (
+                        SELECT m.raw_evidence_id, m.channel_id, m.source_type, m.event_at,
+                            m.value, m.conflict,
+                            json_object(
+                                'binding', json_extract(f.source_metadata_json, '$.binding'),
+                                'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                            )::VARCHAR AS interpretation,
+                            m.source_type != 'file' AND NOT m.status_good AS non_good,
+                            m.value IS NOT NULL AND NOT m.conflict
+                                AND (m.source_type = 'file' OR m.status_good) AS usable
+                        FROM selected m LEFT JOIN raw_metadata f
+                            ON m.raw_evidence_id = f.raw_evidence_id
+                            AND m.source_type = f.source_type
+                    )
+                    WINDOW identity AS (PARTITION BY channel_id, interpretation)
+                ){levels}
+                SELECT channel_id, interpretation, first_at, last_at, bucket_index, source_type,
+                    band, {whole} AS whole,
+                    min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
+                    count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
+                    count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
+                    max(value) FILTER (WHERE usable),
+                    -- Summed in raw ID order, as the presentation buckets are.
+                    avg(value ORDER BY raw_evidence_id) FILTER (WHERE usable)
+                FROM (
+                    SELECT p.*,
+                        least(floor(epoch(p.event_at - p.first_at)
+                            / (epoch(p.last_at + INTERVAL 1 SECOND - p.first_at) / ?))::BIGINT, ?)
+                            AS bucket_index,
+                        {band} AS band
+                    FROM points p {"LEFT JOIN levels l ON p.event_at = l.event_at" if level else ""}
+                    WHERE p.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                )
+                {grouping}
+                ORDER BY channel_id, first_at, interpretation, bucket_index, source_type, band
+                """,
+                [
+                    asset_id,
+                    read,
+                    start_at,
+                    end_at,
+                    source_id,
+                    measurement_point_id,
+                    *(asset_id, read, start_at, end_at) * 2,
+                    *level_parameters,
+                    bucket_count,
+                    bucket_count - 1,
+                    *bands,
+                    list(channels),
+                ],
+            ).fetchall()
+            snapshot = connection.execute(
+                f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
+            ).fetchone()
+        finally:
+            connection.close()
+        plain = [row for row in rows if row[7] == 1]
+        banded = [row for row in rows if row[7] == 0 and row[6] is not None]
+
+        def grid(first: Any, last: Any, index: Any) -> tuple[datetime, datetime]:
+            first_at = _require_datetime(first, "first_at")
+            end = _require_datetime(last, "last_at") + timedelta(seconds=1)
+            width = (end - first_at).total_seconds() / bucket_count
+            return (
+                first_at + timedelta(seconds=int(index) * width),
+                min(end, first_at + timedelta(seconds=(int(index) + 1) * width)),
+            )
+
+        return StreamAggregation(
+            int(snapshot[0]),
+            bands,
+            tuple(
+                MultiSignalMeasurementHistoryBucket(
+                    _require_str(row[0], "channel_id"),
+                    source_id,
+                    _require_str(row[5], "source_type"),
+                    measurement_point_id,
+                    *grid(row[2], row[3], row[4]),
+                    _require_datetime(row[8], "first_event_at"),
+                    _require_datetime(row[9], "last_event_at"),
+                    int(row[10]),
+                    int(row[11]),
+                    int(row[12]),
+                    int(row[13]),
+                    int(row[14]),
+                    _optional_float(row[15], "minimum"),
+                    _optional_float(row[16], "maximum"),
+                    _optional_float(row[17], "mean"),
+                    str(row[1]),
+                )
+                for row in plain
+            ),
+            tuple(
+                LevelAggregationBucket(
+                    _require_str(row[0], "channel_id"),
+                    str(row[1]),
+                    *grid(row[2], row[3], row[4]),
+                    int(row[6]),
+                    int(row[11]),
+                    _require_datetime(row[8], "first_event_at"),
+                    _require_datetime(row[9], "last_event_at"),
+                    float(row[15]),
+                    float(row[16]),
+                    float(row[17]),
+                )
+                for row in banded
+                if row[11]
+            ),
+        )
+
     def query_value_occupancy(
         self,
         asset_id: str,
@@ -1932,12 +2242,15 @@ class DuckLakeAssetHistory:
         channel_ids: Sequence[str],
         periods: Sequence[tuple[str, datetime, datetime]],
         bins: int = 20,
+        level: ProfileLevel | None = None,
     ) -> tuple[MeasurementProfile, ...]:
         """Exact per-period statistics for each channel/source/point/interpretation.
 
         Two periods share histogram edges so their distributions can be overlaid. Nothing is
         interpolated, resampled or merged across identities; aggregates are computed in the
-        catalog from raw observations, never from display buckets.
+        catalog from raw observations, never from display buckets. With ``level``, only the
+        values of the level's source and point measured while its level signal read within its
+        bounds are described.
         """
         channels = tuple(dict.fromkeys(channel_ids))
         _validate_profile_periods(asset_id, channels, periods)
@@ -1949,7 +2262,7 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            _create_profile_points(connection, asset_id, channels, periods)
+            _create_profile_points(connection, asset_id, channels, periods, level)
             # One value per usable timestamp (a conflict is never usable).
             connection.execute(
                 f"""
@@ -3758,12 +4071,45 @@ def _create_profile_points(
     asset_id: str,
     channels: Sequence[str],
     periods: Sequence[tuple[str, datetime, datetime]],
+    level: ProfileLevel | None = None,
 ) -> None:
     """Raw observations of the periods with their usability, as temp table profile_points.
 
     Usable means a value that is neither null, protocol non-good nor one of several values at
-    the same source/point/channel/time; the interpretation keeps unlike meanings apart.
+    the same source/point/channel/time; the interpretation keeps unlike meanings apart. With a
+    level, only the level's source and point at timestamps its level signal read in bounds stay.
     """
+    if level is not None:
+        _create_profile_points(
+            connection, asset_id, tuple(dict.fromkeys((*channels, level.channel_id))), periods
+        )
+        connection.execute(
+            """
+            DELETE FROM profile_points WHERE NOT (
+                source_id = ? AND point_key = ? AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                AND event_at IN (
+                    SELECT event_at FROM profile_points
+                    WHERE usable AND source_id = ? AND point_key = ? AND channel_id = ?
+                        AND interpretation = ?
+                        AND (? IS NULL OR value >= ?) AND (? IS NULL OR value < ?)
+                )
+            )
+            """,
+            [
+                level.source_id,
+                level.measurement_point_id or "",
+                list(channels),
+                level.source_id,
+                level.measurement_point_id or "",
+                level.channel_id,
+                level.interpretation_json,
+                level.low,
+                level.low,
+                level.high,
+                level.high,
+            ],
+        )
+        return
     low = min(start for _, start, _ in periods)
     high = max(end for _, _, end in periods)
     period_values = ", ".join("(?, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ)" for _ in periods)

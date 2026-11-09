@@ -141,4 +141,13 @@ test("how the equipment ran is read per current level and attached to the change
   assert.throws(() => parseRecordFindings({...root, operation: [{...operation, shares: {...operation.shares, record: [0.5, 0.5]}}]}, "comp"));
   assert.throws(() => parseRecordFindings({...root, operation: [], intervals: [change]}, "comp"));
   assert.deepEqual(parseRecordFindings(root, "comp").operation, []);
+  // A change judged within one level names it, and only a level the operation has.
+  const within = parseRecordFindings({...root, operation: [operation], intervals: [{...change, band: 3}]}, "comp");
+  assert.equal(within.intervals[0].band, 3);
+  assert.equal(bandName(within.operation[0], within.intervals[0].band!), "약 62 A 운전");
+  assert.throws(() => parseRecordFindings({...root, operation: [operation], intervals: [{...change, band: 4}]}, "comp"));
+  // Its comparisons open within the same level; the signal view shows every value.
+  const links = findingLinks("comp", within.intervals[0], within.baseline, within.bucketSeconds, within.record);
+  assert.equal(new URL(links.compare!, "http://local").searchParams.get("compare_level"), "3");
+  assert.equal(new URL(links.signal!, "http://local").searchParams.get("compare_level"), null);
 });

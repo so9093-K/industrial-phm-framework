@@ -33,8 +33,9 @@
   }
   import {
     defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
-    type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
+    type CompareOperation, type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
   } from "../comparison";
+  import {bandName, bandRange, percent} from "../record-findings";
 
   /** electrical: whether R·S·T roles resolve for this asset, so 부하·불평형 can actually run. */
   type Props = {assetId: string; electrical?: boolean};
@@ -49,6 +50,10 @@
   let sources: SourceHistory | null = $state(null);
   let focus = $state(focusFrom(new URLSearchParams(location.search)));
   let selected = $state(new URLSearchParams(location.search).get("monitor_channel") ?? "");
+  // The operating level to compare within; null compares every value.
+  const levelParam = new URLSearchParams(location.search).get("compare_level");
+  let level: number | null = $state(levelParam !== null && /^\d+$/.test(levelParam) ? Number(levelParam) : null);
+  let operation: CompareOperation | null = $state(null);
   let periods: Periods | null = $state(null);
   // Periods handed over from a span picked on the signal chart; said on screen until edited.
   let handedOver: PeriodOrigin | null = $state(periodOrigin(location.search));
@@ -118,6 +123,7 @@
     if(focus) for(const [key,value] of Object.entries(focusParams(focus))) url.searchParams.set(key,value);
     url.searchParams.set("compare_a", periods.a.from + "~" + periods.a.to);
     url.searchParams.set("compare_b", periods.b.from + "~" + periods.b.to);
+    if (level === null) url.searchParams.delete("compare_level"); else url.searchParams.set("compare_level", String(level));
     if (!handedOver) url.searchParams.delete("compare_origin");
     history.replaceState(history.state, "", url);
   }
@@ -186,8 +192,11 @@
     try {
       validatePeriods(periods);
       const expected: Periods = {a: {...periods.a}, b: {...periods.b}};
-      const data = await readProfile(assetId, selected, expected, request.signal);
+      const source = operation ?? (focus ? {sourceId: focus.source, pointId: focus.point ?? null} : null);
+      const data = await readProfile(assetId, selected, expected, request.signal,
+        level === null ? null : {band: level, sourceId: source?.sourceId, pointId: source?.pointId});
       if (request.signal.aborted) return;
+      operation = data.operation;
       result = {...data, series: data.series.filter(row => !focus || (row.source === focus.source && (focus.point === undefined || row.point === focus.point) && (!focus.interpretation || row.interpretation === focus.interpretation)))}; compareState = result.series.length ? "ready" : "empty"; remember();
     } catch (cause: unknown) {
       if (request.signal.aborted) return;
@@ -261,6 +270,28 @@
       onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
     </details>
+    {#if operation}
+      {@const shown = operation}
+      <section class="operation" aria-labelledby="compare-operation">
+        <h3 id="compare-operation">운전 상태 <small>{shown.label} 기준</small></h3>
+        <div class="table"><table>
+          <thead><tr><th scope="col">상태</th><th scope="col">전류</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+          <tbody>{#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}
+            <tr><th scope="row">{bandName(shown.names, band)}</th><td>{bandRange(shown.names, band)}</td>
+              <td>{shown.shares.a ? percent(shown.shares.a[band]) : "측정 없음"}</td><td>{shown.shares.b ? percent(shown.shares.b[band]) : "측정 없음"}</td></tr>
+          {/each}</tbody>
+        </table></div>
+        <label>비교할 값
+          <select value={level === null ? "" : String(level)} disabled={!!formError}
+            onchange={(event) => { const value = event.currentTarget.value; level = value === "" ? null : Number(value); remember(); void compare(); }}>
+            <option value="">모든 운전 상태의 값</option>
+            {#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}<option value={String(band)}>{bandName(shown.names, band)} 중의 값만</option>{/each}
+          </select>
+        </label>
+        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 견줘 보세요."
+          : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
+      </section>
+    {/if}
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
     {:else if compareState === "failed"}
@@ -354,4 +385,12 @@
   table { border-collapse: collapse; width: 100%; margin-block: var(--space-3); }
   caption { text-align: left; font-size: var(--font-small); color: var(--color-ink-muted); }
   th, td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--color-border); }
+  .operation { display: grid; gap: var(--space-2); margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .operation h3 { margin: 0; font-size: var(--font-body); }
+  .operation h3 small { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .operation .table { overflow-x: auto; }
+  .operation table { border-collapse: collapse; font-size: var(--font-small); font-variant-numeric: tabular-nums; }
+  .operation th, .operation td { padding: var(--space-1) var(--space-2) var(--space-1) 0; text-align: right; white-space: nowrap; }
+  .operation th:first-child, .operation td:nth-child(2) { text-align: left; }
+  .operation thead th { color: var(--color-ink-muted); font-weight: 400; }
 </style>

@@ -18,6 +18,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import (
+    BASELINES,
     copied_spans,
     declared_running_total,
     find_departures,
@@ -50,7 +51,15 @@ from industrial_phm.history.ducklake import (
 )
 from industrial_phm.models.package import SUPPORTED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
-from industrial_phm.runtime.operations_web_operation import operation_body, stream_operations
+from industrial_phm.runtime.operations_web_operation import (
+    LevelSeries,
+    StreamOperation,
+    comparison_operation,
+    level_series,
+    operation_body,
+    source_levels,
+    stream_operation,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 EXPLORE_READ_ROUTES = frozenset(
@@ -142,13 +151,32 @@ def handle_explore_read(
                 (name, _instant(query, f"{name}_from"), _instant(query, f"{name}_to"))
                 for name in ("a", "b")
             ]
+            # How the source ran in each period, and, when asked, only one level compared.
+            focus = query.get("level_source")
+            operation = comparison_operation(
+                history,
+                asset_id,
+                periods,
+                source_id=focus[0] if focus else None,
+                point_id=(query.get("level_point") or [""])[0] or None if focus else None,
+            )
+            band = int(_one(query, "level")) if "level" in query else None
+            if band is not None and operation is None:
+                raise ValueError("no operating levels to compare within")
             profiles = history.query_measurement_profiles(
-                asset_id, channel_ids=series, periods=periods
+                asset_id,
+                channel_ids=series,
+                periods=periods,
+                level=operation[1].bounds(band) if operation and band is not None else None,
             )
             body = history_series(profiles, periods)
             ranges: dict[str, dict[str, Any]] = {
                 name: {"from": start.isoformat(), "to": end.isoformat()}
                 for name, start, end in periods
+            }
+            extra: dict[str, Any] = {
+                "operation": operation[0] if operation else None,
+                "level": band,
             }
         elif kind == "acquisition":
             binding = acquisition_binding(store, asset_id) if store.path.exists() else None
@@ -166,6 +194,7 @@ def handle_explore_read(
                 spans,
             )
             ranges = {name: {"from": first, "to": last} for name, first, last in spans}
+            extra = {}
         else:
             raise ValueError("unknown exploration kind")
         return HTTPStatus.OK, {
@@ -175,6 +204,7 @@ def handle_explore_read(
             "periods": ranges,
             "series": body,
             "meaning": "stored-measurements-compared-not-asset-health",
+            **extra,
         }
     except LookupError as error:
         return HTTPStatus.NOT_FOUND, {"error": "nothing_to_explore", "detail": str(error)}
@@ -595,11 +625,95 @@ def change_trace(
     ]
 
 
+def stream_records(
+    history: DuckLakeAssetHistory, asset_id: str, channels: list[str]
+) -> tuple[
+    list[dict[str, Any]],
+    dict[tuple[str, str | None], StreamOperation],
+    dict[str, LevelSeries],
+]:
+    """Signal records of every source and point, how each source ran, and its level series.
+
+    Each source is read once. Its records match ``signal_records``: each channel and meaning
+    keeps its own grid. A source with a current in A also gets its operating levels, and each
+    of its records split by the level the current read at every timestamp.
+    """
+    records: list[dict[str, Any]] = []
+    operations: dict[tuple[str, str | None], StreamOperation] = {}
+    levels: dict[str, LevelSeries] = {}
+    for stream in history.list_history_streams(asset_id):
+        selected = [channel for channel in channels if channel in stream.channels]
+        if not selected:
+            continue
+        source, point = stream.source_id, stream.measurement_point_id
+        start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
+
+        def identity(channel: str, meaning: str, source: str = source, point: Any = point) -> str:
+            text = json.dumps([channel, source, point, meaning], ensure_ascii=False)
+            return hashlib.sha256(text.encode()).hexdigest()
+
+        read = source_levels(history, asset_id, stream)
+        chosen, operating = read if read and read[0][0] in selected else (None, None)
+        main = identity(*chosen) if chosen else None
+        aggregation = history.query_stream_aggregation(
+            asset_id,
+            source_id=source,
+            measurement_point_id=point,
+            channel_ids=selected,
+            start_at=start,
+            end_at=end,
+            bucket_count=_DEPARTURE_BUCKETS,
+            level=(*chosen, operating.edges)
+            if chosen is not None and operating is not None
+            else None,
+        )
+        groups: dict[tuple[str, str], list[Any]] = {}
+        for bucket in aggregation.buckets:
+            groups.setdefault((bucket.channel_id, bucket.interpretation_json), []).append(bucket)
+        own = []
+        for (channel, meaning), buckets in groups.items():
+            first = min(bucket.first_event_at for bucket in buckets)
+            last = max(bucket.last_event_at for bucket in buckets) + timedelta(seconds=1)
+            own.append(
+                {
+                    "key": identity(channel, meaning),
+                    "channel": channel,
+                    "source_id": source,
+                    "point_id": point,
+                    "interpretation": meaning,
+                    "interpretation_id": hashlib.sha256(meaning.encode()).hexdigest(),
+                    "unit": display_unit(channel, meaning),
+                    "usable_count": sum(bucket.usable_count for bucket in buckets),
+                    "observations": [
+                        (bucket.last_event_at, float(bucket.mean))
+                        for bucket in buckets
+                        if bucket.mean is not None
+                    ],
+                    "bucket_seconds": (last - first).total_seconds() / _DEPARTURE_BUCKETS,
+                    "record": {"from": iso(first), "to": iso(last)},
+                    "points": [
+                        (bucket.bucket_start, bucket.bucket_end, float(bucket.mean))
+                        for bucket in buckets
+                        if bucket.mean is not None
+                    ],
+                }
+            )
+        records += own
+        record = next((r for r in own if r["key"] == main), None)
+        if operating is not None and record is not None and record["points"]:
+            operations[source, point] = stream_operation(history, asset_id, record, operating)
+            keys = {(r["channel"], r["interpretation"]): r["key"] for r in own}
+            levels |= level_series(aggregation.level_buckets, keys)
+    return records, operations, levels
+
+
 def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
     """Representative changes from each source/point/meaning record's own first 30%.
 
     A change that came back still counts. Each record owns its aggregation grid, baseline,
-    units and links; adding another source cannot alter the facts already found in it.
+    units and links; adding another source cannot alter the facts already found in it. A source
+    whose operating levels are known is judged level by level: each record's values while it
+    ran at one level are compared with the first 30% of that level only.
     """
     body: dict[str, Any] = {
         "schema_version": 1,
@@ -627,7 +741,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         return held[3]
     channels = list(history.list_history_channels(asset_id))
     checked = channels
-    records = signal_records(history, asset_id, checked)
+    records, operations, levels = stream_records(history, asset_id, checked)
     points = {record["key"]: record["points"] for record in records}
     by_key = {record["key"]: record for record in records}
     registry = workspace.source_registry_path
@@ -648,40 +762,68 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             meaning=interpretation_property(record["interpretation"]),
         )
 
+    def part(name: str) -> tuple[str, int | None]:
+        """The record and operating level a judged series belongs to."""
+        series = levels.get(name)
+        return (series.key, series.band) if series else (name, None)
+
+    def rank(name: str) -> int:
+        record_key, band = part(name)
+        order = signal_rank(by_key[record_key]["interpretation"])
+        # Within one operating level the current already fixes the load, so the supply and the
+        # other measurements tell more about the equipment than the current's smaller swings.
+        return {0: 1, 1: 0}.get(order, order) if band is not None else order
+
     # A declared running total always leaves its early range; it is stated, not judged.
     cumulative = {channel: values for channel, values in points.items() if running_total(channel)}
     copies = _copies(records)
-    operations = stream_operations(history, asset_id, records)
-    # Signals are judged only while the equipment ran: a stop, or starting from one, is how
-    # it was operated and is shown as such, not as a change in what it measured.
-    running = {
-        record["key"]: [
+    # Records of a source with known levels are judged level by level, so a change of load is
+    # how the equipment ran, not a change in what it measured; stops are left out. A record
+    # never measured together with the current keeps its whole series, without the stops.
+    split = {series.key for series in levels.values()}
+    judged: dict[str, list[tuple[datetime, datetime, float]]] = {
+        name: series.points for name, series in levels.items()
+    }
+    for record in records:
+        if record["key"] in split:
+            continue
+        operation = operations.get((record["source_id"], record["point_id"]))
+        judged[record["key"]] = [
             point
             for point in record["points"]
-            if (operation := operations.get((record["source_id"], record["point_id"]))) is None
-            or not operation.stopped(point[0], point[1])
+            if operation is None or not operation.stopped(point[0], point[1])
         ]
-        for record in records
-    }
     try:
         found = record_changes(
             {
-                channel: values
-                for channel, values in running.items()
-                if channel not in cumulative and channel not in copies
+                name: values
+                for name, values in judged.items()
+                if part(name)[0] not in cumulative and part(name)[0] not in copies
             },
             limit=_FINDINGS_SHOWN,
             streams={
-                r["key"]: (r["source_id"], r["point_id"], r["channel"], r["interpretation"])
-                for r in records
+                name: (
+                    by_key[part(name)[0]]["source_id"],
+                    by_key[part(name)[0]]["point_id"],
+                    by_key[part(name)[0]]["channel"],
+                    by_key[part(name)[0]]["interpretation"],
+                )
+                for name in judged
             },
-            priority={r["key"]: signal_rank(r["interpretation"]) for r in records},
+            priority={name: rank(name) for name in judged},
         )
     except LookupError, ValueError:
         found = None
     # Every signal says whether it was judged, and if not why: a signal that could not be judged
-    # is never counted as one that showed no change.
-    states = {item["key"]: item for item in found["channels"]} if found else {}
+    # is never counted as one that showed no change. A record judged level by level takes the
+    # most telling state any of its levels had.
+    order = ("scored", "level-change", "constant", "short-baseline")
+    states: dict[str, dict[str, Any]] = {}
+    for item in found["channels"] if found else []:
+        record_key = part(item["key"])[0]
+        best = states.get(record_key)
+        if best is None or order.index(item["state"]) < order.index(best["state"]):
+            states[record_key] = item
     signals = []
     for record in records:
         channel = record["key"]
@@ -720,19 +862,20 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             # Held one value through the baseline: no spread to judge a distance by, but what
             # the record did afterwards is still a fact worth stating.
             later = [
-                value for start, _, value in running[channel] if start >= state["baseline"]["to"]
+                value
+                for start, _, value in judged[state["key"]]
+                if start >= state["baseline"]["to"]
             ]
             row["held"] = state["median"]
             row["later"] = {"low": min(later), "high": max(later)} if later else None
         signals.append(row)
     body["signals"] = signals
     body["operation"] = [
-        operation_body(operation, _own_baseline(found, operation.key))
+        operation_body(operation, _first_part(points[operation.key]))
         | {
             "label": named(operation.key)[0],
             "unit": named(operation.key)[1],
             "context": record_context(by_key[operation.key]),
-            "excluded": len(points[operation.key]) - len(running[operation.key]),
         }
         for operation in operations.values()
     ]
@@ -749,52 +892,48 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
 
     shown = []
     for item in found["intervals"]:
-        median, spread = usual[item["channel"]]
-        label, unit = named(item["channel"])
-        record = by_key[item["channel"]]
+        name = item["channel"]
+        record_key, band = part(name)
+        median, spread = usual[name]
+        label, unit = named(record_key)
+        record = by_key[record_key]
         reference = (item["baseline"]["from"], item["baseline"]["to"])
         period = (item["start"], item["end"])
         comparisons = []
-        for channel, values in running.items():
-            # Compare simultaneous signals from the same source and measurement point.
-            other_record = by_key[channel]
+        for other, values in judged.items():
+            # Compare simultaneous signals from the same source and measurement point, at the
+            # same operating level.
+            other_key, other_band = part(other)
+            other_record = by_key[other_key]
             if (other_record["source_id"], other_record["point_id"]) != (
                 record["source_id"],
                 record["point_id"],
-            ):
+            ) or other_band != band:
                 continue
-            if other_record["channel"] == record["channel"] and channel != item["channel"]:
+            if other_record["channel"] == record["channel"] and other != name:
                 continue
             comparison = interval_comparison(values, reference, period)
             if comparison is not None:
-                other_label, other_unit = named(channel)
+                other_label, other_unit = named(other_key)
                 comparisons.append(
                     {
                         **comparison,
-                        "channel": channel,
+                        "channel": other,
                         "label": other_label,
                         "unit": other_unit,
                         "current_signal": is_current_in_amperes(other_record["interpretation"]),
                     }
                 )
-        own = next((row for row in comparisons if row["channel"] == item["channel"]), None)
+        own = next((row for row in comparisons if row["channel"] == name), None)
         changed = sorted(
-            [
-                row
-                for row in comparisons
-                if row["channel"] != item["channel"] and row["state"] != "within"
-            ],
+            [row for row in comparisons if row["channel"] != name and row["state"] != "within"],
             key=lambda row: (-row["distance"], row["channel"]),
         )
         similar = sorted(
-            [
-                row
-                for row in comparisons
-                if row["channel"] != item["channel"] and row["state"] == "within"
-            ],
+            [row for row in comparisons if row["channel"] != name and row["state"] == "within"],
             key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
         )
-        trace = change_trace(record["points"], record["bucket_seconds"], item["start"], item["end"])
+        trace = change_trace(judged[name], record["bucket_seconds"], item["start"], item["end"])
         operation = operations.get((record["source_id"], record["point_id"]))
         shown.append(
             {
@@ -803,6 +942,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 **record_context(record),
                 "label": label,
                 "unit": unit,
+                "band": band,
                 "direction": item["direction"],
                 "value": item["value"],
                 "reason": item["reason"],
@@ -820,7 +960,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                             for key, value in row.items()
                             if key not in {"distance", "current_signal", "channel"}
                         },
-                        **record_context(by_key[row["channel"]]),
+                        **record_context(by_key[part(row["channel"])[0]]),
                     }
                     for row in related(changed, similar)
                 ],
@@ -857,6 +997,9 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 "kind",
             )
         }
+        # A change judged at one operating level is a different finding from one at another.
+        if item["band"] is not None:
+            owned["band"] = item["band"]
         item["review_key"] = hashlib.sha256(json.dumps(owned, sort_keys=True).encode()).hexdigest()
     body.update(
         {
@@ -970,10 +1113,14 @@ def _ranked_channels(history: DuckLakeAssetHistory, asset_id: str) -> list[str]:
     return sorted(channels, key=lambda channel: (ranks.get(channel, 3), order[channel]))
 
 
-def _own_baseline(found: dict[str, Any] | None, key: str) -> tuple[datetime, datetime] | None:
-    """The period a signal's own changes were judged against."""
-    baseline = (found or {}).get("baselines", {}).get(key)
-    return (baseline["from"], baseline["to"]) if baseline else None
+def _first_part(
+    points: list[tuple[datetime, datetime, float]],
+) -> tuple[datetime, datetime] | None:
+    """The first 30% of a record's time, which its changes are judged against."""
+    if not points:
+        return None
+    start, end = points[0][0], max(point[1] for point in points)
+    return start, start + (end - start) * BASELINES["first-30"]
 
 
 def _copies(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

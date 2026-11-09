@@ -1,4 +1,5 @@
 /** Two-period stored history, separated by exact server source/point/meaning identity. */
+import type {LevelNames} from "./record-findings.ts";
 export type Periods = { a: { from: string; to: string }; b: { from: string; to: string } };
 export type PeriodProfile = {
   observations: number;
@@ -27,7 +28,13 @@ export type ProfileSeries = {
   /** B's median over A's as a percent change; null for a quantity that can go below zero. */
   medianChangePercent: number | null;
 };
-export type ProfileResult = { assetId: string; channel: string; periods: Periods; series: ProfileSeries[] };
+/** How the source ran in each period, by the operating levels its current shows. */
+export type CompareOperation = {sourceId: string; pointId: string | null; label: string; names: LevelNames;
+  shares: {a: number[] | null; b: number[] | null}};
+export type ProfileResult = { assetId: string; channel: string; periods: Periods; series: ProfileSeries[];
+  operation: CompareOperation | null;
+  /** The operating level the values were compared within, or null for every value. */
+  level: number | null };
 export type SourceHistory = { assetId: string; channels: string[]; from: string; to: string };
 export class NoHistoryError extends Error {}
 
@@ -170,7 +177,33 @@ export function parseProfile(
       medianChangePercent: optionalNumber(comp.median_change_percent),
     };
   });
-  return {assetId, channel, periods: requested, series};
+  const operation = parseOperation(response.operation);
+  const level = response.level === null || response.level === undefined ? null : Number(response.level);
+  if (level !== null && (!operation || !Number.isInteger(level) || level < 0 || level > operation.names.levels.length))
+    throw new Error("비교한 운전 상태를 확인할 수 없습니다.");
+  return {assetId, channel, periods: requested, series, operation, level};
+}
+
+function parseOperation(raw: unknown): CompareOperation | null {
+  if (raw === null || raw === undefined) return null;
+  const row = rec(raw), shares = rec(row?.shares);
+  const invalid = () => new Error("운전 상태의 형식이 올바르지 않습니다.");
+  if (!row || !shares || !Array.isArray(row.levels) || typeof row.stopped_below !== "number") throw invalid();
+  const levels = row.levels.map((entry: unknown) => {
+    const level = rec(entry);
+    if (!level || typeof level.low !== "number" || typeof level.typical !== "number"
+      || !(level.high === null || typeof level.high === "number")) throw invalid();
+    return {low: level.low, high: level.high as number | null, typical: level.typical};
+  });
+  const share = (value: unknown): number[] | null => {
+    if (value === null || value === undefined) return null;
+    if (!Array.isArray(value) || value.length !== levels.length + 1
+      || !value.every(item => typeof item === "number" && item >= 0 && item <= 1)) throw invalid();
+    return value as number[];
+  };
+  return {sourceId: string(row.source_id), pointId: row.point_id === null ? null : string(row.point_id),
+    label: string(row.label), shares: {a: share(shares.a), b: share(shares.b)},
+    names: {levels, stoppedBelow: row.stopped_below, unit: typeof row.unit === "string" ? row.unit : null}};
 }
 
 async function body(url: string, signal: AbortSignal): Promise<unknown> {
@@ -192,10 +225,16 @@ export async function readSources(assetId: string, signal: AbortSignal): Promise
 }
 export async function readProfile(
   assetId: string, channel: string, periods: Periods, signal: AbortSignal,
+  level: {band: number; sourceId?: string; pointId?: string | null} | null = null,
 ): Promise<ProfileResult> {
   validatePeriods(periods);
   const query = new URLSearchParams({asset_id:assetId,kind:"history",series:channel,
     a_from:periods.a.from,a_to:periods.a.to,b_from:periods.b.from,b_to:periods.b.to});
+  if (level) {
+    query.set("level", String(level.band));
+    // Without a source the server reads the asset's only source with operating levels.
+    if (level.sourceId) {query.set("level_source", level.sourceId); query.set("level_point", level.pointId ?? "");}
+  }
   return parseProfile(await body("/api/v1/explore/profile?" + query, signal),
     assetId, channel, periods);
 }
