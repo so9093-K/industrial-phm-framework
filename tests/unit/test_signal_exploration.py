@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
+from industrial_phm.application.measurement_semantics import MeasurementDefinition
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.signal_exploration import (
     acquisition_binding,
@@ -12,6 +15,7 @@ from industrial_phm.application.signal_exploration import (
     acquisition_series,
     acquisition_spectrum,
     comparison,
+    display_unit,
 )
 from tests.support.phm import analyze, deliver, phm_workspace
 
@@ -41,6 +45,38 @@ def test_a_long_range_is_sampled_over_its_whole_length_and_counted_exactly(
     assert b["maximum"] > 3 * b["minimum"]
     (full,) = acquisition_series(store, snapshots, binding, [RMS], [("a", 1, 1), ("b", 1, 8)])
     assert full["periods"]["b"]["sampled"] is False and full["periods"]["b"]["usable_count"] == 8
+
+
+def _aihub(channel: str, definition: MeasurementDefinition) -> str:
+    semantics = {"source_id": "s", "channel_id": channel, "version": "aihub-239-semantics-v3"}
+    return json.dumps({"semantics": semantics | {"definition": asdict(definition)}})
+
+
+@pytest.mark.parametrize(
+    ("channel", "unit"),
+    [
+        ("R상유효전력", "W"),
+        ("무효전력평균", "var"),
+        ("S상전류고조파", "%"),
+        ("온도", "°C"),
+        ("선간전압평균", "V"),
+        ("R상역률", None),  # a 0-1 ratio
+        ("누적전력량", None),
+    ],
+)
+def test_aihub_values_show_the_units_the_dataset_was_profiled_with(
+    channel: str, unit: str | None
+) -> None:
+    assert display_unit(channel, _aihub(channel, MeasurementDefinition())) == unit
+
+
+def test_a_stored_unit_is_shown_as_recorded() -> None:
+    hertz = MeasurementDefinition(observed_property="frequency", unit="Hz", unit_evidence="doc")
+    assert display_unit("온도", _aihub("온도", hertz)) == "Hz"
+    other = json.dumps(
+        {"semantics": {"version": "other-v1", "definition": asdict(MeasurementDefinition())}}
+    )
+    assert display_unit("온도", other) is None
 
 
 @pytest.mark.parametrize(

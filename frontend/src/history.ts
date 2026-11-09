@@ -134,7 +134,8 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
       nullCount: count(b.null_count),
       nonGoodCount: count(b.non_good_count),
       conflictCount: count(b.conflict_count),
-      unit: typeof semantics?.unit === "string" ? semantics.unit : null,
+      unit: typeof b.unit === "string" && b.unit ? b.unit
+        : typeof semantics?.unit === "string" ? semantics.unit : null,
       unitEvidence: typeof semantics?.unit_evidence === "string" ? semantics.unit_evidence : null,
       interpretationEvidence: typeof semantics?.interpretation_evidence === "string" ? semantics.interpretation_evidence : null,
       observedProperty: typeof semantics?.observed_property === "string"

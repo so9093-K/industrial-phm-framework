@@ -370,15 +370,15 @@
       {/if}
       {#each groups as group (group.key)}
         {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
+        {@const shownUnit = group.unit ?? channels?.names.get(selectedChannel)?.unit}
+        {@const context = [group.observedProperty ? propertyLabel(group.observedProperty) : null, shownUnit ? "단위 " + shownUnit : null].filter(Boolean)}
         <section class="series" aria-label={"측정 기록 · " + sourceLabel(sources, group.sourceId, shownSources)}>
           <h3>{signalName(channels?.names,selectedChannel)}</h3>
           <SourceIdentity id={group.sourceId} name={sources.get(group.sourceId)} pointId={group.pointId} interpretationId={group.interpretationId} among={shownSources}/>
-          <p class="context">{#if group.observedProperty}{propertyLabel(group.observedProperty)}{/if}
-            {#if group.unit ?? channels?.names.get(selectedChannel)?.unit} · 단위 {group.unit ?? channels?.names.get(selectedChannel)?.unit}{/if}
-          </p>
-          {#if group.unitEvidence || group.interpretationEvidence}<details><summary>측정 항목·단위 확인</summary><p class="context">단위 확인 자료 · {group.unitEvidence ?? "기록 없음"}</p><p class="context">측정 항목 확인 자료 · {group.interpretationEvidence ?? "기록 없음"}</p></details>{/if}
+          {#if context.length}<p class="context">{context.join(" · ")}</p>{/if}
+          {#if group.unitEvidence}<details><summary>측정 항목·단위 확인</summary><p class="context">단위 확인 자료 · {group.unitEvidence}</p>{#if group.interpretationEvidence}<p class="context">측정 항목 확인 자료 · {group.interpretationEvidence}</p>{/if}</details>{/if}
           {#if chart}
-            {@const unit = group.unit ?? channels?.names.get(selectedChannel)?.unit ?? null}
+            {@const unit = shownUnit ?? null}
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} {unit}>
             <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"

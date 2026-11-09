@@ -85,6 +85,31 @@ _CONFIRMED_DEFINITIONS: dict[str, MeasurementDefinition] = {
 }
 
 
+# Units shown with AI-Hub 239 values whose stored meaning leaves the unit open. The relation
+# profile (docs/research/aihub-239-source-profile.md) fixes their scale from the data: per-phase
+# sqrt(P^2+Q^2) equals V*I, the "평균" power items equal the three-phase sum, line voltages are
+# sqrt(3) times the phase voltages. Power factor is a 0-1 ratio and carries no unit. Temperature
+# and harmonics follow the provider's unit table. Only the display uses these; stored meanings
+# and the analyses keyed to them stay as recorded.
+AIHUB_239_DISPLAY_UNITS: dict[str, str] = {
+    **{f"{phase}상전압": "V" for phase in "RST"},
+    **{f"{phase}상선간전압": "V" for phase in "RST"},
+    "상전압평균": "V",
+    "선간전압평균": "V",
+    **{f"{phase}상전류": "A" for phase in "RST"},
+    "전류평균": "A",
+    **{f"{phase}상유효전력": "W" for phase in "RST"},
+    "유효전력평균": "W",
+    **{f"{phase}상무효전력": "var" for phase in "RST"},
+    "무효전력평균": "var",
+    **{f"{phase}상전압고조파": "%" for phase in "RST"},
+    "전압고조파평균": "%",
+    **{f"{phase}상전류고조파": "%" for phase in "RST"},
+    "전류고조파평균": "%",
+    "주파수": "Hz",
+    "온도": "°C",
+}
+
 _BOILER_SHA256 = "87ad1f77172f549c5aa5f78a857ddd8b02cb010a08af67ea64a3cf4c5a824023"
 _EXTRUDER_SHA256 = "7fd3a50f1222a695fc440ef2d4e8f2b431dd419b2249b60a6bc0ab34d5472a17"
 _VOLTAGES = frozenset({"R상전압", "S상전압", "T상전압", "상전압평균", "선간전압평균"})

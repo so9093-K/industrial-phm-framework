@@ -67,6 +67,8 @@
   const periodText=(n:"a"|"b")=>periods?asTime(periods[n].from)+" ~ "+asTime(periods[n].to):"";
   const localTime=(value:string)=>new Date(Date.parse(value)+9*3600000).toISOString().slice(0,16);
   const selectedPeriod=(raw:string)=>raw+":00+09:00";
+  // A registered name already carries its unit; otherwise the unit comes with the measurements.
+  const axisName=(id:string,unit:string|null)=>signalName(names,id)+(unit&&!names.get(id)?.unit?" ("+unit+")":"");
   function initialPeriods(fallback:Periods):Periods{
     const args=new URLSearchParams(location.search);
     const decode=(key:string)=>{
@@ -236,7 +238,7 @@
                   {/if}
                   {#if axes&&group.points.length}
                     <FeatureScatter bounds={axes} points={group.points.map(p=>({x:p.x,y:p.y,label:asTime(p.at)}))}
-                      xLabel={signalName(names,x)} yLabel={signalName(names,y)}
+                      xLabel={axisName(x,group.xUnit)} yLabel={axisName(y,group.yUnit)}
                       description={"기간 "+n.toUpperCase()+" · 같은 시각 측정 짝 "+group.points.length+"개 산점도."}
                       caption={"한 점은 같은 시각에 함께 기록된 두 측정값입니다. 두 기간은 같은 축 범위로 그립니다. 점을 누르면 그 시각을 봅니다."}
                       picked={chosen?.key===pair.key&&chosen.period===n?chosen.index:null}
@@ -248,10 +250,11 @@
           </div>
           {#if chosen?.key===pair.key}
             {@const point=pair[chosen.period]?.points[chosen.index]}
+            {@const shown=pair[chosen.period]}
             {#if point}
               <div class="chosen" aria-live="polite">
                 <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
-                <p>{signalName(names,x)} {num(point.x)} · {signalName(names,y)} {num(point.y)}</p>
+                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
                 <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
                   <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
               </div>
