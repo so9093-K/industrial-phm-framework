@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceIdentity from "./SourceIdentity.svelte";
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   type Props = {
@@ -33,48 +34,52 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <h2 id="asset-list-title">설비 <span>{assets.length}개</span></h2>
-  <p class="context">주요 변화가 있는 설비를 먼저 보여 줍니다. 같은 중요도에서는 확인할 항목이 많은 순서입니다.</p>
+  <p class="context">중요한 변화부터 살펴보세요.</p>
   <ul class="rows">
     {#each ordered as asset (asset.assetId)}
-      <li>
-        <a class="row" href={href(asset.assetId)}>
-          <div class="asset-name"><strong>{assetOptionLabel(assets, asset.assetId)}</strong>
-            {#if primaryNotes[asset.assetId]}<span class="primary-reason">{primaryNotes[asset.assetId].label}</span><span>{primaryNotes[asset.assetId].detail}</span>{/if}</div>
-          <span>{asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt) : asset.lastPosition != null ? "최근 " + asset.lastPosition + "번째 측정" : "측정 시각 기록 없음"}</span>
-          <span>{flowLabel(asset.flow)}</span>
-          <span class:attention={!!count(asset)}>{attention(count(asset))}</span>
-        </a>
-        {#if reasons && (notes[asset.assetId] ?? 0) > 0}
-          <a class="reason-link" href={"#attention-" + encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>
-            이 설비의 확인 사유와 다음 행동 보기 →
-          </a>
+      {@const note=primaryNotes[asset.assetId]}
+      {@const stored=asset.flow==="stored-history"}
+      <li><article class="row">
+        <header><h3><a href={href(asset.assetId)}>{assetOptionLabel(assets,asset.assetId)}</a></h3>
+          <span class="data-kind">{stored?"과거 저장 기록":flowLabel(asset.flow)}</span></header>
+        {#if note}<div class="finding">
+          <p class="primary-reason">{note.label}</p>
+          <p class="reason-detail">{note.detail}</p>
+        </div>{/if}
+        <div class="record-context">
+          <p>{#if note?.departure}분석한 마지막 측정 · {note.departure.lastAt?observed(note.departure.lastAt):"시각 미확인"}
+            {:else if asset.lastObservedAt}마지막 저장 측정 · {observed(asset.lastObservedAt)}
+            {:else if asset.lastPosition!=null}마지막 저장 측정 · {asset.lastPosition}번째 · 측정 시각 정보 없음
+            {:else}측정 시각 정보 없음{/if}</p>
+          <p>{stored?"현재 수신 중인 데이터가 아닙니다.":note?.departure?"변화 분석은 저장된 측정 기록을 기준으로 합니다.":""}</p>
+        </div>
+        {#if note?.departure?.context}
+          <SourceIdentity id={note.departure.context.sourceId} pointId={note.departure.context.pointId} interpretationId={note.departure.context.interpretationId}/>
         {/if}
-      </li>
+        <div class="actions">
+          {#if note}<a class="ui-button ui-button-primary investigate" href={note.href}>{note.action} →</a>{/if}
+          <a class="ui-button" href={href(asset.assetId)}>설비 상세 보기</a>
+        </div>
+        <footer><span class="attention">{attention(count(asset))}</span>
+          {#if reasons && (notes[asset.assetId]??0)>0}<a class="reason-link" href={"#attention-"+encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>확인 항목 모두 보기 →</a>{/if}
+        </footer>
+      </article></li>
     {/each}
   </ul>
 </section>
 
 <style>
-  h2 span { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
-  .context { color: var(--color-ink-muted); }
-  .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--space-2) var(--space-4);
-    align-items: center;
-    padding: var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    color: var(--color-ink);
-    text-decoration: none;
-    overflow-wrap: anywhere;
-  }
-  .asset-name{display:grid;gap:var(--space-1)}.row .primary-reason{color:var(--color-ink);font-weight:650}
-  .row:hover { background: var(--color-surface-selected); }
-  .row span { color: var(--color-ink-muted); font-size: var(--font-small); }
-  .reason-link { display: inline-block; padding: var(--space-2) var(--space-3); margin-top: var(--space-1);
-    color: var(--color-action); font-weight: 650; text-decoration: underline; }
-  .row .attention { color: var(--color-ink); font-weight: 700; }
-  @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+  h2 span{font-weight:400;color:var(--color-ink-muted);font-size:var(--font-small)}
+  .context{color:var(--color-ink-muted)}
+  .rows{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-3)}
+  .row{display:grid;gap:var(--space-3);padding:var(--space-5);border:1px solid var(--color-border);border-radius:var(--radius-control);min-width:0;overflow-wrap:anywhere}
+  header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+  h3{margin:0;font-size:var(--font-body)}h3 a{color:var(--color-ink);text-decoration:none}h3 a:hover{text-decoration:underline}
+  .data-kind,.record-context,footer{font-size:var(--font-small);color:var(--color-ink-muted)}
+  .primary-reason{font-size:var(--font-section);font-weight:700;line-height:1.5;margin:0 0 var(--space-1)}
+  .reason-detail{line-height:1.6;color:var(--color-ink-muted);margin:0;max-width:72ch}
+  .record-context p{margin:0;line-height:1.6}
+  .actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}.actions a{display:inline-flex;align-items:center;min-height:44px;text-decoration:none}
+  footer{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}.reason-link{padding-block:var(--space-2)}
+  @media(max-width:480px){.row{padding:var(--space-4)}.data-kind{flex-basis:100%}.actions a{flex:1 1 auto;justify-content:center}}
 </style>

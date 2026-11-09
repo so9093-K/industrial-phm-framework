@@ -66,8 +66,9 @@ export function groupDatasets(items: PublicDataset[]): DatasetGroup[] {
   const groups = new Map<string, DatasetGroup>();
   for (const item of items) {
     const key = item.kind === "xjtu-sy" ? "xjtu-sy" : item.equipment + "\n" + item.split;
+    const partition=item.split==="학습용"?"Training":item.split==="검증용"?"Validation":item.split;
     const title = item.kind === "xjtu-sy" ? "XJTU-SY 베어링 진동 기록"
-      : "AI-Hub 239 · " + item.equipment + " 전력 기록 (" + item.split + ")";
+      : "AI-Hub 239 · " + item.equipment + " 전력 기록 · 원본 분류 " + partition;
     const group = groups.get(key) ?? {key, title, kind: item.kind, items: []};
     group.items.push(item);
     groups.set(key, group);

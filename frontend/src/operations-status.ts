@@ -140,21 +140,21 @@ export function readSourceNames(): Promise<Map<string, string>> {
     .catch(() => new Map<string, string>());
   return named.names;
 }
-/** A source as people know it: its registered connection name, else its ID. */
-function plainSourceName(id: string): string {
-  const aihub = /^aihub239-(training|validation)-[^-]+-[^-]+(?:-[0-9a-f]{64})?$/.exec(id);
-  if (aihub) return "AI-Hub 239 원천 기록 (" + (aihub[1] === "training" ? "학습용" : "검증용") + ")";
-  if (/^xjtu-sy-replay(?:-[0-9a-f]{64})?$/.test(id)) return "XJTU-SY 측정 기록";
-  return id;
+/** Metadata encoded by the public importer; partition is not model training usage. */
+export function publicSourceInfo(id:string):{name:string;partition:string|null;fingerprint:string|null}|null {
+  const aihub=/^aihub239-(training|validation)-[^-]+-[^-]+(?:-([0-9a-f]{64}))?$/.exec(id);
+  if(aihub)return {name:"AI-Hub 239 공개 실측 데이터",partition:aihub[1]==="training"?"Training":"Validation",fingerprint:aihub[2]??null};
+  const xjtu=/^xjtu-sy-replay(?:-([0-9a-f]{64}))?$/.exec(id);
+  return xjtu?{name:"XJTU-SY 공개 실측 데이터",partition:null,fingerprint:xjtu[1]??null}:null;
 }
-
-/** Public imports keep a short version fingerprint even when shown alone.
- * General source IDs and user-registered names stay verbatim. */
+/** A brief data identity; source bookkeeping is shown in data details. */
+export function sourceSummary(id:string):string {return publicSourceInfo(id)?.name??id;}
+/** Record selectors keep their original partition/version distinct, without implying model use. */
 export function readableSourceId(id: string, _among: readonly string[] = []): string {
-  const name = plainSourceName(id);
-  if(name===id)return id;
-  const digest = /-([0-9a-f]{64})$/.exec(id);
-  return name + (digest ? " · 원본 지문 " + digest[1].slice(0, 8) : " · 원본 지문 없음");
+  const source=publicSourceInfo(id);
+  if(!source)return id;
+  return source.name+(source.partition?" · 원본 분류 "+source.partition:"")
+    +(source.fingerprint?" · 원본 버전 "+source.fingerprint.slice(0,8):"");
 }
 export function sourceLabel(
   names: Map<string, string> | null | undefined, id: string, among: readonly string[] = [],

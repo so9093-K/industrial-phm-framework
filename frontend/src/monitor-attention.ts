@@ -3,13 +3,14 @@
  * cannot run, or a collection that stopped receiving. An optional person-review status
  * is deliberately not a PHM monitoring event. Each item opens the
  * exact place to check; none is a fault verdict. */
-import {recordContext, type RecordContext} from "./record-context.ts";
+import {recordContext, recordParams, type RecordContext} from "./record-context.ts";
 import {modelResultUrl} from "./finding-reviews.ts";
 import {modelName as methodName, referenceLabel, windowLabel} from "./model-evidence.ts";
 import {readSources,type Source} from "./operations-status.ts";
 import {assetTabUrl,routeUrl,systemUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 import {measurementLabel} from "./time-axis.ts";
+import {MAX_SPAN_MS, windowParams, zoomWindow} from "./signal-selection.ts";
 
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
@@ -27,11 +28,11 @@ export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated
 export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"warmup";
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
-  context?:RecordContext|null; kind?:string; distance:number|null;direction:"up"|"down"|null;since:string;
+  context?:RecordContext|null; lastAt?:string|null; kind?:string; distance:number|null;direction:"up"|"down"|null;since:string;
   /** The first-30% range the record's end was judged against, in the signal's own values. */
   usual:{low:number;high:number}|null};
 /** `id` is unique within one asset: two connections or two signals of one asset each keep their own note. */
-export type Note={id:string;kind:NoteKind;label:string;detail:string;href:string;action:string};
+export type Note={id:string;kind:NoteKind;label:string;detail:string;href:string;action:string;departure?:Departure};
 export type AssetAttention={assetId:string;notes:Note[]};
 export type AttentionState = "loading" | "ready" | "partial" | "failed";
 export function attentionText(count: number | null, state: AttentionState): string {
@@ -110,6 +111,20 @@ function at(model:MonitoredModel,which:number|null):string{
     :modelResultUrl(model.assetId,{bindingId:model.bindingId,position:which});
 }
 
+/** Open this record's change in the signal graph; long intervals start with the first 31 days. */
+export function departureSignalHref(item:Departure):string {
+  const url=new URL(assetTabUrl(item.assetId,"signals",null,"history",item.channel),"http://local");
+  const args=recordParams(item.context);
+  const from=Date.parse(item.since),last=Date.parse(item.lastAt??"");
+  if(Number.isFinite(from)&&Number.isFinite(last)&&last>=from){
+    const span={from,to:Math.min(Math.max(last+1000,from+1000),from+MAX_SPAN_MS)};
+    const window=zoomWindow(span);
+    if(window)Object.assign(args,windowParams(window,span));
+  }
+  for(const [key,value] of Object.entries(args))url.searchParams.set(key,value);
+  return url.pathname+url.search;
+}
+
 /** Notes per asset, most urgent first; assets without notes are left out. */
 export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,departures:Departure[]=[]):AssetAttention[]{
   const groups=new Map<string,Note[]>();
@@ -152,14 +167,13 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
       href:at(waiting[0],null),action:"분석 진행 보기"});
   }
   for(const item of departures){
-    const since=new Date(item.since).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+    const since=new Date(item.since).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
     const amount=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
-    const range="기록 처음 30%의 평소 범위"+(item.usual?"("+amount(item.usual.low)+"~"+amount(item.usual.high)+(item.unit?" "+item.unit:"")+")":"");
-    // What was observed: where the last measurement sits and when the departure it belongs to began.
-    add(item.assetId,{id:"departure:"+item.channel,kind:"departure",label:item.kind==="level-change"?"일정하던 측정값이 달라짐":"기준 구간에서 크게 벗어남",
-      detail:(item.label??item.channel)+" · 마지막 측정이 "+range+(item.direction==="down"?"보다 낮음":item.direction==="up"?"보다 높음":" 밖")
-        +" · 벗어난 구간 시작 "+since,
-      href:assetTabUrl(item.assetId,"anomaly","baseline",null,item.channel)+(item.context?"&record_key="+encodeURIComponent(item.context.key):""),action:"달라진 구간 찾기"});
+    const range=item.usual?"기록 초반의 비교 범위 "+amount(item.usual.low)+"~"+amount(item.usual.high)+(item.unit?" "+item.unit:""):"기록 초반과 비교";
+    const change=item.kind==="level-change"?"일정하던 값이 달라짐":item.direction==="down"?"기준 범위보다 낮아짐":item.direction==="up"?"기준 범위보다 높아짐":"기준 범위 밖의 값";
+    add(item.assetId,{id:"departure:"+item.channel,kind:"departure",label:(item.label??item.channel)+" · "+change,
+      detail:range+" · 변화 시작 "+since,departure:item,
+      href:departureSignalHref(item),action:item.lastAt&&Date.parse(item.lastAt)-Date.parse(item.since)>MAX_SPAN_MS?"변화 시작 구간 조사하기":"변화 구간 조사하기"});
   }
   for(const source of sources??[]){
     // A collection someone asked to run that has not received recently; paused or stopped is expected.
@@ -186,10 +200,10 @@ export function parseDepartures(raw:unknown):Departure[]{
   return root.items.flatMap((value:unknown):Departure[]=>{
     const row=object(value);
     const assetId=text(row?.asset_id),channel=text(row?.channel),since=text(row?.since);
-    if(!row||!assetId||!channel||!since||!((typeof row.distance==="number"&&Number.isFinite(row.distance))||(row.kind==="level-change"&&row.distance===null)))return [];
+    if(!row||!assetId||!channel||!since||!Number.isFinite(Date.parse(since))||!((typeof row.distance==="number"&&Number.isFinite(row.distance))||(row.kind==="level-change"&&row.distance===null)))return [];
     const usual=object(row.usual);
     const low=usual?.low,high=usual?.high;
-    return [{context:recordContext(row),kind:row.kind==="level-change"?"level-change":"departure",assetId,channel,label:text(row.label),unit:text(row.unit),distance:row.distance as number|null,
+    return [{lastAt:typeof row.last_at==="string"&&Number.isFinite(Date.parse(row.last_at))?row.last_at:null,context:recordContext(row),kind:row.kind==="level-change"?"level-change":"departure",assetId,channel,label:text(row.label),unit:text(row.unit),distance:row.distance as number|null,
       direction:row.direction==="up"||row.direction==="down"?row.direction:null,since,
       usual:typeof low==="number"&&typeof high==="number"&&Number.isFinite(low)&&Number.isFinite(high)&&low<=high?{low,high}:null}];
   });

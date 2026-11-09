@@ -16,8 +16,8 @@ test("the listing groups AI-Hub records by equipment and split before the XJTU-S
     items: [aihub("1338"), aihub("2194", "검증용"), aihub("1339", "학습용", true), xjtu],
     jobs: {"xjtu-sy:Bearing1_1": {state: "running", step: "models", done: 0, asset_id: "Bearing1_1"}}});
   assert.deepEqual(groupDatasets(found.items).map((group) => [group.title, group.items.length]), [
-    ["AI-Hub 239 · 공기압축기 전력 기록 (학습용)", 2],
-    ["AI-Hub 239 · 공기압축기 전력 기록 (검증용)", 1],
+    ["AI-Hub 239 · 공기압축기 전력 기록 · 원본 분류 Training", 2],
+    ["AI-Hub 239 · 공기압축기 전력 기록 · 원본 분류 Validation", 1],
     ["XJTU-SY 베어링 진동 기록", 1],
   ]);
   assert.equal(datasetName(found.items[0]), "설비 1338");

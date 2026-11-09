@@ -128,13 +128,13 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                     origin + "/web/?" + urlencode({**focus, "tab": "anomaly", "method": "baseline"})
                 )
                 panel = page.get_by_role("region", name="달라진 구간 찾기", exact=True)
-                pw.expect(panel).to_contain_text("분석 대상 · b")
+                pw.expect(panel.locator(".source-name")).to_contain_text("b")
                 panel.locator("#departure-channel").select_option("current")
                 recover = panel.get_by_role("button", name="이 신호의 다른 기록 보기", exact=True)
                 pw.expect(recover).to_be_visible()
                 assert parse_qs(urlsplit(page.url).query)["monitor_source"] == ["b"]
                 recover.click()
-                pw.expect(panel).to_contain_text("분석 대상 · a")
+                pw.expect(panel.locator(".source-name")).to_contain_text("a")
                 assert parse_qs(urlsplit(page.url).query)["monitor_channel"] == ["current"]
                 page.goto(origin + "/web/?" + urlencode({**focus, "tab": "signals"}))
                 signal = page.get_by_role("region", name="측정 신호", exact=True)
