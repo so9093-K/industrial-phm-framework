@@ -10,6 +10,8 @@ import {object} from "./writes.ts";
 
 export type FoundInterval = {
   trace?:{at:string;value:number;join?:boolean}[]; reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
+  /** The operating level the change was judged within, when the source's levels are known. */
+  band?: number | null;
   start: string; end: string; channel: string; label: string; unit: string | null;
   direction: "up" | "down"; value: number;
   /** The range the departure was judged by: the first 30% median ± its spread times the threshold. */
@@ -93,6 +95,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
       reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
       typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
       operation: parseShift(row.operation),
+      band: typeof row.band === "number" && Number.isInteger(row.band) && row.band > 0 ? row.band : null,
       related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
         const other = object(entry);
         if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
@@ -127,6 +130,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   for (const item of intervals) {
     const own = operation.find(entry => entry.key === item.operation?.key);
     if (item.operation && (!own || [item.operation.interval, item.operation.baseline].some(shares => shares && shares.length !== own.levels.length + 1))) invalid();
+    if (item.band != null && (!own || item.band > own.levels.length)) invalid();
   }
   return {assetId, baseline: range(root.baseline), record: range(root.record ?? null),
     bucketSeconds: root.bucket_seconds === null ? null : finite(root.bucket_seconds),
@@ -239,9 +243,12 @@ export function findingText(item: FoundInterval, bucketSeconds: number | null): 
 /** The interval in the signal graph, and compared with the first 30% it was judged against. */
 export function findingLinks(assetId: string, item: FoundInterval, baseline: RecordFindings["baseline"],
   bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null; relation: {href: string; label: string} | null; outlook: string} {
+  // A change found within one operating level is compared within the same level.
+  const within = item.band != null ? {compare_level: String(item.band)} : {};
   const link = (href: string, params: Record<string, string>) => {
     const url = new URL(href, "http://local");
-    for (const [key, entry] of Object.entries({...recordParams(item.context), ...params})) url.searchParams.set(key, entry);
+    const compared = "compare_a" in params ? within : {};
+    for (const [key, entry] of Object.entries({...recordParams(item.context), ...params, ...compared})) url.searchParams.set(key, entry);
     return url.pathname + url.search;
   };
   record = item.context?.record ?? record;

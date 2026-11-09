@@ -182,6 +182,56 @@ class ValueOccupancy:
     buckets: tuple[ValueOccupancyBucket, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class LevelAggregationBucket:
+    """One signal identity's usable values in one time bucket while one level band held.
+
+    The band of a value is that of the level signal measured at the same timestamp.
+    """
+
+    channel_id: str
+    interpretation_json: str
+    bucket_start: datetime
+    bucket_end: datetime
+    band: int
+    usable_count: int
+    first_event_at: datetime
+    last_event_at: datetime
+    minimum: float
+    maximum: float
+    mean: float
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileLevel:
+    """Describe only values measured while a level signal read within bounds.
+
+    The level signal is one identity of one source and point; ``low`` is inclusive and
+    ``high`` exclusive, and None leaves that side open.
+    """
+
+    source_id: str
+    measurement_point_id: str | None
+    channel_id: str
+    interpretation_json: str
+    low: float | None
+    high: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class StreamAggregation:
+    """The signal identities of one source and point, each on its own bucket grid.
+
+    ``buckets`` hold every observation; ``level_buckets`` split the usable values by the band
+    of the level signal at the same timestamp, when a level was asked for.
+    """
+
+    snapshot_id: int
+    edges: tuple[float, ...]
+    buckets: tuple[MultiSignalMeasurementHistoryBucket, ...]
+    level_buckets: tuple[LevelAggregationBucket, ...]
+
+
 PROFILE_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
 SMALL_VALUE_LIMIT = 1.0
 

@@ -81,9 +81,10 @@
         note={"세로 · 시간대별 운전 상태 비율" + (baseline ? " · 점선 · 기록 처음 30%의 끝" : "")} />
     </figure>
   {/if}
-  {#if operation.excluded}<p class="note">설비가 대부분 정지해 있던 시간은 신호 변화 판단에서 뺐습니다.</p>{/if}
+  {#if operation.excluded}<p class="note">정지해 있던 동안의 값은 신호 변화 판단에서 뺐습니다.</p>{/if}
   <details class="note"><summary>운전 상태를 나눈 방식</summary>
-    <p>{operation.label}이 {bandRange(operation, 0)}이면 정지로 봅니다. 운전 중 값은 이 기록에서 전류가 자주 머문 값을 찾아 나누었고, 각 상태의 전류 값은 그 범위의 중앙값입니다.</p>
+    <p>{operation.label}이 {bandRange(operation, 0)}이면 정지로 봅니다. 운전 중 값은 이 기록에서 전류가 자주 머문 값을 찾아 나누었고, 각 상태의 전류 값은 그 범위의 중앙값입니다.
+      주요 변화는 측정 시각마다 이 상태를 붙여, 같은 운전 상태의 값끼리 견줍니다.</p>
   </details>
 </section>
 

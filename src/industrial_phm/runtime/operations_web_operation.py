@@ -12,7 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from industrial_phm.application.measurement_history import ValueOccupancy
+from industrial_phm.application.measurement_history import (
+    HistoryStream,
+    LevelAggregationBucket,
+    ProfileLevel,
+    ValueOccupancy,
+)
 from industrial_phm.application.operating_state import (
     OperatingLevels,
     find_levels,
@@ -20,6 +25,7 @@ from industrial_phm.application.operating_state import (
     main_current,
     running_bins,
 )
+from industrial_phm.application.signal_exploration import display_unit
 from industrial_phm.history import DuckLakeAssetHistory
 
 _TIMELINE_BUCKETS = 1000
@@ -66,98 +72,44 @@ class StreamOperation:
         return shares is not None and shares[0] >= STOPPED_MAJORITY
 
 
-def stream_operations(
-    history: DuckLakeAssetHistory, asset_id: str, records: Sequence[dict[str, Any]]
-) -> dict[tuple[str, str | None], StreamOperation]:
-    """Operating levels per source and point that records a current in A.
+def stream_levels(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    current: dict[str, Any],
+    start: datetime,
+    end: datetime,
+) -> OperatingLevels:
+    """Operating levels of a source from its chosen current over a range.
 
     Args:
         history: The asset history.
         asset_id: The asset.
-        records: Signal records with ``key``, ``channel``, ``source_id``, ``point_id``,
-            ``unit``, ``interpretation`` and ``points``.
+        current: ``channel``, ``source_id``, ``point_id`` and ``interpretation`` of the current.
+        start: Start of the range, inclusive.
+        end: End of the range, exclusive.
 
     Returns:
-        The operation of each source and point whose current could be read.
+        The stop floor and the running levels.
+
+    Raises:
+        LookupError: The current holds no usable value in the range.
     """
-    found: dict[tuple[str, str | None], StreamOperation] = {}
-    for stream in {(record["source_id"], record["point_id"]) for record in records}:
-        members = [r for r in records if (r["source_id"], r["point_id"]) == stream]
-        key = main_current([(r["key"], r["unit"], r["interpretation"]) for r in members])
-        record = next((r for r in members if r["key"] == key), None)
-        if record is None or not record["points"]:
-            continue
-        try:
-            found[stream] = _operation(history, asset_id, record)
-        except LookupError, ValueError, RuntimeError:
-            continue
-    return found
+    return _levels(_reader(history, asset_id, current, start, end))
 
 
-def _operation(
-    history: DuckLakeAssetHistory, asset_id: str, record: dict[str, Any]
+def stream_operation(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    record: dict[str, Any],
+    levels: OperatingLevels,
 ) -> StreamOperation:
+    """How long the source spent in each level over its current's record."""
     start = min(point[0] for point in record["points"])
     end = max(point[1] for point in record["points"]) + timedelta(seconds=1)
-    read = _reader(history, asset_id, record, start, end)
-    levels = _levels(read)
-    timeline = read(levels.edges, _TIMELINE_BUCKETS)
+    timeline = _reader(history, asset_id, record, start, end)(levels.edges, _TIMELINE_BUCKETS)
     return StreamOperation(
         record["key"], levels, timeline, tuple(bucket.bucket_start for bucket in timeline.buckets)
     )
-
-
-def current_levels(
-    history: DuckLakeAssetHistory,
-    asset_id: str,
-    *,
-    source_id: str,
-    point_id: str | None,
-    channel_id: str,
-) -> OperatingLevels | None:
-    """Operating levels of one source and point, found from one current's whole record.
-
-    The same record and rule as the summary give the same levels, so an analysis split by them
-    names the levels the summary shows.
-
-    Args:
-        history: The asset history.
-        asset_id: The asset.
-        source_id: The source.
-        point_id: The measurement point, or None.
-        channel_id: The current to read the levels from.
-
-    Returns:
-        The levels, or None when the current holds no usable value.
-    """
-    stream = next(
-        (
-            item
-            for item in history.list_history_streams(asset_id)
-            if (item.source_id, item.measurement_point_id) == (source_id, point_id)
-        ),
-        None,
-    )
-    if stream is None or channel_id not in stream.channels:
-        return None
-    start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
-    whole = history.query_multi_signal_measurement_aggregation(
-        asset_id,
-        channel_ids=[channel_id],
-        start_at=start,
-        end_at=end,
-        bucket_count=1,
-        source_id=source_id,
-        measurement_point_id=point_id,
-    )
-    if not whole.buckets:
-        return None
-    meaning = max(whole.buckets, key=lambda bucket: bucket.usable_count).interpretation_json
-    record = {"channel": channel_id, "source_id": source_id, "point_id": point_id}
-    try:
-        return _levels(_reader(history, asset_id, record | {"interpretation": meaning}, start, end))
-    except LookupError:
-        return None
 
 
 def _reader(
@@ -234,7 +186,203 @@ def operation_body(
             "after": operation.shares(baseline[1], record[1]) if baseline else None,
         },
         "bucket_seconds": occupancy.bucket_seconds,
+        # Observations taken while stopped, which no change is judged from.
+        "excluded": sum(bucket.counts[0] for bucket in occupancy.buckets),
         "timeline": [
             [bucket.bucket_start.isoformat(), list(bucket.counts)] for bucket in occupancy.buckets
         ],
     }
+
+
+# A level held for less than this part of a usual bucket gives too few values for its mean.
+_LEVEL_SHARE_OF_BUCKET = 0.25
+
+
+@dataclass(frozen=True, slots=True)
+class LevelSeries:
+    """One record's bucket means while its source ran at one level."""
+
+    key: str
+    band: int
+    points: list[tuple[datetime, datetime, float]]
+
+
+def level_series(
+    buckets: Sequence[LevelAggregationBucket], keys: dict[tuple[str, str], str]
+) -> dict[str, LevelSeries]:
+    """Each record split into one series per running level.
+
+    A bucket gives a level its mean only when the level held for a fair part of it; stopped
+    values are left out.
+
+    Args:
+        buckets: Band buckets of one source and point.
+        keys: Record key per ``(channel_id, interpretation_json)``.
+
+    Returns:
+        Series keyed ``"<record key>@<band>"``.
+    """
+    totals: dict[tuple[str, datetime], int] = {}
+    grouped: dict[tuple[str, int], list[LevelAggregationBucket]] = {}
+    for row in buckets:
+        key = keys.get((row.channel_id, row.interpretation_json))
+        if key is None:
+            continue
+        totals[key, row.bucket_start] = totals.get((key, row.bucket_start), 0) + row.usable_count
+        grouped.setdefault((key, row.band), []).append(row)
+    usual: dict[str, list[int]] = {}
+    for (key, _), total in totals.items():
+        usual.setdefault(key, []).append(total)
+    found: dict[str, LevelSeries] = {}
+    for (key, band), rows in grouped.items():
+        if band == 0:
+            continue
+        counts = sorted(usual[key])
+        least = max(1.0, _LEVEL_SHARE_OF_BUCKET * counts[len(counts) // 2])
+        kept = [(b.bucket_start, b.bucket_end, b.mean) for b in rows if b.usable_count >= least]
+        if kept:
+            found[f"{key}@{band}"] = LevelSeries(key, band, kept)
+    return found
+
+
+# Levels per source, so the summary and the comparison split by the same levels without reading
+# the whole record again. A record that grows changes its extent and so its entry.
+_SOURCE_LEVELS: dict[tuple[str, ...], tuple[tuple[str, str], OperatingLevels] | None] = {}
+
+
+def source_levels(
+    history: DuckLakeAssetHistory, asset_id: str, stream: HistoryStream
+) -> tuple[tuple[str, str], OperatingLevels] | None:
+    """The current a source's operating levels are read from, and the levels.
+
+    Args:
+        history: The asset history.
+        asset_id: The asset.
+        stream: The source and point, with its stored extent.
+
+    Returns:
+        ``((channel_id, interpretation_json), levels)``, or None when the source records no
+        current in A with a usable value.
+    """
+    key = (
+        str(history.config.catalog_path),
+        asset_id,
+        stream.source_id,
+        stream.measurement_point_id or "",
+        stream.start_at.isoformat(),
+        stream.end_at.isoformat(),
+    )
+    if key in _SOURCE_LEVELS:
+        return _SOURCE_LEVELS[key]
+    start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
+    meanings = history.list_stream_meanings(
+        asset_id,
+        source_id=stream.source_id,
+        measurement_point_id=stream.measurement_point_id,
+        start_at=start,
+        end_at=end,
+    )
+    labels = {f"{channel}\0{meaning}": (channel, meaning) for channel, meaning in meanings}
+    main = main_current([(name, display_unit(*pair), pair[1]) for name, pair in labels.items()])
+    found = None
+    if main is not None:
+        channel, meaning = labels[main]
+        current = {
+            "channel": channel,
+            "source_id": stream.source_id,
+            "point_id": stream.measurement_point_id,
+            "interpretation": meaning,
+        }
+        try:
+            found = (labels[main], stream_levels(history, asset_id, current, start, end))
+        except LookupError:
+            found = None
+    if len(_SOURCE_LEVELS) > 256:
+        _SOURCE_LEVELS.clear()
+    _SOURCE_LEVELS[key] = found
+    return found
+
+
+def comparison_operation(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    periods: Sequence[tuple[str, datetime, datetime]],
+    *,
+    source_id: str | None = None,
+    point_id: str | None = None,
+) -> tuple[dict[str, Any], ProfileLevelSource] | None:
+    """How the source ran in each compared period, and what a level filter reads from.
+
+    Args:
+        history: The asset history.
+        asset_id: The asset.
+        periods: The named periods being compared.
+        source_id: The source to read, required when several sources record a current.
+        point_id: Its measurement point.
+
+    Returns:
+        The levels with each period's share per band, and the level signal; None when no single
+        source with a current in A can be chosen.
+    """
+    streams = [
+        stream
+        for stream in history.list_history_streams(asset_id)
+        if source_id is None
+        or (stream.source_id, stream.measurement_point_id) == (source_id, point_id)
+    ]
+    found = [
+        (stream, read) for stream in streams if (read := source_levels(history, asset_id, stream))
+    ]
+    if len(found) != 1:
+        return None
+    stream, ((channel, meaning), levels) = found[0]
+    shares: dict[str, list[float] | None] = {}
+    for name, start, end in periods:
+        occupancy = history.query_value_occupancy(
+            asset_id,
+            channel_id=channel,
+            source_id=stream.source_id,
+            measurement_point_id=stream.measurement_point_id,
+            interpretation_json=meaning,
+            start_at=start,
+            end_at=end,
+            edges=levels.edges,
+        )
+        counts = occupancy.buckets[0].counts if occupancy.buckets else ()
+        shares[name] = [count / sum(counts) for count in counts] if sum(counts) else None
+    body = {
+        "source_id": stream.source_id,
+        "point_id": stream.measurement_point_id,
+        "label": channel,
+        "unit": display_unit(channel, meaning),
+        **levels_body(levels),
+        "shares": shares,
+    }
+    return body, ProfileLevelSource(
+        stream.source_id, stream.measurement_point_id, channel, meaning, levels
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class ProfileLevelSource:
+    """The level signal of one source, from which a band's bounds are taken."""
+
+    source_id: str
+    point_id: str | None
+    channel_id: str
+    interpretation_json: str
+    levels: OperatingLevels
+
+    def bounds(self, band: int) -> ProfileLevel:
+        """The level restriction of one band: stopped is 0, running levels count from 1."""
+        edges = self.levels.edges
+        if not 0 <= band <= len(edges):
+            raise ValueError("unknown operating level")
+        return ProfileLevel(
+            self.source_id,
+            self.point_id,
+            self.channel_id,
+            self.interpretation_json,
+            edges[band - 1] if band > 0 else None,
+            edges[band] if band < len(edges) else None,
+        )

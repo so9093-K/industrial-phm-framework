@@ -18,7 +18,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, shiftText, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, shiftText, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -160,16 +160,15 @@
       <ul class="found">
         {#each findings.intervals as item (item.start + (item.context?.key ?? item.channel))}
           {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
+          {@const own = item.operation ? findings.operation.find(entry => entry.key === item.operation?.key) : undefined}
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
           <li>
-            <div class="finding-head"><h3>{item.label} · {item.kind==="level-change"?"일정하던 값이 ":"기준 구간보다 "}{item.direction==="up"?"상승":"하락"}</h3>
+            <div class="finding-head"><h3>{item.label} · {#if own && item.band != null}{bandName(own, item.band) + " 중 "}{/if}{item.kind==="level-change"?"일정하던 값이 ":"기준 구간보다 "}{item.direction==="up"?"상승":"하락"}</h3>
             {#if item.context}<SourceIdentity id={item.context.sourceId} pointId={item.context.pointId} interpretationId={item.context.interpretationId} among={findings.signals.flatMap(row=>row.context?[row.context.sourceId]:[])}/>{/if}
             </div>
             <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
             <p class="change-time">{told.when}</p>
-            {#if item.operation?.interval}{@const own = findings.operation.find(entry => entry.key === item.operation?.key)}
-              {#if own}<p class="change-time">{shiftText(own, item.operation)}</p>{/if}
-            {/if}
+            {#if own && item.band == null && item.operation?.interval}<p class="change-time">{shiftText(own, item.operation)}</p>{/if}
             <ChangeInterval finding={item} />
             <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
             {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
@@ -199,7 +198,8 @@
       </ul>
       <details class="context small"><summary>변화 선정 방식과 전체 신호</summary>
         <p>계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
-          대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.</p>
+          대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.
+          {#if findings.operation.length}운전 상태를 아는 출처는 같은 운전 상태의 값끼리 견주고, 정지해 있던 동안의 값은 판단하지 않습니다.{/if}</p>
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></details>
     {:else if findings && findings.judged}
       <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
