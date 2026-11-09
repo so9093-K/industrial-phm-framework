@@ -10,6 +10,7 @@
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
+  import SpectrumWaterfall from "./SpectrumWaterfall.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {spectrumMessage,times} from "../analysis-messages";
   import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakSummary, frequencyText,
@@ -164,6 +165,8 @@
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
     <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
+    <SpectrumWaterfall {assetId} {place} />
+    <h3>두 기간 비교</h3>
     <div class="periods">
       {#each ["a","b"] as label(label)}
         {@const name=label as "a"|"b"}

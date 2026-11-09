@@ -35,6 +35,7 @@ from industrial_phm.application.signal_exploration import (
     acquisition_series,
     acquisition_source,
     acquisition_spectrum,
+    acquisition_waterfall,
     display_unit,
     history_relation,
     history_series,
@@ -72,6 +73,7 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/attention",
         "/api/v1/explore/findings",
         "/api/v1/explore/vibration",
+        "/api/v1/explore/waterfall",
     }
 )
 # The buckets a stored record is read in for baseline departures. 관측 현황's check and the
@@ -140,6 +142,19 @@ def handle_explore_read(
             return HTTPStatus.OK, _departures(workspace, asset_id, query)
         if path == "/api/v1/explore/findings":
             return HTTPStatus.OK, record_findings(workspace, asset_id)
+        if path == "/api/v1/explore/waterfall":
+            binding = acquisition_binding(store, asset_id) if store.path.exists() else None
+            if binding is None:
+                raise LookupError("no stored acquisitions")
+            return HTTPStatus.OK, {
+                "schema_version": 1,
+                "asset_id": asset_id,
+                **acquisition_waterfall(
+                    SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+                    binding,
+                ),
+                "meaning": "stored-waveform-spectra-not-fault-frequencies",
+            }
         if path == "/api/v1/explore/vibration":
             # Imported here: the vibration findings reuse this module's acquisition helpers.
             from industrial_phm.runtime.operations_web_vibration import acquisition_findings

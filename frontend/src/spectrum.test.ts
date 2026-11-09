@@ -17,7 +17,9 @@ test("source identity and acquisition ordinal boundaries",()=>{
   acquisition:{source_id:"src",binding_id:"binding",first:1,last:30,count:30}};
  assert.equal(parseAcquisition(opts,"motor")?.source,"src");
  assert.throws(()=>parseAcquisition(opts,"other"),/다른 설비/);
- assert.deepEqual(defaultSpans(acq),spans);
+ // The first 30% against the last 30% of the acquisitions.
+ assert.deepEqual(defaultSpans(acq),{a:{from:1,to:9},b:{from:22,to:30}});
+ assert.deepEqual(defaultSpans({...acq,last:2,count:2}),{a:{from:1,to:1},b:{from:2,to:2}});
 });
 test("Welch arrays must align with frequency bins and correct ranges",()=>{
  const data=parseSpectrum(spectrum(),"motor",acq,spans);

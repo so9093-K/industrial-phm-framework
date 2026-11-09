@@ -1030,3 +1030,27 @@ def test_vibration_changes_are_found_by_acquisition_number(tmp_path: Path) -> No
         assert status == 200 and empty["intervals"] == [] and empty["first"] is None
     finally:
         stop()
+
+
+def test_each_acquisitions_spectrum_shows_from_when_the_energy_rose(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 13):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 if ordinal < 9 else 3.0)
+    analyze(workspace)
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/waterfall", asset_id="bearing-a")
+        assert status == 200
+        assert found["acquisitions"] == list(range(1, 13))
+        assert 0 < len(found["frequencies"]) <= 200 and found["floor_db"] == -60.0
+        horizontal = next(c for c in found["channels"] if c["channel"].startswith("Horizontal"))
+        rows = horizontal["decibels"]
+        assert len(rows) == 12 and all(len(row) == len(found["frequencies"]) for row in rows)
+        assert max(max(row) for row in rows) == 0.0
+        # The rows from acquisition 9 on carry more power than the ones before.
+        before = sum(max(row) for row in rows[:8]) / 8
+        after = sum(max(row) for row in rows[8:]) / 4
+        assert after > before + 10
+        assert get("/api/v1/explore/waterfall", asset_id="unknown")[0] == 404
+    finally:
+        stop()
