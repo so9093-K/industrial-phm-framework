@@ -20,6 +20,24 @@ export type FoundInterval = {
   baseline: {from: string; to: string} | null;
   reference: number | null; typical: number | null;
   related: {context?: RecordContext|null; channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
+  /** How the equipment ran in the change and in its reference period: shares per band, stopped first. */
+  operation?: {key: string; interval: number[] | null; baseline: number[] | null} | null;
+};
+/** How one source and point ran, read from its current: stopped below a floor, then each running
+ * level, as found in the record's own current. */
+export type Operation = {
+  key: string; label: string; unit: string | null; context?: RecordContext | null;
+  stoppedBelow: number;
+  levels: {low: number; high: number | null; typical: number}[];
+  /** The current's own first 30%, which the shares before and after are split at. */
+  baseline: {from: string; to: string} | null;
+  /** Share of time per band, stopped first: over the record, its first 30% and after it. */
+  shares: {record: number[] | null; baseline: number[] | null; after: number[] | null};
+  bucketSeconds: number;
+  /** Observations per band in each time bucket that holds any. */
+  timeline: {at: string; counts: number[]}[];
+  /** Time buckets left out of the change judgment because the equipment was mostly stopped. */
+  excluded: number;
 };
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
 export type SignalState = "scored" | "level-change" | "short-baseline" | "constant" | "cumulative" | "copied" | "no-values";
@@ -41,6 +59,7 @@ export type RecordFindings = {
   bucketSeconds: number | null;
   signals: CheckedSignal[]; judged: number; unchecked: number;
   intervals: FoundInterval[]; count: number;
+  operation: Operation[];
 };
 
 function invalid(): never { throw new Error("기록에서 찾은 변화의 형식이 올바르지 않습니다."); }
@@ -73,6 +92,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
       baseline: range(row.baseline ?? null),
       reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
       typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
+      operation: parseShift(row.operation),
       related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
         const other = object(entry);
         if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
@@ -103,9 +123,83 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
   if (intervals.length && !judged) invalid();
   const count = finite(root.interval_count);
   if (count < intervals.length) invalid();
+  const operation = (Array.isArray(root.operation) ? root.operation : []).map(parseOperation);
+  for (const item of intervals) {
+    const own = operation.find(entry => entry.key === item.operation?.key);
+    if (item.operation && (!own || [item.operation.interval, item.operation.baseline].some(shares => shares && shares.length !== own.levels.length + 1))) invalid();
+  }
   return {assetId, baseline: range(root.baseline), record: range(root.record ?? null),
     bucketSeconds: root.bucket_seconds === null ? null : finite(root.bucket_seconds),
-    signals, judged, unchecked: finite(root.unchecked), intervals, count};
+    signals, judged, unchecked: finite(root.unchecked), intervals, count, operation};
+}
+
+const period = (raw: unknown) => {
+  const row = object(raw);
+  return row ? {from: instant(row.from), to: instant(row.to)} : invalid();
+};
+const shareList = (raw: unknown): number[] | null => {
+  if (raw === null || raw === undefined) return null;
+  if (!Array.isArray(raw) || !raw.length) invalid();
+  const shares = raw.map(finite);
+  return shares.every(share => share >= 0 && share <= 1) ? shares : invalid();
+};
+
+function parseShift(raw: unknown): FoundInterval["operation"] {
+  if (raw === null || raw === undefined) return null;
+  const row = object(raw);
+  return row ? {key: text(row.key), interval: shareList(row.interval), baseline: shareList(row.baseline)} : invalid();
+}
+
+function parseOperation(raw: unknown): Operation {
+  const row = object(raw), shares = object(row?.shares);
+  if (!row || !shares || !Array.isArray(row.levels) || !Array.isArray(row.timeline)) invalid();
+  const levels = row.levels.map((entry: unknown) => {
+    const level = object(entry);
+    if (!level) invalid();
+    return {low: finite(level.low), high: level.high === null ? null : finite(level.high), typical: finite(level.typical)};
+  });
+  const bands = levels.length + 1;
+  const timeline = row.timeline.map((entry: unknown) => {
+    if (!Array.isArray(entry) || entry.length !== 2 || !Array.isArray(entry[1]) || entry[1].length !== bands) invalid();
+    return {at: instant(entry[0]), counts: (entry[1] as unknown[]).map(finite)};
+  });
+  const read = {record: shareList(shares.record), baseline: shareList(shares.baseline), after: shareList(shares.after)};
+  if (Object.values(read).some(list => list && list.length !== bands)) invalid();
+  return {key: text(row.key), label: text(row.label), unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null,
+    context: recordContext(row.context ?? null), stoppedBelow: finite(row.stopped_below), levels, shares: read,
+    baseline: row.baseline === null || row.baseline === undefined ? null : period(row.baseline),
+    bucketSeconds: finite(row.bucket_seconds), timeline, excluded: finite(row.excluded)};
+}
+
+const about = (number: number) => number.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
+/** What it takes to name an operating band: the stop floor and each running level. */
+export type LevelNames = Pick<Operation, "levels" | "unit" | "stoppedBelow">;
+/** A band as people say it: "정지", or a running level by the current it usually drew. */
+export function bandName(operation: LevelNames, band: number): string {
+  if (band === 0) return "정지";
+  return "약 " + about(operation.levels[band - 1].typical) + (operation.unit ? " " + operation.unit : "") + " 운전";
+}
+/** The current a band covers. */
+export function bandRange(operation: LevelNames, band: number): string {
+  const unit = operation.unit ? " " + operation.unit : "";
+  if (band === 0) return about(operation.stoppedBelow) + unit + " 미만";
+  const level = operation.levels[band - 1];
+  return level.high === null ? about(level.low) + unit + " 이상" : about(level.low) + "~" + about(level.high) + unit;
+}
+/** Shares as a percentage people read; a band held for under half a percent reads as 0%. */
+export const percent = (share: number) => Math.round(share * 100) + "%";
+/** How the equipment mostly ran in a change, beside the share the same state had in the first 30%. */
+export function shiftText(operation: Operation, shift: NonNullable<FoundInterval["operation"]>): string {
+  if (!shift.interval) return "";
+  const band = shift.interval.indexOf(Math.max(...shift.interval));
+  return "이 구간은 " + bandName(operation, band) + " " + percent(shift.interval[band])
+    + (shift.baseline ? " · 처음 30%에는 " + percent(shift.baseline[band]) : "");
+}
+/** The bands a period spent time in, most first, as "약 62 A 운전 73% · 정지 5%". */
+export function sharesText(operation: Operation, shares: number[] | null): string {
+  if (!shares) return "";
+  return shares.map((share, band) => ({share, band})).filter(row => row.share >= 0.005)
+    .sort((a, b) => b.share - a.share).map(row => bandName(operation, row.band) + " " + percent(row.share)).join(" · ");
 }
 
 export async function readRecordFindings(assetId: string, signal: AbortSignal): Promise<RecordFindings> {

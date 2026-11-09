@@ -12,6 +12,7 @@ from industrial_phm.application.electrical_condition import (
 from industrial_phm.application.phase_unbalance import UnbalanceQuantity, resolve_phase_channels
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_live import query_operations_latest_asset_measurements
+from industrial_phm.runtime.operations_web_operation import current_levels, levels_body
 
 
 class ConditionSelectionError(ValueError):
@@ -187,6 +188,26 @@ def project_electrical_condition(
         except ValueError:
             # A period beyond the supported read budget cannot be opened with this control.
             next_available = False
+    # The levels the summary shows for this source, read from the same current.
+    measured = sorted(
+        (
+            candidate
+            for candidate in candidates
+            if candidate.unit == "A" and "current" in candidate.observed_property.lower()
+        ),
+        key=lambda candidate: (candidate.scope != "three-phase", candidate.channel_id),
+    )
+    levels = (
+        current_levels(
+            reader,
+            asset_id,
+            source_id=source_id,
+            point_id=point_id,
+            channel_id=measured[0].channel_id,
+        )
+        if current and measured
+        else None
+    )
     result = analyze_electrical_condition(
         reference,
         target,
@@ -197,11 +218,13 @@ def project_electrical_condition(
         reference_end=reference_end,
         target_start=start,
         target_end=end,
+        levels=levels,
     )
     return {
         **base,
         "state": "analyzed",
         "next_period_available": next_available,
         **result,
+        "operating_levels": levels_body(levels) if levels else None,
         "excluded": {"reference": reference_excluded, "target": target_excluded},
     }

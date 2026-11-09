@@ -210,7 +210,7 @@
       {#if !runs.length}
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
       {:else}
-        <p class="axis-note">최고 {measured(scale.high, METRICS[metric].unit)} · 최저 {measured(scale.low, METRICS[metric].unit)}{#if threshold !== null}<span class="dash"> · 점선: 기준 기간 점수 99% {measured(threshold)}</span>{/if}</p>
+        <p class="axis-note">최고 {measured(scale.high, METRICS[metric].unit)} · 최저 {measured(scale.low, METRICS[metric].unit)}{#if threshold !== null}<span class="dash"> · 점선: {analyzed.pattern.byLevel ? "같은 운전 상태의 기준 기간 점수 99% (점수는 이 기준선의 배수)" : "기준 기간 점수 99% " + measured(threshold)}</span>{/if}</p>
         <ValueAxis ticks={scale.ticks} height={H} unit={METRICS[metric].unit.trim() || null}>
         <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img"
           aria-label={(phased ? "R·S·T 상별 전류" : METRICS[metric].label) + " · " + kstTime(analyzed.targetStart) + "부터 " + kstTime(analyzed.targetEnd) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
@@ -279,7 +279,7 @@
         <div><dt>시각 근거</dt><dd>{analyzed.details.timeEvidence.join(" · ") || "입력의 관측 시각을 그대로 사용 · 장비 시계가 맞는지는 확인하지 않음"}</dd></div>
         <div><dt>센서 품질</dt><dd>{analyzed.details.fileQuality ? "원본 기록에 품질 판정이 없음" : "관측별 원본 상태를 사용"}</dd></div>
         <div><dt>패턴 비교 모델</dt><dd>{analyzed.pattern.scored ? (analyzed.pattern.model ?? "기록 없음") + " · 학습 관측 " + measured(analyzed.pattern.fitSamples) : "기준 데이터 부족으로 실행하지 않음"}</dd></div>
-        <div><dt>비교 기준</dt><dd>고른 앞선 기간의 측정값으로 학습하고 점수 기준을 계산합니다.</dd></div>
+        <div><dt>비교 기준</dt><dd>고른 앞선 기간의 측정값으로 학습하고 점수 기준을 계산합니다.{#if analyzed.pattern.byLevel} 운전 상태(3상 평균 전류 수준)마다 따로 학습해, 같은 상태의 관측끼리 견줍니다.{/if}</dd></div>
         <div><dt>불평형 계산</dt><dd>세 상 값의 평균에서 가장 먼 값까지의 차이 ÷ 평균 × 100 · 전압 50V 미만, 전류 1A 미만은 제외</dd></div>
         <div><dt>저장 시점</dt><dd>{analyzed.details.snapshotId ?? "기록 없음"}</dd></div>
       </dl>

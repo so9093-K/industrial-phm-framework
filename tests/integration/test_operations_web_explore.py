@@ -370,25 +370,26 @@ def test_the_summary_names_what_the_record_held_even_when_it_ends_as_it_began(
     try:
         # 관측 현황 asks whether the record ends away from its start: it does not.
         assert get("/api/v1/explore/attention", asset_id="comp-01")[1]["items"] == []
-        # The summary asks what the record held: the stop, named as observed.
+        # The summary asks what the record held: the stop, named as how the compressor ran.
         status, found = get("/api/v1/explore/findings", asset_id="comp-01")
         assert status == 200
         assert found["meaning"] == "departures-from-the-first-30-percent-not-fault-diagnosis"
         assert [(row["label"], row["state"]) for row in found["signals"]] == [
             ("R상전류", "scored"),
-            ("T상전류", "level-change"),
+            ("T상전류", "constant"),
         ]
         assert found["judged"] == 2 and found["unchecked"] == 0
-        # A constant baseline still exposes its level change and observed values.
+        # A constant baseline still exposes its observed values, judged while running.
         held = found["signals"][1]
-        assert held["held"] == 60.0 and held["later"] == {"low": 0.0, "high": 60.0}
-        assert found["interval_count"] >= 1 and found["bucket_seconds"] > 0
-        stop_interval = found["intervals"][0]
-        assert stop_interval["direction"] == "down" and stop_interval["value"] == 0.0
-        assert stop_interval["unit"] == "A" and stop_interval["within"] == ["T상전류"]
-        assert stop_interval["usual"]["low"] < 60 < stop_interval["usual"]["high"]
-        start = datetime.fromisoformat(stop_interval["start"])
-        assert BASE + timedelta(minutes=59) <= start <= BASE + timedelta(minutes=60)
+        assert held["held"] == 60.0 and held["later"] == {"low": 60.0, "high": 60.0}
+        assert found["bucket_seconds"] > 0
+        # The stop is not a change in what was measured; the operation says when it stopped.
+        assert found["intervals"] == []
+        (operation,) = found["operation"]
+        assert operation["shares"]["record"] == [pytest.approx(0.25), pytest.approx(0.75)]
+        stopped = [datetime.fromisoformat(at) for at, counts in operation["timeline"] if counts[0]]
+        assert BASE + timedelta(minutes=59) <= min(stopped)
+        assert max(stopped) <= BASE + timedelta(minutes=90)
         assert get("/api/v1/explore/findings", asset_id="comp-01")[1] == found
         assert get("/api/v1/explore/findings", asset_id="unknown")[1]["intervals"] == []
         # A declared current in A also counts, per period, the measurements below 1 A.
@@ -574,6 +575,66 @@ def test_changes_come_from_what_drives_the_equipment_not_from_a_miswritten_colum
         # The note on 관측 현황 names the current, not the column that held another item.
         (note,) = get("/api/v1/explore/attention", asset_id="comp-02")[1]["items"]
         assert note["channel"] == "R상전류" and note["direction"] == "down"
+    finally:
+        stop()
+
+
+def test_starting_from_a_stop_is_how_the_equipment_ran_not_a_change(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    current = json.dumps(
+        {"semantics": {"definition": {"observed_property": "phase current", "unit": "A"}}}
+    )
+
+    def value(channel: str, index: int) -> float:
+        # Stopped for the first 70 minutes, then running near 9 A. The power factor reads 0
+        # while stopped and drops from 0.66 to 0.5 for the last 30 minutes of running.
+        if index < 70:
+            return 0.0
+        if channel == "전류":
+            return 9.0 + (index % 5) * 0.1
+        return (0.5 if index >= 170 else 0.66) + (index % 4) * 0.005
+
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:boiler:{'c' * 64}:{offset}:{index}",
+                source_id="boiler-file",
+                asset_id="boiler-01",
+                channel_id=channel,
+                source_file="boiler.csv",
+                source_sha256="c" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=value(channel, index),
+                source_metadata_json=meaning,
+            )
+            for offset, (channel, meaning) in enumerate({"전류": current, "역률": "{}"}.items())
+            for index in range(200)
+        ),
+        batch_id="boiler-01",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="boiler-01")
+        assert status == 200
+        (operation,) = found["operation"]
+        assert operation["label"] == "전류" and operation["stopped_below"] == 1.0
+        (level,) = operation["levels"]
+        assert level["typical"] == pytest.approx(9.2, abs=0.2)
+        assert operation["shares"]["record"] == [pytest.approx(0.35), pytest.approx(0.65)]
+        assert operation["excluded"] > 0
+        assert sum(sum(counts) for _, counts in operation["timeline"]) == 200
+        # Only the drop while running is a change; starting up is not.
+        (change,) = found["intervals"]
+        assert change["label"] == "역률" and change["direction"] == "down"
+        assert datetime.fromisoformat(change["start"]) >= BASE + timedelta(minutes=165)
+        assert change["operation"]["interval"] == [0.0, pytest.approx(1.0)]
+        assert change["operation"]["baseline"][0] < 0.5
     finally:
         stop()
 

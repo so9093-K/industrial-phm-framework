@@ -18,6 +18,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,8 @@ from industrial_phm.application.measurement_history import (
     MeasurementProfile,
     MultiSignalMeasurementHistoryAggregation,
     MultiSignalMeasurementHistoryBucket,
+    ValueOccupancy,
+    ValueOccupancyBucket,
 )
 from industrial_phm.application.measurement_semantics import (
     ChannelSemanticBinding,
@@ -1814,6 +1817,111 @@ class DuckLakeAssetHistory:
                     _require_str(r[15], "interpretation"),
                 )
                 for r in rows
+            ),
+        )
+
+    def query_value_occupancy(
+        self,
+        asset_id: str,
+        *,
+        channel_id: str,
+        source_id: str,
+        measurement_point_id: str | None,
+        interpretation_json: str,
+        start_at: datetime,
+        end_at: datetime,
+        edges: Sequence[float] = (),
+        bucket_count: int = 1,
+    ) -> ValueOccupancy:
+        """Count one signal identity's usable values between value edges, per time bucket.
+
+        The counts come from raw observations, one per timestamp, so the time spent in each
+        band is exact however long the range is. A conflicting timestamp is never counted.
+
+        Args:
+            asset_id: The asset whose history is read.
+            channel_id: The channel to count.
+            source_id: The source the values came from.
+            measurement_point_id: The measurement point, or None for none.
+            interpretation_json: The stored meaning; unlike meanings are never counted together.
+            start_at: Start of the range, inclusive.
+            end_at: End of the range, exclusive.
+            edges: At most 256 strictly increasing finite band boundaries.
+            bucket_count: Equal time buckets over the range, at most 1000.
+
+        Returns:
+            The counts per non-empty bucket, with the range's smallest and largest value.
+        """
+        validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
+        _validate_identifier(channel_id, "channel_id")
+        _validate_identifier(source_id, "source_id")
+        if measurement_point_id is not None:
+            _validate_identifier(measurement_point_id, "measurement_point_id")
+        bands = tuple(float(edge) for edge in edges)
+        if len(bands) > 256 or not all(isfinite(edge) for edge in bands):
+            raise ValueError("edges must be at most 256 finite values")
+        if any(low >= high for low, high in pairwise(bands)):
+            raise ValueError("edges must increase strictly")
+        _validate_positive_int(bucket_count, "bucket_count")
+        if bucket_count > 1000:
+            raise ValueError("bucket_count must not exceed 1000")
+        width = (end_at - start_at).total_seconds() / bucket_count
+        band = (
+            "CASE "
+            + " ".join(f"WHEN value < ? THEN {index}" for index in range(len(bands)))
+            + f" ELSE {len(bands)} END"
+            if bands
+            else "0"
+        )
+        connection = self._connect()
+        try:
+            self._ensure_initialized(connection)
+            _create_profile_points(
+                connection, asset_id, (channel_id,), (("range", start_at, end_at),)
+            )
+            rows = connection.execute(
+                f"""
+                WITH stamps AS (
+                    -- Equal duplicates of one timestamp are one observation.
+                    SELECT event_at, any_value(value) AS value FROM profile_points
+                    WHERE usable AND source_id = ? AND point_key = ? AND interpretation = ?
+                    GROUP BY event_at
+                )
+                SELECT least(floor(epoch(event_at - ?) / ?)::BIGINT, ?) AS bucket_index,
+                    {band} AS band, count(*), min(value), max(value)
+                FROM stamps
+                GROUP BY ALL
+                ORDER BY ALL
+                """,
+                [
+                    source_id,
+                    measurement_point_id or "",
+                    interpretation_json,
+                    start_at,
+                    width,
+                    bucket_count - 1,
+                    *bands,
+                ],
+            ).fetchall()
+        finally:
+            connection.close()
+        counts: dict[int, list[int]] = {}
+        for index, position, count, _, _ in rows:
+            counts.setdefault(int(index), [0] * (len(bands) + 1))[int(position)] = int(count)
+        return ValueOccupancy(
+            start_at,
+            end_at,
+            width,
+            bands,
+            min((float(row[3]) for row in rows), default=None),
+            max((float(row[4]) for row in rows), default=None),
+            tuple(
+                ValueOccupancyBucket(
+                    start_at + timedelta(seconds=index * width),
+                    min(end_at, start_at + timedelta(seconds=(index + 1) * width)),
+                    tuple(values),
+                )
+                for index, values in sorted(counts.items())
             ),
         )
 

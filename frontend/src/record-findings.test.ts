@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {copiedGroups, findingLinks, findingText, parseRecordFindings, unjudgedText, type CheckedSignal} from "./record-findings.ts";
+import {bandName, bandRange, copiedGroups, findingLinks, findingText, parseRecordFindings, sharesText, shiftText, unjudgedText, type CheckedSignal} from "./record-findings.ts";
 
 const body = () => ({
   schema_version: 1, asset_id: "comp", meaning: "departures-from-the-first-30-percent-not-fault-diagnosis",
@@ -120,4 +120,25 @@ test("columns that held another item's values are listed once per period and are
   ]);
   // A copied signal must say which item and when.
   assert.throws(()=>parseRecordFindings({...root,signals:[...root.signals,{channel:"x",label:"x",unit:null,state:"copied"}]},"comp"));
+});
+
+test("how the equipment ran is read per current level and attached to the changes it explains", () => {
+  const operation = {key: "k", label: "전류평균", unit: "A", stopped_below: 1, excluded: 0, bucket_seconds: 3600,
+    baseline: {from: "2020-09-15T15:00:00Z", to: "2020-09-26T15:00:00Z"},
+    levels: [{low: 1, high: 26.1, typical: 10.6}, {low: 26.1, high: 45.9, typical: 31.4}, {low: 45.9, high: null, typical: 61.9}],
+    shares: {record: [0, 0.081, 0.294, 0.625], baseline: [0, 0.032, 0.242, 0.726], after: [0, 0.102, 0.316, 0.582]},
+    timeline: [["2020-09-15T15:00:00Z", [0, 0, 0, 60]], ["2020-09-15T16:00:00Z", [0, 3, 50, 7]]]};
+  const root = body();
+  const change = {...root.intervals[0], operation: {key: "k", interval: [0, 0.12, 0.87, 0.01], baseline: [0, 0.03, 0.24, 0.73]}};
+  const found = parseRecordFindings({...root, operation: [operation], intervals: [change]}, "comp");
+  const [read] = found.operation;
+  assert.deepEqual([0, 1, 2, 3].map(band => bandName(read, band)), ["정지", "약 11 A 운전", "약 31 A 운전", "약 62 A 운전"]);
+  assert.deepEqual([0, 1, 3].map(band => bandRange(read, band)), ["1 A 미만", "1~26 A", "46 A 이상"]);
+  assert.equal(sharesText(read, found.intervals[0].operation!.interval), "약 31 A 운전 87% · 약 11 A 운전 12% · 약 62 A 운전 1%");
+  assert.equal(shiftText(read, found.intervals[0].operation!), "이 구간은 약 31 A 운전 87% · 처음 30%에는 24%");
+  assert.equal(read.timeline[1].counts[2], 50);
+  // Shares must name every band, and a change may only point at an operation that was sent.
+  assert.throws(() => parseRecordFindings({...root, operation: [{...operation, shares: {...operation.shares, record: [0.5, 0.5]}}]}, "comp"));
+  assert.throws(() => parseRecordFindings({...root, operation: [], intervals: [change]}, "comp"));
+  assert.deepEqual(parseRecordFindings(root, "comp").operation, []);
 });

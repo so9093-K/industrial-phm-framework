@@ -12,6 +12,7 @@ from industrial_phm.application.electrical_condition import (
     analyze_electrical_condition,
     electrical_samples,
 )
+from industrial_phm.application.operating_state import OperatingLevels
 
 AT = datetime(2026, 10, 12, tzinfo=UTC)
 CHANNELS = ("vR", "vS", "vT", "iR", "iS", "iT")
@@ -52,6 +53,42 @@ def test_load_change_is_explained_and_target_cannot_change_reference_calibration
     assert changed["pattern"]["reference_samples"] == 120
     assert changed["pattern"]["scored_samples"] == 120
     assert all(row["at"].startswith("2026-10-12T0") for row in changed["timeline"])
+
+
+def test_each_operating_level_is_compared_only_with_the_same_level() -> None:
+    levels = OperatingLevels((1.0, 45.0), (30.0, 60.0))
+    reference = _samples(AT, current=60)
+    # Half the target runs near 30 A, a level the reference never ran at; the rest near 60 A,
+    # with a voltage dip at one 60 A minute.
+    target = list(_samples(AT + timedelta(hours=2), current=30, count=60))
+    target += _samples(AT + timedelta(hours=3), current=60, count=60)
+    dip = target[90]
+    target[90] = replace(dip, voltage=(180.0, 181.0, 179.0))
+    whole = _analyze(reference, target)["pattern"]
+    split = analyze_electrical_condition(
+        reference,
+        target,
+        channels=CHANNELS,
+        include_voltage=True,
+        include_current=True,
+        reference_start=AT,
+        target_start=AT + timedelta(hours=2),
+        target_end=AT + timedelta(hours=4),
+        levels=levels,
+    )["pattern"]
+    # One model over everything calls the whole 30 A half a departure from the reference.
+    assert whole["above_reference_count"] >= 60
+    # By level, the 30 A minutes have nothing to be compared with and are counted apart.
+    assert split["split"] == "operating-level" and split["threshold"] == 1.0
+    assert split["scored_samples"] == 60 and split["unscored_samples"] == 60
+    by_band = {part["band"]: part for part in split["levels"]}
+    assert by_band[1]["reference_samples"] == 0 and by_band[1]["target_samples"] == 60
+    assert by_band[1]["state"] == "insufficient-reference"
+    assert by_band[2]["state"] == "scored" and by_band[2]["reference_samples"] == 120
+    # The dip at 60 A is still found, first, with its level.
+    first = split["notable"][0]
+    assert first["at"] == dip.at.isoformat() and first["band"] == 2 and first["score"] > 1
+    assert split["above_reference_count"] < 10
 
 
 def test_zero_current_is_low_signal_not_zero_imbalance_or_healthy() -> None:

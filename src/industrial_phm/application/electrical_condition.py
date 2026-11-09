@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import pairwise
 from statistics import median
+from typing import Any
 
 import numpy as np
 
 from industrial_phm.application.analysis_input import ChannelObservation
+from industrial_phm.application.operating_state import OperatingLevels
 from industrial_phm.application.phase_unbalance import PhaseUnbalanceConfig, unbalance_percent
 from industrial_phm.experiments.config import (
     ExperimentConfig,
@@ -170,6 +173,9 @@ def _summary(samples: Sequence[ElectricalSample]) -> dict[str, object]:
     }
 
 
+_MODEL = {"random_seed": 42, "n_estimators": 128, "model": "Isolation Forest"}
+
+
 def _pattern(
     reference: Sequence[ElectricalSample],
     target: Sequence[ElectricalSample],
@@ -177,6 +183,7 @@ def _pattern(
     *,
     include_voltage: bool,
     include_current: bool,
+    levels: OperatingLevels | None = None,
 ) -> tuple[dict[str, object], dict[datetime, float]]:
     def feature(sample: ElectricalSample) -> tuple[float, ...] | None:
         if (include_voltage and sample.voltage is None) or (
@@ -190,8 +197,106 @@ def _pattern(
 
     fit_rows = [(sample, row) for sample in reference if (row := feature(sample)) is not None]
     score_rows = [(sample, row) for sample in target if (row := feature(sample)) is not None]
+    if levels is None or not include_current:
+        whole = _scored(fit_rows, score_rows, channels, include_voltage=include_voltage)
+        if whole is None:
+            return {"state": "insufficient-reference", "reference_samples": len(fit_rows)}, {}
+        return {
+            "state": "scored",
+            "policy_version": "electrical-reference-pattern-v1",
+            **_MODEL,
+            "reference_samples": len(fit_rows),
+            "fit_samples": whole.fit_samples,
+            "scored_samples": len(score_rows),
+            "threshold": whole.threshold,
+            "reference_quantile": 0.99,
+            "above_reference_count": whole.above,
+            "above_reference_percent": whole.above / len(score_rows) * 100,
+            "notable": whole.notable,
+            "meaning": "departure-from-selected-reference-not-fault-probability",
+        }, whole.scores
+
+    def band(sample: ElectricalSample) -> int:
+        return bisect_right(levels.edges, sum(sample.current or ()) / 3)
+
+    # Each operating level is compared only with the same level in the reference period, so a
+    # load the reference rarely ran at is not taken for a departure from its pattern.
+    parts: list[dict[str, object]] = []
+    scores: dict[datetime, float] = {}
+    notable: list[dict[str, Any]] = []
+    fitted = scored = above = 0
+    for level in sorted({band(sample) for sample, _ in [*fit_rows, *score_rows]}):
+        own_fit = [item for item in fit_rows if band(item[0]) == level]
+        own_score = [item for item in score_rows if band(item[0]) == level]
+        part: dict[str, object] = {
+            "band": level,
+            "reference_samples": len(own_fit),
+            "target_samples": len(own_score),
+            "state": "not-in-target",
+        }
+        if own_score:
+            own = _scored(own_fit, own_score, channels, include_voltage=include_voltage)
+            part["state"] = "insufficient-reference" if own is None else "scored"
+            if own is not None:
+                part["above_reference_count"] = own.above
+                fitted += own.fit_samples
+                scored += len(own_score)
+                above += own.above
+                scores |= {at: score / own.threshold for at, score in own.scores.items()}
+                notable += [
+                    {**item, "score": item["score"] / own.threshold, "band": level}
+                    for item in own.notable
+                ]
+        parts.append(part)
+    if not scored:
+        return {
+            "state": "insufficient-reference",
+            "reference_samples": len(fit_rows),
+            "split": "operating-level",
+            "levels": parts,
+        }, {}
+    return {
+        "state": "scored",
+        "policy_version": "electrical-reference-pattern-v2-operating-level",
+        "split": "operating-level",
+        **_MODEL,
+        "reference_samples": len(fit_rows),
+        "fit_samples": fitted,
+        "scored_samples": scored,
+        "unscored_samples": len(score_rows) - scored,
+        # Scores are divided by their own level's threshold, so one line at 1 marks every level.
+        "threshold": 1.0,
+        "score_scale": "ratio-to-same-level-threshold",
+        "reference_quantile": 0.99,
+        "above_reference_count": above,
+        "above_reference_percent": above / scored * 100,
+        "notable": sorted(notable, key=lambda item: -item["score"])[:5],
+        "levels": parts,
+        "meaning": "departure-from-selected-reference-not-fault-probability",
+    }, scores
+
+
+@dataclass(frozen=True, slots=True)
+class _Scored:
+    """One reference-pattern fit and the target scores it gave."""
+
+    threshold: float
+    fit_samples: int
+    scores: dict[datetime, float]
+    above: int
+    notable: list[dict[str, Any]]
+
+
+def _scored(
+    fit_rows: Sequence[tuple[ElectricalSample, tuple[float, ...]]],
+    score_rows: Sequence[tuple[ElectricalSample, tuple[float, ...]]],
+    channels: tuple[str, ...],
+    *,
+    include_voltage: bool,
+) -> _Scored | None:
+    """Fit on the reference rows and score the target rows; None when the reference is too thin."""
     if len(fit_rows) < 60 or len({row for _, row in fit_rows}) < 8 or not score_rows:
-        return {"state": "insufficient-reference", "reference_samples": len(fit_rows)}, {}
+        return None
     # Deterministic reference-only fitting. No target rows enter calibration or the model.
     indices = np.linspace(0, len(fit_rows) - 1, min(2048, len(fit_rows)), dtype=int)
     fitted_rows = [fit_rows[int(index)] for index in indices]
@@ -251,7 +356,7 @@ def _pattern(
     flagged = sum(score > threshold for score in scores)
     matrix = np.asarray([row for _, row in fit_rows])
     limits = np.quantile(matrix, [0.05, 0.5, 0.95], axis=0)
-    notable = []
+    notable: list[dict[str, Any]] = []
     for index in sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:5]:
         sample, row = score_rows[index]
         # Companion signal differences are descriptive, not causal model attribution.
@@ -273,22 +378,7 @@ def _pattern(
                 "unit": "V" if include_voltage and strongest < 3 else "A",
             }
         )
-    return {
-        "state": "scored",
-        "policy_version": "electrical-reference-pattern-v1",
-        "random_seed": 42,
-        "n_estimators": 128,
-        "model": "Isolation Forest",
-        "reference_samples": len(fit_rows),
-        "fit_samples": len(fitted_rows),
-        "scored_samples": len(score_rows),
-        "threshold": threshold,
-        "reference_quantile": 0.99,
-        "above_reference_count": flagged,
-        "above_reference_percent": flagged / len(scores) * 100,
-        "notable": notable,
-        "meaning": "departure-from-selected-reference-not-fault-probability",
-    }, by_time
+    return _Scored(threshold, len(fitted_rows), by_time, flagged, notable)
 
 
 def analyze_electrical_condition(
@@ -302,8 +392,13 @@ def analyze_electrical_condition(
     reference_end: datetime | None = None,
     target_start: datetime,
     target_end: datetime,
+    levels: OperatingLevels | None = None,
 ) -> dict[str, object]:
-    """Explain measured change against a strictly earlier reference period."""
+    """Explain measured change against a strictly earlier reference period.
+
+    With operating levels, each observation's pattern is compared only with the reference
+    observations at the same level of three-phase mean current.
+    """
     reference_end = reference_end or target_start
     if not reference_start < reference_end <= target_start < target_end:
         raise ValueError("reference and target periods must be increasing and disjoint")
@@ -324,6 +419,7 @@ def analyze_electrical_condition(
         channels,
         include_voltage=include_voltage,
         include_current=include_current,
+        levels=levels,
     )
     config = PhaseUnbalanceConfig()
     timeline = [

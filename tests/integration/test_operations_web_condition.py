@@ -40,7 +40,14 @@ def test_condition_http_analyzes_values_and_rejects_cross_source_or_leaking_refe
         assert report["source_id"] == "synthetic-electrical"
         assert report["point_id"] == "meter"
         assert report["pattern"]["reference_samples"] == 60
-        assert report["pattern"]["above_reference_count"] > 0
+        # The target ran at a current level the reference never reached: it is counted apart
+        # with that level, not scored against a pattern of another load.
+        levels = report["operating_levels"]
+        assert levels["stopped_below"] == 1.0 and len(levels["levels"]) == 2
+        assert report["pattern"]["split"] == "operating-level"
+        parts = {part["band"]: part for part in report["pattern"]["levels"]}
+        assert parts[2]["reference_samples"] == 0 and parts[2]["target_samples"] == 60
+        assert parts[2]["state"] == "insufficient-reference"
         assert str(workspace.root) not in str(report)
         assert request(query, host="evil.example")[0] == 403
         assert request(query, method="POST")[0] == 405
