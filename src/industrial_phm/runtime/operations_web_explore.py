@@ -71,6 +71,7 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/anomaly",
         "/api/v1/explore/attention",
         "/api/v1/explore/findings",
+        "/api/v1/explore/vibration",
     }
 )
 # The buckets a stored record is read in for baseline departures. 관측 현황's check and the
@@ -139,6 +140,11 @@ def handle_explore_read(
             return HTTPStatus.OK, _departures(workspace, asset_id, query)
         if path == "/api/v1/explore/findings":
             return HTTPStatus.OK, record_findings(workspace, asset_id)
+        if path == "/api/v1/explore/vibration":
+            # Imported here: the vibration findings reuse this module's acquisition helpers.
+            from industrial_phm.runtime.operations_web_vibration import acquisition_findings
+
+            return HTTPStatus.OK, acquisition_findings(workspace, asset_id)
         series = [value for value in query.get("series", []) if value]
         if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
             raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")

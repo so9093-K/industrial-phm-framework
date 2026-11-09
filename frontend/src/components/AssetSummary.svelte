@@ -2,6 +2,7 @@
   import {recordParams} from "../record-context";
   import ChangeInterval from "./ChangeInterval.svelte";
   import OperationLevels from "./OperationLevels.svelte";
+  import VibrationFindings from "./VibrationFindings.svelte";
   import ChangeReview from "./ChangeReview.svelte";
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   let reviewRevision = $state(0);
@@ -224,6 +225,7 @@
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
       나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>달라진 구간 찾기에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
   {/if}
+  {#if data?.vibration}<VibrationFindings assetId={asset.assetId} />{/if}
   <details ontoggle={event=>archiveOpen=event.currentTarget.open}><summary>저장한 주요 변화 검토</summary>
     {#if archiveOpen}<ChangeReviewArchive assetId={asset.assetId} revision={reviewRevision} />{/if}
   </details>

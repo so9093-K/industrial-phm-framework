@@ -998,3 +998,35 @@ def test_overlapping_meanings_recover_discovery_budget_without_coarsening_result
         )
     finally:
         stop()
+
+
+def test_vibration_changes_are_found_by_acquisition_number(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    # Twenty-two acquisitions near 0.5 g, then a step to about 3 g that lasts to the end.
+    for ordinal in range(1, 31):
+        scale = (0.5 if ordinal < 23 else 3.0) + 0.01 * (ordinal % 3)
+        deliver(workspace, tmp_path / "waves", ordinal, scale, amplitude_unit="g")
+    analyze(workspace)
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/vibration", asset_id="bearing-a")
+        assert status == 200
+        assert (found["first"], found["last"]) == (1, 30) and found["period_seconds"] == 60.0
+        assert found["judged"] > 0
+        first = found["intervals"][0]
+        # RMS is looked at first, and the step is named from the acquisition it began at.
+        assert first["feature"] == RMS and first["label"] == "수평 진동 RMS"
+        assert first["unit"] == "g" and first["direction"] == "up"
+        assert (first["from"], first["to"]) == (23, 30)
+        assert first["baseline"]["from"] == 1 and first["baseline"]["to"] < 23
+        assert first["typical_value"] > 4 * first["reference_value"]
+        assert [point[0] for point in first["trace"]][:2] == [1, 2]
+        assert first["trace"][-1][0] == 30
+        # The same step shows in the other amplitude features of the axis.
+        moved = {row["feature"]: row for row in first["related"]}
+        assert moved and all(row["state"] == "higher" for row in moved.values())
+        # An asset without acquisitions has nothing to say, not an error.
+        status, empty = get("/api/v1/explore/vibration", asset_id="unknown")
+        assert status == 200 and empty["intervals"] == [] and empty["first"] is None
+    finally:
+        stop()
