@@ -1,6 +1,7 @@
 <script lang="ts">
   import {recordParams} from "../record-context";
   import ChangeInterval from "./ChangeInterval.svelte";
+  import OperationLevels from "./OperationLevels.svelte";
   import ChangeReview from "./ChangeReview.svelte";
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   let reviewRevision = $state(0);
@@ -17,7 +18,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, shiftText, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -147,6 +148,9 @@
         {/each}</ul>
       </section>
     {/if}
+    {#if findingState === "ready" && findings}
+      {#each findings.operation as operation (operation.key)}<OperationLevels {operation} />{/each}
+    {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
     {:else if findingState === "failed"}
@@ -163,6 +167,9 @@
             </div>
             <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
             <p class="change-time">{told.when}</p>
+            {#if item.operation?.interval}{@const own = findings.operation.find(entry => entry.key === item.operation?.key)}
+              {#if own}<p class="change-time">{shiftText(own, item.operation)}</p>{/if}
+            {/if}
             <ChangeInterval finding={item} />
             <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
             {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>

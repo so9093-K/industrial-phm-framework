@@ -152,6 +152,36 @@ class MeasurementProfile:
     small_value_count: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class ValueOccupancyBucket:
+    """Usable observations of one time bucket counted per value band.
+
+    ``counts[i]`` holds the values below ``edges[i]`` and at or above ``edges[i - 1]``; the
+    last count holds the values at or above the last edge.
+    """
+
+    bucket_start: datetime
+    bucket_end: datetime
+    counts: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ValueOccupancy:
+    """How long one signal identity stayed in each value band, per time bucket.
+
+    Counts are of usable raw observations, one per timestamp, so a share of time is exact; a
+    bucket mean would blend the bands the signal moved between. Empty buckets are left out.
+    """
+
+    start_at: datetime
+    end_at: datetime
+    bucket_seconds: float
+    edges: tuple[float, ...]
+    minimum: float | None
+    maximum: float | None
+    buckets: tuple[ValueOccupancyBucket, ...]
+
+
 PROFILE_QUANTILES = (0.05, 0.25, 0.5, 0.75, 0.95)
 SMALL_VALUE_LIMIT = 1.0
 

@@ -50,6 +50,7 @@ from industrial_phm.history.ducklake import (
 )
 from industrial_phm.models.package import SUPPORTED_TASKS
 from industrial_phm.runtime.operations_live import OperationsReadError
+from industrial_phm.runtime.operations_web_operation import operation_body, stream_operations
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 EXPLORE_READ_ROUTES = frozenset(
@@ -610,6 +611,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         "unchecked": 0,
         "intervals": [],
         "interval_count": 0,
+        "operation": [],
         "bucket_seconds": None,
         "meaning": "departures-from-the-first-30-percent-not-fault-diagnosis",
     }
@@ -649,11 +651,23 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
     # A declared running total always leaves its early range; it is stated, not judged.
     cumulative = {channel: values for channel, values in points.items() if running_total(channel)}
     copies = _copies(records)
+    operations = stream_operations(history, asset_id, records)
+    # Signals are judged only while the equipment ran: a stop, or starting from one, is how
+    # it was operated and is shown as such, not as a change in what it measured.
+    running = {
+        record["key"]: [
+            point
+            for point in record["points"]
+            if (operation := operations.get((record["source_id"], record["point_id"]))) is None
+            or not operation.stopped(point[0], point[1])
+        ]
+        for record in records
+    }
     try:
         found = record_changes(
             {
                 channel: values
-                for channel, values in points.items()
+                for channel, values in running.items()
                 if channel not in cumulative and channel not in copies
             },
             limit=_FINDINGS_SHOWN,
@@ -706,12 +720,22 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             # Held one value through the baseline: no spread to judge a distance by, but what
             # the record did afterwards is still a fact worth stating.
             later = [
-                value for start, _, value in points[channel] if start >= state["baseline"]["to"]
+                value for start, _, value in running[channel] if start >= state["baseline"]["to"]
             ]
             row["held"] = state["median"]
             row["later"] = {"low": min(later), "high": max(later)} if later else None
         signals.append(row)
     body["signals"] = signals
+    body["operation"] = [
+        operation_body(operation, _own_baseline(found, operation.key))
+        | {
+            "label": named(operation.key)[0],
+            "unit": named(operation.key)[1],
+            "context": record_context(by_key[operation.key]),
+            "excluded": len(points[operation.key]) - len(running[operation.key]),
+        }
+        for operation in operations.values()
+    ]
     body["judged"] = sum(row["state"] in {"scored", "level-change", "constant"} for row in signals)
     body["signal_count"] = len(checked)
     body["record_count"] = len(records)
@@ -731,7 +755,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
         reference = (item["baseline"]["from"], item["baseline"]["to"])
         period = (item["start"], item["end"])
         comparisons = []
-        for channel, values in points.items():
+        for channel, values in running.items():
             # Compare simultaneous signals from the same source and measurement point.
             other_record = by_key[channel]
             if (other_record["source_id"], other_record["point_id"]) != (
@@ -771,6 +795,7 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
         )
         trace = change_trace(record["points"], record["bucket_seconds"], item["start"], item["end"])
+        operation = operations.get((record["source_id"], record["point_id"]))
         shown.append(
             {
                 "start": iso(item["start"]),
@@ -806,6 +831,14 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
                 },
                 # Other signals whose representative value shifted in this interval.
                 "within": [row["label"] for row in changed],
+                # How the equipment ran in the change and in its reference period.
+                "operation": {
+                    "key": operation.key,
+                    "interval": operation.shares(*period),
+                    "baseline": operation.shares(*reference),
+                }
+                if operation
+                else None,
             }
         )
     for item in shown:
@@ -935,6 +968,12 @@ def _ranked_channels(history: DuckLakeAssetHistory, asset_id: str) -> list[str]:
         return channels
     order = {channel: index for index, channel in enumerate(channels)}
     return sorted(channels, key=lambda channel: (ranks.get(channel, 3), order[channel]))
+
+
+def _own_baseline(found: dict[str, Any] | None, key: str) -> tuple[datetime, datetime] | None:
+    """The period a signal's own changes were judged against."""
+    baseline = (found or {}).get("baselines", {}).get(key)
+    return (baseline["from"], baseline["to"]) if baseline else None
 
 
 def _copies(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
