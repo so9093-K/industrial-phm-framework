@@ -57,7 +57,7 @@
   {:else}
     {@const read=trend}
     {@const plot=chart}
-    <p class="note">세로축 · {read.label} · {read.unit??"단위 미확인"}</p>
+    <p class="note">세로축 · {read.label}{read.unit?" · "+read.unit:""}</p>
     <figure>
       <ValueAxis ticks={plot.ticks} height={220} unit={null}>
         <svg viewBox="0 0 800 220" preserveAspectRatio="none" role="img"
