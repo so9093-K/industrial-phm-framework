@@ -54,8 +54,10 @@ export function parseAcquisition(payload:unknown,asset:string):Acquisition|null{
 }
 export function defaultSpans(acq:Acquisition):Spans{
   if(acq.first>=acq.last)throw new SpectrumUnavailable("비교하려면 진동 측정이 두 번 이상 필요합니다.");
-  const mid=Math.floor((acq.first+acq.last)/2);
-  return {a:{from:acq.first,to:mid},b:{from:mid+1,to:acq.last}};
+  // The first 30% against the last 30%, as the summary judges changes, so a change that set in
+  // late is not averaged with the record's early half.
+  const part=Math.max(1,Math.round((acq.last-acq.first+1)*0.3));
+  return {a:{from:acq.first,to:acq.first+part-1},b:{from:acq.last-part+1,to:acq.last}};
 }
 export function validateSpans(spans:Spans):void{
   for(const name of ["a","b"] as const){

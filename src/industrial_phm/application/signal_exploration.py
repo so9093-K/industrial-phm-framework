@@ -640,6 +640,84 @@ def acquisition_spectrum(
     }
 
 
+WATERFALL_ROWS = 60
+WATERFALL_POINTS = 200
+# Power this far below a channel's strongest bin reads as the floor of the colour scale.
+WATERFALL_FLOOR_DB = -60.0
+
+
+def acquisition_waterfall(
+    snapshots: SqliteAcquisitionSnapshotRepository,
+    binding: PhmBinding,
+    *,
+    rows: int = WATERFALL_ROWS,
+) -> dict[str, Any]:
+    """Welch PSD of acquisitions spread evenly over the whole record, one row per acquisition.
+
+    Where the two-range spectrum says how the energy moved between two ranges, these rows say
+    from which acquisition each frequency band changed.
+
+    Args:
+        snapshots: The stored acquisitions.
+        binding: The acquisition stream's analysis binding.
+        rows: The most acquisitions to read, first and last included.
+
+    Returns:
+        Display frequencies, the acquisitions read, and per channel each row's power in dB
+        relative to the channel's strongest bin over all rows.
+    """
+    delivered = snapshots.ordinals_between(binding.source_id, binding.asset_id, 0, 2**62)
+    if not delivered:
+        raise LookupError("no delivered acquisition")
+    indexes = dict.fromkeys(round(i) for i in np.linspace(0, len(delivered) - 1, rows))
+    rates = set()
+    channels: tuple[str, ...] | None = None
+    read: list[tuple[int, dict[str, np.ndarray]]] = []
+    frequencies = np.zeros(0)
+    for index in indexes:
+        snapshot = snapshots.get(binding.source_id, binding.asset_id, delivered[index][0])
+        if snapshot is None:
+            continue
+        waveform = read_snapshot_waveform(snapshot)
+        values = np.asarray(waveform.values, dtype=float)
+        channels = channels or tuple(waveform.channels)
+        if tuple(waveform.channels) != channels:
+            raise ValueError("acquisitions have different channels")
+        rates.add(snapshot.sampling_rate_hz)
+        row = {}
+        for position, channel in enumerate(channels):
+            frequencies, psd = welch_psd(values[:, position], snapshot.sampling_rate_hz)
+            row[channel] = psd
+        read.append((snapshot.ordinal, row))
+    if len(rates) != 1 or channels is None:
+        raise ValueError("acquisitions have different sampling rates")
+    edges = np.linspace(0, len(frequencies), WATERFALL_POINTS + 1).astype(int)
+    spans = [(a, b) for a, b in pairwise(edges) if b > a]
+    result = []
+    for channel in channels:
+        binned = np.asarray([[row[channel][a:b].mean() for a, b in spans] for _, row in read])
+        strongest = float(binned.max())
+        decibels = (
+            np.maximum(10 * np.log10(np.maximum(binned, 1e-300) / strongest), WATERFALL_FLOOR_DB)
+            if strongest > 0
+            else np.full(binned.shape, WATERFALL_FLOOR_DB)
+        )
+        result.append(
+            {
+                "channel": channel,
+                "label": feature_label(f"feature.{channel}.rms").removesuffix(" RMS"),
+                "decibels": [[round(float(value), 1) for value in line] for line in decibels],
+            }
+        )
+    return {
+        "sampling_rate_hz": rates.pop(),
+        "frequencies": [float(frequencies[a:b].mean()) for a, b in spans],
+        "acquisitions": [ordinal for ordinal, _ in read],
+        "floor_db": WATERFALL_FLOOR_DB,
+        "channels": result,
+    }
+
+
 def strongest_identity(buckets: Sequence[Any]) -> tuple[tuple[str, str | None, str], list[Any]]:
     """One signal identity of a channel's buckets: the source, point and meaning with the most
     usable values. Sources, points and meanings are never mixed in one series."""
