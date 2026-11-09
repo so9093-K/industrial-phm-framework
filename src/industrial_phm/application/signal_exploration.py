@@ -69,6 +69,28 @@ def is_current_in_amperes(interpretation_json: str) -> bool:
     return interpretation_unit(interpretation_json) == "A" and ("current" in prop or "전류" in prop)
 
 
+def property_rank(observed_property: str | None) -> int:
+    """Order in which a signal's changes are looked at: current, voltage, other declared
+    meanings, then signals with no declared meaning.
+
+    Current shows the equipment's load and running state; voltage shows its supply. Derived or
+    undeclared items follow them, so they cannot hide a change in what drives the equipment.
+    """
+    prop = (observed_property or "").lower()
+    if not prop:
+        return 3
+    if "current" in prop or "전류" in prop:
+        return 0
+    if "voltage" in prop or "전압" in prop:
+        return 1
+    return 2
+
+
+def signal_rank(interpretation_json: str) -> int:
+    """``property_rank`` of the meaning a stored interpretation declares."""
+    return property_rank(interpretation_property(interpretation_json))
+
+
 def interpretation_unit(interpretation_json: str) -> str | None:
     data = json.loads(interpretation_json)
     for part in ("binding", "semantics"):

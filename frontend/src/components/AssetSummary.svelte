@@ -17,7 +17,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, findingLinks, findingText, readRecordFindings, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -59,6 +59,8 @@
     const read: RecordFindings | null = findings;
     return read?.signals.filter(row => row.state === "cumulative") ?? [];
   });
+  const copies = $derived.by(() => { const read: RecordFindings | null = findings; return read ? copiedGroups(read.signals) : []; });
+  const copiedCount = $derived.by(() => { const read: RecordFindings | null = findings; return read?.signals.filter(row => row.state === "copied").length ?? 0; });
   const quietSignal=$derived.by(():CheckedSignal|undefined=>{const current:RecordFindings|null=findings;return current?.signals.find(row=>row.state==="constant"||row.state==="scored");});
   function signalHref(signal:CheckedSignal|undefined):string {
     const url=new URL(assetTabUrl(asset.assetId,"signals",null,"history",signal?.channel??null),location.origin);
@@ -134,7 +136,16 @@
       <details class="finding-coverage"><summary>분석한 기록과 계산 범위</summary>
       {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
       <p class="coverage" aria-label="변화 분석 범위">출처·위치·측정 의미로 구분한 기록 {findings.signals.length + findings.unchecked}개 중
-        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length}개 · 미검토 {findings.unchecked}개</p></details>
+        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 데이터 확인 필요 {copiedCount}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length - copiedCount}개 · 미검토 {findings.unchecked}개</p></details>
+    {/if}
+    {#if findingState === "ready" && copies.length}
+      <section class="data-check" aria-labelledby="data-check-title">
+        <h3 id="data-check-title">데이터 확인 필요</h3>
+        <p>아래 신호는 일부 기간에 다른 항목의 값이 그대로 기록되어 있어, 주요 변화와 확인 항목에서 뺐습니다.</p>
+        <ul>{#each copies as group (group.from + group.to)}
+          <li><strong>{observed(group.from)} ~ {observed(group.to)}</strong> · {group.items.map(item => item.label + "에 " + item.origin + " 값").join(", ")}</li>
+        {/each}</ul>
+      </section>
     {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
@@ -200,8 +211,8 @@
         <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
     {/if}
     {#if cumulative.length && findings?.judged}<details><summary>누적 기록</summary>{@render cumulativeRecords()}</details>{/if}
-    {#if findings && findings.signals.some((row) => row.state !== "scored" && row.state !== "level-change" && row.state !== "constant" && row.state !== "cumulative")}
-      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => row.state !== "scored" && row.state !== "level-change" && row.state !== "constant" && row.state !== "cumulative").map(unjudgedText).join(" · ")}</p>
+    {#if findings && findings.signals.some((row) => !["scored", "level-change", "constant", "cumulative", "copied"].includes(row.state))}
+      <p class="context small">판단하지 못한 신호 · {findings.signals.filter((row) => !["scored", "level-change", "constant", "cumulative", "copied"].includes(row.state)).map(unjudgedText).join(" · ")}</p>
     {/if}
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
       나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>달라진 구간 찾기에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
@@ -303,6 +314,10 @@
   .small { font-size: var(--font-small); }
   .coverage { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); font-size: var(--font-small); overflow-wrap: anywhere; }
   .found { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+  .data-check { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-inline-start: 4px solid var(--color-uncertain-border); background: var(--color-uncertain-surface); border-radius: var(--radius-control); }
+  .data-check h3 { margin: 0; font-size: var(--font-body); }
+  .data-check p, .data-check ul { margin: 0; }
+  .data-check ul { padding-inline-start: var(--space-4); overflow-wrap: anywhere; }
   .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
   .found > li { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .finding-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}.finding-head h3{margin:0;font-size:var(--font-body);font-weight:650}.change-values{font-size:clamp(1.25rem,3vw,1.65rem);line-height:1.4}.change-time{margin:var(--space-1) 0;color:var(--color-ink-muted);font-size:var(--font-small)}.finding-actions{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-3)}.finding-actions details{flex:1;min-width:180px}.finding-coverage{margin-bottom:var(--space-3)}

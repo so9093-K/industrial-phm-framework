@@ -11,7 +11,7 @@ against.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime, timedelta
 from itertools import pairwise
 from typing import Any
@@ -206,18 +206,146 @@ def declared_running_total(*, name: str, unit: str | None, meaning: str | None) 
     return unit in _REGISTER_UNITS or any(word in words for word in _RUNNING_TOTAL_WORDS)
 
 
+def copied_spans(
+    series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
+    *,
+    declared: Collection[str] = (),
+    min_share: float = 0.1,
+) -> dict[str, dict[str, Any]]:
+    """Signals that hold another signal's exact values for part of the record.
+
+    A source that wrote one item into another item's column for a while leaves the copy equal
+    to its origin there and different elsewhere. The copy's departures then describe how it
+    was recorded, not the equipment.
+
+    Args:
+        series: ``(start, end, value)`` points per signal; only equal start times are compared.
+        declared: Signals with a declared measurement meaning. When one of an equal pair has
+            one and the other does not, the other is the copy.
+        min_share: The equal stretch must cover at least this share of the comparable points.
+
+    Returns:
+        Per copied signal, ``origin`` (the signal it equals), ``from``/``to`` (the equal
+        stretch) and ``points``.
+    """
+    grids = {
+        name: {start: (end, value) for start, end, value in points}
+        for name, points in series.items()
+    }
+    names = sorted(grids)
+    found: dict[str, dict[str, Any]] = {}
+    for index, first in enumerate(names):
+        for second in names[index + 1 :]:
+            left, right = grids[first], grids[second]
+            # Both at zero (a stopped machine) says nothing about which item was recorded.
+            starts = [
+                start
+                for start in sorted(left.keys() & right.keys())
+                if abs(left[start][1]) > 1e-12 or abs(right[start][1]) > 1e-12
+            ]
+            if len(starts) < 10:
+                continue
+            equal = [
+                abs(left[t][1] - right[t][1]) <= 1e-6 * max(abs(left[t][1]), abs(right[t][1]))
+                for t in starts
+            ]
+            best, run, begin = (0, 0), 0, 0
+            for position, same in enumerate(equal):
+                run = run + 1 if same else 0
+                if same and run == 1:
+                    begin = position
+                if run > best[1] - best[0]:
+                    best = (begin, position + 1)
+            inside = range(*best)
+            outside = [same for position, same in enumerate(equal) if position not in inside]
+            # Equal throughout, or often equal by coincidence, is no change of recording.
+            if len(inside) < max(3, min_share * len(starts)) or len(outside) < 3:
+                continue
+            if sum(outside) > 0.1 * len(outside):
+                continue
+            copy = _copied_one(first, second, left, right, starts, inside, declared)
+            if copy is None:
+                continue
+            origin = second if copy == first else first
+            span = {
+                "origin": origin,
+                "from": starts[inside.start],
+                "to": grids[copy][starts[inside.stop - 1]][0],
+                "points": len(inside),
+            }
+            # Equal to several items at once, the copy names the one with a declared meaning.
+            held = found.get(copy)
+            if (
+                held is None
+                or held["points"] < span["points"]
+                or (
+                    held["points"] == span["points"]
+                    and origin in declared
+                    and held["origin"] not in declared
+                )
+            ):
+                found[copy] = span
+    return found
+
+
+def _copied_one(
+    first: str,
+    second: str,
+    left: Mapping[datetime, tuple[datetime, float]],
+    right: Mapping[datetime, tuple[datetime, float]],
+    starts: Sequence[datetime],
+    inside: range,
+    declared: Collection[str],
+) -> str | None:
+    if (first in declared) != (second in declared):
+        return second if first in declared else first
+
+    def shift(grid: Mapping[datetime, tuple[datetime, float]]) -> float:
+        within = np.median([abs(grid[starts[i]][1]) for i in inside])
+        beyond = np.median([abs(grid[t][1]) for i, t in enumerate(starts) if i not in inside])
+        if within <= 0 or beyond <= 0:
+            return float("inf") if within != beyond else 0.0
+        return abs(float(np.log(beyond / within)))
+
+    # The copy is the one whose own level differs once it is recorded correctly.
+    moved = {first: shift(left), second: shift(right)}
+    copy = max(moved, key=lambda name: moved[name])
+    other = second if copy == first else first
+    if moved[copy] < np.log(1.05) or moved[copy] - moved[other] < np.log(1.05):
+        return None
+    return copy
+
+
 def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,
     limit: int = 3,
     streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str, str]] | None = None,
+    priority: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
     Each signal keeps its own runs: a succession of unrelated deviations across channels
     must not glue the entire record into one apparent event. Selection reasons describe
     observed changes, not equipment criticality or fault severity.
+
+    Args:
+        series: ``(start, end, value)`` points per signal.
+        limit: Most changes to select.
+        streams: Source and point (and channel and meaning) per signal, so that only changes
+            of one stream can stand for each other.
+        priority: Rank per signal, lower first. Each kind of change is taken from the
+            best-ranked signals that have one, so a measured load change outranks a longer
+            change in a derived item. Unranked signals come last.
+
+    Returns:
+        Per-signal baseline states, the threshold, the selected intervals and their count.
     """
+    worst = max(priority.values(), default=0) + 1 if priority else 0
+
+    def rank(item: dict[str, Any]) -> int:
+        return priority.get(item["channel"], worst) if priority else 0
+
     analyses = {name: find_departures({name: points}) for name, points in series.items() if points}
     if not analyses:
         raise LookupError("no stored values")
@@ -259,6 +387,7 @@ def record_changes(
     sustained = sorted(
         candidates,
         key=lambda item: (
+            rank(item),
             -(item["end"] - item["start"]).total_seconds(),
             -item["points"],
             -(item["distance"] or 0),
@@ -279,13 +408,18 @@ def record_changes(
             for item in candidates
             if ends[item["channel"]] - item["end"] <= spacing[item["channel"]] * 1.5
         ],
-        key=lambda item: (-(item["end"] - item["start"]).total_seconds(), item["channel"]),
+        key=lambda item: (
+            rank(item),
+            -(item["end"] - item["start"]).total_seconds(),
+            item["channel"],
+        ),
     )
     take(recent, "record-end")
     take(
         sorted(
             [item for item in candidates if item["distance"] is not None],
             key=lambda item: (
+                rank(item),
                 -item["distance"],
                 -item["points"],
                 item["channel"],
