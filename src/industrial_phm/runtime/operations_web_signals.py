@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.asset_history import MeasurementSourceQuality
 from industrial_phm.application.measurement_history import MultiSignalMeasurementHistoryBucket
+from industrial_phm.application.signal_exploration import display_unit
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_live import (
@@ -91,6 +92,7 @@ def _bucket(item: MultiSignalMeasurementHistoryBucket) -> dict[str, object]:
         "measurement_point_id": item.measurement_point_id,
         "interpretation_id": hashlib.sha256(item.interpretation_json.encode("utf-8")).hexdigest(),
         "semantics": _semantic(item.interpretation_json),
+        "unit": display_unit(item.channel_id, item.interpretation_json),
         "bucket_start": _time(item.bucket_start),
         "bucket_end": _time(item.bucket_end),
         "first_event_at": _time(item.first_event_at),

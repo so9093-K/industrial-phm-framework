@@ -34,10 +34,10 @@ from industrial_phm.application.signal_exploration import (
     acquisition_series,
     acquisition_source,
     acquisition_spectrum,
+    display_unit,
     history_relation,
     history_series,
     interpretation_property,
-    interpretation_unit,
     is_current_in_amperes,
     property_rank,
     signal_rank,
@@ -219,7 +219,7 @@ def _relation_or_spectrum(
         return body | {
             "x": x,
             "y": y,
-            "groups": history_relation(groups),
+            "groups": history_relation(groups, x, y),
             "pairing": "same-source-point-and-timestamp",
         }
     if kind != "acquisition":
@@ -503,7 +503,7 @@ def signal_records(
                         "point_id": stream.measurement_point_id,
                         "interpretation": meaning,
                         "interpretation_id": hashlib.sha256(meaning.encode()).hexdigest(),
-                        "unit": interpretation_unit(meaning),
+                        "unit": display_unit(channel, meaning),
                         "usable_count": sum(bucket.usable_count for bucket in buckets),
                         "observations": [
                             (bucket.last_event_at, float(bucket.mean))

@@ -210,8 +210,8 @@
           {#if group.points.length}
             {#if axes}<FeatureScatter bounds={axes}
               points={group.points.map(p=>({x:p.x,y:p.y,label:place(p.ordinal)}))}
-              xLabel={featureLabel(x)+(relation.xUnit?" ("+relation.xUnit+")":" · 단위 미확인")}
-              yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":" · 단위 미확인")}
+              xLabel={featureLabel(x)+(relation.xUnit?" ("+relation.xUnit+")":"")}
+              yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":"")}
               description={"기간 "+group.period.toUpperCase()+" · 같은 측정 특징 짝 "+group.points.length+"개 산점도."}/>{/if}
           {/if}
           <details>

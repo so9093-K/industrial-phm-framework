@@ -91,6 +91,34 @@ def signal_rank(interpretation_json: str) -> int:
     return property_rank(interpretation_property(interpretation_json))
 
 
+def display_unit(channel_id: str, interpretation_json: str) -> str | None:
+    """Unit shown with a signal's values.
+
+    The stored meaning's unit when it has one. AI-Hub 239 items whose stored meaning leaves
+    the unit open get the unit the dataset's relation profile established. Only the display
+    changes: the stored meaning, and every record key and analysis derived from it, stay as
+    recorded.
+
+    Args:
+        channel_id: The channel as stored, e.g. an AI-Hub ``ITEM_NAME``.
+        interpretation_json: The stored interpretation of the channel's values.
+
+    Returns:
+        The unit to show, or None when none is known.
+    """
+    unit = interpretation_unit(interpretation_json)
+    if unit is not None:
+        return unit
+    data = json.loads(interpretation_json)
+    semantics = data.get("semantics") if isinstance(data, dict) else None
+    version = semantics.get("version") if isinstance(semantics, dict) else None
+    if isinstance(version, str) and version.startswith("aihub-239-semantics"):
+        from industrial_phm.adapters.aihub_power_history import AIHUB_239_DISPLAY_UNITS
+
+        return AIHUB_239_DISPLAY_UNITS.get(channel_id)
+    return None
+
+
 def interpretation_unit(interpretation_json: str) -> str | None:
     data = json.loads(interpretation_json)
     for part in ("binding", "semantics"):
@@ -186,7 +214,7 @@ def history_series(
                 "kind": "history",
                 "key": channel,
                 "label": channel,
-                "unit": interpretation_unit(interpretation),
+                "unit": display_unit(channel, interpretation),
                 "source_id": source,
                 "source_type": source_type,
                 "measurement_point_id": point or None,
@@ -383,7 +411,9 @@ def _constant_run(points: Sequence[tuple[int, float]]) -> dict[str, int | None]:
     return {"count": best[0], "start": best[1], "end": best[2]}
 
 
-def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, Any]]:
+def history_relation(
+    groups: Sequence[MeasurementPairGroup], x_channel: str, y_channel: str
+) -> list[dict[str, Any]]:
     """Paired observations per period, source/point and meaning, with both correlations."""
     return [
         {
@@ -392,8 +422,8 @@ def history_relation(groups: Sequence[MeasurementPairGroup]) -> list[dict[str, A
             "measurement_point_id": group.measurement_point_id,
             "x_interpretation_id": hashlib.sha256(group.x_interpretation_json.encode()).hexdigest(),
             "y_interpretation_id": hashlib.sha256(group.y_interpretation_json.encode()).hexdigest(),
-            "x_unit": interpretation_unit(group.x_interpretation_json),
-            "y_unit": interpretation_unit(group.y_interpretation_json),
+            "x_unit": display_unit(x_channel, group.x_interpretation_json),
+            "y_unit": display_unit(y_channel, group.y_interpretation_json),
             "meaning_id": hashlib.sha256(
                 (group.x_interpretation_json + "\0" + group.y_interpretation_json).encode()
             ).hexdigest()[:16],

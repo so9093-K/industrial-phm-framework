@@ -31,7 +31,7 @@
         <line x1={scale.x(row.q[2])} x2={scale.x(row.q[2])} y1={i * 40 + 5} y2={i * 40 + 35} class="median" />
       {/each}
     </svg>
-    <XAxis lo={scale.low} hi={scale.high} scale={{kind:"value"}} note={"가로축 · " + label + " · " + (unit ?? "단위 미확인")} />
+    <XAxis lo={scale.low} hi={scale.high} scale={{kind:"value"}} note={"가로축 · " + label + (unit ? " · " + unit : "")} />
     </div>
     <figcaption>
       {#each rows as row (row.kind)}

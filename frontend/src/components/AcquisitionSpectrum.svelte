@@ -197,7 +197,7 @@
         {@const step=frequencies.length>1?frequencies[1]-frequencies[0]:null}
         <section class="series">
           <h3>{channel.label}</h3>
-          <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB":channel.unit??"단위 미확인"} · 두 기간은 같은 눈금</p>
+          <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB · ":channel.unit?channel.unit+" · ":""}두 기간은 같은 눈금</p>
           {#if displayed.zoomed}<button type="button" class="ui-button" onclick={()=>focused={...focused,[channel.id]:null}}>전체 주파수 보기</button>{/if}
           <ValueAxis ticks={yTicks(axis.lo,axis.hi,0,180)} height={180} unit={decibel?"dB":null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
@@ -260,7 +260,7 @@
       <details>
         <summary>기술 상세</summary>
         <p class="context">Welch PSD · 샘플링 {result.samplingRate}Hz · 세그먼트 {result.segment}개 샘플.
-          세기는 PSD를 주파수 구간별로 평균한 값이며, 세기의 단위는 기록된 원본 진폭 단위의 제곱/Hz입니다. 원본 단위가 없으면 단위 미확인으로 표시합니다.
+          세기는 PSD를 주파수 구간별로 평균한 값이며, 세기의 단위는 기록된 원본 진폭 단위의 제곱/Hz입니다.
           두 기간 그래프는 채널마다 같은 축을 씁니다. dB 축은 그 채널에서 가장 센 주파수 구간을 0 dB로 두고 -60 dB 아래는 잘라 그립니다. 이 응답은 데이터 출처 ID를 따로 돌려주지 않습니다.
           · 적용 모델 연결 {acquisition.binding}</p>
       </details>

@@ -35,6 +35,13 @@ test("a last stored value takes its unit only from the bucket that ends at that 
   assert.equal(recordEnd(trend), "2026-10-01T00:59:00Z");
 });
 
+test("a value is shown with the unit the server attached, else its stored one", () => {
+  const power = {...bucket("src1", "i3", 2), unit: "W", semantics: {unit: null, observed_property: null}};
+  const [shown, stored] = parseTrend(data([power, bucket("src1", "i1", 2)]), "motor", "R").buckets;
+  assert.equal(shown.unit, "W");
+  assert.equal(stored.unit, "A");
+});
+
 test("channels are strictly for the selected asset", () => {
   assert.deepEqual(
     parseChannels({asset_id: "motor", channels: {items: ["R", "R", "S"], truncated: false}}, "motor").ids,
