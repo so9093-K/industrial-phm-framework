@@ -493,6 +493,91 @@ def test_a_steady_rise_is_a_finding_unless_the_source_declares_a_running_total(
         stop()
 
 
+def test_changes_come_from_what_drives_the_equipment_not_from_a_miswritten_column(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def declared(channel: str, observed: str, unit: str) -> str:
+        # The shape an import writes: a versioned binding naming its own source and channel.
+        return json.dumps(
+            {
+                "semantics": {
+                    "source_id": "comp-file",
+                    "channel_id": channel,
+                    "version": "test-semantics-v1",
+                    "definition": {"observed_property": observed, "unit": unit},
+                }
+            },
+            ensure_ascii=False,
+        )
+
+    voltage = declared("R상전압", "phase voltage", "V")
+    current = declared("R상전류", "phase current", "A")
+
+    def value(channel: str, index: int) -> float:
+        phase = 220 + (index % 5) * 0.2
+        if channel == "R상전압":
+            return phase
+        if channel == "R상선간전압":
+            # The source wrote the phase voltage into this column for the first hour.
+            return phase if index < 60 else 380 + (index % 5) * 0.3
+        if channel == "R상전류":
+            return (30.0 if index >= 90 else 60.0) + (index % 3) * 0.5
+        if channel.startswith("A"):
+            return (5.0 if index >= 110 else 1.0) + (index % 4) * 0.01
+        # A derived item that leaves its early range for longer than the current does.
+        return (0.95 if index < 40 else 0.6) + (index % 4) * 0.005
+
+    channels = {"R상전압": voltage, "R상선간전압": "{}", "R상전류": current, "역률": "{}"}
+    # Items named before the current, which also end away from their start: the capped check
+    # on 관측 현황 must still read the current first.
+    channels |= {f"A{number}": "{}" for number in range(6)}
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:comp:{'b' * 64}:{offset}:{index}",
+                source_id="comp-file",
+                asset_id="comp-02",
+                channel_id=channel,
+                source_file="comp.csv",
+                source_sha256="b" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=value(channel, index),
+                source_metadata_json=meaning,
+            )
+            for offset, (channel, meaning) in enumerate(channels.items())
+            for index in range(120)
+        ),
+        batch_id="comp-02",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        status, found = get("/api/v1/explore/findings", asset_id="comp-02")
+        assert status == 200
+        rows = {row["label"]: row for row in found["signals"]}
+        copied = rows["R상선간전압"]
+        assert copied["state"] == "copied" and copied["copied"]["origin"] == "R상전압"
+        assert datetime.fromisoformat(copied["copied"]["from"]) == BASE
+        assert BASE + timedelta(minutes=59) <= datetime.fromisoformat(copied["copied"]["to"])
+        assert datetime.fromisoformat(copied["copied"]["to"]) <= BASE + timedelta(minutes=60)
+        labels = [item["label"] for item in found["intervals"]]
+        assert "R상선간전압" not in labels
+        # The current's drop is named first, though the derived item moved for longer.
+        assert labels[0] == "R상전류" and "역률" in labels
+        # The note on 관측 현황 names the current, not the column that held another item.
+        (note,) = get("/api/v1/explore/attention", asset_id="comp-02")[1]["items"]
+        assert note["channel"] == "R상전류" and note["direction"] == "down"
+    finally:
+        stop()
+
+
 def test_findings_cover_all_signals_and_compare_only_the_same_measurement_source(
     tmp_path: Path,
 ) -> None:

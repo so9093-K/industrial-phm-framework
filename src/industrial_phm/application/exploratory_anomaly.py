@@ -11,9 +11,9 @@ against.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime, timedelta
-from itertools import pairwise
+from itertools import combinations, pairwise
 from typing import Any
 
 import numpy as np
@@ -206,18 +206,148 @@ def declared_running_total(*, name: str, unit: str | None, meaning: str | None) 
     return unit in _REGISTER_UNITS or any(word in words for word in _RUNNING_TOTAL_WORDS)
 
 
+def copied_spans(
+    series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
+    *,
+    declared: Collection[str] = (),
+    min_share: float = 0.1,
+) -> dict[str, dict[str, Any]]:
+    """Signals that hold another signal's exact values for part of the record.
+
+    A source that wrote one item into another item's column for a while leaves the copy equal
+    to its origin there and different elsewhere. The copy's departures then describe how it
+    was recorded, not the equipment.
+
+    Args:
+        series: ``(start, end, value)`` points per signal; only equal start times are compared.
+        declared: Signals with a declared measurement meaning. When one of an equal pair has
+            one and the other does not, the other is the copy.
+        min_share: The equal stretch must cover at least this share of the comparable points.
+
+    Returns:
+        Per copied signal, ``origin`` (the signal it equals), ``from``/``to`` (the equal
+        stretch) and ``points``.
+    """
+    names = sorted(series)
+    starts = sorted({point[0] for points in series.values() for point in points})
+    column = {start: position for position, start in enumerate(starts)}
+    values = np.full((len(names), len(starts)), np.nan)
+    ends: dict[str, dict[datetime, datetime]] = {}
+    for row, name in enumerate(names):
+        ends[name] = {}
+        for start, end, value in series[name]:
+            values[row, column[start]] = value
+            ends[name][start] = end
+    found: dict[str, dict[str, Any]] = {}
+    for first, second in combinations(range(len(names)), 2):
+        left, right = values[first], values[second]
+        # Both at zero (a stopped machine) says nothing about which item was recorded.
+        usable = np.flatnonzero(
+            ~np.isnan(left) & ~np.isnan(right) & ((np.abs(left) > 1e-12) | (np.abs(right) > 1e-12))
+        )
+        if len(usable) < 10:
+            continue
+        a, b = left[usable], right[usable]
+        equal = np.abs(a - b) <= 1e-6 * np.maximum(np.abs(a), np.abs(b))
+        need = max(3.0, min_share * len(usable))
+        if equal.sum() < need:
+            continue
+        inside = _longest_run(equal)
+        outside = np.ones(len(equal), dtype=bool)
+        outside[inside.start : inside.stop] = False
+        # Equal throughout, or often equal by coincidence, is no change of recording.
+        if len(inside) < need or outside.sum() < 3 or equal[outside].mean() > 0.1:
+            continue
+        copy = _copied_one((names[first], a), (names[second], b), inside, outside, declared)
+        if copy is None:
+            continue
+        origin = names[second] if copy == names[first] else names[first]
+        span = {
+            "origin": origin,
+            "from": starts[usable[inside.start]],
+            "to": ends[copy][starts[usable[inside.stop - 1]]],
+            "points": len(inside),
+        }
+        # Equal to several items at once, the copy names the one with a declared meaning.
+        held = found.get(copy)
+        if (
+            held is None
+            or held["points"] < span["points"]
+            or (
+                held["points"] == span["points"]
+                and origin in declared
+                and held["origin"] not in declared
+            )
+        ):
+            found[copy] = span
+    return found
+
+
+def _longest_run(flags: np.ndarray) -> range:
+    """Positions of the longest stretch of true flags."""
+    edges = np.diff(np.concatenate(([0], flags.astype(np.int8), [0])))
+    begins, stops = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
+    longest = int(np.argmax(stops - begins))
+    return range(int(begins[longest]), int(stops[longest]))
+
+
+def _copied_one(
+    first: tuple[str, np.ndarray],
+    second: tuple[str, np.ndarray],
+    inside: range,
+    outside: np.ndarray,
+    declared: Collection[str],
+) -> str | None:
+    (first_name, first_values), (second_name, second_values) = first, second
+    if (first_name in declared) != (second_name in declared):
+        return second_name if first_name in declared else first_name
+
+    def shift(values: np.ndarray) -> float:
+        within = float(np.median(np.abs(values[inside.start : inside.stop])))
+        beyond = float(np.median(np.abs(values[outside])))
+        if within <= 0 or beyond <= 0:
+            return float("inf") if within != beyond else 0.0
+        return abs(float(np.log(beyond / within)))
+
+    # The copy is the one whose own level differs once it is recorded correctly.
+    moved = {first_name: shift(first_values), second_name: shift(second_values)}
+    copy = max(moved, key=lambda name: moved[name])
+    other = second_name if copy == first_name else first_name
+    if moved[copy] < np.log(1.05) or moved[copy] - moved[other] < np.log(1.05):
+        return None
+    return copy
+
+
 def record_changes(
     series: Mapping[str, Sequence[tuple[datetime, datetime, float]]],
     *,
     limit: int = 3,
     streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str, str]] | None = None,
+    priority: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
     Each signal keeps its own runs: a succession of unrelated deviations across channels
     must not glue the entire record into one apparent event. Selection reasons describe
     observed changes, not equipment criticality or fault severity.
+
+    Args:
+        series: ``(start, end, value)`` points per signal.
+        limit: Most changes to select.
+        streams: Source and point (and channel and meaning) per signal, so that only changes
+            of one stream can stand for each other.
+        priority: Rank per signal, lower first. Each kind of change is taken from the
+            best-ranked signals that have one, so a measured load change outranks a longer
+            change in a derived item. Unranked signals come last.
+
+    Returns:
+        Per-signal baseline states, the threshold, the selected intervals and their count.
     """
+    worst = max(priority.values(), default=0) + 1 if priority else 0
+
+    def rank(item: dict[str, Any]) -> int:
+        return priority.get(item["channel"], worst) if priority else 0
+
     analyses = {name: find_departures({name: points}) for name, points in series.items() if points}
     if not analyses:
         raise LookupError("no stored values")
@@ -259,6 +389,7 @@ def record_changes(
     sustained = sorted(
         candidates,
         key=lambda item: (
+            rank(item),
             -(item["end"] - item["start"]).total_seconds(),
             -item["points"],
             -(item["distance"] or 0),
@@ -279,13 +410,18 @@ def record_changes(
             for item in candidates
             if ends[item["channel"]] - item["end"] <= spacing[item["channel"]] * 1.5
         ],
-        key=lambda item: (-(item["end"] - item["start"]).total_seconds(), item["channel"]),
+        key=lambda item: (
+            rank(item),
+            -(item["end"] - item["start"]).total_seconds(),
+            item["channel"],
+        ),
     )
     take(recent, "record-end")
     take(
         sorted(
             [item for item in candidates if item["distance"] is not None],
             key=lambda item: (
+                rank(item),
                 -item["distance"],
                 -item["points"],
                 item["channel"],

@@ -8,6 +8,7 @@ import pytest
 
 from industrial_phm.application.exploratory_anomaly import (
     THRESHOLD,
+    copied_spans,
     declared_running_total,
     find_departures,
     interval_comparison,
@@ -178,3 +179,63 @@ def test_related_channels_share_a_card_but_versions_of_one_channel_do_not() -> N
         },
     )
     assert len(versions["intervals"]) == 2
+
+
+def test_a_signal_that_held_another_items_values_for_a_while_is_named_as_a_copy() -> None:
+    phase = [220 + (i % 5) * 0.2 for i in range(100)]
+    # The line voltage column held the phase voltage until the 40th point, then its own level.
+    line = [phase[i] if i < 40 else 380 + (i % 5) * 0.3 for i in range(100)]
+    # The harmonic column held the current, including stops where both read 0.
+    current = [0.0 if 10 <= i < 15 else 50 + (i % 7) for i in range(100)]
+    harmonic = [current[i] if i < 40 else 45 + (i % 7) * 0.5 for i in range(100)]
+    found = copied_spans(
+        {
+            name: _points(values)
+            for name, values in {
+                "phase": phase,
+                "line": line,
+                "current": current,
+                "harmonic": harmonic,
+            }.items()
+        },
+        declared={"phase", "current"},
+    )
+    assert set(found) == {"line", "harmonic"}
+    assert found["line"]["origin"] == "phase" and found["harmonic"]["origin"] == "current"
+    assert found["line"]["from"] == T0
+    assert found["line"]["to"] == T0 + timedelta(minutes=39, seconds=30)
+    # Equal to the phase voltage and to the line column at once, the copy names the declared one.
+    harmonic_v = [phase[i] if i < 40 else 7.5 + (i % 5) * 0.1 for i in range(100)]
+    three = copied_spans(
+        {"line": _points(line), "phase": _points(phase), "vharm": _points(harmonic_v)},
+        declared={"phase"},
+    )
+    assert three["vharm"]["origin"] == "phase" and three["line"]["origin"] == "phase"
+    # Without declared meanings the copy is the one whose own level differs afterwards.
+    undeclared = copied_spans({"phase": _points(phase), "line": _points(line)})
+    assert list(undeclared) == ["line"] and undeclared["line"]["origin"] == "phase"
+
+
+def test_equal_throughout_or_nearly_equal_signals_are_not_copies() -> None:
+    phase = [220 + (i % 5) * 0.2 for i in range(100)]
+    # The same values all along say nothing about a change in how the record was kept.
+    assert copied_spans({"a": _points(phase), "b": _points(phase)}) == {}
+    # Balanced phases a fraction of a volt apart are different measurements.
+    near = [value + 0.25 for value in phase]
+    assert copied_spans({"a": _points(phase), "b": _points(near)}) == {}
+    # Equal for a while, but neither changes level afterwards: no copy can be named.
+    later = [phase[i] if i < 40 else phase[i] + 0.5 for i in range(100)]
+    assert copied_spans({"a": _points(phase), "b": _points(later)}) == {}
+
+
+def test_ranked_signals_are_chosen_before_longer_changes_in_other_items() -> None:
+    base = [10 + (i % 5) * 0.1 for i in range(100)]
+    # The derived item leaves its range for 60 points, the current for only 15.
+    derived = [*base[:40], *[30.0] * 60]
+    current = [*base[:80], *[25.0] * 15, *base[95:]]
+    series = {"derived": _points(derived), "current": _points(current)}
+    unranked = record_changes(series)
+    assert unranked["intervals"][0]["channel"] == "derived"
+    ranked = record_changes(series, priority={"current": 0})
+    assert ranked["intervals"][0]["channel"] == "current"
+    assert ranked["intervals"][0]["reason"] == "sustained"
