@@ -6,6 +6,7 @@
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
   import {drawTrend, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
+  import ModelOperation from "./ModelOperation.svelte";
 
   /** Every stored score of this model in input order, its threshold and the intervals the
    * model marked as over it. Choosing a point or an interval opens that measurement. */
@@ -116,6 +117,7 @@
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
+    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
     {#if first && told}
       <div class="onset" aria-label="기준 초과 상태">
         <strong>{told.headline}</strong>

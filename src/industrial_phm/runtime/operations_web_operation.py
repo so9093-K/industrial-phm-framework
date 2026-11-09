@@ -386,3 +386,100 @@ class ProfileLevelSource:
             edges[band - 1] if band > 0 else None,
             edges[band] if band < len(edges) else None,
         )
+
+
+def model_operation(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    source_id: str,
+    point_id: str | None,
+    windows: Sequence[tuple[datetime, datetime, bool]],
+    reference: tuple[datetime, datetime] | None,
+) -> dict[str, Any] | None:
+    """How a model's reference period and analysed windows ran, and its excesses per level.
+
+    A model learns the patterns of its reference period. Windows at a level that period hardly
+    held are compared with patterns of another load, so their excesses are said per level.
+
+    Args:
+        history: The asset history.
+        asset_id: The asset.
+        source_id: The source the model reads.
+        point_id: Its measurement point.
+        windows: ``(start, end, over threshold)`` of each analysed window.
+        reference: The period the model learned from, if recorded.
+
+    Returns:
+        The levels, the reference period's share per band and, per band, how many windows ran
+        mostly at it and how many of those went over the threshold; None without levels.
+    """
+    stream = next(
+        (
+            item
+            for item in history.list_history_streams(asset_id)
+            if (item.source_id, item.measurement_point_id) == (source_id, point_id)
+        ),
+        None,
+    )
+    read = source_levels(history, asset_id, stream) if stream else None
+    if read is None:
+        return None
+    (channel, meaning), levels = read
+    current = {"channel": channel, "source_id": source_id, "point_id": point_id}
+
+    def occupancy(start: datetime, end: datetime, buckets: int = 1) -> ValueOccupancy:
+        return _reader(history, asset_id, current | {"interpretation": meaning}, start, end)(
+            levels.edges, buckets
+        )
+
+    shares = None
+    if reference is not None and reference[0] < reference[1]:
+        whole = next(iter(occupancy(*reference).buckets), None)
+        total = sum(whole.counts) if whole else 0
+        shares = [count / total for count in whole.counts] if whole and total else None
+    bands = len(levels.edges) + 1
+    tally = [[0, 0] for _ in range(bands)]
+    unplaced = len(windows)
+    if windows:
+        first = min(start for start, _, _ in windows)
+        last = max(end for _, end, _ in windows)
+        width = min(end - start for start, end, _ in windows)
+        aligned = width.total_seconds() > 0 and all(
+            end - start == width and (start - first) % width == timedelta(0)
+            for start, end, _ in windows
+        )
+        steps = (last - first) // width if aligned else 0
+        # One bucket per window, so each window is placed by its own observations.
+        if aligned and 0 < steps <= 100000:
+            held = {
+                bucket.bucket_start: bucket.counts
+                for bucket in occupancy(first, last, steps).buckets
+            }
+            unplaced = 0
+            for start, _, over in windows:
+                counts = held.get(start)
+                if not counts or not sum(counts):
+                    unplaced += 1
+                    continue
+                band = max(range(bands), key=lambda index: counts[index])
+                tally[band][0] += 1
+                tally[band][1] += int(over)
+    return {
+        "label": channel,
+        "unit": display_unit(channel, meaning),
+        **levels_body(levels),
+        "reference": {
+            "from": reference[0].isoformat(),
+            "to": reference[1].isoformat(),
+            "shares": shares,
+        }
+        if reference
+        else None,
+        "windows": [
+            {"band": band, "count": count, "exceeded": over}
+            for band, (count, over) in enumerate(tally)
+            if count
+        ],
+        "unplaced": unplaced,
+    }

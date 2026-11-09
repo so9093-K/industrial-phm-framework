@@ -6,7 +6,9 @@ polling the anomaly screen stays cheap. Responses never contain filesystem paths
 
 from __future__ import annotations
 
+import json
 import sqlite3
+from datetime import datetime
 from http import HTTPStatus
 from urllib.parse import parse_qs
 
@@ -17,7 +19,11 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.history_window import project_history_window
 from industrial_phm.application.observation_window_sqlite import SqliteObservationWindowRepository
-from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
+from industrial_phm.application.phm_analysis import (
+    PhmAnalysisError,
+    SqlitePhmAnalysisStore,
+    StepState,
+)
 from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.application.phm_range import range_analysis
 from industrial_phm.application.phm_read import (
@@ -40,6 +46,7 @@ from industrial_phm.application.phm_window_read import project_monitor_window, p
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.history.ducklake import DuckLakeAssetHistoryConfig
 from industrial_phm.models.package import StepKind
+from industrial_phm.runtime.operations_web_operation import model_operation
 from industrial_phm.runtime.operations_web_phm_models import project_phm_models
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -58,6 +65,7 @@ PHM_READ_ROUTES = frozenset(
         "/api/v1/phm/window",
         "/api/v1/phm/explanations",
         "/api/v1/phm/review",
+        "/api/v1/phm/operation",
     }
 )
 _MAX_ID_LENGTH = 512
@@ -207,6 +215,8 @@ def handle_phm_read(
                 if isinstance(comparison, dict) and isinstance(comparison.get("features"), list):
                     comparison["features"] = with_units(comparison["features"], amplitude)
             return HTTPStatus.OK, {"schema_version": 1, "explanations": explanations}
+        if path == "/api/v1/phm/operation":
+            return HTTPStatus.OK, _model_operation(workspace, store, binding_id)
         if path == "/api/v1/phm/series":
             return HTTPStatus.OK, project_phm_series(
                 store,
@@ -279,3 +289,49 @@ def _int(params: dict[str, str], name: str, *, default: int | None, minimum: int
     if value < minimum:
         raise ValueError(f"{name} below minimum")
     return value
+
+
+def _model_operation(
+    workspace: OperationsWorkspace, store: SqlitePhmAnalysisStore, binding_id: str
+) -> dict[str, object]:
+    """How the model's reference period and analysed windows ran, by operating level."""
+    binding = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)
+    if binding is None:
+        raise PhmReadError("binding unavailable")
+    body: dict[str, object] = {"schema_version": 1, "binding_id": binding_id, "operation": None}
+    if not workspace.history_catalog_path.is_file():
+        return body
+    windows = [
+        (result.event_start, result.event_end, result.output.get("exceeds_threshold") is True)
+        for result in store.list_results(binding_id, limit=100000)
+        if result.state is StepState.ANALYZED
+        and result.event_start is not None
+        and result.event_end is not None
+    ]
+    reference = None
+    try:
+        package = json.loads(
+            (workspace.models_path / binding.package_id / "package.json").read_text("utf-8")
+        )
+        scope = package.get("training_scope") or {}
+        reference = (
+            datetime.fromisoformat(scope["reference_start"]),
+            datetime.fromisoformat(scope["reference_end"]),
+        )
+    except OSError, ValueError, KeyError, TypeError, AttributeError:
+        reference = None
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    try:
+        body["operation"] = model_operation(
+            history,
+            binding.asset_id,
+            source_id=binding.source_id,
+            point_id=binding.measurement_point_id,
+            windows=windows,
+            reference=reference,
+        )
+    except LookupError, ValueError:
+        body["operation"] = None
+    return body
