@@ -22,13 +22,15 @@ export type FoundInterval = {
   related: {context?: RecordContext|null; channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
 };
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
-export type SignalState = "scored" | "level-change" | "short-baseline" | "constant" | "cumulative" | "no-values";
+export type SignalState = "scored" | "level-change" | "short-baseline" | "constant" | "cumulative" | "copied" | "no-values";
 export type CheckedSignal = {
   context?: RecordContext | null; channel: string; label: string; unit: string | null; state: SignalState;
   /** For a baseline held at one value: that value, and the range the record took afterwards. */
   held: number | null; later: {low: number; high: number} | null;
   /** For a running total its source declares: where the record began and ended. */
   first?: number | null; last?: number | null;
+  /** For a signal that held another item's values for a while: that item and the period. */
+  copied?: {origin: string; from: string; to: string} | null;
   latest?:{at:string;value:number}|null; range?:{low:number;high:number}|null;
 };
 export type RecordFindings = {
@@ -78,13 +80,14 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
           reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
       })};
   });
-  const states: readonly SignalState[] = ["scored", "level-change", "short-baseline", "constant", "cumulative", "no-values"];
+  const states: readonly SignalState[] = ["scored", "level-change", "short-baseline", "constant", "cumulative", "copied", "no-values"];
   const signals = root.signals.map((item: unknown): CheckedSignal => {
     const row = object(item);
     if (!row || !states.includes(row.state as SignalState)) invalid();
     const later = row.later === undefined || row.later === null ? null : object(row.later);
     if (row.later !== undefined && row.later !== null && !later) invalid();
-    const latest=object(row.latest),extent=object(row.range);
+    const latest=object(row.latest),extent=object(row.range),copy=object(row.copied);
+    if (row.state === "copied" && !copy) invalid();
     return {latest:latest?{at:instant(latest.at),value:finite(latest.value)}:null,
       range:extent?{low:finite(extent.low),high:finite(extent.high)}:null,
       context: recordContext(row), channel: text(row.channel), label: text(row.label),
@@ -92,7 +95,8 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
       held: row.held === undefined || row.held === null ? null : finite(row.held),
       first: row.first === undefined || row.first === null ? null : finite(row.first),
       last: row.last === undefined || row.last === null ? null : finite(row.last),
-      later: later ? {low: finite(later.low), high: finite(later.high)} : null};
+      later: later ? {low: finite(later.low), high: finite(later.high)} : null,
+      copied: copy ? {origin: text(copy.origin), from: instant(copy.from), to: instant(copy.to)} : null};
   });
   const judged = finite(root.judged);
   if (judged !== signals.filter((row) => (row.state === "scored" || row.state === "level-change" || row.state === "constant")).length) invalid();
@@ -187,6 +191,7 @@ const WHY: Record<Exclude<SignalState, "scored" | "level-change">, string> = {
   "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
   constant: "기준 기간과 이후 기록에서 같은 값이 유지됨",
   cumulative: "누적값이라 기록 처음과 견준 변화로 판단하지 않음",
+  copied: "일부 기간에 다른 항목의 값이 기록되어 변화로 판단하지 않음",
   "no-values": "저장된 값이 없음",
 };
 /** Why a signal was not judged, with what a held baseline and the record afterwards showed. */
@@ -198,4 +203,17 @@ export function unjudgedText(signal: CheckedSignal): string {
     : signal.state === "cumulative" && signal.first != null && signal.last != null
       ? " · " + value(signal.first, null) + " → " + value(signal.last, signal.unit) : "";
   return signal.label + "(" + WHY[signal.state] + held + ")";
+}
+
+/** Signals that held another item's values, grouped by the period so one recording change reads once. */
+export function copiedGroups(signals: CheckedSignal[]): {from: string; to: string; items: {label: string; origin: string}[]}[] {
+  const groups = new Map<string, {from: string; to: string; items: {label: string; origin: string}[]}>();
+  for (const signal of signals) {
+    if (signal.state !== "copied" || !signal.copied) continue;
+    const key = signal.copied.from + "|" + signal.copied.to;
+    const group = groups.get(key) ?? {from: signal.copied.from, to: signal.copied.to, items: []};
+    group.items.push({label: signal.label, origin: signal.copied.origin});
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => Date.parse(a.from) - Date.parse(b.from));
 }

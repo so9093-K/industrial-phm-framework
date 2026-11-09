@@ -18,6 +18,7 @@ from industrial_phm.application.acquisition_snapshot import (
 )
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.exploratory_anomaly import (
+    copied_spans,
     declared_running_total,
     find_departures,
     interval_comparison,
@@ -38,6 +39,8 @@ from industrial_phm.application.signal_exploration import (
     interpretation_property,
     interpretation_unit,
     is_current_in_amperes,
+    property_rank,
+    signal_rank,
 )
 from industrial_phm.application.source_registry import JsonSourceRepository
 from industrial_phm.history import DuckLakeAssetHistory
@@ -645,14 +648,20 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
 
     # A declared running total always leaves its early range; it is stated, not judged.
     cumulative = {channel: values for channel, values in points.items() if running_total(channel)}
+    copies = _copies(records)
     try:
         found = record_changes(
-            {channel: values for channel, values in points.items() if channel not in cumulative},
+            {
+                channel: values
+                for channel, values in points.items()
+                if channel not in cumulative and channel not in copies
+            },
             limit=_FINDINGS_SHOWN,
             streams={
                 r["key"]: (r["source_id"], r["point_id"], r["channel"], r["interpretation"])
                 for r in records
             },
+            priority={r["key"]: signal_rank(r["interpretation"]) for r in records},
         )
     except LookupError, ValueError:
         found = None
@@ -669,9 +678,22 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
             "label": label,
             "unit": unit,
             "state": (
-                "cumulative" if channel in cumulative else state["state"] if state else "no-values"
+                "cumulative"
+                if channel in cumulative
+                else "copied"
+                if channel in copies
+                else state["state"]
+                if state
+                else "no-values"
             ),
         }
+        if channel in copies:
+            copy = copies[channel]
+            row["copied"] = {
+                "origin": named(copy["origin"])[0],
+                "from": iso(copy["from"]),
+                "to": iso(copy["to"]),
+            }
         if record["observations"]:
             last_at, last_value = record["observations"][-1]
             row["latest"] = {"at": iso(last_at), "value": last_value}
@@ -841,15 +863,22 @@ def related(changed: list[dict[str, Any]], similar: list[dict[str, Any]]) -> lis
 
 
 def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any] | None:
-    """The signal whose record ends farthest outside its own baseline, judged one signal at a
-    time exactly as the 기준 구간 이탈 screen judges the signal it shows."""
+    """The signal whose record ends outside its own baseline, judged one signal at a time
+    exactly as the 기준 구간 이탈 screen judges the signal it shows.
+
+    Current comes before voltage and other items, then the farthest departure; a signal
+    recorded with another item's values for a while is not considered.
+    """
     farthest: dict[str, Any] | None = None
-    for record in signal_records(
-        history,
-        summary.asset_id,
-        list(history.list_history_channels(summary.asset_id))[:_ATTENTION_CHANNELS],
-    ):
+    best: tuple[int, float] | None = None
+    records = signal_records(
+        history, summary.asset_id, _ranked_channels(history, summary.asset_id)[:_ATTENTION_CHANNELS]
+    )
+    copies = _copies(records)
+    for record in records:
         channel = record["channel"]
+        if record["key"] in copies:
+            continue
         if declared_running_total(
             name=channel,
             unit=record["unit"],
@@ -861,9 +890,11 @@ def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any
             found = latest_departure(judged)
         except LookupError, ValueError:
             continue
-        if found is not None and (
-            farthest is None or (found["distance"] or 0) > (farthest["distance"] or 0)
-        ):
+        if found is None:
+            continue
+        candidate = (signal_rank(record["interpretation"]), -(found["distance"] or 0))
+        if best is None or candidate < best:
+            best = candidate
             scored = next(
                 (row for row in judged["channels"] if row["state"] in {"scored", "level-change"}),
                 None,
@@ -878,6 +909,48 @@ def _ends_departed(history: DuckLakeAssetHistory, summary: Any) -> dict[str, Any
             )
             farthest = {**found, **record_context(record), "unit": record["unit"], "usual": usual}
     return farthest
+
+
+def _ranked_channels(history: DuckLakeAssetHistory, asset_id: str) -> list[str]:
+    """The asset's channels with current first, then voltage and other declared meanings.
+
+    The attention check reads a capped number of channels; reading them in name order let
+    derived items crowd out the current and voltage that show what the equipment did.
+    """
+    channels = list(history.list_history_channels(asset_id))
+    ranks: dict[str, int] = {}
+    try:
+        snapshot = history.current_snapshot_id()
+        for stream in history.list_history_streams(asset_id):
+            for candidate in history.list_channel_semantics(
+                asset_id,
+                source_id=stream.source_id,
+                start_at=stream.start_at,
+                end_at=stream.end_at + timedelta(seconds=1),
+                snapshot_id=snapshot,
+            ):
+                rank = property_rank(candidate.observed_property)
+                ranks[candidate.channel_id] = min(rank, ranks.get(candidate.channel_id, rank))
+    except LookupError, ValueError, RuntimeError:
+        return channels
+    order = {channel: index for index, channel in enumerate(channels)}
+    return sorted(channels, key=lambda channel: (ranks.get(channel, 3), order[channel]))
+
+
+def _copies(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Signals recorded with another item's values for a while, per source and point.
+
+    Their departures follow the recording rather than the equipment, so they are named as a
+    data issue and kept out of the changes and the attention list.
+    """
+    found: dict[str, dict[str, Any]] = {}
+    for stream in {(record["source_id"], record["point_id"]) for record in records}:
+        members = [r for r in records if (r["source_id"], r["point_id"]) == stream]
+        found |= copied_spans(
+            {r["key"]: r["points"] for r in members},
+            declared={r["key"] for r in members if interpretation_property(r["interpretation"])},
+        )
+    return found
 
 
 def iso(value: datetime) -> str:

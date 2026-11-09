@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {findingLinks, findingText, parseRecordFindings, unjudgedText, type CheckedSignal} from "./record-findings.ts";
+import {copiedGroups, findingLinks, findingText, parseRecordFindings, unjudgedText, type CheckedSignal} from "./record-findings.ts";
 
 const body = () => ({
   schema_version: 1, asset_id: "comp", meaning: "departures-from-the-first-30-percent-not-fault-diagnosis",
@@ -104,4 +104,20 @@ test("a level change carries its own source, point, meaning and reference into e
   }
   const periods=new URL(links.compare!,"http://local").searchParams.get("compare_a");
   assert.equal(periods,interval.baseline.from+"~"+interval.baseline.to);
+});
+
+test("columns that held another item's values are listed once per period and are not changes",()=>{
+  const span={from:"2020-09-15T15:00:00Z",to:"2020-10-16T06:15:00Z"};
+  const root=body();
+  const found=parseRecordFindings({...root,signals:[...root.signals,
+    {channel:"R상선간전압",label:"R상선간전압",unit:null,state:"copied",copied:{origin:"R상전압",...span}},
+    {channel:"R상전류고조파",label:"R상전류고조파",unit:null,state:"copied",copied:{origin:"R상전류",...span}},
+    {channel:"S상선간전압",label:"S상선간전압",unit:null,state:"copied",copied:{origin:"S상전압",from:span.from,to:"2020-09-20T00:00:00Z"}}]},"comp");
+  assert.equal(found.judged,3);
+  assert.deepEqual(copiedGroups(found.signals),[
+    {...span,items:[{label:"R상선간전압",origin:"R상전압"},{label:"R상전류고조파",origin:"R상전류"}]},
+    {from:span.from,to:"2020-09-20T00:00:00Z",items:[{label:"S상선간전압",origin:"S상전압"}]},
+  ]);
+  // A copied signal must say which item and when.
+  assert.throws(()=>parseRecordFindings({...root,signals:[...root.signals,{channel:"x",label:"x",unit:null,state:"copied"}]},"comp"));
 });
