@@ -2,6 +2,7 @@
  * recent period against an earlier one, as the server measured them. Changed operating
  * conditions are not a fault, and the reference period is not assumed to be normal. */
 import {object} from "./writes.ts";
+import {bandName, type LevelNames} from "./record-findings.ts";
 
 export type ConditionPeriod="1h"|"6h"|"24h";
 export type ConditionSource={sourceId:string;pointId:string|null};
@@ -14,11 +15,14 @@ export type TimelinePoint={
   at:string;currentMean:number|null;voltageUnbalance:number|null;currentUnbalance:number|null;patternScore:number|null;
   voltage:number[]|null;current:number[]|null;
 };
-export type NotablePoint={at:string;score:number|null;channel:string;value:number|null;low:number|null;high:number|null;unit:string};
+export type NotablePoint={at:string;score:number|null;channel:string;value:number|null;low:number|null;high:number|null;unit:string;band:number|null};
+/** Each operating level compared only with the same level of the reference period. */
+export type LevelSplit={names:LevelNames;unscored:number;
+  parts:{band:number;referenceSamples:number;targetSamples:number;scored:boolean;above:number}[]};
 export type Pattern=
-  |{scored:false}
+  |{scored:false;byLevel:LevelSplit|null}
   |{scored:true;threshold:number|null;above:number;scoredSamples:number;percent:number|null;notable:NotablePoint[];
-    model:string|null;fitSamples:number|null};
+    model:string|null;fitSamples:number|null;byLevel:LevelSplit|null};
 /** Identifiers and data-quality facts shown only under 기술 상세. */
 export type ConditionDetails={timeEvidence:string[];snapshotId:string|null;fileQuality:boolean;
   excluded:{reference:Record<string,number>;target:Record<string,number>}};
@@ -94,8 +98,9 @@ export function parseCondition(raw:unknown,assetId:string,expected:ConditionSour
   const notable=(Array.isArray(pattern.notable)?pattern.notable:[]).flatMap((item:unknown):NotablePoint[]=>{
     const row=object(item);const at=text(row?.at);
     return row&&at&&row.above_reference===true?[{at,score:finite(row.score),channel:String(row.channel_id??""),
-      value:finite(row.value),low:finite(row.reference_p05),high:finite(row.reference_p95),unit:String(row.unit??"")}]:[];
+      value:finite(row.value),low:finite(row.reference_p05),high:finite(row.reference_p95),unit:String(row.unit??""),band:finite(row.band)}]:[];
   });
+  const byLevel=levelSplit(pattern,object(root.operating_levels));
   const range=(key:string)=>{const value=text(root[key]);if(!value)invalid();return value;};
   return {analyzed:true,sources,sourceId,pointId:text(root.point_id),targetStart:range("target_start"),targetEnd:range("target_end"),
     referenceStart:range("reference_start"),referenceEnd:range("reference_end"),lastObservedAt:text(root.last_observed_at),nextPeriodAvailable:root.next_period_available===true,
@@ -106,8 +111,27 @@ export function parseCondition(raw:unknown,assetId:string,expected:ConditionSour
       excluded:{reference:counts(object(root.excluded)?.reference),target:counts(object(root.excluded)?.target)}},
     pattern:pattern.state==="scored"?{scored:true,threshold:finite(pattern.threshold),above:finite(pattern.above_reference_count)??0,
       scoredSamples:finite(pattern.scored_samples)??0,percent:finite(pattern.above_reference_percent),notable,model:text(pattern.model),
-      fitSamples:finite(pattern.fit_samples)}
-      :{scored:false}};
+      fitSamples:finite(pattern.fit_samples),byLevel}
+      :{scored:false,byLevel}};
+}
+
+function levelSplit(pattern:Record<string,unknown>,levels:Record<string,unknown>|null):LevelSplit|null{
+  if(pattern.split!=="operating-level")return null;
+  if(!levels||!Array.isArray(levels.levels)||!Array.isArray(pattern.levels))invalid();
+  const stoppedBelow=finite(levels.stopped_below);
+  if(stoppedBelow===null)invalid();
+  const names:LevelNames={unit:"A",stoppedBelow,levels:levels.levels.map((item:unknown)=>{
+    const row=object(item);const low=finite(row?.low),typical=finite(row?.typical);
+    if(!row||low===null||typical===null)invalid();
+    return {low,high:finite(row.high),typical};
+  })};
+  const parts=pattern.levels.map((item:unknown)=>{
+    const row=object(item);const band=finite(row?.band);
+    if(!row||band===null||band<0||band>names.levels.length)invalid();
+    return {band,referenceSamples:finite(row.reference_samples)??0,targetSamples:finite(row.target_samples)??0,
+      scored:row.state==="scored",above:finite(row.above_reference_count)??0};
+  });
+  return {names,parts,unscored:finite(pattern.unscored_samples)??parts.filter(part=>!part.scored).reduce((sum,part)=>sum+part.targetSamples,0)};
 }
 
 export async function readCondition(
@@ -187,10 +211,15 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
     }
     lines.push("가장 큰 3상 평균 전류는 "+measured(target.currentPeak," A")+" ("+kstTime(target.currentPeakAt)+")입니다.");
   }
+  const split=pattern.byLevel;
   if(pattern.scored){
-    lines.push("기준 패턴의 99% 점수 범위를 넘은 관측 "+pattern.above+"개 / "+pattern.scoredSamples+"개 ("+measured(pattern.percent,"%")+").");
+    lines.push((split?"같은 운전 상태끼리 견준 ":"")+"기준 패턴의 99% 점수 범위를 넘은 관측 "+pattern.above+"개 / "+pattern.scoredSamples+"개 ("+measured(pattern.percent,"%")+").");
     if(!pattern.above)lines.push("이번 기간에는 기준 점수 범위를 넘은 관측이 없습니다.");
-  }else lines.push("기준 기간의 데이터가 부족하거나 거의 일정해 패턴을 비교하지 않았습니다. 기준 기간을 바꿔 보세요.");
+  }else lines.push((split?"같은 운전 상태의 ":"")+"기준 기간 데이터가 부족하거나 거의 일정해 패턴을 비교하지 않았습니다. 기준 기간을 바꿔 보세요.");
+  // Levels the reference period hardly ran at have nothing to be compared with; say how much of the period that was.
+  const apart=split?split.parts.filter(part=>!part.scored&&part.targetSamples>0):[];
+  if(split&&apart.length)lines.push("기준 기간에 드물었던 운전 상태라 견주지 않은 관측 · "+apart.map(part=>bandName(split.names,part.band)
+    +" "+part.targetSamples+"개(기준 기간 "+part.referenceSamples+"개)").join(" · ")+".");
   return lines;
 }
 
@@ -219,7 +248,8 @@ export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:st
       ?(item.unit==="V"?"전압":"전류")+" R/S/T "+phases.map(value=>measured(value)).join(" / ")+unit
         +" · 가장 멀리 벗어난 "+item.channel+"의 "+range
       :item.channel+" "+measured(item.value,unit)+" · "+range;
-    return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail};
+    const level=item.band!==null&&condition.pattern.byLevel?bandName(condition.pattern.byLevel.names,item.band)+" 중 · ":"";
+    return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail:level+detail};
   }));
   return ([["최대 전류",condition.target.currentPeakAt,"currentMean"],["최대 전압 불평형",condition.target.voltageUnbalanceMaxAt,"voltageUnbalance"]] as const)
     .flatMap(([label,at,metric])=>at?[{at,label:label+" · "+kstTime(at),detail:"",metric}]:[]);

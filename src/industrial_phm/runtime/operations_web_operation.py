@@ -7,7 +7,7 @@ analysis that splits by them splits the same way.
 from __future__ import annotations
 
 from bisect import bisect_right
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -99,7 +99,74 @@ def _operation(
 ) -> StreamOperation:
     start = min(point[0] for point in record["points"])
     end = max(point[1] for point in record["points"]) + timedelta(seconds=1)
+    read = _reader(history, asset_id, record, start, end)
+    levels = _levels(read)
+    timeline = read(levels.edges, _TIMELINE_BUCKETS)
+    return StreamOperation(
+        record["key"], levels, timeline, tuple(bucket.bucket_start for bucket in timeline.buckets)
+    )
 
+
+def current_levels(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    *,
+    source_id: str,
+    point_id: str | None,
+    channel_id: str,
+) -> OperatingLevels | None:
+    """Operating levels of one source and point, found from one current's whole record.
+
+    The same record and rule as the summary give the same levels, so an analysis split by them
+    names the levels the summary shows.
+
+    Args:
+        history: The asset history.
+        asset_id: The asset.
+        source_id: The source.
+        point_id: The measurement point, or None.
+        channel_id: The current to read the levels from.
+
+    Returns:
+        The levels, or None when the current holds no usable value.
+    """
+    stream = next(
+        (
+            item
+            for item in history.list_history_streams(asset_id)
+            if (item.source_id, item.measurement_point_id) == (source_id, point_id)
+        ),
+        None,
+    )
+    if stream is None or channel_id not in stream.channels:
+        return None
+    start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
+    whole = history.query_multi_signal_measurement_aggregation(
+        asset_id,
+        channel_ids=[channel_id],
+        start_at=start,
+        end_at=end,
+        bucket_count=1,
+        source_id=source_id,
+        measurement_point_id=point_id,
+    )
+    if not whole.buckets:
+        return None
+    meaning = max(whole.buckets, key=lambda bucket: bucket.usable_count).interpretation_json
+    record = {"channel": channel_id, "source_id": source_id, "point_id": point_id}
+    try:
+        return _levels(_reader(history, asset_id, record | {"interpretation": meaning}, start, end))
+    except LookupError:
+        return None
+
+
+def _reader(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    record: dict[str, Any],
+    start: datetime,
+    end: datetime,
+) -> Callable[..., ValueOccupancy]:
     def occupancy(edges: Sequence[float], buckets: int = 1) -> ValueOccupancy:
         return history.query_value_occupancy(
             asset_id,
@@ -113,16 +180,32 @@ def _operation(
             bucket_count=buckets,
         )
 
-    whole = occupancy(histogram_edges(0.0, 0.0, 0))
+    return occupancy
+
+
+def _levels(read: Callable[..., ValueOccupancy]) -> OperatingLevels:
+    whole = read(histogram_edges(0.0, 0.0, 0))
     if not whole.buckets or whole.minimum is None or whole.maximum is None:
         raise LookupError("no usable current")
     low, width, bins = running_bins(whole.minimum, whole.maximum, whole.buckets[0].counts[1])
-    histogram = occupancy(histogram_edges(low, width, bins)) if bins else whole
-    levels = find_levels(low, width, histogram.buckets[0].counts[1:])
-    timeline = occupancy(levels.edges, _TIMELINE_BUCKETS)
-    return StreamOperation(
-        record["key"], levels, timeline, tuple(bucket.bucket_start for bucket in timeline.buckets)
-    )
+    histogram = read(histogram_edges(low, width, bins)) if bins else whole
+    return find_levels(low, width, histogram.buckets[0].counts[1:])
+
+
+def levels_body(levels: OperatingLevels) -> dict[str, Any]:
+    """The stop floor and each running level, as the screens name them."""
+    edges = levels.edges
+    return {
+        "stopped_below": edges[0],
+        "levels": [
+            {
+                "low": edges[index],
+                "high": edges[index + 1] if index + 1 < len(edges) else None,
+                "typical": typical,
+            }
+            for index, typical in enumerate(levels.typical)
+        ],
+    }
 
 
 def operation_body(
@@ -137,20 +220,11 @@ def operation_body(
     Returns:
         Levels, shares over the record, before and after the baseline, and a timeline.
     """
-    edges = operation.levels.edges
     occupancy = operation.occupancy
     record = (occupancy.start_at, occupancy.end_at)
     return {
         "key": operation.key,
-        "stopped_below": edges[0],
-        "levels": [
-            {
-                "low": edges[index],
-                "high": edges[index + 1] if index + 1 < len(edges) else None,
-                "typical": typical,
-            }
-            for index, typical in enumerate(operation.levels.typical)
-        ],
+        **levels_body(operation.levels),
         "baseline": {"from": baseline[0].isoformat(), "to": baseline[1].isoformat()}
         if baseline
         else None,

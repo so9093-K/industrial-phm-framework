@@ -109,3 +109,21 @@ test("period movement preserves an explicitly chosen reference; next availabilit
   assert.equal(current.nextPeriodAvailable,false);
   assert.equal(ready(analyzed({next_period_available:true})).nextPeriodAvailable,true);
 });
+
+test("each operating level is compared with the same level, and levels the reference hardly ran at are said apart",()=>{
+  const base=analyzed();
+  const condition=ready({...base,
+    operating_levels:{stopped_below:1,levels:[{low:1,high:45.9,typical:31.4},{low:45.9,high:null,typical:61.9}]},
+    pattern:{...base.pattern,split:"operating-level",threshold:1,above_reference_count:2,scored_samples:40,above_reference_percent:5,unscored_samples:20,
+      notable:[{...base.pattern.notable[0],score:1.6,band:2}],
+      levels:[{band:1,reference_samples:0,target_samples:20,state:"insufficient-reference"},
+        {band:2,reference_samples:60,target_samples:40,state:"scored",above_reference_count:2}]}});
+  assert.ok(condition.pattern.byLevel);
+  const lines=insights(condition);
+  assert.ok(lines.includes("같은 운전 상태끼리 견준 기준 패턴의 99% 점수 범위를 넘은 관측 2개 / 40개 (5%)."));
+  assert.ok(lines.includes("기준 기간에 드물었던 운전 상태라 견주지 않은 관측 · 약 31 A 운전 20개(기준 기간 0개)."));
+  assert.equal(firstChecks(condition)[0].detail,"약 62 A 운전 중 · vR 240 V · 기준 5–95% 범위 229–232 V");
+  // A split result must name its levels.
+  assert.throws(()=>ready({...base,pattern:{...base.pattern,split:"operating-level",levels:[]}}),/형식/);
+  assert.equal(ready(base).pattern.byLevel,null);
+});

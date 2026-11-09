@@ -172,13 +172,15 @@ function parseOperation(raw: unknown): Operation {
 }
 
 const about = (number: number) => number.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
+/** What it takes to name an operating band: the stop floor and each running level. */
+export type LevelNames = Pick<Operation, "levels" | "unit" | "stoppedBelow">;
 /** A band as people say it: "정지", or a running level by the current it usually drew. */
-export function bandName(operation: Operation, band: number): string {
+export function bandName(operation: LevelNames, band: number): string {
   if (band === 0) return "정지";
   return "약 " + about(operation.levels[band - 1].typical) + (operation.unit ? " " + operation.unit : "") + " 운전";
 }
 /** The current a band covers. */
-export function bandRange(operation: Operation, band: number): string {
+export function bandRange(operation: LevelNames, band: number): string {
   const unit = operation.unit ? " " + operation.unit : "";
   if (band === 0) return about(operation.stoppedBelow) + unit + " 미만";
   const level = operation.levels[band - 1];
