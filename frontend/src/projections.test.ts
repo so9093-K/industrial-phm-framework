@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {loadOptions, loadPaired, outlookChart, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
+import {loadOptions, loadPaired, outlookChart, steadyRange, parseOptions, parsePairedProjection, spreadRows, MeasurementVersionMismatch,
   type Conditions} from "./projections.ts";
 const conditions:Conditions={direction:"upper",management:12,end:16};
 const forecast=()=>({
@@ -125,3 +125,21 @@ test("a distant criterion cannot flatten the forecast unless the reader includes
   assert.equal(outlookChart(distant,true)!.high,1000);
   assert.notEqual(outlookChart(distant,true)!.endLimit,null);
 });
+
+test("the drawn forecast range follows the estimate without the jitter of its sampled width", () => {
+  // Widths of 2 and 4 alternate by sampling chance around an estimate that rises and falls daily.
+  const future = Array.from({length: 200}, (_, index) => {
+    const estimate = 220 + Math.sin(index / 28 * 2 * Math.PI) * 2, width = index % 2 ? 4 : 2;
+    return {at: new Date(Date.UTC(2020, 9, 23) + index * 3_600_000).toISOString(), estimate, lower: estimate - width, upper: estimate + width};
+  });
+  const drawn = steadyRange(future);
+  assert.equal(drawn.length, 200);
+  for (const [index, row] of drawn.entries()) {
+    const width = row.upper - future[index].estimate;
+    assert.ok(width > 2.7 && width < 3.3, "width " + width + " at " + index);
+    assert.ok(row.lower < future[index].estimate && row.upper > future[index].estimate);
+  }
+  // Points without a range are left out, as before.
+  assert.equal(steadyRange([{...future[0], lower: null, upper: null}]).length, 0);
+});
+

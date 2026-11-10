@@ -331,7 +331,7 @@
               <span><i class="key history"></i>측정값 (구간 평균)</span>
               {#if chart.fitted}<span><i class="key fitted"></i>모델이 학습한 값</span>{/if}
               <span><i class="key estimate"></i>추세 예측</span>
-              <span><i class="key band"></i>예측 범위</span>
+              <span><i class="key band"></i>예측 범위 (폭은 이웃한 몇 시점끼리 평균해 그림 · 수치는 계산값 그대로)</span>
               {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
               {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
             </figcaption>

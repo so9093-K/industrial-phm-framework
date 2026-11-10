@@ -190,6 +190,22 @@ export type OutlookChart = {
   ticks: Tick[];
 };
 
+/** The forecast range as drawn. Each point's range comes from a few hundred sampled futures, so
+ * its width jitters from one point to the next by chance alone; neighbouring points estimate
+ * nearly the same width. The width above and below the estimate is averaged over a few
+ * neighbours, so the range keeps following the estimate's own daily shape without the jitter. */
+export function steadyRange(future: Projection["future"]): {at: string; lower: number; upper: number}[] {
+  const ranged = future.filter((item) => item.lower !== null && item.upper !== null);
+  const reach = Math.max(1, Math.round(ranged.length * 0.02));
+  const mean = (values: number[], index: number) => {
+    const part = values.slice(Math.max(0, index - reach), index + reach + 1);
+    return part.reduce((sum, value) => sum + value, 0) / part.length;
+  };
+  const above = ranged.map((item) => (item.upper as number) - item.estimate);
+  const below = ranged.map((item) => item.estimate - (item.lower as number));
+  return ranged.map((item, index) => ({at: item.at, upper: item.estimate + mean(above, index), lower: item.estimate - mean(below, index)}));
+}
+
 /** Recent stored values, the forecast with its range and the user's limits on one plot.
  * The window shows twice the forecast span of history so the forecast stays readable. */
 export function outlookChart(projection: Projection, includeLimits = false): OutlookChart | null {
@@ -215,10 +231,10 @@ export function outlookChart(projection: Projection, includeLimits = false): Out
   const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
   const line = (points: Array<[string, number]>) =>
     points.map(([at, value], i) => (i ? "L" : "M") + x(at).toFixed(1) + " " + y(value).toFixed(1)).join(" ");
-  const ranged = future.filter((item) => item.lower !== null && item.upper !== null);
+  const ranged = steadyRange(future);
   const band = ranged.length
-    ? line(ranged.map((item) => [item.at, item.upper as number]))
-      + " " + ranged.slice().reverse().map((item) => "L" + x(item.at).toFixed(1) + " " + y(item.lower as number).toFixed(1)).join(" ") + " Z"
+    ? line(ranged.map((item) => [item.at, item.upper]))
+      + " " + ranged.slice().reverse().map((item) => "L" + x(item.at).toFixed(1) + " " + y(item.lower).toFixed(1)).join(" ") + " Z"
     : "";
   return {
     width, height, low, high,

@@ -4,6 +4,8 @@
   import {CHANGE_REASON, changeValue} from "../record-findings";
   import {readVibrationFindings, vibrationLinks, type VibrationChange, type VibrationFindings} from "../vibration-findings";
   import {assetTabUrl} from "../routes";
+  import {yTicks} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
   /** What the whole acquisition record held: up to three feature changes, by acquisition. */
   let {assetId}: {assetId: string} = $props();
   let found: VibrationFindings | null = $state(null);
@@ -21,7 +23,9 @@
     const values = change.trace.map(point => point.value);
     const low = Math.min(...values), high = Math.max(...values);
     const y = (value: number) => 62 - (value - low) / Math.max(high - low, 1e-12) * 44;
-    return {x, path: change.trace.map((point, index) => (index ? "L" : "M") + x(point.at).toFixed(2) + "," + y(point.value).toFixed(2)).join(" "),
+    // The values the trace spans, on the left, so a small move does not look like a large one.
+    const ticks = high > low ? yTicks(low - (high - low) * 18 / 44, high + (high - low) * 18 / 44, 0, 80, 4).filter(tick => tick.y >= 6 && tick.y <= 74) : [];
+    return {x, ticks, path: change.trace.map((point, index) => (index ? "L" : "M") + x(point.at).toFixed(2) + "," + y(point.value).toFixed(2)).join(" "),
       dots: change.trace.map(point => ({cx: x(point.at), cy: y(point.value)}))};
   }
 </script>
@@ -44,13 +48,16 @@
             <strong class="change-values">{#if change.reference !== null && change.typical !== null}{changeValue(change.reference, null)} → {changeValue(change.typical, change.unit)}{:else}가장 {change.direction === "up" ? "높을" : "낮을"} 때 {changeValue(change.value, change.unit)}{/if}</strong>
             <p class="when">{place(change.from)} ~ {place(change.to)} · {change.to - change.from + 1}회{change.reason ? " · " + CHANGE_REASON[change.reason] : ""}</p>
             {#if change.related.length}<p class="when">함께 달라진 특징 · {change.related.map(other => other.label + " " + changeValue(other.reference, null) + " → " + changeValue(other.current, other.unit)).join(" · ")}</p>{/if}
+            <ValueAxis ticks={drawn.ticks} height={80} unit={change.unit}>
             <svg viewBox="0 0 600 80" preserveAspectRatio="none" role="img" aria-label={change.label + " 측정별 값 · 음영은 변화 구간"}>
               <rect width="600" height="80" rx="8" class="track" />
+              {#each drawn.ticks as tick (tick.value)}<line x1="0" x2="600" y1={tick.y} y2={tick.y} class="grid" />{/each}
               <rect x={drawn.x(change.from)} width={Math.max(2, drawn.x(change.to) - drawn.x(change.from))} height="80" class="interval" />
               <path d={drawn.path} class="trace" />
               {#each drawn.dots as dot, index (index)}<circle cx={dot.cx} cy={dot.cy} r="1.8" class="sample" />{/each}
             </svg>
-            <p class="axis"><span>{place(record.first!)}</span><span>음영 · 변화 구간</span><span>{place(record.last!)}</span></p>
+            {#snippet footer()}<p class="axis"><span>{place(record.first!)}</span><span>음영 · 변화 구간</span><span>{place(record.last!)}</span></p>{/snippet}
+            </ValueAxis>
             <p class="links"><a class="ui-button ui-button-primary" href={links.signal}>변화가 시작된 측정 보기 →</a>
               <a href={links.compare}>처음 30%와 비교 →</a></p>
             <p class="context small">비교 기준 · 처음 30% · {place(change.baseline.from)} ~ {place(change.baseline.to)}</p>
@@ -73,6 +80,7 @@
   .change-values { font-size: clamp(1.25rem, 3vw, 1.65rem); line-height: 1.4; }
   .when, .context { margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
   svg { display: block; width: 100%; height: 80px; border-radius: var(--radius-control); overflow: hidden; }
+  .grid { stroke: var(--color-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
   .track { fill: var(--color-surface-selected); }
   .interval { fill: var(--color-caution-ink); fill-opacity: .16; }
   .trace { fill: none; stroke: var(--color-action); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
