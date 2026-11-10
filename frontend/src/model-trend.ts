@@ -33,6 +33,23 @@ export function drawTrend(points: TrendPoint[], bins: number): TrendPoint[] {
   return drawn;
 }
 
+/** How much of each horizontal bin was over the model's threshold, for a strip under the chart:
+ * a dense record that crosses back and forth reads as a share per stretch, not as a band of
+ * colour over the whole plot. Bins without a judged score are left out. */
+export function exceedanceLane(points: TrendPoint[], bins: number): {start: number; end: number; judged: number; over: number}[] {
+  const judged = points.filter(point => point.score !== null && point.exceeds !== null);
+  if (!judged.length || bins < 1) return [];
+  const first = points[0].pointer.position, span = Math.max(1, points.at(-1)!.pointer.position - first);
+  const lane = new Map<number, {start: number; end: number; judged: number; over: number}>();
+  for (const point of judged) {
+    const bin = Math.min(bins - 1, Math.floor((point.pointer.position - first) / span * bins));
+    const row = lane.get(bin) ?? {start: point.pointer.position, end: point.pointer.position, judged: 0, over: 0};
+    row.end = point.pointer.position; row.judged++; if (point.exceeds) row.over++;
+    lane.set(bin, row);
+  }
+  return [...lane.values()];
+}
+
 /** Representative runs on this model's own scale. Keep the full chronology available
  * separately rather than making a person scan every run before inspecting a result. */
 export function priorityIntervals(intervals: Interval[]): {label: string; interval: Interval}[] {

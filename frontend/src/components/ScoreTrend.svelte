@@ -4,7 +4,7 @@
   import {num} from "../format";
   import {measure, yTicks} from "../chart-axis";
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
-  import {drawTrend, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {drawTrend, exceedanceLane, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
   import StatusNotice from "./StatusNotice.svelte";
   import ModelOperation from "./ModelOperation.svelte";
 
@@ -21,7 +21,7 @@
   let hovered: TrendPoint | null = $state(null);
   const W = $derived(Math.max(300,chartWidth));
   const RIGHT = $derived(W-12);
-  const H = 220, LEFT = 52, TOP = 14, BOTTOM = 184;
+  const H = 240, LEFT = 52, TOP = 14, BOTTOM = 184, LANE = 194, LANE_HEIGHT = 12;
   const visible = $derived.by((): TrendPoint[] => {
     const read: ScoreTrend | null = trend;
     if (!read) return [];
@@ -31,6 +31,7 @@
     return read.points.filter(point=>point.pointer.position>=focus!.start-margin && point.pointer.position<=focus!.end+margin/2);
   });
   const drawn = $derived(drawTrend(visible,Math.max(20,Math.floor(chartWidth/4))));
+  const lane = $derived(exceedanceLane(visible,Math.max(20,Math.floor(chartWidth/6))));
 
   const scored = $derived.by((): TrendPoint[] => {
     return visible.filter((point) => point.score !== null);
@@ -117,16 +118,6 @@
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
-    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
-    {#if first && told}
-      <div class="onset" aria-label="기준 초과 상태">
-        <strong>{told.headline}</strong>
-        {#if first.eventStart && measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
-        <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
-        {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
-          <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
-      </div>
-    {/if}
     {#if period}<p class="context">가로축 · 기록 시작 후 경과 시간 · 기록된 측정 간격 {elapsedText(period)}</p>{/if}
     <div class="chart" bind:clientWidth={chartWidth}>
     <div class="chart-head"><strong>{focus ? "선택 구간의 점수 추이" : "전체 기록의 점수 추이"}</strong>
@@ -134,16 +125,13 @@
     <ul class="legend" aria-label="모델 점수 범례">
       <li><i class="key score-key"></i>모델 점수</li><li><i class="key over-key"></i>기준 초과</li>
       <li><i class="key threshold-key"></i>모델 기준 {num(threshold)}</li>
-      <li><i class="key interval-key"></i>기준 초과 구간</li>
+      <li><i class="key interval-key"></i>아래 띠 · 기준을 넘은 측정 비율(진할수록 많음)</li>
       {#if first}<li><i class="key onset-key"></i>{story?.state === "ongoing" ? "현재 구간 시작" : "마지막 기준 초과"}</li>{/if}<li><i class="key selected-key"></i>선택 측정</li>
     </ul>
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
       <defs><clipPath id={clipId}><rect x={LEFT} y={TOP} width={RIGHT-LEFT} height={BOTTOM-TOP} /></clipPath>
         <clipPath id={clipId+"-over"}><rect x={LEFT} y={TOP} width={RIGHT-LEFT} height={Math.max(0,(threshold!==null?scale.y(threshold):TOP)-TOP)} /></clipPath></defs>
-      {#each trend.intervals.filter(interval=>interval.end>=scale.first&&interval.start<=scale.last) as interval (interval.start)}
-        <rect x={Math.max(LEFT,scale.x(interval.start))} y={TOP} width={Math.max(2,Math.min(RIGHT,scale.x(interval.end))-Math.max(LEFT,scale.x(interval.start)))} height={BOTTOM-TOP} class="band" />
-      {/each}
       <path d={"M" + LEFT + " " + TOP + " V" + BOTTOM + " H" + RIGHT} class="axis" />
       <!-- Value ticks sit outside the plot so they never cover the threshold label. -->
       {#each yTicks(scale.low, scale.high, TOP, BOTTOM, 5) as tick (tick.value)}
@@ -168,6 +156,13 @@
           <title>{place(point.pointer.position)} · 점수 {num(point.score)}</title>
         </circle>
       {/each}
+      <!-- Under the plot, how much of each stretch was over the threshold: darker is more. -->
+      <text x={LEFT - 6} y={LANE + LANE_HEIGHT - 2} text-anchor="end" class="label">초과</text>
+      <rect x={LEFT} y={LANE} width={RIGHT-LEFT} height={LANE_HEIGHT} class="lane" />
+      {#each lane as row (row.start)}{#if row.over}
+        <rect x={scale.x(row.start)} y={LANE} width={Math.max(2,scale.x(row.end)-scale.x(row.start))} height={LANE_HEIGHT}
+          class="lane-over" fill-opacity={0.2+0.8*row.over/row.judged}><title>{place(row.start)} ~ {place(row.end)} · {row.judged}회 중 {row.over}회 기준 초과</title></rect>
+      {/if}{/each}
       {#each ticks as tick (tick.value)}
           <text x={scale.x(tick.value)} y={H - 6} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
       {/each}
@@ -177,9 +172,19 @@
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
     </svg>
     {#if inspected}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)} · {inspected.exceeds ? "기준 초과" : "기준 이하"}</p>{/if}
-    <p class="context">그래프에서 위치를 선택하면 해당 측정의 결과를 표시합니다. 음영 안에도 기준 이하 측정이 있을 수 있습니다.
+    <p class="context">그래프에서 위치를 선택하면 해당 측정의 결과를 표시합니다. 아래 띠에 마우스를 올리면 그 구간에서 기준을 넘은 측정 수가 보입니다.
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
+    {#if first && told}
+      <div class="onset" aria-label="기준 초과 상태">
+        <strong>{told.headline}</strong>
+        {#if first.eventStart && measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
+        <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
+        {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
+          <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
+      </div>
+    {/if}
+    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
     {#if trend.intervals.length}
       <ul class="priorities" aria-label="우선 살펴볼 모델 구간">
         {#each priorities as row (row.interval.start)}
@@ -206,10 +211,11 @@
   h3 { margin: 0; font-size: var(--font-section); }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
-  svg { display: block; width: 100%; height: 220px; }
+  svg { display: block; width: 100%; height: 240px; }
   .axis { fill: none; stroke: var(--color-border); }
   .grid { stroke: var(--color-border); stroke-opacity: 0.5; }
-  .band { fill: var(--color-uncertain-surface); }
+  .lane { fill: var(--color-surface-selected); }
+  .lane-over { fill: var(--color-failure-ink); }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .over-line { fill: none; stroke: var(--color-failure-ink); stroke-width: 1.5; }
@@ -219,7 +225,7 @@
   .legend li { display: inline-flex; align-items: center; gap: var(--space-1); }
   .key { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--color-action); }
   .over-key { border-color: var(--color-failure-ink); }.threshold-key { border-color: var(--color-failure-ink); border-top-style: dashed; }
-  .interval-key { height: 10px; border: 1px solid var(--color-border); background: var(--color-uncertain-surface); }
+  .interval-key { height: 10px; border: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--color-failure-ink) 25%, transparent), var(--color-failure-ink)); }
   .onset-key { border-color: var(--color-caution-ink); border-top-style: dotted; }
   .selected-key { width: 9px; height: 9px; border: 2px solid var(--color-ink); border-radius: 50%; background: var(--color-action); }
   .inspection-dot { fill: var(--color-action); stroke: var(--color-ink); stroke-width: 2; }

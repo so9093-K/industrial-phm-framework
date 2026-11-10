@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {drawTrend,priorityIntervals,beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {drawTrend,exceedanceLane,priorityIntervals,beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -148,3 +148,14 @@ test("dense rendering preserves isolated extremes and a skipped-measurement gap"
   assert.deepEqual(priorityIntervals(intervals).map(row=>row.interval.start),[90,4,1]);
   assert.equal(priorityIntervals([intervals[0]]).length,1);
 });
+
+test("a record crossing back and forth reads as the share over the threshold per stretch",()=>{
+  // 100 measurements: the first half alternates over and under, the second half stays under.
+  const points:TrendPoint[]=Array.from({length:100},(_,index)=>({pointer:{position:index+1} as TrendPoint["pointer"],
+    score:index<50&&index%2===0?3:1,threshold:2,exceeds:index<50&&index%2===0,eventStart:null}));
+  points[70]={...points[70],score:null,exceeds:null};
+  const lane=exceedanceLane(points,4);
+  assert.deepEqual(lane.map(row=>[row.start,row.end,row.judged,row.over]),[[1,25,25,13],[26,50,25,12],[51,75,24,0],[76,100,25,0]]);
+  assert.deepEqual(exceedanceLane([],4),[]);
+});
+
