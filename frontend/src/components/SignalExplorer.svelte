@@ -246,11 +246,27 @@
     await tick();
     cards[current.key]?.scrollIntoView({block: "nearest"});
   }
-  function scrub(slot: number) {
-    if (!grid?.step) return;
-    const start = grid.from + slot * grid.step;
-    picked = snapSpan(start, start, grid.from, grid.to, grid.step);
+  // The read window's slots the picked moment or span starts and ends in; without a pick both sit
+  // at the last slot, where a single moment slider used to rest.
+  const slots = $derived.by(() => {
+    const span: Span | null = picked;
+    if (!grid?.step) return null;
+    const last = grid.slots - 1, step = grid.step;
+    if (!span) return {start: last, end: last};
+    const start = Math.min(last, Math.max(0, Math.floor((span.from - grid.from) / step + 1e-6)));
+    return {start, end: Math.min(last, Math.max(start, Math.ceil((span.to - grid.from) / step - 1e-6) - 1))};
+  });
+  /** A moment or span picked with two sliders, for a keyboard or a touch screen where dragging is
+   * hard: a moment moves with the start, moving the end past it stretches it to a span, and a
+   * span keeps its end while its start moves. */
+  function scrubTo(edge: "start" | "end", slot: number) {
+    if (!grid?.step || !slots) return;
+    const moment = !picked || slots.start === slots.end;
+    const start = edge === "start" ? slot : Math.min(slots.start, slot);
+    const end = edge === "end" ? slot : moment ? slot : Math.max(slot, slots.end);
+    picked = snapSpan(grid.from + start * grid.step, grid.from + (end + 1) * grid.step, grid.from, grid.to, grid.step);
   }
+  const slotTime = (slot: number) => grid ? recorded(new Date(grid.from + slot * (grid.step ?? 0)).toISOString()) : "";
   function zoomTo(span: Span) {
     const window = zoomWindow(span);
     if (!window) return;
@@ -484,12 +500,18 @@
             {@const unit = shownUnit ?? null}
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
             {@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}
-            {#if grid?.step && grid.slots > 1}
-              <label class="scrub">시점 고르기
-                <input type="range" min="0" max={grid.slots - 1}
-                  value={picked && grid.step ? Math.min(grid.slots - 1, Math.floor((picked.from - grid.from) / grid.step)) : grid.slots - 1}
-                  oninput={(event) => scrub(Number(event.currentTarget.value))} />
-              </label>
+            {#if grid?.step && grid.slots > 1 && slots}
+              <fieldset class="scrub">
+                <legend>시점·구간 고르기 <small>시작을 옮기면 한 시점, 끝을 뒤로 옮기면 구간 · Esc로 선택 해제</small></legend>
+                <label>시작 <span>{slotTime(slots.start)}</span>
+                  <input type="range" min="0" max={grid.slots - 1} value={slots.start} aria-valuetext={"시작 " + slotTime(slots.start)}
+                    oninput={(event) => scrubTo("start", Number(event.currentTarget.value))}
+                    onkeydown={(event) => { if (event.key === "Escape") picked = null; }} /></label>
+                <label>끝 <span>{slotTime(slots.end + 1)}</span>
+                  <input type="range" min="0" max={grid.slots - 1} value={slots.end} aria-valuetext={"끝 " + slotTime(slots.end + 1)}
+                    oninput={(event) => scrubTo("end", Number(event.currentTarget.value))}
+                    onkeydown={(event) => { if (event.key === "Escape") picked = null; }} /></label>
+              </fieldset>
             {/if}
             {#if index === 0}{@render companionCharts(trend)}{/if}
             {#if picked}{@render pick(group, picked, unit)}{/if}
@@ -571,8 +593,13 @@
   .dragging { fill: var(--color-action); fill-opacity: 0.12; }
   .cursor { stroke: var(--color-focus); stroke-width: 2; stroke-dasharray: 5 4; }
   .dot { stroke: var(--color-focus); stroke-width: 10; stroke-linecap: round; }
-  .scrub { font-weight: 400; margin-top: var(--space-3); }
-  .scrub input { width: 100%; padding: 0; border: 0; }
+  .scrub { font-weight: 400; margin-top: var(--space-3); border: 0; padding: 0; display: grid; gap: var(--space-2);
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); min-width: 0; }
+  .scrub legend { padding: 0; margin-bottom: var(--space-2); font-weight: 650; }
+  .scrub legend small { font-weight: 400; color: var(--color-ink-muted); }
+  .scrub label { display: grid; grid-template-columns: auto 1fr; gap: 0 var(--space-2); align-items: center; min-width: 0; }
+  .scrub label span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
+  .scrub input { grid-column: 1 / -1; width: 100%; padding: 0; border: 0; min-height: 32px; }
   .zoomed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; }
   .pick { margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border);
     border-left: 4px solid var(--color-focus); border-radius: var(--radius-control); display: grid; gap: var(--space-2); }
