@@ -420,3 +420,60 @@ def test_less_accurate_forecast_warns_before_reach_tiles_and_chart(
                 browser.close()
     finally:
         stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_stored_reviews_stay_reachable_when_their_count_cannot_be_read(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    snapshot = json.loads(asset_list("motor-01"))
+    index: dict[str, object] = {"status": 503}
+
+    def reviews(route: object) -> None:
+        if index["status"] != 200:
+            route.fulfill(status=503)  # type: ignore[attr-defined]
+            return
+        ids = index["ids"]
+        route.fulfill(  # type: ignore[attr-defined]
+            json={
+                "schema_version": 1,
+                "meaning": "stored-human-review-asset-identities-not-health",
+                "asset_ids": ids,
+                "total_assets": len(ids),  # type: ignore[arg-type]
+                "revision": "a" * 64,
+                "next_after": None,
+            }
+        )
+
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.route("**/api/v1/monitor", lambda route: route.fulfill(json=snapshot))
+                page.route("**/api/v1/review-inbox/assets**", reviews)
+                entry = page.locator(".review-entry")
+                # The list failed: the way in stays, and the count is unknown rather than zero.
+                page.goto(origin + "/web/")
+                pw.expect(entry).to_contain_text(
+                    "저장한 검토 건수를 확인하지 못했습니다", timeout=30000
+                )
+                link = entry.get_by_role("link", name="정비 검토함 열기 →")
+                assert parse_qs(urlsplit(link.get_attribute("href")).query)["page"] == [
+                    "maintenance"
+                ]
+                index.update(status=200, ids=[])
+                page.reload()
+                pw.expect(entry).to_contain_text("저장한 검토가 없습니다", timeout=30000)
+                pw.expect(entry.get_by_role("link", name="정비 검토함 열기 →")).to_be_visible()
+                index.update(ids=["motor-01", "motor-02"])
+                page.reload()
+                pw.expect(entry).to_contain_text("저장한 검토가 있는 설비 2곳", timeout=30000)
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
