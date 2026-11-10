@@ -29,10 +29,11 @@
       b: {usable: b.usable, median: b.median},
       outsideCount: row.outsideCount, outsidePercent: row.outsidePercent, medianChangePercent: row.medianChangePercent,
       onset: null, means: {a: a.mean, b: b.mean}, aMiddle: qa ? {low: qa[1], high: qa[3]} : null, lowCurrent: low,
+      newValues: newValues(row.histogram),
     }, next);
   }
   import {
-    defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
+    defaultPeriods, newValues, readProfile, readSources, validatePeriods, NoHistoryError,
     type CompareOperation, type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
   } from "../comparison";
   import {bandName, bandRange, percent} from "../record-findings";
@@ -321,7 +322,7 @@
             message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
           {#if row.periods.a.quantiles && row.periods.b.quantiles}<p class="context">값의 퍼짐 · 가운데 50% 범위의 폭
             {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""} (A → B)</p>{/if}
-          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} {unit} label={signalName(names, row.channel)} />
+          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={signalName(names, row.channel)} />
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
