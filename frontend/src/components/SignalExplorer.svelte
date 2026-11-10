@@ -9,8 +9,8 @@
   import {assetTabUrl, systemUrl} from "../routes";
   import {num, propertyLabel} from "../format";
   import {
-    groupHistory, latestUnit, readChannels, recordEnd, readTrend, signalChart, signalName, RANGE_PRESETS,
-    type ChannelList, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
+    groupHistory, latestUnit, phaseSiblings, readChannels, recordEnd, readTrends, signalChart, signalName, valueRange, RANGE_PRESETS,
+    type ChannelList, type ChartFrame, type HistoryGroup, type HistoryTrend, type RangePreset, type SignalChart, type TimeAnchor,
   } from "../history";
   import {
     atFinest, covers, EDGE_MS, focusFrom, focusGroups, focusParams, type SourceFocus, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, windowParams, MAX_SPAN_MS,
@@ -35,6 +35,10 @@
   const chosenRange = params.get("monitor_range");
   const chosenAnchor = params.get("monitor_anchor");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
+  // Signals drawn under the chosen one on the same time axis; a pick or a zoom applies to all.
+  const MAX_COMPANIONS = 5;
+  let companions: string[] = $state((params.get("monitor_with") ?? "").split(",").filter(Boolean).slice(0, MAX_COMPANIONS));
+  let companionTrends: Record<string, HistoryTrend> = $state({});
   // A window chosen on the chart (zoom) replaces the preset; anything unreadable shows all.
   function chosenWindow(): Span | null {
     if (chosenRange !== "window") return null;
@@ -63,6 +67,30 @@
   });
   // Every stored source, so a focused one still reads apart from those it was shown with.
   const shownSources = $derived(trend ? groupHistory(trend).map((group) => group.sourceId) : []);
+  const companionGroups = $derived.by(() => companions.flatMap((id) => {
+    const read: HistoryTrend | undefined = companionTrends[id];
+    return read ? focusGroups(groupHistory(read), focus).map((group) => ({id, group})) : [];
+  }));
+  const unitOf = (id: string, group: HistoryGroup): string | null => group.unit ?? channels?.names.get(id)?.unit ?? null;
+  // With companions every chart starts at one instant, and like units share one value range.
+  const frame = $derived.by((): ChartFrame => {
+    const current: HistoryTrend | null = trend;
+    if (!current || !companionGroups.length) return {};
+    const drawn = [...groups.map((group) => ({group, unit: unitOf(selectedChannel, group)})),
+      ...companionGroups.map(({id, group}) => ({group, unit: unitOf(id, group)}))];
+    const firsts = drawn.flatMap(({group}) => group.buckets.filter((b) => b.usableCount > 0 && b.mean !== null)
+      .slice(0, 1).map((b) => Date.parse(b.bucketStart)));
+    const start = Math.max(Date.parse(current.startAt), firsts.length ? Math.min(...firsts) : Date.parse(current.startAt));
+    const units = new Set(drawn.map((item) => item.unit));
+    const ranges = drawn.map(({group}) => valueRange(group)).filter((range) => range !== null);
+    const shared = units.size === 1 && !units.has(null) && ranges.length
+      ? {low: Math.min(...ranges.map((range) => range.low)), high: Math.max(...ranges.map((range) => range.high))} : undefined;
+    return {start, range: shared};
+  });
+  const siblings = $derived.by(() => {
+    const listed: ChannelList | null = channels;
+    return listed ? phaseSiblings(listed.ids, selectedChannel).filter((id) => !companions.includes(id)) : [];
+  });
 
   function recorded(at: string | null): string {
     if (!at) return "관측 시각 없음";
@@ -91,6 +119,7 @@
       }
       if (!result.ids.includes(selectedChannel)) selectedChannel = await defaultChannel(assetId, result.ids, request.signal);
       if (request.signal.aborted) return;
+      companions = companions.filter((id) => result.ids.includes(id) && id !== selectedChannel);
       channelState = "ready";
       rememberChannel();
       await loadTrend();
@@ -105,6 +134,8 @@
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selectedChannel);
+    if (companions.length) url.searchParams.set("monitor_with", companions.join(","));
+    else url.searchParams.delete("monitor_with");
     url.searchParams.delete("record_key");
     url.searchParams.set("monitor_range", range);
     url.searchParams.set("monitor_anchor", anchor);
@@ -123,6 +154,12 @@
   function changeChannel(value: string) {
     if (!channels?.ids.includes(value)) return;
     selectedChannel = value; if(focus) focus={...focus,interpretation:undefined};
+    companions = companions.filter((id) => id !== value);
+    rememberChannel();
+    void loadTrend();
+  }
+  function setCompanions(ids: string[]) {
+    companions = [...new Set(ids)].filter((id) => id !== selectedChannel && channels?.ids.includes(id)).slice(0, MAX_COMPANIONS);
     rememberChannel();
     void loadTrend();
   }
@@ -137,10 +174,13 @@
     try {
       const chosen = range === "window" && zoom
         ? {from: new Date(zoom.from).toISOString(), to: new Date(zoom.to).toISOString()} : null;
-      const result = await readTrend(assetId, selectedChannel, chosen ?? (range === "window" ? "all" : range), anchor,
-        request.signal, focus?.source ?? null);
+      // The chosen signal and its companions are read together, so all share one window and grid.
+      const together = await readTrends(assetId, [selectedChannel, ...companions], chosen ?? (range === "window" ? "all" : range),
+        anchor, request.signal, focus?.source ?? null);
       if (request.signal.aborted) return;
+      const result = together.get(selectedChannel)!;
       trend = result;
+      companionTrends = Object.fromEntries(companions.flatMap((id) => { const own = together.get(id); return own ? [[id, own]] : []; }));
       trendState = result.buckets.length || result.latest.length ? "ready" : "empty";
       const read = {from: Date.parse(result.startAt), to: Date.parse(result.endAt)};
       const step = result.bucketSeconds ? result.bucketSeconds * 1000 : null;
@@ -255,6 +295,49 @@
   });
 </script>
 
+{#snippet plot(chart: SignalChart, key: string, label: string, unit: string | null)}
+  <ValueAxis ticks={chart.ticks} height={chart.height} {unit}>
+  <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
+    aria-label={label + "의 시간 구간별 평균과 최소~최대. " + recorded(new Date(chart.start).toISOString()) + "부터 " + recorded(new Date(chart.end).toISOString()) + "까지. 빈 곳은 기록이 없는 구간입니다."}>
+    {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
+    {#each chart.marks as mark (mark.bucket.bucketStart)}
+      <line x1={mark.x} x2={mark.x} y1={mark.min} y2={mark.max} class="range" />
+      <line x1={mark.x - 3} x2={mark.x + 3} y1={mark.mean} y2={mark.mean} class="mean" />
+    {/each}
+    {#if picked}{@const band = shade(chart, picked)}{#if band}<rect x={band.x} y="0" width={band.width} height={chart.height} class="picked" />{/if}{/if}
+    {#if drag?.key === key}{@const band = shade(chart, {from: Math.min(drag.from, drag.to), to: Math.max(drag.from, drag.to)})}{#if band}<rect x={band.x} y="0" width={band.width} height={chart.height} class="dragging" />{/if}{/if}
+    <path d={chart.path} class="line" />
+    {#if picked && single}
+      {@const mark = chart.marks.find((item) => Math.abs(Date.parse(item.bucket.bucketStart) - (picked?.from ?? 0)) < EDGE_MS)}
+      {#if mark}<line x1={mark.x} x2={mark.x} y1="0" y2={chart.height} class="cursor" />
+        <line x1={mark.x} x2={mark.x} y1={mark.mean} y2={mark.mean} class="dot" />{/if}
+    {/if}
+    <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
+    <rect x="0" y="0" width={chart.width} height={chart.height} class="hit" role="presentation"
+      onpointerdown={(event) => press(event, key, chart)} onpointermove={(event) => slide(event, chart)}
+      onpointerup={(event) => void release(event, chart)} onpointercancel={() => drag = null} />
+  </svg>
+  {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />{/snippet}
+  </ValueAxis>
+{/snippet}
+
+{#snippet companionCharts(read: HistoryTrend)}
+{#if companionGroups.length}
+  <section class="companions" aria-labelledby="companions-title">
+    <h3 id="companions-title">함께 보는 신호 <small>{frame.range ? "같은 시간축 · 같은 세로 눈금" : "같은 시간축"}</small></h3>
+    {#each companionGroups as item (item.id + "\n" + item.group.key)}
+      {@const chart = signalChart(item.group, read.startAt, read.endAt, read.bucketSeconds, {...frame, height: 120})}
+      {@const unit = unitOf(item.id, item.group)}
+      <div class="companion">
+        <h4>{signalName(channels?.names, item.id)}{companionGroups.filter((other) => other.id === item.id).length > 1 ? " · " + sourceLabel(sources, item.group.sourceId, shownSources) : ""}</h4>
+        {#if chart}{@render plot(chart, "with\n" + item.id + "\n" + item.group.key, signalName(channels?.names, item.id), unit)}
+        {:else}<p class="context">이 기간에 그릴 평균값이 없습니다.</p>{/if}
+      </div>
+    {/each}
+  </section>
+{/if}
+{/snippet}
+
 {#snippet pick(group: HistoryGroup, span: Span, unit: string | null)}
   {@const now = summarize(group, span)}
   {@const before = grid && covers(grid, previousSpan(span)) ? summarize(group, previousSpan(span)) : null}
@@ -274,6 +357,10 @@
         <p class="context">바로 앞 같은 길이 기간에는 쓸 수 있는 측정이 없습니다.</p>
       {/if}
     {/if}
+    {#if companionGroups.length}<p class="with-values">같은 {single ? "시점" : "구간"}의 함께 보는 신호 평균 · {companionGroups.map(({id, group: other}) => {
+      const read = summarize(other, span);
+      return signalName(channels?.names, id) + " " + (read?.mean != null ? measure(read.mean, unitOf(id, other)) : "측정 없음");
+    }).join(" · ")}</p>{/if}
     {#if grid && !covers(grid, span)}<p class="context">고른 {single ? "시점" : "구간"}의 일부가 지금 그래프 범위 밖이라 범위 안의 측정만 합했습니다.</p>{/if}
     {#if now}<p class="context">유효 측정 {now.usable} · 결측 {now.missing} · 품질 불량 {now.nonGood} · 값 충돌 {now.conflict}</p>{/if}
     <div class="pick-actions">
@@ -330,6 +417,22 @@
         </select>
       </label>{/if}
     </div>
+    <details class="with">
+      <summary>함께 볼 신호{companions.length ? " · " + companions.length + "개" : ""}</summary>
+      <div class="with-actions">
+        {#if siblings.length}<button type="button" class="ui-button" onclick={() => setCompanions([...companions, ...siblings])}>R·S·T 3상 함께 보기</button>{/if}
+        {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
+      </div>
+      <div class="choices">
+        {#each channels.ids.filter((id) => id !== selectedChannel) as id (id)}
+          <label><input type="checkbox" checked={companions.includes(id)}
+            disabled={!companions.includes(id) && companions.length >= MAX_COMPANIONS}
+            onchange={() => setCompanions(companions.includes(id) ? companions.filter((other) => other !== id) : [...companions, id])} />
+            {signalName(channels.names, id)}</label>
+        {/each}
+      </div>
+      <p class="context">최대 {MAX_COMPANIONS}개를 같은 시간축에 함께 그립니다. 그래프에서 고른 시점·구간과 확대는 모든 신호에 함께 적용됩니다.</p>
+    </details>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
       <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>달라진 구간 찾기 →</a>
@@ -368,8 +471,8 @@
       {#if groups.length === 0}
         <StatusNotice kind="uncertain" message="고른 기간에 그릴 구간은 없지만 아래에 마지막 저장값이 있을 수 있습니다." />
       {/if}
-      {#each groups as group (group.key)}
-        {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds)}
+      {#each groups as group, index (group.key)}
+        {@const chart = signalChart(group, trend.startAt, trend.endAt, trend.bucketSeconds, frame)}
         {@const shownUnit = group.unit ?? channels?.names.get(selectedChannel)?.unit}
         {@const context = [group.observedProperty ? propertyLabel(group.observedProperty) : null, shownUnit ? "단위 " + shownUnit : null].filter(Boolean)}
         <section class="series" aria-label={"측정 기록 · " + sourceLabel(sources, group.sourceId, shownSources)}>
@@ -380,29 +483,7 @@
           {#if chart}
             {@const unit = shownUnit ?? null}
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
-            <ValueAxis ticks={chart.ticks} height={chart.height} {unit}>
-            <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
-              aria-label={signalName(channels?.names, selectedChannel) + "의 시간 구간별 평균과 최소~최대. " + recorded(trend.startAt) + "부터 " + recorded(trend.endAt) + "까지. 빈 곳은 기록이 없는 구간입니다."}>
-              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
-              {#each chart.marks as mark (mark.bucket.bucketStart)}
-                <line x1={mark.x} x2={mark.x} y1={mark.min} y2={mark.max} class="range" />
-                <line x1={mark.x - 3} x2={mark.x + 3} y1={mark.mean} y2={mark.mean} class="mean" />
-              {/each}
-              {#if picked}{@const band = shade(chart, picked)}{#if band}<rect x={band.x} y="0" width={band.width} height={chart.height} class="picked" />{/if}{/if}
-              {#if drag?.key === group.key}{@const band = shade(chart, {from: Math.min(drag.from, drag.to), to: Math.max(drag.from, drag.to)})}{#if band}<rect x={band.x} y="0" width={band.width} height={chart.height} class="dragging" />{/if}{/if}
-              <path d={chart.path} class="line" />
-              {#if picked && single}
-                {@const mark = chart.marks.find((item) => Math.abs(Date.parse(item.bucket.bucketStart) - (picked?.from ?? 0)) < EDGE_MS)}
-                {#if mark}<line x1={mark.x} x2={mark.x} y1="0" y2={chart.height} class="cursor" />
-                  <line x1={mark.x} x2={mark.x} y1={mark.mean} y2={mark.mean} class="dot" />{/if}
-              {/if}
-              <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
-              <rect x="0" y="0" width={chart.width} height={chart.height} class="hit" role="presentation"
-                onpointerdown={(event) => press(event, group.key, chart)} onpointermove={(event) => slide(event, chart)}
-                onpointerup={(event) => void release(event, chart)} onpointercancel={() => drag = null} />
-            </svg>
-            {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />{/snippet}
-            </ValueAxis>
+            {@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}
             {#if grid?.step && grid.slots > 1}
               <label class="scrub">시점 고르기
                 <input type="range" min="0" max={grid.slots - 1}
@@ -410,6 +491,7 @@
                   oninput={(event) => scrub(Number(event.currentTarget.value))} />
               </label>
             {/if}
+            {#if index === 0}{@render companionCharts(trend)}{/if}
             {#if picked}{@render pick(group, picked, unit)}{/if}
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
@@ -510,4 +592,13 @@
   th, td { border-bottom: 1px solid var(--color-border); padding: var(--space-2); text-align: left; }
   .latest { margin-top: var(--space-6); }
   .latest li { margin-block: var(--space-2); overflow-wrap: anywhere; }
+  .with { margin: var(--space-2) 0; }
+  .with summary { cursor: pointer; font-weight: 650; }
+  .with-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-1) var(--space-3); max-height: 16rem; overflow: auto; font-size: var(--font-small); }
+  .choices label { display: flex; align-items: center; gap: var(--space-1); }
+  .companions { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
+  .companions h3 small { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .companion h4 { margin: var(--space-2) 0 var(--space-1); font-size: var(--font-small); }
+  .with-values { margin: 0; overflow-wrap: anywhere; }
 </style>

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {groupHistory, latestUnit, parseChannels, parseTrend, recordEnd, signalChart, signalName} from "./history.ts";
+import {groupHistory, latestUnit, parseChannels, parseTrend, phaseSiblings, recordEnd, signalChart, signalName, splitTrend, valueRange} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -95,4 +95,32 @@ test("a channel reads as the name and unit its registration declared, else its I
   assert.equal(signalName(list.names, "temperature_c"), "temperature_c");
   assert.equal(list.names.has("other"), false);
   assert.equal(signalName(null, "current_a"), "current_a");
+});
+
+test("the same item on the other phases is found by its R/S/T name", () => {
+  const ids = ["R상전류", "S상전류", "T상전류", "전류평균", "R상전압", "T상전압"];
+  assert.deepEqual(phaseSiblings(ids, "S상전류"), ["R상전류", "T상전류"]);
+  assert.deepEqual(phaseSiblings(ids, "R상전압"), ["T상전압"]);
+  assert.deepEqual(phaseSiblings(ids, "전류평균"), []);
+});
+
+test("charts drawn together start at one instant and can share one value range", () => {
+  const trend = parseTrend(data([bucket("src1", "i1", 2), {...bucket("src1", "i1", 8), bucket_start: "2026-10-01T00:31:00Z"}]), "motor", "R");
+  const [group] = groupHistory(trend);
+  assert.deepEqual(valueRange(group), {low: 2, high: 8});
+  const alone = signalChart(group, trend.startAt, trend.endAt, 60)!;
+  const framed = signalChart(group, trend.startAt, trend.endAt, 60, {start: Date.parse(trend.startAt), range: {low: 0, high: 20}, height: 120})!;
+  assert.equal(alone.start, Date.parse("2026-10-01T00:01:00Z"));
+  assert.equal(framed.start, Date.parse(trend.startAt));
+  assert.equal(framed.height, 120);
+  // A shared range keeps the frame's low and high, not this group's own.
+  assert.deepEqual([framed.low, framed.high], [0, 20]);
+});
+
+test("signals read together are split into one trend each, on the same window", () => {
+  const both = {...data([bucket("src1", "i1", 2), {...bucket("src1", "i1", 5), channel_id: "S"}]), channel_ids: ["R", "S"]};
+  const split = splitTrend(both, "motor", ["R", "S"]);
+  assert.equal(split.get("R")!.buckets.length, 1);
+  assert.equal(split.get("S")!.buckets[0].mean, 5);
+  assert.equal(split.get("R")!.startAt, split.get("S")!.startAt);
 });

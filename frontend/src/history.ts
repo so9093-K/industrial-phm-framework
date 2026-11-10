@@ -222,17 +222,28 @@ export type SignalChart = {
 /** Bucket means as a line with each bucket's min-max range, from the first stored bucket
  * (or the window start) to the window end. Unusable buckets are never drawn and nothing
  * is interpolated across them. */
+/** How a chart drawn beside another lines up with it: the same plot start, and optionally the
+ * same value range so like quantities (three phases of a current) read on one scale. */
+export type ChartFrame = {start?: number; range?: {low: number; high: number}; height?: number};
+
+/** The lowest and highest drawn value of a group, for a value range shared between charts. */
+export function valueRange(group: HistoryGroup): {low: number; high: number} | null {
+  const entries = group.buckets.filter(b => b.usableCount > 0 && b.mean !== null);
+  if (!entries.length) return null;
+  return {low: Math.min(...entries.map(b => b.minimum ?? b.mean!)), high: Math.max(...entries.map(b => b.maximum ?? b.mean!))};
+}
+
 export function signalChart(
-  group: HistoryGroup, startAt: string, endAt: string, bucketSeconds: number | null,
+  group: HistoryGroup, startAt: string, endAt: string, bucketSeconds: number | null, frame: ChartFrame = {},
 ): SignalChart | null {
   const entries = group.buckets.filter(b => b.usableCount > 0 && b.mean !== null);
   if (!entries.length) return null;
-  const width = 800, height = 200, top = 8, bottom = 192;
+  const width = 800, height = frame.height ?? 200, top = 8, bottom = height - 8;
   const lows = entries.map(b => b.minimum ?? b.mean!), highs = entries.map(b => b.maximum ?? b.mean!);
-  const low = Math.min(...lows), high = Math.max(...highs);
+  const low = frame.range?.low ?? Math.min(...lows), high = frame.range?.high ?? Math.max(...highs);
   const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.08;
   const lo = low - padding, hi = high + padding;
-  const start = Math.max(Date.parse(startAt), Date.parse(entries[0].bucketStart));
+  const start = frame.start ?? Math.max(Date.parse(startAt), Date.parse(entries[0].bucketStart));
   const end = Math.max(Date.parse(endAt), start + 1);
   const x = (at: string) => ((Date.parse(at) - start) / (end - start)) * width;
   const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
@@ -272,11 +283,39 @@ export async function readTrend(
   assetId: string, channelId: string, range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,
   sourceId: string | null = null,
 ): Promise<HistoryTrend> {
-  const params = new URLSearchParams({asset_id: assetId, channel_id: channelId, buckets: "120"});
+  return (await readTrends(assetId, [channelId], range, anchor, signal, sourceId)).get(channelId)!;
+}
+
+/** Several signals read in one request, so they share one window and one bucket grid. */
+export async function readTrends(
+  assetId: string, channelIds: string[], range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,
+  sourceId: string | null = null,
+): Promise<Map<string, HistoryTrend>> {
+  const params = new URLSearchParams({asset_id: assetId, buckets: "120"});
+  for (const id of channelIds) params.append("channel_id", id);
   if (sourceId) params.set("source_id", sourceId);
   if (typeof range === "string") {params.set("range", range); params.set("anchor", anchor);}
   else {params.set("from", range.from); params.set("to", range.to);}
-  return parseTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelId);
+  return splitTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelIds);
+}
+
+/** One multi-signal trend read as one trend per signal, each checked as if read alone. */
+export function splitTrend(payload: unknown, assetId: string, channelIds: string[]): Map<string, HistoryTrend> {
+  const response = object(payload);
+  if (!response || !Array.isArray(response.buckets) || !Array.isArray(response.latest_stored))
+    throw new Error("선택한 설비·신호의 저장 이력을 확인할 수 없습니다.");
+  const own = (rows: unknown[], id: string) => rows.filter((row) => object(row)?.channel_id === id);
+  return new Map(channelIds.map((id) => [id, parseTrend({...response, buckets: own(response.buckets as unknown[], id),
+    latest_stored: own(response.latest_stored as unknown[], id)}, assetId, id)]));
+}
+
+/** The same item on the other phases, by the R/S/T naming of three-phase channels
+ * (R상전류 → S상전류, T상전류). A channel that names no phase has none. */
+export function phaseSiblings(ids: string[], id: string): string[] {
+  const match = /^([RST])(상?)(.+)$/.exec(id);
+  if (!match) return [];
+  return ["R", "S", "T"].filter(phase => phase !== match[1]).map(phase => phase + match[2] + match[3])
+    .filter(other => ids.includes(other));
 }
 
 /** A channel as people read it: its declared name and unit, else its stored ID. */
