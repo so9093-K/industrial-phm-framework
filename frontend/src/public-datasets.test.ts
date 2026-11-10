@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {datasetFacts, datasetName, groupDatasets, jobText, parsePublicDatasets} from "./public-datasets.ts";
+import {datasetFacts, datasetName, groupDatasets, jobText, parsePublicDatasets, unfinishedImports} from "./public-datasets.ts";
 
 const MEANING = "public-datasets-found-in-the-datasets-folder-not-imported-evidence";
 const aihub = (device: string, split = "학습용", stored = false) => ({
@@ -32,7 +32,7 @@ test("the listing groups AI-Hub records by equipment and split before the XJTU-S
 
 test("an import says what it is storing, and why it stopped in the reader's terms", () => {
   const job = (state: string, step: string, done = 0, failure: string | null = null) =>
-    ({state: state as "running", step, done, assetId: "x", failure});
+    ({state: state as "running", step, done, assetId: "x", failure, detail: null});
   assert.equal(jobText(job("running", "history", 1509725)), "측정값 저장 중 · 1,509,725개");
   assert.equal(jobText(job("running", "replay", 42)), "측정 기록 넣는 중 · 42회");
   assert.match(jobText(job("failed", "models", 0, "source-incomplete")), /15개가 모두 있어야/);
@@ -48,6 +48,7 @@ test("a partly stored dataset is not reported as fully imported", () => {
   assert.equal(found.items[0].stored, false);
   assert.equal(found.items[0].partial, true);
   assert.match(jobText(Object.values(found.jobs)[0]), /다시 가져오면/);
+  assert.equal(jobText(Object.values(found.jobs)[0]), "운영이 다시 시작돼 중단됐습니다(측정값 2,000개까지 저장). 다시 가져오면 저장된 부분은 건너뜁니다.");
 });
 
 test("a previous success cannot hide a changed source that needs importing again", () => {
@@ -59,3 +60,25 @@ test("a previous success cannot hide a changed source that needs importing again
   assert.equal(found.items[0].partial, true);
   assert.equal(found.items[0].sourceChanged, true);
 });
+
+test("a failed import says how much it stored, and the asset list marks what is unfinished", () => {
+  const job = (state: string, done: number, failure: string | null = null, step = "history") =>
+    ({state, step, done, asset_id: "x", failure, failure_detail: state === "failed" ? "RuntimeError ← OSError EIO" : undefined});
+  const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
+    items: [{...aihub("6285"), dataset_id: "a", asset_id: "공기압축기 6285", partial: true, stored: false},
+      {...aihub("1338"), dataset_id: "b", asset_id: "공기압축기 1338", partial: true, stored: false},
+      {...aihub("7273"), dataset_id: "c", asset_id: "공기압축기 7273", partial: false, stored: true},
+      {...aihub("1306"), dataset_id: "d", asset_id: "공기압축기 1306", partial: true, stored: false, source_changed: true},
+      {...aihub("4025"), dataset_id: "e", asset_id: "펌프 4025", partial: true, stored: false}],
+    jobs: {a: job("failed", 18000, "dataset-unavailable"), b: job("running", 900000), c: job("succeeded", 2000)}});
+  assert.equal(found.jobs.a.detail, "RuntimeError ← OSError EIO");
+  assert.equal(jobText(found.jobs.a), "가져오지 못했습니다 · 데이터 파일을 읽지 못했습니다. 측정값 18,000개까지 저장한 뒤 멈췄습니다. 다시 가져오면 저장된 부분은 건너뜁니다.");
+  const unfinished = unfinishedImports(found);
+  assert.deepEqual([...unfinished.keys()], ["공기압축기 6285", "공기압축기 1338", "펌프 4025"]);
+  assert.equal(unfinished.get("공기압축기 6285")!.text, "공개 데이터 가져오기가 실패해 기록 일부만 있습니다 (측정값 18,000개 저장 후 멈춤).");
+  assert.equal(unfinished.get("공기압축기 1338")!.running, true);
+  assert.match(unfinished.get("공기압축기 1338")!.text, /가져오는 중입니다 · 지금까지 측정값 900,000개 저장/);
+  // Stored before completion was recorded: said as unconfirmed, never as failed.
+  assert.equal(unfinished.get("펌프 4025")!.text, "공개 데이터 가져오기가 끝났는지 확인하지 못해 기록이 일부일 수 있습니다.");
+});
+

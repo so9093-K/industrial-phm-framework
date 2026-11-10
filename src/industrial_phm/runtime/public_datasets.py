@@ -15,8 +15,10 @@ A dataset that is missing or incomplete is never replaced by another one.
 from __future__ import annotations
 
 import contextlib
+import errno
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
 AIHUB_ARCHIVES = Path("raw/aihub/239/archives")
 XJTU_SOURCE = Path("interim/xjtu-sy/XJTU-SY_Bearing_Datasets")
 _SCHEMA = "industrial-phm-public-dataset-jobs-v1"
+_LOGGER = logging.getLogger(__name__)
 # Local source time of a whole member; selection bounds, not claimed record times.
 _WHOLE_MEMBER = (datetime(1900, 1, 1), datetime(2200, 1, 1))
 _SPLITS = {"training": "학습용", "validation": "검증용"}
@@ -592,6 +595,23 @@ def _failure(error: Exception) -> str:
     return "import-failed"
 
 
+def _failure_detail(error: BaseException) -> str:
+    """The kinds of error behind a failure and what caused them, without their messages.
+
+    A message can carry file paths or values, so the job keeps only class names and OS error
+    codes; the whole traceback goes to the operations log.
+    """
+    parts: list[str] = []
+    seen: BaseException | None = error
+    while seen is not None and len(parts) < 3:
+        name = type(seen).__name__
+        if isinstance(seen, OSError) and seen.errno is not None:
+            name += " " + errno.errorcode.get(seen.errno, str(seen.errno))
+        parts.append(name)
+        seen = seen.__cause__ or seen.__context__
+    return " ← ".join(parts)
+
+
 class PublicDatasetJobs:
     """At most one import at a time, owned by the supervisor like FILE history jobs."""
 
@@ -692,8 +712,18 @@ class PublicDatasetJobs:
             if _source_signature(item) != signature:
                 raise DatasetImportError("source-changed")
             update: dict[str, object] = {"state": "succeeded"}
-        except Exception as error:  # A job records a bounded failure code only.
-            update = {"state": "failed", "failure": _failure(error)}
+        except Exception as error:  # A job records a bounded failure code and error kinds.
+            code = _failure(error)
+            # A failure that does not repeat on a retry is still explained by the log.
+            _LOGGER.warning(
+                "Public dataset import failed: %s (%s) at step %s after %s",
+                key,
+                code,
+                self._jobs[key].get("step"),
+                self._jobs[key].get("done"),
+                exc_info=error,
+            )
+            update = {"state": "failed", "failure": code, "failure_detail": _failure_detail(error)}
         self._update(key, force=True, finished_at=_now(), **update)
 
     def _view(self, dataset_id: str) -> dict[str, object]:

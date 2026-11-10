@@ -4,7 +4,9 @@
   import {bandName, changeValue, percent} from "../record-findings";
   import {equipmentKind, readOverview, sparkline, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
-  import {onDestroy, untrack} from "svelte";
+  import {onDestroy, onMount, untrack} from "svelte";
+  import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
+  import {systemUrl} from "../routes";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -70,6 +72,18 @@
     });
   });
   onDestroy(() => request.abort());
+  // An asset still being imported, or left with part of its record, says so on its row; the list
+  // is read again while an import runs so its count moves.
+  let imports: Map<string, UnfinishedImport> = $state(new Map());
+  onMount(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try { imports = unfinishedImports(await readPublicDatasets(request.signal)); } catch { return; }
+      if ([...imports.values()].some((note) => note.running)) timer = setTimeout(() => void read(), 15000);
+    };
+    void read();
+    return () => clearTimeout(timer);
+  });
   function showReasons(assetId:string) {
     const heading=document.getElementById("attention-"+assetId);
     const detail=heading?.closest("details");
@@ -117,6 +131,10 @@
             <a href={href(asset.assetId)}>{name(asset)}</a>
             <small>{stored ? "과거 저장 기록" : flowLabel(asset.flow)} · {asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt)
               : asset.lastPosition != null ? "마지막 " + asset.lastPosition + "번째 측정" : "측정 시각 정보 없음"}</small>
+            {#if imports.get(asset.assetId)}
+              {@const unfinished = imports.get(asset.assetId)!}
+              <small class="issue import">{unfinished.text} <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></small>
+            {/if}
           </div>
           <div class="cell" role="cell" data-label="운전">
             {#if row?.operation?.shares}
