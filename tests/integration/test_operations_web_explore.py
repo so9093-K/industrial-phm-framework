@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from http.client import HTTPConnection
 from importlib.util import find_spec
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from typing import Any
 from urllib.parse import urlencode
 
@@ -1117,3 +1117,61 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert status == 200 and empty["kind"] is None and empty["finding"] is None
     finally:
         stop()
+
+
+def test_screens_asking_for_one_summary_together_compute_it_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("duckdb")
+    from industrial_phm.runtime import operations_web_explore as explore
+
+    workspace = phm_workspace(tmp_path / "ws")
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:row:{'d' * 64}:{offset}:{index}",
+                source_id="pump-file",
+                asset_id="pump-01",
+                channel_id=channel,
+                source_file="pump.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=float(index % 7) + (5.0 if channel == "압력" and index > 150 else 0.0),
+                source_metadata_json="{}",
+            )
+            for offset, channel in enumerate(("압력", "유량"))
+            for index in range(200)
+        ),
+        batch_id="pump-01",
+    )
+    computing, release = Event(), Event()
+    calls: list[str] = []
+    original = explore.stream_records
+
+    def held(*args: Any, **kwargs: Any) -> Any:
+        calls.append(args[1])
+        computing.set()
+        release.wait(30)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(explore, "stream_records", held)
+    results: list[dict[str, Any]] = []
+    readers = [
+        Thread(target=lambda: results.append(explore.record_findings(workspace, "pump-01")))
+        for _ in range(2)
+    ]
+    readers[0].start()
+    assert computing.wait(30)
+    readers[1].start()
+    # The second reader waits for the first computation instead of starting its own.
+    readers[1].join(0.2)
+    release.set()
+    for reader in readers:
+        reader.join(60)
+    assert calls == ["pump-01"]
+    assert len(results) == 2 and results[0] is results[1]

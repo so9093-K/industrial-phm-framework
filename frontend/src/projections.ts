@@ -172,6 +172,15 @@ export function parsePairedProjection(
 }
 
 export const HORIZON_LABEL: Record<Horizon, string> = {"1h":"1시간","24h":"24시간","7d":"7일","30d":"30일"};
+const HORIZON_SECONDS: Record<Horizon, number> = {"1h":3600,"24h":86400,"7d":7*86400,"30d":30*86400};
+/** The horizon a forecast opens with: the longest the record supports that reaches no further than
+ * a quarter of the record, so a record of months is not forecast one hour ahead; else the
+ * shortest it supports. */
+export function suggestedHorizon(support: Record<Horizon, string | null>, recordSeconds: number | null): Horizon | null {
+  const allowed = (Object.keys(HORIZON_SECONDS) as Horizon[]).filter(key => support[key] === null);
+  const fitting = recordSeconds === null ? [] : allowed.filter(key => HORIZON_SECONDS[key] <= recordSeconds / 4);
+  return fitting.at(-1) ?? allowed[0] ?? null;
+}
 
 export type OutlookChart = {
   width: number; height: number; low: number; high: number;

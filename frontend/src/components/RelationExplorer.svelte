@@ -6,12 +6,13 @@
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import FeatureScatter from "./FeatureScatter.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {relationMessage} from "../analysis-messages";
+  import {relationMessage,sameXText,short} from "../analysis-messages";
   import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import {strength} from "../relation";
+  import {movedAtSameX,sameXRanges,strength} from "../relation";
   import {assetTabUrl} from "../routes";
+  import {readSummary,relationPair} from "../summary-defaults";
   let {assetId}:{assetId:string}=$props();
   let sourceNames: Map<string, string> = $state(new Map());
   $effect(() => { void readSourceNames().then((value) => sourceNames = value); });
@@ -29,6 +30,8 @@
   let periods:Periods|null=$state(null);
   // Periods handed over from a span picked on the signal chart; said on screen until edited.
   let handedOver:PeriodOrigin|null=$state(periodOrigin(location.search));
+  // Why the screen opened on its pair when the summary chose it; said until anything is edited.
+  let summaryNote=$state("");
   // Each source, point and meaning shows both periods side by side on one shared axis range.
   type Pair={key:string;source:string;point:string|null;xMeaning?:string|null;yMeaning?:string|null;a:PairedGroup|null;b:PairedGroup|null};
   const pairs=$derived.by(():Pair[]=>{
@@ -107,9 +110,22 @@
       if(req.signal.aborted)return;
       available=src;
       if(src.channels.length<2){listState="empty";return;}
-      if(!src.channels.includes(x))x=src.channels[0];
+      let fallback=defaultPeriods(src.from,src.to);
+      if(!src.channels.includes(x)){
+        // Nothing chosen: the pair and periods the asset's summary leads with.
+        const found=await readSummary(assetId,req.signal);
+        if(req.signal.aborted)return;
+        const pair=found?relationPair(found,src.channels):null;
+        const inFocus=pair&&(!focus||(focus.source===pair.focus?.source&&(focus.point===undefined||focus.point===pair.focus?.point)));
+        if(pair&&inFocus){
+          x=pair.x;y=pair.y;summaryNote=pair.note;
+          if(!focus)focus=pair.focus;
+          if(pair.periods)fallback=pair.periods;
+        }else x=src.channels[0];
+      }
       if(!src.channels.includes(y)||x===y)y=src.channels.find(c=>c!==x)??"";
-      periods=initialPeriods(defaultPeriods(src.from,src.to));
+      periods=initialPeriods(fallback);
+      if(handedOver)summaryNote="";
       listState="ready";
       remember();await compare();
     }catch(cause:unknown){
@@ -121,12 +137,12 @@
   function switchChannel(which:"x"|"y",value:string){
     if(!available?.channels.includes(value))return;
     if(which==="x"){x=value;if(focus)focus={...focus,interpretation:undefined};}else y=value;
-    relationAbort?.abort();relation=null;resultState="empty";remember();
+    relationAbort?.abort();relation=null;resultState="empty";summaryNote="";remember();
   }
   function editPeriod(n:"a"|"b",edge:"from"|"to",value:string){
     if(!periods)return;
     periods={...periods,[n]:{...periods[n],[edge]:selectedPeriod(value)}};
-    relationAbort?.abort();relation=null;resultState="empty";handedOver=null;
+    relationAbort?.abort();relation=null;resultState="empty";handedOver=null;summaryNote="";
   }
   async function compare(){
     relationAbort?.abort();
@@ -176,6 +192,8 @@
       <button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     {#if handedOver}
       <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {:else if summaryNote}
+      <p class="handed">{summaryNote}</p>
     {/if}
     <div class="periods">
       {#each ["a","b"] as name(name)}
@@ -206,7 +224,12 @@
       {#each pairs as pair(pair.key)}
         {@const axes=bounds(pair)}
         {@const side=(group:PairedGroup|null)=>({pearson:group?.pearson??null,spearman:group?.spearman??null,pairs:group?.pairCount??0})}
-        {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null):null}
+        {@const ranges=sameXRanges(pair.a,pair.b)}
+        {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
+        {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
+        {@const moved=movedAtSameX(ranges)}
+        {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null,[],
+          moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit}):null):null}
         <section class="group">
           <h3>{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))} / {pair.point??"측정 위치 미확인"}</h3>
           {#if message}<AnalysisMessage {message}
@@ -215,6 +238,24 @@
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
+          {#if ranges.length}
+            {@const unit=(value:string,of:string|null)=>value+(of?" "+of:"")}
+            <details class="same-x">
+              <summary>같은 {signalName(names,x)} 범위에서 {signalName(names,y)} 비교 ({ranges.length}개 범위)</summary>
+              <div class="table-scroll"><table>
+                <caption>두 기간이 함께 지난 {signalName(names,x)} 범위를 같은 폭으로 나눠, 양쪽에 짝이 20개 이상인 범위만 견줍니다. 모든 짝으로 계산합니다.</caption>
+                <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">기간 A 중앙값 (가운데 50%)</th><th scope="col">기간 B 중앙값</th><th scope="col">짝 A · B</th></tr></thead>
+                <tbody>{#each ranges as range (range.a.bin)}
+                  <tr class:moved={range.b.median<range.a.q1||range.b.median>range.a.q3}>
+                    <td>{unit(short(range.low)+"~"+short(range.high),xUnit)}</td>
+                    <td>{unit(short(range.a.median),yUnit)} ({short(range.a.q1)}~{short(range.a.q3)})</td>
+                    <td>{unit(short(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · A의 가운데 50% 밖":""}</td>
+                    <td>{range.a.pairs.toLocaleString("ko-KR")} · {range.b.pairs.toLocaleString("ko-KR")}</td>
+                  </tr>
+                {/each}</tbody>
+              </table></div>
+            </details>
+          {/if}
           <div class="sides">
             {#each ["a","b"] as name(name)}
               {@const n=name as "a"|"b"}
@@ -296,5 +337,6 @@
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
   .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+  .same-x{margin-top:var(--space-3)}.same-x summary{cursor:pointer;font-weight:650}tr.moved td{font-weight:650}
   .handed{margin:var(--space-4) 0 0;padding:var(--space-3);border-left:4px solid var(--color-focus);background:var(--color-surface-selected);overflow-wrap:anywhere}
 </style>

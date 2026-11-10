@@ -10,7 +10,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {outlookMessage, forecastMessage} from "../analysis-messages";
   import {savedSettings,rememberSettings} from "../forecast-settings";
-  import { defaultChannel } from "../monitor-attention";
+  import {defaultSignal} from "../summary-defaults";
   import {onMount} from "svelte";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
@@ -24,7 +24,7 @@
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
-    HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, outlookChart, spreadRows,
+    HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, outlookChart, spreadRows, suggestedHorizon,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
   } from "../projections";
   type Props = {assetId: string};
@@ -54,6 +54,8 @@
     savedHorizon === "24h" || savedHorizon === "7d" || savedHorizon === "30d"
       ? savedHorizon : "1h"
   );
+  // Until a horizon is chosen, the forecast reaches as far as the selected record suits.
+  let horizonChosen = Boolean(savedHorizon);
   let management = $state(params.get("projection_management") ?? "");
   let endLimit = $state(params.get("projection_end") ?? "");
   let direction: Direction = $state(params.get("projection_direction") === "lower" ? "lower" : "upper");
@@ -113,7 +115,13 @@
       options=data;
       if (!data.channels.length){optionsState="empty";return;}
       if(channel&&!data.channels.includes(channel))throw new Error("고른 신호가 이 설비에 없습니다.");
-      if(!channel)channel=await defaultChannel(assetId,data.channels,abort.signal);
+      if(!channel){
+        // The change the summary leads with, in its own record; else the main signal.
+        const picked=await defaultSignal(assetId,data.channels,abort.signal);
+        if (abort.signal.aborted) return;
+        channel=picked.channel;
+        if(!selectedRecord&&!focus&&picked.context)selectedRecord=picked.context.key;
+      }
       if (abort.signal.aborted) return;
       optionsState="ready";
       await loadSelectedOptions(true,Boolean(savedHorizon));
@@ -134,6 +142,7 @@
       options=data;selectionReady=true;selectedRecord=data.recordKey??"";
       const chosen=data.records?.find(row=>row.key===selectedRecord);
       if(chosen)focus={source:chosen.sourceId,point:chosen.pointId,interpretation:chosen.interpretationId};
+      if(!horizonChosen)horizon=suggestedHorizon(data.horizons,chosen?(Date.parse(chosen.record.to)-Date.parse(chosen.record.from))/1000:null)??horizon;
       if (data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
         if (!allowed) {
@@ -213,7 +222,7 @@
       </label>{/if}
       <label for="projection-horizon">예측 기간
         <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonNotice="";invalidate();}}>
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
           {#each horizons as value (value)}
             <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
               {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>

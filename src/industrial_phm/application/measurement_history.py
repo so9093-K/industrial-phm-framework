@@ -237,6 +237,24 @@ SMALL_VALUE_LIMIT = 1.0
 
 
 @dataclass(frozen=True, slots=True)
+class PairedXRange:
+    """The y values of one period's pairs whose x fell in one narrow range.
+
+    The ranges split the x span both periods share into equal widths, so a period's range ``bin``
+    covers the same x as the other period's range ``bin``: comparing them asks whether y changed
+    at the same x, which a correlation alone cannot say.
+    """
+
+    bin: int
+    x_low: float
+    x_high: float
+    pair_count: int
+    y_median: float
+    y_q1: float
+    y_q3: float
+
+
+@dataclass(frozen=True, slots=True)
 class MeasurementPairGroup:
     """Two channels paired at identical timestamps of one source and measurement point.
 
@@ -257,3 +275,4 @@ class MeasurementPairGroup:
     pearson: float | None
     spearman: float | None
     points: tuple[tuple[datetime, float, float], ...]
+    by_x: tuple[PairedXRange, ...] = ()

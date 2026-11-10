@@ -16,7 +16,10 @@ export type PairedGroup = {
   spearman: number | null;
   sampled: boolean;
   points: {at: string; x: number; y: number}[];
+  /** y over every pair whose x fell in one narrow range of the x span both periods share. */
+  byX: XRange[];
 };
+export type XRange = {bin: number; low: number; high: number; pairs: number; median: number; q1: number; q3: number};
 export type Relation = { asset: string; x: string; y: string; groups: PairedGroup[] };
 export class RelationUnavailable extends Error {}
 function rec(raw: unknown): Record<string,unknown> | null {
@@ -72,6 +75,14 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
         throw new Error("관측 짝의 구조가 올바르지 않습니다.");
       return {at:time(entry[0]),x:finite(entry[1]),y:finite(entry[2])};
     });
+    const byX=(Array.isArray(group.by_x)?group.by_x:[]).map((entry:unknown):XRange=>{
+      const range=rec(entry);
+      if(!range)throw new Error("같은 범위 비교의 구조가 올바르지 않습니다.");
+      const item={bin:nonnegative(range.bin),low:finite(range.x_low),high:finite(range.x_high),pairs:nonnegative(range.pair_count),
+        median:finite(range.y_median),q1:finite(range.y_q1),q3:finite(range.y_q3)};
+      if(item.low>item.high||item.q1>item.median||item.median>item.q3)throw new Error("같은 범위 비교의 값이 올바르지 않습니다.");
+      return item;
+    });
     const pairCount=nonnegative(group.pair_count);
     if(pairCount<points.length) throw new Error("측정 짝 수가 그래프 자료보다 적어 결과를 표시하지 않았습니다.");
     return {
@@ -83,7 +94,7 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
       xUsable:nonnegative(group.x_usable_count),
       yUsable:nonnegative(group.y_usable_count),
       pairCount,pearson:coefficient(group.pearson),spearman:coefficient(group.spearman),
-      sampled:group.sampled===true,points,
+      sampled:group.sampled===true,points,byX,
     };
   });
   return {asset,x,y,groups};
@@ -113,4 +124,25 @@ export function strength(coefficient: number): string {
   if (size < 0.3) return "함께 움직이는 경향이 거의 없음";
   const direction = coefficient > 0 ? "같은 방향으로" : "반대 방향으로";
   return direction + (size >= 0.7 ? " 강하게" : " 어느 정도") + " 함께 움직임";
+}
+
+/** A range of x with enough pairs in both periods to compare y at the same x. */
+export type SameX = {low: number; high: number; a: XRange; b: XRange};
+const LEAST_PAIRS = 20;
+export function sameXRanges(a: PairedGroup | null, b: PairedGroup | null): SameX[] {
+  if (!a || !b) return [];
+  return a.byX.flatMap(left => {
+    const right = b.byX.find(item => item.bin === left.bin);
+    return right && left.pairs >= LEAST_PAIRS && right.pairs >= LEAST_PAIRS
+      ? [{low: Math.min(left.low, right.low), high: Math.max(left.high, right.high), a: left, b: right}] : [];
+  });
+}
+/** Where B's median left A's middle 50% at the same x: how many of the compared ranges, and the one
+ * with the most pairs on both sides to quote. */
+export type MovedAtSameX = {shown: SameX; outside: number; total: number};
+export function movedAtSameX(ranges: SameX[]): MovedAtSameX | null {
+  const outside = ranges.filter(range => range.b.median < range.a.q1 || range.b.median > range.a.q3);
+  const support = (range: SameX) => Math.min(range.a.pairs, range.b.pairs);
+  const shown = outside.reduce<SameX | null>((best, range) => !best || support(range) > support(best) ? range : best, null);
+  return shown ? {shown, outside: outside.length, total: ranges.length} : null;
 }

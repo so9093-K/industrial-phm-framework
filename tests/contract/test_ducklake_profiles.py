@@ -135,3 +135,41 @@ def test_pairs_never_mix_two_meanings_of_one_channel(history: DuckLakeAssetHisto
     assert [(p[1], p[2]) for p in by_unit[False].points] == [(1.0, 10.0), (2.0, 20.0)]
     assert [(p[1], p[2]) for p in by_unit[True].points] == [(3.0, 3000.0), (4.0, 4000.0)]
     assert by_unit[True].pair_count == by_unit[True].y_usable_count == 2
+
+
+def test_pairs_compare_y_within_the_same_narrow_x_ranges(history: DuckLakeAssetHistory) -> None:
+    # Both periods run at about 1 and 3 A, but in B the voltage at 1 A sits 5 V higher while
+    # the 3 A values hold: the same strong correlation, and still a change at the same current.
+    current, voltage = [], []
+    for period, offset in (("a", 0), ("b", 1000)):
+        for i in range(200):
+            amps = 1.0 + (i % 2) * 2.0 + (i % 5) * 0.01
+            volts = 230.0 - 2.0 * amps + (5.0 if period == "b" and amps < 2 else 0.0)
+            current.append(_event(1000 + offset + i, offset + i, amps, channel="amps"))
+            voltage.append(_event(5000 + offset + i, offset + i, volts, channel="volts"))
+    history.append_file_batch(tuple(current + voltage), batch_id="ranges")
+    groups = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="amps",
+        y_channel="volts",
+        periods=[
+            ("a", BASE, BASE + timedelta(seconds=500)),
+            ("b", BASE + timedelta(seconds=1000), BASE + timedelta(seconds=1500)),
+        ],
+    )
+    a, b = sorted(groups, key=lambda group: group.period)
+    assert [item.bin for item in a.by_x] == [item.bin for item in b.by_x] == [0, 9]
+    assert sum(item.pair_count for item in a.by_x) == a.pair_count == 200
+    low_a, low_b = a.by_x[0], b.by_x[0]
+    assert (low_a.x_low, low_b.x_low) == (1.0, 1.0)
+    assert low_a.x_high == low_b.x_high == pytest.approx(1.0 + 2.04 / 10)
+    assert (low_a.y_median, low_b.y_median) == (pytest.approx(227.96), pytest.approx(232.96))
+    assert a.by_x[1].y_median == pytest.approx(b.by_x[1].y_median)
+    # One period alone has nothing to compare its ranges with.
+    (alone,) = history.query_measurement_pairs(
+        "pump-01",
+        x_channel="amps",
+        y_channel="volts",
+        periods=[("a", BASE, BASE + timedelta(seconds=500))],
+    )
+    assert alone.by_x == ()

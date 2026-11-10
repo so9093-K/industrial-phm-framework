@@ -414,7 +414,8 @@ def _constant_run(points: Sequence[tuple[int, float]]) -> dict[str, int | None]:
 def history_relation(
     groups: Sequence[MeasurementPairGroup], x_channel: str, y_channel: str
 ) -> list[dict[str, Any]]:
-    """Paired observations per period, source/point and meaning, with both correlations."""
+    """Paired observations per period, source/point and meaning, with both correlations and y
+    within narrow x ranges both periods share."""
     return [
         {
             "period": group.period,
@@ -434,6 +435,18 @@ def history_relation(
             "spearman": group.spearman,
             "sampled": False,
             "points": [[_time(at), x, y] for at, x, y in group.points],
+            "by_x": [
+                {
+                    "bin": item.bin,
+                    "x_low": item.x_low,
+                    "x_high": item.x_high,
+                    "pair_count": item.pair_count,
+                    "y_median": item.y_median,
+                    "y_q1": item.y_q1,
+                    "y_q3": item.y_q3,
+                }
+                for item in group.by_x
+            ],
         }
         for group in groups
     ]

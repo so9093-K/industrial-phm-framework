@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -90,6 +91,8 @@ _ATTENTION_REUSE_SECONDS = 30.0
 # Show distinct sustained, end-of-record and large changes, with simultaneous comparisons.
 _FINDINGS_SHOWN = 3
 _findings_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any]]] = {}
+_findings_locks: dict[tuple[str, str], threading.Lock] = {}
+_findings_guard = threading.Lock()
 # (root, asset) → (record end, record count, computed at, result)
 # (record end judged, measurement count, monotonic time, result) per workspace and asset.
 _attention_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any] | None]] = {}
@@ -742,6 +745,16 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
     whose operating levels are known is judged level by level: each record's values while it
     ran at one level are compared with the first 30% of that level only.
     """
+    key = (str(workspace.root), asset_id)
+    with _findings_guard:
+        lock = _findings_locks.setdefault(key, threading.Lock())
+    # The summary, the overview row and each screen's default ask for the same asset together:
+    # one computes it, the others wait and read the cached result.
+    with lock:
+        return _record_findings(workspace, asset_id)
+
+
+def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
     body: dict[str, Any] = {
         "schema_version": 1,
         "asset_id": asset_id,
