@@ -473,3 +473,46 @@ def test_source_change_during_import_cannot_be_recorded_as_success(
     assert (job["state"], job["failure"]) == ("failed", "source-changed")
     item = listing["items"][0]
     assert (item["stored"], item["partial"], item["source_changed"]) == (False, True, True)
+
+
+def test_a_failed_import_keeps_what_failed_and_logs_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import errno
+    from collections.abc import Callable
+
+    from industrial_phm.runtime import public_datasets
+
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    target = list_public_datasets(workspace, root)["items"][0]
+
+    def unreadable(
+        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+    ) -> None:
+        progress(18000)
+        try:
+            raise OSError(errno.EIO, "Input/output error", "/var/lib/data/secret.zip")
+        except OSError as error:
+            raise RuntimeError("member read failed") from error
+
+    monkeypatch.setattr(public_datasets, "_import_aihub", unreadable)
+    jobs = PublicDatasetJobs(workspace.root, root=root)
+    with caplog.at_level("WARNING", logger="industrial_phm.runtime.public_datasets"):
+        jobs.start({"dataset_id": target["dataset_id"]})
+        jobs.close()
+    job = list_public_datasets(workspace, root)["jobs"][target["dataset_id"]]
+    assert (job["state"], job["failure"], job["step"], job["done"]) == (
+        "failed",
+        "import-failed",
+        "history",
+        18000,
+    )
+    # Kinds and OS codes only: the message and its path stay out of what the Web reads.
+    assert job["failure_detail"] == "RuntimeError ← OSError EIO"
+    assert "secret" not in json.dumps(job)
+    (record,) = [r for r in caplog.records if "Public dataset import failed" in r.getMessage()]
+    assert target["dataset_id"] in record.getMessage() and "after 18000" in record.getMessage()
+    assert record.exc_info is not None and isinstance(record.exc_info[1], RuntimeError)
