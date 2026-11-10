@@ -19,9 +19,7 @@
 </script>
 
 <p class="review-entry">
-  {#if readState === "ready"}{total ? "저장한 검토가 있는 설비 " + total + "곳" : "저장한 검토가 없습니다"} ·
-  {:else if readState === "failed"}저장한 검토 건수를 확인하지 못했습니다. 검토함에서 설비 ID로 찾을 수 있습니다 ·
-  {/if}<a {href}>정비 검토함 열기 →</a>
+  {#if readState === "ready"}{(total ? "저장한 검토가 있는 설비 " + total + "곳" : "저장한 검토가 없습니다") + " · "}{:else if readState === "failed"}{"저장한 검토 건수를 확인하지 못했습니다. 검토함에서 설비 ID로 찾을 수 있습니다 · "}{/if}<a {href}>정비 검토함 열기 →</a>
 </p>
 
 <style>
