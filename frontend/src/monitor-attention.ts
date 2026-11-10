@@ -236,13 +236,3 @@ export async function readAttention(signal:AbortSignal):Promise<{
     ...groups.map(group=>[group.assetId,group.notes.length])]),
     state:attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial"};
 }
-
-/** The signal a screen opens on when none is chosen: the one this asset's baseline check flagged,
- * else the first. The screen waits for the check only briefly; a slow or failed check only means
- * the first signal is shown. */
-export async function defaultChannel(assetId:string,ids:string[],signal:AbortSignal,waitMs=1200):Promise<string>{
-  if(ids.length<2)return ids[0];
-  const flagged=await readDepartures(AbortSignal.any([signal,AbortSignal.timeout(waitMs)]),assetId)
-    .then(found=>found.find(item=>item.assetId===assetId)?.channel).catch(()=>undefined);
-  return flagged&&ids.includes(flagged)?flagged:ids[0];
-}

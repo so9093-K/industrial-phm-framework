@@ -5,7 +5,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {historyPeriodMessage, type NextStep} from "../analysis-messages";
   import {comparisonWindows, focusFrom, focusParams, windowParams} from "../signal-selection";
-  import { defaultChannel } from "../monitor-attention";
+  import {defaultChannel} from "../summary-defaults";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";

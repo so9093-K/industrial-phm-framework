@@ -16,7 +16,7 @@
     atFinest, covers, EDGE_MS, focusFrom, focusGroups, focusParams, type SourceFocus, periodParams, periodsBefore, pickFrom, previousSpan, snapInside, snapSpan, summarize, zoomWindow, windowParams, MAX_SPAN_MS,
     type Span,
   } from "../signal-selection";
-  import { defaultChannel } from "../monitor-attention";
+  import {defaultChannel} from "../summary-defaults";
   // The source's own quality code, said in words; an unknown code stays as recorded.
   const QUALITY: Record<string, string> = {good: "양호", bad: "불량", uncertain: "불확실", unknown: "기록 없음"};
 

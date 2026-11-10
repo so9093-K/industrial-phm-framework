@@ -4,7 +4,7 @@
 import {recordContext, recordParams, type RecordContext} from "./record-context.ts";
 import {assetTabUrl} from "./routes.ts";
 import {elapsedText} from "./time-axis.ts";
-import {validatePeriods} from "./comparison.ts";
+import {validatePeriods, type Periods} from "./comparison.ts";
 import {periodParams, windowParams, zoomWindow} from "./signal-selection.ts";
 import {object} from "./writes.ts";
 
@@ -240,6 +240,24 @@ export function findingText(item: FoundInterval, bucketSeconds: number | null): 
   };
 }
 
+/** The first 30% a change was judged against as A, and the change itself as B; null when either
+ * is longer than one comparison may be. */
+export function departurePeriods(item: FoundInterval, baseline: RecordFindings["baseline"], bucketSeconds: number | null): Periods | null {
+  baseline = item.baseline ?? baseline;
+  if (!baseline) return null;
+  const span = changeSpan(item, bucketSeconds);
+  const periods = {a: {from: baseline.from, to: baseline.to},
+    b: {from: new Date(span.from).toISOString(), to: new Date(span.to).toISOString()}};
+  try { validatePeriods(periods); } catch { return null; }
+  return periods;
+}
+/** A change's start and end, at least one aggregation interval long. */
+function changeSpan(item: FoundInterval, bucketSeconds: number | null): {from: number; to: number} {
+  bucketSeconds = item.bucketSeconds ?? bucketSeconds;
+  const from = Date.parse(item.start);
+  return {from, to: Math.max(Date.parse(item.end), from + Math.max((bucketSeconds ?? 0) * 1000, 1000))};
+}
+
 /** The interval in the signal graph, and compared with the first 30% it was judged against. */
 export function findingLinks(assetId: string, item: FoundInterval, baseline: RecordFindings["baseline"],
   bucketSeconds: number | null, record: RecordFindings["record"] = null): {signal: string | null; compare: string | null; previous: string | null; relation: {href: string; label: string} | null; outlook: string} {
@@ -252,9 +270,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     return url.pathname + url.search;
   };
   record = item.context?.record ?? record;
-  bucketSeconds = item.bucketSeconds ?? bucketSeconds;
-  const from = Date.parse(item.start);
-  const span = {from, to: Math.max(Date.parse(item.end), from + Math.max((bucketSeconds ?? 0) * 1000, 1000))};
+  const span = changeSpan(item, bucketSeconds);
   const inspection = {...span, to: Math.min(span.to, span.from + 31 * 86400000)};
   const window = zoomWindow(inspection);
   const signal = window ? link(assetTabUrl(assetId, "signals", null, null, item.channel), windowParams(window, inspection)) : null;
@@ -266,15 +282,8 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
       b: {from: new Date(inspection.from).toISOString(), to: new Date(inspection.to).toISOString()}};
     previous = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "previous"));
   }
-  baseline = item.baseline ?? baseline;
-  if (baseline) {
-    const periods = {a: {from: baseline.from, to: baseline.to},
-      b: {from: new Date(span.from).toISOString(), to: new Date(span.to).toISOString()}};
-    try {
-      validatePeriods(periods);
-      compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "departure"));
-    } catch { compare = null; }
-  }
+  const departure = departurePeriods(item, baseline, bucketSeconds);
+  if (departure) compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(departure, "departure"));
   const other = item.related.find(row => row.state !== "within") ?? item.related[0];
   const compared = previous ?? compare;
   let relation: {href: string; label: string} | null = null;

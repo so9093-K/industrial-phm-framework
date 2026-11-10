@@ -172,8 +172,24 @@ export function middle(values: number[]): number | null {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** What y did at the same x, as sentences: how many compared ranges moved, and the best supported
+ * one with both medians and A's middle 50%. */
+export function sameXText(moved: {shown: {low: number; high: number; a: {median: number; q1: number; q3: number}; b: {median: number}};
+  outside: number; total: number}, x: {name: string; unit: string | null}, y: {name: string; unit: string | null}): string {
+  const unit = (value: string, of: string | null) => value + (of ? " " + of : "");
+  const {shown, outside, total} = moved;
+  const where = unit(short(shown.low) + "~" + short(shown.high), x.unit);
+  const values = short(shown.a.median) + " → " + unit(short(shown.b.median), y.unit);
+  const usual = unit(short(shown.a.q1) + "~" + short(shown.a.q3), y.unit);
+  if (outside === total && total > 1)
+    return "같은 " + x.name + "끼리 견준 범위 " + total + "개 모두에서 기간 B의 " + y.name + " 중앙값이 기간 A의 가운데 50% 밖입니다. "
+      + "짝이 가장 많은 " + where + "에서는 " + values + "입니다(기간 A 가운데 50% " + usual + ").";
+  return "같은 " + x.name + " " + where + "에서 " + y.name + " 중앙값은 " + values + "로, 기간 A의 가운데 50%(" + usual + ") 밖입니다"
+    + (total > 1 ? "(견준 범위 " + total + "개 중 " + outside + "개에서 밖)." : ".");
+}
+
 export function relationMessage(x: string, y: string, a: RelationSide, b: RelationSide,
-  crest: {a: number | null; b: number | null} | null, next: NextStep[] = []): AnalysisMessage | null {
+  crest: {a: number | null; b: number | null} | null, next: NextStep[] = [], sameX: string | null = null): AnalysisMessage | null {
   const ta = tie(a), tb = tie(b);
   if (!ta && !tb) return null;
   let headline: string;
@@ -181,12 +197,17 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
     const [name, side, t] = ta ? ["A", a, ta] as const : ["B", b, tb!] as const;
     headline = "기간 " + name + "에서 두 값은 " + is(t) + " (" + coefficients(side, t) + "). 다른 기간은 짝이 부족해 계산하지 못했습니다.";
   } else {
-    const kept = ta.kind === tb.kind && (!("strong" in ta) || !("strong" in tb) || ta.strong === tb.strong)
-      && Math.abs(a.pearson! - b.pearson!) < 0.2;
+    // Two coefficients both too small to call a relation are no change of one, however far apart.
+    const neither = ta.kind === "none" && tb.kind === "none";
+    const kept = neither || ta.kind === tb.kind
+      && (!("strong" in ta) || !("strong" in tb) || ta.strong === tb.strong) && Math.abs(a.pearson! - b.pearson!) < 0.2;
+    // Moving together as strongly says nothing of where y sits at the same x; a shift there is
+    // a change of the relation the coefficients cannot show.
     headline = kept
-      ? "두 기간 모두 두 값은 " + is(tb) + " (기간 A " + coefficients(a, ta) + " · 기간 B " + coefficients(b, tb) + "). 관계는 그대로입니다."
+      ? "두 기간 모두 두 값은 " + is(tb) + " (기간 A " + coefficients(a, ta) + " · 기간 B " + coefficients(b, tb) + ")."
+        + (sameX ? " 다만 " + sameX : neither ? "" : " 관계는 그대로입니다.")
       : "두 값의 관계가 달라졌습니다. 기간 A에서는 " + was(ta) + "(" + coefficients(a, ta) + "), 기간 B에서는 " + is(tb)
-        + "(" + coefficients(b, tb) + ").";
+        + "(" + coefficients(b, tb) + ")." + (sameX ? " " + sameX : "");
   }
   const link = formulaLink(x, y);
   let meaning: string | null = null;

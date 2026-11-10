@@ -49,6 +49,7 @@ from industrial_phm.application.measurement_history import (
     MeasurementProfile,
     MultiSignalMeasurementHistoryAggregation,
     MultiSignalMeasurementHistoryBucket,
+    PairedXRange,
     ProfileLevel,
     StreamAggregation,
     ValueOccupancy,
@@ -83,6 +84,9 @@ _EXPIRE_SNAPSHOTS_PER_LEASE = 2_000
 # Measured deletion cost is about 2.7 microseconds per row, so a slice of this many
 # live rows holds the lease for roughly a third of a second.
 _RETENTION_ROWS_PER_LEASE = 100_000
+# A relation's shared x span is split into this many equal ranges; narrow enough that a range
+# rarely spans two operating levels of a current.
+_PAIR_X_RANGES = 10
 
 _HISTORY_DATA_TABLES = (
     ("raw", "opcua_data_change"),
@@ -2493,6 +2497,32 @@ class DuckLakeAssetHistory:
             ).fetchall()
             if len(stats) > 100:
                 raise ValueError("pairs exceed 100 source/point/meaning groups; narrow the query")
+            # y within narrow, equal x ranges of the span both periods share, from every pair.
+            ranges = connection.execute(
+                f"""
+                WITH spans AS (
+                    SELECT source_id, point_key, x_meaning, y_meaning,
+                        max(low) AS low, min(high) AS high
+                    FROM (
+                        SELECT {groups}, min(x) AS low, max(x) AS high
+                        FROM profile_pairs GROUP BY ALL
+                    )
+                    GROUP BY ALL HAVING count(*) > 1 AND max(low) < min(high)
+                ), binned AS (
+                    SELECT p.*, s.low, s.high,
+                        least(floor((p.x - s.low) / (s.high - s.low) * ?), ? - 1)::INTEGER AS bin
+                    FROM profile_pairs p
+                    JOIN spans s USING (source_id, point_key, x_meaning, y_meaning)
+                    WHERE p.x BETWEEN s.low AND s.high
+                )
+                SELECT {groups}, bin, low + (high - low) * bin / ?,
+                    low + (high - low) * (bin + 1) / ?,
+                    count(*), median(y), quantile_cont(y, 0.25), quantile_cont(y, 0.75)
+                FROM binned GROUP BY {groups}, bin, low, high
+                ORDER BY bin
+                """,
+                [_PAIR_X_RANGES] * 4,
+            ).fetchall()
             sample = connection.execute(
                 f"""
                 SELECT {groups}, event_at, x, y FROM (
@@ -2509,6 +2539,19 @@ class DuckLakeAssetHistory:
         points: dict[tuple[str, ...], list[tuple[datetime, float, float]]] = {}
         for row in sample:
             points.setdefault(tuple(row[:5]), []).append((row[5], float(row[6]), float(row[7])))
+        by_x: dict[tuple[str, ...], list[PairedXRange]] = {}
+        for row in ranges:
+            by_x.setdefault(tuple(row[:5]), []).append(
+                PairedXRange(
+                    bin=int(row[5]),
+                    x_low=float(row[6]),
+                    x_high=float(row[7]),
+                    pair_count=int(row[8]),
+                    y_median=float(row[9]),
+                    y_q1=float(row[10]),
+                    y_q3=float(row[11]),
+                )
+            )
         return tuple(
             MeasurementPairGroup(
                 period=row[0],
@@ -2522,6 +2565,7 @@ class DuckLakeAssetHistory:
                 pearson=_finite(row[8]),
                 spearman=_finite(row[9]),
                 points=tuple(points.get(tuple(row[:5]), [])),
+                by_x=tuple(by_x.get(tuple(row[:5]), [])),
             )
             for row in stats
         )

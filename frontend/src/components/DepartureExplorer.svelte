@@ -8,7 +8,7 @@
   import {elapsedText} from "../time-axis";
   import { onMount } from "svelte";
   import { readChannels, signalName, type ChannelList } from "../history";
-  import { defaultChannel } from "../monitor-attention";
+  import {defaultChannel} from "../summary-defaults";
   import {
     NoStoredEvidenceError, departureChart, readDepartures,
     type Baseline, type Departures,
