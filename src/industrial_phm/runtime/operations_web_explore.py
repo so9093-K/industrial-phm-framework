@@ -74,6 +74,7 @@ EXPLORE_READ_ROUTES = frozenset(
         "/api/v1/explore/findings",
         "/api/v1/explore/vibration",
         "/api/v1/explore/waterfall",
+        "/api/v1/explore/overview",
     }
 )
 # The buckets a stored record is read in for baseline departures. 관측 현황's check and the
@@ -142,6 +143,11 @@ def handle_explore_read(
             return HTTPStatus.OK, _departures(workspace, asset_id, query)
         if path == "/api/v1/explore/findings":
             return HTTPStatus.OK, record_findings(workspace, asset_id)
+        if path == "/api/v1/explore/overview":
+            # Imported here: the overview row is built from this module's findings.
+            from industrial_phm.runtime.operations_web_overview import asset_overview
+
+            return HTTPStatus.OK, asset_overview(workspace, asset_id)
         if path == "/api/v1/explore/waterfall":
             binding = acquisition_binding(store, asset_id) if store.path.exists() else None
             if binding is None:
