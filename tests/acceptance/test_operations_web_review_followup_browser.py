@@ -84,9 +84,11 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 group_b = all_signals.get_by_role("region", name="측정 기록 · b", exact=True)
                 group_a = all_signals.get_by_role("region", name="측정 기록 · a", exact=True)
                 pw.expect(group_b).to_be_visible()
-                group_b.locator('input[type="range"]').focus()
-                group_b.locator('input[type="range"]').press("Home")
-                group_b.locator('input[type="range"]').press("ArrowRight")
+                # The start slider alone moves one picked moment, as the single slider did.
+                start = group_b.get_by_role("slider", name="시작", exact=False)
+                start.focus()
+                start.press("Home")
+                start.press("ArrowRight")
                 chosen_b = group_b.locator(".pick")
                 compare_href = chosen_b.get_by_role(
                     "link", name="바로 앞 기간과 비교하기", exact=False
