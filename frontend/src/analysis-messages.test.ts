@@ -33,8 +33,8 @@ test("a period whose every value left the usual range says so before the medians
     outsideCount: 25, outsidePercent: 100, medianChangePercent: 265.1, onset: {first: 76, stayed: true}};
   const message = periodMessage(facts, place)!;
   assert.equal(message.headline,
-    "기간 B의 측정 25회가 모두 기간 A의 평소 범위(0.602~0.863 g)를 벗어났습니다. 중앙값은 0.766 → 2.8 g로 약 3.7배입니다.");
-  assert.equal(message.meaning, "76번째 측정에서 처음 평소 범위를 벗어났고 그 뒤 기간 B의 측정도 모두 평소 범위 밖입니다.");
+    "기간 B의 측정 25회가 모두 기간 A의 비교 범위(5~95%, 0.602~0.863 g)를 벗어났습니다. 중앙값은 0.766 → 2.8 g로 약 3.7배입니다.");
+  assert.equal(message.meaning, "76번째 측정에서 처음 기간 A의 비교 범위를 벗어났고 그 뒤 기간 B의 측정도 모두 그 범위 밖입니다.");
   assert.match(message.certainty!, /수준 자체가 달라졌습니다/);
 });
 
@@ -46,7 +46,7 @@ test("a few values outside the usual range read as possibly brief, a tenth or le
   assert.match(some.certainty!, /일부만 벗어났습니다\. 벗어난 측정이 한 시기에 몰려 있는지/);
   assert.doesNotMatch(some.headline, /배입니다/);
   const none = periodMessage({...base, outsideCount: 2, outsidePercent: 5}, place)!;
-  assert.match(none.headline, /대부분 기간 A의 평소 범위\(8~12\) 안/);
+  assert.match(none.headline, /대부분 기간 A의 비교 범위\(5~95%, 8~12\) 안/);
   assert.match(none.certainty!, /뚜렷한 변화로 보기 어렵습니다/);
   const few = periodMessage({...base, b: {usable: 3, median: 20}, outsideCount: 3, outsidePercent: 100}, place)!;
   assert.match(few.certainty!, /기간 B 3회/);
@@ -262,7 +262,7 @@ test("a stored time series compares the share of measurements with no current wi
     outsideCount: 519, outsidePercent: 10.3, medianChangePercent: 39, onset: null,
     means: {a: 43.45, b: 45.3}, aMiddle: {low: 27.86, high: 68.59}, lowCurrent: {a: 1215, b: 1247}};
   const message = historyPeriodMessage(facts)!;
-  assert.equal(message.headline, "기간 B 측정의 일부(10%, 519회)만 기간 A의 평소 범위(0~70.3 A)를 벗어났습니다. 중앙값은 47 → 65.3 A입니다.");
+  assert.equal(message.headline, "기간 B 측정의 일부(10%, 519회)만 기간 A의 비교 범위(5~95%, 0~70.3 A)를 벗어났습니다. 중앙값은 47 → 65.3 A입니다.");
   assert.equal(message.meaning, "유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A 24%, 기간 B 25%로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). "
     + "이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요. "
     + "1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다. "
@@ -280,7 +280,7 @@ test("a stored time series compares the share of measurements with no current wi
   assert.match(half.headline, /^기간 B 측정의 절반\(2520회\)이/);
   // "모두" needs every usable measurement outside: 199 of 200 is said as it is, never as 100%.
   const nearly = historyPeriodMessage({...facts, b: {usable: 200, median: 65}, outsideCount: 199, outsidePercent: 99.5, lowCurrent: null})!;
-  assert.match(nearly.headline, /^기간 B 측정 200회 중 199회\(99\.5%\)가 기간 A의 평소 범위/);
+  assert.match(nearly.headline, /^기간 B 측정 200회 중 199회\(99\.5%\)가 기간 A의 비교 범위/);
   // A large record: 2,499 of 2,500 must not read as 100%.
   const large = historyPeriodMessage({...facts, b: {usable: 2500, median: 65}, outsideCount: 2499, outsidePercent: 99.96, lowCurrent: null})!;
   assert.match(large.headline, /^기간 B 측정 2500회 중 2499회\(99\.9% 초과\)가/);
@@ -301,3 +301,12 @@ test("a forecast without criteria explains its endpoint and its own backtest",as
   assert.match(message.meaning!,/10 A.*\+2 A.*9 A~15 A/);
   assert.match(message.certainty!,/20개.*0.5 A.*80%/);
 });
+
+test("a period A the reader chose is named by how its range was computed, never as usual or normal", () => {
+  const facts = {unit: "V", a: {usable: 500, median: 219, low: 214, high: 225}, b: {usable: 400, median: 380},
+    outsideCount: 400, outsidePercent: 100, medianChangePercent: 73, onset: {first: 3, stayed: false}};
+  const told = periodMessage(facts, (at) => at + "번째 측정")!;
+  for (const text of [told.headline, told.meaning ?? "", told.certainty ?? ""]) assert.doesNotMatch(text, /평소|정상/);
+  assert.match(told.headline, /기간 A의 비교 범위\(5~95%, 214~225 V\)/);
+});
+

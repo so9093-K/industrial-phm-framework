@@ -298,7 +298,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
 }
 
 const WHY: Record<Exclude<SignalState, "scored" | "level-change">, string> = {
-  "short-baseline": "기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함",
+  "short-baseline": "기록 처음 30%의 값이 너무 적어 비교 범위를 정하지 못함",
   constant: "기준 기간과 이후 기록에서 같은 값이 유지됨",
   cumulative: "누적값이라 기록 처음과 견준 변화로 판단하지 않음",
   copied: "일부 기간에 다른 항목의 값이 기록되어 변화로 판단하지 않음",
