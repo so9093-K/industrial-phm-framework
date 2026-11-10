@@ -27,7 +27,10 @@ export type ProfileSeries = {
   outsideCount: number | null;
   /** B's median over A's as a percent change; null for a quantity that can go below zero. */
   medianChangePercent: number | null;
+  /** Counts per equal bin over both periods' whole range, so the two shapes overlay. */
+  histogram: Histogram | null;
 };
+export type Histogram = {low: number; high: number; a: number[] | null; b: number[] | null};
 /** How the source ran in each period, by the operating levels its current shows. */
 export type CompareOperation = {sourceId: string; pointId: string | null; label: string; names: LevelNames;
   shares: {a: number[] | null; b: number[] | null}};
@@ -175,6 +178,7 @@ export function parseProfile(
       medianChange, outsidePercent: optionalNumber(comp.b_outside_a_band_percent),
       outsideCount: optionalCount(comp.b_outside_a_band),
       medianChangePercent: optionalNumber(comp.median_change_percent),
+      histogram: parseHistogram(item.histogram),
     };
   });
   const operation = parseOperation(response.operation);
@@ -182,6 +186,48 @@ export function parseProfile(
   if (level !== null && (!operation || !Number.isInteger(level) || level < 0 || level > operation.names.levels.length))
     throw new Error("비교한 운전 상태를 확인할 수 없습니다.");
   return {assetId, channel, periods: requested, series, operation, level};
+}
+
+export function parseHistogram(raw: unknown): Histogram | null {
+  if (raw === null || raw === undefined) return null;
+  const row = rec(raw);
+  const invalid = () => new Error("값 분포의 형식이 올바르지 않습니다.");
+  if (!row || typeof row.low !== "number" || typeof row.high !== "number" || !Number.isFinite(row.low)
+    || !Number.isFinite(row.high) || row.low > row.high || !Number.isSafeInteger(row.bins) || (row.bins as number) < 1) throw invalid();
+  const counts = (value: unknown): number[] | null => {
+    if (value === null || value === undefined) return null;
+    if (!Array.isArray(value) || value.length !== row.bins || !value.every(item => Number.isSafeInteger(item) && item >= 0)) throw invalid();
+    return value as number[];
+  };
+  return {low: row.low, high: row.high, a: counts(row.a), b: counts(row.b)};
+}
+
+/** The values B took that A almost never did: the run of neighbouring bins holding under 1% of A
+ * with the largest share of B, when that share is at least 10%. A second group of values hides
+ * behind a median that barely moved; this names where it sits and how much of B it holds. */
+export function newValues(histogram: Histogram | null): {low: number; high: number; count: number; total: number} | null {
+  if (!histogram?.a || !histogram.b) return null;
+  const {a, b} = histogram;
+  const totalA = a.reduce((sum, count) => sum + count, 0), totalB = b.reduce((sum, count) => sum + count, 0);
+  if (!totalA || !totalB) return null;
+  const width = (histogram.high - histogram.low) / b.length;
+  type Run = {from: number; to: number; count: number};
+  let best = null as Run | null, run = null as Run | null;
+  for (let bin = 0; bin <= b.length; bin++) {
+    const rare = bin < b.length && a[bin] / totalA < 0.01;
+    if (rare && (run || b[bin] > 0)) {
+      run = run ? {...run, to: bin, count: run.count + b[bin]} : {from: bin, to: bin, count: b[bin]};
+      continue;
+    }
+    if (run && (!best || run.count > best.count)) best = run;
+    run = null;
+  }
+  const found = best;
+  if (!found || found.count / totalB < 0.1) return null;
+  // Trailing rare bins with nothing of B do not widen the range.
+  let last = found.to;
+  while (last > found.from && b[last] === 0) last--;
+  return {low: histogram.low + found.from * width, high: histogram.low + (last + 1) * width, count: found.count, total: totalB};
 }
 
 function parseOperation(raw: unknown): CompareOperation | null {

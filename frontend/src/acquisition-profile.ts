@@ -1,5 +1,6 @@
 /** One acquisition feature across two ordinal ranges. No clock or equipment-health inference. */
 import {validateSpans, type Spans} from "./spectrum.ts";
+import {parseHistogram, type Histogram} from "./comparison.ts";
 
 export type FeatureOption = {id:string;label:string};
 export type FeatureSource = {
@@ -21,6 +22,8 @@ export type FeatureProfile = {
   medianChangePercent:number|null;
   /** How many of B's values fall outside A's 5–95% range. */
   outsideCount:number|null;
+  /** Counts per equal bin over both ranges' values, so the two shapes overlay. */
+  histogram?:Histogram|null;
 };
 export class FeatureEvidenceUnavailable extends Error {}
 /** The feature a vibration screen opens on: an RMS, the overall vibration level people read
@@ -126,7 +129,7 @@ export function parseFeatureProfile(
   return {assetId,sourceId:source.sourceId,bindingId:source.bindingId,
     featureId,label:typeof row.label==="string"?row.label:featureId,
     unit:typeof row.unit==="string"?row.unit:null,spans,a,b,medianChange:change,outsidePercent:outside,
-    medianChangePercent:percent,outsideCount};
+    medianChangePercent:percent,outsideCount,histogram:parseHistogram(row.histogram)};
 }
 async function get(path:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(path,{signal,cache:"no-store",credentials:"same-origin"});

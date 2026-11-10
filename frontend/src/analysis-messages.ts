@@ -518,6 +518,8 @@ export type HistoryPeriodFacts = PeriodFacts & {
   aMiddle: {low: number; high: number} | null;
   /** For a declared current in A: measurements below 1 A in each period — a low reading, not a stop. */
   lowCurrent: {a: number; b: number} | null;
+  /** Values B took in a range where A had under 1% of its own. */
+  newValues?: {low: number; high: number; count: number; total: number} | null;
 };
 
 const portion = (part: number, whole: number) => whole > 0 ? part / whole : 0;
@@ -530,6 +532,11 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
   if (!base) return null;
   const unit = facts.unit ? " " + facts.unit : "";
   const notes: string[] = [];
+  if (facts.newValues) {
+    const fresh = facts.newValues;
+    notes.push("기간 B 측정 " + fresh.total + "회 중 " + fresh.count + "회(" + countShare(fresh.count, fresh.total) + ")는 기간 A에 거의 없던 "
+      + short(fresh.low) + "~" + short(fresh.high) + unit + " 범위의 값입니다(기간 A 측정의 1% 미만). 분포 그림에서 두 기간의 값이 몰린 곳을 견줘 보세요.");
+  }
   let lowDiffers = false;
   if (facts.lowCurrent) {
     const a = portion(facts.lowCurrent.a, facts.a.usable), b = portion(facts.lowCurrent.b, facts.b.usable);

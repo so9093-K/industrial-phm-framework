@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {defaultPeriods,parseProfile,parseSources,type Periods} from "./comparison.ts";
+import {defaultPeriods,newValues,parseHistogram,parseProfile,parseSources,type Periods} from "./comparison.ts";
+import {historyPeriodMessage} from "./analysis-messages.ts";
 const a = "2026-10-01T00:00:00Z", m = "2026-10-02T00:00:00Z", e = "2026-10-03T00:00:00Z";
 const periods: Periods = {a:{from:a,to:m},b:{from:m,to:e}};
 const p=(n:number)=>({observation_count:n,usable_count:n,missing_count:0,non_good_count:0,
@@ -62,3 +63,23 @@ test("a comparison says how the source ran in each period and which level it com
   assert.throws(() => parseProfile(payload({operation, level: 3}), "m", "전압", periods));
   assert.throws(() => parseProfile(payload({operation: {...operation, shares: {a: [1], b: null}}}), "m", "전압", periods));
 });
+
+test("a second group of values B took where A had almost none is found and said with its range", () => {
+  // 1306-like: A sits near 219 V; 42% of B moved to about 380 V, while B's median barely moved.
+  const a = Array(20).fill(0), b = Array(20).fill(0);
+  a[1] = 950; a[2] = 50; b[1] = 500; b[2] = 80; b[17] = 300; b[18] = 120;
+  const histogram = parseHistogram({low: 200, high: 400, bins: 20, a, b})!;
+  assert.deepEqual(newValues(histogram), {low: 370, high: 390, count: 420, total: 1000});
+  const told = historyPeriodMessage({unit: "V", a: {usable: 1000, median: 219, low: 214, high: 224}, b: {usable: 1000, median: 221},
+    outsideCount: 420, outsidePercent: 42, medianChangePercent: 0.9, onset: null, means: {a: 219, b: 287},
+    aMiddle: {low: 217, high: 221}, lowCurrent: null, newValues: newValues(histogram)})!;
+  assert.match(told.meaning!, /^기간 B 측정 1000회 중 420회\(42%\)는 기간 A에 거의 없던 370~390 V 범위의 값입니다\(기간 A 측정의 1% 미만\)\./);
+  // A shift within A's own values, or a small one, is not a second group.
+  const near = [...a]; near[3] = 0;
+  assert.equal(newValues(parseHistogram({low: 200, high: 400, bins: 20, a, b: [0, 600, 400, ...Array(17).fill(0)]})), null);
+  assert.equal(newValues(parseHistogram({low: 200, high: 400, bins: 20, a, b: [0, 950, 0, ...Array(16).fill(0), 50]})), null);
+  assert.equal(newValues(parseHistogram({low: 200, high: 400, bins: 20, a: near, b: null})), null);
+  assert.equal(parseHistogram(null), null);
+  assert.throws(() => parseHistogram({low: 200, high: 400, bins: 20, a: [1, 2], b}), /값 분포/);
+});
+
