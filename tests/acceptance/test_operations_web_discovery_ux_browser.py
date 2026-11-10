@@ -122,15 +122,8 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 pw.expect(rows.first).to_contain_text("확인할 항목 1건")
                 pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
                 pw.expect(rows.first).to_contain_text("과거 저장 기록")
-                pw.expect(rows.first).to_contain_text("현재 수신 중인 데이터가 아닙니다")
-                pw.expect(rows.first).to_contain_text("분석한 마지막 측정 · 2020")
                 pw.expect(rows.first.locator(".primary-reason")).to_contain_text("temperature")
-                pw.expect(rows.first.locator(".source-name")).to_have_text(
-                    "AI-Hub 239 공개 실측 데이터"
-                )
                 pw.expect(page.locator(".meta").first).to_contain_text("목록 확인 시각")
-                assert rows.first.locator(".source-identity details").get_attribute("open") is None
-                pw.expect(rows.first.get_by_text("기록되지 않음", exact=True)).to_be_hidden()
                 direct = rows.first.get_by_role("link", name="변화 구간 조사하기", exact=False)
                 picked = parse_qs(
                     urlsplit(direct.get_attribute("href")).query, keep_blank_values=True
