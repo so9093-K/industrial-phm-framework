@@ -34,7 +34,7 @@ test("what the whole record held reads as when, how long, against which range, a
   // Signals not judged say why, never "no change"; a held baseline also says what came after.
   assert.deepEqual(found.signals.filter((row) => row.state !== "scored").map(unjudgedText), [
     "압력(기준 기간과 이후 기록에서 같은 값이 유지됨 · 처음 30%는 6 bar, 그 뒤 6~6 bar)",
-    "유량(기록 처음 30%의 값이 너무 적어 평소 범위를 정하지 못함)"]);
+    "유량(기록 처음 30%의 값이 너무 적어 비교 범위를 정하지 못함)"]);
   // The judged count must match the signals, and intervals need a judged signal.
   assert.throws(() => parseRecordFindings({...body(), judged: 4}, "comp"));
   assert.throws(() => parseRecordFindings({...body(), judged: 0, signals: body().signals.slice(2)}, "comp"));

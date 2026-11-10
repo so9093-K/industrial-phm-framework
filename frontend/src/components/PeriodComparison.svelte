@@ -328,7 +328,7 @@
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
-              {#if row.outsidePercent !== null}<span> · B의 값 중 A의 평소 범위 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
+              {#if row.outsidePercent !== null}<span> · B의 값 중 A의 비교 범위(5~95%) 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
             </p>
           {/if}
           <div class="table-wrap">
@@ -352,7 +352,7 @@
           </details>
           <details>
             <summary>기술 상세</summary>
-            <p class="context">측정 의미 ID {row.interpretation} · ‘평소 범위 밖’은 기간 A의 분위수 범위를 벗어난 B 값의 비율입니다.</p>
+            <p class="context">측정 의미 ID {row.interpretation} · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
           </details>
         </section>
       {/each}

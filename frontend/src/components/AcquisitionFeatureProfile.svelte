@@ -197,7 +197,7 @@
         {:else}
           <p class="headline">중앙값 변화(B − A) <strong>{num(profile.medianChange)}</strong>
             {#if profile.outsidePercent!==null}
-              <span> · B의 값 중 A의 평소 범위 밖 {profile.outsidePercent.toFixed(1)}%</span>
+              <span> · B의 값 중 A의 비교 범위(5~95%) 밖 {profile.outsidePercent.toFixed(1)}%</span>
             {/if}
           </p>
         {/if}
@@ -225,7 +225,7 @@
         <details>
           <summary>기술 상세</summary>
           <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}
-            · ‘평소 범위 밖’은 기간 A의 5~95% 분위수 범위를 벗어난 B 값의 비율입니다.</p>
+            · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
         </details>
       </section>
     {/if}

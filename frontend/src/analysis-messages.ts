@@ -104,22 +104,22 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
   const pct = share === null ? "" : count !== null ? countShare(count, b.usable) : Math.round(share) + "%";
   let headline: string;
   if (share === null || range === null) headline = "기간 A와 B의 " + medians;
-  else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
+  else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
   else if (share >= 50) headline = (share === 50 ? "기간 B 측정의 절반(" + count + "회)이"
-    : "기간 B 측정 " + b.usable + "회 중 " + count + "회(" + pct + ")가") + " 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else if (share > 10) headline = "기간 B 측정의 일부(" + pct + ", " + count + "회)만 기간 A의 평소 범위(" + range + ")를 벗어났습니다. " + medians;
-  else headline = "기간 B의 값은 대부분 기간 A의 평소 범위(" + range + ") 안에 있습니다. " + medians;
+    : "기간 B 측정 " + b.usable + "회 중 " + count + "회(" + pct + ")가") + " 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
+  else if (share > 10) headline = "기간 B 측정의 일부(" + pct + ", " + count + "회)만 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
+  else headline = "기간 B의 값은 대부분 기간 A의 비교 범위(5~95%, " + range + ") 안에 있습니다. " + medians;
   let certainty: string | null = null;
   if (b.usable < 5 || a.usable < 10)
     certainty = "측정 수가 적어(기간 A " + a.usable + "회 · 기간 B " + b.usable + "회) 이 결과만으로 단정하기 이릅니다.";
   else if (share === null) certainty = null;
   else if (share >= 90) certainty = "값 몇 개가 튄 것이 아니라 거의 모든 측정이 벗어나, 값의 수준 자체가 달라졌습니다.";
-  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 평소 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
+  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 기간 A의 비교 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
   else if (share > 10) certainty = "기간 B 측정 중 일부만 벗어났습니다. 벗어난 측정이 한 시기에 몰려 있는지 흩어져 있는지 시간 추이에서 확인하세요.";
   else certainty = "기간 A 안에서도 값의 10%는 이 범위 밖에 있으므로, 이 정도는 뚜렷한 변화로 보기 어렵습니다.";
   const onset = facts.onset && share !== null && share > 10
-    ? place(facts.onset.first) + "에서 처음 평소 범위를 벗어났고"
-      + (facts.onset.stayed ? " 그 뒤 기간 B의 측정도 모두 평소 범위 밖입니다." : " 그 뒤 기간 B의 측정 중 일부는 평소 범위 안으로 돌아왔습니다.")
+    ? place(facts.onset.first) + "에서 처음 기간 A의 비교 범위를 벗어났고"
+      + (facts.onset.stayed ? " 그 뒤 기간 B의 측정도 모두 그 범위 밖입니다." : " 그 뒤 기간 B의 측정 중 일부는 그 범위 안으로 돌아왔습니다.")
     : null;
   return {headline, meaning: onset, certainty, next};
 }
