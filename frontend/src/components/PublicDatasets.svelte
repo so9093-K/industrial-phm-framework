@@ -78,11 +78,13 @@
     <span class="facts">{named && item.kind === "aihub-239" ? item.assetId : datasetFacts(item)}</span>
     {#if job && job.state !== "succeeded"}
       <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
+      {#if job.state === "failed" && job.detail}<span class="status detail">오류 종류 · {job.detail} (운영 로그에 자세한 내용이 남습니다)</span>{/if}
     {/if}
     {#if item.sourceChanged}
       <span class="status" role="status">준비된 원본의 내용 또는 위치가 달라졌습니다. 기존 기록은 보존되며, 다시 가져오면 새 내용은 별도 출처로 저장합니다.</span>
-    {:else if item.partial && job?.state !== "running"}
-      <!-- While an import runs, its own rows are what is partly stored; that is not an earlier record. -->
+    {:else if item.partial && (!job || job.state === "succeeded")}
+      <!-- A running, failed or interrupted import's own rows are what is partly stored, and its line
+           already says so; this is for a record stored before completion was recorded. -->
       <span class="status">기존 기록 있음 · 현재 원본의 가져오기 완료 확인 전</span>
     {/if}
     {#if item.kind === "xjtu-sy" && (item.stored || item.partial || job)}

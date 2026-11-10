@@ -14,6 +14,8 @@ export type PublicDataset = {
 export type DatasetJob = {
   state: "running" | "succeeded" | "failed" | "interrupted"; step: string; done: number;
   assetId: string; failure: string | null;
+  /** The kinds of error behind a failure, such as "RuntimeError ← OSError EIO", for a report. */
+  detail: string | null;
 };
 export type PublicDatasets = {
   available: boolean; canImport: boolean; items: PublicDataset[]; jobs: Record<string, DatasetJob>;
@@ -43,7 +45,7 @@ export function parsePublicDatasets(raw: unknown): PublicDatasets {
     const row = object(entry);
     if (!row || !states.includes(row.state as DatasetJob["state"])) continue;
     jobs[key] = {state: row.state as DatasetJob["state"], step: text(row.step) ?? "", done: count(row.done) ?? 0,
-      assetId: text(row.asset_id) ?? "", failure: text(row.failure)};
+      assetId: text(row.asset_id) ?? "", failure: text(row.failure), detail: text(row.failure_detail)};
   }
   return {available: root.available === true, canImport: root.can_import === true, items, jobs};
 }
@@ -103,6 +105,32 @@ export function jobText(job: DatasetJob): string {
     return "측정값 저장 중 · " + job.done.toLocaleString("ko-KR") + "개";
   }
   if (job.state === "succeeded") return "가져왔습니다";
-  if (job.state === "interrupted") return "운영이 다시 시작돼 중단됐습니다. 다시 가져오면 저장된 부분은 건너뜁니다.";
-  return "가져오지 못했습니다 · " + (FAILURE[job.failure ?? ""] ?? "원인을 확인하지 못했습니다.");
+  if (job.state === "interrupted") return "운영이 다시 시작돼 중단됐습니다" + (job.done ? "(" + storedText(job) + "까지 저장)" : "")
+    + ". 다시 가져오면 저장된 부분은 건너뜁니다.";
+  return "가져오지 못했습니다 · " + (FAILURE[job.failure ?? ""] ?? "원인을 확인하지 못했습니다.")
+    + (job.done ? " " + storedText(job) + "까지 저장한 뒤 멈췄습니다. 다시 가져오면 저장된 부분은 건너뜁니다." : "");
+}
+const storedText = (job: DatasetJob) =>
+  (job.step === "replay" ? "측정 기록 " + job.done.toLocaleString("ko-KR") + "회" : "측정값 " + job.done.toLocaleString("ko-KR") + "개");
+
+/** An asset whose public dataset import has not finished: its screens read only what is stored. */
+export type UnfinishedImport = {running: boolean; text: string};
+/** Assets still being imported, or holding part of a record whose import stopped or was never
+ * confirmed complete. A record kept from an earlier version of a changed source is complete in
+ * itself and is not listed. */
+export function unfinishedImports(datasets: PublicDatasets): Map<string, UnfinishedImport> {
+  const found = new Map<string, UnfinishedImport>();
+  for (const item of datasets.items) {
+    const job = datasets.jobs[item.datasetId];
+    if (job?.state === "running") {
+      found.set(item.assetId, {running: true, text: "공개 데이터를 가져오는 중입니다 · 지금까지 " + storedText(job)
+        + " 저장 · 끝나기 전에는 저장된 부분만으로 분석합니다."});
+    } else if (item.partial && !item.sourceChanged && !found.get(item.assetId)?.running) {
+      found.set(item.assetId, {running: false, text: job?.state === "failed"
+        ? "공개 데이터 가져오기가 실패해 기록 일부만 있습니다" + (job.done ? " (" + storedText(job) + " 저장 후 멈춤)" : "") + "."
+        : job?.state === "interrupted" ? "공개 데이터 가져오기가 중단돼 기록 일부만 있습니다" + (job.done ? " (" + storedText(job) + " 저장 후 멈춤)" : "") + "."
+        : "공개 데이터 가져오기가 끝났는지 확인하지 못해 기록이 일부일 수 있습니다."});
+    }
+  }
+  return found;
 }

@@ -21,6 +21,8 @@
   import ElectricalCondition from "./ElectricalCondition.svelte";
   import ProjectionExplorer from "./ProjectionExplorer.svelte";
   import AcquisitionOutlook from "./AcquisitionOutlook.svelte";
+  import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
+  import {systemUrl} from "../routes";
 
   type Props = {
     asset: Asset;
@@ -34,6 +36,16 @@
   let dataState: "loading" | "ready" | "failed" = $state("loading");
   let capabilities: Capabilities | null = $state(null);
   let capabilityState: "loading" | "ready" | "failed" = $state("loading");
+  // Every analysis of an asset whose import has not finished reads only what was stored so far.
+  let unfinished: UnfinishedImport | null = $state(null);
+  $effect(() => {
+    const id = asset.assetId, request = new AbortController();
+    unfinished = null;
+    void readPublicDatasets(request.signal)
+      .then((datasets) => { if (id === asset.assetId) unfinished = unfinishedImports(datasets).get(id) ?? null; })
+      .catch(() => {});
+    return () => request.abort();
+  });
 
   // Mixed inputs require an explicit measurement kind, never a hidden default.
   // A tab opens on an answer: the anomaly tab shows model scores when a model has results (or is
@@ -146,6 +158,8 @@
     {/if}
   </div>
 
+  {#if unfinished}<p class="import-note" role="status">{unfinished.text}
+    <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
   <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
   <nav class="tabs" aria-label="설비 화면" bind:this={tabBar} bind:clientWidth={tabWidth}>
@@ -258,6 +272,8 @@
   .title { min-width: 0; }
   h1 { overflow-wrap: anywhere; }
   .meta { color: var(--color-ink-muted); margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+  .import-note { margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--color-uncertain-border);
+    background: var(--color-uncertain-surface); color: var(--color-caution-ink); font-size: var(--font-small); overflow-wrap: anywhere; }
   .switch-asset { display: grid; gap: var(--space-1); font-size: var(--font-small); font-weight: 700; }
   .switch-asset select {
     font: inherit; font-weight: 400; min-height: 44px; padding: var(--space-2) var(--space-3);
