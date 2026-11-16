@@ -13,6 +13,8 @@ export type Asset = {
   attentionCount: number | null;
   /** Delivery order of the newest waveform, for streams that carry no measurement clock. */
   lastPosition?: number | null;
+  /** Changes only when this asset’s stored data or analysis advances. */
+  overviewRevision?: string | null;
 };
 
 export type OperationAttention={id:string;title:string;code:string|null;status:string;destination:string;assetId:string|null;sourceId:string|null;findingId:string|null;at:string|null};
@@ -131,6 +133,7 @@ export function parseMonitor(value: unknown): Snapshot {
       lastObservedAt: typeof row.last_observed_at === "string" ? row.last_observed_at : null,
       lastReceivedAt: typeof row.last_data_at === "string" ? row.last_data_at : null,
       attentionCount: count(row.attention_count),
+      overviewRevision: typeof row.overview_revision === "string" ? row.overview_revision : null,
       lastPosition: typeof row.last_position === "number" && Number.isSafeInteger(row.last_position) ? row.last_position : null,
     });
   }

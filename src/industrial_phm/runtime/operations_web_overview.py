@@ -12,7 +12,6 @@ from typing import Any
 
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
-from industrial_phm.application.signal_exploration import acquisition_binding
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_web_explore import _history, record_findings
 from industrial_phm.runtime.operations_web_forecast import feature_unit
@@ -41,6 +40,7 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         "main": None,
         "finding": None,
         "history_interval": None,
+        "vibration_interval": None,
         "finding_count": 0,
         "judged": 0,
         "copied": 0,
@@ -84,15 +84,26 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
             body["main"] = _history_main(history, asset_id, main)
         return body
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    binding = acquisition_binding(store, asset_id) if store.path.exists() else None
-    if binding is None:
+    if not store.path.exists():
         return body
     found = acquisition_findings(workspace, asset_id)
+    # Use the exact binding selected by the change calculation, including if ingestion
+    # progresses between this read and the separate representative-signal query.
+    binding = next(
+        (item for item in store.list_bindings() if item.binding_id == found["binding_id"]), None
+    )
+    if binding is None:
+        return body
     body["kind"] = "vibration"
     body["judged"] = found["judged"]
     body["finding_count"] = len(found["intervals"])
     if found["intervals"]:
         first = found["intervals"][0]
+        body["vibration_interval"] = first | {
+            "source_id": binding.source_id,
+            "binding_id": binding.binding_id,
+            "period_seconds": found["period_seconds"],
+        }
         body["finding"] = {
             key: first[key] for key in ("label", "unit", "direction", "kind", "from", "to", "value")
         } | {"reference": first["reference_value"], "typical": first["typical_value"]}

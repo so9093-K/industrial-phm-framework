@@ -7,6 +7,8 @@ persisted capability-specific AnalysisRuns only.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -225,6 +227,45 @@ def project_operations_monitor(
                 }
             )
             known_assets.add(asset_id)
+    # Reuse the snapshot's stored facts; polling this revision never runs an analysis.
+    # Counts catch backfills/source additions even when the newest event time is unchanged.
+    history_by_asset = {item.asset_id: item for item in snapshot.history_assets}
+    for row in assets:
+        asset_id = str(row["asset_id"])
+        historical = history_by_asset.get(asset_id)
+        streams = (
+            []
+            if phm is None
+            else [
+                {
+                    key: item.get(key)
+                    for key in (
+                        "binding_id",
+                        "source_id",
+                        "latest_delivered",
+                        "latest_processed",
+                        "latest_analyzed",
+                        "last_ordinal",
+                        "delivered_at",
+                    )
+                }
+                for item in [*phm["items"], *phm["unbound_streams"]]
+                if item["asset_id"] == asset_id
+            ]
+        )
+        revision = {
+            "history": None
+            if historical is None
+            else [_utc(historical.start_at), _utc(historical.end_at), historical.measurement_count],
+            "received": row["last_data_at"],
+            "analysis": row["latest_analysis_at"],
+            "streams": sorted(
+                streams, key=lambda item: (str(item["source_id"]), str(item["binding_id"]))
+            ),
+        }
+        row["overview_revision"] = hashlib.sha256(
+            json.dumps(revision, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
     display_names = resolve_asset_display_names(snapshot.registered_sources)
     for asset_row in assets:
         asset_row["asset_display_name"] = display_names.name(str(asset_row["asset_id"]))

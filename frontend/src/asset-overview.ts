@@ -1,5 +1,6 @@
 /** One asset as a row of the comparison overview (GET /api/v1/explore/overview): how it ran,
  * its main signal's latest value and trace, and the first change its summary leads with. */
+import {parseVibrationChange, type VibrationChange} from "./vibration-findings.ts";
 import {object} from "./writes.ts";
 import type {LevelNames} from "./record-findings.ts";
 import {parseFindingInterval, type FoundInterval} from "./record-findings.ts";
@@ -15,6 +16,7 @@ export type OverviewRow = {
     start: string | null; end: string | null; from: number | null; to: number | null} | null;
   findingCount: number; judged: number; copied: number;
   historyInterval: FoundInterval | null;
+  vibrationInterval: {change: VibrationChange; sourceId: string; bindingId: string; periodSeconds: number | null} | null;
 };
 
 function invalid(): never { throw new Error("설비 개요의 형식이 올바르지 않습니다."); }
@@ -46,8 +48,13 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
   const axis = main?.axis === "acquisition" ? "acquisition" : "time";
   const latest = object(main?.latest);
   const finding = object(root.finding);
+  const vibration = object(root.vibration_interval);
   return {
     assetId, kind, operation,
+    vibrationInterval: vibration ? {
+      change: parseVibrationChange(vibration), sourceId: text(vibration.source_id) ?? invalid(),
+      bindingId: text(vibration.binding_id) ?? invalid(), periodSeconds: optional(vibration.period_seconds),
+    } : null,
     historyInterval: root.history_interval == null ? null : parseFindingInterval(root.history_interval),
     main: main ? {
       label: text(main.label) ?? "", unit: text(main.unit), axis, periodSeconds: optional(main.period_seconds),
@@ -84,12 +91,23 @@ export function equipmentKind(name: string): string {
   return name.replace(/[\s_-]*\d[\w.-]*$/, "").trim() || name;
 }
 
-/** A path through the trace's points scaled into a width × height box. */
-export function sparkline(trace: {x: number; value: number}[], width: number, height: number): string {
-  if (trace.length < 2) return "";
+/** Shared continuity rule: without explicit support, leave separate measurements separate. */
+export function tracePath(points: {x: number; y: number; join?: boolean}[]): string {
+  return points.map((point, index) => (index && point.join === true ? "L" : "M")
+    + point.x.toFixed(1) + " " + point.y.toFixed(1)).join(" ");
+}
+
+export function sparklinePoints(trace: {x: number; value: number; join?: boolean}[], width: number, height: number) {
   const xs = trace.map(point => point.x), values = trace.map(point => point.value);
   const [x0, x1] = [Math.min(...xs), Math.max(...xs)], [low, high] = [Math.min(...values), Math.max(...values)];
-  const x = (value: number) => (value - x0) / Math.max(x1 - x0, 1e-9) * width;
-  const y = (value: number) => height - 2 - (value - low) / Math.max(high - low, 1e-9) * (height - 4);
-  return trace.map((point, index) => (index ? "L" : "M") + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1)).join(" ");
+  return trace.map(point => ({
+    x: (point.x - x0) / Math.max(x1 - x0, 1e-9) * width,
+    y: height - 2 - (point.value - low) / Math.max(high - low, 1e-9) * (height - 4),
+    join: point.join,
+  }));
+}
+
+/** A path through the trace's points scaled into a width × height box. */
+export function sparkline(trace: {x: number; value: number; join?: boolean}[], width: number, height: number): string {
+  return trace.length < 2 ? "" : tracePath(sparklinePoints(trace,width,height));
 }

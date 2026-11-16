@@ -146,10 +146,14 @@ def deliver(
     *,
     period_seconds: float | None = 60.0,
     amplitude_unit: str | None = None,
+    vertical_scale: float = 1.0,
 ) -> None:
     waveforms.mkdir(parents=True, exist_ok=True)
     path = waveforms / f"{ordinal}.csv"
-    rows = [f"{scale * ((i % 4) - 1.5):.6f},{(i % 3) - 1.0 + 0.01 * i:.6f}" for i in range(SAMPLES)]
+    rows = [
+        f"{scale * ((i % 4) - 1.5):.6f},{vertical_scale * ((i % 3) - 1.0 + 0.01 * i):.6f}"
+        for i in range(SAMPLES)
+    ]
     path.write_text(",".join(CHANNELS) + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
     SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path).record(
         AcquisitionSnapshot(

@@ -55,5 +55,26 @@ test("the first-screen change keeps its own record, plot gaps and investigation 
 
 test("a sparkline spans its box and draws nothing from a single point", () => {
   assert.equal(sparkline([{x: 0, value: 1}], 120, 28), "");
-  assert.equal(sparkline([{x: 0, value: 0}, {x: 10, value: 10}], 120, 28), "M0.0 26.0 L120.0 2.0");
+  assert.equal(sparkline([{x: 0, value: 0}, {x: 10, value: 10, join: true}], 120, 28), "M0.0 26.0 L120.0 2.0");
+});
+
+ test("a miniature trace breaks at gaps and never invents continuity for older responses",()=>{
+  const points=[{x:0,value:0,join:false},{x:1,value:1,join:true},{x:9,value:9,join:false},{x:10,value:10,join:true}];
+  assert.equal(sparkline(points,120,28),"M0.0 26.0 L12.0 23.6 M108.0 4.4 L120.0 2.0");
+  assert.equal(sparkline(points.map(({join:_ignored,...point})=>point),120,28).includes("L"),false);
+});
+
+test("a vibration change keeps its own feature trace independently of the main signal",()=>{
+  const vibration={source_id:"waves-b",binding_id:"binding-b",period_seconds:60,
+    feature:"feature.Vertical_vibration_signals.absolute_peak",label:"수직 진동 피크",unit:"g",direction:"up",
+    from:77,to:123,baseline:{from:1,to:37},reference_value:20,typical_value:90,value:100,
+    usual:{low:10,high:30},trace:[[1,20],[2,21],[77,90],[123,100]],trace_join:[false,true,false,false]};
+  const read=parseOverview({...row,kind:"vibration",history_interval:null,vibration_interval:vibration},row.asset_id);
+  assert.equal(read.vibrationInterval?.change.feature,vibration.feature);
+  assert.equal(read.vibrationInterval?.change.trace[2].value,90);
+  assert.equal(read.vibrationInterval?.change.trace[2].join,false);
+  assert.equal(read.vibrationInterval?.sourceId,"waves-b");
+  assert.equal(read.vibrationInterval?.bindingId,"binding-b");
+  assert.notEqual(read.main?.label,read.vibrationInterval?.change.label);
+  assert.throws(()=>parseOverview({...row,vibration_interval:{...vibration,trace_join:[true]}},row.asset_id));
 });

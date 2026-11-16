@@ -25,7 +25,7 @@
     const y = (value: number) => 62 - (value - low) / Math.max(high - low, 1e-12) * 44;
     // The values the trace spans, on the left, so a small move does not look like a large one.
     const ticks = high > low ? yTicks(low - (high - low) * 18 / 44, high + (high - low) * 18 / 44, 0, 80, 4).filter(tick => tick.y >= 6 && tick.y <= 74) : [];
-    return {x, ticks, path: change.trace.map((point, index) => (index ? "L" : "M") + x(point.at).toFixed(2) + "," + y(point.value).toFixed(2)).join(" "),
+    return {x, ticks, path: change.trace.map((point, index) => (index && point.join === true ? "L" : "M") + x(point.at).toFixed(2) + "," + y(point.value).toFixed(2)).join(" "),
       dots: change.trace.map(point => ({cx: x(point.at), cy: y(point.value)}))};
   }
 </script>

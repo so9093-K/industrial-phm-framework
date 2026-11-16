@@ -7,6 +7,7 @@
   import {assetTabUrl} from "../routes";
   import ChangeInterval from "./ChangeInterval.svelte";
   import OverviewTrace from "./OverviewTrace.svelte";
+  import {vibrationLinks} from "../vibration-findings";
   import {measurementLabel} from "../time-axis";
 
   let {asset, name, read, observed, href, note, countText, onRetry, reasonHref, onReasons}: {
@@ -16,7 +17,13 @@
   } = $props();
   const row = $derived(typeof read === "object" ? read : null);
   const interval = $derived(row?.historyInterval ?? null);
-  const links = $derived(interval ? findingLinks(asset.assetId, interval, interval.baseline, interval.bucketSeconds ?? null, interval.context?.record) : null);
+  const vibration = $derived(row?.vibrationInterval ?? null);
+  const vibrationTrace = $derived(vibration ? {
+    label:vibration.change.label, unit:vibration.change.unit, axis:"acquisition" as const,
+    periodSeconds:vibration.periodSeconds, latest:null,
+    trace:vibration.change.trace.map(point=>({x:point.at,value:point.value,join:point.join})),
+  } : null);
+  const links = $derived(vibration ? vibrationLinks(asset.assetId,vibration.change) : interval ? findingLinks(asset.assetId, interval, interval.baseline, interval.bucketSeconds ?? null, interval.context?.record) : null);
   const signals = $derived(assetTabUrl(asset.assetId, "signals"));
   const year = (at: string) => new Date(at).toLocaleDateString("ko-KR", {timeZone:"Asia/Seoul", year:"numeric"});
 </script>
@@ -37,13 +44,13 @@
     </div>
   {:else if row.finding}
     {@const found = row.finding}
-    <div class="finding-layout" class:no-trend={!interval?.trace?.length}>
+    <div class="finding-layout" class:no-trend={!interval?.trace?.length && !vibrationTrace?.trace.length}>
       <div class="insight">
         <p class="eyebrow">기록에서 찾은 주요 변화</p>
         <h4>{found.label} · {found.kind === "level-change" ? "일정하던 값이 " : "비교 기준보다 "}{found.direction === "up" ? "상승" : "하락"}</h4>
         <strong class="values">{found.reference !== null && found.typical !== null ? changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit) : found.direction === "up" ? "높아진 구간 발견" : "낮아진 구간 발견"}</strong>
         {#if interval}<p class="period">{year(interval.start) === year(interval.end) ? year(interval.start) + " · " + findingText(interval, interval.bucketSeconds ?? null).when : observed(interval.start) + " ~ " + observed(interval.end)}</p>
-        {:else if found.from !== null && found.to !== null}<p class="period">{measurementLabel(found.from, row.main?.periodSeconds)} ~ {measurementLabel(found.to, row.main?.periodSeconds)}</p>{/if}
+        {:else if found.from !== null && found.to !== null}<p class="period">{measurementLabel(found.from, vibration?.periodSeconds ?? row.main?.periodSeconds)} ~ {measurementLabel(found.to, vibration?.periodSeconds ?? row.main?.periodSeconds)}</p>{/if}
         {#if found.band !== null && row.operation && interval?.operation?.key === row.operation.key}<p>{bandName(row.operation.names, found.band)}에 해당하는 측정끼리 비교했습니다.</p>
         {:else}<p>기록 초반을 비교 기준으로 삼았습니다.</p>{/if}
         <div class="actions">
@@ -52,7 +59,8 @@
           <a {href}>설비 분석 열기 →</a>
         </div>
       </div>
-      {#if interval?.trace?.length}<div class="change-trend"><ChangeInterval finding={interval}/><p class="chart-note">{found.label} · 선은 기록의 구간별 평균, 음영은 발견한 변화입니다.</p></div>{/if}
+      {#if interval?.trace?.length}<div class="change-trend"><ChangeInterval finding={interval}/><p class="chart-note">{found.label} · 선은 기록의 구간별 평균, 음영은 발견한 변화입니다.</p></div>
+      {:else if vibrationTrace}<div class="change-trend"><OverviewTrace main={vibrationTrace} range={vibration!.change}/></div>{/if}
     </div>
   {:else}
     <div class="quiet">

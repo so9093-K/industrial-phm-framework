@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -11,7 +12,7 @@ import pytest
 
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
-from tests.support.phm import phm_workspace
+from tests.support.phm import analyze, deliver, phm_workspace
 from tests.support.web_next import asset_list, start_web, stop_web
 
 
@@ -135,6 +136,181 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 assert page.url.endswith("#opcua-connect")
                 assert not errors, errors
                 assert not page.evaluate("document.documentElement.scrollWidth > innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
+    tmp_path: Path,
+) -> None:
+    """Real history/monitor revisions, a held response, and a backfill with the same end time."""
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "refresh", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def append(asset: str, source: str, first: int, last: int, value: float) -> None:
+        history.append_file_batch(
+            tuple(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:{asset}:{source}:{i}",
+                    source_id=source,
+                    asset_id=asset,
+                    channel_id="temperature",
+                    source_file="measurements.csv",
+                    source_sha256="b" * 64,
+                    source_size_bytes=10,
+                    sample_index=i,
+                    event_at=datetime(2020, 10, 22, tzinfo=UTC) + timedelta(minutes=i),
+                    value=value,
+                    source_metadata_json='{"binding":{"definition":{"unit":"°C"}}}',
+                )
+                for i in range(first, last)
+            ),
+            batch_id=f"{asset}:{source}:{first}",
+        )
+
+    append("pump-1", "original", 0, 100, 40)
+    append("pump-1", "original", 130, 180, 65)
+    append("pump-2", "original", 0, 180, 30)
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 1440, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                reads: dict[str, int] = {}
+                held: list = []
+                mode = {"hold": False}
+
+                def overview(route):
+                    asset = parse_qs(urlsplit(route.request.url).query)["asset_id"][0]
+                    reads[asset] = reads.get(asset, 0) + 1
+                    if mode["hold"] and asset == "pump-1":
+                        held.append((route, route.fetch().json()))
+                    else:
+                        route.continue_()
+
+                page.route("**/api/v1/explore/overview?**", overview)
+                page.goto(origin + "/web/")
+                table = page.get_by_role("table", name="설비 비교")
+                one = table.locator(".row").filter(
+                    has=page.get_by_role("link", name="pump-1", exact=True)
+                )
+                two = table.locator(".row").filter(
+                    has=page.get_by_role("link", name="pump-2", exact=True)
+                )
+                pw.expect(one.locator(".latest")).to_have_text("65 °C", timeout=30000)
+                pw.expect(two.locator(".latest")).to_have_text("30 °C", timeout=30000)
+                pw.expect(one.get_by_role("cell").nth(1)).to_contain_text("2020.")
+                # The multi-asset graph uses the same gap rule as the single-asset graph.
+                assert one.locator("svg path").get_attribute("d").count("M") >= 2
+                initial_two_reads = reads["pump-2"]
+                mode["hold"] = True
+                append("pump-1", "original", 180, 190, 70)
+                pw.expect(one.get_by_role("cell").nth(1)).to_contain_text(
+                    "변화 확인 중", timeout=15000
+                )
+                pw.expect(one.locator(".latest")).to_have_count(0)
+                # Let the held read capture the old 70°C result before another receipt arrives.
+                for _ in range(100):
+                    if held:
+                        break
+                    page.wait_for_timeout(50)
+                assert held
+                mode["hold"] = False
+                append("pump-1", "original", 190, 200, 80)
+                pw.expect(one.locator(".latest")).to_have_text("80 °C", timeout=20000)
+                for route, older in held:
+                    # The newer revision has already cancelled this request.
+                    with suppress(pw.Error):
+                        route.fulfill(json=older)
+                pw.expect(one.locator(".latest")).to_have_text("80 °C")
+                assert reads["pump-2"] == initial_two_reads
+                before_backfill = reads["pump-1"]
+                # A new source adds older measurements; last_observed_at stays unchanged.
+                append("pump-1", "older-source", 0, 30, 20)
+                for _ in range(300):
+                    if reads["pump-1"] > before_backfill:
+                        break
+                    page.wait_for_timeout(50)
+                assert reads["pump-1"] > before_backfill
+                pw.expect(one.locator(".latest")).to_have_text("80 °C", timeout=15000)
+                assert reads["pump-2"] == initial_two_reads
+                assert not errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+def test_vibration_entry_plots_the_changed_feature_not_the_representative_rms(
+    tmp_path: Path,
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "vibration")
+    for ordinal in range(1, 31):
+        if 11 <= ordinal <= 15:
+            continue
+        deliver(
+            workspace,
+            tmp_path / "waves",
+            ordinal,
+            0.5,
+            amplitude_unit="g",
+            vertical_scale=1.0 if ordinal < 23 else 5.0,
+        )
+    analyze(workspace)
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 1440, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(
+                        body=asset_list("bearing-a"), content_type="application/json"
+                    ),
+                )
+                row = page.request.get(
+                    origin + "/api/v1/explore/overview?asset_id=bearing-a"
+                ).json()
+                assert row["main"]["label"] == "수평 진동 RMS"
+                change = row["vibration_interval"]
+                assert change["feature"] == "feature.Vertical_vibration_signals.rms"
+                assert change["binding_id"] == "anomaly-a" and change["source_id"] == "bench"
+                page.goto(origin + "/web/")
+                focus = page.get_by_role("article", name="bearing-a 기록 요약")
+                pw.expect(focus.get_by_role("heading", level=4)).to_contain_text(
+                    "수직 진동 RMS", timeout=30000
+                )
+                figure = focus.get_by_role("figure", name="수직 진동 RMS 기록 추이")
+                pw.expect(figure).to_be_visible()
+                pw.expect(figure.locator("svg circle")).to_have_count(len(change["trace"]))
+                assert figure.locator("svg path").get_attribute("d").count("M") == 2
+                assert float(figure.locator("svg rect.interval").get_attribute("width")) > 0
+                investigate = focus.get_by_role("link", name="변화 구간 조사하기", exact=False)
+                query = parse_qs(urlsplit(investigate.get_attribute("href")).query)
+                assert query["vibration_feature"] == [change["feature"]]
+                assert query["vibration_at"] == [str(change["from"])]
+                investigate.click()
+                pw.expect(page.get_by_label("진동 특징", exact=False)).to_have_value(
+                    change["feature"], timeout=30000
+                )
+                pw.expect(page.get_by_role("region", name="선택한 측정")).to_contain_text(
+                    "23번째 측정"
+                )
+                assert not errors
             finally:
                 browser.close()
     finally:

@@ -1116,6 +1116,15 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert status == 200 and row["kind"] == "vibration" and row["operation"] is None
         assert row["finding"]["label"] == "수평 진동 RMS" and row["finding"]["from"] == 23
         assert row["history_interval"] is None
+        vibration = get("/api/v1/explore/vibration", asset_id="bearing-a")[1]
+        assert row["vibration_interval"] == vibration["intervals"][0] | {
+            "binding_id": "anomaly-a",
+            "source_id": "bench",
+            "period_seconds": 60.0,
+        }
+        assert len(row["vibration_interval"]["trace_join"]) == len(
+            row["vibration_interval"]["trace"]
+        )
         assert row["main"]["unit"] == "g" and row["main"]["latest"]["position"] == 30
         status, empty = get("/api/v1/explore/overview", asset_id="unknown")
         assert status == 200 and empty["kind"] is None and empty["finding"] is None

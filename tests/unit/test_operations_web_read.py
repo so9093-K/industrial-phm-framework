@@ -214,3 +214,44 @@ def test_web_attention_codes_are_additive_to_the_existing_exact_json_contract(
         replace(snapshot, monitor=replace(snapshot.monitor, attention=(item,)))
     )
     assert payload["attention"]["items"][0]["code"] == "collection-service-not-running"
+
+
+def test_overview_revision_tracks_data_not_the_poll_clock_or_attention(tmp_path: Path) -> None:
+    from industrial_phm.application.measurement_history import HistoryAssetSummary
+
+    _, snapshot = _snapshot(tmp_path)
+    history = HistoryAssetSummary("pump", snapshot.assessed_at, snapshot.assessed_at, 10)
+    snapshot = replace(snapshot, history_assets=(history,))
+
+    def revision(current, phm=None):
+        return project_operations_monitor(current, phm=phm)["assets"]["items"][0][
+            "overview_revision"
+        ]
+
+    original = revision(snapshot)
+    assert (
+        revision(replace(snapshot, assessed_at=snapshot.assessed_at.replace(minute=35))) == original
+    )
+    # Adding an older source/backfill leaves the latest event time untouched.
+    assert (
+        revision(replace(snapshot, history_assets=(replace(history, measurement_count=11),)))
+        != original
+    )
+    # Analysis can finish after the final waveform was already delivered.
+    item = {
+        "asset_id": "pump",
+        "source_id": "waves",
+        "binding_id": "model-a",
+        "latest_delivered": {"position": 10},
+        "latest_analyzed": None,
+    }
+    phm = {"items": [item], "unbound_streams": [], "truncated": False}
+    pending = revision(snapshot, phm)
+    completed = {
+        **item,
+        "latest_analyzed": {"position": 10, "processed_at": "2026-10-08T10:00:00Z"},
+    }
+    assert revision(snapshot, {**phm, "items": [completed]}) != pending
+    assert revision(
+        snapshot, {**phm, "items": [{**completed, "processing_state": "pending"}]}
+    ) == revision(snapshot, {**phm, "items": [completed]})

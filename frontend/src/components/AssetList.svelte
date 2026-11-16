@@ -2,7 +2,7 @@
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   import {bandName, changeValue, percent} from "../record-findings";
-  import {equipmentKind, readOverview, sparkline, type OverviewRow} from "../asset-overview";
+  import {equipmentKind, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
@@ -44,43 +44,69 @@
     return [...by].map(([label, rows]) => ({kind: label, rows}));
   });
 
-  // Each row fills in when its overview arrives; the summary's own computation is behind it.
-  // Rows are read once per asset, two at a time, and only when the set of assets changes, so
-  // the monitor's polling of the asset list does not restart them.
+  // Keep two requests in flight across every monitor update. Only changed assets are
+  // queued; superseded requests cannot publish their older overview into a newer row.
   let rows: Record<string, OverviewRow | "loading" | "failed"> = $state({});
   const request = new AbortController();
-  const inFlight = new Set<string>();
-  async function loadRow(id: string) {
-    if (request.signal.aborted || inFlight.has(id)) return;
-    inFlight.add(id); rows[id] = "loading";
-    try {
-      for (const attempt of [0, 1]) {
-        try { rows[id] = await readOverview(id, request.signal); break; }
-        catch {
-          if (request.signal.aborted) return;
-          if (attempt) rows[id] = "failed";
-          else await new Promise(done => setTimeout(done, 2000));
+  const wanted = new Map<string, string>();
+  const queue = new Set<string>();
+  const inFlight = new Map<string, AbortController>();
+  let active = 0;
+  function drain() {
+    while (active < 2 && queue.size && !request.signal.aborted) {
+      const id = queue.values().next().value!;
+      queue.delete(id);
+      const revision = wanted.get(id);
+      if (revision === undefined) continue;
+      const pending = new AbortController();
+      inFlight.set(id, pending);
+      active++;
+      void (async () => {
+        try {
+          for (const attempt of [0, 1]) {
+            try {
+              const value = await readOverview(id, pending.signal);
+              if (!pending.signal.aborted && wanted.get(id) === revision) rows[id] = value;
+              break;
+            } catch {
+              if (pending.signal.aborted) return;
+              if (attempt) {
+                if (wanted.get(id) === revision) rows[id] = "failed";
+              } else await new Promise(done => setTimeout(done, 2000));
+            }
+          }
+        } finally {
+          if (inFlight.get(id) === pending) inFlight.delete(id);
+          active--;
+          drain();
         }
-      }
-    } finally { inFlight.delete(id); }
+      })();
+    }
   }
-  const ids = $derived(assets.map(asset => asset.assetId).join("\n"));
+  function loadRow(id: string) {
+    if (!wanted.has(id) || inFlight.has(id)) return;
+    rows[id] = "loading";
+    queue.add(id);
+    drain();
+  }
+  const revisions = $derived(JSON.stringify(assets.map(asset => [asset.assetId,
+    asset.overviewRevision ?? JSON.stringify([asset.lastObservedAt, asset.lastReceivedAt, asset.lastPosition])])));
   $effect(() => {
-    const wanted = ids.split("\n").filter(Boolean);
+    const current = new Map<string, string>(JSON.parse(revisions));
     untrack(() => {
-      const missing = wanted.filter(id => rows[id] === undefined);
-      for (const id of missing) rows[id] = "loading";
-      let next = 0;
-      const work = async () => {
-        while (next < missing.length && !request.signal.aborted) {
-          const id = missing[next++];
-          await loadRow(id);
-        }
-      };
-      void Promise.all([work(), work()]);
+      for (const id of wanted.keys()) if (!current.has(id)) {
+        wanted.delete(id); queue.delete(id); inFlight.get(id)?.abort(); delete rows[id];
+      }
+      for (const [id, revision] of current) if (wanted.get(id) !== revision) {
+        wanted.set(id, revision);
+        inFlight.get(id)?.abort();
+        rows[id] = "loading";
+        queue.add(id);
+      }
+      drain();
     });
   });
-  onDestroy(() => request.abort());
+  onDestroy(() => {request.abort(); for (const pending of inFlight.values()) pending.abort();});
   // An asset still being imported, or left with part of its record, says so on its row; the list
   // is read again while an import runs so its count moves.
   let imports: Map<string, UnfinishedImport> = $state(new Map());
@@ -106,7 +132,7 @@
   function when(row: OverviewRow): string {
     const found = row.finding!;
     if (found.start && found.end) {
-      const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+      const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
       return day(found.start) + " ~ " + day(found.end);
     }
     return found.from !== null && found.to !== null ? measurementLabel(found.from, row.main?.periodSeconds) + "부터" : "";
@@ -171,7 +197,7 @@
             {#if row?.main}
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
-              {#if row.main.trace.length > 1}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={sparkline(row.main.trace, 120, 28)} /></svg>{/if}
+              {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,120,28)}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
             {/if}
           </div>
           <div class="cell" role="cell" data-label="확인 항목">
