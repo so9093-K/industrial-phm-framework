@@ -152,7 +152,7 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="register-title">
-  <h2 id="register-title">다른 방법으로 연결</h2>
+  <h2 id="register-title">OPC UA · 작업공간 CSV 연결</h2>
   {#if !writable}<p class="context">보기 전용이라 연결을 등록할 수 없습니다. 운영을 시작하면 할 수 있습니다.</p>{/if}
 
   <details>
