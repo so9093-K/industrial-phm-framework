@@ -45,7 +45,7 @@ export const STATE_TEXT:Record<string,string>={
   unavailable:"분석할 데이터를 읽지 못했습니다.",
 };
 
-function invalid():never{throw new Error("부하·불평형 분석 결과의 형식이 올바르지 않습니다.");}
+function invalid():never{throw new Error("3상 전력·불평형 분석 결과의 형식이 올바르지 않습니다.");}
 function finite(raw:unknown):number|null{return typeof raw==="number"&&Number.isFinite(raw)?raw:null;}
 function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:null;}
 function phases(raw:unknown):number[]|null{
@@ -164,7 +164,7 @@ export function shiftedPeriod(current:Extract<Condition,{analyzed:true}>,directi
 export type Metric="currentMean"|"voltageUnbalance"|"currentUnbalance"|"patternScore";
 export const METRICS:Record<Metric,{label:string;unit:string}>={
   currentMean:{label:"3상 평균 전류",unit:" A"},voltageUnbalance:{label:"전압 불평형",unit:"%"},
-  currentUnbalance:{label:"전류 불평형",unit:"%"},patternScore:{label:"기준 패턴과의 차이",unit:""},
+  currentUnbalance:{label:"전류 불평형",unit:"%"},patternScore:{label:"전력 패턴 차이",unit:""},
 };
 export const EXCLUDED_TEXT:Record<string,string>={
   "missing-or-duplicate-phase":"상 값이 빠지거나 겹침","conflict-or-bad-quality":"값 충돌·품질 불량","missing-value":"빠진 값",

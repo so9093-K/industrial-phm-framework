@@ -12,7 +12,7 @@
 
 <fieldset class="roles">
   <legend>3상 채널 설정</legend>
-  <p class="context">부하·불평형 분석 시 필요합니다. 전압 또는 전류의 R·S·T 채널과 단위·상 배선의 확인 방법을 지정합니다.</p>
+  <p class="context">3상 전력·불평형 분석 시 필요합니다. 전압 또는 전류의 R·S·T 채널과 단위·상 배선의 확인 방법을 지정합니다.</p>
   {#if canSuggest}
     <button type="button" class="ui-button" {disabled} onclick={suggest}>열 이름으로 역할 채우기</button>
   {/if}

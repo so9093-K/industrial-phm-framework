@@ -79,7 +79,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             ).get_attribute("href")
             pw.expect(card.locator("svg path.trace")).to_have_count(1)
             compare = card.get_by_role(
-                "link", name="기록 처음 30%와 비교 →", include_hidden=True
+                "link", name="기준 기간과 이 구간 비교 →", exact=True
             ).first.get_attribute("href")
             assert "monitor_source=source-b" in compare and "monitor_point=bearing" in compare
             card.get_by_text("판단·메모", exact=True).click()
@@ -140,7 +140,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             page.goto(f"http://127.0.0.1:{server.server_port}" + signal_href)
             pw.expect(page.locator(".series .source-name").first).to_contain_text("source-b")
             departure_href = page.get_by_role(
-                "link", name="달라진 구간 찾기 →", exact=True
+                "link", name="기록 변화 찾기 →", exact=True
             ).get_attribute("href")
             outlook_href = page.get_by_role(
                 "link", name="기준 도달 전망 →", exact=True

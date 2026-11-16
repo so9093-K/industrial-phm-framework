@@ -151,7 +151,7 @@ def test_model_result_explanation_and_review_request(
                     ),
                 )
                 page.goto(f"http://127.0.0.1:{writer.server_port}{address}")
-                expect_place(pw, page, "이상 징후", "모델 점수")
+                expect_place(pw, page, "이상 징후", "모델 이상 점수")
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("3")
                 explanation = page.get_by_role("region", name="측정 변화 분석")
                 compare = explanation.get_by_label("비교할 이전 측정")

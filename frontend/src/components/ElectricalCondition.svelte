@@ -138,8 +138,8 @@
 {/snippet}
 
 <section class="ui-panel condition" aria-labelledby="condition-title">
-  <h2 id="condition-title">부하·불평형 변화</h2>
-  <p class="context">최근 기간의 3상 전류, 전압·전류 불평형과 기준 패턴과의 차이를 그보다 앞선 기준 기간과 비교합니다.</p>
+  <h2 id="condition-title">3상 전력·불평형</h2>
+  <p class="context">3상 전류·전압과 불평형이 이전과 어떻게 달라졌나요? 전류 수준·운전 패턴과 불평형을 나눠 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
   <form class="controls" onsubmit={(event) => { event.preventDefault(); void analyze(); }}>
     <label>분석 기간
       <select value={period} onchange={(event) => { period = event.currentTarget.value as ConditionPeriod; void analyze(); }}>
@@ -174,7 +174,7 @@
   {#if loadState === "loading"}
     <StatusNotice message="고른 기간의 3상 측정값을 분석하고 있습니다." />
   {:else if loadState === "failed"}
-    <StatusNotice kind="failure" title="부하·불평형을 분석하지 못했습니다" message={error}
+    <StatusNotice kind="failure" title="3상 전력·불평형을 분석하지 못했습니다" message={error}
       actionLabel="같은 조건으로 다시 분석하기" onAction={() => void analyze()} />
   {:else if condition && !condition.analyzed}
     <StatusNotice kind="uncertain" message={STATE_TEXT[condition.state] ?? "분석할 수 있는 관측이 없습니다."}
@@ -207,6 +207,7 @@
           <label class="toggle"><input type="checkbox" bind:checked={byPhase} /> R·S·T 상별로 보기</label>
         {/if}</div>
       </div>
+      {#if metric === "patternScore"}<p class="context">기준 기간과 전력 패턴이 얼마나 다른지 보여줍니다. 기록 변화나 모델 이상 점수와는 다른 척도입니다.</p>{/if}
       {#if !runs.length}
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
       {:else}

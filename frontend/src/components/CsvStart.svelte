@@ -463,7 +463,7 @@
         </div>
       </details>
       <details open={declared.length > 0}>
-        <summary>3상 전압·전류 역할 지정 (선택 · 부하·불평형 분석에 필요)</summary>
+        <summary>3상 전압·전류 역할 지정 (선택 · 3상 전력·불평형 분석에 필요)</summary>
         <PhaseRoles {channels} bind:roles disabled={locked} onchange={changed} />
         {#if roleProblem}<p class="message failure" role="status">{roleProblem}</p>{/if}
       </details>
@@ -507,7 +507,7 @@
           <a class="ui-button ui-button-primary" href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>주요 변화와 측정 상태 보기 →</a>
           <a href={assetTabUrl(progress.setup.asset_id, "signals")}>원본 신호 보기 →</a>
           {#if progress.setup.phase_channels?.length}
-            <a href={assetTabUrl(progress.setup.asset_id, "change", "electrical")}>부하·불평형 보기 →</a>
+            <a href={assetTabUrl(progress.setup.asset_id, "change", "electrical")}>3상 전력·불평형 보기 →</a>
           {/if}
         </p>
         <details><summary>사용 가능한 다른 분석</summary><AnalysisOptions assetId={progress.setup.asset_id} level={4} /></details>

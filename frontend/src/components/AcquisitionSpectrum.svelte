@@ -30,6 +30,7 @@
   });
   const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
+  let selectionNotice=$state("");
   // Where the first measurement of B stands against the one before it answers "since when".
   const B_START:Record<string,string>={spectrum:"기간 B 첫 측정을 바로 앞 측정과 주파수 비교",model:"기간 B 첫 측정의 원본 파형·모델 점수"};
   const message=$derived.by(()=>{
@@ -130,7 +131,13 @@
   function change(n:"a"|"b",edge:"from"|"to",input:string){
     if(!spans)return;
     spans={...spans,[n]:{...spans[n],[edge]:Number(input)}};
-    spectrumRequest?.abort();result=null;resultState="empty";
+    spectrumRequest?.abort();result=null;resultState="empty";selectionNotice="";
+  }
+  function useMeasurement(n:"a"|"b",ordinal:number){
+    if(!spans||!acquisition||!Number.isSafeInteger(ordinal)||ordinal<acquisition.first||ordinal>acquisition.last)return;
+    spans={...spans,[n]:{from:ordinal,to:ordinal}};
+    selectionNotice="기간 "+n.toUpperCase()+"를 "+place(ordinal)+" 한 측정으로 바꿨습니다. 반대 기간은 유지했습니다.";
+    remember();void analyze();
   }
   async function analyze(){
     spectrumRequest?.abort();
@@ -165,8 +172,9 @@
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
     <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
-    <SpectrumWaterfall {assetId} {place} />
+    <SpectrumWaterfall {assetId} {place} onUse={useMeasurement} />
     <h3>두 기간 비교</h3>
+    {#if selectionNotice}<p class="context" role="status">{selectionNotice}</p>{/if}
     <div class="periods">
       {#each ["a","b"] as label(label)}
         {@const name=label as "a"|"b"}

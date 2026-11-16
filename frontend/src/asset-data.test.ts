@@ -53,7 +53,7 @@ test("server eligibility restricts methods for each data kind", () => {
   assert.deepEqual(methodsFor("change",mixed,null),[]);
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
     cap("unavailable","unavailable","unavailable","ready"),"history"),["electrical"]);
-  // Three stored signals without R·S·T roles are not a 3-phase input: no 부하·불평형 tab.
+  // Three stored signals without R·S·T roles are not a 3-phase input: no 3상 전력·불평형 tab.
   assert.deepEqual(methodsFor("change",{history:{signals:3},vibration:null},
     cap("unavailable","unavailable","unavailable","unavailable"),"history"),[]);
   const mixedElectrical = {history:{signals:3},vibration:vibration.vibration};

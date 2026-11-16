@@ -95,7 +95,7 @@ export function methodsFor(
   return methodsOf(tab).filter(method => {
     if (method === "model") return true;
     if (method === "baseline") return data?.history !== null && data?.history !== undefined;
-    // The server resolves R·S·T roles by bound meaning, as the 부하·불평형 screen does.
+    // The server resolves R·S·T roles by bound meaning, as the 3상 전력·불평형 screen does.
     if (method === "electrical") return kinds.includes("history") && status("electrical", null) === "ready";
     if (method === "spectrum") return kinds.includes("vibration") && status("spectrum","vibration") === "ready";
     const id = method === "compare" ? "period-compare" : "relation";

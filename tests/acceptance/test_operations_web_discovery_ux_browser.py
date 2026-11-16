@@ -602,6 +602,18 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(
                     page.get_by_text("중에 측정된 값끼리 비교합니다", exact=False)
                 ).to_be_visible()
+                comparison = page.locator(".compare")
+                pw.expect(comparison.locator(".primary-insight").first).to_contain_text(
+                    "0.955 → 0.605"
+                )
+                pw.expect(comparison.get_by_role("group", name="현재 비교 기간")).to_be_visible()
+                assert comparison.locator("details.conditions").get_attribute("open") is None
+                distribution = comparison.locator("details.operation-distribution")
+                assert distribution.get_attribute("open") is None
+                assert (
+                    comparison.locator(".series").first.bounding_box()["y"]
+                    < distribution.bounding_box()["y"]
+                )
                 assert not errors, errors
                 assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
             finally:
@@ -670,17 +682,128 @@ def test_relation_leads_with_the_change_at_the_same_input_level(
                 )
                 page.goto(origin + "/web/?" + urlencode(query))
                 group = page.locator(".relation .group")
-                pw.expect(group.locator(".message .headline")).to_contain_text(
-                    "같은 x", timeout=30000
-                )
+                pw.expect(group.locator(".primary-insight")).to_contain_text("y ·", timeout=30000)
+                pw.expect(group.locator(".primary-context")).to_contain_text("x")
+                assert page.locator(".relation details.conditions").get_attribute("open") is None
+                pw.expect(page.get_by_role("group", name="현재 관계 비교 기간")).to_be_visible()
+                pw.expect(group.locator(".coefficients dl").first).to_be_hidden()
+                page.locator(".relation details.conditions > summary").click()
+                page.locator("#relation-y").select_option("x")
+                pw.expect(group).to_have_count(0)
+                page.locator("#relation-y").select_option("y")
+                page.get_by_role("button", name="관계 계산하기").click()
+                pw.expect(group.locator(".primary-insight")).to_contain_text("y ·")
                 if flat:
                     pw.expect(group.locator(".coefficient-summary")).to_have_count(0)
-                    pw.expect(group.locator(".message")).to_contain_text("20개 이상의 측정 짝")
+                    pw.expect(group.locator(".message")).to_contain_text(
+                        "기간 A 40개 · 기간 B 40개"
+                    )
                 else:
                     assert group.locator(".coefficient-summary").get_attribute("open") is None
-                    pw.expect(group.locator(".coefficient-summary p")).to_be_hidden()
+                    pw.expect(group.locator(".coefficient-summary p").first).to_be_hidden()
                     group.locator(".coefficient-summary summary").click()
-                    pw.expect(group.locator(".coefficient-summary p")).to_be_visible()
+                    pw.expect(group.locator(".coefficient-summary p").first).to_be_visible()
+                assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_period(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in (2, 7, 11):
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + ordinal / 10)
+    analyze(workspace)
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    query = {"page": "assets", "tab": "change", "method": "spectrum", "monitor_asset": "bearing-a"}
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors: list[str] = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(json=json.loads(asset_list("bearing-a"))),
+                )
+                page.goto(origin + "/web/?" + urlencode(query))
+                selection = page.get_by_role("group", name="선택한 측정으로 주파수 비교")
+                pw.expect(selection).to_be_visible(timeout=30000)
+                canvas = page.locator(".waterfall canvas").first
+                canvas.focus()
+                canvas.press("ArrowDown")
+                pw.expect(selection.locator("select")).to_have_value("7")
+                with page.expect_response("**/api/v1/explore/spectrum?**") as response:
+                    selection.get_by_role("button", name="기간 B로 사용").click()
+                requested = parse_qs(urlsplit(response.value.url).query)
+                assert requested["a_from"] == ["2"] and requested["a_to"] == ["4"]
+                assert requested["b_from"] == ["7"] and requested["b_to"] == ["7"]
+                assert response.value.ok
+                pw.expect(page.locator(".spectra > p[role=status]")).to_contain_text("7번째 측정")
+                canvas.click(position={"x": 20, "y": 179})
+                pw.expect(selection.locator("select")).to_have_value("11")
+                with page.expect_response("**/api/v1/explore/spectrum?**") as response:
+                    selection.get_by_role("button", name="기간 A로 사용").click()
+                requested = parse_qs(urlsplit(response.value.url).query)
+                assert requested["a_from"] == ["11"] and requested["a_to"] == ["11"]
+                assert requested["b_from"] == ["7"] and requested["b_to"] == ["7"]
+                assert response.value.ok
+                pw.expect(page.locator(".spectra > p[role=status]")).to_contain_text("11번째 측정")
+                page.reload()
+                pw.expect(selection).to_be_visible()
+                saved = parse_qs(urlsplit(page.url).query)
+                assert saved["spectrum_a_from"] == ["11"] and saved["spectrum_a_to"] == ["11"]
+                assert saved["spectrum_b_from"] == ["7"] and saved["spectrum_b_to"] == ["7"]
+                assert not errors, errors
+                assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_three_phases_can_be_added_without_opening_companion_settings(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    for channel in ("R상전류", "S상전류", "T상전류", "other-a", "other-b", "other-c", "other-d"):
+        _store_history(workspace, channel=channel, count=60)
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    query = {
+        "page": "assets",
+        "tab": "signals",
+        "monitor_asset": "motor-01",
+        "monitor_channel": "R상전류",
+        "monitor_with": "other-a,other-b,other-c,other-d,S상전류",
+    }
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(json=json.loads(asset_list("motor-01"))),
+                )
+                page.goto(origin + "/web/?" + urlencode(query))
+                direct = page.get_by_role("button", name="R·S·T 3상 함께 보기", exact=True)
+                pw.expect(direct).to_be_visible(timeout=30000)
+                assert page.locator("details.with").get_attribute("open") is None
+                direct.click()
+                for phase in ("S상전류", "T상전류"):
+                    pw.expect(page.locator(".companions h4").filter(has_text=phase)).to_be_visible()
+                chosen = parse_qs(urlsplit(page.url).query)["monitor_with"][0].split(",")
+                assert {"S상전류", "T상전류"}.issubset(chosen) and len(chosen) <= 5
                 assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
             finally:
                 browser.close()

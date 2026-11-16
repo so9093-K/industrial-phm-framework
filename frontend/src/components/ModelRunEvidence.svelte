@@ -261,7 +261,7 @@
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
   <h2 id="model-evidence-title">모델 이상 점수</h2>
-  <p class="context">이 설비에 적용한 이상 탐지 모델이 측정마다 계산한 점수와 기준을 봅니다.</p>
+  <p class="context">학습한 모델이 보기에 어떤 측정이 특이한가요? 모델의 점수와 기준을 확인합니다. 기록 초반과 비교하는 변화 분석과는 다른 척도입니다.</p>
   {#if connectedNotice}<StatusNotice message={connectedNotice}/>{/if}
   {#if listState==="loading"}
     <StatusNotice message="이 설비에 적용한 모델을 확인하고 있습니다."/>
@@ -270,8 +270,8 @@
       actionLabel="다시 불러오기" onAction={()=>void loadBindings()}/>
   {:else if listState==="empty"}
     <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
-      message="저장된 신호의 변화를 달라진 구간 찾기에서 확인할 수 있습니다."
-      actionLabel="달라진 구간 찾기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
+      message="저장된 신호의 변화를 기록 변화 찾기에서 확인할 수 있습니다."
+      actionLabel="기록 변화 찾기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
     <details><summary>이상 탐지 모델 설정</summary>
       <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
       <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>

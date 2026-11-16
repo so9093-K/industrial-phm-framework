@@ -133,7 +133,7 @@
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
   <h2 id="acq-outlook-title">추세·기준 도달 전망</h2>
-  <p class="context">선택한 진동 특징의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
+  <p class="context">이 진동 특징의 추세가 앞으로도 이어질까요? 선택한 특징값의 추세를 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인할 수 있습니다.</p>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -232,7 +232,7 @@
             {#if outlook.conditions.end!==null}
               <div><span>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
                 {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}
-                <span>조건부 잔여수명(RUL) · 고른 종료 기준을 전제로 한 값</span></div>
+                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
             {/if}
           </div>
         {/if}
