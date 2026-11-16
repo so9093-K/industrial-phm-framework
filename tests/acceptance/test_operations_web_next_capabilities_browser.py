@@ -87,7 +87,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 pw.expect(row("forecast")).to_contain_text("기록이 짧아 예측 그래프는 없음")
                 assert row("ai-question").count() == 0
                 # Analyses use method names in the usual order; questions stay within each result.
-                pw.expect(row("anomaly")).to_contain_text("달라진 구간 찾기")
+                pw.expect(row("anomaly")).to_contain_text("기록 변화 찾기")
                 pw.expect(rows.first).to_contain_text("시계열 신호")
                 # What this data cannot support stays one quiet line, each with its reason.
                 pw.expect(options).to_contain_text("주파수 분석 — 원본 진동 파형 없음")
@@ -110,8 +110,8 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 )
                 page.go_back()
                 page.get_by_text("추가 분석", exact=True).click()
-                options.get_by_role("link", name="상태 전망 열기").click()
-                expect_place(pw, page, "상태 전망")
+                options.get_by_role("link", name="신호 추세 전망 열기").click()
+                expect_place(pw, page, "신호 추세 전망")
                 pw.expect(page.get_by_role("heading", name="추세·기준 도달 전망")).to_be_visible()
 
                 # Vibration with a connected model: every analysis but the outlook.
@@ -119,7 +119,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 page.get_by_text("추가 분석", exact=True).click()
                 pw.expect(rows).to_have_count(5)
                 pw.expect(options).to_contain_text(
-                    "상태 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
+                    "신호 추세 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
                 )
                 pw.expect(row("period-compare")).to_contain_text("1~8번째 측정")
                 options.get_by_role("link", name="주파수 분석 열기").click()
@@ -224,13 +224,13 @@ def test_same_user_tasks_across_history_vibration_and_mixed_inputs(
                 # stays one tab away.
                 page.goto(base + "&tab=anomaly&monitor_asset=motor-01")
                 pw.expect(
-                    page.get_by_role("heading", name="달라진 구간 찾기", exact=True)
+                    page.get_by_role("heading", name="기록 변화 찾기", exact=True)
                 ).to_be_visible()
                 methods = page.get_by_role("navigation", name="분석 방법")
-                pw.expect(methods.get_by_role("link", name="모델 점수")).to_be_visible()
+                pw.expect(methods.get_by_role("link", name="모델 이상 점수")).to_be_visible()
                 page.goto(base + "&tab=anomaly&monitor_asset=bearing-a")
                 pw.expect(page.get_by_role("heading", name="모델 이상 점수")).to_be_visible()
-                pw.expect(methods.get_by_role("link", name="달라진 구간 찾기")).to_be_visible()
+                pw.expect(methods.get_by_role("link", name="기록 변화 찾기")).to_be_visible()
 
                 # On the one-signal history source, relation is not eligible;
                 # the connected vibration features support it instead.
@@ -310,7 +310,7 @@ def test_electrical_period_navigation_keeps_the_explicit_reference(tmp_path: Pat
                     f"http://127.0.0.1:{server.server_port}/web/?page=assets"
                     "&monitor_asset=condition-motor&tab=change&method=electrical"
                 )
-                panel = page.get_by_role("region", name="부하·불평형 변화", exact=True)
+                panel = page.get_by_role("region", name="3상 전력·불평형", exact=True)
                 panel.get_by_label("분석 기간").select_option("1h")
                 panel.get_by_text("분석·기준 기간 직접 지정", exact=True).click()
                 panel.get_by_label("분석 끝 시각 (KST)", exact=True).fill("2020-11-13T11:00")

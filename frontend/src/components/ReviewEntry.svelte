@@ -23,6 +23,5 @@
 </p>
 
 <style>
-  .review-entry { margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); background: var(--color-surface);
-    border: 1px solid var(--color-border); border-radius: var(--radius-panel); overflow-wrap: anywhere; }
+  .review-entry { margin:var(--space-3) 0; font-size:var(--font-small); color:var(--color-ink-muted); overflow-wrap:anywhere; }
 </style>

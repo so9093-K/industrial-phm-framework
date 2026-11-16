@@ -145,7 +145,7 @@
 
 <section class="ui-panel" aria-labelledby="acq-relation-title">
   <h2 id="acq-relation-title">진동 특징 관계</h2>
-  <p class="context">같은 진동 측정에서 뽑은 두 특징값이 같이 움직이는지 봅니다. 같은 측정끼리만 짝짓습니다.</p>
+  <p class="context">두 진동 특징이 함께 움직이는 방식이 달라졌나요? 같은 측정에서 얻은 특징값끼리 비교합니다. 계산식으로 연결된 특징의 높은 상관은 새로운 현상을 뜻하지 않을 수 있습니다.</p>
   {#if sourceState==="loading"}
     <StatusNotice message="진동 특징 목록을 불러오고 있습니다."/>
   {:else if sourceState==="failed"}
@@ -157,14 +157,15 @@
   {:else if source && spans}
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)}</p>
-    <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
+    <p class="period-summary">기간 A · 비교 기준 {place(spans.a.from)} ~ {place(spans.a.to)}<br/>기간 B · 살펴볼 구간 {place(spans.b.from)} ~ {place(spans.b.to)}</p>
+    <details class="conditions" open={resultState!=="ready"}><summary>비교 조건 변경 · {featureLabel(x)} × {featureLabel(y)}</summary>
     <div class="controls">
-      <label>특징 X
+      <label>가로축 특징
         <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>
           {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
         </select>
       </label>
-      <label>특징 Y
+      <label>세로축 특징
         <select value={y} onchange={e=>feature("y",e.currentTarget.value)}>
           {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
         </select>
@@ -180,6 +181,7 @@
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
       관계 계산하기
     </button>
+    </details>
     {#if resultState==="loading"}
       <StatusNotice message="같은 측정의 특징 짝을 불러오고 있습니다."/>
     {:else if resultState==="failed"}
@@ -192,13 +194,6 @@
       {#each relation.groups as group(group.period)}
         <section class="group">
           <h3>기간 {group.period.toUpperCase()} · {place(spans[group.period].from)} ~ {place(spans[group.period].to)}</h3>
-          {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
-          <dl>
-            <div><dt>분석한 측정</dt><dd>{group.analyzed}회</dd></div>
-            <div><dt>쓸 수 있는 특징 짝</dt><dd>{group.pairs}개</dd></div>
-            <div><dt>피어슨</dt><dd>{count(group.pearson)}</dd></div>
-            <div><dt>스피어먼</dt><dd>{count(group.spearman)}</dd></div>
-          </dl>
           {#if group.sampled||group.points.length<group.pairs}
             <StatusNotice kind="uncertain"
               message={"짝이 많아 계산이나 그래프에 일부만 사용했습니다. 분석한 측정은 전체 "+group.analyzed+"회, 쓸 수 있는 짝은 "+group.pairs+"개입니다."}/>
@@ -214,6 +209,15 @@
               yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":"")}
               description={"기간 "+group.period.toUpperCase()+" · 같은 측정 특징 짝 "+group.points.length+"개 산점도."}/>{/if}
           {/if}
+          <details><summary>상관계수와 측정 수</summary>
+          {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
+          <dl>
+            <div><dt>분석한 측정</dt><dd>{group.analyzed}회</dd></div>
+            <div><dt>쓸 수 있는 특징 짝</dt><dd>{group.pairs}개</dd></div>
+            <div><dt>피어슨</dt><dd>{count(group.pearson)}</dd></div>
+            <div><dt>스피어먼</dt><dd>{count(group.spearman)}</dd></div>
+          </dl>
+          </details>
           <details>
             <summary>같은 측정의 특징 짝 표 ({group.points.length}개 표시)</summary>
             <div class="table-scroll"><table>
@@ -231,9 +235,13 @@
       {/each}
       <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
     {/if}
+    <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
+
   {/if}
 </section>
 <style>
+  .conditions>summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}.period-summary{overflow-wrap:anywhere}
+  .conditions{padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .controls{display:grid;gap:var(--space-3);grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-block:var(--space-4)}
   label{display:grid;gap:var(--space-2);font-weight:650}

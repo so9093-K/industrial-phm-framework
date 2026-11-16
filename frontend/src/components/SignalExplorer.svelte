@@ -433,10 +433,10 @@
         </select>
       </label>{/if}
     </div>
+    {#if siblings.length}<div class="with-actions phase-actions"><button type="button" class="ui-button" onclick={() => setCompanions([...phaseSiblings(channels?.ids ?? [], selectedChannel), ...companions])}>R·S·T 3상 함께 보기</button></div>{/if}
     <details class="with">
       <summary>함께 볼 신호{companions.length ? " · " + companions.length + "개" : ""}</summary>
       <div class="with-actions">
-        {#if siblings.length}<button type="button" class="ui-button" onclick={() => setCompanions([...companions, ...siblings])}>R·S·T 3상 함께 보기</button>{/if}
         {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
       </div>
       <div class="choices">
@@ -451,7 +451,7 @@
     </details>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
-      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>달라진 구간 찾기 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기록 변화 찾기 →</a>
       <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
       <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
     </nav>

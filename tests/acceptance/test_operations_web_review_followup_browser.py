@@ -129,8 +129,14 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 page.goto(
                     origin + "/web/?" + urlencode({**focus, "tab": "anomaly", "method": "baseline"})
                 )
-                panel = page.get_by_role("region", name="달라진 구간 찾기", exact=True)
+                panel = page.get_by_role("region", name="기록 변화 찾기", exact=True)
                 pw.expect(panel.locator(".source-name")).to_contain_text("b")
+                panel.locator("#departure-baseline").select_option("all")
+                pw.expect(panel.locator(".baseline-purpose")).to_contain_text(
+                    "이전 상태와 이후 상태의 비교는 아닙니다"
+                )
+                panel.locator("#departure-baseline").select_option("first-30")
+                pw.expect(panel.locator(".baseline-purpose")).to_contain_text("그 뒤에 달라진 구간")
                 panel.locator("#departure-channel").select_option("current")
                 recover = panel.get_by_role("button", name="이 신호의 다른 기록 보기", exact=True)
                 pw.expect(recover).to_be_visible()
@@ -170,7 +176,8 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 pw.expect(relation.locator(".group")).to_have_count(0)
                 before = parse_qs(urlsplit(page.url).query)
                 relation.get_by_role("button", name="다른 출처의 기록 보기", exact=True).click()
-                pw.expect(relation.locator(".group h3")).to_have_text("a / bearing")
+                pw.expect(relation.locator(".group h3")).to_contain_text("a")
+                pw.expect(relation.locator(".group h3")).to_contain_text("bearing")
                 pw.expect(
                     relation.get_by_text(
                         "선택한 출처에서는 함께 기록된 신호가 없습니다", exact=False

@@ -187,7 +187,7 @@
     {#if csvMessage}<p class="message" class:failure={csvFailed} role={csvFailed ? "alert" : "status"}>{csvMessage}</p>{/if}
   </details>
 
-  <details>
+  <details id="opcua-connect" open={location.hash==="#opcua-connect"}>
     <summary>OPC UA로 연결</summary>
     <p class="context">이 컴퓨터(127.0.0.1)에서 실행 중인 익명 OPC UA 서버만 연결합니다. 변수를 찾아 고른 뒤 등록하고, 등록한 연결에서 1회 읽기로 확인합니다.</p>
     <div class="grid">

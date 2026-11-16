@@ -19,11 +19,11 @@ export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
   system: {label: "운영 관리", description: "로컬 서비스 실행 상태, 데이터 연결과 저장소 조회 상태를 확인합니다."},
 };
 export const TAB_INFO: Record<Tab, string> = {
-  summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "상태 전망",
+  summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "신호 추세 전망",
 };
 export const METHOD_INFO: Record<Method, string> = {
-  model: "모델 점수", baseline: "달라진 구간 찾기",
-  compare: "두 기간 비교", relation: "신호 관계", spectrum: "주파수 분석", electrical: "부하·불평형",
+  model: "모델 이상 점수", baseline: "기록 변화 찾기",
+  compare: "두 기간 비교", relation: "신호 관계", spectrum: "주파수 분석", electrical: "3상 전력·불평형",
 };
 export const DATA_INFO: Record<DataKind, string> = {history: "시계열 기록", vibration: "진동 측정"};
 

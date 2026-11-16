@@ -196,7 +196,7 @@
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
   <h2 id="projection-title">추세·기준 도달 전망</h2>
-  <p class="intro">선택한 신호의 기록으로 추세를 먼저 계산합니다. 관리·종료 기준이 있으면 해당 값까지의 예상 여유를 함께 확인할 수 있습니다.</p>
+  <p class="intro">이 신호의 추세가 앞으로도 이어질까요? 선택한 신호값의 추세를 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인할 수 있습니다.</p>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
   {:else if optionsState === "failed"}
@@ -300,7 +300,7 @@
             {#if projection.conditions.end!==null}
               <div><span>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"time")}</strong>
                 <span>{reachCalendarText(current?.end, projection.record.last, now)}</span>
-                <span>조건부 잔여수명(RUL) · 고른 종료 기준을 전제로 한 값</span></div>
+                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
             {/if}
           </div>
         {/if}

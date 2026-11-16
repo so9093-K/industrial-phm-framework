@@ -236,7 +236,7 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
     tmp_path: Path, resume_after_reload: bool
 ) -> None:
     """The main CSV flow carries R/S/T roles with the person's evidence, so the stored file
-    opens in 부하·불평형 without the separate registration form."""
+    opens in 3상 전력·불평형 without the separate registration form."""
     pw = pytest.importorskip("playwright.sync_api")
     pytest.importorskip("duckdb")
     workspace = OperationsWorkspace(tmp_path / "plant")
@@ -336,9 +336,9 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                 (source,) = JsonSourceRepository(workspace.source_registry_path).list_sources()
                 assert len(source.config.semantic_bindings) == 6  # type: ignore[union-attr]
                 # Leaving right after saving still lands on the new asset, not an empty list.
-                done.get_by_role("link", name="부하·불평형 보기").click()
+                done.get_by_role("link", name="3상 전력·불평형 보기").click()
                 pw.expect(page).to_have_url(re.compile(r"method=electrical&monitor_asset=motor-01"))
-                panel = page.get_by_role("region", name="부하·불평형 변화")
+                panel = page.get_by_role("region", name="3상 전력·불평형")
                 panel.get_by_label("분석 기간").select_option("1h")
                 cards = panel.get_by_label("기준 기간과 비교한 값")
                 pw.expect(cards).to_contain_text("관측 평균 전류", timeout=30_000)

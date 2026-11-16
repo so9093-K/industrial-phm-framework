@@ -22,12 +22,12 @@ export type Capabilities={
 const IDS:readonly CapabilityId[]=["measurements","period-compare","relation","spectrum","electrical","forecast","anomaly","ai-question"];
 const STATUSES:readonly CapabilityStatus[]=["ready","needs-connection","waiting","unavailable"];
 export const NAME:Record<CapabilityId,string>={
-  measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",electrical:"부하·불평형",
-  forecast:"상태 전망",anomaly:"이상 징후","ai-question":"AI 해설",
+  measurements:"측정 신호","period-compare":"두 기간 비교",relation:"신호 관계",spectrum:"주파수 분석",electrical:"3상 전력·불평형",
+  forecast:"신호 추세 전망",anomaly:"이상 징후","ai-question":"AI 해설",
 };
 /** Analysis names and input requirements used before an asset has stored data. */
 export type GuideId=CapabilityId;
-export const METHOD:Record<GuideId,string>={...NAME,anomaly:"달라진 구간 찾기 · 모델 점수"};
+export const METHOD:Record<GuideId,string>={...NAME,anomaly:"기록 변화 찾기 · 모델 이상 점수"};
 export const NEEDS:Record<GuideId,string>={
   measurements:"시각 열과 숫자 열이 있는 CSV, 또는 OPC UA로 받은 기록",
   anomaly:"같은 신호의 시간 순서 기록 (모델 점수는 기준 기간을 골라 모델을 만들거나 연결)",
@@ -36,11 +36,11 @@ export const NEEDS:Record<GuideId,string>={
   spectrum:"진동 원본 파형 기록 (지금은 XJTU-SY 실측 재생으로 준비)",
   electrical:"R·S·T 3상 전압·전류 열과 각 상의 역할 지정",
   forecast:"같은 신호의 기록 20개 이상 (예측할 기간의 2배 이상 길이)",
-  "ai-question":"상태 전망이나 모델 결과, 그리고 설정된 AI 서버",
+  "ai-question":"신호 추세 전망이나 모델 결과, 그리고 설정된 AI 서버",
 };
 /** The method an asset's own data offers: model-free departures need a stored time series. */
 export function methodFor(item:Capability,capabilities:Capabilities):string{
-  return item.id==="anomaly"&&!capabilities.history?"모델 점수":METHOD[item.id];
+  return item.id==="anomaly"&&!capabilities.history?"모델 이상 점수":METHOD[item.id];
 }
 /** The order a person usually goes in: what happened, when it changed, what differs, why, what next. */
 export const GUIDE_ORDER:readonly GuideId[]=["measurements","anomaly","period-compare","relation","spectrum","electrical","forecast","ai-question"];
@@ -107,7 +107,7 @@ export function fact(item:Capability,capabilities:Capabilities):string{
     case "short-history":return "기록이 짧음 (예측 기간의 2배 이상 필요)";
     case "connected":return "모델 분석 결과 있음"+(facts.recorded_replay===true?" · 기록 재생":"");
     case "model-results":return "모델 결과마다 이전 측정과 비교해 해설";
-    case "outlook":return "상태 전망을 근거로 해설";
+    case "outlook":return "신호 추세 전망을 근거로 해설";
     case "compatible-model":return "입력이 맞는 모델 "+n("packages")+"개";
     case "waveforms-need-model":return "모델을 연결하면 측정마다 특징값을 계산";
     case "waiting-results":return "첫 모델 결과 대기";
@@ -130,7 +130,7 @@ export function fact(item:Capability,capabilities:Capabilities):string{
     case "single-signal":return "시계열 신호 1개";
     case "single-moment":return "측정 시각 1개";
     case "read-only":return "보기 전용 화면에서는 요청할 수 없음 (운영 중인 화면에서 사용)";
-    case "needs-results":return "모델 결과나 상태 전망 없음";
+    case "needs-results":return "모델 결과나 신호 추세 전망 없음";
     default:return "";
   }
 }

@@ -2,11 +2,12 @@
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   import {bandName, changeValue, percent} from "../record-findings";
-  import {equipmentKind, readOverview, sparkline, type OverviewRow} from "../asset-overview";
+  import {equipmentKind, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
-  import {systemUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
+  import AssetFocus from "./AssetFocus.svelte";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -43,36 +44,71 @@
     return [...by].map(([label, rows]) => ({kind: label, rows}));
   });
 
-  // Each row fills in when its overview arrives; the summary's own computation is behind it.
-  // Rows are read once per asset, two at a time, and only when the set of assets changes, so
-  // the monitor's polling of the asset list does not restart them.
+  // Keep two requests in flight across every monitor update. Only changed assets are
+  // queued; superseded requests cannot publish their older overview into a newer row.
   let rows: Record<string, OverviewRow | "loading" | "failed"> = $state({});
   const request = new AbortController();
-  const ids = $derived(assets.map(asset => asset.assetId).join("\n"));
-  $effect(() => {
-    const wanted = ids.split("\n").filter(Boolean);
-    untrack(() => {
-      const missing = wanted.filter(id => rows[id] === undefined);
-      for (const id of missing) rows[id] = "loading";
-      let next = 0;
-      const work = async () => {
-        while (next < missing.length && !request.signal.aborted) {
-          const id = missing[next++];
-          // A row whose summary is still being computed elsewhere is read once more.
+  const wanted = new Map<string, string>();
+  const queue = new Set<string>();
+  const inFlight = new Map<string, AbortController>();
+  let active = 0;
+  function drain() {
+    while (active < 2 && queue.size && !request.signal.aborted) {
+      // A running calculation finishes before this asset's newest revision is read.
+      // Coalesce intermediate receipts, so aborting HTTP cannot pile up server work.
+      const id = [...queue].find(candidate => !inFlight.has(candidate));
+      if (id === undefined) break;
+      queue.delete(id);
+      const revision = wanted.get(id);
+      if (revision === undefined) continue;
+      const pending = new AbortController();
+      inFlight.set(id, pending);
+      active++;
+      void (async () => {
+        try {
           for (const attempt of [0, 1]) {
-            try { rows[id] = await readOverview(id, request.signal); break; }
-            catch {
-              if (request.signal.aborted) return;
-              if (attempt) rows[id] = "failed";
-              else await new Promise(done => setTimeout(done, 2000));
+            try {
+              const value = await readOverview(id, pending.signal);
+              if (!pending.signal.aborted && wanted.get(id) === revision) rows[id] = value;
+              break;
+            } catch {
+              if (pending.signal.aborted || wanted.get(id) !== revision) return;
+              if (attempt) {
+                if (wanted.get(id) === revision) rows[id] = "failed";
+              } else await new Promise(done => setTimeout(done, 2000));
             }
           }
+        } finally {
+          if (inFlight.get(id) === pending) inFlight.delete(id);
+          active--;
+          drain();
         }
-      };
-      void Promise.all([work(), work()]);
+      })();
+    }
+  }
+  function loadRow(id: string) {
+    if (!wanted.has(id) || inFlight.has(id)) return;
+    rows[id] = "loading";
+    queue.add(id);
+    drain();
+  }
+  const revisions = $derived(JSON.stringify(assets.map(asset => [asset.assetId,
+    asset.overviewRevision ?? JSON.stringify([asset.lastObservedAt, asset.lastReceivedAt, asset.lastPosition])])));
+  $effect(() => {
+    const current = new Map<string, string>(JSON.parse(revisions));
+    untrack(() => {
+      for (const id of wanted.keys()) if (!current.has(id)) {
+        wanted.delete(id); queue.delete(id); inFlight.get(id)?.abort(); delete rows[id];
+      }
+      for (const [id, revision] of current) if (wanted.get(id) !== revision) {
+        wanted.set(id, revision);
+        rows[id] = "loading";
+        queue.add(id);
+      }
+      drain();
     });
   });
-  onDestroy(() => request.abort());
+  onDestroy(() => {request.abort(); for (const pending of inFlight.values()) pending.abort();});
   // An asset still being imported, or left with part of its record, says so on its row; the list
   // is read again while an import runs so its count moves.
   let imports: Map<string, UnfinishedImport> = $state(new Map());
@@ -98,7 +134,7 @@
   function when(row: OverviewRow): string {
     const found = row.finding!;
     if (found.start && found.end) {
-      const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+      const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
       return day(found.start) + " ~ " + day(found.end);
     }
     return found.from !== null && found.to !== null ? measurementLabel(found.from, row.main?.periodSeconds) + "부터" : "";
@@ -107,14 +143,22 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <div class="head">
-    <h2 id="asset-list-title">조사할 설비 <span>{assets.length}개</span></h2>
-    <div class="filters">
+    <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
+    {#if assets.length > 1}<div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
       {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
       <label>정렬 <select bind:value={order}><option value="attention">확인 항목이 중요한 순</option><option value="name">이름순</option></select></label>
-    </div>
+    </div>{/if}
   </div>
-  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":"주요 변화를 살펴보고, 확인할 설비에서 조사를 이어가세요."}</p>
+  {#if assets.length === 1}
+    {@const asset = assets[0]}
+    {#if imports.get(asset.assetId)}{@const unfinished = imports.get(asset.assetId)!}<p class="issue import">{unfinished.text} <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
+    <AssetFocus {asset} name={name(asset)} read={rows[asset.assetId]} {observed} href={href(asset.assetId)} note={primaryNotes[asset.assetId]}
+      countText={attentionText(count(asset), notesState)} onRetry={() => void loadRow(asset.assetId)}
+      reasonHref={reasons && (notes[asset.assetId]??0)>0 ? "#attention-"+encodeURIComponent(asset.assetId) : null}
+      onReasons={() => showReasons(asset.assetId)}/>
+  {:else}
+  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":order === "name"?"설비 이름순입니다. 변화를 고르면 해당 설비의 분석으로 이어집니다.":"확인할 이유가 중요한 설비부터 보여줍니다. 변화를 고르면 해당 설비의 분석으로 이어집니다."}</p>
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
       <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
@@ -146,15 +190,17 @@
                   : (found.direction === "up" ? "상승" : "하락")}</a>
               <small>{when(row)}{row.findingCount > 1 ? " · 외 " + (row.findingCount - 1) + "건" : ""}</small>
             {:else if row}<small>{row.judged ? "처음 30%와 견줘 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
-            {:else}<small>{waiting}</small>{/if}
+            {:else}<small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
+              <a href={assetTabUrl(asset.assetId,"signals")}>신호 기록 보기 →</a>
+              {#if read === "failed"}<button type="button" class="retry" onclick={() => void loadRow(asset.assetId)}>다시 확인</button>{/if}{/if}
             {#if row?.copied}<small class="issue">데이터 확인 필요 · 신호 {row.copied}개</small>{/if}
           </div>
           <div class="cell" role="cell" data-label="주 신호">
             {#if row?.main}
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
-              {#if row.main.trace.length > 1}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={sparkline(row.main.trace, 120, 28)} /></svg>{/if}
-            {:else if !row}<small>{waiting}</small>{/if}
+              {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,120,28)}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
+            {/if}
           </div>
           <div class="cell" role="cell" data-label="확인 항목">
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
@@ -181,6 +227,7 @@
       {/each}
     {/each}
   </div>
+  {/if}
 </section>
 
 <style>
@@ -202,6 +249,8 @@
   .reason-detail,.shares{margin:var(--space-2) 0 0;font-size:var(--font-small);color:var(--color-ink-muted);overflow-wrap:anywhere}
   .row-details summary{cursor:pointer;padding-block:var(--space-2);font-size:var(--font-small);color:var(--color-action)}
   .group-toggle input{width:auto;margin:0}
+  .retry{padding:var(--space-1) var(--space-2);justify-self:start;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);cursor:pointer}
+  .issue.import{font-size:var(--font-small);color:var(--color-caution-ink)}
   .cell small.issue{color:var(--color-caution-ink)}
   .bar{display:flex;height:10px;border-radius:2px;overflow:hidden;background:var(--color-surface-selected);max-width:10rem}
   .bar i{display:block;height:100%}

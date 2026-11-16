@@ -22,7 +22,7 @@
       next.push({label: view.label, href: url.pathname + url.search});
     }
     const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
-    if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 부하·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
+    if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 3상 전력·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
     return historyPeriodMessage({
       unit: row.unit ?? names?.get(row.channel)?.unit ?? null,
       a: {usable: a.usable, median: a.median, low: qa?.[0] ?? null, high: qa?.[4] ?? null},
@@ -38,7 +38,7 @@
   } from "../comparison";
   import {bandName, bandRange, percent} from "../record-findings";
 
-  /** electrical: whether R·S·T roles resolve for this asset, so 부하·불평형 can actually run. */
+  /** electrical: whether R·S·T roles resolve for this asset, so 3상 전력·불평형 can actually run. */
   type Props = {assetId: string; electrical?: boolean};
   let {assetId, electrical = false}: Props = $props();
   let sources_: Map<string, string> = $state(new Map());
@@ -213,7 +213,7 @@
 
 <section class="ui-panel compare" aria-labelledby="comparison-title">
   <h2 id="comparison-title">두 기간 비교</h2>
-  <p class="context">고른 신호를 두 기간(A·B)으로 나눠 대표값·결측·품질을 비교합니다. 데이터 출처나 측정 위치가 다르면 따로 보여 줍니다.</p>
+  <p class="context">이전과 이후의 값과 분포가 어떻게 달라졌나요? 한 신호의 두 기간을 비교합니다.</p>
   {#if sourceState === "loading"}
     <StatusNotice message="비교할 수 있는 신호를 불러오고 있습니다." />
   {:else if sourceState === "failed"}
@@ -227,7 +227,12 @@
     {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
       <button type="button" class="ui-button" disabled={!!formError}
         onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
-    <details class="conditions" open={compareState !== "ready"}>
+    <div class="period-summary" role="group" aria-label="현재 비교 기간">
+      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
+      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
+    </div>
+    <p class="selected-signal"><strong>{signalName(names, selected)}</strong></p>
+    <details class="conditions" open={compareState !== "ready" || !!formError}>
       <summary>비교 조건 확인·변경 · {signalName(names, selected)}</summary>
     <div class="controls">
       <label for="compare-channel">신호
@@ -244,12 +249,6 @@
           <button type="button" class="ui-button" onclick={() => quick(item.length)}>최근 {item.label}</button>
         {/each}
       </div>
-    {/if}
-    {#if handedOver}
-      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
-    {/if}
-    {#if beforeRecord > 0}
-      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
     {/if}
     <div class="ranges">
       {#each ["a", "b"] as key (key)}
@@ -270,18 +269,7 @@
     <button class="ui-button ui-button-primary" type="button" disabled={!!formError}
       onclick={() => void compare()}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
-    </details>
-    {#if operation}
-      {@const shown = operation}
-      <section class="operation" aria-labelledby="compare-operation">
-        <h3 id="compare-operation">운전 상태 <small>{shown.label} 기준</small></h3>
-        <div class="table"><table>
-          <thead><tr><th scope="col">상태</th><th scope="col">전류</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
-          <tbody>{#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}
-            <tr><th scope="row">{bandName(shown.names, band)}</th><td>{bandRange(shown.names, band)}</td>
-              <td>{shown.shares.a ? percent(shown.shares.a[band]) : "측정 없음"}</td><td>{shown.shares.b ? percent(shown.shares.b[band]) : "측정 없음"}</td></tr>
-          {/each}</tbody>
-        </table></div>
+    {#if operation}{@const shown = operation}
         <label>비교할 값
           <select value={level === null ? "" : String(level)} disabled={!!formError}
             onchange={(event) => { const value = event.currentTarget.value; level = value === "" ? null : Number(value); remember(); void compare(); }}>
@@ -289,9 +277,17 @@
             {#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}<option value={String(band)}>{bandName(shown.names, band)} 중의 값만</option>{/each}
           </select>
         </label>
+    {/if}
+    </details>
+    {#if handedOver}
+      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
+    {#if beforeRecord > 0}
+      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
+    {/if}
+    {#if operation}{@const shown = operation}
         <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 견줘 보세요."
           : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
-      </section>
     {/if}
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
@@ -314,17 +310,20 @@
         <section class="series" aria-label={"데이터 출처 " + row.source}>
           <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
           <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
-          {#if message}<AnalysisMessage {message}
-            basis={"A (기준) " + showTime(result.periods.a.from) + " ~ " + showTime(result.periods.a.to)
-              + " / B (비교) " + showTime(result.periods.b.from) + " ~ " + showTime(result.periods.b.to) + " (KST)"}
-            boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
+          {#if message}<p class="primary-insight">중앙값 {num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
+            {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p class="context">기간 A보다 중앙값이 약 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높습니다":"낮습니다"}.</p>{/if}
+            {#if row.outsidePercent !== null}<p class="context">기간 B의 측정 중 {row.outsidePercent.toFixed(1)}%가 기간 A의 비교 범위 밖입니다.</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다"
             message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
           {#if row.periods.a.quantiles && row.periods.b.quantiles}<p class="context">값의 퍼짐 · 가운데 50% 범위의 폭
             {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""} (A → B)</p>{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={signalName(names, row.channel)} />
+          {#if message}<AnalysisMessage {message} showHeadline={false}
+            boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
+          {/if}
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
+            {#if message}<p class="context">{message.headline}</p>{/if}
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
           {#if row.medianChange !== null}
             <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
@@ -357,11 +356,30 @@
         </section>
       {/each}
     {/if}
+    {#if operation && compareState === "ready"}
+      {@const shown = operation}
+      <details class="operation-distribution"><summary>두 기간의 운전 수준별 비율</summary>
+        <section class="operation" aria-labelledby="compare-operation">
+          <h3 id="compare-operation">운전 수준 <small>{shown.label} 기준</small></h3>
+        <div class="table"><table>
+          <thead><tr><th scope="col">운전 수준</th><th scope="col">전류</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+          <tbody>{#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}
+            <tr><th scope="row">{bandName(shown.names, band)}</th><td>{bandRange(shown.names, band)}</td>
+              <td>{shown.shares.a ? percent(shown.shares.a[band]) : "측정 없음"}</td><td>{shown.shares.b ? percent(shown.shares.b[band]) : "측정 없음"}</td></tr>
+          {/each}</tbody>
+        </table></div>
+        </section>
+      </details>
+    {/if}
   {/if}
 </section>
 
 <style>
   .compare { min-width: 0; }
+  .primary-insight { font-size:var(--font-section); font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
+  .period-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:var(--space-3); margin-block:var(--space-3); }
+  .period-summary p { display:grid; gap:var(--space-1); margin:0; overflow-wrap:anywhere; }
+  .period-summary span { color:var(--color-ink-muted); font-size:var(--font-small); }
   .conditions { margin-block: var(--space-4); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   summary { cursor: pointer; font-weight: 650; padding-block: var(--space-2); overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }

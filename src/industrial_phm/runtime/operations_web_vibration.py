@@ -55,6 +55,7 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
         "schema_version": 1,
         "asset_id": asset_id,
         "source_id": None,
+        "binding_id": None,
         "period_seconds": None,
         "first": None,
         "last": None,
@@ -105,6 +106,7 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
     body.update(
         {
             "source_id": binding.source_id,
+            "binding_id": binding.binding_id,
             "period_seconds": period,
             "first": positions[0],
             "last": positions[-1],
@@ -172,6 +174,14 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
                     "high": median + found["threshold"] * spread,
                 },
                 "trace": [[number(values[i][0]), values[i][2]] for i in indices],
+                "trace_join": [
+                    index > 0
+                    and all(
+                        number(values[j][0]) == number(values[j - 1][0]) + 1
+                        for j in range(indices[index - 1] + 1, kept + 1)
+                    )
+                    for index, kept in enumerate(indices)
+                ],
                 "related": related,
             }
         )

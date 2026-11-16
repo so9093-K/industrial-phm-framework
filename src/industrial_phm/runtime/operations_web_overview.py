@@ -12,7 +12,6 @@ from typing import Any
 
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
-from industrial_phm.application.signal_exploration import acquisition_binding
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_web_explore import _history, record_findings
 from industrial_phm.runtime.operations_web_forecast import feature_unit
@@ -40,6 +39,8 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         "operation": None,
         "main": None,
         "finding": None,
+        "history_interval": None,
+        "vibration_interval": None,
         "finding_count": 0,
         "judged": 0,
         "copied": 0,
@@ -53,6 +54,7 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         body["finding_count"] = len(found["intervals"])
         if found["intervals"]:
             first = found["intervals"][0]
+            body["history_interval"] = first
             body["finding"] = {
                 key: first.get(key)
                 for key in ("label", "unit", "band", "direction", "kind", "start", "end", "value")
@@ -61,7 +63,14 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
                 "typical": first.get("typical_value"),
                 "operation_key": (first.get("operation") or {}).get("key"),
             }
-        operation = found["operation"][0] if found["operation"] else None
+        first_operation = ((body["history_interval"] or {}).get("operation") or {}).get("key")
+        operation = (
+            next((row for row in found["operation"] if row["key"] == first_operation), None)
+            if first_operation
+            else found["operation"][0]
+            if found["operation"]
+            else None
+        )
         if operation is not None:
             body["operation"] = {
                 key: operation[key] for key in ("key", "label", "stopped_below", "levels")
@@ -75,15 +84,26 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
             body["main"] = _history_main(history, asset_id, main)
         return body
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    binding = acquisition_binding(store, asset_id) if store.path.exists() else None
-    if binding is None:
+    if not store.path.exists():
         return body
     found = acquisition_findings(workspace, asset_id)
+    # Use the exact binding selected by the change calculation, including if ingestion
+    # progresses between this read and the separate representative-signal query.
+    binding = next(
+        (item for item in store.list_bindings() if item.binding_id == found["binding_id"]), None
+    )
+    if binding is None:
+        return body
     body["kind"] = "vibration"
     body["judged"] = found["judged"]
     body["finding_count"] = len(found["intervals"])
     if found["intervals"]:
         first = found["intervals"][0]
+        body["vibration_interval"] = first | {
+            "source_id": binding.source_id,
+            "binding_id": binding.binding_id,
+            "period_seconds": found["period_seconds"],
+        }
         body["finding"] = {
             key: first[key] for key in ("label", "unit", "direction", "kind", "from", "to", "value")
         } | {"reference": first["reference_value"], "typical": first["typical_value"]}
@@ -105,6 +125,10 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
             "unit": feature_unit(workspace, asset_id, binding.source_id, feature),
             "latest": {"position": latest[0], "value": latest[1]} if latest else None,
             "trace": points,
+            "trace_join": [
+                index > 0 and point[0] == points[index - 1][0] + 1
+                for index, point in enumerate(points)
+            ],
             "axis": "acquisition",
             "period_seconds": found["period_seconds"],
         }
@@ -114,7 +138,11 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
 def _first_judged(found: dict[str, Any]) -> dict[str, Any] | None:
     """Without a current, the signal of the first change, else the first judged signal."""
     keys = [item["key"] for item in found["intervals"]]
-    keys += [row["key"] for row in found["signals"] if row["state"] in {"scored", "constant"}]
+    keys += [
+        row["key"]
+        for row in found["signals"]
+        if row["state"] in {"scored", "level-change", "constant", "cumulative"}
+    ]
     rows = {row["key"]: row for row in found["signals"]}
     return next((rows[key] for key in keys if key in rows), None)
 
@@ -162,5 +190,11 @@ def _history_main(
         if latest is not None and latest.event_at is not None
         else None,
         "trace": [[bucket.bucket_start.isoformat(), bucket.mean] for bucket in own],
+        "trace_join": [
+            index > 0
+            and (bucket.bucket_start - own[index - 1].bucket_start).total_seconds()
+            <= aggregation.bucket_seconds * 1.5
+            for index, bucket in enumerate(own)
+        ],
         "axis": "time",
     }

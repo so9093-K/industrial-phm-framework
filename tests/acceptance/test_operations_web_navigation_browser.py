@@ -55,7 +55,7 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 feature.select_option("feature.Vertical_vibration_signals.rms")
                 tabs = page.get_by_role("navigation", name="설비 화면")
                 tabs.get_by_role("link", name="상태 요약", exact=True).click()
-                tabs.get_by_role("link", name="상태 전망", exact=True).click()
+                tabs.get_by_role("link", name="신호 추세 전망", exact=True).click()
                 pw.expect(page.get_by_label("진동 특징", exact=False)).to_have_value(
                     "feature.Vertical_vibration_signals.rms"
                 )

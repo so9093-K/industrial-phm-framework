@@ -50,9 +50,9 @@
   const chart = $derived(result ? departureChart(result) : null);
 
   const bases: Array<{ value: Baseline; label: string }> = [
-    { value: "first-30", label: "기록 처음 30%" },
-    { value: "first-50", label: "기록 처음 50%" },
-    { value: "all", label: "기록 전체" },
+    { value: "first-30", label: "처음 30%와 비교" },
+    { value: "first-50", label: "처음 50%와 비교" },
+    { value: "all", label: "전체 분포에서 다른 구간" },
   ];
   function date(at: string): string {
     const when = new Date(at);
@@ -170,8 +170,8 @@
 </script>
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
-  <h2 id="departures-title">달라진 구간 찾기</h2>
-  <p class="context">선택한 기간과 비교해 값이 크게 달라진 때를 찾습니다. 처음에는 기록 앞쪽 30%를 비교 기준으로 사용합니다.</p>
+  <h2 id="departures-title">기록 변화 찾기</h2>
+  <p class="context">이 기록에서 어느 구간의 값이 달라졌나요? 선택한 기록 자체의 값을 기준으로 비교합니다. 학습 모델은 사용하지 않습니다.</p>
   {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 변화 탐색은 선택한 기록 전체를 비교 기준 기간과 견줍니다.</p>{/if}
 
   {#if channelState === "loading"}
@@ -200,6 +200,7 @@
         </select>
       </label>
     </div>
+    <p class="baseline-purpose">{baseline === "all" ? "기록 전체의 분포에서 유독 다른 구간을 찾습니다. 이전 상태와 이후 상태의 비교는 아닙니다." : "기록 앞쪽 " + (baseline === "first-50" ? "50%" : "30%") + "를 기준으로, 그 뒤에 달라진 구간을 찾습니다."}</p>
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
     {/if}
@@ -253,7 +254,7 @@
               {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
               {@const down = interval.direction !== "up"}
               <li>
-                <strong>{date(interval.start)} ~ {date(interval.end)}</strong>
+                <strong>{date(interval.start)} ~ {date(interval.end)} · {elapsedText((Date.parse(interval.end)-Date.parse(interval.start))/1000)}</strong>
                 <span>{usualRange(result, unit)}보다 {down ? "낮음" : "높음"}
                   · {elapsedText(result.bucketSeconds)} 평균으로 가장 {down ? "낮을" : "높을"} 때 {short(interval.value)}{unit ? " " + unit : ""}</span>
                 <span class="next">{#if links.compare}<a href={links.compare}>기준 구간과 비교 →</a>{/if}
