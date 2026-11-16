@@ -1103,15 +1103,19 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert status == 200 and row["kind"] == "history"
         summary = get("/api/v1/explore/findings", asset_id="boiler-01")[1]
         assert row["finding"]["label"] == summary["intervals"][0]["label"] == "역률"
+        assert row["history_interval"] == summary["intervals"][0]
+        assert row["history_interval"]["operation"]["key"] == row["operation"]["key"]
         assert row["finding_count"] == len(summary["intervals"])
         assert row["operation"]["shares"] == [pytest.approx(0.35), pytest.approx(0.65)]
         main = row["main"]
         assert main["label"] == "전류" and main["unit"] == "A" and main["axis"] == "time"
         assert main["latest"]["value"] == pytest.approx(9.4)
         assert 0 < len(main["trace"]) <= 48
+        assert len(main["trace_join"]) == len(main["trace"]) and not main["trace_join"][0]
         status, row = get("/api/v1/explore/overview", asset_id="bearing-a")
         assert status == 200 and row["kind"] == "vibration" and row["operation"] is None
         assert row["finding"]["label"] == "수평 진동 RMS" and row["finding"]["from"] == 23
+        assert row["history_interval"] is None
         assert row["main"]["unit"] == "g" and row["main"]["latest"]["position"] == 30
         status, empty = get("/api/v1/explore/overview", asset_id="unknown")
         assert status == 200 and empty["kind"] is None and empty["finding"] is None

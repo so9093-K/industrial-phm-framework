@@ -297,8 +297,9 @@
       {/key}
     {:else}
       <PageHeading title={PAGE_INFO[route.page].label} description={PAGE_INFO[route.page].description}
+        meta={route.page === "monitor" ? "목록 확인 시각 · " + observed(snapshot.assessedAt) : ""}
         loading={false} onRefresh={() => void refresh()} />
-      <p class="meta">목록 확인 시각 · {observed(snapshot.assessedAt)}</p>
+      {#if route.page !== "monitor"}<p class="meta">목록 확인 시각 · {observed(snapshot.assessedAt)}</p>{/if}
       {#if snapshot.systemReadUncertain}
         <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
       {/if}
@@ -308,14 +309,14 @@
       {#if (route.page === "monitor" || route.page === "assets") && loadState === "empty"}
         <!-- A first visit starts with how to get data in, not with panels about data that is not there. -->
         <section class="ui-panel start" aria-labelledby="start-title">
-          <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "설비 기록에서 무엇이 달라졌는지 확인합니다"}</h2>
+          <h2 id="start-title">{snapshot.systemReadUncertain ? "표시할 설비가 없습니다" : "설비 데이터 분석을 시작하세요"}</h2>
           <p>{snapshot.systemReadUncertain ? "설비 목록을 확인하지 못했습니다. 데이터가 없다는 뜻은 아닙니다." : "아직 연결된 데이터가 없습니다."}
-            CSV 측정 기록을 저장하거나 공개 실측 데이터를 준비하면 변화와 원본 추세를 살펴볼 수 있습니다.</p>
-          <div class="start-actions">
-            <a class="ui-button ui-button-primary" href={systemUrl("connections")}>CSV 파일로 시작하기</a>
-            <a class="ui-button" href={systemUrl("connections") + "#public-datasets"}>{publicCount?"공개 실측 데이터로 시작하기 ("+publicCount+"개)":"공개 실측 데이터 준비 방법"}</a>
-          </div>
-          <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 데이터 연결에서 등록합니다.</p>
+            측정 기록을 가져오면 주요 변화와 신호 추세를 살펴볼 수 있습니다.</p>
+          <nav class="start-actions" aria-label="데이터로 시작하는 방법">
+            <a class="start-choice primary" href={systemUrl("connections")} aria-labelledby="csv-entry" aria-describedby="csv-entry-note"><strong id="csv-entry">CSV 파일로 시작하기</strong><span id="csv-entry-note">과거 측정 기록을 저장하고 해당 설비의 분석을 시작합니다.</span></a>
+            <a class="start-choice" href={systemUrl("connections")+"#opcua-connect"} aria-labelledby="opcua-entry" aria-describedby="opcua-entry-note"><strong id="opcua-entry">설비 데이터 수집 연결</strong><span id="opcua-entry-note">이 컴퓨터의 OPC UA 서버를 연결해 측정값을 받습니다.</span></a>
+            <a class="start-choice" href={systemUrl("connections")+"#public-datasets"} aria-labelledby="public-entry" aria-describedby="public-entry-note"><strong id="public-entry">{publicCount?"공개 실측 데이터로 시작하기 ("+publicCount+"개)":"공개 실측 데이터 준비 방법"}</strong><span id="public-entry-note">공개된 설비 전력·베어링 진동 기록으로 분석을 살펴봅니다.</span></a>
+          </nav>
           <details class="start-guide"><summary>가능한 분석과 필요한 데이터 보기</summary><AnalysisGuide /></details>
         </section>
       {/if}
@@ -355,7 +356,8 @@
 
 <style>
   .start-guide>summary { cursor:pointer; padding-block:var(--space-3); color:var(--color-action); font-weight:650; }
+  .monitor-operations { padding:0; border:0; border-top:1px solid var(--color-border); border-radius:0; background:transparent; }
   .monitor-operations>summary {
-    cursor: pointer; padding-block: var(--space-3); font-weight: 650; color: var(--color-action);
+    cursor: pointer; padding-block: var(--space-3); font-size:var(--font-small); font-weight: 650; color: var(--color-action);
   }
 </style>

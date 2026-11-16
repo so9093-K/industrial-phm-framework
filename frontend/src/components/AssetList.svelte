@@ -6,7 +6,8 @@
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
-  import {systemUrl} from "../routes";
+  import {assetTabUrl, systemUrl} from "../routes";
+  import AssetFocus from "./AssetFocus.svelte";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -48,6 +49,21 @@
   // the monitor's polling of the asset list does not restart them.
   let rows: Record<string, OverviewRow | "loading" | "failed"> = $state({});
   const request = new AbortController();
+  const inFlight = new Set<string>();
+  async function loadRow(id: string) {
+    if (request.signal.aborted || inFlight.has(id)) return;
+    inFlight.add(id); rows[id] = "loading";
+    try {
+      for (const attempt of [0, 1]) {
+        try { rows[id] = await readOverview(id, request.signal); break; }
+        catch {
+          if (request.signal.aborted) return;
+          if (attempt) rows[id] = "failed";
+          else await new Promise(done => setTimeout(done, 2000));
+        }
+      }
+    } finally { inFlight.delete(id); }
+  }
   const ids = $derived(assets.map(asset => asset.assetId).join("\n"));
   $effect(() => {
     const wanted = ids.split("\n").filter(Boolean);
@@ -58,15 +74,7 @@
       const work = async () => {
         while (next < missing.length && !request.signal.aborted) {
           const id = missing[next++];
-          // A row whose summary is still being computed elsewhere is read once more.
-          for (const attempt of [0, 1]) {
-            try { rows[id] = await readOverview(id, request.signal); break; }
-            catch {
-              if (request.signal.aborted) return;
-              if (attempt) rows[id] = "failed";
-              else await new Promise(done => setTimeout(done, 2000));
-            }
-          }
+          await loadRow(id);
         }
       };
       void Promise.all([work(), work()]);
@@ -107,14 +115,22 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <div class="head">
-    <h2 id="asset-list-title">조사할 설비 <span>{assets.length}개</span></h2>
-    <div class="filters">
+    <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
+    {#if assets.length > 1}<div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
       {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
       <label>정렬 <select bind:value={order}><option value="attention">확인 항목이 중요한 순</option><option value="name">이름순</option></select></label>
-    </div>
+    </div>{/if}
   </div>
-  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":"주요 변화를 살펴보고, 확인할 설비에서 조사를 이어가세요."}</p>
+  {#if assets.length === 1}
+    {@const asset = assets[0]}
+    {#if imports.get(asset.assetId)}{@const unfinished = imports.get(asset.assetId)!}<p class="issue import">{unfinished.text} <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
+    <AssetFocus {asset} name={name(asset)} read={rows[asset.assetId]} {observed} href={href(asset.assetId)} note={primaryNotes[asset.assetId]}
+      countText={attentionText(count(asset), notesState)} onRetry={() => void loadRow(asset.assetId)}
+      reasonHref={reasons && (notes[asset.assetId]??0)>0 ? "#attention-"+encodeURIComponent(asset.assetId) : null}
+      onReasons={() => showReasons(asset.assetId)}/>
+  {:else}
+  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":order === "name"?"설비 이름순입니다. 변화를 고르면 해당 설비의 분석으로 이어집니다.":"확인할 이유가 중요한 설비부터 보여줍니다. 변화를 고르면 해당 설비의 분석으로 이어집니다."}</p>
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
       <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
@@ -146,7 +162,9 @@
                   : (found.direction === "up" ? "상승" : "하락")}</a>
               <small>{when(row)}{row.findingCount > 1 ? " · 외 " + (row.findingCount - 1) + "건" : ""}</small>
             {:else if row}<small>{row.judged ? "처음 30%와 견줘 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
-            {:else}<small>{waiting}</small>{/if}
+            {:else}<small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
+              <a href={assetTabUrl(asset.assetId,"signals")}>신호 기록 보기 →</a>
+              {#if read === "failed"}<button type="button" class="retry" onclick={() => void loadRow(asset.assetId)}>다시 확인</button>{/if}{/if}
             {#if row?.copied}<small class="issue">데이터 확인 필요 · 신호 {row.copied}개</small>{/if}
           </div>
           <div class="cell" role="cell" data-label="주 신호">
@@ -154,7 +172,7 @@
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
               {#if row.main.trace.length > 1}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={sparkline(row.main.trace, 120, 28)} /></svg>{/if}
-            {:else if !row}<small>{waiting}</small>{/if}
+            {/if}
           </div>
           <div class="cell" role="cell" data-label="확인 항목">
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
@@ -181,6 +199,7 @@
       {/each}
     {/each}
   </div>
+  {/if}
 </section>
 
 <style>
@@ -202,6 +221,8 @@
   .reason-detail,.shares{margin:var(--space-2) 0 0;font-size:var(--font-small);color:var(--color-ink-muted);overflow-wrap:anywhere}
   .row-details summary{cursor:pointer;padding-block:var(--space-2);font-size:var(--font-small);color:var(--color-action)}
   .group-toggle input{width:auto;margin:0}
+  .retry{padding:var(--space-1) var(--space-2);justify-self:start;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);cursor:pointer}
+  .issue.import{font-size:var(--font-small);color:var(--color-caution-ink)}
   .cell small.issue{color:var(--color-caution-ink)}
   .bar{display:flex;height:10px;border-radius:2px;overflow:hidden;background:var(--color-surface-selected);max-width:10rem}
   .bar i{display:block;height:100%}

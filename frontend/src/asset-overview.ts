@@ -2,17 +2,19 @@
  * its main signal's latest value and trace, and the first change its summary leads with. */
 import {object} from "./writes.ts";
 import type {LevelNames} from "./record-findings.ts";
+import {parseFindingInterval, type FoundInterval} from "./record-findings.ts";
 
 export type OverviewRow = {
   assetId: string; kind: "history" | "vibration" | null;
   /** Share of time per band over the record, stopped first, with the band names. */
-  operation: {names: LevelNames; label: string; shares: number[] | null} | null;
+  operation: {key: string | null; names: LevelNames; label: string; shares: number[] | null} | null;
   main: {label: string; unit: string | null; axis: "time" | "acquisition"; periodSeconds: number | null;
-    latest: {at: string | null; position: number | null; value: number} | null; trace: {x: number; value: number}[]} | null;
+    latest: {at: string | null; position: number | null; value: number} | null; trace: {x: number; value: number; join?: boolean}[]} | null;
   finding: {label: string; unit: string | null; band: number | null; direction: "up" | "down"; kind: string;
     reference: number | null; typical: number | null; value: number;
     start: string | null; end: string | null; from: number | null; to: number | null} | null;
   findingCount: number; judged: number; copied: number;
+  historyInterval: FoundInterval | null;
 };
 
 function invalid(): never { throw new Error("설비 개요의 형식이 올바르지 않습니다."); }
@@ -27,6 +29,7 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
   const kind = root.kind === "history" || root.kind === "vibration" ? root.kind : null;
   const op = object(root.operation);
   const operation = op && Array.isArray(op.levels) ? {
+    key: text(op.key),
     label: text(op.label) ?? "",
     names: {stoppedBelow: finite(op.stopped_below), unit: "A",
       levels: op.levels.map((entry: unknown) => {
@@ -37,18 +40,22 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
   } : null;
   if (operation?.shares && operation.shares.length !== operation.names.levels.length + 1) invalid();
   const main = object(root.main);
+  if(main?.trace_join !== undefined && (!Array.isArray(main.trace_join) || !Array.isArray(main.trace)
+    || main.trace_join.length !== main.trace.length || !main.trace_join.every(value => typeof value === "boolean"))) invalid();
+  const joins = Array.isArray(main?.trace_join) ? main.trace_join : [];
   const axis = main?.axis === "acquisition" ? "acquisition" : "time";
   const latest = object(main?.latest);
   const finding = object(root.finding);
   return {
     assetId, kind, operation,
+    historyInterval: root.history_interval == null ? null : parseFindingInterval(root.history_interval),
     main: main ? {
       label: text(main.label) ?? "", unit: text(main.unit), axis, periodSeconds: optional(main.period_seconds),
       latest: latest ? {at: text(latest.at), position: optional(latest.position), value: finite(latest.value)} : null,
-      trace: (Array.isArray(main.trace) ? main.trace : []).map((point: unknown) => {
+      trace: (Array.isArray(main.trace) ? main.trace : []).map((point: unknown, i: number) => {
         if (!Array.isArray(point) || point.length !== 2) invalid();
         const x = axis === "time" ? Date.parse(String(point[0])) : finite(point[0]);
-        return Number.isFinite(x) ? {x, value: finite(point[1])} : invalid();
+        return Number.isFinite(x) ? {x, value: finite(point[1]), join: joins[i] as boolean | undefined} : invalid();
       }),
     } : null,
     finding: finding ? {

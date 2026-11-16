@@ -115,8 +115,10 @@ main > * + * { margin-top: var(--space-4); }
 /* First visit: how to get data in comes before panels about data. */
 .start { display: grid; gap: var(--space-3); margin-bottom: var(--space-4); }
 .start h2, .start p { margin: 0; }
-.start-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.start-note { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
+.start-actions { display: grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:var(--space-4); margin-block:var(--space-3); }
+.start-choice { display:grid; align-content:start; gap:var(--space-3); padding:var(--space-5); border:1px solid var(--color-border); border-radius:var(--radius-control); color:var(--color-ink); text-decoration:none; }
+.start-choice strong { color:var(--color-action); }.start-choice span { font-size:var(--font-small); color:var(--color-ink-muted); line-height:1.6; }
+.start-choice.primary { border-color:var(--color-action); background:var(--color-surface-selected); }.start-choice:hover { border-color:var(--color-action); }
 .start .guide { margin-top: var(--space-4); border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
 
 /* A file chooser in Korean: the native input stays for keyboard and screen readers, out of sight. */

@@ -69,6 +69,32 @@ const finite = (raw: unknown): number => typeof raw === "number" && Number.isFin
 const text = (raw: unknown): string => typeof raw === "string" && raw ? raw : invalid();
 const instant = (raw: unknown): string => Number.isFinite(Date.parse(text(raw))) ? raw as string : invalid();
 
+/** One representative interval, shared by the summary and first-screen overview. */
+export function parseFindingInterval(item: unknown): FoundInterval {
+  const row = object(item), usual = object(row?.usual);
+  if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
+  if(row.trace_join!==undefined&&(!Array.isArray(row.trace_join)||!Array.isArray(row.trace)||row.trace_join.length!==row.trace.length||!row.trace_join.every(value=>typeof value==="boolean")))invalid();
+  const joins=Array.isArray(row.trace_join)?row.trace_join:[];
+  const low = finite(usual.low), high = finite(usual.high);
+  if (low > high) invalid();
+  return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown,i:number)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1]),join:joins[i] as boolean|undefined};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
+    bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
+    unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
+    value: finite(row.value), usual: {low, high}, within: row.within.map(text),
+    reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as FoundInterval["reason"] : null,
+    baseline: row.baseline == null ? null : period(row.baseline),
+    reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
+    typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
+    operation: parseShift(row.operation),
+    band: typeof row.band === "number" && Number.isInteger(row.band) && row.band > 0 ? row.band : null,
+    related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
+      const other = object(entry);
+      if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
+      return {context:recordContext(other), channel: text(other.channel), label: text(other.label), unit: typeof other.unit === "string" ? other.unit : null,
+        reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
+    })};
+}
+
 export function parseRecordFindings(raw: unknown, assetId: string): RecordFindings {
   const root = object(raw);
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId
@@ -79,30 +105,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     const row = object(value);
     return row ? {from: instant(row.from), to: instant(row.to)} : invalid();
   };
-  const intervals = root.intervals.map((item: unknown): FoundInterval => {
-    const row = object(item), usual = object(row?.usual);
-    if (!row || !usual || (row.direction !== "up" && row.direction !== "down") || !Array.isArray(row.within)) invalid();
-    if(row.trace_join!==undefined&&(!Array.isArray(row.trace_join)||!Array.isArray(row.trace)||row.trace_join.length!==row.trace.length||!row.trace_join.every(value=>typeof value==="boolean")))invalid();
-    const joins=Array.isArray(row.trace_join)?row.trace_join:[];
-    const low = finite(usual.low), high = finite(usual.high);
-    if (low > high) invalid();
-    return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown,i:number)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1]),join:joins[i] as boolean|undefined};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
-      bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
-      unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
-      value: finite(row.value), usual: {low, high}, within: row.within.map(text),
-      reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as FoundInterval["reason"] : null,
-      baseline: range(row.baseline ?? null),
-      reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
-      typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
-      operation: parseShift(row.operation),
-      band: typeof row.band === "number" && Number.isInteger(row.band) && row.band > 0 ? row.band : null,
-      related: (Array.isArray(row.related) ? row.related : []).map((entry: unknown) => {
-        const other = object(entry);
-        if (!other || !["higher", "lower", "within"].includes(String(other.state))) invalid();
-        return {context:recordContext(other), channel: text(other.channel), label: text(other.label), unit: typeof other.unit === "string" ? other.unit : null,
-          reference: finite(other.reference), current: finite(other.current), state: other.state as "higher" | "lower" | "within"};
-      })};
-  });
+  const intervals = root.intervals.map(parseFindingInterval);
   const states: readonly SignalState[] = ["scored", "level-change", "short-baseline", "constant", "cumulative", "copied", "no-values"];
   const signals = root.signals.map((item: unknown): CheckedSignal => {
     const row = object(item);
