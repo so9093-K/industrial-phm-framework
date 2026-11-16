@@ -163,9 +163,14 @@ def test_model_result_explanation_and_review_request(
                     sidebar = page.locator(".analysis-sidebar").bounding_box()
                     assert graph and sidebar and sidebar["x"] > graph["x"] + graph["width"]
                     assert graph["y"] + graph["height"] <= 900
-                    pw.expect(explanation.locator(".flow")).to_be_visible(timeout=20000)
+                    pw.expect(explanation.locator(".values-column table")).to_be_visible(
+                        timeout=20000
+                    )
                     values = explanation.locator(".values-column").bounding_box()
-                    flow = explanation.locator(".flow-column").bounding_box()
+                    flow = explanation.locator(".flow-column").evaluate(
+                        "element => { const box = element.getBoundingClientRect(); "
+                        "return {x: box.x, width: box.width}; }"
+                    )
                     assert values and flow and flow["x"] >= values["x"] + values["width"]
                 explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 pw.expect(explanation).to_contain_text("아직 이 비교에 대한 해설이 없습니다")

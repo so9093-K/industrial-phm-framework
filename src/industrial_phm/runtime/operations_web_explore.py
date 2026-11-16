@@ -679,7 +679,12 @@ def change_trace(
     # Give the main chart enough measured context around the selected change instead of
     # compressing a short event into a month-wide miniature.
     context = max(end - start, timedelta(seconds=6 * bucket_seconds))
-    points = [point for point in points if start - context <= point[0] <= end + context]
+    inside = [i for i, point in enumerate(points) if start - context <= point[0] <= end + context]
+    if not inside:
+        return []
+    # Preserve measured context on either side even when it lies across a long gap.
+    # The contiguous slice retains that missing-bucket boundary in the join flags below.
+    points = points[max(0, inside[0] - 6) : inside[-1] + 7]
     indices = {round(i * (len(points) - 1) / 159) for i in range(160)}
     for boundary in (start, end):
         near = min(range(len(points)), key=lambda i: abs((points[i][0] - boundary).total_seconds()))

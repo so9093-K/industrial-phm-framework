@@ -84,12 +84,13 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 group_b = all_signals.get_by_role("region", name="측정 기록 · b", exact=True)
                 group_a = all_signals.get_by_role("region", name="측정 기록 · a", exact=True)
                 pw.expect(group_b).to_be_visible()
-                # The start slider alone moves one picked moment, as the single slider did.
+                pw.expect(group_a).to_be_visible()
+                # The start handle selects a span while the end remains at the last bucket.
                 start = group_b.get_by_role("slider", name="시작", exact=False)
                 start.focus()
                 start.press("Home")
                 start.press("ArrowRight")
-                chosen_b = group_b.locator(".pick")
+                chosen_b = all_signals.get_by_role("region", name="선택한 구간 · b", exact=True)
                 compare_href = chosen_b.get_by_role(
                     "link", name="바로 앞 기간과 비교하기", exact=False
                 ).get_attribute("href")
@@ -103,7 +104,7 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                     ]
                     assert len(scope["monitor_interpretation"][0]) == 64
                 own_a = (
-                    group_a.locator(".pick")
+                    all_signals.get_by_role("region", name="선택한 구간 · a", exact=True)
                     .get_by_role("link", name="바로 앞 기간과 비교하기", exact=False)
                     .get_attribute("href")
                 )
@@ -176,8 +177,8 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 pw.expect(relation.locator(".group")).to_have_count(0)
                 before = parse_qs(urlsplit(page.url).query)
                 relation.get_by_role("button", name="다른 출처의 기록 보기", exact=True).click()
-                pw.expect(relation.locator(".group h3")).to_contain_text("a")
-                pw.expect(relation.locator(".group h3")).to_contain_text("bearing")
+                pw.expect(relation.locator(".group .record-label")).to_contain_text("a")
+                pw.expect(relation.locator(".group .record-label")).to_contain_text("bearing")
                 pw.expect(
                     relation.get_by_text(
                         "선택한 출처에서는 함께 기록된 신호가 없습니다", exact=False
@@ -208,7 +209,9 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 pw.expect(
                     comparison.get_by_role("region", name="데이터 출처 b", exact=True)
                 ).to_be_visible()
-                comparison.locator("details.conditions > summary").click()
+                conditions = comparison.locator("details.conditions")
+                if conditions.get_attribute("open") is None:
+                    conditions.locator("summary").first.click()
                 comparison.locator("#compare-channel").select_option("current")
                 pw.expect(comparison).to_contain_text("선택한 출처에 비교할 측정이 없습니다")
                 before = parse_qs(urlsplit(page.url).query)
