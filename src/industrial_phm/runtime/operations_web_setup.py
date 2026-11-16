@@ -71,7 +71,9 @@ _FIELDS = frozenset(
 _PHASE_FILE_FIELD = "phase_channels"
 _LABEL_FILE_FIELD = "channel_labels"
 _OFFSET_FILE_FIELD = "timestamp_utc_offset"
-_OPTIONAL_FILE_FIELDS = frozenset({_PHASE_FILE_FIELD, _LABEL_FILE_FIELD, _OFFSET_FILE_FIELD})
+_OPTIONAL_FILE_FIELDS = frozenset(
+    {_PHASE_FILE_FIELD, _LABEL_FILE_FIELD, _OFFSET_FILE_FIELD, "operating_current"}
+)
 _PHASE_CHANNEL_FIELDS = frozenset(
     {"channel_id", "quantity", "phase", "unit_evidence", "interpretation_evidence"}
 )
@@ -264,6 +266,42 @@ def _file_utc_offset(payload: dict[str, object]) -> str | None:
     return raw
 
 
+def _file_semantic_bindings(
+    payload: dict[str, object], source_id: str, channels: tuple[str, ...]
+) -> tuple[ChannelSemanticBinding, ...]:
+    """One explicitly confirmed current is enough for operating levels; it implies no phase."""
+    bindings = _file_phase_bindings(payload, source_id, channels)
+    current = payload.get("operating_current")
+    if current is None:
+        return bindings
+    if not isinstance(current, str) or current not in channels:
+        raise ValueError("operating current must name a saved channel")
+    label = next(
+        (item for item in _file_channel_labels(payload) if item.channel_id == current), None
+    )
+    if label is None or label.unit != "A":
+        raise ValueError("operating current requires an explicitly confirmed A unit")
+    if any(item.channel_id == current for item in bindings):
+        return bindings
+    return (
+        *bindings,
+        ChannelSemanticBinding(
+            source_id=source_id,
+            channel_id=current,
+            version="file-web-current-v1",
+            definition=MeasurementDefinition(
+                observed_property="electric current",
+                scope="current measurement",
+                unit="A",
+                unit_evidence="A unit confirmed by the user during CSV registration",
+            ),
+            interpretation_evidence=(
+                "Current explicitly selected by the user during CSV registration; no phase assigned"
+            ),
+        ),
+    )
+
+
 def _file_phase_bindings(
     payload: dict[str, object], source_id: str, channels: tuple[str, ...]
 ) -> tuple[ChannelSemanticBinding, ...]:
@@ -355,7 +393,7 @@ def _prepare_workspace_csv_source(root: Path, payload: dict[str, object]) -> Reg
             measurement_point_id=point,
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
-            semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
+            semantic_bindings=_file_semantic_bindings(payload, source_id, tuple(channel_ids)),
             channel_labels=_file_channel_labels(payload),
             timestamp_utc_offset=_file_utc_offset(payload),
         ),
@@ -670,7 +708,7 @@ def preflight_uploaded_csv_source(
             measurement_point_id=point,
             channel_columns=tuple(channel_ids),
             timestamp_column=timestamp,
-            semantic_bindings=_file_phase_bindings(payload, source_id, tuple(channel_ids)),
+            semantic_bindings=_file_semantic_bindings(payload, source_id, tuple(channel_ids)),
             channel_labels=_file_channel_labels(payload),
             timestamp_utc_offset=_file_utc_offset(payload),
         )

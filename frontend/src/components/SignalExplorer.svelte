@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TimeRange from "./TimeRange.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount, tick} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -252,7 +253,7 @@
     const span: Span | null = picked;
     if (!grid?.step) return null;
     const last = grid.slots - 1, step = grid.step;
-    if (!span) return {start: last, end: last};
+    if (!span) return {start: 0, end: last};
     const start = Math.min(last, Math.max(0, Math.floor((span.from - grid.from) / step + 1e-6)));
     return {start, end: Math.min(last, Math.max(start, Math.ceil((span.to - grid.from) / step - 1e-6) - 1))};
   });
@@ -261,11 +262,12 @@
    * span keeps its end while its start moves. */
   function scrubTo(edge: "start" | "end", slot: number) {
     if (!grid?.step || !slots) return;
-    const moment = !picked || slots.start === slots.end;
-    const start = edge === "start" ? slot : Math.min(slots.start, slot);
-    const end = edge === "end" ? slot : moment ? slot : Math.max(slot, slots.end);
-    picked = snapSpan(grid.from + start * grid.step, grid.from + (end + 1) * grid.step, grid.from, grid.to, grid.step);
+    const start = edge === "start" ? Math.min(slot,slots.end) : slots.start;
+    const end = edge === "end" ? Math.max(slot,slots.start) : slots.end;
+    picked={from:grid.from+start*grid.step,to:grid.from+(end+1)*grid.step};
+    rememberChannel();
   }
+
   const slotTime = (slot: number) => grid ? recorded(new Date(grid.from + slot * (grid.step ?? 0)).toISOString()) : "";
   function zoomTo(span: Span) {
     const window = zoomWindow(span);
@@ -333,7 +335,9 @@
       onpointerdown={(event) => press(event, key, chart)} onpointermove={(event) => slide(event, chart)}
       onpointerup={(event) => void release(event, chart)} onpointercancel={() => drag = null} />
   </svg>
-  {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />{/snippet}
+  {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />
+    {#if grid?.step && grid.slots>1 && slots}<TimeRange slots={grid.slots} start={slots.start} end={slots.end} active={picked!==null} label={slotTime} onChange={scrubTo} onClear={()=>picked=null}/>{/if}
+  {/snippet}
   </ValueAxis>
 {/snippet}
 
@@ -396,7 +400,6 @@
 
 <section class="explorer ui-panel" aria-labelledby="explorer-title">
   <h2 id="explorer-title">측정 신호</h2>
-  <p class="context">고른 신호의 저장된 측정값과 원본 품질을 시간 순서로 봅니다.</p>
   {#if channelState === "loading"}
     <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
   {:else if channelState === "failed"}
@@ -407,61 +410,7 @@
       message="이 설비에 저장된 신호가 없습니다. 데이터 연결과 수신 상태를 확인하세요."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
-    <div class="controls">
-      <label for="history-channel">신호
-        <select id="history-channel" value={selectedChannel}
-          onchange={(event) => changeChannel(event.currentTarget.value)}>
-          {#each channels.ids as id (id)}
-            <option value={id}>{signalName(channels.names, id)}</option>
-          {/each}
-        </select>
-      </label>
-      <label for="history-range">조회 기간
-        <select id="history-range" value={range}
-          onchange={(event) => { range = event.currentTarget.value as RangePreset; zoom = null; rememberChannel(); void loadTrend(); }}>
-          {#if range === "window"}<option value="window" disabled>그래프에서 고른 구간</option>{/if}
-          <option value="all">저장된 전체 기록</option>
-          <option value="15m">최근 15분</option><option value="1h">최근 1시간</option>
-          <option value="24h">최근 24시간</option><option value="7d">최근 7일</option>
-        </select>
-      </label>
-      {#if range !== "all" && range !== "window"}<label for="history-anchor">기간 기준
-        <select id="history-anchor" value={anchor}
-          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
-          <option value="latest">마지막 저장 기록</option>
-          <option value="now">지금</option>
-        </select>
-      </label>{/if}
-    </div>
-    {#if siblings.length}<div class="with-actions phase-actions"><button type="button" class="ui-button" onclick={() => setCompanions([...phaseSiblings(channels?.ids ?? [], selectedChannel), ...companions])}>R·S·T 3상 함께 보기</button></div>{/if}
-    <details class="with">
-      <summary>함께 볼 신호{companions.length ? " · " + companions.length + "개" : ""}</summary>
-      <div class="with-actions">
-        {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
-      </div>
-      <div class="choices">
-        {#each channels.ids.filter((id) => id !== selectedChannel) as id (id)}
-          <label><input type="checkbox" checked={companions.includes(id)}
-            disabled={!companions.includes(id) && companions.length >= MAX_COMPANIONS}
-            onchange={() => setCompanions(companions.includes(id) ? companions.filter((other) => other !== id) : [...companions, id])} />
-            {signalName(channels.names, id)}</label>
-        {/each}
-      </div>
-      <p class="context">최대 {MAX_COMPANIONS}개를 같은 시간축에 함께 그립니다. 그래프에서 고른 시점·구간과 확대는 모든 신호에 함께 적용됩니다.</p>
-    </details>
-    <nav class="continue" aria-label="이 신호로 이어서 보기">
-      <span>이 신호로 이어서 보기</span>
-      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기록 변화 찾기 →</a>
-      <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
-      <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
-    </nav>
-    {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
-    {/if}
-      {#if focus}
-        <p class="zoomed"><span>선택한 데이터 출처{focus.point ? " · 측정 위치 "+focus.point : ""}의 기록만 보고 있습니다.</span>
-          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
-      {/if}
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if trendState === "loading"}
       <StatusNotice message="고른 신호의 측정 기록과 품질을 불러오고 있습니다." />
     {:else if trendState === "failed"}
@@ -500,21 +449,7 @@
             {@const unit = shownUnit ?? null}
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
             {@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}
-            {#if grid?.step && grid.slots > 1 && slots}
-              <fieldset class="scrub">
-                <legend>시점·구간 고르기 <small>시작을 옮기면 한 시점, 끝을 뒤로 옮기면 구간 · Esc로 선택 해제</small></legend>
-                <label>시작 <span>{slotTime(slots.start)}</span>
-                  <input type="range" min="0" max={grid.slots - 1} value={slots.start} aria-valuetext={"시작 " + slotTime(slots.start)}
-                    oninput={(event) => scrubTo("start", Number(event.currentTarget.value))}
-                    onkeydown={(event) => { if (event.key === "Escape") picked = null; }} /></label>
-                <label>끝 <span>{slotTime(slots.end + 1)}</span>
-                  <input type="range" min="0" max={grid.slots - 1} value={slots.end} aria-valuetext={"끝 " + slotTime(slots.end + 1)}
-                    oninput={(event) => scrubTo("end", Number(event.currentTarget.value))}
-                    onkeydown={(event) => { if (event.key === "Escape") picked = null; }} /></label>
-              </fieldset>
-            {/if}
             {#if index === 0}{@render companionCharts(trend)}{/if}
-            {#if picked}{@render pick(group, picked, unit)}{/if}
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
           {/if}
@@ -557,7 +492,67 @@
           </ul>
         </section>
       {/if}
+    {/if}    </div><aside class="analysis-sidebar" aria-label="신호 선택과 구간 조사">
+
+    <div class="controls">
+      <label for="history-channel">신호
+        <select id="history-channel" value={selectedChannel}
+          onchange={(event) => changeChannel(event.currentTarget.value)}>
+          {#each channels.ids as id (id)}
+            <option value={id}>{signalName(channels.names, id)}</option>
+          {/each}
+        </select>
+      </label>
+      <label for="history-range">조회 기간
+        <select id="history-range" value={range}
+          onchange={(event) => { range = event.currentTarget.value as RangePreset; zoom = null; rememberChannel(); void loadTrend(); }}>
+          {#if range === "window"}<option value="window" disabled>그래프에서 고른 구간</option>{/if}
+          <option value="all">저장된 전체 기록</option>
+          <option value="15m">최근 15분</option><option value="1h">최근 1시간</option>
+          <option value="24h">최근 24시간</option><option value="7d">최근 7일</option>
+        </select>
+      </label>
+      {#if range !== "all" && range !== "window"}<label for="history-anchor">기간 기준
+        <select id="history-anchor" value={anchor}
+          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
+          <option value="latest">마지막 저장 기록</option>
+          <option value="now">지금</option>
+        </select>
+      </label>{/if}
+    </div>
+    {#if siblings.length}<div class="with-actions phase-actions"><button type="button" class="ui-button" onclick={() => setCompanions([...phaseSiblings(channels?.ids ?? [], selectedChannel), ...companions])}>R·S·T 3상 함께 보기</button></div>{/if}
+    {#if channels.truncated}
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
     {/if}
+      {#if focus}
+        <p class="zoomed"><span>선택한 데이터 출처{focus.point ? " · 측정 위치 "+focus.point : ""}의 기록만 보고 있습니다.</span>
+          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
+      {/if}
+    <details class="with">
+      <summary>함께 볼 신호{companions.length ? " · " + companions.length + "개" : ""}</summary>
+      <div class="with-actions">
+        {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
+      </div>
+      <div class="choices">
+        {#each channels.ids.filter((id) => id !== selectedChannel) as id (id)}
+          <label><input type="checkbox" checked={companions.includes(id)}
+            disabled={!companions.includes(id) && companions.length >= MAX_COMPANIONS}
+            onchange={() => setCompanions(companions.includes(id) ? companions.filter((other) => other !== id) : [...companions, id])} />
+            {signalName(channels.names, id)}</label>
+        {/each}
+      </div>
+      <p class="context">최대 {MAX_COMPANIONS}개를 같은 시간축에 함께 그립니다. 그래프에서 고른 시점·구간과 확대는 모든 신호에 함께 적용됩니다.</p>
+    </details>
+    <nav class="continue" aria-label="이 신호로 이어서 보기">
+      <span>이 신호로 이어서 보기</span>
+      <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기록 변화 찾기 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
+      <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
+    </nav>
+
+    {#if trend&&picked}{#each groups as group(group.key)}{@render pick(group,picked,group.unit??channels?.names.get(selectedChannel)?.unit??null)}{/each}{/if}
+    </aside></div>
+
   {/if}
 </section>
 
@@ -593,13 +588,7 @@
   .dragging { fill: var(--color-action); fill-opacity: 0.12; }
   .cursor { stroke: var(--color-focus); stroke-width: 2; stroke-dasharray: 5 4; }
   .dot { stroke: var(--color-focus); stroke-width: 10; stroke-linecap: round; }
-  .scrub { font-weight: 400; margin-top: var(--space-3); border: 0; padding: 0; display: grid; gap: var(--space-2);
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); min-width: 0; }
-  .scrub legend { padding: 0; margin-bottom: var(--space-2); font-weight: 650; }
-  .scrub legend small { font-weight: 400; color: var(--color-ink-muted); }
-  .scrub label { display: grid; grid-template-columns: auto 1fr; gap: 0 var(--space-2); align-items: center; min-width: 0; }
-  .scrub label span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
-  .scrub input { grid-column: 1 / -1; width: 100%; padding: 0; border: 0; min-height: 32px; }
+
   .zoomed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); margin: var(--space-3) 0 0; }
   .pick { margin-top: var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border);
     border-left: 4px solid var(--color-focus); border-radius: var(--radius-control); display: grid; gap: var(--space-2); }

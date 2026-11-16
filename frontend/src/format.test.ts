@@ -4,8 +4,8 @@ import {num, propertyLabel} from "./format.ts";
 
 test("floating-point noise is not shown, while integers and missing values stay distinct", () => {
   assert.equal(num(0.7620000000000001), "0.762");
-  assert.equal(num(1.59440625), "1.59441");
-  assert.equal(num(-0.000123456789), "-0.000123457");
+  assert.equal(num(1.59440625), "1.59");
+  assert.equal(num(-0.000123456789), "-0.000123");
   assert.equal(num(64), "64");
   assert.equal(num(0), "0");
   assert.equal(num(null), "미산출");

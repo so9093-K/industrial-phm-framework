@@ -1,3 +1,4 @@
+import {parseOperation, type Operation} from "./record-findings.ts";
 import {focusGroups,focusParams} from "./signal-selection.ts";
 /**
  * Read-only, model-free departures from a user-selected baseline.
@@ -29,6 +30,7 @@ export type DepartureInterval = {
 
 export type Departures = {
   context: RecordContext | null; records: RecordContext[];
+  operation?: Operation | null; operatingLevel?: number | null;
   assetId: string;
   selectedChannel: string;
   baseline: { name: Baseline; from: string; to: string };
@@ -130,6 +132,8 @@ export function parseDepartures(
   const unit = units[selectedChannel];
   return {
     context: recordContext(data.record), records: Array.isArray(data.records) ? data.records.map(recordContext).filter((r): r is RecordContext => r !== null) : [],
+    operation: data.operation == null ? null : parseOperation(data.operation),
+    operatingLevel: data.operating_level == null ? null : total(data.operating_level),
     assetId, selectedChannel, baseline: {name: baselineName, from, to},
     threshold, unit: typeof unit === "string" ? unit : null,
     bucketSeconds, scored, score, intervals, intervalCount,
@@ -155,7 +159,7 @@ export function departureChart(data: Departures): DepartureChart | null {
   const max = Math.max(data.threshold * 1.4, peak);
   const x = (at: number) => ((at - first) / (last - first)) * width;
   const y = (value: number) => bottom - (value / max) * (bottom - top);
-  const firstExceedance = data.score.find(point => point.distance > data.threshold);
+  const firstExceedance = data.score.find(point => point.distance >= data.threshold && (data.baseline.name === "all" || Date.parse(point.at) >= Date.parse(data.baseline.to)));
   const steps = times.slice(1).map((at, i) => at - times[i]).sort((a, b) => a - b);
   const gap = (steps[Math.floor(steps.length / 2)] ?? 0) * 1.5;
   let path = "";
@@ -182,9 +186,10 @@ export function departureChart(data: Departures): DepartureChart | null {
 }
 
 export async function readDepartures(
-  assetId: string, series: string, baseline: Baseline, signal: AbortSignal, recordKey?: string, focus?: import("./signal-selection.ts").SourceFocus|null,
+  assetId: string, series: string, baseline: Baseline, signal: AbortSignal, recordKey?: string, focus?: import("./signal-selection.ts").SourceFocus|null, level?: string,
 ): Promise<Departures> {
   const query = new URLSearchParams({ asset_id: assetId, series, baseline });
+  if (level && level !== "auto") query.set("level",level);
   if (recordKey) query.set("record_key", recordKey);
   if(focus) for(const [key,value] of Object.entries(focusParams(focus)))query.set(key,value);
   const response = await fetch("/api/v1/explore/anomaly?" + query, {

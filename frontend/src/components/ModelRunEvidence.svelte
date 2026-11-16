@@ -261,7 +261,6 @@
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
   <h2 id="model-evidence-title">모델 이상 점수</h2>
-  <p class="context">학습한 모델이 보기에 어떤 측정이 특이한가요? 모델의 점수와 기준을 확인합니다. 기록 초반과 비교하는 변화 분석과는 다른 척도입니다.</p>
   {#if connectedNotice}<StatusNotice message={connectedNotice}/>{/if}
   {#if listState==="loading"}
     <StatusNotice message="이 설비에 적용한 모델을 확인하고 있습니다."/>
@@ -279,27 +278,8 @@
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
-    {#if comparable.length>1}
-      {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
-        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} selectedPosition={selectedStep?.position??null} place={timelinePlace} {period}
-          onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
-      {/key}
-    {/if}
-    {#if bindings.length>1&&comparable.length<bindings.length}
-      <label class="selector">적용 모델
-        <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
-          {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
-          {/each}
-        </select>
-      </label>
-    {/if}
     {#if binding}
-      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
-        · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
-      {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
-      <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
-        <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>
+      <div class="analysis-workspace"><div class="analysis-body">
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
       {/if}
@@ -319,20 +299,6 @@
         {#key binding.bindingId+":"+binding.lastProcessed}
           <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
-        <label class="selector">측정 선택 (최근 {trace.limit}회)
-          <select value={selectedStep?String(selectedStep.position):""}
-            onchange={e=>{
-              const item=choices.find(s=>String(s.position)===e.currentTarget.value);
-              if(item){followLatest=false;void chooseStep(item);}
-            }}>
-            {#each choices as item(item.runId)}
-              <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":"분석에서 제외"}</option>
-            {/each}
-          </select>
-        </label>
-        {#if trace.steps.length===trace.limit}
-          <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
-        {/if}
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
         {:else if detailState==="failed"}
@@ -409,6 +375,46 @@
           </details>
         {/if}
       {/if}
+      </div><aside class="analysis-sidebar" aria-label="모델 선택과 측정 조사">
+    {#if bindings.length>1}
+      <label class="selector">적용 모델
+        <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
+          {#each bindings as item(item.bindingId)}
+            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+      <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
+        · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
+      {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
+      {#if trace}
+      <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
+        <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>
+        <details><summary>다른 모델의 결과와 비교</summary>
+    {#if comparable.length>1}
+      {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
+        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} selectedPosition={selectedStep?.position??null} place={timelinePlace} {period}
+          onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
+      {/key}
+    {/if}
+        </details>
+        <label class="selector">측정 선택 (최근 {trace.limit}회)
+          <select value={selectedStep?String(selectedStep.position):""}
+            onchange={e=>{
+              const item=choices.find(s=>String(s.position)===e.currentTarget.value);
+              if(item){followLatest=false;void chooseStep(item);}
+            }}>
+            {#each choices as item(item.runId)}
+              <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":"분석에서 제외"}</option>
+            {/each}
+          </select>
+        </label>
+        {#if trace.steps.length===trace.limit}
+          <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
+        {/if}
+      {/if}
+      </aside></div>
     {/if}
     <ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
       <ModelBuild {assetId} {writable} hasModel={true} onBuilt={connected}/>

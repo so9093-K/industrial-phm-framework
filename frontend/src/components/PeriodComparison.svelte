@@ -1,4 +1,5 @@
 <script lang="ts">
+  let viewportWidth=$state(1440);
   import SourceIdentity from "./SourceIdentity.svelte";
   import RangeCompare from "./RangeCompare.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
@@ -210,29 +211,11 @@
     return () => {sourceAbort?.abort(); profileAbort?.abort();};
   });
 </script>
+<svelte:window bind:innerWidth={viewportWidth}/>
 
-<section class="ui-panel compare" aria-labelledby="comparison-title">
-  <h2 id="comparison-title">두 기간 비교</h2>
-  <p class="context">이전과 이후의 값과 분포가 어떻게 달라졌나요? 한 신호의 두 기간을 비교합니다.</p>
-  {#if sourceState === "loading"}
-    <StatusNotice message="비교할 수 있는 신호를 불러오고 있습니다." />
-  {:else if sourceState === "failed"}
-    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error}
-      actionLabel="다시 불러오기" onAction={() => void loadSources()} />
-  {:else if sourceState === "unavailable" || sourceState === "empty"}
-    <StatusNotice kind="uncertain" title="비교할 시계열 기록이 없습니다"
-      message="이 설비에는 저장된 시계열 기록이 없습니다."
-      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
-  {:else if sources && periods}
-    {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
-      <button type="button" class="ui-button" disabled={!!formError}
-        onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
-    <div class="period-summary" role="group" aria-label="현재 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
-    </div>
-    <p class="selected-signal"><strong>{signalName(names, selected)}</strong></p>
-    <details class="conditions" open={compareState !== "ready" || !!formError}>
+{#snippet conditions()}
+  {#if sources&&periods}
+    <details class="conditions" open={viewportWidth>=1100 || compareState !== "ready" || !!formError}>
       <summary>비교 조건 확인·변경 · {signalName(names, selected)}</summary>
     <div class="controls">
       <label for="compare-channel">신호
@@ -279,16 +262,22 @@
         </label>
     {/if}
     </details>
-    {#if handedOver}
-      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
-    {/if}
-    {#if beforeRecord > 0}
-      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
-    {/if}
-    {#if operation}{@const shown = operation}
-        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 견줘 보세요."
-          : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
-    {/if}
+  {/if}
+{/snippet}
+
+<section class="ui-panel compare" aria-labelledby="comparison-title">
+  <h2 id="comparison-title">두 기간 비교</h2>
+  {#if sourceState === "loading"}
+    <StatusNotice message="비교할 수 있는 신호를 불러오고 있습니다." />
+  {:else if sourceState === "failed"}
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error}
+      actionLabel="다시 불러오기" onAction={() => void loadSources()} />
+  {:else if sourceState === "unavailable" || sourceState === "empty"}
+    <StatusNotice kind="uncertain" title="비교할 시계열 기록이 없습니다"
+      message="이 설비에는 저장된 시계열 기록이 없습니다."
+      actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
+  {:else if sources && periods}
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
     {:else if compareState === "failed"}
@@ -308,16 +297,18 @@
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
         {@const message = told(result, row)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <h3>{signalName(names, row.channel)}{unit ? " (" + unit + ")" : ""} · 기간 비교 결과</h3>
+          <h3>{names?.get(row.channel)?.label??row.channel}</h3>
           <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
-          {#if message}<p class="primary-insight">중앙값 {num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
-            {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p class="context">기간 A보다 중앙값이 약 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높습니다":"낮습니다"}.</p>{/if}
-            {#if row.outsidePercent !== null}<p class="context">기간 B의 측정 중 {row.outsidePercent.toFixed(1)}%가 기간 A의 비교 범위 밖입니다.</p>{/if}
-          {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다"
-            message="한쪽 기간의 유효 측정이 부족해 대표값을 비교할 수 없습니다. 아래에서 기간별 측정 수와 품질을 확인하세요." />{/if}
-          {#if row.periods.a.quantiles && row.periods.b.quantiles}<p class="context">값의 퍼짐 · 가운데 50% 범위의 폭
-            {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""} (A → B)</p>{/if}
-          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={signalName(names, row.channel)} />
+          {#if message}
+            {#if message.conclusion}<p class="result-conclusion">{message.conclusion}</p>{/if}
+            <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
+            <div class="result-metrics">
+              {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p>A보다 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높음":"낮음"}</p>{/if}
+              {#if row.outsidePercent !== null}<p>B의 {row.outsidePercent.toFixed(1)}%가 A의 5~95% 범위 밖</p>{/if}
+              {#if row.periods.a.quantiles && row.periods.b.quantiles}<p>가운데 50% 폭 {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""}</p>{/if}
+            </div>
+          {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
+          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={names?.get(row.channel)?.label??row.channel} />
           {#if message}<AnalysisMessage {message} showHeadline={false}
             boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
           {/if}
@@ -371,12 +362,38 @@
         </section>
       </details>
     {/if}
+    </div><aside class="analysis-sidebar" aria-label="분석 조건과 다음 확인">
+
+    {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
+      <button type="button" class="ui-button" disabled={!!formError}
+        onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
+    <div class="period-summary" role="group" aria-label="현재 비교 기간">
+      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
+      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
+    </div>
+
+
+    {#if handedOver}
+      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
+    {#if beforeRecord > 0}
+      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
+    {/if}
+    {#if operation}{@const shown = operation}
+        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 견줘 보세요."
+          : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
+    {/if}
+    {@render conditions()}
+    </aside></div>
+
   {/if}
 </section>
 
 <style>
+  .result-conclusion{font-weight:650;margin:var(--space-2) 0}
+  .period-summary{font-size:var(--font-small)}.period-summary p{margin:0}.period-summary span{display:block}
   .compare { min-width: 0; }
-  .primary-insight { font-size:var(--font-section); font-weight:650; line-height:1.6; overflow-wrap:anywhere; }
+  .primary-insight { font-size:var(--font-result); font-weight:700; line-height:1.6; overflow-wrap:anywhere; }
   .period-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:var(--space-3); margin-block:var(--space-3); }
   .period-summary p { display:grid; gap:var(--space-1); margin:0; overflow-wrap:anywhere; }
   .period-summary span { color:var(--color-ink-muted); font-size:var(--font-small); }

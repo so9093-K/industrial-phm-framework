@@ -4,7 +4,7 @@ export const PAGES = ["monitor", "assets", "investigations", "maintenance", "sys
 export type Page = (typeof PAGES)[number];
 /** Primary PHM tasks; records and human review remain available through exact deep links. */
 export const PRIMARY_PAGES = ["monitor", "assets", "system"] as const;
-export const TABS = ["summary", "anomaly", "signals", "change", "outlook"] as const;
+export const TABS = ["summary", "signals", "change", "anomaly", "outlook"] as const;
 export type Tab = (typeof TABS)[number];
 export const METHODS = {anomaly: ["model", "baseline"], change: ["compare", "relation", "spectrum", "electrical"]} as const;
 export type Method = (typeof METHODS)[keyof typeof METHODS][number];

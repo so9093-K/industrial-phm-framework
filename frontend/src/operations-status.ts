@@ -148,7 +148,12 @@ export function publicSourceInfo(id:string):{name:string;partition:string|null;f
   return xjtu?{name:"XJTU-SY 공개 실측 데이터",partition:null,fingerprint:xjtu[1]??null}:null;
 }
 /** A brief data identity; source bookkeeping is shown in data details. */
-export function sourceSummary(id:string):string {return publicSourceInfo(id)?.name??id;}
+function csvSourceName(id:string,among:readonly string[]=[]):string|null {
+  if(!/^csv-.+-[0-9a-f]{4}$/.test(id))return null;
+  const versions=[...new Set(among.filter(value=>/^csv-.+-[0-9a-f]{4}$/.test(value)))].sort();
+  return "CSV 측정 기록"+(versions.length>1?" "+(versions.indexOf(id)+1):"");
+}
+export function sourceSummary(id:string,among:readonly string[]=[]):string {return publicSourceInfo(id)?.name??csvSourceName(id,among)??id;}
 /** Record selectors keep their original partition/version distinct, without implying model use. */
 export function readableSourceId(id: string, _among: readonly string[] = []): string {
   const source=publicSourceInfo(id);

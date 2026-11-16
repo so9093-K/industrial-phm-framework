@@ -11,6 +11,8 @@ export type NextStep = {label: string; href: string};
 export type AnalysisMessage = {
   /** What changed, in one or two sentences. */
   headline: string;
+  /** A short, scoped conclusion, separate from the supporting numbers. */
+  conclusion?: string;
   /** What the change means when the numbers alone would mislead, such as a formula link. */
   meaning: string | null;
   /** How plain the change is: amount of data, agreement between methods, chance. */
@@ -560,7 +562,16 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
         + (Math.sign(medianMove) !== Math.sign(meanMove) && Math.abs(meanMove) >= 0.1 * Math.abs(medianMove) ? "로 반대로 움직였습니다. " : "로 거의 같습니다. ")
         + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
   }
-  return {...base, meaning: notes.length ? notes.join(" ") : base.meaning};
+  const insideMiddle = a.median !== null && b.median !== null && facts.aMiddle !== null
+    && b.median >= facts.aMiddle.low && b.median <= facts.aMiddle.high;
+  const conclusion = a.usable >= 10 && b.usable >= 10 && insideMiddle
+    ? "두 기간의 대표값은 비슷합니다"
+    : a.median !== null && b.median !== null && b.median !== a.median
+      ? "기간 A보다 대표값이 " + (b.median>a.median?"높습니다":"낮습니다") : undefined;
+  const certainty = insideMiddle && !lowDiffers && (facts.outsidePercent ?? 100) < 50
+    ? "기간 B의 중앙값은 기간 A의 값이 주로 모인 가운데 50% 범위 안에 있습니다. 5~95% 비교 범위는 기간 A의 가운데 약 90%를 포함하므로, 범위 밖 비율을 그 기준과 함께 읽으세요."
+    : base.certainty;
+  return {...base, conclusion, certainty, meaning: notes.length ? notes.join(" ") : base.meaning};
 }
 
 

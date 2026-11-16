@@ -47,7 +47,7 @@
     <div class="finding-layout" class:no-trend={!interval?.trace?.length && !vibrationTrace?.trace.length}>
       <div class="insight">
         <p class="eyebrow">기록에서 찾은 주요 변화</p>
-        <h4>{found.label} · {found.kind === "level-change" ? "일정하던 값이 " : "비교 기준보다 "}{found.direction === "up" ? "상승" : "하락"}</h4>
+        <h4>{found.label} · {found.kind === "level-change" ? "일정하던 기준보다 " : "비교 기준보다 "}{found.direction === "up" ? "높음" : "낮음"}</h4>
         <strong class="values">{found.reference !== null && found.typical !== null ? changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit) : found.direction === "up" ? "높아진 구간 발견" : "낮아진 구간 발견"}</strong>
         {#if interval}<p class="period">{year(interval.start) === year(interval.end) ? year(interval.start) + " · " + findingText(interval, interval.bucketSeconds ?? null).when : observed(interval.start) + " ~ " + observed(interval.end)}</p>
         {:else if found.from !== null && found.to !== null}<p class="period">{measurementLabel(found.from, vibration?.periodSeconds ?? row.main?.periodSeconds)} ~ {measurementLabel(found.to, vibration?.periodSeconds ?? row.main?.periodSeconds)}</p>{/if}

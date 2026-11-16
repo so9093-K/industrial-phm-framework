@@ -14,6 +14,8 @@
   --color-ink: #172b39;
   --color-ink-muted: #476173;
   --color-border: #c8d8e0;
+  --color-control-border: #718591;
+  --font-result: clamp(1.5rem,2.4vw,2rem);
   --color-action: #075c75;
   --color-action-hover: #074657;
   --color-action-ink: #ffffff;

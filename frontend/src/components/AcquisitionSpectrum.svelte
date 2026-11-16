@@ -1,4 +1,5 @@
 <script lang="ts">
+  let viewportWidth=$state(1440);
   import SourceIdentity from "./SourceIdentity.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
@@ -159,9 +160,9 @@
   }
   onMount(()=>{void readSource();return()=>{sourceRequest?.abort();spectrumRequest?.abort();};});
 </script>
+<svelte:window bind:innerWidth={viewportWidth}/>
 <section class="ui-panel spectra" aria-labelledby="spectra-title">
   <h2 id="spectra-title">주파수 분석</h2>
-  <p class="context">진동 원본 파형을 주파수별 세기로 바꿔 두 기간 A·B를 비교합니다. 어느 주파수에서 세기가 크게 달라졌는지 봅니다.</p>
   {#if sourceState==="loading"}
     <StatusNotice message="진동 원본 파형 목록을 불러오고 있습니다."/>
   {:else if sourceState==="empty"||sourceState==="unavailable"}
@@ -171,20 +172,7 @@
     <StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
-    <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
-    <SpectrumWaterfall {assetId} {place} onUse={useMeasurement} />
-    <h3>두 기간 비교</h3>
-    {#if selectionNotice}<p class="context" role="status">{selectionNotice}</p>{/if}
-    <div class="periods">
-      {#each ["a","b"] as label(label)}
-        {@const name=label as "a"|"b"}
-        <AcquisitionRange name={name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period}
-          onChange={(edge, ordinal) => change(name, edge, String(ordinal))} />
-      {/each}
-    </div>
-    <button type="button" class="ui-button ui-button-primary" onclick={()=>void analyze()}>
-      주파수 비교하기
-    </button>
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="원본 파형의 주파수별 세기를 계산하고 있습니다."/>
     {:else if resultState==="failed"}
@@ -276,6 +264,25 @@
           · 적용 모델 연결 {acquisition.binding}</p>
       </details>
     {/if}
+    </div><aside class="analysis-sidebar" aria-label="주파수 비교 조건">
+
+    <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
+    <details class="conditions" open={viewportWidth>=1100 || resultState!=="ready"}><summary>비교할 측정 변경 · A {place(spans.a.from)} ~ {place(spans.a.to)} / B {place(spans.b.from)} ~ {place(spans.b.to)}</summary>
+    <div class="periods">
+      {#each ["a","b"] as label(label)}
+        {@const name=label as "a"|"b"}
+        <AcquisitionRange name={name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period}
+          onChange={(edge, ordinal) => change(name, edge, String(ordinal))} />
+      {/each}
+    </div>
+    <button type="button" class="ui-button ui-button-primary" onclick={()=>void analyze()}>
+      주파수 비교하기
+    </button></details>
+    {#if selectionNotice}<p class="context" role="status">{selectionNotice}</p>{/if}
+
+    </aside></div>
+    <SpectrumWaterfall {assetId} {place} onUse={useMeasurement} />
+
   {/if}
 </section>
 <style>
