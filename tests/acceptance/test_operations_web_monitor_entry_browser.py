@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -225,13 +224,21 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
                     page.wait_for_timeout(50)
                 assert held
                 mode["hold"] = False
+                one.evaluate("""row => {
+                    window.overviewValues=[];
+                    new MutationObserver(() => {
+                        const value=row.querySelector('.latest')?.textContent;
+                        if(value)window.overviewValues.push(value);
+                    }).observe(row,{subtree:true,childList:true,characterData:true});
+                }""")
+                held_reads = reads["pump-1"]
                 append("pump-1", "original", 190, 200, 80)
-                pw.expect(one.locator(".latest")).to_have_text("80 °C", timeout=20000)
+                pw.expect(one.get_by_role("cell").nth(0)).to_contain_text("12:19:00", timeout=15000)
+                assert reads["pump-1"] == held_reads  # Coalesce while the old read finishes.
                 for route, older in held:
-                    # The newer revision has already cancelled this request.
-                    with suppress(pw.Error):
-                        route.fulfill(json=older)
-                pw.expect(one.locator(".latest")).to_have_text("80 °C")
+                    route.fulfill(json=older)
+                pw.expect(one.locator(".latest")).to_have_text("80 °C", timeout=20000)
+                assert "70 °C" not in page.evaluate("window.overviewValues")
                 assert reads["pump-2"] == initial_two_reads
                 before_backfill = reads["pump-1"]
                 # A new source adds older measurements; last_observed_at stays unchanged.

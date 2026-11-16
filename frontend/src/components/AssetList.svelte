@@ -54,7 +54,10 @@
   let active = 0;
   function drain() {
     while (active < 2 && queue.size && !request.signal.aborted) {
-      const id = queue.values().next().value!;
+      // A running calculation finishes before this asset's newest revision is read.
+      // Coalesce intermediate receipts, so aborting HTTP cannot pile up server work.
+      const id = [...queue].find(candidate => !inFlight.has(candidate));
+      if (id === undefined) break;
       queue.delete(id);
       const revision = wanted.get(id);
       if (revision === undefined) continue;
@@ -69,7 +72,7 @@
               if (!pending.signal.aborted && wanted.get(id) === revision) rows[id] = value;
               break;
             } catch {
-              if (pending.signal.aborted) return;
+              if (pending.signal.aborted || wanted.get(id) !== revision) return;
               if (attempt) {
                 if (wanted.get(id) === revision) rows[id] = "failed";
               } else await new Promise(done => setTimeout(done, 2000));
@@ -99,7 +102,6 @@
       }
       for (const [id, revision] of current) if (wanted.get(id) !== revision) {
         wanted.set(id, revision);
-        inFlight.get(id)?.abort();
         rows[id] = "loading";
         queue.add(id);
       }
