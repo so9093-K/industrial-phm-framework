@@ -1,16 +1,22 @@
 <script lang="ts">
   let {slots,start,end,active,label,onChange,onClear}:{slots:number;start:number;end:number;active:boolean;
     label:(slot:number)=>string;onChange:(edge:"start"|"end",slot:number)=>void;onClear:()=>void}=$props();
-  const move=(edge:"start"|"end",value:number)=>onChange(edge,edge==="start"?Math.min(value,end):Math.max(value-1,start));
+  function move(edge:"start"|"end",input:HTMLInputElement){
+    const value=Number(input.value);
+    const slot=edge==="start"?Math.min(value,end):Math.max(value-1,start);
+    // Repeated Home/End can change the native input without changing the selected slot.
+    input.value=String(edge==="start"?slot:slot+1);
+    onChange(edge,slot);
+  }
 </script>
 <fieldset class="time-range" aria-label="시점·구간 고르기">
   <legend>구간 선택 <small>{active?"Esc로 선택 해제":"양끝 손잡이를 옮겨 구간을 고르세요"}</small></legend>
   <div class="handles" style={"--left:"+start/slots*100+"%;--right:"+(end+1)/slots*100+"%"}>
     <div class="rail"></div>{#if active}<div class="selected"></div>{/if}
     <input type="range" min="0" max={slots} value={start} aria-label="시작" aria-valuetext={label(start)}
-      oninput={event=>move("start",Number(event.currentTarget.value))} onkeydown={event=>{if(event.key==="Escape")onClear();}}/>
+      oninput={event=>move("start",event.currentTarget)} onkeydown={event=>{if(event.key==="Escape")onClear();}}/>
     <input type="range" min="0" max={slots} value={end+1} aria-label="끝" aria-valuetext={label(end+1)}
-      oninput={event=>move("end",Number(event.currentTarget.value))} onkeydown={event=>{if(event.key==="Escape")onClear();}}/>
+      oninput={event=>move("end",event.currentTarget)} onkeydown={event=>{if(event.key==="Escape")onClear();}}/>
   </div>
   <div class="dates"><span>시작 · {label(start)}</span><span>끝 · {label(end+1)}</span></div>
 </fieldset>

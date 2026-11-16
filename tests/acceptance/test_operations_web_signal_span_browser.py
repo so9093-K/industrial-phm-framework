@@ -63,6 +63,16 @@ def test_a_span_is_picked_with_keys_and_handed_to_the_comparison(
                 # Escape lets go of the pick from the keyboard as well.
                 page.keyboard.press("Escape")
                 pw.expect(card).to_have_count(0)
+                # Repeated boundary keys cannot visually cross the other handle while the
+                # selected span stays clamped to one bucket.
+                for _ in range(2):
+                    sliders.nth(0).press("End")
+                pw.expect(sliders.nth(0)).to_have_value(str(int(sliders.nth(1).input_value()) - 1))
+                for _ in range(2):
+                    sliders.nth(1).press("Home")
+                pw.expect(sliders.nth(1)).to_have_value(str(int(sliders.nth(0).input_value()) + 1))
+                page.keyboard.press("Escape")
+                pw.expect(card).to_have_count(0)
                 assert not errors
             finally:
                 browser.close()
