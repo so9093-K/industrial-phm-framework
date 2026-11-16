@@ -4,7 +4,9 @@
   import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
-  import {short} from "../analysis-messages";
+  import {short, type AnalysisMessage as AnalysisMessageText} from "../analysis-messages";
+  import {yTicks} from "../chart-axis";
+  import ValueAxis from "./ValueAxis.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {elapsedText} from "../time-axis";
   import { onMount } from "svelte";
@@ -141,6 +143,25 @@
    * signal zoomed around it with the interval already picked. Too long a span offers neither. */
   // The range a departure is judged by, in the signal's own values, named by the chosen baseline.
   const BASELINE_TEXT: Record<string, string> = {"first-30": "기록 처음 30%", "first-50": "기록 처음 50%", all: "기록 전체"};
+  /** 본문 맨 위의 결론과 그 아래 해설 카드가 같은 문장을 쓰도록 한 곳에서 만든다. */
+  function told(found: Departures): AnalysisMessageText {
+    const first = found.intervals[0];
+    const unit = found.unit ?? channels?.names.get(found.selectedChannel)?.unit ?? null;
+    const links = first ? intervalLinks(found, first.start, first.end) : null;
+    return {
+      headline: found.scored.state === "level-change" ? "일정하던 측정값이 달라진 구간이 " + found.intervalCount + "개 있습니다."
+        : found.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + found.intervalCount + "개 있습니다."
+        : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
+      meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
+        + elapsedText(found.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
+        + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
+      certainty: "선택한 신호의 구간별 평균을 화면에 표시한 기준 기간과 비교했습니다.",
+      next: links ? [
+        ...(links.signal ? [{label: "가장 크게 벗어난 구간의 신호 보기", href: links.signal}] : []),
+        ...(links.compare ? [{label: "이 구간을 기준 기간과 비교", href: links.compare}] : []),
+      ] : [],
+    };
+  }
   function usualRange(found: Departures, unit: string | null): string {
     const {median, spread} = found.scored;
     const name = (BASELINE_TEXT[found.baseline.name] ?? "기준 구간") + "의 비교 범위";
@@ -174,7 +195,6 @@
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
   <h2 class="visually-hidden" id="departures-title">기록 변화 찾기</h2>
-  <p class="context">이 기록에서 어느 구간의 값이 달라졌나요? 선택한 기록 자체의 값을 기준으로 비교합니다. 학습 모델은 사용하지 않습니다.</p>
   {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 변화 탐색은 선택한 기록 전체를 비교 기준 기간과 견줍니다.</p>{/if}
 
   {#if channelState === "loading"}
@@ -211,7 +231,8 @@
         <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
           message="기준 기간과 이후 기록에서 같은 값이 유지됩니다." />
       {:else}
-        <p class="result-conclusion">{result.intervalCount?"기준보다 다른 구간 "+result.intervalCount+"개":"고른 기준을 넘는 차이를 찾지 못했습니다"}</p>
+        <p class="result-statement">{told(result).headline}</p>
+        <p class="result-note">{told(result).meaning}</p>
         {#if chart}
           {#if chart.firstExceedance}
             <div class="onset" aria-label="첫 기준 초과 확인">
@@ -220,10 +241,12 @@
               <button type="button" class="ui-button" onclick={showFirstExceedance}>시간별 값 보기 →</button>
             </div>
           {/if}
-          <p class="axis-note">세로축: 기준 변동 폭의 몇 배인지 · 최고 {num(Number(chart.peak.toFixed(1)))}배
-            <span class="dash">· 점선: 크게 벗어났다고 보는 기준 {result.threshold}배</span></p>
+          <p class="axis-note">세로축 · 기준 구간의 흔들림에 견줘 몇 배 벗어났는지 (최고 {num(Number(chart.peak.toFixed(1)))}배)
+            <span class="dash">· 점선 {result.threshold}배를 넘으면 크게 벗어난 구간으로 봅니다</span></p>
+          <ValueAxis ticks={yTicks(0, chart.max, 8, 192, 4)} height={chart.height} unit="배">
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"
             aria-label={"시간 순서대로 기준에서 벗어난 정도. " + date(chart.first) + "부터 " + date(chart.last) + "까지. 기록이 없는 구간은 잇지 않습니다. 정확한 값은 아래 표에 있습니다."}>
+            {#each yTicks(0, chart.max, 8, 192, 4) as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
             <rect x={chart.baseline.x} y="0" width={chart.baseline.width} height={chart.height} class="baseline" />
             {#each chart.intervals as band, i (i)}
               <rect x={band.x} y="0" width={band.width} height={chart.height} class="found" />
@@ -238,7 +261,8 @@
             {/if}
             <path d={"M0 0 V" + chart.height + " H" + chart.width} class="axis" />
           </svg>
-          <XAxis lo={Date.parse(chart.first)} hi={Math.max(Date.parse(chart.last), Date.parse(chart.first) + 1)} scale={{kind: "clock"}} />
+          {#snippet footer()}<XAxis lo={Date.parse(chart.first)} hi={Math.max(Date.parse(chart.last), Date.parse(chart.first) + 1)} scale={{kind: "clock"}} />{/snippet}
+          </ValueAxis>
           <p class="legend"><span class="key baseline"></span>기준 구간
             {#if chart.intervals.length}<span class="key found"></span>크게 벗어난 구간{/if}</p>
           {#if chart.firstExceedance}<p class="context">세로 점선은 표시된 집계 구간에서 처음 기준 초과를 확인한 시각입니다.</p>{/if}
@@ -258,6 +282,10 @@
           </details>
         {/if}
       {/if}
+      <AnalysisMessage showHeadline={false}
+        subject={signalName(channels?.names, result.selectedChannel)}
+        basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, result.unit??channels.names.get(result.selectedChannel)?.unit??null)}
+        message={{...told(result), meaning: ""}} />
       <details><summary>발견한 구간 {result.intervalCount}개 자세히 보기</summary>
         {#if result.intervalCount === 0}
           <p class="context">고른 기록과 기준 구간에서는 기준을 넘는 차이를 찾지 못했습니다.</p>
@@ -289,6 +317,7 @@
           <a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>신호 탭에서 출처와 품질 확인 →</a></p>
       </details>
     {/if}    </div><aside class="analysis-sidebar" aria-label="기록 변화 비교 조건">
+    <p class="purpose">이 기록에서 어느 구간의 값이 달라졌는지 찾습니다. 선택한 기록 자체의 값을 기준으로 비교하며, 학습 모델은 사용하지 않습니다.</p>
 
     <div class="controls">
       <label for="departure-channel">신호
@@ -318,26 +347,6 @@
     {#if channels.truncated}
       <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
     {/if}
-    {#if result}
-      {@const first=result.intervals[0]}
-      {@const unit=result.unit??channels.names.get(result.selectedChannel)?.unit??null}
-      {@const links=first?intervalLinks(result,first.start,first.end):null}
-        <AnalysisMessage
-          subject={signalName(channels?.names, result.selectedChannel)}
-          basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, unit)}
-          message={{
-            headline: result.scored.state === "level-change" ? "일정하던 측정값이 달라진 구간이 " + result.intervalCount + "개 있습니다." : result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
-              : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
-            meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
-              + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
-              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
-            certainty: "선택한 신호의 구간별 평균을 화면에 표시한 기준 기간과 비교했습니다.",
-            next: links ? [
-              ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
-              ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),
-            ] : [],
-          }} />
-    {/if}
     </aside></div>
 
   {/if}
@@ -358,6 +367,7 @@
   svg { width: 100%; height: 200px; display: block; margin-top: var(--space-2); }
   svg path, svg line { vector-effect: non-scaling-stroke; }
   .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
+  .grid { stroke: var(--color-border); stroke-width: 1; opacity: .7; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .threshold { stroke: var(--color-failure-ink); stroke-dasharray: 5 4; }
   .baseline { fill: var(--color-border); opacity: 0.45; }

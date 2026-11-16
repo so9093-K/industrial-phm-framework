@@ -262,7 +262,7 @@
                     <FeatureScatter bounds={axes} points={group.points.map(p=>({x:p.x,y:p.y,label:asTime(p.at)}))}
                       xLabel={axisName(x,group.xUnit)} yLabel={axisName(y,group.yUnit)}
                       description={"기간 "+n.toUpperCase()+" · 같은 시각 측정 짝 "+group.points.length+"개 산점도."}
-                      caption={"한 점은 같은 시각에 함께 기록된 두 측정값입니다. 두 기간은 같은 축 범위로 그립니다. 점을 누르면 그 시각을 봅니다."}
+                      caption={null} band={moved?{low:moved.shown.low,high:moved.shown.high}:null}
                       picked={chosen?.key===pair.key&&chosen.period===n?chosen.index:null}
                       onPick={(index)=>chosen={key:pair.key,period:n,index}}/>
                   {/if}
@@ -278,6 +278,7 @@
               </div>
             {/each}
           </div>
+          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved} 음영은 두 기간을 견준 {signalName(names,x)} 범위입니다.{/if} 점을 누르면 그 시각을 봅니다.</p>
           {#if explained}<AnalysisMessage message={explained} showHeadline={false}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {/if}
@@ -365,6 +366,7 @@
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
   .headline{font-size:var(--font-section);font-weight:700;margin:0}
   .sides{display:grid;gap:var(--space-4) var(--space-6);grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .plot-note{font-size:var(--font-small);margin:0 0 var(--space-3)}
   .side{min-width:0}.side h4{margin:0 0 var(--space-2)}
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}

@@ -17,7 +17,7 @@
 
   {#if outsideRecentRange(fit)}<p class="caution">최근 표시 구간의 평균값 범위는 {amount(fit.recentLow!)}~{amount(fit.recentHigh!)}이며, 모델 시작값은 이 범위 밖에 있습니다.</p>{/if}
   {#if worseThanPersistence(check)}
-    <p class="caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> 같은 과거 구간에서 모델 평균 오차 {measure(check!.error,unit)}, 마지막 값이 계속된다고 가정한 예측의 오차 {measure(check!.naive,unit)}로 모델의 오차가 더 컸습니다.</p>
+    <p class="caution" role="status">같은 과거 구간에서 모델 평균 오차 {measure(check!.error,unit)}, 마지막 값이 계속된다고 가정한 예측의 오차 {measure(check!.naive,unit)}로 모델의 오차가 더 컸습니다.</p>
   {:else if !check}<p class="caution">과거 검증 결과가 없어 이번 예측의 정확도를 확인하지 못했습니다.</p>{/if}
   {#if fit.bucketSeconds}<p>입력값은 약 {elapsedText(fit.bucketSeconds)} 단위의 평균입니다.{fit.points!==null?" 학습에 사용한 평균값 "+fit.points+"개.":""}</p>{/if}
   {#if axis==="acquisition" && requestedCount!==null && check}

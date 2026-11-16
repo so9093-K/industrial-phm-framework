@@ -144,8 +144,7 @@
 </script>
 
 <section class="ui-panel acquisition" aria-labelledby="feature-title">
-  <h2 id="feature-title">진동 특징 두 기간 비교</h2>
-  <p class="context">진동 측정에서 뽑은 특징값(예: RMS)을 두 구간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
+  <h2 class="visually-hidden" id="feature-title">진동 특징 두 기간 비교</h2>
 
   {#if listState==="loading"}
     <StatusNotice message="진동 특징과 저장된 측정을 불러오고 있습니다." />
@@ -157,6 +156,64 @@
       message={message||"이 설비에는 분석된 진동 측정이 없습니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
+    <div class="analysis-workspace"><div class="analysis-body">
+    {#if profileState==="loading"}
+      <StatusNotice message="두 기간의 진동 특징을 불러오고 있습니다." />
+    {:else if profileState==="failed"}
+      <StatusNotice kind="failure" title="진동 특징 비교를 불러오지 못했습니다" message={message}
+        actionLabel="같은 조건으로 다시 불러오기" onAction={()=>void compare()} />
+    {:else if profileState==="unavailable"}
+      <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
+    {:else if profile}
+      <section class="evidence">
+        <h3>{profile.label}</h3>
+        <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
+          · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
+        {#if told}<p class="result-statement">{told.headline}</p>{/if}
+        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} onLoad={read=>record=read}/>
+        {#if told}<AnalysisMessage message={told} showHeadline={false}/>{/if}
+        <h3>두 기간의 분포 비교</h3>
+        {#if profile.medianChange===null}
+          <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
+        {:else}
+          <p class="headline">중앙값 변화(B − A) <strong>{num(profile.medianChange)}</strong>
+            {#if profile.outsidePercent!==null}
+              <span> · B의 값 중 A의 비교 범위(5~95%) 밖 {profile.outsidePercent.toFixed(1)}%</span>
+            {/if}
+          </p>
+        {/if}
+        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} histogram={profile.histogram??null} unit={profile.unit??null} label={profile.label} />
+        <details><summary>기간별 측정 수와 통계</summary><div class="table-scroll"><table>
+          <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
+          <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">받은 측정</th><td>{profile.a.delivered}</td><td>{profile.b.delivered}</td></tr>
+            <tr><th scope="row">분석한 측정</th><td>{profile.a.analyzed}</td><td>{profile.b.analyzed}</td></tr>
+            <tr><th scope="row">쓸 수 있는 특징값</th><td>{profile.a.usable}</td><td>{profile.b.usable}</td></tr>
+            <tr><th scope="row">분석하지 않은 측정</th><td>{profile.a.unanalyzed}</td><td>{profile.b.unanalyzed}</td></tr>
+            <tr><th scope="row">중간에 빠진 측정</th><td>{profile.a.missingAcquisitions}</td><td>{profile.b.missingAcquisitions}</td></tr>
+            <tr><th scope="row">특징 중앙값</th><td>{label(profile.a.median)}</td><td>{label(profile.b.median)}</td></tr>
+            <tr><th scope="row">특징 평균</th><td>{label(profile.a.mean)}</td><td>{label(profile.b.mean)}</td></tr>
+            <tr><th scope="row">특징 집계</th>
+              <td>{profile.a.sampled?"일부만 사용":"전체 사용"}</td>
+              <td>{profile.b.sampled?"일부만 사용":"전체 사용"}</td>
+            </tr>
+          </tbody>
+        </table></div></details>
+        {#if profile.a.sampled||profile.b.sampled}
+          <StatusNotice kind="uncertain" message="측정이 많아 특징 통계는 일부 측정만 골라 계산했습니다. 측정 건수는 전체 기준입니다." />
+        {/if}
+        <details>
+          <summary>기술 상세</summary>
+          <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}
+            · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
+        </details>
+      </section>
+    {:else}
+      <p class="context">두 기간을 고르고 비교하기를 누르면 결과를 표시합니다.</p>
+    {/if}
+    </div><aside class="analysis-sidebar" aria-label="비교할 특징과 기간">
+    <p class="purpose">진동 측정에서 뽑은 특징값(예: RMS)을 두 기간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
     <label for="acquisition-feature">진동 특징
@@ -176,68 +233,16 @@
     <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
       비교하기
     </button>
-
-    {#if profileState==="loading"}
-      <StatusNotice message="두 기간의 진동 특징을 불러오고 있습니다." />
-    {:else if profileState==="failed"}
-      <StatusNotice kind="failure" title="진동 특징 비교를 불러오지 못했습니다" message={message}
-        actionLabel="같은 조건으로 다시 불러오기" onAction={()=>void compare()} />
-    {:else if profileState==="unavailable"}
-      <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
-    {:else if profile}
-      <section class="evidence">
-        <h3>{profile.label}</h3>
-        <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
-          · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
-        {#if told}<AnalysisMessage message={told}/>{/if}
-        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} onLoad={read=>record=read}/>
-        <h3>두 기간의 분포 비교</h3>
-        {#if profile.medianChange===null}
-          <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
-        {:else}
-          <p class="headline">중앙값 변화(B − A) <strong>{num(profile.medianChange)}</strong>
-            {#if profile.outsidePercent!==null}
-              <span> · B의 값 중 A의 비교 범위(5~95%) 밖 {profile.outsidePercent.toFixed(1)}%</span>
-            {/if}
-          </p>
-        {/if}
-        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} histogram={profile.histogram??null} unit={profile.unit??null} label={profile.label} />
-        <div class="table-scroll"><table>
-          <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
-          <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">받은 측정</th><td>{profile.a.delivered}</td><td>{profile.b.delivered}</td></tr>
-            <tr><th scope="row">분석한 측정</th><td>{profile.a.analyzed}</td><td>{profile.b.analyzed}</td></tr>
-            <tr><th scope="row">쓸 수 있는 특징값</th><td>{profile.a.usable}</td><td>{profile.b.usable}</td></tr>
-            <tr><th scope="row">분석하지 않은 측정</th><td>{profile.a.unanalyzed}</td><td>{profile.b.unanalyzed}</td></tr>
-            <tr><th scope="row">중간에 빠진 측정</th><td>{profile.a.missingAcquisitions}</td><td>{profile.b.missingAcquisitions}</td></tr>
-            <tr><th scope="row">특징 중앙값</th><td>{label(profile.a.median)}</td><td>{label(profile.b.median)}</td></tr>
-            <tr><th scope="row">특징 평균</th><td>{label(profile.a.mean)}</td><td>{label(profile.b.mean)}</td></tr>
-            <tr><th scope="row">특징 집계</th>
-              <td>{profile.a.sampled?"일부만 사용":"전체 사용"}</td>
-              <td>{profile.b.sampled?"일부만 사용":"전체 사용"}</td>
-            </tr>
-          </tbody>
-        </table></div>
-        {#if profile.a.sampled||profile.b.sampled}
-          <StatusNotice kind="uncertain" message="측정이 많아 특징 통계는 일부 측정만 골라 계산했습니다. 측정 건수는 전체 기준입니다." />
-        {/if}
-        <details>
-          <summary>기술 상세</summary>
-          <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}
-            · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
-        </details>
-      </section>
-    {/if}
+    </aside></div>
   {/if}
 </section>
 <style>
   .acquisition{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
-  .ranges{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-4)}
+  .ranges{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}
   label{display:grid;gap:var(--space-2);font-weight:650}
   select{min-width:0;width:100%;border:1px solid var(--color-border);border-radius:var(--radius-control);
     background:var(--color-surface);color:var(--color-ink);padding:var(--space-3)}
-  .evidence{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
+  .evidence{min-width:0}.evidence>h3:first-child{margin-top:0}
   h3{overflow-wrap:anywhere}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
   .headline{font-size:var(--font-section)}.headline span{font-size:var(--font-small);color:var(--color-ink-muted)}

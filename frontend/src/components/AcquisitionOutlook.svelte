@@ -132,8 +132,7 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-outlook-title">
-  <h2 id="acq-outlook-title">추세·기준 도달 전망</h2>
-  <p class="context">이 진동 특징의 추세가 앞으로도 이어질까요? 선택한 특징값의 추세를 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인할 수 있습니다.</p>
+  <h2 class="visually-hidden" id="acq-outlook-title">추세·기준 도달 전망</h2>
   {#if listState==="loading"}
     <StatusNotice message="전망할 수 있는 진동 특징을 불러오고 있습니다."/>
   {:else if listState==="failed"}
@@ -144,55 +143,7 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <SourceIdentity id={options.sourceId}/><p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회
-      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
-    <div class="inputs">
-      <label>진동 특징
-        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
-          {#each options.features as item (item.id)}
-            <option value={item.id} disabled={!item.countForecast}>
-              {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
-            </option>
-          {/each}
-        </select>
-      </label>
-
-      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
-      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
-      {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
-        <input type="number" min="1" max="2000" step="1" value={countText}
-          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
-      </label>{/if}
-      <button type="button" class="ui-button ui-button-primary"
-        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
-    </div>
-    <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
-      <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
-        <input type="number" min="1" max="86400" step="any" value={assumedText}
-          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
-          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
-      </label></details>
-    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="inputs">      <label>기준 방향
-        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label>관리 기준 (선택)
-        <input type="number" step="any" value={managementText}
-          oninput={e=>{managementText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label>종료 기준 (선택)
-        <input type="number" step="any" value={endText}
-          oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
-    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
-
-    <p class="context">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="전망을 계산하고 있습니다."/>
     {:else if resultState==="failed"}
@@ -210,6 +161,7 @@
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const chart=acquisitionChart(outlook,includeLimits)}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
+      {@const worse=worseThanPersistence(outlook.checks?.[0])}
       {@const told=outlookMessage({axis:"acquisition",period,unit:outlook.unit,conditions:outlook.conditions,
         scenarios:outlook.scenarios,checks:outlook.reachChecks??[]},
         [{label:"다음 측정이 기준에 다가가는지 특징 추이에서 보기",href:featureTrendHref(outlook.assetId,outlook.featureId)}]) ?? forecastMessage({last:outlook.history.at(-1)?.value??null,start:outlook.forecast[0].estimate,end:outlook.forecast.at(-1)!,unit:outlook.unit,
@@ -219,10 +171,10 @@
           <h3 id="acq-result-title">기록 마지막 측정 기준 전망</h3>
           <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
         </div>
-        {#if worseThanPersistence(outlook.checks?.[0])}
-          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong></p>
+        {#if worse}
+          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told}<p class="outlook-summary">{told.headline}</p>{/if}
+        {#if told && (limited || !worse)}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if limited}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
@@ -339,13 +291,65 @@
           </dl>
         </details>
       </section>
+    {:else}
+      <p class="context">진동 특징과 예측 범위를 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
+    </div><aside class="analysis-sidebar" aria-label="전망 조건">
+    <p class="purpose">선택한 진동 특징의 추세가 앞으로 어떻게 이어질지 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인합니다.</p>
+    <SourceIdentity id={options.sourceId}/><p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회
+      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
+    <div class="inputs">
+      <label>진동 특징
+        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
+          {#each options.features as item (item.id)}
+            <option value={item.id} disabled={!item.countForecast}>
+              {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
+            </option>
+          {/each}
+        </select>
+      </label>
+
+      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
+      {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
+        <input type="number" min="1" max="2000" step="1" value={countText}
+          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
+      </label>{/if}
+      <button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
+    </div>
+    <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
+      <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
+        <input type="number" min="1" max="86400" step="any" value={assumedText}
+          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
+          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
+      </label></details>
+    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="inputs">      <label>기준 방향
+        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label>관리 기준 (선택)
+        <input type="number" step="any" value={managementText}
+          oninput={e=>{managementText=e.currentTarget.value;invalidate();}}/>
+      </label>
+      <label>종료 기준 (선택)
+        <input type="number" step="any" value={endText}
+          oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
+      </label>
+      </div>
+    </details>
+    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
+    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
+    </aside></div>
   {/if}
 </section>
 <style>
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
-  .outlook-summary{font-weight:650;line-height:1.6;overflow-wrap:anywhere}
   .inputs>button{align-self:end;min-height:44px}
   .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
   .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
@@ -358,7 +362,7 @@
   label{display:grid;gap:var(--space-2);font-weight:650;font-size:var(--font-small)}
   select,input{width:100%;min-width:0;padding:var(--space-3);border:1px solid var(--color-border);
     border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink)}
-  .result{border-top:1px solid var(--color-border);margin-top:var(--space-6);padding-top:var(--space-4)}
+  .result{min-width:0}
   .result-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--space-2);align-items:baseline}
   .result-head h3{margin:0}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-top:var(--space-4)}
