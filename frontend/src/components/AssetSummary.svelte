@@ -208,14 +208,17 @@
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></details>
     {:else if findings && findings.judged}
       <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
+        <div class="analysis-workspace"><div class="analysis-body">
         <p class="context">{findings.operation.length?"같은 운전 수준의 측정끼리 비교해":"기록 초반과 비교해"} 뚜렷하게 다른 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
+        {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={220}/>{#if findings.operation.length}<p class="context small">추세에는 서로 다른 운전 상태의 기록도 함께 표시합니다.</p>{/if}{/if}
+        </div><aside class="analysis-sidebar" aria-label="기록의 값과 다음 조사">
         {#if quietSignal}<p><strong>{quietSignal.label}</strong></p>{#if quietSignal.context}<SourceIdentity id={quietSignal.context.sourceId} pointId={quietSignal.context.pointId} interpretationId={quietSignal.context.interpretationId}/>{/if}
           {#if quietSignal.latest}<p>마지막 구간 평균 <strong>{changeValue(quietSignal.latest.value,quietSignal.unit)}</strong> · {observed(quietSignal.latest.at)}</p>{/if}
           {#if quietSignal.range}<p>구간별 평균의 범위 {changeValue(quietSignal.range.low,null)} ~ {changeValue(quietSignal.range.high,quietSignal.unit)}</p>{/if}
         {/if}
-        {#if quietMain}<OverviewTrace main={quietMain} height={220}/>{/if}
         <a class="ui-button ui-button-primary" href={signalHref(quietSignal)}>원본 신호 추세 보기 →</a>
         <details><summary>기준 구간과 다른 신호 확인</summary><a href={assetTabUrl(asset.assetId,"anomaly","baseline")}>기록 변화 찾기 →</a></details>
+        </aside></div>
       </section>
     {:else if cumulative.length}
       {@render cumulativeRecords()}

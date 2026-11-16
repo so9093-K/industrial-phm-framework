@@ -266,7 +266,7 @@
 {/snippet}
 
 <section class="ui-panel compare" aria-labelledby="comparison-title">
-  <h2 id="comparison-title">두 기간 비교</h2>
+  <h2 class="visually-hidden" id="comparison-title">두 기간 비교</h2>
   {#if sourceState === "loading"}
     <StatusNotice message="비교할 수 있는 신호를 불러오고 있습니다." />
   {:else if sourceState === "failed"}

@@ -173,7 +173,7 @@
 </script>
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
-  <h2 id="departures-title">기록 변화 찾기</h2>
+  <h2 class="visually-hidden" id="departures-title">기록 변화 찾기</h2>
   <p class="context">이 기록에서 어느 구간의 값이 달라졌나요? 선택한 기록 자체의 값을 기준으로 비교합니다. 학습 모델은 사용하지 않습니다.</p>
   {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 변화 탐색은 선택한 기록 전체를 비교 기준 기간과 견줍니다.</p>{/if}
 

@@ -32,5 +32,5 @@
 {/if}
 <style>
   .interval{fill:var(--color-caution-ink);fill-opacity:.16}
-  figure{max-width:800px;min-width:0;margin:var(--space-4) 0}svg{width:100%;display:block}path{fill:none;stroke:var(--color-action);stroke-width:2;vector-effect:non-scaling-stroke}circle{fill:var(--color-action)}.grid{stroke:var(--color-border);stroke-width:1;vector-effect:non-scaling-stroke}figcaption{font-size:var(--font-small);color:var(--color-ink-muted);margin-top:var(--space-2)}
+  figure{max-width:100%;min-width:0;margin:var(--space-4) 0}svg{width:100%;display:block}path{fill:none;stroke:var(--color-action);stroke-width:2;vector-effect:non-scaling-stroke}circle{fill:var(--color-action)}.grid{stroke:var(--color-border);stroke-width:1;vector-effect:non-scaling-stroke}figcaption{font-size:var(--font-small);color:var(--color-ink-muted);margin-top:var(--space-2)}
 </style>

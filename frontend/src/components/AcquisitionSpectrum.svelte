@@ -162,7 +162,7 @@
 </script>
 <svelte:window bind:innerWidth={viewportWidth}/>
 <section class="ui-panel spectra" aria-labelledby="spectra-title">
-  <h2 id="spectra-title">주파수 분석</h2>
+  <h2 class="visually-hidden" id="spectra-title">주파수 분석</h2>
   {#if sourceState==="loading"}
     <StatusNotice message="진동 원본 파형 목록을 불러오고 있습니다."/>
   {:else if sourceState==="empty"||sourceState==="unavailable"}
@@ -187,7 +187,6 @@
     {:else if result}
       {#if message}<AnalysisMessage {message}/>{/if}
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
-      <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         {@const displayed=view(channel,result.frequencies)}
@@ -266,6 +265,7 @@
     {/if}
     </div><aside class="analysis-sidebar" aria-label="주파수 비교 조건">
 
+    <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
     <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
     <details class="conditions" open={viewportWidth>=1100 || resultState!=="ready"}><summary>비교할 측정 변경 · A {place(spans.a.from)} ~ {place(spans.a.to)} / B {place(spans.b.from)} ~ {place(spans.b.to)}</summary>
     <div class="periods">
@@ -289,7 +289,7 @@
   .spectra{min-width:0}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
-  .series{margin-top:var(--space-6);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
+  .series{margin-top:var(--space-3);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
   .changed-band{fill:var(--color-caution-ink);opacity:.12}
   .band-button{font:inherit;color:var(--color-action);border:0;background:none;text-decoration:underline;cursor:pointer;padding:var(--space-2)}
   svg{display:block;width:100%;height:180px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}

@@ -399,7 +399,7 @@
 {/snippet}
 
 <section class="explorer ui-panel" aria-labelledby="explorer-title">
-  <h2 id="explorer-title">측정 신호</h2>
+  <h2 class="visually-hidden" id="explorer-title">측정 신호</h2>
   {#if channelState === "loading"}
     <StatusNotice message="저장된 신호 목록을 불러오고 있습니다." />
   {:else if channelState === "failed"}

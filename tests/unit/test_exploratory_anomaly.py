@@ -82,7 +82,7 @@ def test_record_changes_find_late_signals_and_keep_sustained_changes_ahead_of_sp
     assert found["intervals"][0]["channel"] == "signal-34"
     assert found["intervals"][0]["reason"] == "sustained"
     assert all(item["channel"] != "signal-00" for item in found["intervals"])
-    assert find_departures({"signal-00":signals["signal-00"]})["intervals"]
+    assert find_departures({"signal-00": signals["signal-00"]})["intervals"]
     assert len(found["intervals"]) <= 3
     # Similar signals in one event do not consume all three cards.
     signals["signal-33"] = signals["signal-34"]

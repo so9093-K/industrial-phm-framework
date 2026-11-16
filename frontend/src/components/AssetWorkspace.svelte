@@ -161,6 +161,7 @@
   {#if unfinished}<p class="import-note" role="status">{unfinished.text}
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
+  <div class="analysis-navigation">
   <nav class="tabs" aria-label="설비 화면" bind:this={tabBar} bind:clientWidth={tabWidth}>
     {#each TABS as tab (tab)}
       <a href={at(tab)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
@@ -192,6 +193,8 @@
       {/if}
     </div>
   {/if}
+
+  </div>
 
   {#if dataState === "failed"}
     <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
@@ -264,6 +267,8 @@
 </div>
 
 <style>
+  .analysis-navigation{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-5)}.analysis-navigation .tabs{flex:1;min-width:0}.analysis-navigation .choices{margin:0}
+  @media(max-width:860px){.analysis-navigation{display:block}.analysis-navigation .choices{margin-top:var(--space-2)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
   .crumbs { font-size: var(--font-small); color: var(--color-ink-muted); display: flex; gap: var(--space-2); flex-wrap: wrap; }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); }

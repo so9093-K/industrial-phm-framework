@@ -66,4 +66,6 @@
   .found>li.secondary{padding:var(--space-3) var(--space-4);background:transparent}.additional{display:flex;justify-content:space-between;gap:var(--space-3);align-items:center;flex-wrap:wrap}.additional button{border:0;background:none;padding:0;text-align:left;font:inherit;color:var(--color-ink)}
   .links { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: var(--space-2) 0 0; }
   .small { font-size: var(--font-small); }
+  @media(min-width:1100px){.found{grid-template-columns:minmax(0,1fr) 280px;align-items:start}.found>li:first-child{grid-row:1 / span 3}.found>li.secondary{grid-column:2}}
+
 </style>

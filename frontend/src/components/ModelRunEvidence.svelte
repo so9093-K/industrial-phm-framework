@@ -10,7 +10,6 @@
   import ScoreTrend from "./ScoreTrend.svelte";
   import ModelScoreOverlay from "./ModelScoreOverlay.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
-  import AnalysisMessage from "./AnalysisMessage.svelte";
   import {selectedScoreMessage} from "../analysis-messages";
   import {num} from "../format";
   import {readWriteSession} from "../session";
@@ -260,7 +259,7 @@
 </script>
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
-  <h2 id="model-evidence-title">모델 이상 점수</h2>
+  <h2 class="visually-hidden" id="model-evidence-title">모델 이상 점수</h2>
   {#if connectedNotice}<StatusNotice message={connectedNotice}/>{/if}
   {#if listState==="loading"}
     <StatusNotice message="이 설비에 적용한 모델을 확인하고 있습니다."/>
@@ -312,15 +311,10 @@
               message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
           {:else}
             {@const summary=scoreSummary(result.output)}
-            <AnalysisMessage message={selectedScoreMessage(summary)}
-              subject={(names.get(binding.bindingId) ?? "모델") + " · "
-                + (result.eventStart ? clock(result.eventStart)
-                  + (result.eventEnd && result.eventEnd !== result.eventStart ? " ~ " + clock(result.eventEnd) : "")
-                  : place(result.position) + " · 측정 시각 기록 없음")}
-              basis={builtModelNote(binding) ?? "모델에 저장된 비교 기준"}
-              boundary="점수가 해당 모델의 기준을 넘은 측정을 기준 초과로 표시합니다." />
-            <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button>
+            <div class="selected-result"><strong>{selectedScoreMessage(summary).headline}</strong>
+              <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button></div>
             <details><summary>점수·판정 상세</summary>
+            <p class="context">{selectedScoreMessage(summary).meaning}</p>
             <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>
               <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
               <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
@@ -338,17 +332,6 @@
           <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
             {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
           </details>
-          {#if result.state!=="skipped"}
-            {#key result.runId}
-              <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
-                onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
-              <details id="model-review" bind:this={reviewPanel} class="optional-review" open={location.hash==="#model-review"} ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
-                {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}
-                  subject={reviewSubject(binding, result)}/>{/if}
-              </details>
-            {/key}
-            <CautionNote message="AI 해설은 저장된 측정값 비교를 설명하며 고장 원인을 진단하지 않습니다."/>
-          {/if}
           <details>
             <summary>기술 상세</summary>
             <dl>
@@ -414,13 +397,30 @@
           <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
         {/if}
       {/if}
-      </aside></div>
+      </aside>
+      {#if result}
+      <div class="model-comparison-area">
+          {#if result.state!=="skipped"}
+            {#key result.runId}
+              <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
+                onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
+              <details id="model-review" bind:this={reviewPanel} class="optional-review" open={location.hash==="#model-review"} ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
+                {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}
+                  subject={reviewSubject(binding, result)}/>{/if}
+              </details>
+            {/key}
+            <CautionNote message="AI 해설은 저장된 측정값 비교를 설명하며 고장 원인을 진단하지 않습니다."/>
+          {/if}
+      </div>
+      {/if}</div>
     {/if}
     <ModelConnect {assetId} {writable} hasModel={true} onConnected={connected}/>
       <ModelBuild {assetId} {writable} hasModel={true} onBuilt={connected}/>
   {/if}
 </section>
 <style>
+  .selected-result{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-block:var(--space-3)}
+  .model-comparison-area{grid-column:1 / -1;min-width:0;border-top:1px solid var(--color-border)}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .selector{display:grid;gap:var(--space-2);margin-block:var(--space-4);font-weight:650}
   select{width:100%;min-width:0;border:1px solid var(--color-border);

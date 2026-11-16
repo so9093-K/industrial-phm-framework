@@ -201,7 +201,7 @@
 {/snippet}
 
 <section class="ui-panel relation" aria-labelledby="relation-title">
-  <h2 id="relation-title">신호 관계</h2>
+  <h2 class="visually-hidden" id="relation-title">신호 관계</h2>
   {#if listState==="loading"}
     <StatusNotice message="신호 목록을 불러오고 있습니다."/>
   {:else if listState==="failed"}
