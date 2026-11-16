@@ -23,7 +23,9 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {CHANGE_WHY, changeSentence} from "../change-story";
+  import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -58,6 +60,9 @@
   const departures = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind === "departure"); });
   // The interval context can differ from the latest score, especially across an allowed gap.
   const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure"); });
+  // 모델 기준과 견준 확인 항목은 모델 질문 아래에서, 나머지는 마지막 측정 질문 아래에서 답한다.
+  const modelNotes = $derived(others.filter((note) => note.kind === "threshold" || note.kind === "crossing"));
+  const lastNotes = $derived([...departures, ...others.filter((note) => note.kind !== "threshold" && note.kind !== "crossing")]);
   // What the whole stored record held, not only whether it ends away from its start.
   let quietMain:OverviewRow["main"]=$state(null);
   let findings: RecordFindings | null = $state(null);
@@ -163,15 +168,13 @@
           {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
           {@const own = item.operation ? findings.operation.find(entry => entry.key === item.operation?.key) : undefined}
           {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
+          {#if index===1}<li class="others-title">이 기록의 다른 변화 {findings.intervals.length-1}건</li>{/if}
           <li class:secondary={index>0} id={index===0?"primary-change":"change-"+index}>
             {#if index===0 || expandedChanges[String(index)]}
-            <div class="finding-head"><h3>{item.label} · {#if own && item.band != null}{bandName(own, item.band) + " 중 "}{/if}{item.kind==="level-change"?"일정하던 기준보다 ":"기준보다 "}{item.direction==="up"?"높음":"낮음"}</h3>
-
-            </div>
-            <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
-            <p class="change-time">{told.when}{#if item.reason} · {CHANGE_REASON[item.reason]}{/if}</p>
-            {#if item.effectDistance != null}<p class="change-size">대표값 차이 · 기준 구간의 변동 폭 대비 {item.effectDistance.toLocaleString("ko-KR",{maximumSignificantDigits:3})}배</p>{:else if item.kind==="level-change"}<p class="change-size">비교 구간에서는 같은 값이 유지됐습니다.</p>{/if}
+            <h3 class="change-sentence">{changeSentence(item, findingSpan(item), own && item.band != null ? bandName(own, item.band) : null)}</h3>
+            <ChangeNumbers facts={item} fallback={told.what} />
             <ChangeInterval finding={item} />
+            {#if item.reason}<p class="change-why">{CHANGE_WHY[item.reason]}</p>{/if}
             <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
             {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
               {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
@@ -195,17 +198,13 @@
             </details>
             {:else}
               <div class="compact-change"><button type="button" onclick={()=>expandedChanges={...expandedChanges,[String(index)]:true}}>
-                <strong>{item.label}</strong><span>{item.reference!=null&&item.typical!=null?changeValue(item.reference,null)+" → "+changeValue(item.typical,item.unit):told.what}</span>
+                <strong>{item.label}</strong><span>{item.reference!=null&&item.typical!=null?"처음 30%보다 "+(item.direction==="up"?"높음":"낮음")+" · "+changeValue(item.reference,null)+" → "+changeValue(item.typical,item.unit):told.what}</span>
                 <small>{told.when}</small></button>{#if links.signal}<a href={links.signal}>구간 조사 →</a>{/if}</div>
             {/if}
           </li>
         {/each}
       </ul>
-      <details class="context small"><summary>변화 선정 방식과 전체 신호</summary>
-        <p>계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
-          대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.
-          {#if findings.operation.length}운전 상태를 아는 출처는 같은 운전 상태의 값끼리 견주고, 정지해 있던 동안의 값은 판단하지 않습니다.{/if}</p>
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></details>
+      <p class="context small more-changes"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>
     {:else if findings && findings.judged}
       <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
         <div class="analysis-workspace"><div class="analysis-body">
@@ -226,7 +225,90 @@
       <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
         <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
     {/if}
-    <details class="summary-support"><summary>운전 수준·분석 범위</summary>
+  {/if}
+  {#if data?.vibration}<VibrationFindings assetId={asset.assetId} />{/if}
+</section>
+
+<section class="ui-panel more" aria-labelledby="more-title">
+  <h2 id="more-title">이어서 확인할 것</h2>
+  <dl class="rows">
+    <div><dt id="state-title">모델은 어떻게 봤나요?</dt><dd>
+      {#each modelNotes as note (note.id)}<p><span><strong>{note.label}</strong> · {note.detail}</span> <a href={note.href}>{note.action} →</a></p>{/each}
+      {#if scoreState === "loading"}
+        <p class="context">최근 모델 점수를 불러오고 있습니다.</p>
+      {:else if scoreState === "failed"}
+        <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다." />
+      {:else if !scores.length}
+        <p class="context">이 설비에 적용한 이상 탐지 모델이 없어 모델의 판단은 없습니다.
+          {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
+      {:else}
+        <ul class="scores" aria-labelledby="state-title">
+          {#each scores as item (item.binding.bindingId)}
+            {@const summary = item.run ? scoreSummary(item.run.output) : null}
+            {@const note = builtModelNote(item.binding)}
+            <li>
+              <span>{modelName(item.binding)}{#if item.run && summary}{" · "}{isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)}{/if}</span>
+              <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
+              {#if item.run && summary}<span>점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}</span>{/if}
+              {#if note}<span class="note">{note}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+        {#if split?.same}
+          <p class="split">같은 측정에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
+            같은 측정의 점수와 원본을 함께 확인하세요.</p>
+        {:else if split?.why === "stream"}
+          <p class="split">모델들이 서로 다른 데이터 출처나 측정 위치를 분석해, 같은 출처·측정 위치·측정의 결과가 아니므로 직접 견줄 수 없습니다.
+            모델마다 위에 적힌 결과를 따로 확인하세요.</p>
+        {:else if split}
+          <p class="split">같은 출처·측정 위치를 분석하지만 마지막으로 분석한 측정이 서로 달라 직접 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
+            같은 측정의 점수는 측정별 모델 점수에서 견줘 보세요.</p>
+        {/if}
+        {#if !modelNotes.length}<p><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정마다 모델 점수가 어떻게 변했는지 보기 →</a></p>{/if}
+      {/if}
+    </dd></div>
+    <div><dt>마지막 측정은 어땠나요?</dt><dd>
+      <p>{lastMeasured} · {flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt} · 마지막 수신 {observed(asset.lastReceivedAt)}{/if}</p>
+      {#if notesState === "loading"}
+        <p class="context">확인할 항목을 읽고 있습니다.</p>
+      {:else if lastNotes.length}
+        <ul class="others" aria-label="마지막 측정의 확인 항목">
+          {#each lastNotes as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
+        </ul>
+      {:else if notes}
+        <p class="context">마지막 측정에서 따로 확인할 항목은 없습니다.</p>
+      {/if}
+    </dd></div>
+    <div><dt>앞으로 어떻게 될까요?</dt><dd><p><a href={assetTabUrl(asset.assetId, "outlook")}>지금 추세가 이어질 때의 전망 보기 →</a></p></dd></div>
+    <div><dt>전에 검토한 적이 있나요?</dt><dd>
+      <details ontoggle={event=>archiveOpen=event.currentTarget.open}><summary>저장한 주요 변화 검토</summary>
+        {#if archiveOpen}<ChangeReviewArchive assetId={asset.assetId} revision={reviewRevision} />{/if}
+      </details>
+    </dd></div>
+    <div><dt>다른 방법으로도 볼 수 있나요?</dt><dd>
+      <details ontoggle={(event) => showOptions=event.currentTarget.open}><summary>이 설비에서 할 수 있는 분석 보기</summary>
+        {#if showOptions}<AnalysisOptions assetId={asset.assetId} level={3} />{/if}
+      </details>
+      <p><a href={assetTabUrl(asset.assetId, "signals")}>원본 신호 추이 보기 →</a>
+        <a href={routeUrl({page: "investigations", assetId: asset.assetId, tab: "summary", method: null, data: null})}>저장된 분석 결과 보기 →</a></p>
+    </dd></div>
+  </dl>
+</section>
+
+<details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
+  <dl class="facts">
+    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
+    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
+      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
+    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
+    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
+  </dl>
+  {#if data?.history}
+    {#if findings && findings.intervals.length}
+      <p class="context small">변화 선정 방식 · 계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
+        대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.
+        {#if findings.operation.length}운전 상태를 아는 출처는 같은 운전 상태의 값끼리 견주고, 정지해 있던 동안의 값은 판단하지 않습니다.{/if}</p>
+    {/if}
     {#if findingState === "ready" && findings?.operation.length}
       <details class="operation-details"><summary>운전 수준의 전체 분포·시간별 변화</summary>
         {#each findings.operation as operation (operation.key)}<OperationLevels {operation} />{/each}
@@ -244,88 +326,15 @@
     {/if}
     {#if findings?.unchecked}<p class="context small">목록 순서에 따라 앞의 {findings.signals.length}개만 확인했습니다. 중요한 신호를 자동 선별한 결과는 아닙니다.
       나머지 {findings.unchecked}개는 <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>기록 변화 찾기에서 신호를 골라 확인</a>할 수 있습니다.</p>{/if}
-    </details>
   {/if}
-  {#if data?.vibration}<VibrationFindings assetId={asset.assetId} />{/if}
-  <details class="summary-support"><summary>측정 현황·이전 검토</summary>
-  <details ontoggle={event=>archiveOpen=event.currentTarget.open}><summary>저장한 주요 변화 검토</summary>
-    {#if archiveOpen}<ChangeReviewArchive assetId={asset.assetId} revision={reviewRevision} />{/if}
-  </details>
-  <details class="measurement-context"><summary>측정·수신 현황 · {lastMeasured}</summary>
-  <dl class="facts">
-    <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
-    <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
-      <small>마지막 수신 {observed(asset.lastReceivedAt)}</small>{/if}</dd></div>
-    <div><dt>확인할 항목</dt><dd>{attention(attentionCount)}</dd></div>
-    <div><dt>저장된 데이터</dt><dd>{stored}</dd></div>
-  </dl>
-  </details>
-  <h3 class="recent">마지막 측정의 확인 항목</h3>
-  {#if notesState === "loading"}
-    <p class="context">확인할 항목을 읽고 있습니다.</p>
-  {:else if departures.length || others.length}
-    <ul class="others">
-      {#each [...departures, ...others] as note (note.id)}<li><strong>{note.label}</strong> <span>{note.detail}</span> <a href={note.href}>{note.action} →</a></li>{/each}
-    </ul>
-  {:else if notes}
-    <p class="context">기록의 마지막 측정 기준으로 추가 확인 항목은 없습니다.</p>
-  {/if}
-  <p class="context"><a href={assetTabUrl(asset.assetId, "signals")}>측정 신호 추이 보기 →</a></p>
-</details>
-</section>
-
-<details class="ui-panel"><summary>모델 결과와 추가 분석</summary>
-<section class="scores-panel" aria-labelledby="state-title">
-  <h2 id="state-title">모델 이상 점수</h2>
-  {#if scoreState === "loading"}
-    <p class="context">최근 모델 점수를 불러오고 있습니다.</p>
-  {:else if scoreState === "failed"}
-    <StatusNotice kind="failure" message="최근 모델 점수를 불러오지 못했습니다." />
-  {:else if !scores.length}
-    <p class="context">이 설비에 적용한 이상 탐지 모델이 없습니다.
-      {#if !departures.length}<a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>모델 없이 기록 변화 찾기 →</a>{/if}
-      {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
-  {:else}
-    <ul class="scores">
-      {#each scores as item (item.binding.bindingId)}
-        {@const summary = item.run ? scoreSummary(item.run.output) : null}
-        {@const note = builtModelNote(item.binding)}
-        <li>
-          <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
-          <span>{modelName(item.binding)}
-            {#if item.run && summary}
-              · {isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · 점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}
-            {/if}</span>
-          {#if note}<span class="note">{note}</span>{/if}
-        </li>
-      {/each}
-    </ul>
-    {#if split?.same}
-      <p class="split">같은 측정에서 모델 판단이 다릅니다 · {split.over.join(", ")}는 기준 초과, {split.under.join(", ")}는 기준 이하입니다.
-        같은 측정의 점수와 원본을 함께 확인하세요.</p>
-    {:else if split?.why === "stream"}
-      <p class="split">모델들이 서로 다른 데이터 출처나 측정 위치를 분석해, 같은 출처·측정 위치·측정의 결과가 아니므로 직접 견줄 수 없습니다.
-        모델마다 위에 적힌 결과를 따로 확인하세요.</p>
-    {:else if split}
-      <p class="split">같은 출처·측정 위치를 분석하지만 마지막으로 분석한 측정이 서로 달라 직접 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
-        같은 측정의 점수는 측정별 모델 점수에서 견줘 보세요.</p>
-    {/if}
-    <p class="context"><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정별 모델 점수 보기 →</a></p>
-  {/if}
-</section>
-</details>
-
-<details class="ui-panel next" ontoggle={(event) => showOptions=event.currentTarget.open}>
-  <summary>추가 분석</summary>
-  {#if showOptions}<AnalysisOptions assetId={asset.assetId} level={3} />{/if}
-  <p class="context"><a href={routeUrl({page: "investigations", assetId: asset.assetId, tab: "summary", method: null, data: null})}>
-    저장된 분석 결과 보기 →</a></p>
 </details>
 
 <style>
-  @media(min-width:1100px){.found{display:grid;grid-template-columns:minmax(0,1fr) 280px;align-items:start;gap:var(--space-3) var(--space-5)}.found>li:first-child{grid-column:1;grid-row:1 / span 4}.found>li.secondary{grid-column:2}.compact-change{display:grid}.compact-change button{display:grid;gap:var(--space-1)}}
+  @media(min-width:1100px){.found{display:grid;grid-template-columns:minmax(0,1fr) 280px;align-items:start;gap:var(--space-3) var(--space-5)}.found>li:first-child{grid-column:1;grid-row:1 / span 8}.found>li.secondary,.found>li.others-title{grid-column:2}.compact-change{display:grid}.compact-change button{display:grid;gap:var(--space-1)}}
 
-  .change-size{font-size:var(--font-small);color:var(--color-ink-muted)}
+  .change-sentence{margin:0;font-size:1.25rem;line-height:1.45;font-weight:700;overflow-wrap:anywhere}
+  .change-why{margin:0;font-size:var(--font-small);color:var(--color-ink-muted)}
+  .found>li.others-title{padding:0;border:0;font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted)}
   .found>li.secondary{padding:var(--space-3) var(--space-4);background:transparent}
   .compact-change{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
   .compact-change button{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4);background:none;border:0;padding:0;text-align:left;color:var(--color-ink)}
@@ -341,16 +350,25 @@
   dt { font-size: var(--font-small); color: var(--color-ink-muted); }
   dd { margin: var(--space-2) 0 0; font-weight: 700; overflow-wrap: anywhere; }
   dd small { display: block; margin-top: var(--space-1); font-weight: 400; font-size: var(--font-small); color: var(--color-ink-muted); }
-  .next, .scores-panel { margin-top: var(--space-4); }
-  .recent { font-size: var(--font-body); margin: var(--space-5) 0 var(--space-2); }
-  .next { display: grid; gap: var(--space-3); }
+  .more { margin-top: var(--space-4); }
+  .more h2 { margin-bottom: var(--space-2); }
+  .rows { margin: 0; }
+  .rows > div { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--space-2) var(--space-5); padding-block: var(--space-3); border-top: 1px solid var(--color-border); }
+  .rows dt { font-weight: 650; }
+  .rows dd { margin: 0; font-weight: 400; display: grid; gap: var(--space-2); }
+  .rows dd p { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
+  .rows dd summary { padding-block: 0; font-weight: 400; color: var(--color-action); }
+  .provenance { margin-top: var(--space-4); }
+  .provenance > summary { padding-block: 0; }
+  .provenance[open] > summary { margin-bottom: var(--space-4); }
+  .more-changes { margin: var(--space-3) 0 0; }
+  @media (max-width: 640px) { .rows > div { grid-template-columns: minmax(0, 1fr); } }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-  .scores li { display: grid; gap: var(--space-1); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border); }
-  .scores .verdict { font-size: var(--font-section); }
+  .scores li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
   .split { margin: 0; padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); overflow-wrap: anywhere; }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
-  .others li { margin: 0 0 var(--space-3); overflow-wrap: anywhere; }
+  .others li { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
   .others span { color: var(--color-ink-muted); font-size: var(--font-small); }
   .others { list-style: none; margin: 0; padding: 0; }
   .small { font-size: var(--font-small); }
@@ -362,7 +380,7 @@
   .data-check ul { padding-inline-start: var(--space-4); overflow-wrap: anywhere; }
   .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
   .found > li { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
-  .finding-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:var(--space-2)}.finding-head h3{margin:0;font-size:var(--font-body);font-weight:650}.change-values{font-size:clamp(1.25rem,3vw,1.65rem);line-height:1.4}.change-time{margin:var(--space-1) 0;color:var(--color-ink-muted);font-size:var(--font-small)}.finding-actions{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-3)}.finding-actions details{flex:1;min-width:180px}.finding-coverage{margin-bottom:var(--space-3)}
+  .finding-actions{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-3)}.finding-actions details{flex:1;min-width:180px}.finding-coverage{margin-bottom:var(--space-3)}
   .related { list-style: none; padding: 0; margin-block: var(--space-2); font-size: var(--font-small); }
   .related li { display: block; padding-block: var(--space-1); color: var(--color-ink-muted); }
   summary { cursor: pointer; font-weight: 650; padding-block: var(--space-2); }

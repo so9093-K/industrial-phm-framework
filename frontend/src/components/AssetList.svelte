@@ -159,11 +159,11 @@
       reasonHref={reasons && (notes[asset.assetId]??0)>0 ? "#attention-"+encodeURIComponent(asset.assetId) : null}
       onReasons={() => showReasons(asset.assetId)}/>
   {:else}
-  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":order === "name"?"설비 이름순입니다. 변화를 고르면 해당 설비의 분석으로 이어집니다.":"확인할 이유가 중요한 설비부터 보여줍니다. 변화를 고르면 해당 설비의 분석으로 이어집니다."}</p>
+  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":order === "name"?"설비 이름순입니다. 달라진 것을 누르면 그 구간의 신호로 이동합니다.":"먼저 확인할 것이 있는 설비부터 보여 줍니다. 달라진 것을 누르면 그 구간의 신호로 이동합니다."}</p>
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
-      <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
-      <span role="columnheader">최근 주 신호</span><span role="columnheader">마지막 측정·수신 확인</span>
+      <span role="columnheader">설비</span><span role="columnheader">기록에서 달라진 것</span>
+      <span role="columnheader">마지막 측정값과 전체 추이</span><span role="columnheader">마지막 측정에서 확인할 것</span>
     </div>
     {#each grouped as group (group.kind)}
       {#if group.kind}<div class="kind" role="row"><span role="cell" aria-colspan="4">{group.kind} · {group.rows.length}대</span></div>{/if}
@@ -183,29 +183,30 @@
               <small class="issue import">{unfinished.text} <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></small>
             {/if}
           </div>
-          <div class="cell" role="cell" data-label="주요 변화">
+          <div class="cell" role="cell" data-label="기록에서 달라진 것">
             {#if row?.finding}
               {@const found = row.finding}
               {@const inspect = row.historyInterval ? findingLinks(asset.assetId,row.historyInterval,row.historyInterval.baseline,row.historyInterval.bucketSeconds??null).signal : row.vibrationInterval ? vibrationLinks(asset.assetId,row.vibrationInterval.change).signal : null}
-              <a class="finding" href={inspect??href(asset.assetId)}>{found.label}{found.band != null && row.operation ? " · " + bandName(row.operation.names, found.band) + " 중" : ""}
-                {found.reference !== null && found.typical !== null ? changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit)
-                  : (found.direction === "up" ? "상승" : "하락")}</a>
-              <small>{when(row)}{row.findingCount > 1 ? " · 외 " + (row.findingCount - 1) + "건" : ""}</small>
+              <a class="finding" href={inspect??href(asset.assetId)}>{found.label} · 처음 30%보다 {found.direction === "up" ? "높음" : "낮음"}</a>
+              <small>{found.reference !== null && found.typical !== null ? "중앙값 " + changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit) + " · " : ""}{found.band != null && row.operation ? bandName(row.operation.names, found.band) + " 중 · " : ""}{when(row)}</small>
+              {#if row.findingCount > 1}<small>다른 변화 {row.findingCount - 1}건</small>{/if}
             {:else if row}<small>{row.judged ? "처음 30%와 견줘 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
             {:else}<small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
               <a href={assetTabUrl(asset.assetId,"signals")}>신호 기록 보기 →</a>
               {#if read === "failed"}<button type="button" class="retry" onclick={() => void loadRow(asset.assetId)}>다시 확인</button>{/if}{/if}
             {#if row?.copied}<small class="issue">데이터 확인 필요 · 신호 {row.copied}개</small>{/if}
           </div>
-          <div class="cell" role="cell" data-label="주 신호">
+          <div class="cell" role="cell" data-label="마지막 측정값">
             {#if row?.main}
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
               {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,120,28)}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
             {/if}
+            <!-- 켜졌다 꺼지는 설비는 얼마나 멈춰 있었는지가 값만큼 중요하다. -->
+            {#if row?.operation?.shares}<small>기록의 {percent(row.operation.shares[0])}는 정지 · 운전 수준 {row.operation.names.levels.length}개</small>{/if}
           </div>
-          <div class="cell" role="cell" data-label="확인 항목">
-            <small>마지막 측정의 추가 항목 {attentionText(count(asset), notesState)}</small>
+          <div class="cell" role="cell" data-label="마지막 측정에서 확인할 것">
+            <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
             {#if note}<strong class="primary-reason">{note.label}</strong>
               <a class="investigate" href={note.href}>{note.action} →</a>{/if}
             {#if row?.operation || note || (reasons && (notes[asset.assetId]??0)>0)}<details class="row-details"><summary>운전·확인 상세</summary>

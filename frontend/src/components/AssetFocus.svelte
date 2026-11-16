@@ -1,7 +1,9 @@
 <script lang="ts">
   import type {Asset} from "../monitor";
   import {flowLabel} from "../monitor";
-  import {bandName, changeValue, findingLinks, findingText} from "../record-findings";
+  import {bandName, changeValue, findingLinks, findingSpan} from "../record-findings";
+  import {changeSentence} from "../change-story";
+  import ChangeNumbers from "./ChangeNumbers.svelte";
   import type {OverviewRow} from "../asset-overview";
   import type {Note} from "../monitor-attention";
   import {assetTabUrl} from "../routes";
@@ -25,6 +27,16 @@
   } : null);
   const links = $derived(vibration ? vibrationLinks(asset.assetId,vibration.change) : interval ? findingLinks(asset.assetId, interval, interval.baseline, interval.bucketSeconds ?? null, interval.context?.record) : null);
   const signals = $derived(assetTabUrl(asset.assetId, "signals"));
+  // 설비 요약과 같은 문장으로 말한다: 무엇이, 언제부터 얼마 동안, 무엇과 견줘 어땠는지.
+  const story = $derived.by((): string | null => {
+    if (interval) return changeSentence(interval, year(interval.start) + " " + findingSpan(interval),
+      interval.band != null && row?.operation && interval.operation?.key === row.operation.key ? bandName(row.operation.names, interval.band) : null);
+    if (vibration) {
+      const change = vibration.change, place = (at: number) => measurementLabel(at, vibration.periodSeconds);
+      return changeSentence(change, place(change.from) + "부터 " + place(change.to) + "까지 " + (change.to - change.from + 1) + "회 동안");
+    }
+    return null;
+  });
   const year = (at: string) => new Date(at).toLocaleDateString("ko-KR", {timeZone:"Asia/Seoul", year:"numeric"});
 </script>
 
@@ -47,12 +59,9 @@
     <div class="finding-layout" class:no-trend={!interval?.trace?.length && !vibrationTrace?.trace.length}>
       <div class="insight">
         <p class="eyebrow">기록에서 찾은 주요 변화</p>
-        <h4>{found.label} · {found.kind === "level-change" ? "일정하던 기준보다 " : "비교 기준보다 "}{found.direction === "up" ? "높음" : "낮음"}</h4>
-        <strong class="values">{found.reference !== null && found.typical !== null ? changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit) : found.direction === "up" ? "높아진 구간 발견" : "낮아진 구간 발견"}</strong>
-        {#if interval}<p class="period">{year(interval.start) === year(interval.end) ? year(interval.start) + " · " + findingText(interval, interval.bucketSeconds ?? null).when : observed(interval.start) + " ~ " + observed(interval.end)}</p>
-        {:else if found.from !== null && found.to !== null}<p class="period">{measurementLabel(found.from, vibration?.periodSeconds ?? row.main?.periodSeconds)} ~ {measurementLabel(found.to, vibration?.periodSeconds ?? row.main?.periodSeconds)}</p>{/if}
-        {#if found.band !== null && row.operation && interval?.operation?.key === row.operation.key}<p>{bandName(row.operation.names, found.band)}에 해당하는 측정끼리 비교했습니다.</p>
-        {:else}<p>기록 초반을 비교 기준으로 삼았습니다.</p>{/if}
+        <h4>{story ?? found.label + " · 기록 처음 30%보다 " + (found.direction === "up" ? "높은" : "낮은") + " 구간이 있습니다."}</h4>
+        <ChangeNumbers facts={interval ?? vibration?.change ?? {...found, kind: found.kind === "level-change" ? "level-change" : "departure"}}
+          fallback={found.direction === "up" ? "높아진 구간 발견" : "낮아진 구간 발견"} />
         <div class="actions">
           {#if links?.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사하기 →</a>
           {:else}<a class="ui-button ui-button-primary" {href}>변화 자세히 보기 →</a>{/if}
@@ -86,7 +95,7 @@
   .finding-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:var(--space-8);align-items:center;min-height:240px;padding-block:var(--space-4);border-top:1px solid var(--color-border)}
   .finding-layout.no-trend{grid-template-columns:minmax(0,1fr)}
   .insight,.pending,.quiet{min-width:0}.eyebrow{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 var(--space-2)}h4{font-size:1.15rem;line-height:1.5;margin:0 0 var(--space-3);overflow-wrap:anywhere}
-  .values{display:block;font-size:clamp(1.8rem,3vw,2.4rem);line-height:1.3;font-variant-numeric:tabular-nums;margin-bottom:var(--space-3);overflow-wrap:anywhere}p{overflow-wrap:anywhere}.period,.chart-note{color:var(--color-ink-muted);font-size:var(--font-small)}
+  p{overflow-wrap:anywhere}.chart-note{color:var(--color-ink-muted);font-size:var(--font-small)}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-5);margin-top:var(--space-5)}.actions a{font-weight:650}
   .pending,.quiet{min-height:240px;padding-block:var(--space-6);border-top:1px solid var(--color-border)}.pending{display:flex;flex-direction:column;justify-content:center}.pending p{color:var(--color-ink-muted)}
   .change-trend{min-width:0}.chart-note{margin:var(--space-2) 0 0}
