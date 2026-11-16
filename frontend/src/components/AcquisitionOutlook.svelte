@@ -270,7 +270,7 @@
             </figcaption>
           </figure>
         {/if}
-        {#if told}<AnalysisMessage message={told}
+        {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
           basis={outlook.record.last + "번째 측정까지의 기록 · " + timeBasis(outlook)}
           boundary="예상 여유의 시작은 기록 마지막 측정입니다." />{/if}

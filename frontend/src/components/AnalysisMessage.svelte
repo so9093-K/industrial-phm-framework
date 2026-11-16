@@ -2,8 +2,8 @@
   /** The message an analysis leads with, above its charts and tables: what changed, what it means,
    * how plain it is, and where to look next. */
   import type {AnalysisMessage} from "../analysis-messages";
-  let {message, subject = null, basis = null, boundary = null}: {
-    message: AnalysisMessage; subject?: string | null; basis?: string | null; boundary?: string | null;
+  let {message, subject = null, basis = null, boundary = null, showHeadline = true}: {
+    message: AnalysisMessage; subject?: string | null; basis?: string | null; boundary?: string | null; showHeadline?: boolean;
   } = $props();
 </script>
 
@@ -14,8 +14,8 @@
       {#if basis}<div><dt>분석 기준</dt><dd>{basis}</dd></div>{/if}
     </dl>
   {/if}
-  <p class="label">핵심 결과</p>
-  <p class="headline">{message.headline}</p>
+  {#if showHeadline}<p class="label">핵심 결과</p>
+  <p class="headline">{message.headline}</p>{/if}
   {#if message.meaning}<p><strong>결과 해석</strong> · {message.meaning}</p>{/if}
   {#if message.certainty}<p class="certainty">{message.certainty}</p>{/if}
   {#if boundary}<details class="limits"><summary>계산 조건·해석 안내</summary><p>{boundary}</p></details>{/if}

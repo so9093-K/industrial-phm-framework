@@ -150,4 +150,8 @@ test("how the equipment ran is read per current level and attached to the change
   const links = findingLinks("comp", within.intervals[0], within.baseline, within.bucketSeconds, within.record);
   assert.equal(new URL(links.compare!, "http://local").searchParams.get("compare_level"), "3");
   assert.equal(new URL(links.signal!, "http://local").searchParams.get("compare_level"), null);
+  const related = {...within.intervals[0],related:[{channel:"압력",label:"압력",unit:"bar",reference:6,current:7,state:"higher" as const}]};
+  const relation=findingLinks("comp",related,within.baseline,within.bucketSeconds,within.record).relation!;
+  assert.equal(new URL(relation.href,"http://local").searchParams.has("compare_level"),false);
+  assert.match(relation.label,/전체 운전 수준/);
 });

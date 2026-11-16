@@ -290,9 +290,11 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
   if (other && compared) {
     const url = new URL(compared, "http://local");
     url.searchParams.set("method", "relation");
+    // Relation compares complete periods; it does not apply the period view's level filter.
+    url.searchParams.delete("compare_level");
     url.searchParams.set("relation_x", item.channel);
     url.searchParams.set("relation_y", other.channel);
-    relation = {href: url.pathname + url.search, label: other.label + " 관계 비교"};
+    relation = {href: url.pathname + url.search, label: other.label + " 관계 비교" + (item.band != null ? " (전체 운전 수준)" : "")};
   }
   return {signal, compare, previous, relation, outlook: link(assetTabUrl(assetId, "outlook", null, "history", item.channel), {})};
 }

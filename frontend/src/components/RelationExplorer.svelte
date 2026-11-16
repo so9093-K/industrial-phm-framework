@@ -228,16 +228,19 @@
         {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
         {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
         {@const moved=movedAtSameX(ranges)}
+        {@const sameX=moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit}):null}
         {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null,[],
-          moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit}):null):null}
+          sameX):null}
+        {@const explained=sameX?{...(message??{meaning:"상관계수를 계산하지 못해도 같은 입력 범위의 값 차이는 비교할 수 있습니다.",certainty:"여기에 표시한 각 범위에는 두 기간 모두 20개 이상의 측정 짝이 있습니다.",next:[]}),headline:sameX}:message}
         <section class="group">
           <h3>{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))} / {pair.point??"측정 위치 미확인"}</h3>
-          {#if message}<AnalysisMessage {message}
+          {#if explained}<AnalysisMessage message={explained}
             subject={signalName(names,x) + " × " + signalName(names,y) + " · " + sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}
             basis={"기간 A " + periodText("a") + " / 기간 B " + periodText("b")}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
+          {#if sameX && message}<details class="coefficient-summary"><summary>상관계수로 본 동반 변화</summary><p>{message.headline}</p></details>{/if}
           {#if ranges.length}
             {@const unit=(value:string,of:string|null)=>value+(of?" "+of:"")}
             <details class="same-x">
@@ -337,6 +340,7 @@
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
   .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+  .coefficient-summary{margin-top:var(--space-2)}.coefficient-summary summary{cursor:pointer;font-weight:650}.coefficient-summary p{overflow-wrap:anywhere}
   .same-x{margin-top:var(--space-3)}.same-x summary{cursor:pointer;font-weight:650}tr.moved td{font-weight:650}
   .handed{margin:var(--space-4) 0 0;padding:var(--space-3);border-left:4px solid var(--color-focus);background:var(--color-surface-selected);overflow-wrap:anywhere}
 </style>
