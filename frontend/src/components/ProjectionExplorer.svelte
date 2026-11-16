@@ -337,7 +337,7 @@
             </figcaption>
           </figure>
         {/if}
-        {#if told}<AnalysisMessage message={told}
+        {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={signalName(names, projection.channel)}
           basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
           boundary="예상 여유의 시작은 기록 마지막 측정 시점입니다." />{/if}

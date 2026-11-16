@@ -1,6 +1,7 @@
 <script lang="ts">
   import {recordParams} from "../record-context";
   import ChangeInterval from "./ChangeInterval.svelte";
+  import FindingContext from "./FindingContext.svelte";
   import OperationLevels from "./OperationLevels.svelte";
   import VibrationFindings from "./VibrationFindings.svelte";
   import ChangeReview from "./ChangeReview.svelte";
@@ -19,7 +20,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, shiftText, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {CHANGE_REASON, changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -134,23 +135,14 @@
   {/if}
   {#if data?.history}
 
-    {#if findingState === "ready" && findings}
-      <details class="finding-coverage"><summary>분석한 기록과 계산 범위</summary>
-      {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
-      <p class="coverage" aria-label="변화 분석 범위">출처·위치·측정 의미로 구분한 기록 {findings.signals.length + findings.unchecked}개 중
-        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 데이터 확인 필요 {copiedCount}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length - copiedCount}개 · 미검토 {findings.unchecked}개</p></details>
-    {/if}
     {#if findingState === "ready" && copies.length}
       <section class="data-check" aria-labelledby="data-check-title">
-        <h3 id="data-check-title">데이터 확인 필요</h3>
-        <p>아래 신호는 일부 기간에 다른 항목의 값이 그대로 기록되어 있어, 주요 변화와 확인 항목에서 뺐습니다.</p>
+        <h3 id="data-check-title">데이터 확인 필요 · 신호 {copiedCount}개는 변화 판단에서 제외했습니다</h3>
+        <details><summary>해당 신호와 기간 확인</summary><p>아래 신호는 일부 기간에 다른 항목의 값이 그대로 기록되어 있습니다.</p>
         <ul>{#each copies as group (group.from + group.to)}
           <li><strong>{observed(group.from)} ~ {observed(group.to)}</strong> · {group.items.map(item => item.label + "에 " + item.origin + " 값").join(", ")}</li>
-        {/each}</ul>
+        {/each}</ul></details>
       </section>
-    {/if}
-    {#if findingState === "ready" && findings}
-      {#each findings.operation as operation (operation.key)}<OperationLevels {operation} />{/each}
     {/if}
     {#if findingState === "loading"}
       <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
@@ -158,7 +150,7 @@
       <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
         <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
     {:else if findings && findings.intervals.length}
-      <ul class="found">
+      <ul class="found" aria-label="주요 변화">
         {#each findings.intervals as item (item.start + (item.context?.key ?? item.channel))}
           {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
           {@const own = item.operation ? findings.operation.find(entry => entry.key === item.operation?.key) : undefined}
@@ -168,13 +160,13 @@
             {#if item.context}<SourceIdentity id={item.context.sourceId} pointId={item.context.pointId} interpretationId={item.context.interpretationId} among={findings.signals.flatMap(row=>row.context?[row.context.sourceId]:[])}/>{/if}
             </div>
             <strong class="change-values">{#if item.reference!==null&&item.typical!==null}{changeValue(item.reference,null)} → {changeValue(item.typical,item.unit)}{:else}{told.what}{/if}</strong>
-            <p class="change-time">{told.when}</p>
-            {#if own && item.band == null && item.operation?.interval}<p class="change-time">{shiftText(own, item.operation)}</p>{/if}
+            <p class="change-time">{told.when}{#if item.reason} · {CHANGE_REASON[item.reason]}{/if}</p>
             <ChangeInterval finding={item} />
             <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
             {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
               {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
             </details>{/if}</div>
+            <FindingContext {item} operation={own} compareHref={links.compare??links.previous} relation={links.relation}/>
             <details><summary>직전 기간·함께 달라진 신호 비교</summary>
             <p class="reason">{item.reason ? CHANGE_REASON[item.reason] : "기준 구간과 달라진 구간"}</p>
             {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
@@ -217,6 +209,17 @@
     {:else if findings}
       <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
         <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
+    {/if}
+    {#if findingState === "ready" && findings?.operation.length}
+      <details class="operation-details"><summary>운전 수준의 전체 분포·시간별 변화</summary>
+        {#each findings.operation as operation (operation.key)}<OperationLevels {operation} />{/each}
+      </details>
+    {/if}
+    {#if findingState === "ready" && findings}
+      <details class="finding-coverage"><summary>분석한 기록과 계산 범위</summary>
+      {#if findings.record}<p class="context small">검토한 기록 · {observed(findings.record.from)} ~ {observed(findings.record.to)}</p>{/if}
+      <p class="coverage" aria-label="변화 분석 범위">출처·위치·측정 의미로 구분한 기록 {findings.signals.length + findings.unchecked}개 중
+        계산 {findings.judged}개 · 누적 기록 {cumulative.length}개 · 데이터 확인 필요 {copiedCount}개 · 계산 불가 {findings.signals.length - findings.judged - cumulative.length - copiedCount}개 · 미검토 {findings.unchecked}개</p></details>
     {/if}
     {#if cumulative.length && findings?.judged}<details><summary>누적 기록</summary>{@render cumulativeRecords()}</details>{/if}
     {#if findings && findings.signals.some((row) => !["scored", "level-change", "constant", "cumulative", "copied"].includes(row.state))}

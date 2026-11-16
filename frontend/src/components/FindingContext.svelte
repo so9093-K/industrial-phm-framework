@@ -1,0 +1,38 @@
+<script lang="ts">
+  import {bandName,changeValue,shiftText,type FoundInterval,type Operation} from "../record-findings";
+  let {item,operation,compareHref,relation}: {
+    item:FoundInterval;operation?:Operation;compareHref:string|null;relation:{href:string;label:string}|null;
+  }=$props();
+  const changed=$derived(item.related.filter(row=>row.state!=="within"));
+</script>
+{#if operation && item.operation && (item.band!=null || item.operation.interval) || changed.length || compareHref || relation}
+<aside class="finding-context" aria-label="이 변화의 해석과 다음 확인">
+  {#if operation && item.operation && (item.band!=null || item.operation.interval)}
+    <h4>같은 운전 수준에서도 달랐나요?</h4>
+    {#if item.band!=null}
+      <p><strong>{bandName(operation,item.band)}</strong>에 해당하는 측정끼리 비교해 찾은 변화입니다.
+        운전 수준을 구분한 신호는 {operation.label}입니다.</p>
+      <p class="limit">전류 수준을 맞춘 비교입니다. 실제 부하·운전 조건이 완전히 같은지는 운전 기록과 대조하세요.</p>
+    {:else if item.operation.interval}
+      <p>{shiftText(operation,item.operation)}</p>
+      <p>전체 값의 차이에는 운전 수준별 측정 비중이 섞일 수 있습니다. 같은 수준의 값끼리도 비교해 보세요.</p>
+    {/if}
+  {/if}
+  {#if changed.length}
+    <h4>같은 구간에 함께 달라진 신호</h4>
+    <p>{#each changed.slice(0,2) as other,i (other.channel)}{i?" · ":""}{other.label}
+      {changeValue(other.reference,null)} → {changeValue(other.current,other.unit)}{/each}</p>
+  {/if}
+  {#if compareHref || relation}
+    <nav aria-label="이 변화에서 이어서 조사">
+      {#if compareHref}<a href={compareHref}>{item.band!=null?"같은 운전 수준으로 두 기간 비교":"기준 기간과 이 구간 비교"} →</a>{/if}
+      {#if relation}<a href={relation.href}>{relation.label} →</a>{/if}
+    </nav>
+  {/if}
+</aside>
+{/if}
+<style>
+  .finding-context{display:grid;gap:var(--space-2);padding:var(--space-3);margin-block:var(--space-2);border-radius:var(--radius-control);background:var(--color-surface-selected);font-size:var(--font-small);min-width:0}
+  h4,p{margin:0;line-height:1.6;overflow-wrap:anywhere}h4{font-size:inherit}.limit{color:var(--color-ink-muted)}
+  nav{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}a{font-weight:650}
+</style>

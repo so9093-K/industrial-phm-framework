@@ -24,6 +24,7 @@
   type Order = "attention" | "name";
   let order: Order = $state("attention");
   let kind = $state("");
+  let groupByKind = $state(false);
   const name = (asset: Asset) => assetOptionLabel(assets, asset.assetId);
   const kinds = $derived([...new Set(assets.map(asset => equipmentKind(name(asset))))].sort());
   // Use the most important known reason, then the count and stable server order.
@@ -34,9 +35,9 @@
       : notePriority(primaryNotes[a.asset.assetId]) - notePriority(primaryNotes[b.asset.assetId])
         || (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
-  // Rows by kind of equipment when the list holds more than one kind, in the chosen order.
+  // Grouping is an explicit view; the default keeps the chosen order across every kind.
   const grouped = $derived.by(() => {
-    if (kinds.length < 2 || kind) return [{kind: "", rows: ordered}];
+    if (!groupByKind || kinds.length < 2 || kind) return [{kind: "", rows: ordered}];
     const by = new Map<string, Asset[]>();
     for (const asset of ordered) by.set(equipmentKind(name(asset)), [...(by.get(equipmentKind(name(asset))) ?? []), asset]);
     return [...by].map(([label, rows]) => ({kind: label, rows}));
@@ -106,20 +107,21 @@
 
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <div class="head">
-    <h2 id="asset-list-title">설비 <span>{assets.length}개</span></h2>
+    <h2 id="asset-list-title">조사할 설비 <span>{assets.length}개</span></h2>
     <div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
+      {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
       <label>정렬 <select bind:value={order}><option value="attention">확인 항목이 중요한 순</option><option value="name">이름순</option></select></label>
     </div>
   </div>
-  <p class="context">주요 변화는 각 설비 상태 요약의 첫 번째 변화입니다. 두 화면은 같은 계산을 씁니다.</p>
+  <p class="context">{groupByKind&&!kind?"설비 종류별로 묶고, 각 종류 안에서 정렬합니다.":"주요 변화를 살펴보고, 확인할 설비에서 조사를 이어가세요."}</p>
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
-      <span role="columnheader">설비</span><span role="columnheader">운전</span><span role="columnheader">주 신호</span>
-      <span role="columnheader">주요 변화</span><span role="columnheader">확인 항목</span>
+      <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
+      <span role="columnheader">최근 주 신호</span><span role="columnheader">확인할 이유</span>
     </div>
     {#each grouped as group (group.kind)}
-      {#if group.kind}<div class="kind" role="row"><span role="cell">{group.kind} · {group.rows.length}대</span></div>{/if}
+      {#if group.kind}<div class="kind" role="row"><span role="cell" aria-colspan="4">{group.kind} · {group.rows.length}대</span></div>{/if}
       {#each group.rows as asset (asset.assetId)}
         {@const note = primaryNotes[asset.assetId]}
         {@const stored = asset.flow === "stored-history"}
@@ -136,25 +138,6 @@
               <small class="issue import">{unfinished.text} <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></small>
             {/if}
           </div>
-          <div class="cell" role="cell" data-label="운전">
-            {#if row?.operation?.shares}
-              {@const operation = row.operation}
-              {@const shares = row.operation.shares}
-              {@const palette = colors(operation.names.levels.length)}
-              <span class="bar" title={shares.map((share, band) => bandName(operation.names, band) + " " + percent(share)).join(" · ")}>
-                {#each shares as share, band (band)}{#if share > 0}<i style={"width:" + share * 100 + "%;background:" + palette[band]}></i>{/if}{/each}
-              </span>
-              <small>{shares[0] >= 0.005 ? "정지 " + percent(shares[0]) : "정지 없음"} · 운전 수준 {operation.names.levels.length}개</small>
-            {:else if row}<small>{row.kind === "vibration" ? "진동 측정" : "전류 기록 없음"}</small>
-            {:else}<small>{waiting}</small>{/if}
-          </div>
-          <div class="cell" role="cell" data-label="주 신호">
-            {#if row?.main}
-              <small>{row.main.label}</small>
-              <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
-              {#if row.main.trace.length > 1}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={sparkline(row.main.trace, 120, 28)} /></svg>{/if}
-            {:else if !row}<small>{waiting}</small>{/if}
-          </div>
           <div class="cell" role="cell" data-label="주요 변화">
             {#if row?.finding}
               {@const found = row.finding}
@@ -166,11 +149,33 @@
             {:else}<small>{waiting}</small>{/if}
             {#if row?.copied}<small class="issue">데이터 확인 필요 · 신호 {row.copied}개</small>{/if}
           </div>
+          <div class="cell" role="cell" data-label="주 신호">
+            {#if row?.main}
+              <small>{row.main.label}</small>
+              <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
+              {#if row.main.trace.length > 1}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={sparkline(row.main.trace, 120, 28)} /></svg>{/if}
+            {:else if !row}<small>{waiting}</small>{/if}
+          </div>
           <div class="cell" role="cell" data-label="확인 항목">
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
-            {#if note}<strong class="primary-reason">{note.label}</strong><small class="reason-detail" title={note.detail}>{note.detail}</small>
+            {#if note}<strong class="primary-reason">{note.label}</strong>
               <a class="investigate" href={note.href}>{note.action} →</a>{/if}
+            {#if row?.operation || note || (reasons && (notes[asset.assetId]??0)>0)}<details class="row-details"><summary>운전·확인 상세</summary>
+            {#if row?.operation?.shares}
+              {@const operation = row.operation}
+              {@const shares = row.operation.shares}
+              {@const palette = colors(operation.names.levels.length)}
+              <span class="bar" title={shares.map((share, band) => bandName(operation.names, band) + " " + percent(share)).join(" · ")}>
+                {#each shares as share, band (band)}{#if share > 0}<i style={"width:" + share * 100 + "%;background:" + palette[band]}></i>{/if}{/each}
+              </span>
+              <small>{shares[0] >= 0.005 ? "정지 " + percent(shares[0]) : "정지 없음"} · 운전 수준 {operation.names.levels.length}개</small>
+            {:else if row}<small>{row.kind === "vibration" ? "진동 측정" : "운전 수준을 나눌 정보 없음"}</small>
+            {:else}<small>{waiting}</small>{/if}
+              {#if row?.operation?.shares}<p class="shares">{row.operation.shares.map((share,band)=>bandName(row.operation!.names,band)+" "+percent(share)).join(" · ")}</p>{/if}
+              {#if note}<p class="reason-detail">{note.detail}</p>{/if}
             {#if reasons && (notes[asset.assetId]??0)>0}<a class="reason-link" href={"#attention-"+encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>확인 항목 모두 보기 →</a>{/if}
+            </details>{/if}
+
           </div>
         </div>
       {/each}
@@ -185,7 +190,7 @@
   .filters label{display:flex;align-items:center;gap:var(--space-1)}
   .context{color:var(--color-ink-muted);font-size:var(--font-small)}
   .table{display:grid;border-top:1px solid var(--color-border)}
-  .row,.columns{display:grid;grid-template-columns:minmax(10rem,1.3fr) minmax(8rem,.9fr) minmax(9rem,1fr) minmax(12rem,1.6fr) minmax(9rem,1fr);gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-border);align-items:start;min-width:0}
+  .row,.columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.65fr) minmax(0,.9fr) minmax(0,1fr);gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-border);align-items:start;min-width:0}
   .columns{font-size:var(--font-small);color:var(--color-ink-muted);padding-block:var(--space-2)}
   .kind{padding:var(--space-2);font-weight:650;font-size:var(--font-small);border-bottom:1px solid var(--color-border);background:var(--color-surface-selected)}
   .cell{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
@@ -194,7 +199,9 @@
   .latest{font-weight:700;font-variant-numeric:tabular-nums}
   .finding{font-weight:650}
   .primary-reason{font-weight:650}
-  .reason-detail{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .reason-detail,.shares{margin:var(--space-2) 0 0;font-size:var(--font-small);color:var(--color-ink-muted);overflow-wrap:anywhere}
+  .row-details summary{cursor:pointer;padding-block:var(--space-2);font-size:var(--font-small);color:var(--color-action)}
+  .group-toggle input{width:auto;margin:0}
   .cell small.issue{color:var(--color-caution-ink)}
   .bar{display:flex;height:10px;border-radius:2px;overflow:hidden;background:var(--color-surface-selected);max-width:10rem}
   .bar i{display:block;height:100%}

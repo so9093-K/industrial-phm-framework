@@ -316,7 +316,7 @@
             <a class="ui-button" href={systemUrl("connections") + "#public-datasets"}>{publicCount?"공개 실측 데이터로 시작하기 ("+publicCount+"개)":"공개 실측 데이터 준비 방법"}</a>
           </div>
           <p class="start-note">OPC UA 수신과 작업공간 안 CSV도 데이터 연결에서 등록합니다.</p>
-          <AnalysisGuide />
+          <details class="start-guide"><summary>가능한 분석과 필요한 데이터 보기</summary><AnalysisGuide /></details>
         </section>
       {/if}
       {#if route.page === "maintenance"}
@@ -354,6 +354,7 @@
 </main>
 
 <style>
+  .start-guide>summary { cursor:pointer; padding-block:var(--space-3); color:var(--color-action); font-weight:650; }
   .monitor-operations>summary {
     cursor: pointer; padding-block: var(--space-3); font-weight: 650; color: var(--color-action);
   }

@@ -138,6 +138,7 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 assert picked["monitor_pick"][0].startswith("2020-")
                 assert operations.get_attribute("open") is None
                 assert assets.bounding_box()["y"] < operations.bounding_box()["y"]
+                assets.locator(".row-details summary").first.click()
                 assets.locator(".reason-link").first.click()
                 pw.expect(page.locator("#attention-changing")).to_be_visible()
                 assert operations.get_attribute("open") is not None
@@ -223,6 +224,11 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 ).to_be_visible()
                 snapshot["assets"]["items"] = []
                 page.goto(origin + "/web/")
+                assert page.locator("details.start-guide").get_attribute("open") is None
+                pw.expect(page.locator(".guide")).to_be_hidden()
+                pw.expect(
+                    page.get_by_role("link", name="CSV 파일로 시작하기", exact=True)
+                ).to_be_visible()
                 page.get_by_role("link", name="공개 실측 데이터 준비 방법", exact=True).click()
                 preparation = page.get_by_role("region", name="공개 실측 데이터로 시작", exact=True)
                 pw.expect(preparation).to_contain_text("data/raw/aihub/239/archives/*/raw/*.zip")
@@ -295,6 +301,9 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
                 assert response.value.json()["horizon"] == "24h"
                 pw.expect(result).to_be_visible(timeout=60000)
                 pw.expect(panel.locator(".result-head")).to_contain_text("예측 24시간")
+                headline = panel.locator(".outlook-summary").inner_text()
+                pw.expect(panel.get_by_text(headline, exact=True)).to_have_count(1)
+                pw.expect(panel.locator(".message .headline")).to_have_count(0)
                 chart = panel.locator("figure.chart")
                 fit = panel.get_by_role("region", name="예측 시작값과 검증 상태")
                 assert chart.bounding_box()["y"] < fit.bounding_box()["y"]
@@ -333,6 +342,7 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
                     panel.get_by_role("button", name="계산하기", exact=True).click()
                 assert response.value.json()["horizon_count"] == 5
                 pw.expect(result).to_be_visible(timeout=60000)
+                pw.expect(panel.locator(".message .headline")).to_have_count(0)
                 assert not errors
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+2")
             finally:
@@ -473,6 +483,205 @@ def test_stored_reviews_stay_reachable_when_their_count_cannot_be_read(
                 index.update(ids=["motor-01", "motor-02"])
                 page.reload()
                 pw.expect(entry).to_contain_text("저장한 검토가 있는 설비 2곳", timeout=30000)
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
+    tmp_path: Path, width: int
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:conditions:{channel}:{i}",
+                source_id="compressor-file",
+                asset_id="공기압축기 1",
+                channel_id=channel,
+                source_file="conditions.csv",
+                source_sha256="c" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + i,
+                event_at=datetime(2020, 10, 22, tzinfo=UTC) + timedelta(minutes=i),
+                value=((60 if i < 90 else 30) + (i % 3) * 0.5)
+                if channel == "전류"
+                else ((0.95 if i < 40 else 0.6) + (i % 4) * 0.005),
+                source_metadata_json=json.dumps(
+                    {
+                        "binding": {
+                            "definition": {
+                                "observed_property": "electric current"
+                                if channel == "전류"
+                                else "power factor",
+                                "unit": "A" if channel == "전류" else None,
+                            }
+                        }
+                    }
+                ),
+            )
+            for offset, channel in enumerate(("전류", "역률"))
+            for i in range(120)
+        ),
+        batch_id="conditions",
+    )
+    snapshot = json.loads(asset_list("공기압축기 3", "펌프 2", "공기압축기 1"))
+    snapshot["assessed_at"] = "2026-11-16T00:00:00Z"
+    snapshot["assets"]["items"][2]["last_observed_at"] = "2020-10-22T01:59:00Z"
+    phm = {
+        "schema_version": 1,
+        "truncated": False,
+        "items": [
+            {
+                "binding_id": asset,
+                "asset_id": asset,
+                "step_kind": "history-window",
+                "recipe_id": None,
+                "processing_state": state,
+                "latest_analyzed": None,
+                "latest_processed": None,
+            }
+            for asset, state in (("공기압축기 3", "pending"), ("펌프 2", "rejected"))
+        ],
+    }
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                errors = []
+                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.route("**/api/v1/monitor", lambda route: route.fulfill(json=snapshot))
+                page.route("**/api/v1/phm/monitor", lambda route: route.fulfill(json=phm))
+                page.goto(origin + "/web/")
+                rows = page.locator(".table .row")
+                pw.expect(rows.nth(0).locator(".asset")).to_contain_text("공기압축기 1")
+                pw.expect(rows.nth(1).locator(".asset")).to_contain_text("펌프 2")
+                pw.expect(rows.nth(2).locator(".asset")).to_contain_text("공기압축기 3")
+                pw.expect(rows.first.locator(".finding")).to_contain_text("역률", timeout=30000)
+                pw.expect(rows.first.locator(".bar")).to_be_hidden()
+                rows.first.get_by_text("운전·확인 상세", exact=True).click()
+                pw.expect(rows.first.locator(".bar")).to_be_visible()
+                page.get_by_role("checkbox", name="종류별로 묶기").check()
+                pw.expect(rows.nth(1).locator(".asset")).to_contain_text("공기압축기 3")
+                pw.expect(rows.nth(2).locator(".asset")).to_contain_text("펌프 2")
+                page.get_by_role("checkbox", name="종류별로 묶기").uncheck()
+                with page.expect_response("**/api/v1/explore/findings?**") as response:
+                    rows.first.locator(".finding").click()
+                finding = response.value.json()["intervals"][0]
+                card = page.locator(".found > li").first
+                pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
+                context = card.get_by_role("complementary", name="이 변화의 해석과 다음 확인")
+                pw.expect(context).to_contain_text("해당하는 측정끼리 비교해 찾은 변화")
+                op = page.locator("details.operation-details")
+                assert op.get_attribute("open") is None
+                pw.expect(op.locator(".operation")).to_be_hidden()
+                op.locator("summary").first.click()
+                pw.expect(op.locator(".operation")).to_be_visible()
+                assert card.bounding_box()["y"] < op.bounding_box()["y"]
+                compare = context.get_by_role(
+                    "link", name="같은 운전 수준으로 두 기간 비교", exact=False
+                )
+                scope = parse_qs(
+                    urlsplit(compare.get_attribute("href")).query, keep_blank_values=True
+                )
+                assert scope["compare_level"] == [str(finding["band"])]
+                assert scope["monitor_source"] == ["compressor-file"] and scope[
+                    "monitor_point"
+                ] == [""]
+                assert len(scope["monitor_interpretation"][0]) == 64
+                compare.click()
+                pw.expect(
+                    page.get_by_text("중에 측정된 값끼리 비교합니다", exact=False)
+                ).to_be_visible()
+                assert not errors, errors
+                assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+@pytest.mark.parametrize("flat", [False, True])
+def test_relation_leads_with_the_change_at_the_same_input_level(
+    tmp_path: Path, width: int, flat: bool
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    base = datetime(2020, 10, 1, tzinfo=UTC)
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:relation:{channel}:{period}:{i}",
+                source_id="paired",
+                asset_id="pump",
+                channel_id=channel,
+                source_file="paired.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 10000 + period * 1000 + i,
+                event_at=base + timedelta(days=period, minutes=i),
+                value=float(i % 10)
+                if channel == "x"
+                else float((2 if flat else 2 * (i % 10)) + period * 5),
+                source_metadata_json="{}",
+            )
+            for offset, channel in enumerate(("x", "y"))
+            for period in (0, 1)
+            for i in range(400)
+        ),
+        batch_id="paired",
+    )
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    query = {
+        "page": "assets",
+        "monitor_asset": "pump",
+        "tab": "change",
+        "method": "relation",
+        "data": "history",
+        "relation_x": "x",
+        "relation_y": "y",
+        "compare_a": base.isoformat() + "~" + (base + timedelta(minutes=400)).isoformat(),
+        "compare_b": (base + timedelta(days=1)).isoformat()
+        + "~"
+        + (base + timedelta(days=1, minutes=400)).isoformat(),
+    }
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": width, "height": 900})
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(json=json.loads(asset_list("pump"))),
+                )
+                page.goto(origin + "/web/?" + urlencode(query))
+                group = page.locator(".relation .group")
+                pw.expect(group.locator(".message .headline")).to_contain_text(
+                    "같은 x", timeout=30000
+                )
+                if flat:
+                    pw.expect(group.locator(".coefficient-summary")).to_have_count(0)
+                    pw.expect(group.locator(".message")).to_contain_text("20개 이상의 측정 짝")
+                else:
+                    assert group.locator(".coefficient-summary").get_attribute("open") is None
+                    pw.expect(group.locator(".coefficient-summary p")).to_be_hidden()
+                    group.locator(".coefficient-summary summary").click()
+                    pw.expect(group.locator(".coefficient-summary p")).to_be_visible()
+                assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
             finally:
                 browser.close()
     finally:
