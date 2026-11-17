@@ -36,12 +36,13 @@
     void readHistoryStreams(assetId, current.signal).then((value) => {
       if (current.signal.aborted) return;
       streams = value; load = "ready"; pick(0);
+      // 신호 이름은 고를 신호에 붙이는 이름이다. 시계열 기록이 없는 설비(진동만 있는 설비)에는
+      // 고를 신호가 없으므로 이름도 읽지 않는다.
+      if (value.length && !names) void readSignalNames(assetId).then((read) => { if (!current.signal.aborted) names = read; }).catch(() => {});
     }).catch(() => { if (!current.signal.aborted) load = "failed"; });
   }
   onMount(() => {
     readStreams();
-    // Signal names only label the choices; without them the stored IDs are shown.
-    void readSignalNames(assetId).then((value) => { if (request && !request.signal.aborted) names = value; }).catch(() => {});
     return () => request?.abort();
   });
   /** A stream offers only its own signals and period. */
