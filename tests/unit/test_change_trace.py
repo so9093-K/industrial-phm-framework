@@ -53,3 +53,39 @@ def test_trace_keeps_measured_context_across_a_gap_before_the_change() -> None:
     assert trace[0][1] == 40.0 and trace[-1][1] == 65.0
     assert sum(not row[2] for row in trace) == 2
     assert next(row for row in trace if row[1] == 65.0)[2] is False
+
+
+def test_overview_keeps_the_whole_record_and_marks_the_judged_values() -> None:
+    from industrial_phm.runtime.operations_web_explore import record_overview
+
+    start = datetime(2026, 11, 1, tzinfo=UTC)
+    # 1,000개 구간 중 400~419는 빠져 있고, 판단한 값은 짝수 구간뿐이다.
+    points = [
+        (start + timedelta(minutes=i), start + timedelta(minutes=i + 1), float(i % 50))
+        for i in range(1000)
+        if not 400 <= i < 420
+    ]
+    judged = [point for index, point in enumerate(points) if index % 2 == 0]
+    rows = record_overview(points, judged, 60, slots=100)
+    assert 90 <= len(rows) <= 100
+    assert datetime.fromisoformat(rows[0][0]) >= points[0][0]
+    assert datetime.fromisoformat(rows[-1][0]) <= points[-1][1]
+    assert all(row[2] <= row[1] <= row[3] for row in rows)
+    assert min(row[2] for row in rows) == 0.0 and max(row[3] for row in rows) == 49.0
+    # 빠진 구간에서만 선이 끊긴다.
+    assert [row[5] for row in rows].count(False) == 2
+    assert all(row[4] is not None for row in rows)
+    assert record_overview([], [], 60) == []
+
+
+def test_overview_leaves_slots_without_judged_values_empty() -> None:
+    from industrial_phm.runtime.operations_web_explore import record_overview
+
+    start = datetime(2026, 11, 1, tzinfo=UTC)
+    points = [
+        (start + timedelta(minutes=i), start + timedelta(minutes=i + 1), float(i))
+        for i in range(10)
+    ]
+    rows = record_overview(points, points[5:], 60, slots=10)
+    assert [row[4] for row in rows] == [None] * 5 + [5.0, 6.0, 7.0, 8.0, 9.0]
+    assert [row[5] for row in rows] == [False] + [True] * 9

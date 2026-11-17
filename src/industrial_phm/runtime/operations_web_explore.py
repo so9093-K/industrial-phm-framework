@@ -706,6 +706,65 @@ def change_trace(
     ]
 
 
+def record_overview(
+    points: list[tuple[datetime, datetime, float]],
+    judged: list[tuple[datetime, datetime, float]],
+    bucket_seconds: float,
+    slots: int = 240,
+) -> list[list[Any]]:
+    """기록 전체를 정해진 수의 표시 칸에 나눠, 변화가 기록 어디에 있었는지 보이게 한다.
+
+    Args:
+        points: 기록의 집계 구간 ``(시작, 끝, 평균)``. 모든 운전 상태를 포함한다.
+        judged: 변화를 판단한 집계 구간. 한 운전 수준의 값이거나 정지를 뺀 기록이다.
+        bucket_seconds: 집계 구간 길이(초). 이보다 1.5배 넘게 벌어지면 빈 구간으로 본다.
+        slots: 표시 칸 수.
+
+    Returns:
+        칸마다 ``[시각, 평균, 최저, 최고, 판단한 값의 평균, 앞 칸과 이어짐]``. 값은 칸 안
+        집계 평균들의 통계이고, 판단한 값이 없는 칸은 그 평균이 None이다.
+    """
+    if not points:
+        return []
+    start, end = points[0][0], points[-1][1]
+    width = max((end - start).total_seconds(), 1.0) / slots
+
+    def slot(at: datetime) -> int:
+        return min(slots - 1, max(0, int((at - start).total_seconds() / width)))
+
+    filled: dict[int, list[int]] = {}
+    for index, point in enumerate(points):
+        filled.setdefault(slot(point[0]), []).append(index)
+    chosen: dict[int, list[float]] = {}
+    for point in judged:
+        chosen.setdefault(slot(point[0]), []).append(point[2])
+    rows: list[list[Any]] = []
+    last: int | None = None
+    for number in sorted(filled):
+        members = filled[number]
+        values = [points[i][2] for i in members]
+        first = members[0]
+        # 신호 그래프와 같은 규칙: 원본 집계 구간이 빠졌을 때만 선을 끊는다.
+        joins = last is not None and (
+            bucket_seconds > 0
+            and (points[first][0] - points[last][0]).total_seconds() <= bucket_seconds * 1.5
+        )
+        middle = points[first][0] + (points[members[-1]][1] - points[first][0]) / 2
+        picked = chosen.get(number)
+        rows.append(
+            [
+                iso(middle),
+                sum(values) / len(values),
+                min(values),
+                max(values),
+                sum(picked) / len(picked) if picked else None,
+                joins,
+            ]
+        )
+        last = members[-1]
+    return rows
+
+
 def stream_records(
     history: DuckLakeAssetHistory, asset_id: str, channels: list[str]
 ) -> tuple[
@@ -1048,6 +1107,15 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 else None,
                 "trace": [row[:2] for row in trace],
                 "trace_join": [row[2] for row in trace],
+                # 변화 주변 확대만으로는 같은 일이 기록에 몇 번 있었는지 알 수 없다.
+                "overview": record_overview(
+                    record["points"], judged[name], record["bucket_seconds"]
+                ),
+                "overview_kind": "level"
+                if band is not None
+                else "running"
+                if len(judged[name]) != len(record["points"])
+                else "all",
                 "related": [
                     {
                         **{
