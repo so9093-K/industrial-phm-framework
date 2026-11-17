@@ -8,6 +8,7 @@
 {#if operation && item.operation && (item.band!=null || item.operation.interval) || changed.length || compareHref || relation}
 <aside class="finding-context" aria-label="이 변화의 해석과 다음 확인">
   {#if operation && item.operation && (item.band!=null || item.operation.interval)}
+    <div>
     <h4>같은 운전 수준에서도 달랐나요?</h4>
     {#if item.band!=null}
       <p><strong>{bandName(operation,item.band)}</strong>에 해당하는 측정끼리 비교해 찾은 변화입니다.
@@ -17,11 +18,14 @@
       <p>{shiftText(operation,item.operation)}</p>
       <p>전체 값의 차이에는 운전 수준별 측정 비중이 섞일 수 있습니다. 같은 수준의 값끼리도 비교해 보세요.</p>
     {/if}
+    </div>
   {/if}
   {#if changed.length}
+    <div>
     <h4>같은 구간에 함께 달라진 신호</h4>
     <p>{#each changed.slice(0,2) as other,i (other.channel)}{i?" · ":""}{other.label}
       {changeValue(other.reference,null)} → {changeValue(other.current,other.unit)}{/each}</p>
+    </div>
   {/if}
   {#if compareHref || relation}
     <nav aria-label="이 변화에서 이어서 조사">
@@ -32,7 +36,9 @@
 </aside>
 {/if}
 <style>
-  .finding-context{display:grid;gap:var(--space-2);padding:var(--space-3);margin-block:var(--space-2);border-radius:var(--radius-control);background:var(--color-surface-selected);font-size:var(--font-small);min-width:0}
+  /* 넓은 화면에서는 운전 수준 설명과 함께 달라진 신호를 나란히 둔다. */
+  .finding-context{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--space-2) var(--space-6);padding:var(--space-3);margin-block:var(--space-2);border-radius:var(--radius-control);background:var(--color-surface-selected);font-size:var(--font-small);min-width:0}
   h4,p{margin:0;line-height:1.6;overflow-wrap:anywhere}h4{font-size:inherit}.limit{color:var(--color-ink-muted)}
-  nav{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}a{font-weight:650}
+  .finding-context>div{display:grid;gap:var(--space-1);align-content:start}
+  nav{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}a{font-weight:650}
 </style>

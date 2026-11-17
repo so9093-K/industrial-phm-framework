@@ -328,7 +328,11 @@
   <h2 id="csv-start-title">CSV 데이터 등록</h2>
   <p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>
   <ol class="flow" aria-label="진행 순서">
-    <li>파일 선택</li><li>미리보기·설비 확인</li><li>저장하고 분석</li>
+    {#each ["파일 선택", "미리보기·설비 확인", "저장하고 분석"] as label, index (label)}
+      {@const at = stored ? 3 : table ? 1 : 0}
+      <li data-state={index < at ? "done" : index === at ? "current" : "todo"} aria-current={index === at ? "step" : undefined}>
+        <span class="mark" aria-hidden="true">{index < at ? "✓" : index + 1}</span>{label}{#if index < at}<span class="visually-hidden"> 완료</span>{/if}</li>
+    {/each}
   </ol>
 
   <div class="field">
@@ -345,6 +349,7 @@
     <section aria-labelledby="csv-preview-title">
       <h3 id="csv-preview-title">파일 미리보기</h3>
       <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "미리보기 · 저장 전 검증을 통과했습니다" : "미리보기 · 아직 저장하지 않았습니다"}</p>
+      <div class="preview-grid"><div class="preview-main">
       <div class="columns">
         <label class="field">시각 열
           <select value={String(timeIndex)} disabled={locked} onchange={(event) => chooseTime(event.currentTarget.value)}>
@@ -405,6 +410,7 @@
         <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
+      </div><div class="preview-units">
       {#if channels.length}<fieldset class="names">
           <legend>측정값 이름·단위 확인</legend>
           <p class="context">원본의 단위를 확인해 입력하세요. 모르는 단위는 비워 둘 수 있으며, 결과에는 단위 미확인으로 표시합니다.</p>
@@ -416,7 +422,7 @@
           {#each channels as name (name)}
             <div class="name-row">
               <span class="column">{name}</span>
-              <input maxlength="60" placeholder="이름" aria-label={name + " 이름"} disabled={locked}
+              <input maxlength="60" placeholder="표시 이름 (비우면 열 이름)" aria-label={name + " 이름"} disabled={locked}
                 value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
               <input maxlength="16" placeholder={unitExample(name) ? "단위 예: " + unitExample(name) : "단위"} aria-label={name + " 단위"} disabled={locked}
                 value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
@@ -432,6 +438,7 @@
         </label><p class="context">전류 항목과 A 단위를 확인하면 같은 운전 수준의 값끼리 비교합니다. 상 구분을 지정할 필요는 없습니다.</p>
         {#if currentProblem}<p role="alert">{currentProblem}</p>{/if}
         {:else}<p class="context">전류 열의 단위를 A로 확인하면 운전 수준별 비교에도 사용할 수 있습니다.</p>{/if}{/if}
+      </div></div>
       <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
           <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
@@ -543,14 +550,26 @@
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); }
   .problem { color: var(--color-failure-ink); }
-  .flow { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0; padding-inline-start: var(--space-5); color: var(--color-ink-muted); font-size: var(--font-small); }
+  .flow { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0; padding: 0; list-style: none; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .flow li { display: flex; align-items: center; gap: var(--space-2); }
+  .flow .mark { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 999px; border: 1px solid var(--color-control-border); font-weight: 700; font-size: var(--font-label); }
+  .flow li[data-state="current"] { color: var(--color-ink); font-weight: 700; }
+  .flow li[data-state="current"] .mark { background: var(--color-action); border-color: var(--color-action); color: var(--color-action-ink); }
+  .flow li[data-state="done"] .mark { border-color: var(--color-action); color: var(--color-action); }
   .field { display: grid; gap: var(--space-1); font-weight: 650; min-width: 0; }
   input:not([type="checkbox"]), select { font: inherit; font-weight: 400; min-height: 40px; padding: var(--space-2) var(--space-3); min-width: 0;
     border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
   input[type="file"] { max-width: 100%; }
-  .columns { display: grid; gap: var(--space-3); }
+  .columns { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); align-items: end; }
+  .columns .choice { grid-column: 1 / -1; }
   .names { display: grid; gap: var(--space-2); }
   .names .context { margin: 0; }
+  fieldset.names { max-width: 760px; }
+  /* 넓은 화면에서는 미리보기 그래프 옆에서 이름과 단위를 확인한다. */
+  .preview-grid { display: grid; gap: var(--space-4) var(--space-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .preview-main, .preview-units { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+  @media (min-width: 1100px) { .preview-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+  .preview-main > .field, .preview-units > .field, .grid > .field { max-width: 360px; }
   .name-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(120px, 2fr) minmax(90px, 1fr); gap: var(--space-2); align-items: center; }
   .name-row .column { overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--font-small); }
   @media (max-width: 560px) { .name-row { grid-template-columns: 1fr 1fr; } .name-row .column { grid-column: 1 / -1; } }
@@ -565,7 +584,7 @@
   caption { text-align: left; color: var(--color-ink-muted); font-size: var(--font-small); }
   th, td { padding: var(--space-2); text-align: left; border-bottom: 1px solid var(--color-border); }
   thead th { white-space: nowrap; }
-  svg { width: 100%; height: auto; max-height: 180px; }
+  svg { width: 100%; max-width: 760px; height: auto; max-height: 180px; }
   .gridline { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; }
   .tick { font-size: 10px; fill: var(--color-ink-muted); }
   .axis { fill: none; stroke: var(--color-border); }

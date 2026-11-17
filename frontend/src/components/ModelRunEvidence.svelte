@@ -298,65 +298,6 @@
         {#key binding.bindingId+":"+binding.lastProcessed}
           <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
-        {#if detailState==="loading"}
-          <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
-        {:else if detailState==="failed"}
-          <StatusNotice kind="failure" title="모델 결과를 확인하지 못했습니다" message={error}
-            actionLabel="다시 확인" onAction={()=>{if(selectedStep)void chooseStep(selectedStep);}}/>
-        {:else if detailState==="unavailable"}
-          <StatusNotice kind="uncertain" title="선택한 모델 결과를 찾을 수 없습니다" message={error}/>
-        {:else if result}
-          {#if result.state==="skipped"}
-            <StatusNotice kind="uncertain" title="이 측정은 모델 분석에서 제외됐습니다"
-              message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
-          {:else}
-            {@const summary=scoreSummary(result.output)}
-            <div class="selected-result"><strong>{selectedScoreMessage(summary).headline}</strong>
-              <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button></div>
-            <details><summary>점수·판정 상세</summary>
-            <p class="context">{selectedScoreMessage(summary).meaning}</p>
-            <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>
-              <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
-              <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
-              <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
-            </div>
-            </details>
-          {/if}
-          <p class="context">{place(result.position)} · 측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
-            · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
-          {#if measurements&&binding.stepKind==="acquisition-snapshot"}
-            {@const links=measurementLinks(assetId,result.position,{...measurements,bindingId:binding.bindingId},"model")}
-            {#if links.length}<p class="continue">같은 측정으로 이어서 보기
-              {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
-          {/if}
-          <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
-            {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
-          </details>
-          <details>
-            <summary>기술 상세</summary>
-            <dl>
-              <div><dt>적용 모델(binding)</dt><dd>{binding.bindingId}</dd></div>
-              <div><dt>모델 레시피</dt><dd>{binding.recipeId??"확인 불가"}</dd></div>
-              <div><dt>모델 패키지</dt><dd>{binding.packageId}</dd></div>
-              <div><dt>모델 작업</dt><dd>{binding.task??"확인 불가"}</dd></div>
-              <div><dt>모델 상태</dt><dd>{binding.health}</dd></div>
-              <div><dt>모델 실행 기록</dt><dd>{result.runId}</dd></div>
-              <div><dt>저장 단계 키</dt><dd>{result.stepKey}</dd></div>
-              <div><dt>입력 파일 확인값</dt><dd>{String(result.inputReference.sha256??result.inputReference.input_digest??"없음")}</dd></div>
-              <div><dt>시간 구간 ID</dt><dd>{String(result.inputReference.window_id??"해당 없음")}</dd></div>
-            </dl>
-            {#if result.state!=="skipped"}
-              <h4>모델 출력 원본</h4>
-              <pre>{stringify(result.output)}</pre>
-              <h4>입력 특징값</h4>
-              {#if result.features===null}
-                <p class="context">이 실행에는 입력 특징값이 저장되지 않았습니다.</p>
-              {:else}
-                <pre>{stringify(result.features)}</pre>
-              {/if}
-            {/if}
-          </details>
-        {/if}
       {/if}
       </div><aside class="analysis-sidebar" aria-label="모델 선택과 측정 조사">
     {#if bindings.length>1}
@@ -398,8 +339,73 @@
         {/if}
       {/if}
       </aside>
-      {#if result}
+      {#if trace}
       <div class="model-comparison-area">
+        {#if detailState==="loading"}
+          <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
+        {:else if detailState==="failed"}
+          <StatusNotice kind="failure" title="모델 결과를 확인하지 못했습니다" message={error}
+            actionLabel="다시 확인" onAction={()=>{if(selectedStep)void chooseStep(selectedStep);}}/>
+        {:else if detailState==="unavailable"}
+          <StatusNotice kind="uncertain" title="선택한 모델 결과를 찾을 수 없습니다" message={error}/>
+        {:else if result}
+          {#if result.state==="skipped"}
+            <StatusNotice kind="uncertain" title="이 측정은 모델 분석에서 제외됐습니다"
+              message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
+          {:else}
+            {@const summary=scoreSummary(result.output)}
+            <div class="selected-result"><h3>{place(result.position)} · {selectedScoreMessage(summary).headline}</h3>
+              <span class="context">점수 {num(summary.score,"기록 없음")} / 기준 {num(summary.threshold,"기록 없음")}</span>
+              <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button></div>
+          {/if}
+          <div class="selected-meta"><p class="context">측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
+            · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
+          {#if measurements&&binding.stepKind==="acquisition-snapshot"}
+            {@const links=measurementLinks(assetId,result.position,{...measurements,bindingId:binding.bindingId},"model")}
+            {#if links.length}<p class="continue">같은 측정으로 이어서 보기
+              {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
+          {/if}</div>
+          <div class="selected-more">
+          {#if result.state!=="skipped"}{@const summary=scoreSummary(result.output)}
+            <details><summary>점수·판정 상세</summary>
+          <p class="context">{selectedScoreMessage(summary).meaning}</p>
+          <div class="score" role="group" aria-label={place(result.position)+" 모델 결과"} data-model-position={result.position} data-model-event-start={result.eventStart ?? ""}>
+            <div><span>모델 점수</span><strong>{num(summary.score,"기록 없음")}</strong></div>
+            <div><span>모델 기준</span><strong>{num(summary.threshold,"기록 없음")}</strong></div>
+            <div><span>기준 대비</span><strong>{summary.exceeds===null?"판단 정보 없음":summary.exceeds?"기준 초과":"기준 이하"}</strong></div>
+          </div>
+          </details>
+          {/if}
+          <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
+            {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
+          </details>
+          <details>
+            <summary>기술 상세</summary>
+            <dl>
+              <div><dt>적용 모델(binding)</dt><dd>{binding.bindingId}</dd></div>
+              <div><dt>모델 레시피</dt><dd>{binding.recipeId??"확인 불가"}</dd></div>
+              <div><dt>모델 패키지</dt><dd>{binding.packageId}</dd></div>
+              <div><dt>모델 작업</dt><dd>{binding.task??"확인 불가"}</dd></div>
+              <div><dt>모델 상태</dt><dd>{binding.health}</dd></div>
+              <div><dt>모델 실행 기록</dt><dd>{result.runId}</dd></div>
+              <div><dt>저장 단계 키</dt><dd>{result.stepKey}</dd></div>
+              <div><dt>입력 파일 확인값</dt><dd>{String(result.inputReference.sha256??result.inputReference.input_digest??"없음")}</dd></div>
+              <div><dt>시간 구간 ID</dt><dd>{String(result.inputReference.window_id??"해당 없음")}</dd></div>
+            </dl>
+            {#if result.state!=="skipped"}
+              <h4>모델 출력 원본</h4>
+              <pre>{stringify(result.output)}</pre>
+              <h4>입력 특징값</h4>
+              {#if result.features===null}
+                <p class="context">이 실행에는 입력 특징값이 저장되지 않았습니다.</p>
+              {:else}
+                <pre>{stringify(result.features)}</pre>
+              {/if}
+            {/if}
+          </details>
+          </div>
+        {/if}
+        {#if result}
           {#if result.state!=="skipped"}
             {#key result.runId}
               <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
@@ -411,6 +417,7 @@
             {/key}
             <CautionNote message="AI 해설은 저장된 측정값 비교를 설명하며 고장 원인을 진단하지 않습니다."/>
           {/if}
+        {/if}
       </div>
       {/if}</div>
     {/if}
@@ -419,8 +426,15 @@
   {/if}
 </section>
 <style>
-  .selected-result{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3);margin-block:var(--space-3)}
-  .model-comparison-area{grid-column:1 / -1;min-width:0;border-top:1px solid var(--color-border)}
+  /* 그래프 아래 전체 폭: 고른 측정의 결과와 그 측정이 이전과 무엇이 달랐는지를 한 묶음으로 본다. */
+  .model-comparison-area{grid-column:1 / -1;min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-4);display:grid;gap:var(--space-2)}
+  .selected-result{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
+  .selected-result h3{margin:0;font-size:1.2rem}
+  .selected-result .ui-button{margin-left:auto}
+  .selected-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-5)}
+  .selected-meta p{margin:0}
+  .selected-more{display:flex;flex-wrap:wrap;align-items:start;gap:0 var(--space-5)}
+  .selected-more>details[open]{flex-basis:100%}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .selector{display:grid;gap:var(--space-2);margin-block:var(--space-4);font-weight:650}
   select{width:100%;min-width:0;border:1px solid var(--color-border);
@@ -430,7 +444,7 @@
   .score div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
   .score span{font-size:var(--font-small);color:var(--color-ink-muted)}
   .score strong{font-size:var(--font-section)}
-  summary{cursor:pointer;font-weight:700;padding-block:var(--space-3)}
+  summary{cursor:pointer;font-weight:650;padding-block:var(--space-2);color:var(--color-action)}
   dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-3)}
   dt{font-size:var(--font-small);color:var(--color-ink-muted)}
   dd{margin:0;font-weight:650;overflow-wrap:anywhere}

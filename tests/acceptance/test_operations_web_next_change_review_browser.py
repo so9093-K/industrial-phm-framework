@@ -72,7 +72,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             )
             page.goto(url)
             card = page.locator(".found > li").first
-            pw.expect(card).to_contain_text("일정하던 기준보다 높음")
+            pw.expect(card).to_contain_text("일정하던 값보다 높았습니다")
             assert card.bounding_box()["y"] < 844
             signal_href = card.get_by_role(
                 "link", name="변화 구간 조사", exact=False
@@ -97,7 +97,6 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             pw.expect(card.locator(".events li")).to_have_count(2)
             append("source-b", 120, 180, True)
             page.reload()
-            page.get_by_text("측정 현황·이전 검토", exact=True).click()
             archive_summary = page.get_by_text("저장한 주요 변화 검토", exact=True)
             archive_summary.click()
             archive = archive_summary.locator("..")

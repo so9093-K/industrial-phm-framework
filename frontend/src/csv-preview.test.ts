@@ -63,6 +63,9 @@ test("a column that says what it measures gets a Korean name to start from, neve
     [["motor_temp_c", "모터 온도"], ["vibration_mm_s", "진동"], ["pressure_bar", "압력"]]);
   // The unit field only shows an example for the quantity; nothing is filled in.
   assert.deepEqual(["motor_temp_c", "pressure_bar", "valve_state"].map(unitExample), ["°C", "bar", null]);
+  // Korean headers get the same hint, except values that share a word but not its unit.
+  assert.deepEqual(["R상전류", "전류평균", "R상전압", "온도", "주파수", "유량"].map(unitExample), ["A", "A", "V", "°C", "Hz", "m³/h"]);
+  assert.deepEqual(["T상전압고조파", "전류불평형", "역률평균", "무효전력", "누적전력량"].map(unitExample), [null, null, null, null, null]);
 });
 
 test("the offsets offered for wall times start with Korea and add this computer's own",()=>{

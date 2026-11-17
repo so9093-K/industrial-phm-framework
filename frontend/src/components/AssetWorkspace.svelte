@@ -139,10 +139,6 @@
 </script>
 
 <div class="workspace-asset" aria-busy={dataState === "loading"}>
-  <nav class="crumbs" aria-label="현재 위치">
-    <a href={routeUrl({page: "assets", assetId: "", tab: "summary", method: null, data: null})}>설비·신호</a>
-    <span aria-hidden="true">›</span> <span>{assetLabel(assets, asset.assetId)}</span>
-  </nav>
   <div class="head">
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
@@ -270,7 +266,6 @@
   .analysis-navigation{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-5)}.analysis-navigation .tabs{flex:1;min-width:0}.analysis-navigation .choices{margin:0}
   @media(max-width:860px){.analysis-navigation{display:block}.analysis-navigation .choices{margin-top:var(--space-2)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-  .crumbs { font-size: var(--font-small); color: var(--color-ink-muted); display: flex; gap: var(--space-2); flex-wrap: wrap; }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); }
   .title { min-width: 0; }
   h1 { overflow-wrap: anywhere; font-size:clamp(1.3rem,2vw,1.7rem); }

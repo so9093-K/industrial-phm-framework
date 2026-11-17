@@ -24,6 +24,20 @@
   let request: AbortController | null = null;
   const analyzed = $derived(new Set([...(snapshot?.analyses.records.map((item) => item.sourceId) ?? []), ...analyzedHere]));
   const SECTIONS: {id: SystemSection; label: string}[] = [{id: "connections", label: "데이터 연결"}, {id: "status", label: "시스템 상태"}];
+  // 데이터를 가져오는 방법은 한 번에 하나만 펼친다. 고르던 파일과 입력은 다른 방법을 보는 동안에도 남는다.
+  type Way = "csv" | "public" | "other";
+  const WAYS: {id: Way; label: string; note: string; hash: string}[] = [
+    {id: "csv", label: "CSV 파일", note: "내 컴퓨터의 측정 기록 파일", hash: ""},
+    {id: "public", label: "공개 실측 데이터", note: "AI-Hub 전력 · XJTU-SY 진동", hash: "#public-datasets"},
+    {id: "other", label: "OPC UA · 작업공간 CSV", note: "실시간 수집, 3상 역할 등록", hash: "#opcua-connect"},
+  ];
+  const wayOf = (hash: string): Way => hash === "#public-datasets" ? "public" : hash === "#opcua-connect" || hash === "#other-connect" ? "other" : "csv";
+  let way: Way = $state(wayOf(location.hash));
+  function choose(next: Way) {
+    way = next;
+    // 주소에 남겨 두면 새로 고침이나 공유한 주소도 같은 방법으로 열린다.
+    history.replaceState(history.state, "", location.pathname + location.search + (WAYS.find((item) => item.id === next)?.hash ?? ""));
+  }
 
   async function reload() {
     request?.abort();
@@ -42,7 +56,12 @@
     if (current === "loading" && previous !== "loading") untrack(() => void reload());
     previous = current;
   });
-  onMount(() => { void reload(); return () => request?.abort(); });
+  onMount(() => {
+    void reload();
+    const follow = () => way = wayOf(location.hash);
+    window.addEventListener("hashchange", follow);
+    return () => { request?.abort(); window.removeEventListener("hashchange", follow); };
+  });
 </script>
 
 <nav class="sections" aria-label="운영 관리">
@@ -52,11 +71,20 @@
 </nav>
 
 {#if section === "connections"}
-  <CsvStart {writable} onSaved={reload} />
-  <PublicDatasets {writable} onImported={reload} />
+  <section class="ui-panel ways" aria-labelledby="ways-title">
+    <h2 id="ways-title">데이터 가져오기</h2>
+    <div class="way-list" role="group" aria-label="데이터를 가져오는 방법">
+      {#each WAYS as item (item.id)}
+        <button type="button" aria-pressed={way === item.id} onclick={() => choose(item.id)}>
+          <strong>{item.label}</strong><span>{item.note}</span></button>
+      {/each}
+    </div>
+  </section>
+  <div hidden={way !== "csv"}><CsvStart {writable} onSaved={reload} /></div>
+  <div hidden={way !== "public"}><PublicDatasets {writable} onImported={reload} /></div>
+  <div hidden={way !== "other"}><ConnectionRegistration {writable} onRegistered={reload} /></div>
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
     onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />
-  <ConnectionRegistration {writable} onRegistered={reload} />
 {:else}
   <SystemStatus {snapshot} {storeState} {storeError} />
 {/if}
@@ -66,4 +94,12 @@
     padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
   .sections a { padding: var(--space-2) var(--space-4); border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; font-weight: 650; }
   .sections a[aria-current="page"] { background: var(--color-surface-selected); color: var(--color-action); }
+  .ways h2 { margin: 0 0 var(--space-3); }
+  .way-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--space-3); }
+  .way-list button { display: grid; gap: var(--space-1); text-align: left; padding: var(--space-3) var(--space-4); min-height: 44px;
+    border: 1px solid var(--color-control-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
+  .way-list button span { font-size: var(--font-small); color: var(--color-ink-muted); }
+  .way-list button[aria-pressed="true"] { border-color: var(--color-action); box-shadow: inset 0 0 0 1px var(--color-action); background: var(--color-surface-selected); }
+  .way-list button[aria-pressed="true"] strong { color: var(--color-action); }
+  .way-list button:hover { border-color: var(--color-action); }
 </style>

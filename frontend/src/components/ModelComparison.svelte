@@ -89,12 +89,10 @@
   });
 </script>
 <section class="comparison" aria-label="측정값 비교">
-  <h4>측정값 비교</h4>
-  <p class="context">저장된 두 측정과 구간 흐름은 AI 없이도 확인할 수 있습니다.</p>
   {#if loading}<StatusNotice message="두 측정의 저장값을 비교하고 있습니다."/>
   {:else if failed}<StatusNotice kind="uncertain" message="측정 비교를 읽지 못했습니다. 이전 비교로 대신하지 않습니다."/>
   {:else if comparison}
-    {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else}
+    {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else if !told}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
     {#if told}<AnalysisMessage message={told}/>{/if}
     <div class="comparison-columns"><div class="values-column"><div class="scroll"><table>
@@ -137,7 +135,7 @@
 </section>
 <style>
   .comparison{display:grid;gap:var(--space-3);min-width:0}
-  h4,p{margin:0}h4{font-size:var(--font-section)}
+  p{margin:0}
   .context{color:var(--color-ink-muted);font-size:var(--font-small);overflow-wrap:anywhere}
   .scroll{max-width:100%;overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:520px}
   caption{text-align:left;font-weight:650}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}

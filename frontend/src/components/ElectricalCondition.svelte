@@ -138,39 +138,8 @@
 {/snippet}
 
 <section class="ui-panel condition" aria-labelledby="condition-title">
-  <h2 id="condition-title">3상 전력·불평형</h2>
-  <p class="context">3상 전류·전압과 불평형이 이전과 어떻게 달라졌나요? 전류 수준·운전 패턴과 불평형을 나눠 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
-  <form class="controls" onsubmit={(event) => { event.preventDefault(); void analyze(); }}>
-    <label>분석 기간
-      <select value={period} onchange={(event) => { period = event.currentTarget.value as ConditionPeriod; void analyze(); }}>
-        {#each Object.entries(PERIODS) as [value, label] (value)}<option {value}>{label}</option>{/each}
-      </select>
-    </label>
-    {#if sources.length > 1}
-      <label>데이터 출처 · 측정 위치
-        <select value={sourceKey} onchange={(event) => { sourceKey = event.currentTarget.value; void analyze(); }}>
-          <option value="">데이터 출처 고르기</option>
-          {#each sources as source (keyOf(source))}
-            <option value={keyOf(source)}>{readableSourceId(source.sourceId, sources.map((item) => item.sourceId))} · {source.pointId ?? "측정 위치 지정 없음"}</option>
-          {/each}
-        </select>
-      </label>
-    {/if}
-    <details class="custom">
-      <summary>분석·기준 기간 직접 지정</summary>
-      <div class="times">
-        <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
-        <label>비교 기준<select bind:value={referenceMode}>
-          <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
-        </select></label>
-        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
-        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>
-      </div>
-      <p class="context">분석 끝 시각을 비우면 마지막 저장 기록까지 분석합니다. 직전 비교는 이동할 때마다 기준도 이동하고, 직접 지정한 기준은 유지합니다. 기준 기간은 분석 기간보다 앞서야 합니다.</p>
-    </details>
-    <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
-  </form>
-
+  <h2 class="visually-hidden" id="condition-title">3상 전력·불평형</h2>
+  <div class="analysis-workspace"><div class="analysis-body stack">
   {#if loadState === "loading"}
     <StatusNotice message="고른 기간의 3상 측정값을 분석하고 있습니다." />
   {:else if loadState === "failed"}
@@ -181,13 +150,13 @@
       actionLabel={condition.state === "no-history" || condition.state === "unsupported-signals" ? "데이터 연결 확인하기" : undefined}
       actionHref={condition.state === "no-history" || condition.state === "unsupported-signals" ? systemUrl("connections") : undefined} />
   {:else if analyzed}
-    <p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
-      <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
     <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
+    <div class="range-row"><p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
+      <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
     <p class="shift">
       <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
       <button type="button" class="ui-button" disabled={!analyzed.nextPeriodAvailable} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
-    </p>
+    </p></div>
     {@render summaryCards(analyzed.target, analyzed.reference)}
 
     <section class="block" aria-labelledby="condition-insights">
@@ -287,22 +256,58 @@
     </details>
     <CautionNote message="운전 조건이 바뀐 것은 고장이 아닙니다. 기준 기간은 정상으로 확인된 기간이 아니며, 기준 패턴과의 차이도 원인이나 고장을 뜻하지 않습니다." />
   {/if}
+  </div><aside class="analysis-sidebar" aria-label="비교 조건">
+  <p class="purpose">3상 전류·전압과 불평형이 앞선 기간과 어떻게 달라졌는지 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
+  <form class="controls" onsubmit={(event) => { event.preventDefault(); void analyze(); }}>
+    <label>분석 기간
+      <select value={period} onchange={(event) => { period = event.currentTarget.value as ConditionPeriod; void analyze(); }}>
+        {#each Object.entries(PERIODS) as [value, label] (value)}<option {value}>{label}</option>{/each}
+      </select>
+    </label>
+    {#if sources.length > 1}
+      <label>데이터 출처 · 측정 위치
+        <select value={sourceKey} onchange={(event) => { sourceKey = event.currentTarget.value; void analyze(); }}>
+          <option value="">데이터 출처 고르기</option>
+          {#each sources as source (keyOf(source))}
+            <option value={keyOf(source)}>{readableSourceId(source.sourceId, sources.map((item) => item.sourceId))} · {source.pointId ?? "측정 위치 지정 없음"}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+    <details class="custom">
+      <summary>분석·기준 기간 직접 지정</summary>
+      <div class="times">
+        <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
+        <label>비교 기준<select bind:value={referenceMode}>
+          <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
+        </select></label>
+        <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
+        <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>
+      </div>
+      <p class="context">분석 끝 시각을 비우면 마지막 저장 기록까지 분석합니다. 직전 비교는 이동할 때마다 기준도 이동하고, 직접 지정한 기준은 유지합니다. 기준 기간은 분석 기간보다 앞서야 합니다.</p>
+    </details>
+    <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
+  </form>
+  </aside></div>
 </section>
 
 <style>
-  .condition { min-width: 0; display: grid; gap: var(--space-4); }
+  .condition { min-width: 0; }
+  .stack { display: grid; gap: var(--space-4); align-content: start; }
+  .range-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+  .shift .ui-button { padding: var(--space-2) var(--space-3); font-size: var(--font-small); }
   h2, h3 { margin: 0; }
   h3 { font-size: var(--font-section); overflow-wrap: anywhere; }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
-  .controls { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+  .controls { display: grid; gap: var(--space-3); grid-template-columns: minmax(0, 1fr); align-items: end; }
   .controls > details, .controls > button { grid-column: 1 / -1; justify-self: start; }
   .controls > details { justify-self: stretch; }
   label { display: grid; gap: var(--space-2); font-weight: 600; min-width: 0; }
   select, input:not([type="range"]) { min-width: 0; width: 100%; max-width: 100%; padding: var(--space-3); color: var(--color-ink);
     background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
-  .times { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-block: var(--space-2); }
+  .times { display: grid; gap: var(--space-3); grid-template-columns: minmax(0, 1fr); margin-block: var(--space-2); }
   .range { font-weight: 650; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
   .range span { font-weight: 400; color: var(--color-ink-muted); }
   .cards { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }

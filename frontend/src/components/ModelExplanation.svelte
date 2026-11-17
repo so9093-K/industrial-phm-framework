@@ -143,24 +143,25 @@
 <section class="explanation" aria-labelledby={"model-ai-" + run.runId}>
   <div class="head">
     <h3 id={"model-ai-" + run.runId}>측정 변화 분석</h3>
+    {#if earlier.length}
+      <label class="compare">비교할 이전 측정
+        <select value={compare === null ? "" : String(compare)} disabled={requesting}
+          onchange={(event) => choose(event.currentTarget.value)}>
+          {#if compare !== null && !earlier.includes(compare)}<option value={String(compare)}>{place(compare)}{compare === suggested ? " · 기준 초과 직전" : ""}</option>{/if}
+          {#each earlier as position (position)}
+            <option value={String(position)}>{place(position)}{position === suggested ? " · 기준 초과 직전" : position === earlier[0] ? " · 바로 이전" : ""}</option>
+          {/each}
+        </select>
+      </label>
+    {:else}
+      <p class="context">비교할 이전 분석이 없어 {place(run.position)} 한 시점만 설명합니다.</p>
+    {/if}
+
     {#if latest?.answer}
       <span class="meta">{latest.answer.modelUnavailable ? "AI 응답 없음 · 저장된 비교로 작성" : SOURCE[latest.answer.source]}
         · {latest.model ?? "모델명 없음"} · {clock(latest.requestedAt)}</span>
     {/if}
   </div>
-  {#if earlier.length}
-    <label class="compare">비교할 이전 측정
-      <select value={compare === null ? "" : String(compare)} disabled={requesting}
-        onchange={(event) => choose(event.currentTarget.value)}>
-        {#if compare !== null && !earlier.includes(compare)}<option value={String(compare)}>{place(compare)}{compare === suggested ? " · 기준 초과 직전" : ""}</option>{/if}
-        {#each earlier as position (position)}
-          <option value={String(position)}>{place(position)}{position === suggested ? " · 기준 초과 직전" : position === earlier[0] ? " · 바로 이전" : ""}</option>
-        {/each}
-      </select>
-    </label>
-  {:else}
-    <p class="context">비교할 이전 분석이 없어 {place(run.position)} 한 시점만 설명합니다.</p>
-  {/if}
 
 
   <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 240; void refresh(); } }} />
@@ -249,11 +250,14 @@
 
 <style>
   .explanation { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-5); min-width: 0; }
-  .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: baseline; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
   h3 { margin: 0; font-size: var(--font-section); }
   .meta, .context, .question { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
   .summary { font-size: 1.05rem; line-height: 1.6; overflow-wrap: anywhere; }
-  .compare, .ask label { display: grid; gap: var(--space-2); font-weight: 650; }
+  /* 비교할 측정은 제목 줄에서 고른다. 넓은 화면에서 한 줄을 통째로 쓰지 않는다. */
+  .compare { display: flex; align-items: center; gap: var(--space-3); font-weight: 650; font-size: var(--font-small); }
+  .compare select { width: auto; min-width: 16rem; max-width: 24rem; }
+  .ask label { display: grid; gap: var(--space-2); font-weight: 650; }
   select, input { width: 100%; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control);
     padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .ask { display: grid; gap: var(--space-3); }

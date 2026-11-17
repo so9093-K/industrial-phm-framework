@@ -195,8 +195,7 @@
 </script>
 
 <section class="ui-panel projection" aria-labelledby="projection-title">
-  <h2 id="projection-title">추세·기준 도달 전망</h2>
-  <p class="intro">이 신호의 추세가 앞으로도 이어질까요? 선택한 신호값의 추세를 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인할 수 있습니다.</p>
+  <h2 class="visually-hidden" id="projection-title">추세·기준 도달 전망</h2>
   {#if optionsState === "loading"}
     <StatusNotice message="전망할 수 있는 신호와 기간을 불러오고 있습니다." />
   {:else if optionsState === "failed"}
@@ -207,56 +206,9 @@
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options!==null}
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
-    <div class="controls">
-      <label for="projection-channel">신호
-        <select id="projection-channel" value={channel}
-          onchange={e=>{channel=e.currentTarget.value;selectedRecord="";if(focus)focus={...focus,interpretation:undefined};invalidate();void loadSelectedOptions(true);}}>
-          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
-        </select>
-      </label>
-      {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
-        <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
-          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 항목 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
-        </select>
-      </label>{/if}
-      <label for="projection-horizon">예측 기간
-        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
-          {#each horizons as value (value)}
-            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
-              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
-          {/each}
-        </select>
-      </label>
-      <button type="button" class="ui-button ui-button-primary"
-        onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
-        계산하기
-      </button>
-    </div>
-    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="controls">      <label for="projection-direction">기준 방향
-        <select id="projection-direction" value={direction}
-          onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label for="projection-management">관리 기준 (선택)
-        <input id="projection-management" type="number" step="any"
-          value={management} oninput={e=>{management=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label for="projection-end">종료 기준 (선택)
-        <input id="projection-end" type="number" step="any"
-          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
-    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
-
     {#if investigation}<p class="intro">이어서 조사하는 구간 · {clock(new Date(investigation.from).toISOString())} ~ {clock(new Date(investigation.to).toISOString())}. 전망은 해당 구간으로 학습을 제한하지 않고, 선택한 기록의 마지막 시점을 기준으로 계산합니다.</p>{/if}
-    <p class="intro">조건을 바꾸면 아래 결과는 지워지고 다시 계산해야 합니다.</p>
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
       <StatusNotice message="전망을 계산하고 있습니다." />
@@ -275,6 +227,7 @@
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
       {@const chart=outlookChart(projection, includeLimits)}
       {@const age=recordAgeText(projection.record.last, now)}
+      {@const worse=worseThanPersistence(projection.checks?.[0])}
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
         scenarios:projection.scenarios,checks:projection.reachChecks??[]}) ?? forecastMessage({
@@ -287,10 +240,10 @@
           <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if age}<p class="intro">{age}</p>{/if}
-        {#if worseThanPersistence(projection.checks?.[0])}
-          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong></p>
+        {#if worse}
+          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told}<p class="outlook-summary">{told.headline}</p>{/if}
+        {#if told && (limited || !worse)}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if limited}
           <div class="tiles">
             {#if projection.conditions.management!==null}
@@ -412,14 +365,65 @@
         </details>
         <p class="intro"><a href={signalHref()}>이 신호의 원본 측정 보기 →</a></p>
       </section>
+    {:else if !selectionLoading}
+      <p class="intro">신호와 예측 기간을 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
+    </div><aside class="analysis-sidebar" aria-label="전망 조건">
+    <p class="purpose">선택한 신호의 추세가 앞으로 어떻게 이어질지 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인합니다.</p>
+    <div class="controls">
+      <label for="projection-channel">신호
+        <select id="projection-channel" value={channel}
+          onchange={e=>{channel=e.currentTarget.value;selectedRecord="";if(focus)focus={...focus,interpretation:undefined};invalidate();void loadSelectedOptions(true);}}>
+          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
+        </select>
+      </label>
+      {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
+        <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
+          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 항목 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
+        </select>
+      </label>{/if}
+      <label for="projection-horizon">예측 기간
+        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
+          {#each horizons as value (value)}
+            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
+              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
+          {/each}
+        </select>
+      </label>
+      <button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
+        계산하기
+      </button>
+    </div>
+    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="controls">      <label for="projection-direction">기준 방향
+        <select id="projection-direction" value={direction}
+          onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label for="projection-management">관리 기준 (선택)
+        <input id="projection-management" type="number" step="any"
+          value={management} oninput={e=>{management=e.currentTarget.value;invalidate();}}/>
+      </label>
+      <label for="projection-end">종료 기준 (선택)
+        <input id="projection-end" type="number" step="any"
+          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
+      </label>
+      </div>
+    </details>
+    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
+    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
+    </aside></div>
   {/if}
 </section>
 
 <style>
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
-  .outlook-summary{font-weight:650;line-height:1.6;overflow-wrap:anywhere}
   .controls>button{align-self:end;min-height:44px}
   .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
   .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
@@ -453,7 +457,7 @@
   select, input { width: 100%; min-width: 0; padding: var(--space-3);
     border: 1px solid var(--color-border); border-radius: var(--radius-control);
     background: var(--color-surface); color: var(--color-ink); }
-  .result { border-top: 1px solid var(--color-border); margin-top: var(--space-6); padding-top: var(--space-4); }
+  .result { min-width: 0; }
   h3 { font-size: var(--font-section); margin: 0; }
   .result-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); align-items: baseline; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); margin-top: var(--space-4); }

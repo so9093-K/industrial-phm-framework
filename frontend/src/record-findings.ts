@@ -7,9 +7,13 @@ import {elapsedText} from "./time-axis.ts";
 import {validatePeriods, type Periods} from "./comparison.ts";
 import {periodParams, windowParams, zoomWindow} from "./signal-selection.ts";
 import {object} from "./writes.ts";
+import {overviewKind, parseOverview, type OverviewKind, type OverviewRow} from "./record-overview.ts";
 
 export type FoundInterval = {
-  trace?:{at:string;value:number;join?:boolean}[]; reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
+  trace?:{at:string;value:number;join?:boolean}[];
+  /** 기록 전체의 표시용 계열과, 판단한 값이 기록 전체와 어떻게 다른지. */
+  overview?: OverviewRow[]; overviewKind?: OverviewKind;
+  reviewKey?: string; context?: RecordContext | null; kind?: "departure" | "level-change"; bucketSeconds?: number | null;
   /** The operating level the change was judged within, when the source's levels are known. */
   band?: number | null;
   start: string; end: string; channel: string; label: string; unit: string | null;
@@ -78,7 +82,8 @@ export function parseFindingInterval(item: unknown): FoundInterval {
   const joins=Array.isArray(row.trace_join)?row.trace_join:[];
   const low = finite(usual.low), high = finite(usual.high);
   if (low > high) invalid();
-  return {trace:Array.isArray(row.trace)?row.trace.map((v:unknown,i:number)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1]),join:joins[i] as boolean|undefined};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
+  return {overview: parseOverview(row.overview), overviewKind: overviewKind(row.overview_kind),
+    trace:Array.isArray(row.trace)?row.trace.map((v:unknown,i:number)=>{if(!Array.isArray(v)||v.length!==2)invalid();return {at:instant(v[0]),value:finite(v[1]),join:joins[i] as boolean|undefined};}):[],reviewKey: typeof row.review_key === "string" ? row.review_key : undefined, context: recordContext(row), kind: row.kind === "level-change" ? "level-change" : "departure",
     bucketSeconds: typeof row.bucket_seconds === "number" ? finite(row.bucket_seconds) : null, start: instant(row.start), end: instant(row.end), channel: text(row.channel), label: text(row.label),
     unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, direction: row.direction,
     value: finite(row.value), usual: {low, high}, within: row.within.map(text),
@@ -230,6 +235,15 @@ const value = (number: number, unit: string | null) =>
 export const CHANGE_REASON = {sustained: "오래 이어진 변화", "record-end": "기록 끝까지 이어진 변화", largest: "변화 폭이 큰 구간"};
 export const changeValue = value;
 
+/** "2. 2. 08:18부터 약 1시간 21분 동안": 문장 안에서 변화가 언제 시작해 얼마나 이어졌는지. */
+export function findingSpan(item: FoundInterval): string {
+  const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
+  // 문장 안에서는 "2. 2."보다 "2월 2일"이 날짜로 읽힌다.
+  const day = new Date(item.start).toLocaleString("ko-KR", {timeZone: "Asia/Seoul",
+    month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+  if (seconds < 60) return day + "에";
+  return day + "부터 " + (item.reason === "record-end" ? "기록 끝까지 " : "") + "약 " + elapsedText(seconds) + " 동안";
+}
 /** When, for how long, and what was observed; a value is a bucket mean, so it says so. */
 export function findingText(item: FoundInterval, bucketSeconds: number | null): {when: string; what: string} {
   bucketSeconds = item.bucketSeconds ?? bucketSeconds;

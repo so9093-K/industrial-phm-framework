@@ -304,8 +304,8 @@
             <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
             <div class="result-metrics">
               {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p>A보다 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높음":"낮음"}</p>{/if}
-              {#if row.outsidePercent !== null}<p>B의 {row.outsidePercent.toFixed(1)}%가 A의 5~95% 범위 밖</p>{/if}
-              {#if row.periods.a.quantiles && row.periods.b.quantiles}<p>가운데 50% 폭 {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""}</p>{/if}
+              {#if row.outsidePercent !== null}<p>기간 B 측정의 {row.outsidePercent.toFixed(1)}%가 기간 A에서 흔했던 범위{#if row.periods.a.quantiles}({num(row.periods.a.quantiles[0])}~{num(row.periods.a.quantiles[4])}{unit?" "+unit:""}){/if} 밖 · 기간 A 자신은 약 10%</p>{/if}
+              {#if row.periods.a.quantiles && row.periods.b.quantiles}<p>값이 퍼진 정도(가운데 절반의 폭) {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""}</p>{/if}
             </div>
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={names?.get(row.channel)?.label??row.channel} />

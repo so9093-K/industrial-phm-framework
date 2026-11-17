@@ -23,6 +23,16 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
             browser = runtime.chromium.launch()
             try:
                 page = browser.new_page(viewport={"width": 390, "height": 900})
+                # 진동만 있는 설비의 모델 화면은 시계열 신호 목록을 읽을 일이 없다.
+                history_reads: list[str] = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        history_reads.append(request.url)
+                        if "/api/v1/history/" in request.url
+                        else None
+                    ),
+                )
                 page.goto(
                     base
                     + "/web/?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a"
@@ -38,6 +48,7 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 page.get_by_role("button", name="이 측정의 원본 확인 →", exact=True).click()
                 pw.expect(page.locator("#selected-model-input")).to_be_focused()
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("2")
+                assert history_reads == []
                 for suffix in (
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=absent",
                     "?page=assets&tab=anomaly&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=999",

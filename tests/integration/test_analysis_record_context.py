@@ -60,10 +60,16 @@ def test_analyses_and_saved_outlook_keep_the_selected_record(tmp_path: Path) -> 
     assert results["intervals"], results
     found = next(row for row in results["intervals"] if row["unit"] == "°C")
     assert found["source_id"] == "b" and found["measurement_point_id"] == "end"
-    assert 2 <= len(found["trace"]) <= 54
+    assert 2 <= len(found["trace"]) <= 166
     assert {row[1] for row in found["trace"]} == {40.0, 65.0}
     assert all(len(row) == 2 for row in found["trace"])
     assert len(found["trace_join"]) == len(found["trace"])
+    # 확대한 구간과 별도로 이 기록 전체(180분)를 보내, 변화가 기록 어디에 있었는지 보인다.
+    overview = found["overview"]
+    assert found["overview_kind"] == "all" and 2 <= len(overview) <= 240
+    assert overview[0][0] < found["start"] and overview[-1][0] > found["start"]
+    assert {row[2] for row in overview} >= {40.0} and {row[3] for row in overview} >= {65.0}
+    assert all(row[4] == row[1] for row in overview)
     query = {"asset_id": "motor", "kind": "history", "series": "temperature"}
     focus = {
         "monitor_source": "b",

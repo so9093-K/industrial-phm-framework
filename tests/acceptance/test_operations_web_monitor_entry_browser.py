@@ -92,7 +92,9 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 ).to_be_visible()
                 mode["overview"] = "ready"
                 focus.get_by_role("button", name="변화 다시 확인", exact=True).click()
-                pw.expect(focus.locator(".values")).to_have_text("40 → 65 °C", timeout=30000)
+                values = focus.locator(".change-values")
+                pw.expect(values).to_contain_text("40 °C", timeout=30000)
+                pw.expect(values).to_contain_text("65 °C")
                 pw.expect(focus.locator(".change-trend svg path.trace")).to_have_count(1)
                 investigate = focus.get_by_role("link", name="변화 구간 조사하기", exact=False)
                 assert investigate.bounding_box()["y"] < 750
@@ -209,7 +211,7 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
                 )
                 pw.expect(one.locator(".latest")).to_have_text("65 °C", timeout=30000)
                 pw.expect(two.locator(".latest")).to_have_text("30 °C", timeout=30000)
-                pw.expect(one.get_by_role("cell").nth(1)).to_contain_text("2020.")
+                pw.expect(one.get_by_role("cell").nth(1)).to_contain_text("2020년 10월 22일")
                 # The multi-asset graph uses the same gap rule as the single-asset graph.
                 assert one.locator("svg path").get_attribute("d").count("M") >= 2
                 initial_two_reads = reads["pump-2"]

@@ -1,7 +1,7 @@
 <script lang="ts">
   import {tick} from "svelte";
   import {
-    analyzeFile, analyzePhase, diagnoseOpcua, explainWrite, nextStep, otherActions, receiveFile,
+    analyzeFile, analyzePhase, diagnoseOpcua, explainWrite, historyStored, nextStep, otherActions, receiveFile,
     requestCollection, setLifecycle, startHistory, waitForHistory, ACTION_LABEL, HistoryFailed,
     type Action, type SavedAnalysis,
   } from "../connections";
@@ -111,36 +111,27 @@
           {@const step = nextStep(source, analyzed.has(source.sourceId))}
           {@const others = otherActions(source, step.action)}
           {@const message = messages[source.sourceId]}
+          {@const stored = historyStored(source)}
           <li><article aria-labelledby={"source-" + source.sourceId}>
             <div class="head">
-              <h3 id={"source-" + source.sourceId}>{source.name}</h3>
+              <h3 id={"source-" + source.sourceId}>{source.assetId} <small>{source.name}</small></h3>
               <span class="badge">{receiptText(source)}</span>
             </div>
-            <p class="context">{source.type === "opcua" ? "OPC UA" : "CSV 파일"} · 설비 {source.assetId}
-              {source.pointId ? " · 측정 위치 " + source.pointId : ""} · {source.lifecycle ? LIFECYCLE[source.lifecycle] ?? source.lifecycle : "관리 상태 미확인"}</p>
-            <p>마지막 수신 {clock(source.live ? source.live.receivedAt : source.lastAcceptedAt)}
+            <p class="context">{source.type === "opcua" ? "OPC UA" : "CSV 파일"}
+              {source.pointId ? " · 측정 위치 " + source.pointId : ""} · {source.lifecycle ? LIFECYCLE[source.lifecycle] ?? source.lifecycle : "관리 상태 미확인"}{#if source.job}{" · "}{JOB[source.job.state] ?? source.job.state}{source.job.eventCount !== null ? " · 측정값 " + source.job.eventCount.toLocaleString("ko-KR") + "개" : ""}{/if}</p>
+            <p class="context">마지막 수신 {clock(source.live ? source.live.receivedAt : source.lastAcceptedAt)}
               {#if source.lastObservedAt} · 원래 측정 시각 {clock(source.lastObservedAt)}{/if}</p>
-            {#if source.job}
-              <p class="context">{JOB[source.job.state] ?? source.job.state}{source.job.eventCount !== null ? " · 측정값 " + source.job.eventCount.toLocaleString("ko-KR") + "개" : ""}</p>
-            {/if}
             <div class="next">
-              <p><strong>다음 단계</strong> · {step.text}</p>
-              {#if step.action && writable}
-                <button type="button" class="ui-button ui-button-primary" disabled={busy[source.sourceId]}
-                  onclick={() => void ask(source, step.action!)}>{ACTION_LABEL[step.action]}</button>
-              {/if}
+              <p><strong>다음 단계</strong> · {stored && step.action === "analyze" ? "측정 이력이 저장됐습니다. 설비 화면에서 주요 변화와 신호를 확인하세요." : step.text}</p>
+              <!-- 이력이 저장된 연결은 설비 분석으로 가는 것이 다음 일이고, 통계 분석 실행은 그다음 선택이다. -->
+              <div class="actions">
+                {#if stored}<a class="ui-link-primary" href={routeUrl({page: "assets", assetId: source.assetId, tab: "summary", method: null, data: null})}>설비 분석 보기 →</a>{/if}
+                {#if step.action && writable}
+                  <button type="button" class="ui-button" class:ui-button-primary={!stored} disabled={busy[source.sourceId]}
+                    onclick={() => void ask(source, step.action!)}>{ACTION_LABEL[step.action]}</button>
+                {/if}
+              </div>
             </div>
-            {#if others.length && writable}
-              <details>
-                <summary>다른 작업 ({others.length})</summary>
-                <div class="actions">
-                  {#each others as action (action)}
-                    <button type="button" class="ui-button" disabled={busy[source.sourceId]}
-                      onclick={() => void ask(source, action)}>{ACTION_LABEL[action]}</button>
-                  {/each}
-                </div>
-              </details>
-            {/if}
             {#if confirming[source.sourceId]}
               {@const action = confirming[source.sourceId]!}
               <div class="confirm" role="group" aria-labelledby={"confirm-" + source.sourceId} tabindex="-1" bind:this={confirmBox}>
@@ -156,7 +147,19 @@
                 role={message.kind === "failure" ? "alert" : "status"}>{message.text}
                 {#if message.analysis}<a href={investigations(message.analysis.assetId)}>분석 기록에서 보기 →</a>{/if}</p>
             {/if}
-            <p class="links"><a href={assetTabUrl(source.assetId, "signals")}>측정 신호 보기 →</a></p>
+            <div class="more">
+              <a href={assetTabUrl(source.assetId, "signals")}>측정 신호 보기 →</a>
+              {#if others.length && writable}
+              <details>
+                <summary>다른 작업 ({others.length})</summary>
+                <div class="actions">
+                  {#each others as action (action)}
+                    <button type="button" class="ui-button" disabled={busy[source.sourceId]}
+                      onclick={() => void ask(source, action)}>{ACTION_LABEL[action]}</button>
+                  {/each}
+                </div>
+              </details>
+            {/if}
             <details>
               <summary>기술 상세</summary>
               <dl>
@@ -169,6 +172,7 @@
                 {#if source.phaseBindings}<div><dt>등록한 3상 역할</dt><dd>{source.phaseBindings}개</dd></div>{/if}
               </dl>
             </details>
+            </div>
           </article></li>
         {/each}
       </ul>
@@ -180,6 +184,7 @@
   section { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
   h2 { margin: 0; }
   h3 { margin: 0; font-size: var(--font-section); overflow-wrap: anywhere; }
+  h3 small { font-size: var(--font-small); font-weight: 400; color: var(--color-ink-muted); margin-inline-start: var(--space-2); }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
@@ -190,7 +195,10 @@
   .badge { font-weight: 700; border: 1px solid var(--color-ink); border-radius: 999px; padding: 2px var(--space-3); font-size: var(--font-small); }
   .next { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-3); border-radius: var(--radius-control);
     background: var(--color-surface-selected); }
-  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin-top: var(--space-2); }
+  .next .actions { margin-top: 0; }
+  .more { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-5); font-size: var(--font-small); }
+  .more details[open] { flex-basis: 100%; }
   .confirm { padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
   .message a { margin-inline-start: var(--space-2); }
   .uncertain { background: var(--color-uncertain-surface); padding: var(--space-2) var(--space-3); border-radius: var(--radius-control); }

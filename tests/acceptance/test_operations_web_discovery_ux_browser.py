@@ -119,8 +119,8 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 pw.expect(assets.locator(".row").first).to_contain_text("changing", timeout=30000)
                 pw.expect(assets.locator(".primary-reason").first).to_be_visible()
                 rows = assets.locator(".row")
-                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 4건")
+                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
                 pw.expect(rows.first).to_contain_text("과거 저장 기록")
                 pw.expect(rows.first.locator(".primary-reason")).to_contain_text("temperature")
                 pw.expect(page.locator(".meta").first).to_contain_text("목록 확인 시각")
@@ -150,13 +150,13 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 )
                 page.reload()
                 pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 4건")
+                pw.expect(rows.first).to_contain_text("확인할 항목 4건")
                 stable["attention_count"] = 0
                 snapshot["assets"]["items"].reverse()
                 page.reload()
                 pw.expect(rows.first).to_contain_text("changing")
-                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 1건")
+                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 1건")
                 # Server-confirmed operating checks without a primary note still count.
                 operating = json.loads(asset_list("operating"))["assets"]["items"][0]
                 operating["attention_count"] = 4
@@ -164,15 +164,15 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 page.reload()
                 # The signal change and model crossing remain ahead of these four checks.
                 pw.expect(rows.nth(2)).to_contain_text("operating")
-                pw.expect(rows.nth(2)).to_contain_text("마지막 측정의 추가 항목 4건")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 4건")
                 model["processing_state"] = "pending"
                 page.reload()
                 pw.expect(rows.first).to_contain_text("changing")
                 pw.expect(rows.nth(1)).to_contain_text("operating")
-                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 4건")
+                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
                 pw.expect(rows.nth(1).locator(".primary-reason")).to_have_count(0)
                 pw.expect(rows.nth(2)).to_contain_text("stable")
-                pw.expect(rows.nth(2)).to_contain_text("마지막 측정의 추가 항목 1건")
+                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 1건")
                 snapshot["assets"]["items"].pop()
                 # A failed read clears old reasons; only counts and source order remain.
                 monitor_failed = True
@@ -423,7 +423,7 @@ def test_less_accurate_forecast_warns_before_reach_tiles_and_chart(
                                 < panel.locator(".tiles").bounding_box()["y"]
                             )
                         fit = panel.get_by_role("region", name="예측 시작값과 검증 상태")
-                        pw.expect(fit).to_contain_text("추세 판단을 보류하세요")
+                        pw.expect(fit).to_contain_text("모델의 오차가 더 컸습니다")
                         assert chart.bounding_box()["y"] < fit.bounding_box()["y"]
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+2")
             finally:
@@ -593,7 +593,7 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
                 context = card.get_by_role("complementary", name="이 변화의 해석과 다음 확인")
                 pw.expect(context).to_contain_text("해당하는 측정끼리 비교해 찾은 변화")
-                page.get_by_text("운전 수준·분석 범위", exact=True).click()
+                page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
                 op = page.locator("details.operation-details")
                 assert op.get_attribute("open") is None
                 pw.expect(op.locator(".operation")).to_be_hidden()

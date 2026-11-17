@@ -233,8 +233,18 @@ export function suggestSignalNames(columns: string[]): Map<string, string> {
   }
   return names;
 }
+// 한글 열 이름(R상전류, 전류평균, 모터 온도)에서 읽는 물리량. 단위 예시에만 쓰고 이름은 바꾸지 않는다.
+const KOREAN_QUANTITY: [RegExp, string][] = [
+  [/유량/, "유량"], [/전류/, "전류"], [/전압/, "전압"], [/온도/, "온도"], [/압력/, "압력"], [/진동/, "진동"],
+  [/습도/, "습도"], [/주파수/, "주파수"], [/토크/, "토크"], [/회전\s*(속도|수)/, "회전 속도"], [/전력/, "전력"],
+];
+// 같은 낱말이 들어가도 단위가 다른 값(전압고조파 %, 전류불평형 %, 무효전력 var, 전력량 kWh)은 예시를 내지 않는다.
+const KOREAN_OTHER_UNIT = /고조파|불평형|율|률|무효|피상|전력량|적산|누적/;
 /** An example unit for a column's quantity, shown as a hint only. */
 export function unitExample(column: string): string | null {
   const read = readName(column);
-  return read ? UNIT_EXAMPLE[read.quantity] ?? null : null;
+  if (read) return UNIT_EXAMPLE[read.quantity] ?? null;
+  if (KOREAN_OTHER_UNIT.test(column)) return null;
+  const found = KOREAN_QUANTITY.find(([pattern]) => pattern.test(column));
+  return found ? UNIT_EXAMPLE[found[1]] : null;
 }
