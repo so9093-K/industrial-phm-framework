@@ -67,6 +67,7 @@
   <section class="waterfall" aria-labelledby="waterfall-title">
     <h3 id="waterfall-title">측정별 스펙트럼 <small>{place(read.acquisitions[0])} ~ {place(read.acquisitions[read.acquisitions.length - 1])} · 측정 {read.acquisitions.length}개</small></h3>
     <p class="context">한 줄이 한 측정입니다. 위에서 아래로 시간이 흐르고, 색이 진할수록 그 주파수의 에너지가 큽니다. 달라진 줄을 선택해 아래 비교에 사용하세요.</p>
+    <div class="channels">
     {#each read.channels as channel (channel.id)}
       <div class="channel">
         <h4>{channel.label}</h4>
@@ -88,6 +89,7 @@
         </div>
       </div>
     {/each}
+    </div>
     <p class="legend"><span>{read.floorDb} dB 이하</span><i style={"background:" + GRADIENT}></i><span>0 dB · 그 채널에서 가장 센 주파수</span></p>
     <div class="selection" role="group" aria-label="선택한 측정으로 주파수 비교">
       <label>비교에 사용할 측정 <select value={selected ?? ""} onchange={event => selected = Number(event.currentTarget.value)}>
@@ -104,18 +106,21 @@
 {/if}
 
 <style>
+  /* 위 주파수 비교와 같이 채널을 나란히 둔다. */
+  .channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--space-4) var(--space-6); }
   .waterfall { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
   h3 { margin: 0; font-size: var(--font-body); }
   h3 small { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
   h4 { margin: var(--space-2) 0 var(--space-1); font-size: var(--font-small); }
   .context { margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
-  .plot { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: var(--space-2); }
+  .plot { display: grid; grid-template-columns: minmax(0, 7rem) minmax(0, 1fr); gap: var(--space-2); }
   .rows { display: flex; flex-direction: column; justify-content: space-between; height: 180px; font-size: 12px; color: var(--color-ink-muted); text-align: right; }
   .map { position: relative; min-width: 0; }
   canvas { display: block; width: 100%; height: 180px; image-rendering: pixelated; border-radius: 4px; cursor:crosshair; }
   canvas:focus-visible { outline:3px solid var(--color-focus); outline-offset:3px; }
   .selected-row { position:absolute; left:0; right:0; border-top:2px dashed var(--color-ink); pointer-events:none; }
-  .selection { display:grid; gap:var(--space-2); padding:var(--space-3); background:var(--color-surface-selected); border-radius:var(--radius-control); }
+  .selection { display:flex; flex-wrap:wrap; align-items:end; gap:var(--space-2) var(--space-4); padding:var(--space-3); background:var(--color-surface-selected); border-radius:var(--radius-control); }
+  .selection .context { flex-basis:100%; }
   .selection label { display:grid; gap:var(--space-1); font-weight:650; }.selection p{margin:0;overflow-wrap:anywhere}
   .selection select { min-width:0; max-width:100%; padding:var(--space-2); color:var(--color-ink); background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius-control); }
   .actions{display:flex;flex-wrap:wrap;gap:var(--space-2)}

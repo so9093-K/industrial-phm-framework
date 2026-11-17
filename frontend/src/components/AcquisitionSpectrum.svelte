@@ -187,6 +187,8 @@
     {:else if result}
       {#if message}<AnalysisMessage {message}/>{/if}
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
+      <!-- PC 화면에서는 채널(수평·수직)을 나란히 두어 같은 두 기간을 한눈에 견준다. -->
+      <div class="channels">
       {#each result.channels as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         {@const displayed=view(channel,result.frequencies)}
@@ -247,6 +249,7 @@
           </details>
         </section>
       {/each}
+      </div>
       {#if acquisition && result.used.b.length}
         {@const last=Math.max(...result.used.b)}
         <p class="continue">기간 B의 마지막 측정({place(last)})으로 이어서 보기
@@ -289,12 +292,16 @@
   .spectra{min-width:0}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
-  .series{margin-top:var(--space-3);border-top:1px solid var(--color-border);padding-top:var(--space-4)}
+  .channels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:var(--space-4) var(--space-6);margin-top:var(--space-3)}
+  /* 나란한 두 채널의 그래프 높이를 맞추려고 첫 칸만 다른 여백을 두지 않는다. */
+  .channels>.series{min-width:0;margin:0;padding:0;border:0}
+  .series h3{margin:0;font-size:var(--font-section)}.series h4{margin:var(--space-3) 0 var(--space-1);font-size:var(--font-small)}
+  .series ol{margin:0;padding-inline-start:var(--space-5);font-size:var(--font-small)}
   .changed-band{fill:var(--color-caution-ink);opacity:.12}
   .band-button{font:inherit;color:var(--color-action);border:0;background:none;text-decoration:underline;cursor:pointer;padding:var(--space-2)}
-  svg{display:block;width:100%;height:180px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
+  svg{display:block;width:100%;height:220px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
   .grid{stroke:var(--color-border);stroke-width:1}
-  .scale{display:flex;gap:var(--space-2);align-items:center;margin-top:var(--space-3);font-size:var(--font-small)}
+  .scale{display:flex;gap:var(--space-2);align-items:flex-start;margin-top:var(--space-1);font-size:var(--font-small)}
   .line-a{fill:none;stroke:var(--color-action);stroke-width:2}
   .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:5 4}
   .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
