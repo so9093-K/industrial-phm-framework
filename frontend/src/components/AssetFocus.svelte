@@ -4,6 +4,7 @@
   import {bandName, changeValue, findingLinks, findingSpan} from "../record-findings";
   import {changeSentence} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
+  import RecordStrip from "./RecordStrip.svelte";
   import type {OverviewRow} from "../asset-overview";
   import type {Note} from "../monitor-attention";
   import {assetTabUrl} from "../routes";
@@ -68,7 +69,7 @@
           <a {href}>설비 분석 열기 →</a>
         </div>
       </div>
-      {#if interval?.trace?.length}<div class="change-trend"><ChangeInterval finding={interval}/><p class="chart-note">{found.label} · 선은 기록의 구간별 평균, 음영은 발견한 변화입니다.</p></div>
+      {#if interval?.trace?.length}<div class="change-trend"><ChangeInterval finding={interval}/><RecordStrip finding={interval} condition={interval.band != null && row.operation && interval.operation?.key === row.operation.key ? bandName(row.operation.names, interval.band) : null} height={72}/></div>
       {:else if vibrationTrace}<div class="change-trend"><OverviewTrace main={vibrationTrace} range={vibration!.change}/></div>{/if}
     </div>
   {:else}
@@ -95,10 +96,10 @@
   .finding-layout{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:var(--space-8);align-items:center;min-height:240px;padding-block:var(--space-4);border-top:1px solid var(--color-border)}
   .finding-layout.no-trend{grid-template-columns:minmax(0,1fr)}
   .insight,.pending,.quiet{min-width:0}.eyebrow{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 var(--space-2)}h4{font-size:1.15rem;line-height:1.5;margin:0 0 var(--space-3);overflow-wrap:anywhere}
-  p{overflow-wrap:anywhere}.chart-note{color:var(--color-ink-muted);font-size:var(--font-small)}
+  p{overflow-wrap:anywhere}
   .actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-5);margin-top:var(--space-5)}.actions a{font-weight:650}
   .pending,.quiet{min-height:240px;padding-block:var(--space-6);border-top:1px solid var(--color-border)}.pending{display:flex;flex-direction:column;justify-content:center}.pending p{color:var(--color-ink-muted)}
-  .change-trend{min-width:0}.chart-note{margin:var(--space-2) 0 0}
+  .change-trend{min-width:0;display:grid;gap:var(--space-3)}
   .data-issue{color:var(--color-caution-ink);font-size:var(--font-small)}.additional{margin-top:var(--space-4);padding-top:var(--space-3);border-top:1px solid var(--color-border)}
   .checks{margin-top:var(--space-4);font-size:var(--font-small);color:var(--color-ink-muted)}.checks summary{cursor:pointer;padding-block:var(--space-2)}.checks p{margin-block:var(--space-2)}
   @media(max-width:800px){.finding-layout{grid-template-columns:1fr;gap:var(--space-3)}.identity{align-items:start}.identity p{display:grid}.pending,.quiet{min-height:220px}}

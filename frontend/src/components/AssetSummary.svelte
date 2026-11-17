@@ -6,11 +6,12 @@
   import FindingContext from "./FindingContext.svelte";
   import OperationLevels from "./OperationLevels.svelte";
   import VibrationFindings from "./VibrationFindings.svelte";
+  import RecordStrip from "./RecordStrip.svelte";
+  import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
   import ChangeReview from "./ChangeReview.svelte";
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   let reviewRevision = $state(0);
   let archiveOpen = $state(false);
-  let expandedChanges:Record<string,boolean> = $state({});
   let openReviews:Record<string,boolean> = $state({});
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount} from "svelte";
@@ -23,7 +24,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type RecordFindings} from "../record-findings";
+  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
   import {CHANGE_WHY, changeSentence} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
@@ -80,6 +81,48 @@
     return url.pathname+url.search;
   }
   let showOptions = $state(false);
+  // 진동 기록의 변화도 시계열 변화와 같은 자리에서 고르고 본다.
+  let vibration: VibrationRecord | null = $state(null);
+  let vibrationState: "idle" | "loading" | "ready" | "failed" = $state("idle");
+  $effect(() => {
+    if (!data?.vibration) return;
+    const request = new AbortController();
+    vibrationState = "loading";
+    void readVibrationFindings(asset.assetId, request.signal).then((value) => {
+      if (!request.signal.aborted) {vibration = value; vibrationState = "ready";}
+    }).catch(() => {if (!request.signal.aborted) vibrationState = "failed";});
+    return () => request.abort();
+  });
+  // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
+  type Pick = {kind: "history" | "vibration"; index: number};
+  let picked: Pick | null = $state(null);
+  const focus = $derived.by((): Pick | null => {
+    if (picked) return picked;
+    const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
+    if (history?.intervals.length) return {kind: "history", index: 0};
+    if (measured?.intervals.length) return {kind: "vibration", index: 0};
+    return null;
+  });
+  const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
+  const otherChanges = $derived.by(() => {
+    const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration, shown = focus;
+    const rows: {key: string; pick: Pick; label: string; line: string; when: string; href: string | null}[] = [];
+    history?.intervals.forEach((item, index) => {
+      if (shown?.kind === "history" && shown.index === index) return;
+      rows.push({key: "h" + index, pick: {kind: "history", index}, label: item.label,
+        line: "처음 30%보다 " + (item.direction === "up" ? "높음" : "낮음") + (item.reference != null && item.typical != null ? " · " + changeValue(item.reference, null) + " → " + changeValue(item.typical, item.unit) : ""),
+        when: findingText(item, item.bucketSeconds ?? history.bucketSeconds).when,
+        href: findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record).signal});
+    });
+    measured?.intervals.forEach((change, index) => {
+      if (shown?.kind === "vibration" && shown.index === index) return;
+      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: change.label,
+        line: "처음 30%보다 " + (change.direction === "up" ? "높음" : "낮음") + (change.reference != null && change.typical != null ? " · " + changeValue(change.reference, null) + " → " + changeValue(change.typical, change.unit) : ""),
+        when: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to) + " · " + (change.to - change.from + 1) + "회",
+        href: vibrationLinks(asset.assetId, change).signal});
+    });
+    return rows;
+  });
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -132,6 +175,40 @@
   }
 </script>
 
+{#snippet historyCard(history: RecordFindings, item: FoundInterval)}
+  {@const told = findingText(item, item.bucketSeconds ?? history.bucketSeconds)}
+  {@const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined}
+  {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
+  {@const condition = own && item.band != null ? bandName(own, item.band) : null}
+  <h3 class="change-sentence">{changeSentence(item, findingSpan(item), condition)}</h3>
+  <div class="card-top">
+    <ChangeNumbers facts={item} fallback={told.what} />
+    <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
+    {#if item.reviewKey}<details class="review" ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
+      {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
+    </details>{/if}</div>
+  </div>
+  <ChangeInterval finding={item} height={240} />
+  <RecordStrip finding={item} {condition} />
+  {#if item.reason}<p class="change-why">{CHANGE_WHY[item.reason]}</p>{/if}
+  <FindingContext {item} operation={own} compareHref={links.compare??links.previous} relation={links.relation}/>
+  <details><summary>비교 기준·출처·관련 신호</summary>
+  {#if item.context}<SourceIdentity id={item.context.sourceId} pointId={item.context.pointId} interpretationId={item.context.interpretationId} among={history.signals.flatMap(row=>row.context?[row.context.sourceId]:[])}/>{/if}
+  <p class="context small">대표값은 집계 구간 평균의 중앙값입니다. {item.kind === "level-change" ? "기준 기간에 일정하던 값이 달라졌습니다." : "비교 범위 " + changeValue(item.usual.low, null) + " ~ " + changeValue(item.usual.high, item.unit) + "와 견줬습니다."}</p>
+  {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
+    {#each item.related as other (other.channel)}
+      {@const target = findingLinks(asset.assetId, {...item, channel:other.channel, context:other.context ?? item.context}, history.baseline, history.bucketSeconds, history.record)}
+      <li>{#if target.signal}<a href={target.signal}>{other.label}</a>{:else}{other.label}{/if}
+        · {changeValue(other.reference, null)} → {changeValue(other.current, other.unit)}
+        · {other.state === "within" ? "대표값이 기준 범위 안" : other.state === "higher" ? "함께 높아짐" : "함께 낮아짐"}</li>
+    {/each}
+  </ul>{/if}
+    {#if item.baseline}<p class="context small">비교 기준 · 이 기록의 처음 30% · {observed(item.baseline.from)} ~ {observed(item.baseline.to)}</p>{/if}
+    {#if links.previous && links.compare}<a href={links.previous}>변화 직전과 비교 →</a>{/if}
+    {#if item.reason === "record-end"}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
+  </details>
+{/snippet}
+
 {#snippet cumulativeRecords()}
   <ul aria-label="누적 기록">
     {#each cumulative as row (row.context?.key ?? row.channel)}<li><strong>{row.label}</strong> ·
@@ -140,15 +217,14 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
+<div class="summary-layout">
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <h2 id="summary-title">설비 상태와 주요 변화</h2>
+  <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
   {#if notesState === "partial" || notesState === "failed"}
     <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
       actionLabel="확인 항목 다시 읽기" onAction={() => void readNotes()} />
   {/if}
-  {#if data?.history}
-
-    {#if findingState === "ready" && copies.length}
+  {#if data?.history && findingState === "ready" && copies.length}
       <section class="data-check" aria-labelledby="data-check-title">
         <h3 id="data-check-title">데이터 확인 필요 · 신호 {copiedCount}개는 변화 판단에서 제외했습니다</h3>
         <details><summary>해당 신호와 기간 확인</summary><p>아래 신호는 일부 기간에 다른 항목의 값이 그대로 기록되어 있습니다.</p>
@@ -156,80 +232,58 @@
           <li><strong>{observed(group.from)} ~ {observed(group.to)}</strong> · {group.items.map(item => item.label + "에 " + item.origin + " 값").join(", ")}</li>
         {/each}</ul></details>
       </section>
-    {/if}
-    {#if findingState === "loading"}
-      <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
-    {:else if findingState === "failed"}
-      <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
-        <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
-    {:else if findings && findings.intervals.length}
-      <ul class="found" aria-label="주요 변화">
-        {#each findings.intervals as item,index (item.start + (item.context?.key ?? item.channel))}
-          {@const told = findingText(item, item.bucketSeconds ?? findings.bucketSeconds)}
-          {@const own = item.operation ? findings.operation.find(entry => entry.key === item.operation?.key) : undefined}
-          {@const links = findingLinks(asset.assetId, item, findings.baseline, findings.bucketSeconds, findings.record)}
-          {#if index===1}<li class="others-title">이 기록의 다른 변화 {findings.intervals.length-1}건</li>{/if}
-          <li class:secondary={index>0} id={index===0?"primary-change":"change-"+index}>
-            {#if index===0 || expandedChanges[String(index)]}
-            <h3 class="change-sentence">{changeSentence(item, findingSpan(item), own && item.band != null ? bandName(own, item.band) : null)}</h3>
-            <ChangeNumbers facts={item} fallback={told.what} />
-            <ChangeInterval finding={item} />
-            {#if item.reason}<p class="change-why">{CHANGE_WHY[item.reason]}</p>{/if}
-            <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
-            {#if item.reviewKey}<details ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
-              {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
-            </details>{/if}</div>
-            {#if index===0}<FindingContext {item} operation={own} compareHref={links.compare??links.previous} relation={links.relation}/>{/if}
-            <details><summary>비교 기준·출처·관련 신호</summary>
-            {#if item.context}<SourceIdentity id={item.context.sourceId} pointId={item.context.pointId} interpretationId={item.context.interpretationId} among={findings.signals.flatMap(row=>row.context?[row.context.sourceId]:[])}/>{/if}
-            <p class="context small">대표값은 집계 구간 평균의 중앙값입니다. {item.kind === "level-change" ? "기준 기간에 일정하던 값이 달라졌습니다." : "비교 범위 " + changeValue(item.usual.low, null) + " ~ " + changeValue(item.usual.high, item.unit) + "와 견줬습니다."}</p>
-            {#if item.related.length}<ul class="related" aria-label="같은 구간의 다른 신호">
-              {#each item.related as other (other.channel)}
-                {@const target = findingLinks(asset.assetId, {...item, channel:other.channel, context:other.context ?? item.context}, findings.baseline, findings.bucketSeconds, findings.record)}
-                <li>{#if target.signal}<a href={target.signal}>{other.label}</a>{:else}{other.label}{/if}
-                  · {changeValue(other.reference, null)} → {changeValue(other.current, other.unit)}
-                  · {other.state === "within" ? "대표값이 기준 범위 안" : other.state === "higher" ? "함께 높아짐" : "함께 낮아짐"}</li>
-              {/each}
-            </ul>{/if}
-              {#if item.baseline}<p class="context small">비교 기준 · 이 기록의 처음 30% · {observed(item.baseline.from)} ~ {observed(item.baseline.to)}</p>{/if}
-              {#if links.previous && links.compare}<a href={links.previous}>변화 직전과 비교 →</a>{/if}
-              {#if item.reason === "record-end"}<a href={links.outlook}>이 신호의 기록 마지막 시점 전망 →</a>{/if}
-            {#if item.referenceSpread != null && item.referenceSpread>0}<p class="context small">기준 구간의 변동 폭 {changeValue(item.referenceSpread,item.unit)} · 중앙값 주변의 변동을 나타내며 고장 기준은 아닙니다.</p>{/if}
-            </details>
-            {:else}
-              <div class="compact-change"><button type="button" onclick={()=>expandedChanges={...expandedChanges,[String(index)]:true}}>
-                <strong>{item.label}</strong><span>{item.reference!=null&&item.typical!=null?"처음 30%보다 "+(item.direction==="up"?"높음":"낮음")+" · "+changeValue(item.reference,null)+" → "+changeValue(item.typical,item.unit):told.what}</span>
-                <small>{told.when}</small></button>{#if links.signal}<a href={links.signal}>구간 조사 →</a>{/if}</div>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-      <p class="context small more-changes"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>
-    {:else if findings && findings.judged}
-      <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
-        <div class="analysis-workspace"><div class="analysis-body">
-        <p class="context">{findings.operation.length?"같은 운전 수준의 측정끼리 비교해":"기록 초반과 비교해"} 뚜렷하게 다른 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
-        {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={220}/>{#if findings.operation.length}<p class="context small">추세에는 서로 다른 운전 상태의 기록도 함께 표시합니다.</p>{/if}{/if}
-        </div><aside class="analysis-sidebar" aria-label="기록의 값과 다음 조사">
-        {#if quietSignal}<p><strong>{quietSignal.label}</strong></p>{#if quietSignal.context}<SourceIdentity id={quietSignal.context.sourceId} pointId={quietSignal.context.pointId} interpretationId={quietSignal.context.interpretationId}/>{/if}
+  {/if}
+  {#if focus?.kind === "history" && findings?.intervals[focus.index]}
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
+  {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} />{/key}</li></ul>
+  {:else if data?.history && findingState === "loading"}
+    <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
+  {:else if data?.history && findingState === "failed"}
+    <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
+      <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
+  {:else if data?.history && findings && findings.judged}
+    <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
+      <p class="context">{findings.operation.length?"같은 운전 수준의 측정끼리 비교해":"기록 초반과 비교해"} 뚜렷하게 다른 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
+      {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={260}/>{#if findings.operation.length}<p class="context small">추세에는 서로 다른 운전 상태의 기록도 함께 표시합니다.</p>{/if}{/if}
+      <div class="quiet-facts">
+        {#if quietSignal}{#if quietSignal.context}<SourceIdentity id={quietSignal.context.sourceId} pointId={quietSignal.context.pointId} interpretationId={quietSignal.context.interpretationId}/>{/if}
           {#if quietSignal.latest}<p>마지막 구간 평균 <strong>{changeValue(quietSignal.latest.value,quietSignal.unit)}</strong> · {observed(quietSignal.latest.at)}</p>{/if}
           {#if quietSignal.range}<p>구간별 평균의 범위 {changeValue(quietSignal.range.low,null)} ~ {changeValue(quietSignal.range.high,quietSignal.unit)}</p>{/if}
         {/if}
         <a class="ui-button ui-button-primary" href={signalHref(quietSignal)}>원본 신호 추세 보기 →</a>
-        <details><summary>기준 구간과 다른 신호 확인</summary><a href={assetTabUrl(asset.assetId,"anomaly","baseline")}>기록 변화 찾기 →</a></details>
-        </aside></div>
-      </section>
-    {:else if cumulative.length}
-      {@render cumulativeRecords()}
-    {:else if findings}
-      <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
-        <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
-    {/if}
+        <a href={assetTabUrl(asset.assetId,"anomaly","baseline")}>기준 구간과 다른 신호 확인 →</a>
+      </div>
+    </section>
+  {:else if data?.history && cumulative.length}
+    {@render cumulativeRecords()}
+  {:else if data?.history && findings && !data?.vibration}
+    <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
+      <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
+  {:else if data?.vibration && vibrationState === "loading"}
+    <p class="context">진동 측정 전체를 처음 30%와 비교하고 있습니다.</p>
+  {:else if data?.vibration && vibrationState === "failed"}
+    <p class="context">진동 측정에서 찾은 변화를 불러오지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
+  {:else if data?.vibration && vibration?.judged}
+    <p class="context">진동 특징 {vibration.judged}개에서 처음 30%와 견줘 크게 달라진 구간을 찾지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
   {/if}
-  {#if data?.vibration}<VibrationFindings assetId={asset.assetId} />{/if}
 </section>
 
-<section class="ui-panel more" aria-labelledby="more-title">
+<aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
+  {#if otherChanges.length}
+    <section class="ui-panel rail-section" aria-labelledby="others-title">
+      <h2 id="others-title">이 기록의 다른 변화 {otherChanges.length}건</h2>
+      <ul class="other-changes">
+        {#each otherChanges as row (row.key)}
+          <li><button type="button" onclick={() => picked = row.pick} aria-label={row.label + " 변화 크게 보기"}>
+            <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button>
+            {#if row.href}<a href={row.href}>구간 조사 →</a>{/if}</li>
+        {/each}
+      </ul>
+      {#if data?.history}<p class="context small"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>{/if}
+    </section>
+  {/if}
+  <section class="ui-panel more rail-section" aria-labelledby="more-title">
   <h2 id="more-title">이어서 확인할 것</h2>
   <dl class="rows">
     <div><dt id="state-title">모델은 어떻게 봤나요?</dt><dd>
@@ -294,6 +348,8 @@
     </dd></div>
   </dl>
 </section>
+</aside>
+</div>
 
 <details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
   <dl class="facts">
@@ -330,15 +386,33 @@
 </details>
 
 <style>
-  @media(min-width:1100px){.found{display:grid;grid-template-columns:minmax(0,1fr) 280px;align-items:start;gap:var(--space-3) var(--space-5)}.found>li:first-child{grid-column:1;grid-row:1 / span 8}.found>li.secondary,.found>li.others-title{grid-column:2}.compact-change{display:grid}.compact-change button{display:grid;gap:var(--space-1)}}
+  /* PC 화면: 가운데에는 변화 하나와 그래프, 오른쪽 열에는 다른 변화와 이어서 확인할 것. */
+  .summary-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-4); align-items: start; }
+  .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
+  .facts-panel > h2.eyebrow { margin: 0; font-size: var(--font-small); font-weight: 650; color: var(--color-ink-muted); }
+  .rail { display: grid; gap: var(--space-4); min-width: 0; }
+  .rail-section { padding: var(--space-4) var(--space-5); }
+  .rail-section h2 { font-size: var(--font-body); margin: 0 0 var(--space-2); }
+  @media (max-width: 1099px) { .summary-layout { grid-template-columns: minmax(0, 1fr); } }
 
-  .change-sentence{margin:0;font-size:1.25rem;line-height:1.45;font-weight:700;overflow-wrap:anywhere}
-  .change-why{margin:0;font-size:var(--font-small);color:var(--color-ink-muted)}
-  .found>li.others-title{padding:0;border:0;font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted)}
-  .found>li.secondary{padding:var(--space-3) var(--space-4);background:transparent}
-  .compact-change{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3)}
-  .compact-change button{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4);background:none;border:0;padding:0;text-align:left;color:var(--color-ink)}
-  .compact-change small{color:var(--color-ink-muted)}.compact-change a{white-space:nowrap}
+  .found > li :global(.change-sentence) { margin: 0; font-size: 1.3rem; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; }
+  .found > li :global(.card-top) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-6); }
+  .found > li :global(.finding-actions) { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+  .found > li :global(.finding-actions details[open]) { flex-basis: 100%; }
+  .change-why { margin: 0; font-size: var(--font-small); color: var(--color-ink-muted); }
+
+  .other-changes { list-style: none; margin: 0 0 var(--space-2); padding: 0; display: grid; gap: var(--space-2); }
+  .other-changes li { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .other-changes li:hover { border-color: var(--color-action); }
+  .other-changes button { display: grid; gap: 2px; padding: 0; border: 0; background: none; text-align: left; color: var(--color-ink); font: inherit; }
+  .other-changes button span { font-size: var(--font-small); }
+  .other-changes button small { font-size: var(--font-label); color: var(--color-ink-muted); }
+  .other-changes a { font-size: var(--font-small); justify-self: start; }
+
+  .quiet-record { display: grid; gap: var(--space-2); }
+  .quiet-record h3 { margin: 0; font-size: var(--font-section); }
+  .quiet-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-5); }
+  .quiet-facts p { margin: 0; }
 
   .facts {
     margin: 0;
@@ -350,19 +424,15 @@
   dt { font-size: var(--font-small); color: var(--color-ink-muted); }
   dd { margin: var(--space-2) 0 0; font-weight: 700; overflow-wrap: anywhere; }
   dd small { display: block; margin-top: var(--space-1); font-weight: 400; font-size: var(--font-small); color: var(--color-ink-muted); }
-  .more { margin-top: var(--space-4); }
-  .more h2 { margin-bottom: var(--space-2); }
   .rows { margin: 0; }
-  .rows > div { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--space-2) var(--space-5); padding-block: var(--space-3); border-top: 1px solid var(--color-border); }
-  .rows dt { font-weight: 650; }
+  .rows > div { display: grid; gap: var(--space-1); padding-block: var(--space-3); border-top: 1px solid var(--color-border); }
+  .rows dt { font-weight: 650; font-size: var(--font-small); color: var(--color-ink); }
   .rows dd { margin: 0; font-weight: 400; display: grid; gap: var(--space-2); }
   .rows dd p { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
   .rows dd summary { padding-block: 0; font-weight: 400; color: var(--color-action); }
   .provenance { margin-top: var(--space-4); }
   .provenance > summary { padding-block: 0; }
   .provenance[open] > summary { margin-bottom: var(--space-4); }
-  .more-changes { margin: var(--space-3) 0 0; }
-  @media (max-width: 640px) { .rows > div { grid-template-columns: minmax(0, 1fr); } }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
   .scores li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
@@ -378,9 +448,8 @@
   .data-check h3 { margin: 0; font-size: var(--font-body); }
   .data-check p, .data-check ul { margin: 0; }
   .data-check ul { padding-inline-start: var(--space-4); overflow-wrap: anywhere; }
-  .found li { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
-  .found > li { padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
-  .finding-actions{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-3)}.finding-actions details{flex:1;min-width:180px}.finding-coverage{margin-bottom:var(--space-3)}
+  .found li { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
+  .finding-coverage{margin-bottom:var(--space-3)}
   .related { list-style: none; padding: 0; margin-block: var(--space-2); font-size: var(--font-small); }
   .related li { display: block; padding-block: var(--space-1); color: var(--color-ink-muted); }
   summary { cursor: pointer; font-weight: 650; padding-block: var(--space-2); }

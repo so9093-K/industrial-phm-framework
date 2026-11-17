@@ -2,7 +2,7 @@
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   import {vibrationLinks} from "../vibration-findings";
-  import {bandName, changeValue, percent, findingLinks} from "../record-findings";
+  import {bandName, changeValue, percent, findingLinks, findingSpan} from "../record-findings";
   import {equipmentKind, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
@@ -134,6 +134,10 @@
   }
   function when(row: OverviewRow): string {
     const found = row.finding!;
+    // 설비 요약의 문장과 같은 표현으로 언제부터 얼마 동안인지 말한다.
+    // 여러 설비의 기록은 해마다 다를 수 있어 연도를 붙인다.
+    if (row.historyInterval) return new Date(row.historyInterval.start).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric"})
+      + " " + findingSpan(row.historyInterval).replace(/ 동안$/, "");
     if (found.start && found.end) {
       const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
       return day(found.start) + " ~ " + day(found.end);
@@ -200,7 +204,7 @@
             {#if row?.main}
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
-              {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,120,28)}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
+              {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,240,36)}<svg viewBox="0 0 240 36" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
             {/if}
             <!-- 켜졌다 꺼지는 설비는 얼마나 멈춰 있었는지가 값만큼 중요하다. -->
             {#if row?.operation?.shares}<small>기록의 {percent(row.operation.shares[0])}는 정지 · 운전 수준 {row.operation.names.levels.length}개</small>{/if}
@@ -257,7 +261,7 @@
   .cell small.issue{color:var(--color-caution-ink)}
   .bar{display:flex;height:10px;border-radius:2px;overflow:hidden;background:var(--color-surface-selected);max-width:10rem}
   .bar i{display:block;height:100%}
-  svg{display:block;width:100%;max-width:10rem;height:28px}
+  svg{display:block;width:100%;max-width:16rem;height:36px}
   svg path{fill:none;stroke:var(--color-action);stroke-width:1.5;vector-effect:non-scaling-stroke}
   @media(max-width:760px){
     .row{grid-template-columns:1fr;gap:var(--space-2)}
