@@ -222,6 +222,7 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
             asset_id="motor-01",
             series=["current"],
             baseline="first-30",
+            level="all",
         )
         assert status == 200
         assert departures["meaning"] == "departures-from-a-chosen-baseline-not-fault-diagnosis"
@@ -280,7 +281,11 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         long_item, item = body["items"]
         assert long_item["asset_id"] == "pump-long"
         _, long_screen = get(
-            "/api/v1/explore/anomaly", asset_id="pump-long", series="current", baseline="first-30"
+            "/api/v1/explore/anomaly",
+            asset_id="pump-long",
+            series="current",
+            baseline="first-30",
+            level="all",
         )
         assert long_screen["score"][-1][1] == long_item["distance"]
         assert item["asset_id"] == "pump-moved" and item["channel"] == "current"
@@ -293,7 +298,11 @@ def test_assets_whose_record_ends_away_from_its_baseline_are_named_for_a_look(
         assert BASE + timedelta(minutes=39) <= since <= BASE + timedelta(minutes=40)
         # The 기준 구간 이탈 screen for that signal names the same distance and the same start.
         _, screen = get(
-            "/api/v1/explore/anomaly", asset_id="pump-moved", series="current", baseline="first-30"
+            "/api/v1/explore/anomaly",
+            asset_id="pump-moved",
+            series="current",
+            baseline="first-30",
+            level="all",
         )
         assert screen["score"][-1][1] == item["distance"]
         latest = max(screen["intervals"], key=lambda interval: interval["end"])
@@ -1105,6 +1114,19 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert row["finding"]["label"] == summary["intervals"][0]["label"] == "역률"
         assert row["history_interval"] == summary["intervals"][0]
         assert row["history_interval"]["operation"]["key"] == row["operation"]["key"]
+        first = row["history_interval"]
+        status, explored = get(
+            "/api/v1/explore/anomaly",
+            asset_id="boiler-01",
+            series=first["channel"],
+            record_key=first["key"],
+        )
+        assert status == 200 and explored["operating_level"] == first["band"]
+        assert explored["baseline"]["from"] == first["baseline"]["from"]
+        assert explored["baseline"]["to"] == first["baseline"]["to"]
+        assert any(item["start"] == first["start"] for item in explored["intervals"])
+        assert first["change_distance"] > 3.5 and first["reference_spread"] > 0
+
         assert row["finding_count"] == len(summary["intervals"])
         assert row["operation"]["shares"] == [pytest.approx(0.35), pytest.approx(0.65)]
         main = row["main"]

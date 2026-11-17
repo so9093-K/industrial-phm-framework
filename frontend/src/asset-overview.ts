@@ -1,6 +1,7 @@
 /** One asset as a row of the comparison overview (GET /api/v1/explore/overview): how it ran,
  * its main signal's latest value and trace, and the first change its summary leads with. */
 import {parseVibrationChange, type VibrationChange} from "./vibration-findings.ts";
+import {recordContext,type RecordContext} from "./record-context.ts";
 import {object} from "./writes.ts";
 import type {LevelNames} from "./record-findings.ts";
 import {parseFindingInterval, type FoundInterval} from "./record-findings.ts";
@@ -9,7 +10,7 @@ export type OverviewRow = {
   assetId: string; kind: "history" | "vibration" | null;
   /** Share of time per band over the record, stopped first, with the band names. */
   operation: {key: string | null; names: LevelNames; label: string; shares: number[] | null} | null;
-  main: {label: string; unit: string | null; axis: "time" | "acquisition"; periodSeconds: number | null;
+  main: {context?:RecordContext|null; label: string; unit: string | null; axis: "time" | "acquisition"; periodSeconds: number | null;
     latest: {at: string | null; position: number | null; value: number} | null; trace: {x: number; value: number; join?: boolean}[]} | null;
   finding: {label: string; unit: string | null; band: number | null; direction: "up" | "down"; kind: string;
     reference: number | null; typical: number | null; value: number;
@@ -56,7 +57,7 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
       bindingId: text(vibration.binding_id) ?? invalid(), periodSeconds: optional(vibration.period_seconds),
     } : null,
     historyInterval: root.history_interval == null ? null : parseFindingInterval(root.history_interval),
-    main: main ? {
+    main: main ? {context:recordContext(main.context),
       label: text(main.label) ?? "", unit: text(main.unit), axis, periodSeconds: optional(main.period_seconds),
       latest: latest ? {at: text(latest.at), position: optional(latest.position), value: finite(latest.value)} : null,
       trace: (Array.isArray(main.trace) ? main.trace : []).map((point: unknown, i: number) => {

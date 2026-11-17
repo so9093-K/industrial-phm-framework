@@ -241,7 +241,7 @@
   .label { font-size: 11px; fill: var(--color-ink-muted); }
   .intervals { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
   .priorities { list-style: none; margin: var(--space-3) 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: var(--space-3); }
-  .priorities li { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
+  .priorities li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--color-border); }
   .priorities span { font-size: var(--font-small); color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .priorities button { justify-self: start; }
   summary { cursor: pointer; color: var(--color-action); font-weight: 650; padding-block: var(--space-3); }

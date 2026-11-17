@@ -106,7 +106,9 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 )
                 assert "record_key" in query and "monitor_pick" in query
                 investigate.click()
-                pw.expect(page.locator(".series .pick")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("region", name="선택한 구간 · measured-file", exact=True)
+                ).to_be_visible()
                 assert parse_qs(urlsplit(page.url).query)["monitor_source"] == ["measured-file"]
                 snapshot["assets"]["items"] = json.loads(asset_list("quiet"))["assets"]["items"]
                 page.goto(origin + "/web/")

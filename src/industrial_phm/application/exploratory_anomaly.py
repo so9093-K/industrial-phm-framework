@@ -93,7 +93,8 @@ def find_departures(
             size = abs(float(z))
             if not constant and size > score.get(start, (-1.0, "", end))[0]:
                 score[start] = (size, name, end)
-            changed = start >= own_cut and size > tolerance if constant else size >= THRESHOLD
+            beyond_reference = baseline == "all" or start >= own_cut
+            changed = beyond_reference and (size > tolerance if constant else size >= THRESHOLD)
             if changed:
                 marked += 1
                 current = marks.get(start)
@@ -132,10 +133,7 @@ def find_departures(
         if (
             previous is not None
             and start - previous["end"] <= gap
-            and not (
-                mark["kind"] == "level-change"
-                and mark["direction"] != previous["peak"]["direction"]
-            )
+            and mark["direction"] == previous["peak"]["direction"]
         ):
             previous["end"] = max(previous["end"], mark["end"])
             previous["points"] += 1
@@ -356,12 +354,31 @@ def record_changes(
         for read in analyses.values()
         for interval in read["intervals"]
     ]
+    # An isolated crossing remains available in the detailed explorer. A summary interval
+    # with enough values must also have a representative shift outside its reference range.
+    candidates = [
+        item
+        for item in candidates
+        if (
+            compared := interval_comparison(
+                series[item["channel"]],
+                (item["baseline"]["from"], item["baseline"]["to"]),
+                (item["start"], item["end"]),
+            )
+        )
+        is not None
+        and compared["state"] != "within"
+    ]
     selected: list[dict[str, Any]] = []
 
     def distinct(item: dict[str, Any]) -> bool:
         for chosen in selected:
+            if item["channel"] == chosen["channel"]:
+                return False
             if streams is not None:
                 own, other = streams[item["channel"]], streams[chosen["channel"]]
+                if len(own) == len(other) == 4 and own == other:
+                    return False  # One source/point/channel/meaning, including its other levels.
                 if own[:2] != other[:2]:
                     continue
                 # Related channels can describe the same event, even though their measured

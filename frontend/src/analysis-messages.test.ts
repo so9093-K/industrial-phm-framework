@@ -310,3 +310,13 @@ test("a period A the reader chose is named by how its range was computed, never 
   assert.match(told.headline, /기간 A의 비교 범위\(5~95%, 214~225 V\)/);
 });
 
+
+test("nearby medians are described within A's variation, without declaring both distributions identical",()=>{
+  const result=historyPeriodMessage({unit:"V",a:{usable:100,median:230,low:227,high:233},
+    b:{usable:100,median:230.5},outsideCount:12,outsidePercent:12,medianChangePercent:0.217,
+    onset:null,means:{a:230,b:230.5},aMiddle:{low:229,high:231},lowCurrent:null},[])!;
+  assert.equal(result.conclusion,"두 기간의 대표값은 비슷합니다");
+  assert.match(result.certainty!,/가운데 50% 범위 안/);
+  assert.match(result.certainty!,/가운데 약 90%/);
+  assert.doesNotMatch(result.conclusion!,/정상|고장|문제없|분포.*같/);
+});

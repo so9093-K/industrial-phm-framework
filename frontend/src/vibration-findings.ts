@@ -9,6 +9,7 @@ export type VibrationChange = {
   reason: "sustained" | "record-end" | "largest" | null; kind: "departure" | "level-change";
   from: number; to: number; baseline: {from: number; to: number};
   reference: number | null; typical: number | null; value: number;
+  referenceSpread?: number | null; effectDistance?: number | null;
   usual: {low: number; high: number}; trace: {at: number; value: number; join?: boolean}[];
   /** Other features that moved over the same acquisitions. */
   related: {feature: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower"}[];
@@ -46,6 +47,7 @@ export function parseVibrationChange(entry: unknown): VibrationChange {
     direction: row.direction, kind: row.kind === "level-change" ? "level-change" : "departure",
     reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as VibrationChange["reason"] : null,
     from, to, baseline: {from: whole(baseline.from), to: whole(baseline.to)},
+    referenceSpread: optional(row.reference_spread), effectDistance: optional(row.change_distance),
     reference: optional(row.reference_value), typical: optional(row.typical_value), value: finite(row.value),
     usual: {low: finite(usual.low), high: finite(usual.high)},
     trace: row.trace.map((point: unknown, i: number) => {

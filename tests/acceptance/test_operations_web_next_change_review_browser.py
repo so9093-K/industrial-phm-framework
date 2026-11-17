@@ -72,7 +72,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             )
             page.goto(url)
             card = page.locator(".found > li").first
-            pw.expect(card).to_contain_text("일정하던 값이 상승")
+            pw.expect(card).to_contain_text("일정하던 기준보다 높음")
             assert card.bounding_box()["y"] < 844
             signal_href = card.get_by_role(
                 "link", name="변화 구간 조사", exact=False
@@ -97,10 +97,10 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             pw.expect(card.locator(".events li")).to_have_count(2)
             append("source-b", 120, 180, True)
             page.reload()
-            page.get_by_text("저장한 주요 변화 검토", exact=True).click()
-            archive = page.locator(".facts-panel > details").filter(
-                has=page.get_by_text("저장한 주요 변화 검토", exact=True)
-            )
+            page.get_by_text("측정 현황·이전 검토", exact=True).click()
+            archive_summary = page.get_by_text("저장한 주요 변화 검토", exact=True)
+            archive_summary.click()
+            archive = archive_summary.locator("..")
             archive.locator("details > summary").first.click()
             pw.expect(archive).to_contain_text("현재 판단 · 계속 관찰")
             pw.expect(archive).to_contain_text("다음 측정에서 다시 확인함")
@@ -219,6 +219,7 @@ def test_partial_model_scores_do_not_turn_the_last_loaded_point_into_latest(tmp_
                     }
                 )
             )
+            page.get_by_text("다른 모델의 결과와 비교", exact=True).click()
             comparison = page.locator("section.comparison").filter(
                 has=page.get_by_role("heading", name="모델별 판단 상태 비교")
             )

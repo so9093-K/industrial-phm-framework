@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {bandName} from "../record-findings";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
@@ -37,6 +38,7 @@
   let channelError = $state("");
   const params = new URLSearchParams(location.search);
   const investigation=pickFrom(params.get("monitor_pick"));
+  let level = $state(params.get("departure_level") ?? "auto");
   let focus:SourceFocus|null=$state(focusFrom(params));
   let selectedRecord = $state(new URLSearchParams(location.search).get("record_key") ?? "");
   let selectedChannel = $state(params.get("monitor_channel") ?? "");
@@ -65,6 +67,7 @@
     url.searchParams.set("monitor_asset", assetId);
     url.searchParams.set("monitor_channel", selectedChannel);
     url.searchParams.set("departure_baseline", baseline);
+    if(level!=="auto")url.searchParams.set("departure_level",level);else url.searchParams.delete("departure_level");
     if(selectedRecord) url.searchParams.set("record_key",selectedRecord); else url.searchParams.delete("record_key");
     for(const key of ["monitor_source","monitor_point","monitor_interpretation"])url.searchParams.delete(key);
     if(focus)for(const [key,value] of Object.entries(focusParams(focus)))url.searchParams.set(key,value);
@@ -72,7 +75,7 @@
   }
   function changeChannel(channel: string) {
     if (!channels?.ids.includes(channel)) return;
-    selectedChannel = channel; selectedRecord = ""; if(focus)focus={...focus,interpretation:undefined};
+    level="auto"; selectedChannel = channel; selectedRecord = ""; if(focus)focus={...focus,interpretation:undefined};
     rememberSelection();
     void analyze();
   }
@@ -120,7 +123,7 @@
     analysisState = "loading";
     error = "";
     try {
-      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal, selectedRecord || undefined, focus);
+      const evidence = await readDepartures(assetId, selectedChannel, baseline, request.signal, selectedRecord || undefined, focus, level);
       if (request.signal.aborted) return;
       result = evidence; if(evidence.context)focus={source:evidence.context.sourceId,point:evidence.context.pointId,interpretation:evidence.context.interpretationId}; selectedRecord = evidence.context?.key ?? ""; rememberSelection();
       analysisState = "ready";
@@ -149,7 +152,7 @@
     const span: Span = {from: Date.parse(start), to: Math.max(Date.parse(end), Date.parse(start) + Math.max(step, 1000))};
     const link = (href: string, params: Record<string, string>) => {
       const url = new URL(href, location.origin);
-      for (const [key, value] of Object.entries({...recordParams(found.context), ...params})) url.searchParams.set(key, value);
+      for (const [key, value] of Object.entries({...recordParams(found.context), ...(found.operatingLevel!=null && "compare_a" in params?{compare_level:String(found.operatingLevel)}:{}), ...params})) url.searchParams.set(key, value);
       return url.pathname + url.search;
     };
     const periods = {a: {from: found.baseline.from, to: found.baseline.to},
@@ -170,7 +173,7 @@
 </script>
 
 <section class="ui-panel departures" aria-labelledby="departures-title">
-  <h2 id="departures-title">기록 변화 찾기</h2>
+  <h2 class="visually-hidden" id="departures-title">기록 변화 찾기</h2>
   <p class="context">이 기록에서 어느 구간의 값이 달라졌나요? 선택한 기록 자체의 값을 기준으로 비교합니다. 학습 모델은 사용하지 않습니다.</p>
   {#if investigation}<p class="context">이어서 조사하는 구간 · {date(new Date(investigation.from).toISOString())} ~ {date(new Date(investigation.to).toISOString())}. 변화 탐색은 선택한 기록 전체를 비교 기준 기간과 견줍니다.</p>{/if}
 
@@ -184,26 +187,7 @@
       message="데이터 연결과 수신 상태를 먼저 확인하세요."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
-    <div class="controls">
-      <label for="departure-channel">신호
-        <select id="departure-channel" value={selectedChannel}
-          onchange={(event) => changeChannel(event.currentTarget.value)}>
-          {#each channels.ids as id (id)}<option value={id}>{signalName(channels.names, id)}</option>{/each}
-        </select>
-      </label>
-      <label for="departure-baseline">비교 기준 구간
-        <select id="departure-baseline" value={baseline}
-          onchange={(event) => changeBaseline(event.currentTarget.value as Baseline)}>
-          {#each bases as option (option.value)}
-            <option value={option.value}>{option.label}</option>
-          {/each}
-        </select>
-      </label>
-    </div>
-    <p class="baseline-purpose">{baseline === "all" ? "기록 전체의 분포에서 유독 다른 구간을 찾습니다. 이전 상태와 이후 상태의 비교는 아닙니다." : "기록 앞쪽 " + (baseline === "first-50" ? "50%" : "30%") + "를 기준으로, 그 뒤에 달라진 구간을 찾습니다."}</p>
-    {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
-    {/if}
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if analysisState === "loading"}
       <StatusNotice message="고른 신호에서 달라진 구간을 찾고 있습니다." />
     {:else if analysisState === "failed"}
@@ -227,43 +211,7 @@
         <StatusNotice kind="uncertain" title="기준 구간의 값이 변하지 않았습니다"
           message="기준 기간과 이후 기록에서 같은 값이 유지됩니다." />
       {:else}
-        {@const first = result.intervals[0]}
-        {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
-        {@const links = first ? intervalLinks(result, first.start, first.end) : null}
-        <AnalysisMessage
-          subject={signalName(channels?.names, result.selectedChannel)}
-          basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, unit)}
-          message={{
-            headline: result.scored.state === "level-change" ? "일정하던 측정값이 달라진 구간이 " + result.intervalCount + "개 있습니다." : result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
-              : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
-            meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
-              + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
-              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
-            certainty: "선택한 신호의 구간별 평균을 화면에 표시한 기준 기간과 비교했습니다.",
-            next: links ? [
-              ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
-              ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),
-            ] : [],
-          }} />
-        {#if result.intervalCount === 0}
-          <p class="context">고른 기록과 기준 구간에서는 기준을 넘는 차이를 찾지 못했습니다.</p>
-        {:else}
-          <ol class="intervals">
-            {#each result.intervals as interval, i (interval.start + interval.end + i)}
-              {@const links = intervalLinks(result, interval.start, interval.end)}
-              {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
-              {@const down = interval.direction !== "up"}
-              <li>
-                <strong>{date(interval.start)} ~ {date(interval.end)} · {elapsedText((Date.parse(interval.end)-Date.parse(interval.start))/1000)}</strong>
-                <span>{usualRange(result, unit)}보다 {down ? "낮음" : "높음"}
-                  · {elapsedText(result.bucketSeconds)} 평균으로 가장 {down ? "낮을" : "높을"} 때 {short(interval.value)}{unit ? " " + unit : ""}</span>
-                <span class="next">{#if links.compare}<a href={links.compare}>기준 구간과 비교 →</a>{/if}
-                  {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}</span>
-              </li>
-            {/each}
-          </ol>
-          <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
-        {/if}
+        <p class="result-conclusion">{result.intervalCount?"기준보다 다른 구간 "+result.intervalCount+"개":"고른 기준을 넘는 차이를 찾지 못했습니다"}</p>
         {#if chart}
           {#if chart.firstExceedance}
             <div class="onset" aria-label="첫 기준 초과 확인">
@@ -310,6 +258,27 @@
           </details>
         {/if}
       {/if}
+      <details><summary>발견한 구간 {result.intervalCount}개 자세히 보기</summary>
+        {#if result.intervalCount === 0}
+          <p class="context">고른 기록과 기준 구간에서는 기준을 넘는 차이를 찾지 못했습니다.</p>
+        {:else}
+          <ol class="intervals">
+            {#each result.intervals as interval, i (interval.start + interval.end + i)}
+              {@const links = intervalLinks(result, interval.start, interval.end)}
+              {@const unit = result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? null}
+              {@const down = interval.direction !== "up"}
+              <li>
+                <strong>{date(interval.start)} ~ {date(interval.end)} · {elapsedText((Date.parse(interval.end)-Date.parse(interval.start))/1000)}</strong>
+                <span>{usualRange(result, unit)}보다 {down ? "낮음" : "높음"}
+                  · {elapsedText(result.bucketSeconds)} 평균으로 가장 {down ? "낮을" : "높을"} 때 {short(interval.value)}{unit ? " " + unit : ""}</span>
+                <span class="next">{#if links.compare}<a href={links.compare}>기준 구간과 비교 →</a>{/if}
+                  {#if links.signal}<a href={links.signal}>신호에서 이 구간 보기 →</a>{/if}</span>
+              </li>
+            {/each}
+          </ol>
+          <p class="context">가장 크게 벗어난 구간부터 최대 50개를 보여 줍니다.</p>
+        {/if}
+      </details>
       <details>
         <summary>기술 상세</summary>
         <p class="context">신호 {signalName(channels?.names, result.selectedChannel)} · 단위 {result.unit ?? channels?.names.get(result.selectedChannel)?.unit ?? "미확인"}
@@ -319,7 +288,58 @@
           이 결과에는 데이터 출처·측정 위치 정보가 들어 있지 않습니다.
           <a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>신호 탭에서 출처와 품질 확인 →</a></p>
       </details>
+    {/if}    </div><aside class="analysis-sidebar" aria-label="기록 변화 비교 조건">
+
+    <div class="controls">
+      <label for="departure-channel">신호
+        <select id="departure-channel" value={selectedChannel}
+          onchange={(event) => changeChannel(event.currentTarget.value)}>
+          {#each channels.ids as id (id)}<option value={id}>{signalName(channels.names, id)}</option>{/each}
+        </select>
+      </label>
+      <label for="departure-baseline">비교 기준 구간
+        <select id="departure-baseline" value={baseline}
+          onchange={(event) => changeBaseline(event.currentTarget.value as Baseline)}>
+          {#each bases as option (option.value)}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </select>
+      </label>
+      {#if result?.operation}{@const operating=result.operation}
+      <label>비교할 운전 상태
+        <select aria-label="비교할 운전 수준" value={level==="auto"?String(result.operatingLevel??"all"):level} onchange={event=>{level=event.currentTarget.value;rememberSelection();void analyze();}}>
+          <option value="all">모든 운전 상태</option>
+          {#each operating.levels as _,i(i)}<option value={String(i+1)}>{bandName(operating,i+1)} 중의 값</option>{/each}
+        </select>
+      </label>{/if}
+    </div>
+    {#if result?.operation && result.operatingLevel != null}<p class="context">설비 요약과 같은 기준으로, {bandName(result.operation,result.operatingLevel)} 중의 값끼리 비교합니다.</p>{/if}
+    <p class="baseline-purpose">{baseline === "all" ? "기록 전체의 분포에서 유독 다른 구간을 찾습니다. 이전 상태와 이후 상태의 비교는 아닙니다." : "기록 앞쪽 " + (baseline === "first-50" ? "50%" : "30%") + "를 기준으로, 그 뒤에 달라진 구간을 찾습니다."}</p>
+    {#if channels.truncated}
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
     {/if}
+    {#if result}
+      {@const first=result.intervals[0]}
+      {@const unit=result.unit??channels.names.get(result.selectedChannel)?.unit??null}
+      {@const links=first?intervalLinks(result,first.start,first.end):null}
+        <AnalysisMessage
+          subject={signalName(channels?.names, result.selectedChannel)}
+          basis={date(result.baseline.from) + " ~ " + date(result.baseline.to) + " · " + usualRange(result, unit)}
+          message={{
+            headline: result.scored.state === "level-change" ? "일정하던 측정값이 달라진 구간이 " + result.intervalCount + "개 있습니다." : result.intervalCount ? "비교 기준 범위를 크게 벗어난 구간이 " + result.intervalCount + "개 있습니다."
+              : "선택한 신호에서 비교 기준 범위를 크게 벗어난 구간을 찾지 못했습니다.",
+            meaning: first ? "가장 크게 벗어난 구간은 " + date(first.start) + " ~ " + date(first.end) + "입니다. "
+              + elapsedText(result.bucketSeconds) + " 평균으로 가장 " + (first.direction === "down" ? "낮을" : "높을") + " 때 "
+              + short(first.value) + (unit ? " " + unit : "") + "였습니다." : "선택한 기준 기간과 집계 간격에서 비교했습니다.",
+            certainty: "선택한 신호의 구간별 평균을 화면에 표시한 기준 기간과 비교했습니다.",
+            next: links ? [
+              ...(links.signal ? [{label:"가장 크게 벗어난 구간의 신호 보기",href:links.signal}] : []),
+              ...(links.compare ? [{label:"이 구간을 기준 기간과 비교",href:links.compare}] : []),
+            ] : [],
+          }} />
+    {/if}
+    </aside></div>
+
   {/if}
 </section>
 

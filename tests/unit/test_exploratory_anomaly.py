@@ -81,7 +81,8 @@ def test_record_changes_find_late_signals_and_keep_sustained_changes_ahead_of_sp
     assert len(found["channels"]) == 35
     assert found["intervals"][0]["channel"] == "signal-34"
     assert found["intervals"][0]["reason"] == "sustained"
-    assert any(item["channel"] == "signal-00" for item in found["intervals"])
+    assert all(item["channel"] != "signal-00" for item in found["intervals"])
+    assert find_departures({"signal-00": signals["signal-00"]})["intervals"]
     assert len(found["intervals"]) <= 3
     # Similar signals in one event do not consume all three cards.
     signals["signal-33"] = signals["signal-34"]
@@ -239,3 +240,26 @@ def test_ranked_signals_are_chosen_before_longer_changes_in_other_items() -> Non
     ranked = record_changes(series, priority={"current": 0})
     assert ranked["intervals"][0]["channel"] == "current"
     assert ranked["intervals"][0]["reason"] == "sustained"
+
+
+def test_comparison_does_not_report_its_own_reference_as_a_later_change() -> None:
+    values = [-100.0] * 3 + [10.0 + (i % 3) * 0.1 for i in range(97)]
+    first = find_departures({"temperature": _points(values)})
+    assert first["intervals"] == []
+    # Looking for unusual values in the entire distribution remains an explicit option.
+    assert find_departures({"temperature": _points(values)}, baseline="all")["intervals"]
+
+
+def test_opposite_departures_are_not_joined_into_one_direction_and_one_signal_is_shown_once() -> (
+    None
+):
+    values = [10.0 + (i % 3) * 0.1 for i in range(100)]
+    values[50:60] = [20.0] * 10
+    values[60:70] = [0.0] * 10
+    values[80:90] = [30.0] * 10
+    detailed = find_departures({"voltage": _points(values)})
+    assert {item["direction"] for item in detailed["intervals"]} == {"up", "down"}
+    assert len(detailed["intervals"]) == 3
+    summary = record_changes({"voltage": _points(values)})
+    assert len(summary["intervals"]) == 1
+    assert summary["intervals"][0]["start"] >= summary["intervals"][0]["baseline"]["to"]

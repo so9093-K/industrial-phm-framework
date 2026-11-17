@@ -1,4 +1,5 @@
 <script lang="ts">
+  let viewportWidth=$state(1440);
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
@@ -164,26 +165,10 @@
   }
   onMount(()=>{void sourceList();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 </script>
-<section class="ui-panel relation" aria-labelledby="relation-title">
-  <h2 id="relation-title">신호 관계</h2>
-  <p class="context">두 신호가 함께 움직이는 방식이 달라졌나요? 비슷한 가로축 값에서 세로축 값이 달라졌는지도 비교합니다.</p>
-  {#if listState==="loading"}
-    <StatusNotice message="신호 목록을 불러오고 있습니다."/>
-  {:else if listState==="failed"}
-    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error} actionLabel="다시 불러오기" onAction={()=>void sourceList()}/>
-  {:else if listState==="empty"||listState==="unavailable"}
-    <StatusNotice kind="uncertain" title="비교할 신호가 부족합니다"
-      message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
-      actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
-  {:else if available&&periods}
-    <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
-    </div>
-    {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point?" · "+focus.point:""}의 기록을 보고 있습니다.</p>
-      <button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
-    {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
-    <details class="conditions" open={resultState!=="ready"}>
+<svelte:window bind:innerWidth={viewportWidth}/>
+{#snippet conditions()}
+  {#if available&&periods}
+    <details class="conditions" open={viewportWidth>=1100 || resultState!=="ready"}>
     <summary>비교 조건 변경 · {signalName(names,x)} × {signalName(names,y)}</summary>
     <div class="controls">
       <label for="relation-x">가로축 신호
@@ -212,6 +197,21 @@
       관계 계산하기
     </button>
     </details>
+  {/if}
+{/snippet}
+
+<section class="ui-panel relation" aria-labelledby="relation-title">
+  <h2 class="visually-hidden" id="relation-title">신호 관계</h2>
+  {#if listState==="loading"}
+    <StatusNotice message="신호 목록을 불러오고 있습니다."/>
+  {:else if listState==="failed"}
+    <StatusNotice kind="failure" title="신호 목록을 불러오지 못했습니다" message={error} actionLabel="다시 불러오기" onAction={()=>void sourceList()}/>
+  {:else if listState==="empty"||listState==="unavailable"}
+    <StatusNotice kind="uncertain" title="비교할 신호가 부족합니다"
+      message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
+      actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
+  {:else if available&&periods}
+    <div class="analysis-workspace"><div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 시각에 기록된 측정 짝을 찾고 있습니다."/>
     {:else if resultState==="failed"}
@@ -236,7 +236,7 @@
         {@const explained=sameX&&moved?{...(message??{meaning:null,next:[]}),headline:sameX,
           certainty:"이 범위에서 비교한 측정 수는 기간 A "+moved.shown.a.pairs+"개 · 기간 B "+moved.shown.b.pairs+"개입니다."}:message}
         <section class="group">
-          <h3>{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}{#if pair.point}{" · " + pair.point}{/if}</h3>
+          <p class="record-label">{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}{#if pair.point}{" · " + pair.point}{/if}</p>
           {#if explained}
             {#if moved}<p class="primary-insight">{signalName(names,y)} · {short(moved.shown.a.median)} → {short(moved.shown.b.median)}{yUnit?" "+yUnit:""}</p>
               <p class="primary-context">{signalName(names,x)} {short(moved.shown.low)}~{short(moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
@@ -331,10 +331,25 @@
         </section>
       {/each}
     {/if}
+    </div><aside class="analysis-sidebar" aria-label="분석 조건과 다음 확인">
+
+    <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
+      <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
+      <p><strong>기간 B · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
+    </div>
+    {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point?" · "+focus.point:""}의 기록을 보고 있습니다.</p>
+      <button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
+    {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
+
+    {@render conditions()}
+    </aside></div>
+
   {/if}
 </section>
 <style>
-  .primary-insight{font-size:var(--font-section);font-weight:650;line-height:1.6;overflow-wrap:anywhere}.primary-context{color:var(--color-ink-muted);overflow-wrap:anywhere}
+  .period-summary{font-size:var(--font-small)}.period-summary p{margin:0}.period-summary span{display:block}
+  .record-label{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 var(--space-2)}
+  .primary-insight{font-size:var(--font-result);font-weight:700;line-height:1.6;overflow-wrap:anywhere}.primary-context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .conditions{margin-block:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   .conditions summary,.coefficients summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}
   .period-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:var(--space-3);margin-block:var(--space-3)}

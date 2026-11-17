@@ -184,6 +184,7 @@ def _history_main(
         None,
     )
     return {
+        "context": context,
         "label": context.get("label") or context["channel"],
         "unit": context.get("unit"),
         "latest": {"at": latest.event_at.isoformat(), "value": latest.value}

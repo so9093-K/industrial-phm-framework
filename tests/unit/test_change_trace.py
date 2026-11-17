@@ -17,7 +17,7 @@ def test_trace_keeps_dense_runs_connected_but_breaks_at_missing_buckets() -> Non
         for i in range(1200)
     ]
     trace = change_trace(points, 60, points[600][0], points[-1][1])
-    assert 2 <= len(trace) <= 54
+    assert 2 <= len(trace) <= 166
     assert trace[0][2] is False
     assert sum(not row[2] for row in trace) == 2
     assert any(row[2] for row in trace)
@@ -37,3 +37,19 @@ def test_trace_preserves_sparse_samples_without_inventing_continuity() -> None:
     ]
     assert all(row[2] is False for row in change_trace(points, 60, points[0][0], points[-1][1]))
     assert change_trace([], 60, start, start) == []
+
+
+def test_trace_keeps_measured_context_across_a_gap_before_the_change() -> None:
+    start = datetime(2026, 11, 1, tzinfo=UTC)
+    points = [
+        (
+            start + timedelta(minutes=i + (360 if i >= 20 else 0)),
+            start + timedelta(minutes=i + (360 if i >= 20 else 0) + 1),
+            40.0 if i < 20 else 65.0,
+        )
+        for i in range(40)
+    ]
+    trace = change_trace(points, 60, points[20][0], points[-1][1])
+    assert trace[0][1] == 40.0 and trace[-1][1] == 65.0
+    assert sum(not row[2] for row in trace) == 2
+    assert next(row for row in trace if row[1] == 65.0)[2] is False

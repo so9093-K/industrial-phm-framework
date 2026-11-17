@@ -196,3 +196,50 @@ def test_shutdown_finishes_current_commit_and_refuses_new_work(
         closer.join(10)
     assert not closer.is_alive()
     assert read_file_history_jobs(workspace)["a"]["state"] == "succeeded"
+
+
+def test_csv_confirms_one_current_without_assigning_an_invented_phase(tmp_path: Path) -> None:
+    from industrial_phm.application.source_registry import JsonSourceRepository
+    from industrial_phm.runtime.operations_web_explore import record_findings
+
+    workspace = OperationsWorkspace(tmp_path / "csv-current")
+    initialize_operations_workspace(workspace)
+    _file_source(workspace, "legacy")
+    payload = {
+        "source_id": "confirmed",
+        "name": "Measured current",
+        "asset_id": "pump-02",
+        "measurement_point_id": "",
+        "file_path": "inputs/legacy.csv",
+        "channel_columns": ["phase-R", "phase-S"],
+        "timestamp_column": "timestamp",
+        "channel_labels": [{"channel_id": "phase-R", "label": "전류", "unit": "A"}],
+        "operating_current": "phase-R",
+    }
+    register_workspace_csv_source(workspace.root, payload)
+    source = next(
+        item
+        for item in JsonSourceRepository(workspace.source_registry_path).list_sources()
+        if item.source_id == "confirmed"
+    )
+    (binding,) = source.config.semantic_bindings
+    assert binding.definition.observed_property == "electric current"
+    assert binding.definition.unit == "A" and binding.definition.scope == "current measurement"
+    assert "phase" not in binding.definition.observed_property
+    change_web_source_control(
+        workspace.root, "lifecycle", {"source_id": "confirmed", "target_state": "active"}
+    )
+    receive_workspace_file_source(workspace.root, {"source_id": "confirmed"})
+    jobs = FileHistoryJobs(workspace.root)
+    jobs.start({"source_id": "confirmed"})
+    jobs.close()
+    assert record_findings(workspace, "pump-02")["operation"]
+    with pytest.raises(ValueError, match="confirmed A"):
+        register_workspace_csv_source(
+            workspace.root,
+            {
+                **payload,
+                "source_id": "invalid",
+                "channel_labels": [{"channel_id": "phase-R", "label": "전류", "unit": "V"}],
+            },
+        )

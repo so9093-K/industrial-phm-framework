@@ -13,6 +13,8 @@ export type CsvSetup={
   channel_labels?:{channel_id:string;label:string;unit:string|null}[];
   /** The offset for timestamps the file wrote without one, such as +09:00. */
   timestamp_utc_offset?:string;
+  /** User-confirmed current in A, without assigning an R/S/T phase. */
+  operating_current?:string;
 };
 export type PreflightIssue={code:string;guidance:string;row:number|null;column:string|null};
 export type Preflight={

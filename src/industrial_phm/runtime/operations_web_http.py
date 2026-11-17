@@ -119,6 +119,7 @@ _UPLOAD_SETUP_OPTIONAL_FIELDS = _UPLOAD_SETUP_FIELDS | {
     "phase_channels",
     "channel_labels",
     "timestamp_utc_offset",
+    "operating_current",
 }
 
 

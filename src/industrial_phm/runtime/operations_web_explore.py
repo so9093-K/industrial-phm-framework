@@ -395,10 +395,50 @@ def _departures(
     if len(series) != 1:
         raise ValueError("choose one signal and its source record")
     baseline = (query.get("baseline") or ["first-30"])[0]
-    records = signal_records(history, asset_id, series)
+    all_records, operations, levels = stream_records(history, asset_id, channels)
+    records = [item for item in all_records if item["channel"] in series]
     record = select_signal_record(records, {key: values[0] for key, values in query.items()})
     channel = record["channel"]
-    found = find_departures({channel: record["points"]}, baseline=baseline)
+    operation = operations.get((record["source_id"], record["point_id"]))
+    own_levels = [item for item in levels.values() if item.key == record["key"]]
+    requested = (query.get("level") or [None])[0]
+    band = None
+    values = record["points"]
+    if own_levels and requested != "all":
+        if requested is not None:
+            if not requested.isdecimal() or int(requested) not in {
+                item.band for item in own_levels
+            }:
+                raise ValueError("unknown operating level")
+            band = int(requested)
+        else:
+            summary = record_findings(workspace, asset_id)
+            preferred = next(
+                (item["band"] for item in summary["intervals"] if item["key"] == record["key"]),
+                None,
+            )
+            band = (
+                preferred
+                if preferred is not None
+                else max(own_levels, key=lambda item: len(item.points)).band
+            )
+        values = next(item.points for item in own_levels if item.band == band)
+    elif requested not in (None, "all"):
+        raise ValueError("operating level unavailable for selected record")
+    found = find_departures({channel: values}, baseline=baseline)
+    operation_view = None
+    if operation is not None:
+        operation_view = operation_body(operation, _first_part(record["points"])) | {
+            "label": next(
+                (
+                    item["label"]
+                    for item in record_findings(workspace, asset_id)["operation"]
+                    if item["key"] == operation.key
+                ),
+                "전류",
+            ),
+            "unit": "A",
+        }
 
     def span(value: dict[str, Any]) -> dict[str, Any]:
         return {**value, "from": iso(value["from"]), "to": iso(value["to"])}
@@ -413,6 +453,8 @@ def _departures(
         "records": [record_context(r) for r in records],
         "bucket_seconds": record["bucket_seconds"],
         "threshold": found["threshold"],
+        "operation": operation_view,
+        "operating_level": band,
         "baseline": span(found["baseline"]),
         "channels": [{**row, "baseline": span(row["baseline"])} for row in found["channels"]],
         "score": [[iso(at), value, name] for at, value, name in found["score"]],
@@ -634,7 +676,16 @@ def change_trace(
     """Bounded display samples retain gaps from the full aggregation, before decimation."""
     if not points:
         return []
-    indices = {round(i * (len(points) - 1) / 47) for i in range(48)}
+    # Give the main chart enough measured context around the selected change instead of
+    # compressing a short event into a month-wide miniature.
+    context = max(end - start, timedelta(seconds=6 * bucket_seconds))
+    inside = [i for i, point in enumerate(points) if start - context <= point[0] <= end + context]
+    if not inside:
+        return []
+    # Preserve measured context on either side even when it lies across a long gap.
+    # The contiguous slice retains that missing-bucket boundary in the join flags below.
+    points = points[max(0, inside[0] - 6) : inside[-1] + 7]
+    indices = {round(i * (len(points) - 1) / 159) for i in range(160)}
     for boundary in (start, end):
         near = min(range(len(points)), key=lambda i: abs((points[i][0] - boundary).total_seconds()))
         indices.update(i for i in (near - 1, near, near + 1) if 0 <= i < len(points))
@@ -991,6 +1042,10 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 "baseline": {"from": iso(reference[0]), "to": iso(reference[1])},
                 "reference_value": own["reference"] if own else None,
                 "typical_value": own["current"] if own else None,
+                "reference_spread": spread,
+                "change_distance": abs(own["current"] - own["reference"]) / spread
+                if own is not None and spread > 0
+                else None,
                 "trace": [row[:2] for row in trace],
                 "trace_join": [row[2] for row in trace],
                 "related": [

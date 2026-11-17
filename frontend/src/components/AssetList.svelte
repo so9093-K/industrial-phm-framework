@@ -1,7 +1,8 @@
 <script lang="ts">
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
-  import {bandName, changeValue, percent} from "../record-findings";
+  import {vibrationLinks} from "../vibration-findings";
+  import {bandName, changeValue, percent, findingLinks} from "../record-findings";
   import {equipmentKind, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
@@ -162,7 +163,7 @@
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
       <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
-      <span role="columnheader">최근 주 신호</span><span role="columnheader">확인할 이유</span>
+      <span role="columnheader">최근 주 신호</span><span role="columnheader">마지막 측정·수신 확인</span>
     </div>
     {#each grouped as group (group.kind)}
       {#if group.kind}<div class="kind" role="row"><span role="cell" aria-colspan="4">{group.kind} · {group.rows.length}대</span></div>{/if}
@@ -185,7 +186,8 @@
           <div class="cell" role="cell" data-label="주요 변화">
             {#if row?.finding}
               {@const found = row.finding}
-              <a class="finding" href={href(asset.assetId)}>{found.label}{found.band != null && row.operation ? " · " + bandName(row.operation.names, found.band) + " 중" : ""}
+              {@const inspect = row.historyInterval ? findingLinks(asset.assetId,row.historyInterval,row.historyInterval.baseline,row.historyInterval.bucketSeconds??null).signal : row.vibrationInterval ? vibrationLinks(asset.assetId,row.vibrationInterval.change).signal : null}
+              <a class="finding" href={inspect??href(asset.assetId)}>{found.label}{found.band != null && row.operation ? " · " + bandName(row.operation.names, found.band) + " 중" : ""}
                 {found.reference !== null && found.typical !== null ? changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit)
                   : (found.direction === "up" ? "상승" : "하락")}</a>
               <small>{when(row)}{row.findingCount > 1 ? " · 외 " + (row.findingCount - 1) + "건" : ""}</small>
@@ -203,7 +205,7 @@
             {/if}
           </div>
           <div class="cell" role="cell" data-label="확인 항목">
-            <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
+            <small>마지막 측정의 추가 항목 {attentionText(count(asset), notesState)}</small>
             {#if note}<strong class="primary-reason">{note.label}</strong>
               <a class="investigate" href={note.href}>{note.action} →</a>{/if}
             {#if row?.operation || note || (reasons && (notes[asset.assetId]??0)>0)}<details class="row-details"><summary>운전·확인 상세</summary>

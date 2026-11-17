@@ -160,8 +160,8 @@
 
   {#if unfinished}<p class="import-note" role="status">{unfinished.text}
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
-  <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 
+  <div class="analysis-navigation">
   <nav class="tabs" aria-label="설비 화면" bind:this={tabBar} bind:clientWidth={tabWidth}>
     {#each TABS as tab (tab)}
       <a href={at(tab)} onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
@@ -190,11 +190,11 @@
               aria-current={kind === option ? "true" : undefined}>{DATA_INFO[option]}</a>
           {/each}
         </nav>
-      {:else if kind}
-        <p class="only-kind">데이터 · {DATA_INFO[kind]}</p>
       {/if}
     </div>
   {/if}
+
+  </div>
 
   {#if dataState === "failed"}
     <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
@@ -263,14 +263,17 @@
       {/if}
     {/key}
   {/if}
+  <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 </div>
 
 <style>
-  .workspace-asset { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+  .analysis-navigation{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-5)}.analysis-navigation .tabs{flex:1;min-width:0}.analysis-navigation .choices{margin:0}
+  @media(max-width:860px){.analysis-navigation{display:block}.analysis-navigation .choices{margin-top:var(--space-2)}}
+  .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
   .crumbs { font-size: var(--font-small); color: var(--color-ink-muted); display: flex; gap: var(--space-2); flex-wrap: wrap; }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); }
   .title { min-width: 0; }
-  h1 { overflow-wrap: anywhere; }
+  h1 { overflow-wrap: anywhere; font-size:clamp(1.3rem,2vw,1.7rem); }
   .meta { color: var(--color-ink-muted); margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
   .import-note { margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--color-uncertain-border);
     background: var(--color-uncertain-surface); color: var(--color-caution-ink); font-size: var(--font-small); overflow-wrap: anywhere; }
@@ -306,6 +309,5 @@
     color: var(--color-ink); text-decoration: none; background: var(--color-surface);
   }
   .segmented a + a { border-left: 1px solid var(--color-border); }
-  .only-kind { margin: 0; align-self: center; color: var(--color-ink-muted); font-size: var(--font-small); }
   .segmented a[aria-current="true"] { background: var(--color-surface-selected); font-weight: 700; color: var(--color-action); }
 </style>

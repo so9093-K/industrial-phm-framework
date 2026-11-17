@@ -168,6 +168,10 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
                 "baseline": {"from": number(reference[0]), "to": number(reference[1]) - 1},
                 "reference_value": compared["reference"] if compared else None,
                 "typical_value": compared["current"] if compared else None,
+                "reference_spread": spread,
+                "change_distance": abs(compared["current"] - compared["reference"]) / spread
+                if compared is not None and spread > 0
+                else None,
                 "value": item["value"],
                 "usual": {
                     "low": median - found["threshold"] * spread,

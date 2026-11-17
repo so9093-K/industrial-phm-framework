@@ -97,7 +97,7 @@
     {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
     {#if told}<AnalysisMessage message={told}/>{/if}
-    <div class="scroll"><table>
+    <div class="comparison-columns"><div class="values-column"><div class="scroll"><table>
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th><th>평소·학습값 범위와 비교</th></tr></thead>
       <tbody>{#each visible as feature(feature.feature)}
@@ -110,6 +110,7 @@
     {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}
     {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{shown(feature.label)}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
+    </div><div class="flow-column">
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>
     {:else if range && compare !== null && rows.some(row=>row.shape.trend!=="insufficient")}
       <p class="context">구간 흐름 · {place(compare)} → {place(run.position)} · 분석 {range.steps}개{range.sampled?" · 흐름은 "+range.points+"개 표본, 최대 변화는 전체 기록":""}</p>
@@ -127,6 +128,7 @@
       {#if quiet.length}<p class="context">변화 지점이 없거나 계산할 기록이 부족한 값 {quiet.length}개 · {quiet.map(row=>shown(row.label)).join(", ")}</p>{/if}
       <p class="context">변화 지점을 누르면 그 지점의 원본을 열고 다음 질문의 기준으로 지정합니다.</p>
     {/if}
+    </div></div>
   {/if}
   {#if contributions.length}<details><summary>모델이 반영한 특징 ({contributions.length}개)</summary><p class="context">모델 출력의 특징별 기여도입니다. 설비 고장의 원인이나 확률이 아닙니다.</p><dl>{#each contributions as [name,value] (name)}<div><dt>{shown(comparison?.features.find(item=>item.feature===name)?.label??name)}</dt><dd>{num(value)}</dd></div>{/each}</dl></details>{/if}
   {#if preview}
@@ -142,6 +144,9 @@
   .explore{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:end}.explore label{display:grid;gap:var(--space-2)}.explore select{max-width:100%;padding:var(--space-2)}
   .text-button{border:0;background:none;color:var(--color-action);font:inherit;text-align:left;cursor:pointer;padding:var(--space-2)}
   .flow{display:grid}.flow-row{display:grid;grid-template-columns:minmax(120px,1fr) minmax(100px,1fr) 2fr;gap:var(--space-2);padding-block:var(--space-3);border-bottom:1px solid var(--color-border)}
-  .flow-row>div{display:flex;gap:var(--space-2);flex-wrap:wrap}.comparison>.ui-button{justify-self:start}
+  .flow-row>div{display:flex;gap:var(--space-2);flex-wrap:wrap}.values-column>.ui-button{justify-self:start}
+  .values-column,.flow-column{min-width:0;display:grid;align-content:start;gap:var(--space-3)}
+  .comparison-columns{display:grid;gap:var(--space-5)}
+  @media(min-width:1100px){.comparison-columns{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}.flow{max-height:460px;overflow-y:auto;scrollbar-gutter:stable}.flow-row{grid-template-columns:minmax(100px,1fr) 1fr}.flow-row>div:last-child{grid-column:1 / -1}.flow-row .ui-button{padding:var(--space-2);font-size:var(--font-small)}}
   @media(max-width:600px){.flow-row{grid-template-columns:1fr}.flow-row>div{flex-direction:column;align-items:start}}
 </style>

@@ -21,6 +21,7 @@ export type FoundInterval = {
   reason: "sustained" | "record-end" | "largest" | null;
   baseline: {from: string; to: string} | null;
   reference: number | null; typical: number | null;
+  referenceSpread?: number | null; effectDistance?: number | null;
   related: {context?: RecordContext|null; channel: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower" | "within"}[];
   /** How the equipment ran in the change and in its reference period: shares per band, stopped first. */
   operation?: {key: string; interval: number[] | null; baseline: number[] | null} | null;
@@ -84,6 +85,8 @@ export function parseFindingInterval(item: unknown): FoundInterval {
     reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as FoundInterval["reason"] : null,
     baseline: row.baseline == null ? null : period(row.baseline),
     reference: row.reference_value === undefined || row.reference_value === null ? null : finite(row.reference_value),
+    referenceSpread: row.reference_spread == null ? null : finite(row.reference_spread),
+    effectDistance: row.change_distance == null ? null : finite(row.change_distance),
     typical: row.typical_value === undefined || row.typical_value === null ? null : finite(row.typical_value),
     operation: parseShift(row.operation),
     band: typeof row.band === "number" && Number.isInteger(row.band) && row.band > 0 ? row.band : null,
@@ -157,7 +160,7 @@ function parseShift(raw: unknown): FoundInterval["operation"] {
   return row ? {key: text(row.key), interval: shareList(row.interval), baseline: shareList(row.baseline)} : invalid();
 }
 
-function parseOperation(raw: unknown): Operation {
+export function parseOperation(raw: unknown): Operation {
   const row = object(raw), shares = object(row?.shares);
   if (!row || !shares || !Array.isArray(row.levels) || !Array.isArray(row.timeline)) invalid();
   const levels = row.levels.map((entry: unknown) => {

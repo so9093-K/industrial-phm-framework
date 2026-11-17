@@ -46,7 +46,9 @@
   let channels: string[] = $state([]);
   let chartChannel = $state("");
   // How each saved column reads on screens; empty keeps the column name.
+  let operatingCurrent=$state("");
   let labels: Record<string, {label: string; unit: string}> = $state({});
+  const currentProblem=$derived(operatingCurrent&&labels[operatingCurrent]?.unit.trim()!=="A"?"운전 수준에 사용할 전류의 단위를 A로 확인하세요.":null);
   const shown = (name: string) => labels[name]?.label.trim() || name;
   // Columns whose quantity has an example unit and whose unit field is still empty.
   const unfilledExamples = $derived(channels.filter((name) => unitExample(name) && !labels[name]?.unit.trim()));
@@ -142,6 +144,7 @@
     if (token !== fileChoice) return;
     fileDigest = [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
     const inspected = inspectCsv(parseCsv(text));
+    operatingCurrent="";
     file = chosen; table = inspected;
     timeIndex = inspected.times[0]?.index ?? -1;
     channels = channelChoices(inspected, timeIndex).filter((c) => c.usable).slice(0, MAX_CHANNELS).map((c) => c.name);
@@ -158,7 +161,7 @@
         && ["source_id", "name", "asset_id", "measurement_point_id", "timestamp_column"].every(key => typeof prior[key] === "string" && prior[key].length <= 128)
         && Array.isArray(prior.channel_columns) && prior.channel_columns.length <= MAX_CHANNELS
         && prior.channel_columns.every((name: unknown) => typeof name === "string" && inspected.header.includes(name))) {
-        sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
+        operatingCurrent=prior.operating_current??""; sourceId = prior.source_id; sourceName = prior.name; assetId = prior.asset_id; pointId = prior.measurement_point_id;
         timeIndex = inspected.header.indexOf(prior.timestamp_column); channels = [...prior.channel_columns];
         chartChannel = channels[0] ?? ""; restored = true;
         if (offsets.some((choice) => choice.value === prior.timestamp_utc_offset)) offset = prior.timestamp_utc_offset;
@@ -188,6 +191,7 @@
     timeZoneConfirmed = false;
     timeIndex = value === "" ? -1 : Number(value);
     channels = channels.filter((name) => table?.columns.find((c) => c.name === name)?.index !== timeIndex);
+    if(!channels.includes(operatingCurrent))operatingCurrent="";
     if (!channels.includes(chartChannel)) chartChannel = channels[0] ?? "";
     changed();
   }
@@ -200,6 +204,7 @@
     return {source_id: sourceId.trim(), name: sourceName.trim(), asset_id: assetId.trim(),
       measurement_point_id: pointId.trim(), channel_columns: channels,
       timestamp_column: table && timeIndex >= 0 ? table.header[timeIndex] : "",
+      ...(operatingCurrent?{operating_current:operatingCurrent}:{}),
       ...(declared.length ? {phase_channels: declared} : {}),
       ...(named().length ? {channel_labels: named()} : {}),
       ...(timing?.naive ? {timestamp_utc_offset: offset} : {})};
@@ -220,6 +225,7 @@
     const values = setup();
     if (!values.asset_id || !values.source_id || !values.name) { checkMessage = "설비 이름을 입력하세요. 연결 ID와 이름도 비어 있으면 안 됩니다."; return; }
     if (problems.length) { checkMessage = "미리보기에서 찾은 문제를 먼저 고치세요."; return; }
+    if(currentProblem){checkMessage=currentProblem;return;}
     if (roleProblem) { checkMessage = roleProblem; return; }
     if (!timeZoneReady) { checkMessage = "시간대가 없는 파일입니다. 선택한 시간대를 확인하세요."; return; }
     const token = revision;
@@ -230,7 +236,7 @@
       report = result; checkedRevision = token;
       checkMessage = result.status === "ready"
         ? "점검 통과 · 측정값 " + result.sampleCount + "행 · " + result.channels.join(", ") + " · 원래 측정 " + clock(result.first) + " ~ " + clock(result.last)
-          + (result.warnings.length ? " 측정 간격 주의: " + result.warnings.join(", ") + " · 원래 간격대로 저장합니다." : "")
+          + (result.warnings.length ? " 측정 간격 주의: " + result.warnings.map(code=>code==="irregular-sampling"?"측정 간격이 일정하지 않음":"측정 시각·간격 확인 필요").join(", ") + " · 원래 간격대로 저장합니다." : "")
           + (result.match === "matching" ? " 같은 파일과 설정이 이미 등록돼 있습니다. 저장하면 남은 단계부터 이어서 진행합니다." : "")
         : (result.status === "blocked" ? "점검 실패 · 파일이나 설정을 고친 뒤 다시 점검하세요." : "추가 확인이 필요합니다 · 아직 저장할 수 없습니다.")
           + (result.issue ? " " + (result.issue.row ? result.issue.row + "행" + (result.issue.column ? " / " + result.issue.column + " 열" : "") + ": " : "") + result.issue.guidance : "");
@@ -399,19 +405,9 @@
         <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
-      <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
-          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
-          {#each choices as choice (choice.name)}
-            <label class="choice">
-              <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
-                || (!channels.includes(choice.name) && channels.length >= MAX_CHANNELS)}
-                onchange={(event) => toggle(choice.name, event.currentTarget.checked)} />
-              {choice.name}{choice.note ? " · " + choice.note : ""}
-            </label>
-          {/each}
-        </fieldset>{#if channels.length}<fieldset class="names">
-          <legend>표시명·단위 설정</legend>
-          <p class="context">선택 입력입니다. 미입력 시 원본 열 이름을 사용하고, 단위는 ‘미확인’으로 표시합니다.</p>
+      {#if channels.length}<fieldset class="names">
+          <legend>측정값 이름·단위 확인</legend>
+          <p class="context">원본의 단위를 확인해 입력하세요. 모르는 단위는 비워 둘 수 있으며, 결과에는 단위 미확인으로 표시합니다.</p>
           {#if unfilledExamples.length && !locked}
             <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
             <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
@@ -426,7 +422,27 @@
                 value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
             </div>
           {/each}
-        </fieldset><div class="scroll"><table>
+        </fieldset>
+        {#if channels.some(name=>labels[name]?.unit.trim()==="A") || operatingCurrent}
+        <label class="field">운전 수준을 나눌 전류 (선택)
+          <select value={operatingCurrent} disabled={locked} onchange={event=>{operatingCurrent=event.currentTarget.value;changed();}}>
+            <option value="">사용하지 않음</option>
+            {#each channels.filter(name=>labels[name]?.unit.trim()==="A" || name===operatingCurrent) as name(name)}<option value={name}>{shown(name)} · A</option>{/each}
+          </select>
+        </label><p class="context">전류 항목과 A 단위를 확인하면 같은 운전 수준의 값끼리 비교합니다. 상 구분을 지정할 필요는 없습니다.</p>
+        {#if currentProblem}<p role="alert">{currentProblem}</p>{/if}
+        {:else}<p class="context">전류 열의 단위를 A로 확인하면 운전 수준별 비교에도 사용할 수 있습니다.</p>{/if}{/if}
+      <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
+          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
+          {#each choices as choice (choice.name)}
+            <label class="choice">
+              <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
+                || (!channels.includes(choice.name) && channels.length >= MAX_CHANNELS)}
+                onchange={(event) => toggle(choice.name, event.currentTarget.checked)} />
+              {choice.name}{choice.note ? " · " + choice.note : ""}
+            </label>
+          {/each}
+        </fieldset>{#if channels.length}<div class="scroll"><table>
           <caption>측정값 요약</caption>
           <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
             <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
@@ -491,7 +507,7 @@
         {/each}
       </ol></details>
       {#if !stored}
-        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem}
+        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem || !!currentProblem}
           onclick={() => void confirmAndSave()}>{checking?"저장 전 검증 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
       {/if}
       {#if saveMessage}

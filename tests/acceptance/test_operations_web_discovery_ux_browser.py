@@ -119,8 +119,8 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 pw.expect(assets.locator(".row").first).to_contain_text("changing", timeout=30000)
                 pw.expect(assets.locator(".primary-reason").first).to_be_visible()
                 rows = assets.locator(".row")
-                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 4건")
                 pw.expect(rows.first).to_contain_text("과거 저장 기록")
                 pw.expect(rows.first.locator(".primary-reason")).to_contain_text("temperature")
                 pw.expect(page.locator(".meta").first).to_contain_text("목록 확인 시각")
@@ -150,13 +150,13 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 )
                 page.reload()
                 pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 4건")
                 stable["attention_count"] = 0
                 snapshot["assets"]["items"].reverse()
                 page.reload()
                 pw.expect(rows.first).to_contain_text("changing")
-                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.first).to_contain_text("마지막 측정의 추가 항목 1건")
+                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 1건")
                 # Server-confirmed operating checks without a primary note still count.
                 operating = json.loads(asset_list("operating"))["assets"]["items"][0]
                 operating["attention_count"] = 4
@@ -164,15 +164,15 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 page.reload()
                 # The signal change and model crossing remain ahead of these four checks.
                 pw.expect(rows.nth(2)).to_contain_text("operating")
-                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.nth(2)).to_contain_text("마지막 측정의 추가 항목 4건")
                 model["processing_state"] = "pending"
                 page.reload()
                 pw.expect(rows.first).to_contain_text("changing")
                 pw.expect(rows.nth(1)).to_contain_text("operating")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                pw.expect(rows.nth(1)).to_contain_text("마지막 측정의 추가 항목 4건")
                 pw.expect(rows.nth(1).locator(".primary-reason")).to_have_count(0)
                 pw.expect(rows.nth(2)).to_contain_text("stable")
-                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 1건")
+                pw.expect(rows.nth(2)).to_contain_text("마지막 측정의 추가 항목 1건")
                 snapshot["assets"]["items"].pop()
                 # A failed read clears old reasons; only counts and source order remain.
                 monitor_failed = True
@@ -574,13 +574,26 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(rows.nth(1).locator(".asset")).to_contain_text("공기압축기 3")
                 pw.expect(rows.nth(2).locator(".asset")).to_contain_text("펌프 2")
                 page.get_by_role("checkbox", name="종류별로 묶기").uncheck()
+                inspect = rows.first.locator(".finding")
+                target = parse_qs(
+                    urlsplit(inspect.get_attribute("href")).query, keep_blank_values=True
+                )
+                assert target["tab"] == ["signals"] and target["monitor_source"] == [
+                    "compressor-file"
+                ]
+                inspect.click()
+                pw.expect(page.locator(".series").first).to_be_visible(timeout=30000)
+                assert parse_qs(urlsplit(page.url).query)["monitor_source"] == ["compressor-file"]
                 with page.expect_response("**/api/v1/explore/findings?**") as response:
-                    rows.first.locator(".finding").click()
+                    page.get_by_role("navigation", name="설비 화면").get_by_role(
+                        "link", name="상태 요약", exact=True
+                    ).click()
                 finding = response.value.json()["intervals"][0]
                 card = page.locator(".found > li").first
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
                 context = card.get_by_role("complementary", name="이 변화의 해석과 다음 확인")
                 pw.expect(context).to_contain_text("해당하는 측정끼리 비교해 찾은 변화")
+                page.get_by_text("운전 수준·분석 범위", exact=True).click()
                 op = page.locator("details.operation-details")
                 assert op.get_attribute("open") is None
                 pw.expect(op.locator(".operation")).to_be_hidden()
@@ -607,7 +620,15 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                     "0.955 → 0.605"
                 )
                 pw.expect(comparison.get_by_role("group", name="현재 비교 기간")).to_be_visible()
-                assert comparison.locator("details.conditions").get_attribute("open") is None
+                conditions = comparison.locator("details.conditions")
+                if width < 1100:
+                    assert conditions.get_attribute("open") is None
+                else:
+                    pw.expect(conditions.locator("input").first).to_be_visible()
+                    assert (
+                        comparison.locator(".analysis-sidebar").bounding_box()["x"]
+                        > comparison.locator(".analysis-body").bounding_box()["x"]
+                    )
                 distribution = comparison.locator("details.operation-distribution")
                 assert distribution.get_attribute("open") is None
                 assert (
@@ -684,10 +705,17 @@ def test_relation_leads_with_the_change_at_the_same_input_level(
                 group = page.locator(".relation .group")
                 pw.expect(group.locator(".primary-insight")).to_contain_text("y ·", timeout=30000)
                 pw.expect(group.locator(".primary-context")).to_contain_text("x")
-                assert page.locator(".relation details.conditions").get_attribute("open") is None
+                conditions = page.locator(".relation details.conditions")
+                assert (conditions.get_attribute("open") is not None) == (width >= 1100)
                 pw.expect(page.get_by_role("group", name="현재 관계 비교 기간")).to_be_visible()
                 pw.expect(group.locator(".coefficients dl").first).to_be_hidden()
-                page.locator(".relation details.conditions > summary").click()
+                if width < 1100:
+                    conditions.locator("summary").first.click()
+                else:
+                    graph = group.locator("svg").first.bounding_box()
+                    sidebar = page.locator(".relation .analysis-sidebar").bounding_box()
+                    assert graph and sidebar and sidebar["x"] >= graph["x"] + graph["width"]
+                    assert graph["y"] + graph["height"] <= 900
                 page.locator("#relation-y").select_option("x")
                 pw.expect(group).to_have_count(0)
                 page.locator("#relation-y").select_option("y")
@@ -746,7 +774,9 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 assert requested["a_from"] == ["2"] and requested["a_to"] == ["4"]
                 assert requested["b_from"] == ["7"] and requested["b_to"] == ["7"]
                 assert response.value.ok
-                pw.expect(page.locator(".spectra > p[role=status]")).to_contain_text("7번째 측정")
+                pw.expect(page.locator(".spectra p[role=status]").first).to_contain_text(
+                    "7번째 측정"
+                )
                 canvas.click(position={"x": 20, "y": 179})
                 pw.expect(selection.locator("select")).to_have_value("11")
                 with page.expect_response("**/api/v1/explore/spectrum?**") as response:
@@ -755,7 +785,9 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 assert requested["a_from"] == ["11"] and requested["a_to"] == ["11"]
                 assert requested["b_from"] == ["7"] and requested["b_to"] == ["7"]
                 assert response.value.ok
-                pw.expect(page.locator(".spectra > p[role=status]")).to_contain_text("11번째 측정")
+                pw.expect(page.locator(".spectra p[role=status]").first).to_contain_text(
+                    "11번째 측정"
+                )
                 page.reload()
                 pw.expect(selection).to_be_visible()
                 saved = parse_qs(urlsplit(page.url).query)
