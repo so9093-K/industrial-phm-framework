@@ -2,6 +2,7 @@
   import {recordParams} from "../record-context";
   import {readOverview, type OverviewRow} from "../asset-overview";
   import OverviewTrace from "./OverviewTrace.svelte";
+  import VibrationInvestigation from "./VibrationInvestigation.svelte";
   import ChangeInterval from "./ChangeInterval.svelte";
   import FindingContext from "./FindingContext.svelte";
   import OperationLevels from "./OperationLevels.svelte";
@@ -14,7 +15,7 @@
   let archiveOpen = $state(false);
   let openReviews:Record<string,boolean> = $state({});
   import SourceIdentity from "./SourceIdentity.svelte";
-  import {onMount} from "svelte";
+  import {onMount,untrack} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
   import {readScoreTrend, trendSummary, type ScoreTrend} from "../model-trend";
@@ -28,8 +29,8 @@
   import {assetTabUrl, routeUrl, summarySelectionUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, changeSentence} from "../change-story";
+  import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
+  import {CHANGE_WHY, changeHeadline} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
@@ -100,6 +101,7 @@
   // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
   type Pick = {kind: "history" | "vibration"; index: number};
   let pickedKey = $state(new URLSearchParams(location.search).get("summary_change"));
+  let reviewDrafts:Record<string,{sequence:number;text:string}>=$state({});
   const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
   const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
   const focus = $derived.by((): Pick | null => {
@@ -133,6 +135,7 @@
       target=new URL(vibrationLinks(asset.assetId,change).compare,location.origin);
       target.searchParams.set("vibration_feature",change.feature);
       target.searchParams.set("vibration_at",String(change.from));
+      if(measured.bindingId)target.searchParams.set("acquisition_binding",measured.bindingId);
       target.searchParams.set("acq_relation_x",change.feature);
       if(change.related[0])target.searchParams.set("acq_relation_y",change.related[0].feature);
       for(const part of ["a_from","a_to","b_from","b_to"])
@@ -143,6 +146,12 @@
     pickedKey=key;
   }
   const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
+  $effect(()=>{
+    const current=focus;
+    const ready=(!data?.history||findingState==="ready"||findingState==="failed")
+      &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
+    if(current&&pickedKey===null&&ready)untrack(()=>selectChange(current));
+  });
   const focusSpan = $derived.by(() => {
     const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
     if (shown?.kind === "history" && history?.intervals[shown.index]) {
@@ -251,7 +260,8 @@
   {@const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined}
   {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
-  <h3 class="change-sentence">{changeSentence(item, findingSpan(item), condition)}</h3>
+  <h3 class="change-sentence">{changeHeadline(item)}</h3>
+  <p class="context">{findingSpan(item)}</p>
   <div class="card-top">
     <ChangeNumbers facts={item} fallback={told.what} />
     <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사하기 →</a>{/if}
@@ -259,8 +269,8 @@
       {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
     </details>{/if}</div>
   </div>
-  <ChangeInterval finding={item} height={240} />
-  <RecordStrip finding={item} {condition} />
+  <ChangeInterval finding={item} height={240} focus/>
+  <RecordStrip finding={focusChange(item)} {condition} />
   {#if item.reason}<p class="change-why">{CHANGE_WHY[item.reason]}</p>{/if}
   <FindingContext {item} operation={own} compareHref={links.compare??links.previous} relation={links.relation}/>
   <details><summary>비교 기준·출처·관련 신호</summary>
@@ -307,7 +317,7 @@
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
-    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} />{/key}</li></ul>
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@const selected=vibration.intervals[focus.index]}<VibrationFindings assetId={asset.assetId} record={vibration} change={selected} draftNote={reviewDrafts[selected.reviewKey??""]??null} onReviewed={()=>{reviewRevision++;const next={...reviewDrafts};delete next[selected.reviewKey??""];reviewDrafts=next;}} />{/key}</li></ul>
   {:else if data?.history && findingState === "loading"}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
@@ -341,6 +351,11 @@
 </section>
 
 <aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
+  {#if focus?.kind==="vibration"&&vibration?.bindingId&&vibration.intervals[focus.index]?.reviewKey}
+    {@const change=vibration.intervals[focus.index]}
+    {#key change.reviewKey}<VibrationInvestigation assetId={asset.assetId} {change} bindingId={vibration.bindingId}
+      onMemo={text=>{const key=change.reviewKey!;reviewDrafts={...reviewDrafts,[key]:{sequence:(reviewDrafts[key]?.sequence??0)+1,text}};}}/>{/key}
+  {/if}
   {#if otherChanges.length}
     <section class="ui-panel rail-section" aria-labelledby="others-title">
       <h2 id="others-title">이 기록의 다른 변화 {otherChanges.length}건</h2>

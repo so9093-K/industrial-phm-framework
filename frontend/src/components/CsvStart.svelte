@@ -19,8 +19,9 @@
   /** One CSV file to stored measurements: see the file's own values, let the server check it
    * without saving, then register, put in use, read once and store history as recoverable steps behind one confirmation.
    * A retry resumes from the server's state and never registers or stores twice. */
-  type Props = {writable: boolean; onSaved: () => Promise<void>};
-  let {writable, onSaved}: Props = $props();
+  type Props = {writable: boolean; onSaved: () => Promise<void>; onFileSelected?:(selected:boolean)=>void};
+  let {writable, onSaved,onFileSelected}: Props = $props();
+  $effect(()=>{onFileSelected?.(table!==null);});
   type StepId = "register" | "activate" | "receive" | "store";
   type StepState = "pending" | "running" | "done" | "failed" | "unknown";
   const STEPS: {id: StepId; title: string; text: string}[] = [
@@ -324,18 +325,19 @@
   }
 </script>
 
-<section class="ui-panel csv-start" aria-labelledby="csv-start-title">
+<section class="ui-panel csv-start" class:has-file={table!==null} aria-labelledby="csv-start-title">
+  <div class="file-heading">
   <h2 id="csv-start-title">CSV 데이터 등록</h2>
-  <p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>
-  <ol class="flow" aria-label="진행 순서">
+  {#if !table}<p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>{/if}
+  {#if !table}<ol class="flow" aria-label="진행 순서">
     {#each ["파일 선택", "미리보기·설비 확인", "저장하고 분석"] as label, index (label)}
       {@const at = stored ? 3 : saving || checking ? 2 : table ? 1 : 0}
       <li data-state={index < at ? "done" : index === at ? "current" : "todo"} aria-current={index === at ? "step" : undefined}>
         <span class="mark" aria-hidden="true">{index < at ? "✓" : index + 1}</span>{label}{#if index < at}<span class="visually-hidden"> 완료</span>{/if}</li>
     {/each}
-  </ol>
+  </ol>{/if}
 
-  <div class="field">
+  <div class="field file-row">
     <span id="csv-file-label">CSV 파일 (UTF-8 · 20MiB 이하)</span>
     <span class="file-pick">
       <label class="ui-button" aria-disabled={locked}>파일 선택
@@ -343,12 +345,12 @@
           bind:this={fileInput} disabled={locked} onchange={() => void choose()} /></label>
     </span>
   </div>
-  <p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>
+  </div><p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>
 
   {#if table}
     <section aria-labelledby="csv-preview-title">
-      <h3 id="csv-preview-title">파일 미리보기</h3>
-      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "미리보기 · 저장 전 검증을 통과했습니다" : "미리보기 · 아직 저장하지 않았습니다"}</p>
+      <div class="preview-heading"><h3 id="csv-preview-title">파일 미리보기</h3>
+      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "미리보기 · 저장 전 검증을 통과했습니다" : "미리보기 · 아직 저장하지 않았습니다"}</p></div>
       <div class="preview-grid"><div class="preview-main">
       <div class="columns">
         <label class="field">시각 열
@@ -410,7 +412,24 @@
         <p class="context">측정 기간 (KST) · {clock(new Date(start).toISOString())} ~ {clock(new Date(end).toISOString())}</p>
         <p class="context">{timing?.points.length.toLocaleString("ko-KR")}행 · 구간 평균(점)과 최소·최대(선) · 최소 {measure(low, unit)} · 최대 {measure(high, unit)}</p>
       {/if}
+        {#if channels.length}{#if channels.some(name=>labels[name]?.unit.trim()==="A") || operatingCurrent}
+        <label class="field">운전 수준을 나눌 전류 (선택)
+          <select value={operatingCurrent} disabled={locked} onchange={event=>{operatingCurrent=event.currentTarget.value;changed();}}>
+            <option value="">사용하지 않음</option>
+            {#each channels.filter(name=>labels[name]?.unit.trim()==="A" || name===operatingCurrent) as name(name)}<option value={name}>{shown(name)} · A</option>{/each}
+          </select>
+        </label><p class="context">A 단위를 확인한 이 전류로 운전 수준을 나눠 비교합니다.</p>
+        {#if currentProblem}<p role="alert">{currentProblem}</p>{/if}
+        {:else}<p class="context">전류 열의 단위를 A로 확인하면 운전 수준별 비교에도 사용할 수 있습니다.</p>{/if}{/if}
       </div><div class="preview-units">
+    <section aria-labelledby="csv-asset-title">
+      <h3 id="csv-asset-title" class="visually-hidden">설비 정보</h3>
+      <div class="grid">
+        <label class="field">설비 이름·번호<input maxlength="128" placeholder="예: 1호 펌프" autocomplete="off" disabled={locked}
+          value={assetId} oninput={(event) => { assetId = event.currentTarget.value; changed(); }} /></label>
+      </div>
+    </section>
+
       {#if channels.length}<fieldset class="names">
           <legend>측정값 이름·단위 확인</legend>
           <p class="context">원본의 단위를 확인해 입력하세요. 모르는 단위는 비워 둘 수 있으며, 결과에는 단위 미확인으로 표시합니다.</p>
@@ -428,17 +447,57 @@
                 value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
             </div>
           {/each}
-        </fieldset>
-        {#if channels.some(name=>labels[name]?.unit.trim()==="A") || operatingCurrent}
-        <label class="field">운전 수준을 나눌 전류 (선택)
-          <select value={operatingCurrent} disabled={locked} onchange={event=>{operatingCurrent=event.currentTarget.value;changed();}}>
-            <option value="">사용하지 않음</option>
-            {#each channels.filter(name=>labels[name]?.unit.trim()==="A" || name===operatingCurrent) as name(name)}<option value={name}>{shown(name)} · A</option>{/each}
-          </select>
-        </label><p class="context">전류 항목과 A 단위를 확인하면 같은 운전 수준의 값끼리 비교합니다. 상 구분을 지정할 필요는 없습니다.</p>
-        {#if currentProblem}<p role="alert">{currentProblem}</p>{/if}
-        {:else}<p class="context">전류 열의 단위를 A로 확인하면 운전 수준별 비교에도 사용할 수 있습니다.</p>{/if}{/if}
+        </fieldset>{/if}
+
+
+    <section aria-labelledby="csv-save-title">
+      <h3 id="csv-save-title" class="visually-hidden">확인하고 저장하기</h3>
+      {#if saveFailed}<p class="context">입력은 남아 있습니다. 다시 시도하면 완료한 단계부터 이어집니다.</p>{/if}
+
+      {#if !stored}
+        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem || !!currentProblem}
+          onclick={() => void confirmAndSave()}>{checking?"저장 전 검증 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
+      {/if}
+      <details open={saveFailed}><summary>저장 처리 내역</summary><ol class="steps">
+        {#each STEPS as item (item.id)}
+          <li data-state={steps[item.id].state}><strong>{item.title}</strong><span>{item.text}</span>
+            {#if progress || steps[item.id].state !== "pending"}<em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em>{/if}</li>
+        {/each}
+      </ol></details>
+      {#if saveMessage}
+        <p class="message" class:failure={saveFailed} role={saveFailed ? "alert" : "status"}>{saveMessage}</p>
+      {/if}
+    </section>
       </div></div>
+      <div class="advanced-setup"><details>
+        <summary>측정 위치·연결 상세 설정 (선택)</summary>
+        <label class="field">측정 위치 (선택)<input maxlength="128" placeholder="예: panel-main" autocomplete="off" disabled={locked}
+          value={pointId} oninput={(event) => { pointId = event.currentTarget.value; changed(); }} /></label>
+        <p class="context">연결 ID와 이름은 자동으로 만듭니다. 필요한 경우 수정하세요.</p>
+        <div class="grid">
+          <label class="field">연결 ID<input maxlength="128" autocomplete="off" disabled={locked}
+            value={sourceId} oninput={(event) => { sourceId = event.currentTarget.value; changed(); }} /></label>
+          <label class="field">연결 이름<input maxlength="128" autocomplete="off" disabled={locked}
+            value={sourceName} oninput={(event) => { sourceName = event.currentTarget.value; changed(); }} /></label>
+        </div>
+      </details>
+      <details open={declared.length > 0}>
+        <summary>3상 전압·전류 역할 지정 (선택 · 3상 전력·불평형 분석에 필요)</summary>
+        <PhaseRoles {channels} bind:roles disabled={locked} onchange={changed} />
+        {#if roleProblem}<p class="message failure" role="status">{roleProblem}</p>{/if}
+      </details>
+      {#if !writable}
+        <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
+      {:else}
+        <details><summary>저장 전 점검만 실행 (선택)</summary><button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
+          aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
+          onclick={() => void check()}>등록 전 검증</button></details>
+        {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
+      {/if}
+      {#if checkMessage}
+        <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}{#if report?.status === "ready" && !checking}{stored ? " · 저장했습니다." : " · 아직 저장하지 않았습니다."}{/if}</p>
+      {/if}
+      </div>
       <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
           <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
           {#each choices as choice (choice.name)}
@@ -467,60 +526,6 @@
 </details>
     </section>
 
-    <section aria-labelledby="csv-asset-title">
-      <h3 id="csv-asset-title">설비 정보</h3>
-      <div class="grid">
-        <label class="field">설비 이름·번호<input maxlength="128" placeholder="예: 1호 펌프" autocomplete="off" disabled={locked}
-          value={assetId} oninput={(event) => { assetId = event.currentTarget.value; changed(); }} /></label>
-      </div>
-      <details>
-        <summary>측정 위치·연결 상세 설정 (선택)</summary>
-        <label class="field">측정 위치 (선택)<input maxlength="128" placeholder="예: panel-main" autocomplete="off" disabled={locked}
-          value={pointId} oninput={(event) => { pointId = event.currentTarget.value; changed(); }} /></label>
-        <p class="context">연결 ID와 이름은 자동으로 만듭니다. 필요한 경우 수정하세요.</p>
-        <div class="grid">
-          <label class="field">연결 ID<input maxlength="128" autocomplete="off" disabled={locked}
-            value={sourceId} oninput={(event) => { sourceId = event.currentTarget.value; changed(); }} /></label>
-          <label class="field">연결 이름<input maxlength="128" autocomplete="off" disabled={locked}
-            value={sourceName} oninput={(event) => { sourceName = event.currentTarget.value; changed(); }} /></label>
-        </div>
-      </details>
-      <details open={declared.length > 0}>
-        <summary>3상 전압·전류 역할 지정 (선택 · 3상 전력·불평형 분석에 필요)</summary>
-        <PhaseRoles {channels} bind:roles disabled={locked} onchange={changed} />
-        {#if roleProblem}<p class="message failure" role="status">{roleProblem}</p>{/if}
-      </details>
-      {#if !writable}
-        <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
-      {:else}
-        <details><summary>저장 전 점검만 실행 (선택)</summary><button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
-          aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
-          onclick={() => void check()}>등록 전 검증</button></details>
-        {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
-      {/if}
-      {#if checkMessage}
-        <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}{#if report?.status === "ready" && !checking}{stored ? " · 저장했습니다." : " · 아직 저장하지 않았습니다."}{/if}</p>
-      {/if}
-    </section>
-
-    <section aria-labelledby="csv-save-title">
-      <h3 id="csv-save-title">확인하고 저장하기</h3>
-      <p class="context">파일과 설정을 검증한 뒤 측정 기록을 저장합니다.</p>
-      {#if saveFailed}<p class="context">입력은 남아 있습니다. 다시 시도하면 완료한 단계부터 이어집니다.</p>{/if}
-      <details open={saveFailed}><summary>저장 처리 내역</summary><ol class="steps">
-        {#each STEPS as item (item.id)}
-          <li data-state={steps[item.id].state}><strong>{item.title}</strong><span>{item.text}</span>
-            {#if progress || steps[item.id].state !== "pending"}<em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em>{/if}</li>
-        {/each}
-      </ol></details>
-      {#if !stored}
-        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem || !!currentProblem}
-          onclick={() => void confirmAndSave()}>{checking?"저장 전 검증 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
-      {/if}
-      {#if saveMessage}
-        <p class="message" class:failure={saveFailed} role={saveFailed ? "alert" : "status"}>{saveMessage}</p>
-      {/if}
-    </section>
 
     {#if stored && progress}
       <section aria-labelledby="csv-done-title">
@@ -541,6 +546,9 @@
 </section>
 
 <style>
+  .file-heading{display:grid;gap:var(--space-3)}
+  .has-file .file-heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2)}
+  .preview-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
   .selection-summary{margin-block:var(--space-3);overflow-wrap:anywhere;font-size:var(--font-small)}
   .selection-summary p{margin-block:var(--space-2)}.selection-caution{border-left:3px solid var(--color-caution-ink);padding:var(--space-2);background:var(--color-uncertain-surface)}
   .csv-start { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
@@ -567,9 +575,14 @@
   fieldset.names { max-width: 760px; }
   /* 넓은 화면에서는 미리보기 그래프 옆에서 이름과 단위를 확인한다. */
   .preview-grid { display: grid; gap: var(--space-4) var(--space-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .preview-units > section {display:grid;gap:var(--space-2);min-width:0;}
+  .preview-units h3{font-size:var(--font-body)}
+  .file-row{display:flex;align-items:center;gap:var(--space-4)}
+  .advanced-setup{font-size:var(--font-small);display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-2) var(--space-5)}
+  .advanced-setup>details[open]{flex-basis:100%}
   .preview-main, .preview-units { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
   @media (min-width: 1100px) { .preview-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-  .preview-main > .field, .preview-units > .field, .grid > .field { max-width: 360px; }
+  .preview-main > .field, .grid > .field { max-width: 360px; }
   .name-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(120px, 2fr) minmax(90px, 1fr); gap: var(--space-2); align-items: center; }
   .name-row .column { overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--font-small); }
   @media (max-width: 560px) { .name-row { grid-template-columns: 1fr 1fr; } .name-row .column { grid-column: 1 / -1; } }

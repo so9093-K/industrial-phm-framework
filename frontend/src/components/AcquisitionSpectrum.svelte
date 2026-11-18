@@ -99,12 +99,12 @@
   }
   function savedSpans(fallback:Spans):Spans {
     const q=new URLSearchParams(location.search);
+    const prefix=q.has("spectrum_a_from")?"spectrum_":q.has("feature_a_from")?"feature_":"acq_";
     const span=(name:"a"|"b")=>({
-      from:Number(q.get("spectrum_"+name+"_from")),
-      to:Number(q.get("spectrum_"+name+"_to")),
+      from:Number(q.get(prefix+name+"_from")),
+      to:Number(q.get(prefix+name+"_to")),
     });
-    if(!q.has("spectrum_a_from")||!q.has("spectrum_b_to")
-      ||!q.has("spectrum_a_to")||!q.has("spectrum_b_from"))return fallback;
+    if(!["a_from","a_to","b_from","b_to"].every(key=>q.has(prefix+key)))return fallback;
     try{
       const result={a:span("a"),b:span("b")};
       validateSpans(result);return result;

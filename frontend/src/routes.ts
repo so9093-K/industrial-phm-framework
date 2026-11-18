@@ -68,7 +68,8 @@ export function routeUrl(route: Route, channel: string | null = null): string {
  * The selected observations and periods follow; model settings and review identities do not. */
 const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind",
   "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
-  "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to"];
+  "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
+  "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","acquisition_binding"];
 
 /** Remember a summary choice in the address without navigating or carrying a prior change's filters. */
 export function summarySelectionUrl(currentHref: string, selectionHref: string, key: string, kind: DataKind): string {
@@ -96,10 +97,16 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
     if(current.searchParams.has("summary_kind"))next.searchParams.set("summary_kind",selectedKind);
   }
   // Feature comparison and relationship screens name the same acquisition periods differently.
-  if(from.tab==="change"&&(from.method===null||from.method==="compare"||from.method==="relation")) {
-    const prefix=from.method==="relation"?"acq_":"feature_", target=prefix==="feature_"?"acq_":"feature_";
+  if(from.tab==="change"&&(from.method===null||["compare","relation","spectrum"].includes(from.method))) {
+    const prefix=from.method==="relation"?"acq_":from.method==="spectrum"?"spectrum_":"feature_";
     for(const span of ["a_from","a_to","b_from","b_to"])
-      if(current.searchParams.has(prefix+span))next.searchParams.set(target+span,current.searchParams.get(prefix+span)!);
+      if(current.searchParams.has(prefix+span))for(const target of ["feature_","acq_","spectrum_"])
+        next.searchParams.set(target+span,current.searchParams.get(prefix+span)!);
+  }
+  if(to.tab==="anomaly"&&from.tab==="signals"&&current.searchParams.has("vibration_at")) {
+    next.searchParams.set("model_position",current.searchParams.get("vibration_at")!);
+    const binding=current.searchParams.get("acquisition_binding");
+    if(binding)next.searchParams.set("model_binding",binding);
   }
   const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
   const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];

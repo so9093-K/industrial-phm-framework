@@ -340,6 +340,7 @@ def test_decision_and_optional_note_are_saved_once_without_leaving_the_model_res
                 page.goto(url)
                 page.locator("details.optional-review > summary").click()
                 panel = page.get_by_role("region", name="사람 검토")
+                selection_url = page.url
                 save = panel.get_by_role("button", name="판단 저장", exact=True)
                 pw.expect(save).to_be_disabled()
                 panel.get_by_role("radio", name="계속 관찰", exact=True).check()
@@ -370,7 +371,7 @@ def test_decision_and_optional_note_are_saved_once_without_leaving_the_model_res
                 assert len(events) == 1
                 assert events[0].decision.value == "observe"
                 assert events[0].note == "다음 측정에서 같은 변화가 이어지는지 확인"
-                pw.expect(page).to_have_url(url)
+                pw.expect(page).to_have_url(selection_url)
                 panel.get_by_role("button", name="검토 종료", exact=True).click()
                 panel.get_by_role("button", name="종료하기", exact=True).click()
                 pw.expect(

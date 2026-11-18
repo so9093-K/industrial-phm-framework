@@ -1,10 +1,24 @@
 import {object, OutcomeUnknown, postReviewWrite, reviewNote, type ReviewAction, type ReviewDecision} from "./review-writes.ts";
 import {parseReview} from "./outlook-captures.ts";
-import {parseRecordFindings, type FoundInterval} from "./record-findings.ts";
-export type ChangeCapture = {id: string; capturedAt: string; finding: FoundInterval; review: ReturnType<typeof parseReview>};
+import {findingText,parseRecordFindings, type FoundInterval} from "./record-findings.ts";
+import {measurementLabel} from "./time-axis.ts";
+import {routeUrl} from "./routes.ts";
+import {parseVibrationChange,type VibrationChange} from "./vibration-findings.ts";
+type Captured = {id:string;assetId:string;capturedAt:string;review:ReturnType<typeof parseReview>};
+export type ChangeCapture = Captured & (
+  {kind:"history";finding:FoundInterval} |
+  {kind:"vibration";finding:VibrationChange;sourceId:string;bindingId:string;periodSeconds:number|null});
 export type ChangePage = {captures: ChangeCapture[]; next: string|null};
 const ROUTE = "/api/v1/explore/change-reviews";
 const ID = /^change-review-[0-9a-f]{64}$/;
+export function changeCaptureUrl(assetId:string,id:string):string {
+  const url=new URL(routeUrl({page:"maintenance",assetId,tab:"summary",method:null,data:null}),"http://local");
+  url.searchParams.set("capture_id",id);return url.pathname+url.search;
+}
+export function changeCaptureCaption(capture:ChangeCapture):string {
+  return capture.kind==="vibration" ? measurementLabel(capture.finding.from,capture.periodSeconds)+" ~ "+measurementLabel(capture.finding.to,capture.periodSeconds)
+    : findingText(capture.finding,capture.finding.bucketSeconds??null).when;
+}
 export function parseChangePage(raw: unknown, assetId: string): ChangePage {
   const root = object(raw);
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId || !Array.isArray(root.captures) || root.captures.length > 20)
@@ -18,11 +32,18 @@ export function parseChangePage(raw: unknown, assetId: string): ChangePage {
       || identity.finding_id !== finding.review_key || typeof finding.review_key !== "string" || !/^[0-9a-f]{64}$/.test(finding.review_key))
       throw new Error("저장한 변화의 대상이 맞지 않습니다.");
     seen.add(row.capture_id);
+    if(change.kind==="vibration") {
+      if(typeof change.source_id!=="string"||!change.source_id||typeof change.binding_id!=="string"||!change.binding_id
+        ||!(change.period_seconds===null||typeof change.period_seconds==="number"&&Number.isFinite(change.period_seconds)&&change.period_seconds>0))
+        throw new Error("저장한 진동 변화의 기록을 확인할 수 없습니다.");
+      return {kind:"vibration" as const,id:row.capture_id,assetId,capturedAt:row.captured_at,finding:parseVibrationChange(finding),
+        sourceId:change.source_id,bindingId:change.binding_id,periodSeconds:change.period_seconds,review:parseReview(row.review)};
+    }
     const parsed = parseRecordFindings({schema_version:1, asset_id:assetId,
       meaning:"departures-from-the-first-30-percent-not-fault-diagnosis", baseline:null, bucket_seconds:null,
       signals:[{channel:finding.channel,label:finding.label,unit:finding.unit,state:finding.kind === "level-change" ? "level-change":"scored"}],
       judged:1, unchecked:0, intervals:[finding], interval_count:1},assetId).intervals[0];
-    return {id:row.capture_id,capturedAt:row.captured_at,finding:parsed,review:parseReview(row.review)};
+    return {kind:"history" as const,id:row.capture_id,assetId,capturedAt:row.captured_at,finding:parsed,review:parseReview(row.review)};
   });
   if (root.next_before !== null && (typeof root.next_before !== "string" || root.next_before !== captures.at(-1)?.id))
     throw new Error("저장 검토의 다음 목록을 확인할 수 없습니다.");
@@ -36,7 +57,7 @@ export async function readChangeReviews(assetId:string, signal:AbortSignal, sele
   if (selection.capture_id && (page.captures.length !== 1 || page.captures[0].id !== selection.capture_id)) throw new Error("저장한 검토를 찾지 못했습니다.");
   return page;
 }
-export async function captureChange(assetId:string, finding:FoundInterval, signal:AbortSignal):Promise<string> {
+export async function captureChange(assetId:string, finding:{reviewKey?:string}, signal:AbortSignal):Promise<string> {
   if (!finding.reviewKey) throw new Error("저장할 변화의 분석 맥락을 확인할 수 없습니다.");
   const result = await postReviewWrite(ROUTE+"/confirm", {asset_id:assetId,finding_id:finding.reviewKey},signal,
     (status) => {if(status===409) throw new Error("측정 기록이나 기준 기간이 바뀌었습니다. 화면을 새로고침해 확인하세요.");});

@@ -232,7 +232,7 @@ def project_operations_monitor(
     history_by_asset = {item.asset_id: item for item in snapshot.history_assets}
     for row in assets:
         asset_id = str(row["asset_id"])
-        historical = history_by_asset.get(asset_id)
+        asset_history = history_by_asset.get(asset_id)
         streams = (
             []
             if phm is None
@@ -255,8 +255,12 @@ def project_operations_monitor(
         )
         revision = {
             "history": None
-            if historical is None
-            else [_utc(historical.start_at), _utc(historical.end_at), historical.measurement_count],
+            if asset_history is None
+            else [
+                _utc(asset_history.start_at),
+                _utc(asset_history.end_at),
+                asset_history.measurement_count,
+            ],
             "received": row["last_data_at"],
             "analysis": row["latest_analysis_at"],
             "streams": sorted(

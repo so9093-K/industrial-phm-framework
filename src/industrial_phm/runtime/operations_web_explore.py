@@ -401,7 +401,7 @@ def _departures(
     channel = record["channel"]
     operation = operations.get((record["source_id"], record["point_id"]))
     own_levels = [item for item in levels.values() if item.key == record["key"]]
-    requested = (query.get("level") or [None])[0]
+    requested = query["level"][0] if query.get("level") else None
     band = None
     values = record["points"]
     if own_levels and requested != "all":
@@ -412,9 +412,9 @@ def _departures(
                 raise ValueError("unknown operating level")
             band = int(requested)
         else:
-            summary = record_findings(workspace, asset_id)
+            changes = record_findings(workspace, asset_id)
             preferred = next(
-                (item["band"] for item in summary["intervals"] if item["key"] == record["key"]),
+                (item["band"] for item in changes["intervals"] if item["key"] == record["key"]),
                 None,
             )
             band = (

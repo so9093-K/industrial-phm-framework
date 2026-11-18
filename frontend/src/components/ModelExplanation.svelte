@@ -164,7 +164,7 @@
   </div>
 
 
-  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 240; void refresh(); } }} />
+
   <details class="ai-panel" open={requesting || waiting || latest !== null || focus !== null}>
     <summary>AI 해설·추가 질문</summary>
     {#if requesting}
@@ -245,6 +245,8 @@
       </details>
     {/if}
   </details>
+
+  <ModelComparison {binding} {run} {compare} {place} onFocus={(value) => { if (!requesting) { chosen = true; onInteract?.(); focus = value; remaining = 240; void refresh(); } }} />
 
 </section>
 

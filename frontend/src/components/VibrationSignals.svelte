@@ -57,7 +57,12 @@
     history.replaceState(history.state, "", url);
     try {
       const value = await readAcquisitionTrend(assetId, feature, pending.signal);
-      if (!pending.signal.aborted) { trend = value; trendState = "ready"; }
+      if (!pending.signal.aborted) {
+        trend = value; trendState = "ready";
+        const current=new URL(location.href);
+        if(value.bindingId)current.searchParams.set("acquisition_binding",value.bindingId);
+        history.replaceState(history.state,"",current);
+      }
     } catch { if (!pending.signal.aborted) trendState = "failed"; }
   }
   onMount(() => {

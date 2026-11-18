@@ -5,6 +5,7 @@ import {assetTabUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
 export type VibrationChange = {
+  reviewKey?:string;
   feature: string; label: string; unit: string | null; direction: "up" | "down";
   reason: "sustained" | "record-end" | "largest" | null; kind: "departure" | "level-change";
   from: number; to: number; baseline: {from: number; to: number};
@@ -15,6 +16,7 @@ export type VibrationChange = {
   related: {feature: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower"}[];
 };
 export type VibrationFindings = {
+  sourceId:string|null; bindingId:string|null;
   assetId: string; first: number | null; last: number | null; periodSeconds: number | null;
   judged: number; features: number; intervals: VibrationChange[];
 };
@@ -30,7 +32,7 @@ export function parseVibrationFindings(raw: unknown, assetId: string): Vibration
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId
     || root.meaning !== "departures-from-the-first-30-percent-not-fault-diagnosis" || !Array.isArray(root.intervals)) invalid();
   const intervals = root.intervals.map(parseVibrationChange);
-  return {assetId, first: root.first === null ? null : whole(root.first), last: root.last === null ? null : whole(root.last),
+  return {assetId,sourceId:typeof root.source_id==="string"?root.source_id:null,bindingId:typeof root.binding_id==="string"?root.binding_id:null, first: root.first === null ? null : whole(root.first), last: root.last === null ? null : whole(root.last),
     periodSeconds: optional(root.period_seconds), judged: whole(root.judged), features: whole(root.features), intervals};
 }
 
@@ -43,7 +45,7 @@ export function parseVibrationChange(entry: unknown): VibrationChange {
   const joins = Array.isArray(row.trace_join) ? row.trace_join : [];
   const from = whole(row.from), to = whole(row.to);
   if (to < from) invalid();
-  return {feature: text(row.feature), label: text(row.label), unit: typeof row.unit === "string" && row.unit ? row.unit : null,
+  return {reviewKey:typeof row.review_key==="string"?row.review_key:undefined,feature: text(row.feature), label: text(row.label), unit: typeof row.unit === "string" && row.unit ? row.unit : null,
     direction: row.direction, kind: row.kind === "level-change" ? "level-change" : "departure",
     reason: ["sustained", "record-end", "largest"].includes(String(row.reason)) ? row.reason as VibrationChange["reason"] : null,
     from, to, baseline: {from: whole(baseline.from), to: whole(baseline.to)},

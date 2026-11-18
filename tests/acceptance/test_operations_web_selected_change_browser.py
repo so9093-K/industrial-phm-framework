@@ -93,7 +93,9 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                     "button", name=chosen["label"] + " 변화 크게 보기", exact=True
                 ).click()
                 card = page.locator(".found > li").first
-                pw.expect(card.get_by_role("heading", level=3)).to_contain_text(chosen["label"])
+                pw.expect(card.get_by_role("heading", level=3)).to_contain_text(
+                    chosen["label"] if kind == "history" else chosen["label"].split(" RMS")[0]
+                )
                 selected = parse_qs(urlsplit(page.url).query, keep_blank_values=True)
                 assert selected["summary_kind"] == [kind]
                 if kind == "history":
@@ -159,11 +161,13 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                 ] == [chosen["channel"] if kind == "history" else chosen["feature"]]
                 tabs.get_by_role("link", name="상태 요약", exact=True).click()
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text(
-                    chosen["label"], timeout=30000
+                    chosen["label"] if kind == "history" else chosen["label"].split(" RMS")[0],
+                    timeout=30000,
                 )
                 page.reload()
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text(
-                    chosen["label"], timeout=30000
+                    chosen["label"] if kind == "history" else chosen["label"].split(" RMS")[0],
+                    timeout=30000,
                 )
                 assert not errors
             finally:

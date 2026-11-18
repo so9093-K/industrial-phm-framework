@@ -15,8 +15,9 @@
     submit: (action: ReviewAction, note: string, eventId: string, signal: AbortSignal,
       decision: ReviewDecision | null) => Promise<unknown>;
     reload: (signal: AbortSignal) => Promise<boolean>;
+    draftNote?:{sequence:number;text:string}|null;
   };
-  let {id, status, events, eventsTotal = events.length, writable, closeQuestion, confirmLabel = "확인함으로 표시", submit, reload}: Props = $props();
+  let {id, status, events, eventsTotal = events.length, writable, closeQuestion, confirmLabel = "확인함으로 표시", submit, reload, draftNote=null}: Props = $props();
   // The current judgement; a close starts from it and may change it.
   const judged = $derived(latestDecision(events));
   let decision: ReviewDecision | null = $state(null);
@@ -24,9 +25,17 @@
   // User edits do not trigger this effect; only a changed stored judgment does.
   $effect(() => { decision = judged; });
   let note = $state("");
+  let appliedDraft=0;
   let busy = $state(false);
   let message = $state("");
   let messageKind: "information" | "uncertain" | "failure" = $state("information");
+  $effect(()=>{
+    if(!draftNote||draftNote.sequence===appliedDraft)return;
+    appliedDraft=draftNote.sequence;
+    const next=note.trim()?note.trim()+"\n\n"+draftNote.text:draftNote.text;
+    if(next.length>1000||new TextEncoder().encode(next).length>2048){messageKind="information";message="요약이 메모 길이를 넘습니다. 복사한 내용을 줄여 붙여 넣으세요.";return;}
+    note=next;
+  });
   let confirmingClose = $state(false);
   let confirmBox: HTMLElement | null = $state(null);
   let historyHeading: HTMLElement | null = $state(null);

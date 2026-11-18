@@ -126,3 +126,18 @@ test("운영 관리 opens data connections unless the address asks for system st
   assert.equal(systemUrl("status"),"/web/?page=system&section=status");
 });
 
+
+
+test("a selected waveform opens the same model measurement and spectrum keeps edited comparison periods",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=bearing";
+  const wave=base+"&tab=signals&vibration_at=72&acquisition_binding=model-B";
+  const model=new URL(tabSelectionUrl(base+"&tab=anomaly",wave),base);
+  assert.equal(model.searchParams.get("model_position"),"72");
+  assert.equal(model.searchParams.get("model_binding"),"model-B");
+  const compare=base+"&tab=change&feature_a_from=1&feature_a_to=37&feature_b_from=72&feature_b_to=123";
+  const spectrum=new URL(tabSelectionUrl(base+"&tab=change&method=spectrum",compare),base);
+  assert.equal(spectrum.searchParams.get("spectrum_b_from"),"72");
+  spectrum.searchParams.set("spectrum_b_to","120");
+  const back=new URL(tabSelectionUrl(base+"&tab=change",spectrum.href),base);
+  assert.equal(back.searchParams.get("feature_b_to"),"120");
+});

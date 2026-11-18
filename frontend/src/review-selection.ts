@@ -1,5 +1,5 @@
 /** User-facing review selection: a filtered list cannot silently display another item. */
-export type ReviewKind = "analysis" | "outlook";
+export type ReviewKind = "analysis" | "outlook" | "change";
 export type ReviewStatus = "open" | "acknowledged" | "closed";
 
 export interface ReviewListItem {
