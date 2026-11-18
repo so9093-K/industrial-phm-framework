@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from importlib.util import find_spec
 from pathlib import Path
@@ -141,4 +142,131 @@ def test_level_edges_must_be_few_and_increasing(
             end_at=BASE + timedelta(minutes=2),
             bucket_count=2,
             level=("current", "{}", edges),
+        )
+
+
+@pytest.mark.parametrize("with_level", [False, True])
+def test_wide_stream_batching_preserves_every_bucket_and_meaning(
+    history: DuckLakeAssetHistory, monkeypatch: pytest.MonkeyPatch, with_level: bool
+) -> None:
+    import industrial_phm.history.ducklake as adapter
+
+    extra = [
+        _event(f"signal-{channel}", 1000 + channel * 10 + i, i * 10, float(i), "V")
+        for channel in range(7)
+        for i in range(8)
+    ]
+    # One unresolved item and another source/point must not borrow a declared meaning.
+    extra.append(replace(_event("unresolved", 2000, 10, 2.0, "V"), source_metadata_json=None))
+    extra.extend(
+        replace(event, source_id="other-source", raw_evidence_id="other:" + event.raw_evidence_id)
+        for event in extra[:8]
+    )
+    history.append_file_batch(tuple(extra), batch_id="wide-stream")
+    meanings = _meanings(history)
+    arguments = dict(
+        source_id="device-a",
+        measurement_point_id=None,
+        # Unsorted with a repeated channel; the level is outside several batches.
+        channel_ids=[
+            "voltage",
+            "signal-5",
+            "unresolved",
+            "signal-0",
+            "current",
+            "signal-1",
+            "signal-2",
+            "signal-3",
+            "signal-4",
+            "signal-6",
+            "voltage",
+        ],
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=2),
+        bucket_count=3,
+        level=("current", meanings["current", "A"], (1.0, 30.0)) if with_level else None,
+    )
+    monkeypatch.setattr(adapter, "_STREAM_CHANNEL_BATCH", 100)
+    whole = history.query_stream_aggregation("pump-01", **arguments)
+    whole_meanings = history.list_stream_meanings(
+        "pump-01",
+        source_id="device-a",
+        measurement_point_id=None,
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=2),
+    )
+    monkeypatch.setattr(adapter, "_STREAM_CHANNEL_BATCH", 2)
+    assert history.query_stream_aggregation("pump-01", **arguments) == whole
+    assert (
+        history.list_stream_meanings(
+            "pump-01",
+            source_id="device-a",
+            measurement_point_id=None,
+            start_at=BASE,
+            end_at=BASE + timedelta(minutes=2),
+        )
+        == whole_meanings
+    )
+    assert ("unresolved", '{"binding":null,"semantics":null}') in whole_meanings
+    assert len(whole_meanings) == 11
+    assert {row.source_id for row in whole.buckets} == {"device-a"}
+
+
+def test_wide_live_stream_keeps_semantics_and_protocol_quality(
+    history: DuckLakeAssetHistory,
+) -> None:
+    from tests.contract.test_ducklake_runtime import _event as live_event
+    from tests.contract.test_ducklake_runtime import _phase_binding
+
+    events = [
+        live_event(
+            channel_id=f"live-{channel}",
+            event_at=BASE + timedelta(seconds=10 * i),
+            event_index=channel * 10 + i,
+            value=float(i),
+            semantic_binding=_phase_binding(f"live-{channel}", "R", "phase current", "A"),
+        )
+        for channel in range(6)
+        for i in range(3)
+    ]
+    bad = events[-1]
+    events[-1] = replace(
+        bad,
+        event=replace(
+            bad.event,
+            notification=replace(
+                bad.event.notification,
+                observation=replace(
+                    bad.event.notification.observation,
+                    status_good=False,
+                    value=None,
+                    status_code=0x80000000,
+                    status_text="Bad",
+                ),
+            ),
+        ),
+    )
+    history.append_opcua_batch(tuple(events), batch_id="live-wide")
+    meanings = history.list_stream_meanings(
+        "pump-01",
+        source_id="source-a",
+        measurement_point_id="drive-end",
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=2),
+    )
+    assert len(meanings) == 6 and all('"unit":"A"' in meaning for _, meaning in meanings)
+    found = history.query_stream_aggregation(
+        "pump-01",
+        source_id="source-a",
+        measurement_point_id="drive-end",
+        channel_ids=[f"live-{channel}" for channel in range(6)],
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=2),
+        bucket_count=1,
+    )
+    assert len(found.buckets) == 6
+    for row in found.buckets:
+        assert row.source_type == "opcua" and row.observation_count == 3
+        assert (row.non_good_count, row.usable_count, row.mean) == (
+            (1, 2, 0.5) if row.channel_id == "live-5" else (0, 3, 1.0)
         )
