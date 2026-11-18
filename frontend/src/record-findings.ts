@@ -349,3 +349,10 @@ export function copiedGroups(signals: CheckedSignal[]): {from: string; to: strin
   }
   return [...groups.values()].sort((a, b) => Date.parse(a.from) - Date.parse(b.from));
 }
+
+
+/** Display the selected change without altering its source, comparison or stored values. */
+export function focusChange(finding: FoundInterval): FoundInterval {
+  const trace=finding.trace?.filter(row=>Date.parse(row.at)>=Date.parse(finding.start)&&Date.parse(row.at)<=Date.parse(finding.end));
+  return trace?.length ? {...finding,trace} : finding;
+}

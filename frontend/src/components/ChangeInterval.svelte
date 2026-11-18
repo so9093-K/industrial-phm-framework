@@ -1,10 +1,13 @@
 <script lang="ts">
-  import type {FoundInterval} from "../record-findings";
+  import {focusChange,type FoundInterval} from "../record-findings";
   import {measure, yTicks} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  let {finding,height=220}:{finding:FoundInterval;height?:number}=$props();
-  const values=$derived(finding.trace??[]);
+  let {finding,height=220,focus=false}:{finding:FoundInterval;height?:number;focus?:boolean}=$props();
+  // The entry screen shows the measured change against its reference line. Full context
+  // remains available in the whole-record strip and the signal investigation.
+  const displayed=$derived(focus?focusChange(finding):finding);
+  const values=$derived(displayed.trace??[]);
   const span=$derived(values.length?{from:values[0].at,to:new Date(Date.parse(values.at(-1)!.at)+(finding.bucketSeconds??0)*1000).toISOString()}:finding.context?.record);
   const start=$derived(span?Date.parse(span.from):Date.parse(finding.start));
   const end=$derived(span?Date.parse(span.to):Date.parse(finding.end));
@@ -21,9 +24,9 @@
   const path=$derived(values.map((row,i)=>(joins(i)?"L":"M")+x(row.at).toFixed(2)+","+y(row.value).toFixed(2)).join(" "));
   const clock=(at:string)=>new Date(at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
 </script>
-<figure aria-label={"변화 전후의 구간별 평균과 변화 구간. 변화 시작 "+clock(finding.start)+", 종료 "+clock(finding.end)}>
+<figure aria-label={(focus?"변화 구간의 평균과 비교 기준. 변화 시작 ":"변화 전후의 구간별 평균과 변화 구간. 변화 시작 ")+clock(finding.start)+", 종료 "+clock(finding.end)}>
   <ValueAxis {ticks} {height} unit={finding.unit}>
-  <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label="구간별 평균 추이 · 측정 공백은 연결하지 않음 · 음영은 발견한 변화 구간">
+  <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label={focus?"변화 구간의 구간별 평균 · 점선은 기준 기간의 중앙값 · 측정 공백은 연결하지 않음":"구간별 평균 추이 · 측정 공백은 연결하지 않음 · 음영은 발견한 변화 구간"}>
     <rect width="600" height={height} rx="8" class="track" />
     {#each ticks as tick (tick.value)}<line x1="0" x2="600" y1={tick.y} y2={tick.y} class="grid" />{/each}
     <rect x={x(finding.start)} width={Math.max(2,x(finding.end)-x(finding.start))} height={height} class="interval" />
@@ -34,7 +37,7 @@
   </svg>
   {#snippet footer()}
   <XAxis lo={start} hi={Math.max(end, start + 1)} scale={{kind: "clock"}} />
-  <figcaption><span class="legend"><i class="key interval"></i>변화 구간{#if reference!==null} <i class="key reference"></i>처음 30%의 중앙값 {measure(reference,finding.unit)}{/if}</span></figcaption>
+  <figcaption><span class="legend">{#if !focus}<i class="key interval"></i>{/if}변화 구간{#if reference!==null} <i class="key reference"></i>처음 30%의 중앙값 {measure(reference,finding.unit)}{/if}</span></figcaption>
   {/snippet}
   </ValueAxis>
 </figure>

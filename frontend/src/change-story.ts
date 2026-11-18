@@ -33,6 +33,13 @@ export function changeSentence(facts: ChangeFacts, span: string, condition: stri
   return subject(facts.label) + " " + span + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
 }
 
+/** First-screen headline: keep timing and comparison conditions in the adjacent context. */
+export function changeHeadline(facts: Pick<ChangeFacts, "label" | "direction" | "kind"> & {feature?:string}): string {
+  const basis = facts.kind === "level-change" ? "일정하던 기준값" : "비교 기준";
+  const label=facts.feature?.endsWith(".rms") ? facts.label.replace(/ RMS$/, " 크기 (RMS)") : facts.label;
+  return subject(label) + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
+}
+
 export type ChangeNumber = {caption: string; value: string; note: string | null};
 /** 변화 전후의 두 숫자와 각각이 무엇인지. 숫자만 놓지 않고, 평소 얼마나 흔들리던 값인지와 차이를 함께 말한다. */
 export function changeNumbers(facts: ChangeFacts): {before: ChangeNumber; after: ChangeNumber} | null {

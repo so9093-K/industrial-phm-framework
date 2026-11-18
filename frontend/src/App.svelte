@@ -298,6 +298,9 @@
     {:else}
       <PageHeading title={PAGE_INFO[route.page].label} description={PAGE_INFO[route.page].description}
         meta={route.page === "monitor" ? "목록 확인 시각 · " + observed(snapshot.assessedAt) : ""}
+        compact={route.page==="monitor"}
+        actionHref={route.page==="monitor"&&snapshot.assets.length?systemUrl("connections"):undefined}
+        actionLabel="데이터 가져오기"
         loading={false} onRefresh={() => void refresh()} />
       {#if route.page !== "monitor"}<p class="meta">목록 확인 시각 · {observed(snapshot.assessedAt)}</p>{/if}
       {#if snapshot.systemReadUncertain}
@@ -344,19 +347,22 @@
           notesState={route.page === "monitor" ? notesState : listNotesState}
           primaryNotes={route.page === "monitor"?primaryNotes:listPrimaryNotes} reasons={route.page === "monitor"} />
       {/if}
-      {#if route.page === "monitor" && loadState !== "empty"}<ReviewEntry />{/if}
       {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}
-        <details class="ui-panel monitor-operations"><summary>운영 상태·확인 항목 상세{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":""}</summary>
-          <MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />
-        </details>
+        <div class="monitor-footer">
+          {#if loadState!=="empty"}<ReviewEntry compact/>{/if}
+          <details class="ui-panel monitor-operations"><summary>운영 상태·확인 항목 상세{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":""}</summary>
+            <MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />
+          </details>
+        </div>
       {/if}
     {/if}
   {/if}
 </main>
 
 <style>
+  .monitor-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:var(--space-2) var(--space-4);border-top:1px solid var(--color-border);margin-top:var(--space-4)}.monitor-footer:has(details[open]){display:grid}.monitor-footer :global(.review-entry){margin-block:var(--space-3)}
   .start-guide>summary { cursor:pointer; padding-block:var(--space-3); color:var(--color-action); font-weight:650; }
-  .monitor-operations { padding:0; border:0; border-top:1px solid var(--color-border); border-radius:0; background:transparent; }
+  .monitor-operations { padding:0; border:0; border-radius:0; background:transparent; }
   .monitor-operations>summary {
     cursor: pointer; padding-block: var(--space-3); font-size:var(--font-small); font-weight: 650; color: var(--color-action);
   }

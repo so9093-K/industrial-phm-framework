@@ -14,9 +14,10 @@
   let message = $state("");
   let readUncertain = $state(false);
   let pending = $state("");
+  const preferredKind=new URLSearchParams(location.search).get("dataset_kind");
   const groups = $derived.by(() => {
     const current: PublicDatasets | null = datasets;
-    return current ? groupDatasets(current.items) : [];
+    return current ? groupDatasets(current.items).sort((a,b)=>Number(b.kind===preferredKind)-Number(a.kind===preferredKind)) : [];
   });
   const running = $derived.by(() => {
     const current: PublicDatasets | null = datasets;
@@ -124,7 +125,7 @@
     {/if}
     {#each groups as group (group.key)}
       <!-- Folded: the list first reads as what kinds of records there are. -->
-      <details>
+      <details open={group.kind===preferredKind}>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
           ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다. 파형은 작업공간에 복사하지 않고 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다."

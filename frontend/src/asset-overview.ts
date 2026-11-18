@@ -89,6 +89,7 @@ export async function readOverview(assetId: string, signal: AbortSignal): Promis
 
 /** The kind of equipment an asset name says, without its number: "공기압축기 1306" → "공기압축기". */
 export function equipmentKind(name: string): string {
+  if (/^Bearing\d+_\d+$/.test(name)) return "베어링";
   return name.replace(/[\s_-]*\d[\w.-]*$/, "").trim() || name;
 }
 

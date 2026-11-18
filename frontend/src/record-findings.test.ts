@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {bandName, bandRange, copiedGroups, findingLinks, findingText, parseRecordFindings, sharesText, shiftText, unjudgedText, type CheckedSignal} from "./record-findings.ts";
+import {bandName, bandRange, focusChange, copiedGroups, findingLinks, findingText, parseRecordFindings, sharesText, shiftText, unjudgedText, type CheckedSignal} from "./record-findings.ts";
 
 const body = () => ({
   schema_version: 1, asset_id: "comp", meaning: "departures-from-the-first-30-percent-not-fault-diagnosis",
@@ -154,4 +154,20 @@ test("how the equipment ran is read per current level and attached to the change
   const relation=findingLinks("comp",related,within.baseline,within.bucketSeconds,within.record).relation!;
   assert.equal(new URL(relation.href,"http://local").searchParams.has("compare_level"),false);
   assert.match(relation.label,/관계 보기 \(모든 운전 상태\)/);
+});
+
+
+test("a focused entry chart retains its comparison and source while matching the record strip window", () => {
+  const full=parseRecordFindings(body(),"comp").intervals[0];
+  const change={...full,trace:[
+    {at:"2020-10-23T00:00:00Z",value:3,join:false},
+    {at:"2020-10-24T08:00:00Z",value:2,join:false},
+    {at:"2020-10-25T08:00:00Z",value:1,join:true},
+    {at:"2020-10-27T00:00:00Z",value:4,join:false},
+  ]};
+  const focused=focusChange(change);
+  assert.deepEqual(focused.trace,change.trace.slice(1,3));
+  assert.deepEqual({...focused,trace:undefined},{...change,trace:undefined});
+  assert.equal(change.trace.length,4);
+  assert.equal(focusChange({...full,trace:[]}).trace?.length,0);
 });

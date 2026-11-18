@@ -8,6 +8,10 @@
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
   import {assetTabUrl, systemUrl} from "../routes";
+  import ChangeInterval from "./ChangeInterval.svelte";
+  import OverviewTrace from "./OverviewTrace.svelte";
+  import ChangeNumbers from "./ChangeNumbers.svelte";
+  import {changeHeadline} from "../change-story";
   import AssetFocus from "./AssetFocus.svelte";
   type Props = {
     assets: Asset[];
@@ -112,11 +116,18 @@
   onDestroy(() => {request.abort(); for (const pending of inFlight.values()) pending.abort();});
   // An asset still being imported, or left with part of its record, says so on its row; the list
   // is read again while an import runs so its count moves.
+  let publicBearings:string[]=$state([]);
+  const offerBearing=$derived(publicBearings.length>0&&!assets.some(asset=>publicBearings.includes(asset.assetId)));
+  const bearingHref=systemUrl("connections")+"&dataset_kind=xjtu-sy#public-datasets";
   let imports: Map<string, UnfinishedImport> = $state(new Map());
   onMount(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const read = async () => {
-      try { imports = unfinishedImports(await readPublicDatasets(request.signal)); } catch { return; }
+      try {
+        const datasets=await readPublicDatasets(request.signal);
+        imports=unfinishedImports(datasets);
+        publicBearings=datasets.items.filter(item=>item.kind==="xjtu-sy").map(item=>item.assetId);
+      } catch { return; }
       if ([...imports.values()].some((note) => note.running)) timer = setTimeout(() => void read(), 15000);
     };
     void read();
@@ -147,11 +158,15 @@
 <section class="ui-panel" aria-labelledby="asset-list-title">
   <div class="head">
     <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
-    {#if assets.length > 1}<div class="filters">
+    <div class="head-tools">
+    {#if offerBearing}<a class="bearing-entry" href={bearingHref}>공개 베어링 진동 기록 가져오기 →</a>{/if}
+    {#if assets.length > 1}<details class="view-options" class:compact={assets.length<=3} open={assets.length>3}>
+      <summary>정렬·필터</summary><div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
       {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
       <label>정렬 <select bind:value={order}><option value="attention">확인 항목이 중요한 순</option><option value="name">이름순</option></select></label>
-    </div>{/if}
+    </div></details>{/if}
+    </div>
   </div>
   {#if assets.length === 1}
     {@const asset = assets[0]}
@@ -165,7 +180,7 @@
   <div class="table" role="table" aria-label="설비 비교">
     <div class="columns" role="row">
       <span role="columnheader">설비</span><span role="columnheader">기록에서 달라진 것</span>
-      <span role="columnheader">마지막 측정값과 전체 추이</span><span role="columnheader">마지막 측정에서 확인할 것</span>
+      <span role="columnheader">신호 추이</span><span role="columnheader">마지막 측정에서 확인할 것</span>
     </div>
     {#each grouped as group (group.kind)}
       {#if group.kind}<div class="kind" role="row"><span role="cell" aria-colspan="4">{group.kind} · {group.rows.length}대</span></div>{/if}
@@ -189,29 +204,36 @@
             {#if row?.finding}
               {@const found = row.finding}
               {@const inspect = row.historyInterval ? findingLinks(asset.assetId,row.historyInterval,row.historyInterval.baseline,row.historyInterval.bucketSeconds??null).signal : row.vibrationInterval ? vibrationLinks(asset.assetId,row.vibrationInterval.change).signal : null}
-              <a class="finding" href={inspect??href(asset.assetId)}>{found.label} · 처음 30%보다 {found.direction === "up" ? "높음" : "낮음"}</a>
-              <small>{found.reference !== null && found.typical !== null ? "중앙값 " + changeValue(found.reference, null) + " → " + changeValue(found.typical, found.unit) + " · " : ""}{found.band != null && row.operation ? bandName(row.operation.names, found.band) + " 중 · " : ""}{when(row)}</small>
+              <a class="finding" href={inspect??href(asset.assetId)}>{changeHeadline(row.historyInterval??row.vibrationInterval?.change??{...found,kind:found.kind==="level-change"?"level-change":"departure"})}</a>
+              <ChangeNumbers facts={row.historyInterval??row.vibrationInterval?.change??{...found,kind:found.kind==="level-change"?"level-change":"departure"}} fallback="비교 가능한 값 없음" compact/>
+              <small>{found.band != null && row.operation ? bandName(row.operation.names, found.band) + " 중 · " : ""}{when(row)}</small>
+              <a class="investigate-change" href={inspect??href(asset.assetId)}>변화 구간 조사하기 →</a>
               {#if row.findingCount > 1}<small>다른 변화 {row.findingCount - 1}건</small>{/if}
             {:else if row}<small>{row.judged ? "처음 30%와 견줘 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
             {:else}<small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
               <a href={assetTabUrl(asset.assetId,"signals")}>신호 기록 보기 →</a>
               {#if read === "failed"}<button type="button" class="retry" onclick={() => void loadRow(asset.assetId)}>다시 확인</button>{/if}{/if}
-            {#if row?.copied}<small class="issue">데이터 확인 필요 · 신호 {row.copied}개</small>{/if}
+
           </div>
-          <div class="cell" role="cell" data-label="마지막 측정값">
-            {#if row?.main}
+          <div class="cell trace-cell" role="cell" data-label="신호 추이">
+            {#if row?.historyInterval?.trace?.length}
+              <ChangeInterval finding={row.historyInterval} height={96} focus/>
+            {:else if row?.vibrationInterval}
+              {@const changed=row.vibrationInterval}
+              <OverviewTrace main={{label:changed.change.label,unit:changed.change.unit,axis:"acquisition",periodSeconds:changed.periodSeconds,latest:null,trace:changed.change.trace.map(point=>({x:point.at,value:point.value,join:point.join}))}} range={changed.change} height={96}/>
+            {:else if row?.main}
               <small>{row.main.label}</small>
               <span class="latest">{row.main.latest ? changeValue(row.main.latest.value, row.main.unit) : "값 없음"}</span>
               {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,240,36)}<svg viewBox="0 0 240 36" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
             {/if}
             <!-- 켜졌다 꺼지는 설비는 얼마나 멈춰 있었는지가 값만큼 중요하다. -->
-            {#if row?.operation?.shares}<small>{row.operation.shares[0] < 0.005 ? "기록 중 정지 없음" : "기록의 " + percent(row.operation.shares[0]) + "는 정지"} · 운전 수준 {row.operation.names.levels.length}개</small>{/if}
+
           </div>
           <div class="cell" role="cell" data-label="마지막 측정에서 확인할 것">
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
             {#if note}<strong class="primary-reason">{note.label}</strong>
-              <a class="investigate" href={note.href}>{note.action} →</a>{/if}
-            {#if row?.operation || note || (reasons && (notes[asset.assetId]??0)>0)}<details class="row-details"><summary>운전·확인 상세</summary>
+              <a class="investigate" href={note.href}>{note.kind==="departure"&&row?.finding?"최근 측정 살펴보기":note.action} →</a>{/if}
+            {#if row?.operation || row?.copied || (row?.finding&&row.main) || note || (reasons && (notes[asset.assetId]??0)>0)}<details class="row-details"><summary>운전·확인 상세</summary>
             {#if row?.operation?.shares}
               {@const operation = row.operation}
               {@const shares = row.operation.shares}
@@ -223,6 +245,8 @@
             {:else if row}<small>{row.kind === "vibration" ? "진동 측정" : "운전 수준을 나눌 정보 없음"}</small>
             {:else}<small>{waiting}</small>{/if}
               {#if row?.operation?.shares}<p class="shares">{row.operation.shares.map((share,band)=>bandName(row.operation!.names,band)+" "+percent(share)).join(" · ")}</p>{/if}
+              {#if row?.finding&&row.main?.latest}<p class="reason-detail">마지막 저장값 · {row.main.label} <strong class="latest">{changeValue(row.main.latest.value,row.main.unit)}</strong></p>{/if}
+              {#if row?.copied}<p class="reason-detail">신호 {row.copied}개는 변화 비교에서 제외했습니다. <a href={href(asset.assetId)}>해당 기록 확인 →</a></p>{/if}
               {#if note}<p class="reason-detail">{note.detail}</p>{/if}
             {#if reasons && (notes[asset.assetId]??0)>0}<a class="reason-link" href={"#attention-"+encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>확인 항목 모두 보기 →</a>{/if}
             </details>{/if}
@@ -236,13 +260,15 @@
 </section>
 
 <style>
+  .view-options>summary{cursor:pointer;font-size:var(--font-small);color:var(--color-action);font-weight:650;padding-block:var(--space-2)}.view-options:not(.compact)>summary{display:none}.view-options.compact[open] .filters{padding-top:var(--space-2)}
+  .head-tools{display:flex;align-items:center;justify-content:end;gap:var(--space-3) var(--space-5);flex-wrap:wrap}.bearing-entry{font-size:var(--font-small);font-weight:650}.trace-cell :global(figure){margin:0}.trace-cell :global(figcaption){font-size:var(--font-label)}
   .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2) var(--space-4)}
   h2{margin:0}h2 span{font-weight:400;color:var(--color-ink-muted);font-size:var(--font-small)}
   .filters{display:flex;flex-wrap:wrap;gap:var(--space-3);font-size:var(--font-small)}
   .filters label{display:flex;align-items:center;gap:var(--space-1)}
   .context{color:var(--color-ink-muted);font-size:var(--font-small)}
   .table{display:grid;border-top:1px solid var(--color-border)}
-  .row,.columns{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.65fr) minmax(0,.9fr) minmax(0,1fr);gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-border);align-items:start;min-width:0}
+  .row,.columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.15fr) minmax(0,.85fr);gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--color-border);align-items:start;min-width:0}
   .columns{font-size:var(--font-small);color:var(--color-ink-muted);padding-block:var(--space-2)}
   .kind{padding:var(--space-2);font-weight:650;font-size:var(--font-small);border-bottom:1px solid var(--color-border);background:var(--color-surface-selected)}
   .cell{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}
@@ -250,6 +276,7 @@
   .asset a{font-weight:650;color:var(--color-ink)}
   .latest{font-weight:700;font-variant-numeric:tabular-nums}
   .finding{font-weight:650}
+  .investigate-change{font-weight:650;font-size:var(--font-small);margin-top:var(--space-2)}
   .primary-reason{font-weight:650}
   .reason-detail,.shares{margin:var(--space-2) 0 0;font-size:var(--font-small);color:var(--color-ink-muted);overflow-wrap:anywhere}
   .row-details summary{cursor:pointer;padding-block:var(--space-2);font-size:var(--font-small);color:var(--color-action)}
