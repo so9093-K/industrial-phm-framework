@@ -196,6 +196,7 @@
     });
     return rows;
   });
+  const hasRail=$derived(otherChanges.length>0||!!(focus?.kind==="vibration"&&vibration?.bindingId&&vibration.intervals[focus.index]?.reviewKey));
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -300,7 +301,7 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-<div class="summary-layout">
+<div class="summary-layout" class:without-rail={!hasRail}>
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
   <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
   {#if notesState === "partial" || notesState === "failed"}
@@ -352,7 +353,7 @@
   {/if}
 </section>
 
-<aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
+{#if hasRail}<aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
   {#if focus?.kind==="vibration"&&vibration?.bindingId&&vibration.intervals[focus.index]?.reviewKey}
     {@const change=vibration.intervals[focus.index]}
     {#key change.reviewKey}<VibrationInvestigation assetId={asset.assetId} {change} bindingId={vibration.bindingId}
@@ -371,7 +372,7 @@
       {#if data?.history}<p class="context small"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>{/if}
     </section>
   {/if}
-</aside>
+</aside>{/if}
   <section class="ui-panel more rail-section" aria-labelledby="more-title">
   <h2 id="more-title">이어서 확인할 것</h2>
   <dl class="rows">
@@ -488,6 +489,7 @@
 <style>
   /* PC 화면: 가운데에는 변화 하나와 그래프, 오른쪽 열에는 다른 변화와 이어서 확인할 것. */
   .summary-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-4); align-items: start; }
+  .summary-layout.without-rail{grid-template-columns:minmax(0,1fr)}
   .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
   .facts-panel > h2.eyebrow { margin: 0; font-size: var(--font-small); font-weight: 650; color: var(--color-ink-muted); }
   .rail { display: grid; gap: var(--space-4); min-width: 0; }
