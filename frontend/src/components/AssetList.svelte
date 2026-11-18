@@ -135,9 +135,7 @@
   function when(row: OverviewRow): string {
     const found = row.finding!;
     // 설비 요약의 문장과 같은 표현으로 언제부터 얼마 동안인지 말한다.
-    // 여러 설비의 기록은 해마다 다를 수 있어 연도를 붙인다.
-    if (row.historyInterval) return new Date(row.historyInterval.start).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric"})
-      + " " + findingSpan(row.historyInterval).replace(/ 동안$/, "");
+    if (row.historyInterval) return findingSpan(row.historyInterval).replace(/ 동안$/, "");
     if (found.start && found.end) {
       const day = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
       return day(found.start) + " ~ " + day(found.end);
@@ -207,7 +205,7 @@
               {#if row.main.trace.length > 1}{@const points = sparklinePoints(row.main.trace,240,36)}<svg viewBox="0 0 240 36" preserveAspectRatio="none" aria-hidden="true"><path d={tracePath(points)} />{#each points as point,i(i)}<circle cx={point.x} cy={point.y} r="1.5" fill="currentColor"/>{/each}</svg>{/if}
             {/if}
             <!-- 켜졌다 꺼지는 설비는 얼마나 멈춰 있었는지가 값만큼 중요하다. -->
-            {#if row?.operation?.shares}<small>기록의 {percent(row.operation.shares[0])}는 정지 · 운전 수준 {row.operation.names.levels.length}개</small>{/if}
+            {#if row?.operation?.shares}<small>{row.operation.shares[0] < 0.005 ? "기록 중 정지 없음" : "기록의 " + percent(row.operation.shares[0]) + "는 정지"} · 운전 수준 {row.operation.names.levels.length}개</small>{/if}
           </div>
           <div class="cell" role="cell" data-label="마지막 측정에서 확인할 것">
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>

@@ -18,7 +18,7 @@ from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from itertools import pairwise
+from itertools import batched, pairwise
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -87,6 +87,9 @@ _RETENTION_ROWS_PER_LEASE = 100_000
 # A relation's shared x span is split into this many equal ranges; narrow enough that a range
 # rarely spans two operating levels of a current.
 _PAIR_X_RANGES = 10
+# A wide stream can repeat kilobytes of source metadata for millions of observations.
+# Keep each metadata join/window small; all channels still share one catalog lease.
+_STREAM_CHANNEL_BATCH = 4
 
 _HISTORY_DATA_TABLES = (
     ("raw", "opcua_data_change"),
@@ -1855,18 +1858,26 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            rows = connection.execute(
-                f"""
+            channels = connection.execute(
+                f"""SELECT DISTINCT channel_id FROM {_CATALOG_NAME}.history.measurement
+                    WHERE asset_id = ? AND source_id = ?
+                        AND measurement_point_id IS NOT DISTINCT FROM ?
+                        AND event_at >= ? AND event_at < ? ORDER BY channel_id""",
+                [asset_id, source_id, measurement_point_id, start_at, end_at],
+            ).fetchall()
+            sql = f"""
                 WITH selected AS (
                     SELECT raw_evidence_id, source_type, channel_id
                     FROM {_CATALOG_NAME}.history.measurement
                     WHERE asset_id = ? AND source_id = ?
                         AND measurement_point_id IS NOT DISTINCT FROM ?
                         AND event_at >= ? AND event_at < ?
+                        AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                 ), raw_metadata AS (
                     SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
                     FROM {_CATALOG_NAME}.raw.file_measurement f
                     WHERE f.asset_id = ? AND f.source_timestamp >= ? AND f.source_timestamp < ?
+                        AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
                     UNION ALL
                     SELECT o.raw_evidence_id, 'opcua' AS source_type,
                         CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
@@ -1879,6 +1890,7 @@ class DuckLakeAssetHistory:
                         )::VARCHAR END AS source_metadata_json
                     FROM {_CATALOG_NAME}.raw.opcua_data_change o
                     WHERE o.asset_id = ? AND o.event_at >= ? AND o.event_at < ?
+                        AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
                 )
                 SELECT DISTINCT s.channel_id,
                     json_object(
@@ -1888,16 +1900,24 @@ class DuckLakeAssetHistory:
                 FROM selected s LEFT JOIN raw_metadata f
                     ON s.raw_evidence_id = f.raw_evidence_id AND s.source_type = f.source_type
                 ORDER BY 1, 2
-                """,
-                [
-                    asset_id,
-                    source_id,
-                    measurement_point_id,
-                    start_at,
-                    end_at,
-                    *(asset_id, start_at, end_at) * 2,
-                ],
-            ).fetchall()
+            """
+            rows = []
+            for chunk in batched([row[0] for row in channels], _STREAM_CHANNEL_BATCH, strict=False):
+                rows.extend(
+                    connection.execute(
+                        sql,
+                        [
+                            asset_id,
+                            source_id,
+                            measurement_point_id,
+                            start_at,
+                            end_at,
+                            list(chunk),
+                            *(asset_id, start_at, end_at, list(chunk)) * 2,
+                        ],
+                    ).fetchall()
+                )
+            rows.sort()
         finally:
             connection.close()
         return tuple((_require_str(row[0], "channel_id"), str(row[1])) for row in rows)
@@ -1914,7 +1934,10 @@ class DuckLakeAssetHistory:
         bucket_count: int,
         level: tuple[str, str, Sequence[float]] | None = None,
     ) -> StreamAggregation:
-        """Each signal identity of one source and point on its own grid, read in one pass.
+        """Each signal identity of one source and point on its own grid.
+
+        Read complete channel populations in small batches on one catalog lease, bounding
+        the wide metadata joins without splitting conflicts, meanings or operating levels.
 
         Every channel and meaning gets ``bucket_count`` equal buckets from its first to one
         second past its last observation, so adding another meaning or channel cannot change
@@ -1959,7 +1982,6 @@ class DuckLakeAssetHistory:
                 raise ValueError("edges must be 1 to 32 finite values")
             if any(low >= high for low, high in pairwise(bands)):
                 raise ValueError("edges must increase strictly")
-        read = list(dict.fromkeys((*channels, *((level[0],) if level else ()))))
         if level is None:
             band, levels, grouping, whole = "NULL::INTEGER", "", "GROUP BY ALL", "1"
             level_parameters: list[Any] = []
@@ -1982,8 +2004,7 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            rows = connection.execute(
-                f"""
+            sql = f"""
                 WITH selected AS (
                     SELECT *,
                         count(DISTINCT value) OVER identity_window
@@ -2051,30 +2072,49 @@ class DuckLakeAssetHistory:
                 FROM (
                     SELECT p.*,
                         least(floor(epoch(p.event_at - p.first_at)
-                            / (epoch(p.last_at + INTERVAL 1 SECOND - p.first_at) / ?))::BIGINT, ?)
+                            / (epoch(p.last_at + INTERVAL 1 SECOND - p.first_at) / ?))::BIGINT,
+                            ?)
                             AS bucket_index,
                         {band} AS band
-                    FROM points p {"LEFT JOIN levels l ON p.event_at = l.event_at" if level else ""}
+                    FROM points p
+                    {"LEFT JOIN levels l ON p.event_at = l.event_at" if level else ""}
                     WHERE p.channel_id IN (SELECT unnest(?::VARCHAR[]))
                 )
                 {grouping}
                 ORDER BY channel_id, first_at, interpretation, bucket_index, source_type, band
-                """,
-                [
-                    asset_id,
-                    read,
-                    start_at,
-                    end_at,
-                    source_id,
-                    measurement_point_id,
-                    *(asset_id, read, start_at, end_at) * 2,
-                    *level_parameters,
-                    bucket_count,
-                    bucket_count - 1,
-                    *bands,
-                    list(channels),
-                ],
-            ).fetchall()
+            """
+            rows = []
+            for chunk in batched(channels, _STREAM_CHANNEL_BATCH, strict=False):
+                read = list(dict.fromkeys((*chunk, *((level[0],) if level else ()))))
+                rows.extend(
+                    connection.execute(
+                        sql,
+                        [
+                            asset_id,
+                            read,
+                            start_at,
+                            end_at,
+                            source_id,
+                            measurement_point_id,
+                            *(asset_id, read, start_at, end_at) * 2,
+                            *level_parameters,
+                            bucket_count,
+                            bucket_count - 1,
+                            *bands,
+                            list(chunk),
+                        ],
+                    ).fetchall()
+                )
+            rows.sort(
+                key=lambda row: (
+                    row[0],
+                    row[2],
+                    row[1],
+                    row[4],
+                    row[5],
+                    -1 if row[6] is None else row[6],
+                )
+            )
             snapshot = connection.execute(
                 f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
             ).fetchone()

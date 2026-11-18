@@ -73,5 +73,5 @@ export function unlearnedText(operation: ModelOperation): string | null {
   const known = learned.map(row => bandName(operation.names, row.band) + "에서는 " + row.count.toLocaleString("ko-KR") + "개 중 "
     + row.exceeded.toLocaleString("ko-KR") + "개(" + percent(row.exceeded / row.count) + ")").join(", ");
   return "기준 초과 " + over.toLocaleString("ko-KR") + "회 중 " + rareOver.toLocaleString("ko-KR") + "회는 모델 기준 기간에 거의 없던 운전 상태("
-    + names + ")의 창입니다." + (known ? " 기준 기간에 있던 " + known + "가 기준을 넘었습니다." : "");
+    + names + ")의 구간입니다." + (known ? " 기준 기간에 있던 " + known + "가 기준을 넘었습니다." : "");
 }

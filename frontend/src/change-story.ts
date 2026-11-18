@@ -6,15 +6,19 @@ const amount = (number: number, unit: string | null) => digits(number) + (unit ?
 
 // 숫자와 로마자는 읽는 소리의 받침으로 조사를 고른다 (0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔 / L 엘, M 엠, N 엔, R 알).
 const CLOSED_DIGITS = "013678", CLOSED_LETTERS = "lmnr";
-/** 이름 뒤에 주격 조사 '이/가'를 붙인다. */
-export function subject(word: string): string {
+function closed(word: string): boolean {
   const last = word.trim().replace(/[)\]\s]+$/, "").slice(-1);
   const code = last.charCodeAt(0);
-  const closed = code >= 0xac00 && code <= 0xd7a3 ? (code - 0xac00) % 28 !== 0
+  return code >= 0xac00 && code <= 0xd7a3 ? (code - 0xac00) % 28 !== 0
     : /\d/.test(last) ? CLOSED_DIGITS.includes(last)
     : CLOSED_LETTERS.includes(last.toLowerCase());
-  return word + (closed ? "이" : "가");
 }
+/** 이름 뒤에 주격 조사 '이/가'를 붙인다. */
+export function subject(word: string): string { return word + (closed(word) ? "이" : "가"); }
+/** 이름 뒤에 접속 조사 '과/와'를 붙인다. */
+export function withAnd(word: string): string { return word + (closed(word) ? "과" : "와"); }
+/** 이름 뒤에 목적격 조사 '을/를'을 붙인다. */
+export function object(word: string): string { return word + (closed(word) ? "을" : "를"); }
 
 export type ChangeFacts = {
   label: string; unit: string | null; direction: "up" | "down"; kind?: "departure" | "level-change";

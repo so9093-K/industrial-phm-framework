@@ -30,7 +30,7 @@
   const signals = $derived(assetTabUrl(asset.assetId, "signals"));
   // 설비 요약과 같은 문장으로 말한다: 무엇이, 언제부터 얼마 동안, 무엇과 견줘 어땠는지.
   const story = $derived.by((): string | null => {
-    if (interval) return changeSentence(interval, year(interval.start) + " " + findingSpan(interval),
+    if (interval) return changeSentence(interval, findingSpan(interval),
       interval.band != null && row?.operation && interval.operation?.key === row.operation.key ? bandName(row.operation.names, interval.band) : null);
     if (vibration) {
       const change = vibration.change, place = (at: number) => measurementLabel(at, vibration.periodSeconds);
@@ -38,7 +38,6 @@
     }
     return null;
   });
-  const year = (at: string) => new Date(at).toLocaleDateString("ko-KR", {timeZone:"Asia/Seoul", year:"numeric"});
 </script>
 
 <article class="focus" aria-label={name + " 기록 요약"}>

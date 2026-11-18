@@ -33,6 +33,8 @@
   let handedOver:PeriodOrigin|null=$state(periodOrigin(location.search));
   // Why the screen opened on its pair when the summary chose it; said until anything is edited.
   let summaryNote=$state("");
+  // 요약의 대표 변화가 판단된 운전 수준. 결론 문장을 같은 수준에서 말해 요약과 숫자가 어긋나지 않게 한다.
+  let summaryBand:{low:number;high:number|null}|null=$state(null);
   // Each source, point and meaning shows both periods side by side on one shared axis range.
   type Pair={key:string;source:string;point:string|null;xMeaning?:string|null;yMeaning?:string|null;a:PairedGroup|null;b:PairedGroup|null};
   const pairs=$derived.by(():Pair[]=>{
@@ -119,14 +121,14 @@
         const pair=found?relationPair(found,src.channels):null;
         const inFocus=pair&&(!focus||(focus.source===pair.focus?.source&&(focus.point===undefined||focus.point===pair.focus?.point)));
         if(pair&&inFocus){
-          x=pair.x;y=pair.y;summaryNote=pair.note;
+          x=pair.x;y=pair.y;summaryNote=pair.note;summaryBand=pair.band;
           if(!focus)focus=pair.focus;
           if(pair.periods)fallback=pair.periods;
         }else x=src.channels[0];
       }
       if(!src.channels.includes(y)||x===y)y=src.channels.find(c=>c!==x)??"";
       periods=initialPeriods(fallback);
-      if(handedOver)summaryNote="";
+      if(handedOver){summaryNote="";summaryBand=null;}
       listState="ready";
       remember();await compare();
     }catch(cause:unknown){
@@ -138,12 +140,12 @@
   function switchChannel(which:"x"|"y",value:string){
     if(!available?.channels.includes(value))return;
     if(which==="x"){x=value;if(focus)focus={...focus,interpretation:undefined};}else y=value;
-    relationAbort?.abort();relation=null;resultState="empty";summaryNote="";remember();
+    relationAbort?.abort();relation=null;resultState="empty";summaryNote="";summaryBand=null;remember();
   }
   function editPeriod(n:"a"|"b",edge:"from"|"to",value:string){
     if(!periods)return;
     periods={...periods,[n]:{...periods[n],[edge]:selectedPeriod(value)}};
-    relationAbort?.abort();relation=null;resultState="empty";handedOver=null;summaryNote="";
+    relationAbort?.abort();relation=null;resultState="empty";handedOver=null;summaryNote="";summaryBand=null;
   }
   async function compare(){
     relationAbort?.abort();
@@ -229,7 +231,7 @@
         {@const ranges=sameXRanges(pair.a,pair.b)}
         {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
         {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
-        {@const moved=movedAtSameX(ranges)}
+        {@const moved=movedAtSameX(ranges,summaryBand)}
         {@const sameX=moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit}):null}
         {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null,[],
           sameX):null}
@@ -270,15 +272,15 @@
                   {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
                   <dl>
                     <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
-                    <div><dt>피어슨 상관</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
-                    <div><dt>스피어먼 상관</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
+                    <div><dt>상관계수 (값 그대로)</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
+                    <div><dt>상관계수 (순위로)</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
                   </dl>
                   </details>
                 {/if}
               </div>
             {/each}
           </div>
-          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved} 음영은 두 기간을 견준 {signalName(names,x)} 범위입니다.{/if} 점을 누르면 그 시각을 봅니다.</p>
+          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved}{" "}음영은 두 기간을 견준 {signalName(names,x)} 범위입니다.{/if}{" "}점을 누르면 그 시각을 봅니다.</p>
           {#if explained}<AnalysisMessage message={explained} showHeadline={false}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {/if}
@@ -290,12 +292,12 @@
               <p class="context">{sameX}</p>
               <div class="table-scroll"><table>
                 <caption>두 기간이 함께 지난 {signalName(names,x)} 범위를 같은 폭으로 나눠, 양쪽에 짝이 20개 이상인 범위만 견줍니다. 모든 짝으로 계산합니다.</caption>
-                <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">기간 A 중앙값 (가운데 50%)</th><th scope="col">기간 B 중앙값</th><th scope="col">짝 A · B</th></tr></thead>
+                <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">기간 A 중앙값 (가운데 절반)</th><th scope="col">기간 B 중앙값</th><th scope="col">짝 A · B</th></tr></thead>
                 <tbody>{#each ranges as range (range.a.bin)}
                   <tr class:moved={range.b.median<range.a.q1||range.b.median>range.a.q3}>
                     <td>{unit(short(range.low)+"~"+short(range.high),xUnit)}</td>
                     <td>{unit(short(range.a.median),yUnit)} ({short(range.a.q1)}~{short(range.a.q3)})</td>
-                    <td>{unit(short(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · A의 가운데 50% 밖":""}</td>
+                    <td>{unit(short(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · A 값의 가운데 절반 밖":""}</td>
                     <td>{range.a.pairs.toLocaleString("ko-KR")} · {range.b.pairs.toLocaleString("ko-KR")}</td>
                   </tr>
                 {/each}</tbody>

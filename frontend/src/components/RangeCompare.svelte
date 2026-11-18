@@ -69,7 +69,7 @@
     {#if rows.length}
       <div class="row-labels" aria-hidden="true">{#each rows as row (row.kind)}<span>{row.name}</span>{/each}</div>
       <svg class="boxes" viewBox={"0 0 800 " + rows.length * 40} style={"height:" + rows.length * 44 + "px"} preserveAspectRatio="none" role="img"
-        aria-label={label + " · 기간별 5~95% 범위와 가운데 50%, 중앙값. " + rows.map((row) => row.name + " 중앙값 " + num(row.q[2]) + suffix).join(", ")}>
+        aria-label={label + " · 기간별 값의 90%가 있던 범위와 가운데 절반, 중앙값. " + rows.map((row) => row.name + " 중앙값 " + num(row.q[2]) + suffix).join(", ")}>
         {#each niceTicks(scale.low, scale.high) as tick (tick)}<line x1={scale.x(tick)} x2={scale.x(tick)} y1="0" y2={rows.length * 40} class="grid" />{/each}
         {#each rows as row, i (row.kind)}
           <line x1={scale.x(row.q[0])} x2={scale.x(row.q[4])} y1={i * 40 + 20} y2={i * 40 + 20} class={"whisker " + row.kind} />
@@ -82,7 +82,7 @@
     <XAxis lo={scale.low} hi={scale.high} scale={{kind:"value"}} note={"가로축 · " + label + (unit ? " · " + unit : "")} />
     <figcaption>
       {#each rows as row (row.kind)}
-        <span><i class={"key " + row.kind}></i>{row.name} · 중앙값 {num(row.q[2])}{suffix} · 가운데 50% {num(row.q[1])}~{num(row.q[3])}</span>
+        <span><i class={"key " + row.kind}></i>{row.name} · 중앙값 {num(row.q[2])}{suffix} · 가운데 절반 {num(row.q[1])}~{num(row.q[3])}</span>
       {/each}
       {#if shares.length}<span>위 그림 · 두 기간의 값 전체를 같은 폭 {bins.length}개 구간으로 나눠, 각 기간 측정 중 몇 %가 그 구간에 있었는지 그렸습니다. 구간에 마우스를 올리면 비율이 보입니다.</span>{/if}
     </figcaption>

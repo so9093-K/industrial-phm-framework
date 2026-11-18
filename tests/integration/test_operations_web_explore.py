@@ -499,6 +499,9 @@ def test_a_steady_rise_is_a_finding_unless_the_source_declares_a_running_total(
         assert states["누적전력량"]["state"] == "cumulative"
         assert (states["누적전력량"]["first"], states["누적전력량"]["last"]) == (1000.0, 1495.0)
         assert [item["channel"] for item in found["intervals"]] == ["온도"]
+        # 판단에서 뺀 누적값은 '같은 구간에 함께 달라진 신호'에도 나오지 않는다.
+        assert [row["label"] for row in found["intervals"][0]["related"]] == []
+        assert found["intervals"][0]["within"] == []
     finally:
         stop()
 

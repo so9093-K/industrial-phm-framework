@@ -47,7 +47,7 @@ test("insights compare like with like and say when the reference pattern was not
   const lines=insights(ready(analyzed()));
   assert.match(lines[0],/기준 기간보다 0\.5 h 줄었습니다/);
   assert.match(lines[1],/83 A/);
-  assert.match(lines[2],/3개 \/ 60개 \(5%\)/);
+  assert.match(lines[2],/크게 다른 관측 3개 \(관측 60개 중 5%\)/);
   const longer=insights(ready(analyzed({reference_start:"2020-11-13T00:00:00+00:00",
     reference:{current_above_floor_hours:1,current_above_floor_fraction:0.25},
     target:{current_above_floor_hours:1,current_above_floor_fraction:1}})));
@@ -67,9 +67,9 @@ test("a time to check first gives all three phases, so all phases at 0 A never r
         reference_p05:38.4,reference_p95:75.6,unit:"A"}]},
     timeline:[{at:"2020-11-13T03:00:00+00:00",current_mean_a:0,voltage_phase_v:[222,224,222],current_phase_a:[0,0,0]}],
   }));
-  assert.equal(firstChecks(stopped)[0].detail,"전류 R/S/T 0 / 0 / 0 A · 가장 멀리 벗어난 iT의 기준 5–95% 범위 38.4–75.6 A");
+  assert.equal(firstChecks(stopped)[0].detail,"전류 R/S/T 0 / 0 / 0 A · iT가 기준 기간 값의 90%가 있던 범위(38.4~75.6 A)에서 가장 멀리 벗어남");
   const unmatched=ready(analyzed({timeline:[]}));
-  assert.equal(firstChecks(unmatched)[0].detail,"vR 240 V · 기준 5–95% 범위 229–232 V");
+  assert.equal(firstChecks(unmatched)[0].detail,"vR 240 V · 기준 기간 값의 90%가 있던 범위(229~232 V)");
 });
 
 test("lines never join across a missing value or a time gap",()=>{
@@ -120,9 +120,9 @@ test("each operating level is compared with the same level, and levels the refer
         {band:2,reference_samples:60,target_samples:40,state:"scored",above_reference_count:2}]}});
   assert.ok(condition.pattern.byLevel);
   const lines=insights(condition);
-  assert.ok(lines.includes("같은 운전 상태끼리 견준 기준 패턴의 99% 점수 범위를 넘은 관측 2개 / 40개 (5%)."));
-  assert.ok(lines.includes("기준 기간에 드물었던 운전 상태라 견주지 않은 관측 · 약 31 A 운전 20개(기준 기간 0개)."));
-  assert.equal(firstChecks(condition)[0].detail,"약 62 A 운전 중 · vR 240 V · 기준 5–95% 범위 229–232 V");
+  assert.ok(lines.includes("같은 운전 상태끼리 견줬을 때 기준 기간의 3상 패턴과 크게 다른 관측 2개 (관측 40개 중 5%)."));
+  assert.ok(lines.includes("기준 기간에 거의 없던 운전 상태라 견주지 않은 관측: 약 31 A 운전 20개(기준 기간 0개)."));
+  assert.equal(firstChecks(condition)[0].detail,"약 62 A 운전 중 · vR 240 V · 기준 기간 값의 90%가 있던 범위(229~232 V)");
   // A split result must name its levels.
   assert.throws(()=>ready({...base,pattern:{...base.pattern,split:"operating-level",levels:[]}}),/형식/);
   assert.equal(ready(base).pattern.byLevel,null);

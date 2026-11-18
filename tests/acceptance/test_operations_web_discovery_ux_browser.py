@@ -592,7 +592,7 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 card = page.locator(".found > li").first
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
                 context = card.get_by_role("complementary", name="이 변화의 해석과 다음 확인")
-                pw.expect(context).to_contain_text("해당하는 측정끼리 비교해 찾은 변화")
+                pw.expect(context).to_contain_text("때의 측정끼리 비교해 찾은 변화")
                 page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
                 op = page.locator("details.operation-details")
                 assert op.get_attribute("open") is None

@@ -17,6 +17,10 @@
   import {onMount} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
+  import {readScoreTrend, trendSummary, type ScoreTrend} from "../model-trend";
+  import {readModelOperation, unlearnedText} from "../model-operation";
+  import {modelAtChange, rareAtChange} from "../model-context";
+  import type {ModelOperation} from "../model-operation";
   import {measurementLabel} from "../time-axis";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
@@ -24,7 +28,7 @@
   import {assetTabUrl, routeUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
+  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
   import {CHANGE_WHY, changeSentence} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
@@ -44,6 +48,7 @@
     return parts.length ? parts.join(" · ") : "분석할 저장 데이터 없음";
   });
   let scores: LatestScore[] = $state([]);
+  let histories: Record<string, "loading" | "failed" | {trend: ScoreTrend; operation: ModelOperation | null; unlearned: string | null}> = $state({});
   let scoreState: "loading" | "ready" | "failed" = $state("loading");
   // The same items 관측 현황 lists for this asset; null while unread or unreadable.
   let notes: Note[] | null = $state(null);
@@ -62,7 +67,6 @@
   // The interval context can differ from the latest score, especially across an allowed gap.
   const others = $derived.by((): Note[] => { const read: Note[] | null = notes; return (read ?? []).filter((note) => note.kind !== "departure"); });
   // 모델 기준과 견준 확인 항목은 모델 질문 아래에서, 나머지는 마지막 측정 질문 아래에서 답한다.
-  const modelNotes = $derived(others.filter((note) => note.kind === "threshold" || note.kind === "crossing"));
   const lastNotes = $derived([...departures, ...others.filter((note) => note.kind !== "threshold" && note.kind !== "crossing")]);
   // What the whole stored record held, not only whether it ends away from its start.
   let quietMain:OverviewRow["main"]=$state(null);
@@ -104,6 +108,29 @@
     return null;
   });
   const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
+  const focusSpan = $derived.by(() => {
+    const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
+    if (shown?.kind === "history" && history?.intervals[shown.index]) {
+      const item = history.intervals[shown.index];
+      const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined;
+      return {axis: "time" as const, from: Date.parse(item.start), to: Date.parse(item.end), sourceId: item.context?.sourceId ?? null,
+        condition: own && item.band != null ? bandName(own, item.band) : null,
+        pointId: item.context?.pointId ?? null, label: findingText(item, item.bucketSeconds ?? history.bucketSeconds).when};
+    }
+    if (shown?.kind === "vibration" && measured?.intervals[shown.index]) {
+      const change = measured.intervals[shown.index];
+      return {axis: "acquisition" as const, from: change.from, to: change.to, sourceId: null, pointId: null, condition: null,
+        label: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to)};
+    }
+    return null;
+  });
+  /** 이 모델이 가운데 변화와 같은 기록을 분석했는지: 시계열 모델은 같은 출처·위치, 진동 모델은 진동 변화. */
+  function readsFocus(binding: LatestScore["binding"]): boolean {
+    const span = focusSpan;
+    if (!span) return false;
+    if (span.axis === "time") return isTimeWindow(binding.stepKind) && binding.sourceId === span.sourceId && (binding.pointId ?? null) === span.pointId;
+    return !isTimeWindow(binding.stepKind);
+  }
   const otherChanges = $derived.by(() => {
     const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration, shown = focus;
     const rows: {key: string; pick: Pick; label: string; line: string; when: string; href: string | null}[] = [];
@@ -141,6 +168,15 @@
     void loadLatestScores(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       scores = value; scoreState = "ready";
+      // 최근 결과 하나만으로는 모델이 기록 전체와 이 변화 구간을 어떻게 봤는지 알 수 없어, 점수 기록도 읽는다.
+      for (const item of value) {
+        const id = item.binding.bindingId;
+        histories = {...histories, [id]: "loading"};
+        void Promise.all([readScoreTrend(item.binding, request.signal),
+          isTimeWindow(item.binding.stepKind) ? readModelOperation(id, request.signal).catch(() => null) : Promise.resolve(null)])
+          .then(([trend, operation]) => { if (!request.signal.aborted) histories = {...histories, [id]: {trend, operation, unlearned: operation ? unlearnedText(operation) : null}}; })
+          .catch(() => { if (!request.signal.aborted) histories = {...histories, [id]: "failed"}; });
+      }
     }).catch(() => { if (!request.signal.aborted) scoreState = "failed"; });
     void readNotes();
     return () => {request.abort();noteRequest?.abort();};
@@ -183,7 +219,7 @@
   <h3 class="change-sentence">{changeSentence(item, findingSpan(item), condition)}</h3>
   <div class="card-top">
     <ChangeNumbers facts={item} fallback={told.what} />
-    <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사 →</a>{/if}
+    <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사하기 →</a>{/if}
     {#if item.reviewKey}<details class="review" ontoggle={event=>{openReviews={...openReviews,[item.reviewKey!]:event.currentTarget.open};}}><summary>판단·메모</summary>
       {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
     </details>{/if}</div>
@@ -287,7 +323,6 @@
   <h2 id="more-title">이어서 확인할 것</h2>
   <dl class="rows">
     <div><dt id="state-title">모델은 어떻게 봤나요?</dt><dd>
-      {#each modelNotes as note (note.id)}<p><span><strong>{note.label}</strong> · {note.detail}</span> <a href={note.href}>{note.action} →</a></p>{/each}
       {#if scoreState === "loading"}
         <p class="context">최근 모델 점수를 불러오고 있습니다.</p>
       {:else if scoreState === "failed"}
@@ -300,11 +335,24 @@
           {#each scores as item (item.binding.bindingId)}
             {@const summary = item.run ? scoreSummary(item.run.output) : null}
             {@const note = builtModelNote(item.binding)}
+            {@const read = histories[item.binding.bindingId]}
+            {@const span = focusSpan}
             <li>
-              <span>{modelName(item.binding)}{#if item.run && summary}{" · "}{isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)}{/if}</span>
-              <strong class="verdict">{summary ? verdict(summary.exceeds) : "분석한 측정 없음"}</strong>
-              {#if item.run && summary}<span>점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}</span>{/if}
-              {#if note}<span class="note">{note}</span>{/if}
+              <p class="model-name"><strong>{modelName(item.binding)}</strong>{#if note}<span class="note">{note}</span>{/if}</p>
+              {#if typeof read === "object"}
+                {@const total = trendSummary(read.trend)}
+                {#if span && readsFocus(item.binding)}
+                  {@const at = modelAtChange(read.trend, span, span.axis)}
+                  {@const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null}
+                  <p><span class="what">이 변화 구간</span>{at.analyzed ? "분석 " + at.analyzed.toLocaleString("ko-KR") + "회 중 기준 초과 " + at.exceeded.toLocaleString("ko-KR") + "회" : "이 구간을 분석한 결과가 없습니다"}</p>
+                  {#if rare !== null && at.exceeded}<p class="caution-line">이 변화는 {span.condition} 중의 변화인데, 모델을 학습한 기간에는 이 운전 상태가 {rare === 0 ? "전혀 없었습니다" : rare < 0.01 ? "1% 미만이었습니다" : percent(rare) + "뿐이었습니다"}. 이 구간의 기준 초과만으로 변화를 확인했다고 보기는 어렵습니다.</p>{/if}
+                {:else if span}
+                  <p class="context">가운데 변화와 다른 데이터를 분석한 모델이라, 그 변화 구간의 결과는 없습니다.</p>
+                {/if}
+                <p><span class="what">기록 전체</span>분석 {total.analyzed.toLocaleString("ko-KR")}회 중 기준 초과 {total.exceeded.toLocaleString("ko-KR")}회{read.trend.truncated ? " (기록이 많아 앞부분만)" : ""}</p>
+                {#if read.unlearned}<p class="context">{read.unlearned}</p>{/if}
+              {:else if read === "loading"}<p class="context">점수 기록을 읽고 있습니다.</p>{/if}
+              <p><span class="what">최근 결과</span>{#if item.run && summary}{isTimeWindow(item.binding.stepKind) ? windowLabel(item.run.position) : measurementLabel(item.run.position, item.binding.sourceId === data?.vibration?.timing?.sourceId ? data.vibration.timing.periodSeconds : null)} · <strong>{verdict(summary.exceeds)}</strong> (점수 {num(summary.score, "기록 없음")} / 기준 {num(summary.threshold, "기록 없음")}){:else}분석한 측정 없음{/if}</p>
             </li>
           {/each}
         </ul>
@@ -318,7 +366,7 @@
           <p class="split">같은 출처·측정 위치를 분석하지만 마지막으로 분석한 측정이 서로 달라 직접 견줄 수 없습니다. 위에 적힌 각 모델의 마지막 측정을 확인하고,
             같은 측정의 점수는 측정별 모델 점수에서 견줘 보세요.</p>
         {/if}
-        {#if !modelNotes.length}<p><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정마다 모델 점수가 어떻게 변했는지 보기 →</a></p>{/if}
+        <p><a href={assetTabUrl(asset.assetId, "anomaly", "model")}>측정마다 모델 점수가 어떻게 변했는지 보기 →</a></p>
       {/if}
     </dd></div>
     <div><dt>마지막 측정은 어땠나요?</dt><dd>
@@ -435,7 +483,13 @@
   .provenance[open] > summary { margin-bottom: var(--space-4); }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-  .scores li { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
+  .scores li { display: grid; gap: 2px; padding-bottom: var(--space-2); }
+  .scores li + li { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
+  .scores li p { margin: 0; display: block; font-size: var(--font-small); }
+  .scores .model-name { font-size: var(--font-body); }
+  .scores .model-name .note { display: block; font-size: var(--font-label); }
+  .scores .what { display: inline-block; min-width: 6.5em; color: var(--color-ink-muted); }
+  .scores .caution-line { padding: var(--space-1) var(--space-2); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); }
   .split { margin: 0; padding: var(--space-3); border-left: 3px solid var(--color-caution-ink); background: var(--color-uncertain-surface); overflow-wrap: anywhere; }
   .scores span { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
   .others li { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
