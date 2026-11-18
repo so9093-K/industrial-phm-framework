@@ -3,7 +3,7 @@
   import {attentionText, notePriority, type AttentionState, type Note} from "../monitor-attention";
   import {vibrationLinks} from "../vibration-findings";
   import {bandName, changeValue, percent, findingLinks, findingSpan} from "../record-findings";
-  import {equipmentKind, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
+  import {equipmentKind, latestReading, readOverview, sparklinePoints, tracePath, type OverviewRow} from "../asset-overview";
   import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
@@ -234,7 +234,7 @@
 
           </div>
           <div class="cell" role="cell" data-label="마지막 측정에서 확인할 것">
-            {#if row?.finding}<LatestMeasurement main={row.main}/>{/if}
+            {#if row?.finding}<LatestMeasurement main={latestReading(row)}/>{/if}
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
             {#if note}<strong class="primary-reason">{note.label}</strong>
               <a class="investigate" href={note.href}>{note.kind==="departure"&&row?.finding?"최근 측정 살펴보기":note.action} →</a>{/if}

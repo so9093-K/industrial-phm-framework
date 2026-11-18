@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {modelAtChange, rareAtChange} from "./model-context.ts";
+import {modelAtChange, rareAtChange, splitAtChange} from "./model-context.ts";
 import type {ScoreTrend, TrendPoint} from "./model-trend.ts";
 
 const point = (position: number, exceeds: boolean | null, state: "analyzed" | "skipped" = "analyzed"): TrendPoint => ({
@@ -28,4 +28,11 @@ test("a change at an operating state the model hardly learned is said to need mo
   assert.equal(rareAtChange(operation, "약 11 A 운전"), 0.02);
   assert.equal(rareAtChange(operation, "약 62 A 운전"), null);
   assert.equal(rareAtChange({...operation, reference: null}, "약 11 A 운전"), null);
+});
+
+test("models that read the same change are said to disagree only when one exceeded in most of it and another did not", () => {
+  assert.equal(splitAtChange([{name: "Isolation Forest", analyzed: 52, exceeded: 2}, {name: "LSTM 오토인코더", analyzed: 52, exceeded: 48}]),
+    "이 변화 구간에서 모델 판단이 갈립니다 · 기준 초과 LSTM 오토인코더 52회 중 48회, Isolation Forest 52회 중 2회");
+  assert.equal(splitAtChange([{name: "A", analyzed: 52, exceeded: 40}, {name: "B", analyzed: 52, exceeded: 30}]), null);
+  assert.equal(splitAtChange([{name: "A", analyzed: 52, exceeded: 48}, {name: "B", analyzed: 0, exceeded: 0}]), null);
 });

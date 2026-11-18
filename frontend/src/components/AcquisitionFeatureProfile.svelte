@@ -13,6 +13,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {periodMessage,periodOnset,type NextStep} from "../analysis-messages";
   import {measurementLinks} from "../measurement-links";
+  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
   import type {AcquisitionTrend} from "../acquisition-trend";
   import {
     FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,preferredFeature,
@@ -32,6 +33,7 @@
   });
   const place = (at:number) => measurementLabel(at, period);
   let message=$state("");
+  let fromSummary=$state(false);
   const url=new URLSearchParams(location.search);
   let selected=$state(url.get("acquisition_feature")??"");
   let listAbort:AbortController|null=null;
@@ -75,11 +77,17 @@
         throw new Error("넘겨받은 모델과 탐색 데이터의 적용 모델이 달라 비교하지 않았습니다.");
       source=response;
       if(selected&&!response.features.some(x=>x.id===selected))throw new Error("고른 특징이 이 데이터 출처에 없습니다.");
+      // 아무것도 고르지 않고 열었으면 상태 요약의 대표 변화와 같은 특징·기간으로 시작한다.
+      const chosen=["feature_a_from","feature_a_to","feature_b_from","feature_b_to"].some(k=>url.has(k));
+      const found=!selected&&!chosen?await readVibrationSummary(assetId,request.signal):null;
+      if(request.signal.aborted)return;
+      const summary=found?vibrationDefault(found,response.bindingId,response.features.map(x=>x.id)):null;
+      if(summary){selected=summary.feature;fromSummary=true;}
       if(!selected)selected=preferredFeature(response.features)!.id;
       try{
         const bounds={source:response.sourceId,binding:response.bindingId,
           first:response.first,last:response.last,count:response.count};
-        spans=savedSpans(defaultSpans(bounds),response);
+        spans=summary?summary.spans:savedSpans(defaultSpans(bounds),response);
       }
       catch(cause:unknown){
         listState="unavailable";
@@ -95,13 +103,13 @@
   }
   function selectFeature(value:string){
     if(!source?.features.some(x=>x.id===value))return;
-    selected=value;profileAbort?.abort();profile=null;profileState="empty";remember();
+    selected=value;fromSummary=false;profileAbort?.abort();profile=null;profileState="empty";remember();
     void compare();
   }
   function editSpan(period:"a"|"b",edge:"from"|"to",value:string){
     if(!spans)return;
     spans={...spans,[period]:{...spans[period],[edge]:value===""?NaN:Number(value)}};
-    profileAbort?.abort();profile=null;profileState="empty";
+    fromSummary=false;profileAbort?.abort();profile=null;profileState="empty";
   }
   async function compare(){
     profileAbort?.abort();
@@ -167,6 +175,7 @@
     {:else if profile}
       <section class="evidence">
         <h3>{profile.label}</h3>
+        {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
         <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
           · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
         {#if told}<p class="result-statement">{told.headline}</p>{/if}

@@ -5,7 +5,7 @@
   import {assetTabUrl} from "../routes";
   import {readPermission} from "../outlook-briefings";
   let {assetId,change,bindingId,onMemo}:{assetId:string;change:VibrationChange;bindingId:string;onMemo:(text:string)=>void}=$props();
-  const questions=["이 변화가 일시적인가요, 이어지는 상태인가요?","어떤 주파수 성분이 함께 달라졌나요?"];
+  const questions=["이 변화는 언제부터 얼마나 이어졌나요?","어떤 주파수 성분이 함께 달라졌나요?"];
   let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state(""),message=$state("");
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
@@ -46,7 +46,7 @@
   <h2>이 변화를 함께 살펴보기</h2>
   <p class="basis">{change.label} · {change.from}~{change.to}회<br/>기준 {change.baseline.from}~{change.baseline.to}회와 비교</p>
   {#if error}<p class="error" role="alert">{error} <button type="button" onclick={()=>void refresh()}>다시 읽기</button></p>{/if}
-  {#if waiting}<p role="status">선택한 변화와 같은 기간의 특징·주파수 결과를 함께 살펴보고 있습니다.</p>
+  {#if waiting}<p role="status">AI가 같은 기간의 특징·주파수 비교 결과를 읽고 답을 쓰고 있습니다.</p>
   {:else if latest?.status==="complete"&&latest.answer}
     <p class="question">질문 · {latest.question}</p>
     <p class="answer">{latest.answer.summary}</p>

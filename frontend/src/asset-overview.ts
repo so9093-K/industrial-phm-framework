@@ -6,6 +6,10 @@ import {object} from "./writes.ts";
 import type {LevelNames} from "./record-findings.ts";
 import {parseFindingInterval, type FoundInterval} from "./record-findings.ts";
 
+type Reading = {at: string | null; position: number | null; value: number};
+/** 마지막 저장값 한 줄에 필요한 것: 어느 신호의, 어떤 값이, 언제. */
+export type LatestReading = {label: string; unit: string | null; periodSeconds: number | null; latest: Reading | null};
+
 export type OverviewRow = {
   assetId: string; kind: "history" | "vibration" | null;
   /** Share of time per band over the record, stopped first, with the band names. */
@@ -14,7 +18,9 @@ export type OverviewRow = {
     latest: {at: string | null; position: number | null; value: number} | null; trace: {x: number; value: number; join?: boolean}[]} | null;
   finding: {label: string; unit: string | null; band: number | null; direction: "up" | "down"; kind: string;
     reference: number | null; typical: number | null; value: number;
-    start: string | null; end: string | null; from: number | null; to: number | null} | null;
+    start: string | null; end: string | null; from: number | null; to: number | null;
+    /** 변화한 신호 자신의 마지막 저장값. 대표 신호의 값과 섞지 않는다. */
+    latest: Reading | null} | null;
   findingCount: number; judged: number; copied: number;
   historyInterval: FoundInterval | null;
   vibrationInterval: {change: VibrationChange; sourceId: string; bindingId: string; periodSeconds: number | null} | null;
@@ -25,6 +31,18 @@ const finite = (raw: unknown): number => typeof raw === "number" && Number.isFin
 const optional = (raw: unknown): number | null => raw === null || raw === undefined ? null : finite(raw);
 const count = (raw: unknown): number => Number.isInteger(raw) && (raw as number) >= 0 ? raw as number : invalid();
 const text = (raw: unknown): string | null => typeof raw === "string" && raw ? raw : null;
+
+function reading(raw: unknown): Reading | null {
+  const value = object(raw);
+  return value ? {at: text(value.at), position: optional(value.position), value: finite(value.value)} : null;
+}
+
+/** 변화가 있으면 변화한 신호의 마지막 저장값, 없으면 대표 신호의 마지막 저장값. */
+export function latestReading(row: OverviewRow): LatestReading | null {
+  if (row.finding) return {label: row.finding.label, unit: row.finding.unit, latest: row.finding.latest,
+    periodSeconds: row.vibrationInterval?.periodSeconds ?? row.main?.periodSeconds ?? null};
+  return row.main ? {label: row.main.label, unit: row.main.unit, latest: row.main.latest, periodSeconds: row.main.periodSeconds} : null;
+}
 
 export function parseOverview(raw: unknown, assetId: string): OverviewRow {
   const root = object(raw);
@@ -47,7 +65,7 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
     || main.trace_join.length !== main.trace.length || !main.trace_join.every(value => typeof value === "boolean"))) invalid();
   const joins = Array.isArray(main?.trace_join) ? main.trace_join : [];
   const axis = main?.axis === "acquisition" ? "acquisition" : "time";
-  const latest = object(main?.latest);
+  const latest = main?.latest;
   const finding = object(root.finding);
   const vibration = object(root.vibration_interval);
   return {
@@ -59,7 +77,7 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
     historyInterval: root.history_interval == null ? null : parseFindingInterval(root.history_interval),
     main: main ? {context:recordContext(main.context),
       label: text(main.label) ?? "", unit: text(main.unit), axis, periodSeconds: optional(main.period_seconds),
-      latest: latest ? {at: text(latest.at), position: optional(latest.position), value: finite(latest.value)} : null,
+      latest: reading(latest),
       trace: (Array.isArray(main.trace) ? main.trace : []).map((point: unknown, i: number) => {
         if (!Array.isArray(point) || point.length !== 2) invalid();
         const x = axis === "time" ? Date.parse(String(point[0])) : finite(point[0]);
@@ -72,6 +90,7 @@ export function parseOverview(raw: unknown, assetId: string): OverviewRow {
       direction: finding.direction === "down" ? "down" : "up", kind: String(finding.kind ?? "departure"),
       reference: optional(finding.reference), typical: optional(finding.typical), value: finite(finding.value),
       start: text(finding.start), end: text(finding.end), from: optional(finding.from), to: optional(finding.to),
+      latest: reading(finding.latest),
     } : null,
     findingCount: count(root.finding_count), judged: count(root.judged), copied: count(root.copied),
   };

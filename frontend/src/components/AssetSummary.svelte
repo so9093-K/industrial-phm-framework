@@ -20,7 +20,7 @@
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
   import {readScoreTrend, trendSummary, type ScoreTrend} from "../model-trend";
   import {readModelOperation, unlearnedText} from "../model-operation";
-  import {modelAtChange, rareAtChange} from "../model-context";
+  import {modelAtChange, rareAtChange, splitAtChange} from "../model-context";
   import type {ModelOperation} from "../model-operation";
   import {measurementLabel} from "../time-axis";
   import {num} from "../format";
@@ -30,7 +30,7 @@
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, changeHeadline} from "../change-story";
+  import {CHANGE_WHY, changeHeadline, plainLabel} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
@@ -189,14 +189,17 @@
     });
     measured?.intervals.forEach((change, index) => {
       if (shown?.kind === "vibration" && shown.index === index) return;
-      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: change.label,
+      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: plainLabel(change.label, change.feature),
         line: "처음 30%보다 " + (change.direction === "up" ? "높음" : "낮음") + (change.reference != null && change.typical != null ? " · " + changeValue(change.reference, null) + " → " + changeValue(change.typical, change.unit) : ""),
         when: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to) + " · " + (change.to - change.from + 1) + "회",
         href: vibrationLinks(asset.assetId, change).signal});
     });
     return rows;
   });
-  const hasRail=$derived(otherChanges.length>0||!!(focus?.kind==="vibration"&&vibration?.bindingId&&vibration.intervals[focus.index]?.reviewKey));
+  const hasRail=$derived.by(()=>{
+    const measured: VibrationRecord | null = vibration, shown = focus;
+    return otherChanges.length>0||!!(shown?.kind==="vibration"&&measured?.bindingId&&measured.intervals[shown.index]?.reviewKey);
+  });
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -241,6 +244,15 @@
     const samePosition = scores.every((item) => item.run && item.run.position === scores[0].run?.position);
     // Which condition failed is said as it is: another source or point, or another last measurement.
     return {over, under, same: sameStream && samePosition, why: !sameStream ? "stream" : samePosition ? null : "position"};
+  });
+  // 가운데 변화 구간을 분석한 모델들이 그 구간을 서로 다르게 봤다면, 점수 목록보다 먼저 그 사실을 말한다.
+  const changeSplit = $derived.by(() => {
+    const span = focusSpan;
+    if (!span) return null;
+    return splitAtChange(scores.filter(item => readsFocus(item.binding)).flatMap(item => {
+      const read = histories[item.binding.bindingId];
+      return typeof read === "object" ? [{name: modelName(item.binding), ...modelAtChange(read.trend, span, span.axis)}] : [];
+    }));
   });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
@@ -385,6 +397,7 @@
         <p class="context">이 설비에 적용한 이상 탐지 모델이 없어 모델의 판단은 없습니다.
           {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
       {:else}
+        {#if changeSplit}<p class="split">{changeSplit}</p>{/if}
         <ul class="scores" aria-labelledby="state-title">
           {#each scores as item (item.binding.bindingId)}
             {@const summary = item.run ? scoreSummary(item.run.output) : null}

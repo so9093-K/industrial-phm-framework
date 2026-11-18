@@ -55,7 +55,7 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 card = page.locator(".found > li").first
                 panel = page.get_by_role("region", name="선택한 진동 변화 조사")
                 ask = panel.get_by_role(
-                    "button", name="이 변화가 일시적인가요, 이어지는 상태인가요?", exact=True
+                    "button", name="이 변화는 언제부터 얼마나 이어졌나요?", exact=True
                 )
                 pw.expect(ask).to_be_enabled()
                 assert not model.requests

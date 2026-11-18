@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type {OverviewRow} from "../asset-overview";
+  import type {LatestReading} from "../asset-overview";
   import {changeValue} from "../record-findings";
   import {measurementLabel} from "../time-axis";
-  let {main}:{main:OverviewRow["main"]}=$props();
+  let {main}:{main:LatestReading|null}=$props();
   const latest=$derived(main?.latest);
   const clock=$derived(latest?.at?new Date(latest.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}):null);
 </script>

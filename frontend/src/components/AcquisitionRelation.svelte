@@ -14,6 +14,7 @@
   import {featureCompareHref} from "../measurement-links";
   import {loadFeatureSource,preferredFeature,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
+  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
   import {
     readAcquisitionRelation,AcquisitionRelationUnavailable,
     type AcquisitionRelation,
@@ -35,6 +36,7 @@
   const params=new URLSearchParams(location.search);
   let x=$state(params.get("acq_relation_x")??"");
   let y=$state(params.get("acq_relation_y")??"");
+  let fromSummary=$state(false);
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
   const count=(n:number|null)=>n===null?"계산 안 됨":n.toFixed(3);
@@ -74,11 +76,17 @@
       if(pending.signal.aborted)return;
       if(!result||result.features.length<2){sourceState="empty";return;}
       source=result;
+      // 아무것도 고르지 않고 열었으면 상태 요약의 대표 변화를, 같은 측정에서 함께 달라진 특징과 견준다.
+      const chosen=["acq_relation_x","acq_a_from","acq_a_to","acq_b_from","acq_b_to"].some(k=>params.has(k));
+      const found=!chosen?await readVibrationSummary(assetId,pending.signal):null;
+      if(pending.signal.aborted)return;
+      const summary=found?vibrationDefault(found,result.bindingId,result.features.map(f=>f.id)):null;
+      if(summary?.related){x=summary.feature;y=summary.related;fromSummary=true;}
       if(!result.features.some(f=>f.id===x))x=preferredFeature(result.features)!.id;
       if(!result.features.some(f=>f.id===y)||y===x)
         y=result.features.find(f=>f.id!==x)!.id;
       try{
-        spans=savedSpans(defaultSpans({
+        spans=fromSummary&&summary?summary.spans:savedSpans(defaultSpans({
           source:result.sourceId,binding:result.bindingId,
           first:result.first,last:result.last,count:result.count,
         }),result);
@@ -94,12 +102,13 @@
   function feature(which:"x"|"y",value:string){
     if(!source?.features.some(f=>f.id===value))return;
     if(which==="x")x=value;else y=value;
+    fromSummary=false;
     relationAbort?.abort();relation=null;resultState="empty";remember();
   }
   function changeSpan(period:"a"|"b",edge:"from"|"to",value:string){
     if(!spans)return;
     spans={...spans,[period]:{...spans[period],[edge]:value===""?NaN:Number(value)}};
-    relationAbort?.abort();relation=null;resultState="empty";
+    fromSummary=false;relationAbort?.abort();relation=null;resultState="empty";
   }
   async function compare(){
     relationAbort?.abort();
@@ -164,6 +173,7 @@
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={error}/>
     {:else if relation}
       {#if message}<p class="result-statement">{message.headline}</p>{/if}
+      {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
       <div class="pair">
       {#each relation.groups as group(group.period)}
         <section class="group">

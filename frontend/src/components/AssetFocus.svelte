@@ -5,7 +5,7 @@
   import {changeSentence,changeHeadline} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   import RecordStrip from "./RecordStrip.svelte";
-  import type {OverviewRow} from "../asset-overview";
+  import {latestReading, type OverviewRow} from "../asset-overview";
   import type {Note} from "../monitor-attention";
   import {assetTabUrl} from "../routes";
   import ChangeInterval from "./ChangeInterval.svelte";
@@ -50,7 +50,7 @@
     <p><span class="record-kind">{asset.flow === "stored-history" ? "과거 저장 기록" : flowLabel(asset.flow)}</span>
       <span title={asset.lastObservedAt?observed(asset.lastObservedAt):undefined}>{asset.lastObservedAt ? "마지막 측정 " + date : asset.lastPosition != null ? "마지막 " + asset.lastPosition + "번째 측정" : "측정 시각 정보 없음"}</span></p>
   </header>
-  {#if row?.finding}<LatestMeasurement main={row.main}/>{/if}
+  {#if row?.finding}<LatestMeasurement main={latestReading(row)}/>{/if}
   {#if !row}
     <div class="pending">
       <div role="status"><h4>{read === "failed" ? "주요 변화를 불러오지 못했습니다" : "기록에서 달라진 값을 확인하고 있습니다"}</h4>

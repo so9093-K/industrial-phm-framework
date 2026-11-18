@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {comparisonDefault, relationPair, summarySignal} from "./summary-defaults.ts";
+import {comparisonDefault, relationPair, summarySignal, vibrationDefault} from "./summary-defaults.ts";
+import type {VibrationFindings} from "./vibration-findings.ts";
 import {suggestedHorizon} from "./projections.ts";
 import type {FoundInterval, RecordFindings} from "./record-findings.ts";
 import type {RecordContext} from "./record-context.ts";
@@ -84,4 +85,19 @@ test("a forecast opens reaching at most a quarter of its record, within what the
   // Too short for a quarter to reach an hour: the shortest supported; nothing supported, nothing suggested.
   assert.equal(suggestedHorizon({...all, "24h": "short-history", "7d": "short-history", "30d": "short-history"}, 3 * 3600), "1h");
   assert.equal(suggestedHorizon({"1h": "few-points", "24h": "few-points", "7d": "few-points", "30d": "few-points"}, day), null);
+});
+
+test("a vibration tab opened without a choice starts from the summary's change, its periods and a feature that moved with it", () => {
+  const change = {feature: "feature.V.rms", label: "수직 진동 RMS", unit: "g", direction: "up" as const, reason: "sustained" as const,
+    kind: "departure" as const, from: 72, to: 123, baseline: {from: 1, to: 37}, reference: 0.623, typical: 2.3, value: 5.8,
+    usual: {low: 0.568, high: 0.645}, trace: [],
+    related: [{feature: "feature.H.rms", label: "수평 진동 RMS", unit: "g", reference: 0.716, current: 3.23, state: "higher" as const}]};
+  const found = {sourceId: "s", bindingId: "b", assetId: "Bearing1_1", first: 1, last: 123, periodSeconds: 60, judged: 16, features: 16,
+    intervals: [change]} as unknown as VibrationFindings;
+  assert.deepEqual(vibrationDefault(found, "b", ["feature.V.rms", "feature.H.rms"]),
+    {feature: "feature.V.rms", related: "feature.H.rms", spans: {a: {from: 1, to: 37}, b: {from: 72, to: 123}}});
+  // 다른 모델 연결의 기록이거나 이 화면이 그 특징을 다루지 못하면 화면의 자체 기본값을 쓴다.
+  assert.equal(vibrationDefault(found, "other", ["feature.V.rms"]), null);
+  assert.equal(vibrationDefault(found, "b", ["feature.H.rms"]), null);
+  assert.equal(vibrationDefault(found, "b", ["feature.V.rms"])?.related, null);
 });

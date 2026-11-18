@@ -7,10 +7,11 @@ the overview and the summary never name different changes for one record.
 from __future__ import annotations
 
 import hashlib
+import math
 from datetime import datetime, timedelta
 from typing import Any
 
-from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_web_explore import _history, record_findings
@@ -62,6 +63,13 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
                 "reference": first.get("reference_value"),
                 "typical": first.get("typical_value"),
                 "operation_key": (first.get("operation") or {}).get("key"),
+                "latest": _latest_stored(
+                    history,
+                    asset_id,
+                    first["channel"],
+                    first["source_id"],
+                    first.get("measurement_point_id"),
+                ),
             }
         first_operation = ((body["history_interval"] or {}).get("operation") or {}).get("key")
         operation = (
@@ -107,6 +115,17 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         body["finding"] = {
             key: first[key] for key in ("label", "unit", "direction", "kind", "from", "to", "value")
         } | {"reference": first["reference_value"], "typical": first["typical_value"]}
+        # 마지막 저장값은 변화한 특징의 값이어야 변화와 같은 이야기로 읽힌다.
+        newest = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
+        value = (newest.features or {}).get(first["feature"]) if newest else None
+        body["finding"]["latest"] = (
+            {"at": None, "position": newest.position, "value": float(value)}
+            if newest is not None
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            else None
+        )
     results, _ = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_TRACE)
     names = sorted({name for result in results for name in (result.features or {})})
     if results and names:
@@ -172,24 +191,17 @@ def _history_main(
         == context["interpretation_id"]
         and bucket.mean is not None
     ]
-    latest = next(
-        (
-            point.measurement
-            for point in history.query_latest_measurements(asset_id, channel_id=context["channel"])
-            if point.measurement.source_id == context["source_id"]
-            and point.measurement.measurement_point_id == context["measurement_point_id"]
-            and point.measurement.value is not None
-            and not point.conflicting_duplicate
-        ),
-        None,
-    )
     return {
         "context": context,
         "label": context.get("label") or context["channel"],
         "unit": context.get("unit"),
-        "latest": {"at": latest.event_at.isoformat(), "value": latest.value}
-        if latest is not None and latest.event_at is not None
-        else None,
+        "latest": _latest_stored(
+            history,
+            asset_id,
+            context["channel"],
+            context["source_id"],
+            context["measurement_point_id"],
+        ),
         "trace": [[bucket.bucket_start.isoformat(), bucket.mean] for bucket in own],
         "trace_join": [
             index > 0
@@ -199,3 +211,27 @@ def _history_main(
         ],
         "axis": "time",
     }
+
+
+def _latest_stored(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    channel: str,
+    source_id: str,
+    point_id: str | None,
+) -> dict[str, Any] | None:
+    """The last stored value of one channel of one source and point, with its time."""
+    latest = next(
+        (
+            point.measurement
+            for point in history.query_latest_measurements(asset_id, channel_id=channel)
+            if point.measurement.source_id == source_id
+            and point.measurement.measurement_point_id == point_id
+            and point.measurement.value is not None
+            and not point.conflicting_duplicate
+        ),
+        None,
+    )
+    if latest is None or latest.event_at is None:
+        return None
+    return {"at": latest.event_at.isoformat(), "position": None, "value": latest.value}

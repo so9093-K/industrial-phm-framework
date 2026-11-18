@@ -90,7 +90,15 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                 )
                 page.goto(origin + "/web/?" + urlencode({"page": "assets", "monitor_asset": asset}))
                 page.get_by_role(
-                    "button", name=chosen["label"] + " 변화 크게 보기", exact=True
+                    "button",
+                    # 진동 특징은 화면에 보이는 쉬운 이름으로 고른다: "수직 진동 크기 (RMS)".
+                    name=(
+                        chosen["label"]
+                        if kind == "history"
+                        else chosen["label"].replace(" RMS", " 크기 (RMS)")
+                    )
+                    + " 변화 크게 보기",
+                    exact=True,
                 ).click()
                 card = page.locator(".found > li").first
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text(

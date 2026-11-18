@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {changeHeadline, changeNumbers, changeSentence, object, subject} from "./change-story.ts";
+import {changeHeadline, changeNumbers, changeSentence, object, plainLabel, subject} from "./change-story.ts";
 
 test("a name takes the subject particle its last sound asks for", () => {
   assert.deepEqual(["T상전압", "주파수", "수직 진동 RMS", "전류 L", "채널 1", "채널 2", "온도 (입구)"].map(subject),
@@ -36,4 +36,14 @@ test("the entry headline stays brief while keeping its comparison direction", ()
   assert.equal(changeHeadline({label:"수직 진동 RMS",feature:"feature.Vertical_vibration_signals.rms",direction:"up"}),"수직 진동 크기 (RMS)가 비교 기준보다 높았습니다.");
   assert.equal(changeHeadline({label:"전류",direction:"up"}),"전류가 비교 기준보다 높았습니다.");
   assert.equal(changeHeadline({label:"온도",direction:"down",kind:"level-change"}),"온도가 일정하던 기준값보다 낮았습니다.");
+});
+
+test("a vibration feature reads in plain words first and keeps its calculation name in parentheses", () => {
+  assert.equal(plainLabel("수직 진동 초과 첨도", "feature.Vertical_vibration_signals.excess_kurtosis"), "수직 진동 충격성 (첨도)");
+  assert.equal(plainLabel("수직 진동 왜도", "feature.Vertical_vibration_signals.skewness"), "수직 진동 치우침 (왜도)");
+  assert.equal(plainLabel("수평 진동 파고율", "feature.Horizontal_vibration_signals.crest_factor"), "수평 진동 피크 배율 (파고율)");
+  // 전기 채널 이름은 그대로 둔다.
+  assert.equal(plainLabel("R상전압", null), "R상전압");
+  assert.equal(changeHeadline({label:"수직 진동 초과 첨도",feature:"feature.Vertical_vibration_signals.excess_kurtosis",direction:"up"}),
+    "수직 진동 충격성 (첨도)가 비교 기준보다 높았습니다.");
 });
