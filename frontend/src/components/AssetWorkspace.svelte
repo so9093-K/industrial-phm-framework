@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {measurementLabel,elapsedText} from "../time-axis";
+  import {elapsedText} from "../time-axis";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
@@ -142,8 +142,9 @@
   <div class="head">
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
-      <p class="meta">{!asset.lastObservedAt && data?.vibration ? "최근 " + measurementLabel(data.vibration.last,data.vibration.timing?.periodSeconds) : "마지막 측정 " + observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}</p>
-      {#if !asset.lastObservedAt && data?.vibration}<p class="meta">{data.vibration.timing ? "시간 기준 · 기록된 측정 간격 " + elapsedText(data.vibration.timing.periodSeconds) : "측정 간격 기록 없음 · 측정 회차로 표시"} · 실제 측정 시각 기록 없음</p>{/if}
+      <!-- 한 줄: 어떤 기록인지와 시간을 어떻게 읽는지. 마지막 측정의 위치는 요약의 숫자가 말한다. -->
+      <p class="meta">{#if !asset.lastObservedAt && data?.vibration}{flowLabel(asset.flow)}{facts ? " · " + facts : ""} · {data.vibration.timing
+        ? "기록된 측정 간격 " + elapsedText(data.vibration.timing.periodSeconds) : "측정 간격 기록 없음(측정 회차로 표시)"} · 실제 측정 시각 기록 없음{:else}마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}{/if}</p>
     </div>
     {#if assets.length > 1}
       <label class="switch-asset">다른 설비

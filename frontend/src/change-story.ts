@@ -66,6 +66,16 @@ export function changeNumbers(facts: ChangeFacts): {before: ChangeNumber; after:
   };
 }
 
+/** 변화가 기록 끝까지 이어졌을 때의 세 번째 숫자: 마지막 값과, 그 값이 이 구간 중앙값과 얼마나 다른지. */
+export function latestNumber(caption: string, value: number, typical: number | null, unit: string | null): ChangeNumber {
+  if (typical === null || value === typical) return {caption, value: amount(value, unit), note: null};
+  const ratio = typical > 0 && value > 0 ? value / typical : null;
+  const note = ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5)
+    ? "이 구간 중앙값의 약 " + digits(ratio) + "배"
+    : "이 구간 중앙값보다 " + amount(Math.abs(value - typical), unit) + (value > typical ? " 높음" : " 낮음");
+  return {caption, value: amount(value, unit), note};
+}
+
 /** 주요 변화로 고른 이유를 꼬리표가 아니라 설명으로 말한다. */
 export const CHANGE_WHY = {
   sustained: "이 기록에서 오래 이어진 변화라서 먼저 보여 드립니다.",

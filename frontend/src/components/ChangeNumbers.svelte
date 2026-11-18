@@ -1,7 +1,7 @@
 <script lang="ts">
-  import {changeNumbers, type ChangeFacts} from "../change-story";
+  import {changeNumbers, type ChangeFacts, type ChangeNumber} from "../change-story";
   /** 변화 전후의 두 숫자. 숫자마다 무엇의 값인지 위에, 얼마나 달라졌는지 아래에 적는다. */
-  let {facts, fallback, compact=false}: {facts: ChangeFacts; fallback: string; compact?:boolean} = $props();
+  let {facts, fallback, compact=false, latest=null}: {facts: ChangeFacts; fallback: string; compact?:boolean; latest?: ChangeNumber | null} = $props();
   const numbers = $derived(changeNumbers(facts));
 </script>
 {#if numbers}
@@ -9,6 +9,8 @@
     <div><dt title={numbers.before.caption}>{compact?"기준 대표값":numbers.before.caption}</dt><dd>{numbers.before.value}</dd>{#if numbers.before.note && !compact}<dd class="note">{numbers.before.note}</dd>{/if}</div>
     <span class="arrow" aria-hidden="true">→</span>
     <div><dt title={numbers.after.caption}>{compact?"변화 대표값":numbers.after.caption}</dt><dd>{numbers.after.value}</dd>{#if numbers.after.note}<dd class="note">{compact?numbers.after.note.replace(/^처음보다/,"기준보다"):numbers.after.note}</dd>{/if}</div>
+    {#if latest && !compact}<span class="arrow" aria-hidden="true">→</span>
+      <div><dt>{latest.caption}</dt><dd>{latest.value}</dd>{#if latest.note}<dd class="note">{latest.note}</dd>{/if}</div>{/if}
   </dl>
 {:else}<p class="change-values plain">{fallback}</p>{/if}
 <style>

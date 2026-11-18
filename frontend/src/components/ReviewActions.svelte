@@ -103,7 +103,8 @@
 {/snippet}
 
 <section aria-labelledby={"review-" + id}>
-  <h3 id={"review-" + id} tabindex="-1" bind:this={historyHeading}>검토 기록</h3>
+  <!-- 남긴 기록이 없으면 빈 목록을 말하지 않고 판단 칸만 보인다. -->
+  <h3 id={"review-" + id} tabindex="-1" bind:this={historyHeading} class:visually-hidden={!events.length}>검토 기록</h3>
   {#if events.length}
     {#if eventsTotal > events.length}
       <p class="context">최근 {events.length}건만 보입니다 (전체 {eventsTotal}건).</p>
@@ -113,8 +114,6 @@
         <li>{clock(event.recordedAt)} · {ACTION[event.action]}{event.decision ? " · " + DECISION_LABEL[event.decision] : ""}{event.note ? " · " + event.note : ""}</li>
       {/each}
     </ol>
-  {:else}
-    <p class="context">아직 남긴 검토 기록이 없습니다.</p>
   {/if}
   {#if status === "closed"}
     <p class="context">검토가 종료되어 기록을 더 남길 수 없습니다.</p>
@@ -126,7 +125,6 @@
       <div class="actions">
         <button type="button" class="ui-button ui-button-primary" disabled={busy || !decision} onclick={() => void act("acknowledge")}>{confirmLabel}</button>
       </div>
-      <p class="context">판단을 남기면 확인함이 되고, 그 뒤에 검토를 종료할 수 있습니다.</p>
     {:else if !confirmingClose}
       {#if judged}<p class="current">현재 판단 · <strong>{DECISION_LABEL[judged]}</strong></p>{/if}
       <label class="note">후속 메모<textarea maxlength="1000" rows="2" bind:value={note} disabled={busy}></textarea></label>

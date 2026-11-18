@@ -75,29 +75,27 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             pw.expect(card).to_contain_text("일정하던 기준값보다 높았습니다")
             assert card.bounding_box()["y"] < 844
             signal_href = card.get_by_role(
-                "link", name="변화 구간 조사", exact=False
+                "link", name="원본 신호에서 이 구간 보기", exact=False
             ).get_attribute("href")
             pw.expect(card.locator("svg path.trace")).to_have_count(1)
-            compare = card.get_by_role(
-                "link", name="기준 기간과 이 구간 비교 →", exact=True
-            ).first.get_attribute("href")
+            evidence = page.get_by_role("list", name="이 변화를 확인한 근거")
+            compare = evidence.locator('a[href*="method=compare"]').first.get_attribute("href")
             assert "monitor_source=source-b" in compare and "monitor_point=bearing" in compare
-            card.get_by_text("판단·메모", exact=True).click()
-            card.get_by_role("radio", name="계속 관찰").check()
-            card.get_by_label("메모 (선택)").fill("운전 기록과 비교함")
-            card.get_by_role("button", name="판단 저장", exact=True).click()
-            pw.expect(card.locator(".events li")).to_have_count(1)
+            # 판단하는 곳은 하나: 오른쪽의 '이 변화를 어떻게 할까요?'.
+            review = page.get_by_role("region", name="이 변화를 어떻게 할까요?")
+            review.get_by_role("radio", name="계속 관찰").check()
+            review.get_by_label("메모 (선택)").fill("운전 기록과 비교함")
+            review.get_by_role("button", name="판단 저장", exact=True).click()
+            pw.expect(review.locator(".events li")).to_have_count(1)
             page.reload()
-            card = page.locator(".found > li").first
-            card.get_by_text("판단·메모", exact=True).click()
-            pw.expect(card).to_contain_text("현재 판단 · 계속 관찰")
-            pw.expect(card.get_by_role("button", name="판단 저장", exact=True)).to_have_count(0)
-            card.get_by_label("후속 메모").fill("다음 측정에서 다시 확인함")
-            card.get_by_role("button", name="메모 추가", exact=True).click()
-            pw.expect(card.locator(".events li")).to_have_count(2)
+            pw.expect(review).to_contain_text("현재 판단 · 계속 관찰")
+            pw.expect(review.get_by_role("button", name="판단 저장", exact=True)).to_have_count(0)
+            review.get_by_label("후속 메모").fill("다음 측정에서 다시 확인함")
+            review.get_by_role("button", name="메모 추가", exact=True).click()
+            pw.expect(review.locator(".events li")).to_have_count(2)
             append("source-b", 120, 180, True)
             page.reload()
-            archive_summary = page.get_by_text("저장한 주요 변화 검토", exact=True)
+            archive_summary = page.get_by_text("이 설비의 저장한 검토", exact=True)
             archive_summary.click()
             archive = archive_summary.locator("..")
             archive.locator("details > summary").first.click()

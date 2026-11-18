@@ -54,6 +54,15 @@ def _page(runtime: Any, port: int, width: int, *assets: str) -> tuple[Any, Any, 
     return browser, page, errors
 
 
+def _show_options(page: Any) -> None:
+    """Open what the asset's data supports.
+
+    With a change to judge it sits in the data section at the bottom, otherwise in the summary.
+    """
+    page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
+    page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+
+
 @pytest.mark.parametrize("width", [390, 1280])
 def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
     tmp_path: Path, width: int
@@ -74,7 +83,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
             try:
                 base = f"http://127.0.0.1:{server.server_port}/web/?page=assets"
                 page.goto(base + "&monitor_asset=motor-01")
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 options = page.get_by_role("region", name="사용 가능한 분석")
                 rows = options.get_by_role("listitem")
 
@@ -103,20 +112,20 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                 heading = page.get_by_role("heading", name="두 기간 비교", exact=True)
                 pw.expect(heading).to_be_visible()
                 page.go_back()
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 options.get_by_role("link", name="신호 관계 열기").click()
                 pw.expect(page).to_have_url(
                     base + "&tab=change&method=relation&data=history&monitor_asset=motor-01"
                 )
                 page.go_back()
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 options.get_by_role("link", name="신호 추세 전망 열기").click()
                 expect_place(pw, page, "신호 추세 전망")
                 pw.expect(page.get_by_role("heading", name="추세·기준 도달 전망")).to_be_visible()
 
                 # Vibration with a connected model: every analysis but the outlook.
                 page.goto(base + "&monitor_asset=bearing-a")
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 pw.expect(rows).to_have_count(5)
                 pw.expect(options).to_contain_text(
                     "신호 추세 전망 — 기록이 짧음 (예측 기간의 2배 이상 필요)"
@@ -127,7 +136,7 @@ def test_the_summary_says_what_each_assets_data_supports_and_opens_it(
                     base + "&tab=change&method=spectrum&monitor_asset=bearing-a"
                 )
                 page.go_back()
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 options.get_by_role("link", name="이상 징후 열기").click()
                 pw.expect(page).to_have_url(
                     base + "&tab=anomaly&method=model&monitor_asset=bearing-a"
@@ -156,7 +165,7 @@ def test_a_fitting_model_that_is_not_connected_yet_is_one_link_away(tmp_path: Pa
                     f"http://127.0.0.1:{server.server_port}/web/"
                     "?page=assets&monitor_asset=bearing-a"
                 )
-                page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+                _show_options(page)
                 options = page.get_by_role("region", name="사용 가능한 분석")
                 anomaly = options.locator('li[data-capability="anomaly"]')
                 pw.expect(anomaly).to_contain_text("맞는 모델 2개 연결 가능")

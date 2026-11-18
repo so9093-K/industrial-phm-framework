@@ -1,5 +1,6 @@
 /** 상태 요약에서 고른 변화 구간에 모델이 어떻게 판단했는지 센다. 최근 결과만으로는
  * 그 변화를 모델도 보았는지 알 수 없어서, 같은 구간의 결과를 따로 센다. */
+import {subject} from "./change-story.ts";
 import type {ScoreTrend} from "./model-trend.ts";
 import {RARE_IN_REFERENCE, type ModelOperation} from "./model-operation.ts";
 import {bandName} from "./record-findings.ts";
@@ -31,13 +32,19 @@ export function rareAtChange(operation: ModelOperation, condition: string): numb
   return null;
 }
 
-/** 같은 변화 구간을 분석한 모델끼리 기준 초과 여부가 갈렸는지. 절반 이상 초과한 모델과 절반 미만인 모델이
- * 함께 있을 때만 말한다. 척도가 다른 점수를 견주지 않고, 각 모델이 그 구간에서 몇 번 넘었는지만 나란히 놓는다. */
-export function splitAtChange(rows: {name: string; analyzed: number; exceeded: number}[]): string | null {
+/** 상태 요약의 모델 근거 한 줄: 이 변화 구간을 분석한 모델마다 몇 회 중 몇 회 기준을 넘었는지.
+ * 절반 이상 넘은 모델과 절반 미만인 모델이 함께 있으면 판단이 갈렸다고 먼저 말하고, 변화가 모델이 거의
+ * 학습하지 않은 운전 상태에서 났으면 그 초과만으로 확인하기 어렵다고 덧붙인다. 척도가 다른 점수는 견주지 않는다. */
+export function modelEvidence(rows: {name: string; analyzed: number; exceeded: number}[],
+  unlearned: {condition: string; share: number} | null = null): string | null {
   const read = rows.filter(row => row.analyzed > 0);
+  if (!read.length) return null;
   const over = read.filter(row => row.exceeded * 2 >= row.analyzed), under = read.filter(row => row.exceeded * 2 < row.analyzed);
-  if (!over.length || !under.length) return null;
   const count = (value: number) => value.toLocaleString("ko-KR");
-  return "이 변화 구간에서 모델 판단이 갈립니다 · 기준 초과 "
-    + [...over, ...under].map(row => row.name + " " + count(row.analyzed) + "회 중 " + count(row.exceeded) + "회").join(", ");
+  const list = [...over, ...under].map(row => row.name + " " + count(row.analyzed) + "회 중 " + count(row.exceeded) + "회").join(", ");
+  const lead = over.length && under.length ? "모델 판단이 갈립니다 · 기준 초과 " : "모델 기준 초과 · ";
+  const caution = unlearned && over.length
+    ? " 모델을 학습한 기간에는 " + subject(unlearned.condition) + " " + (unlearned.share === 0 ? "없었습니다" : unlearned.share < 0.01 ? "1% 미만이었습니다" : Math.round(unlearned.share * 100) + "%뿐이었습니다") + "."
+    : "";
+  return lead + list + "." + caution;
 }

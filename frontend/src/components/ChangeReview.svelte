@@ -31,7 +31,6 @@
 {#if readState === "loading"}<StatusNotice message="이 변화의 저장된 검토를 확인하고 있습니다." />
 {:else if readState === "failed"}<StatusNotice kind="failure" message={error} actionLabel="검토 다시 읽기" onAction={()=>void load()} />
 {:else}
-  <p class="context">이 변화와 비교 기준을 함께 보존합니다. 새 측정이 들어온 뒤에도 ‘저장한 주요 변화 검토’에서 이어서 볼 수 있습니다.</p>
   <ReviewActions id={capture?.id ?? finding.reviewKey!} status={capture?.review.status ?? "open"} events={capture?.review.events ?? []}
     {writable} {draftNote} confirmLabel="판단 저장" closeQuestion="이 변화의 검토를 종료할까요? 종료하면 기록을 더 남길 수 없습니다." {reload}
     submit={async(action,note,eventId,signal,decision)=>{
@@ -39,4 +38,4 @@
       await reviewChange(assetId,capture,action,note,eventId,signal,decision);
     }} />
 {/if}
-<style>.context{font-size:var(--font-small);color:var(--color-ink-muted);overflow-wrap:anywhere}</style>
+
