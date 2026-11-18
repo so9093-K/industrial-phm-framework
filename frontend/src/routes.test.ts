@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
@@ -21,6 +21,46 @@ test("tab activation carries the latest chosen signal while dropping workflow-sp
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",wave),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
   const summary=tabSelectionUrl("/web/?page=assets&monitor_asset=bearing",wave);
   assert.equal(new URL(tabSelectionUrl("/web/?page=assets&tab=outlook&monitor_asset=bearing",origin+summary),origin).searchParams.get("acq_forecast_feature"),"vertical.rms");
+});
+
+test("a chosen summary change replaces the prior record and carries its operating level and periods",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=pump";
+  const before=base+"&monitor_channel=old&monitor_source=A&compare_level=1&vibration_feature=old";
+  const picked=base+"&monitor_channel=pressure&monitor_source=B&monitor_point=&monitor_interpretation=pressure-meaning&compare_level=3&compare_a=a&compare_b=b&relation_x=pressure&relation_y=current";
+  const chosen=summarySelectionUrl(before,picked,"change-B","history");
+  const query=new URL(tabSelectionUrl(base+"&tab=change",'http://local'+chosen),'http://local').searchParams;
+  assert.equal(query.get("monitor_channel"),"pressure");
+  assert.equal(query.get("monitor_source"),"B");
+  assert.equal(query.get("monitor_point"),"");
+  assert.equal(query.get("monitor_interpretation"),"pressure-meaning");
+  assert.equal(query.get("compare_level"),"3");
+  assert.equal(query.get("compare_b"),"b");
+  assert.equal(query.get("relation_x"),"pressure");
+  assert.equal(query.get("data"),"history");
+  assert.equal(query.has("vibration_feature"),false);
+  assert.equal(query.get("summary_change"),"change-B");
+  const edited=new URL('http://local'+chosen);edited.searchParams.set("monitor_channel","voltage");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=relation",edited.href),'http://local').searchParams.get("relation_x"),"voltage");
+  assert.throws(()=>summarySelectionUrl(before,picked.replace('pump','other'),"change-B","history"));
+});
+
+test("a selected bearing change keeps its feature and acquisition periods across analysis tabs",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=bearing";
+  const choice=base+"&acquisition_feature=vertical.rms&vibration_feature=vertical.rms&feature_a_from=1&feature_a_to=10&feature_b_from=23&feature_b_to=30";
+  const summary=summarySelectionUrl(base,choice,"vertical-change","vibration");
+  const comparison=new URL(tabSelectionUrl(base+"&tab=change&method=compare",'http://local'+summary),'http://local');
+  assert.equal(comparison.searchParams.get("data"),"vibration");
+  assert.equal(comparison.searchParams.get("acquisition_feature"),"vertical.rms");
+  assert.equal(comparison.searchParams.get("feature_b_from"),"23");
+  const signal=tabSelectionUrl(base+"&tab=signals",comparison.href);
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change",'http://local'+signal),'http://local').searchParams.get("data"),"vibration");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change&data=history",comparison.href),'http://local').searchParams.get("summary_kind"),"history");
+  const relation=new URL(tabSelectionUrl(base+"&tab=change&method=relation",comparison.href),'http://local');
+  assert.equal(relation.searchParams.get("acq_b_from"),"23");
+  const revised=new URL(relation);revised.searchParams.set("acq_b_to","29");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=compare",revised.href),'http://local').searchParams.get("feature_b_to"),"29");
+  comparison.searchParams.set("acquisition_feature","horizontal.rms");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=relation",comparison.href),'http://local').searchParams.get("acq_relation_x"),"horizontal.rms");
 });
 
 test("primary navigation stays observation-first while record links resolve directly", () => {

@@ -13,6 +13,7 @@
   import ChangeNumbers from "./ChangeNumbers.svelte";
   import {changeHeadline} from "../change-story";
   import AssetFocus from "./AssetFocus.svelte";
+  import LatestMeasurement from "./LatestMeasurement.svelte";
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
@@ -117,6 +118,7 @@
   // An asset still being imported, or left with part of its record, says so on its row; the list
   // is read again while an import runs so its count moves.
   let publicBearings:string[]=$state([]);
+  let canImport=$state(false);
   const offerBearing=$derived(publicBearings.length>0&&!assets.some(asset=>publicBearings.includes(asset.assetId)));
   const bearingHref=systemUrl("connections")+"&dataset_kind=xjtu-sy#public-datasets";
   let imports: Map<string, UnfinishedImport> = $state(new Map());
@@ -126,6 +128,7 @@
       try {
         const datasets=await readPublicDatasets(request.signal);
         imports=unfinishedImports(datasets);
+        canImport=datasets.canImport;
         publicBearings=datasets.items.filter(item=>item.kind==="xjtu-sy").map(item=>item.assetId);
       } catch { return; }
       if ([...imports.values()].some((note) => note.running)) timer = setTimeout(() => void read(), 15000);
@@ -159,7 +162,8 @@
   <div class="head">
     <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
     <div class="head-tools">
-    {#if offerBearing}<a class="bearing-entry" href={bearingHref}>공개 베어링 진동 기록 가져오기 →</a>{/if}
+    {#if offerBearing}<div class="bearing-start"><a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>
+      {#if !canImport}<small>보기 전용 · 가져오려면 변경 가능한 작업공간을 여세요.</small>{/if}</div>{/if}
     {#if assets.length > 1}<details class="view-options" class:compact={assets.length<=3} open={assets.length>3}>
       <summary>정렬·필터</summary><div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
@@ -230,6 +234,7 @@
 
           </div>
           <div class="cell" role="cell" data-label="마지막 측정에서 확인할 것">
+            {#if row?.finding}<LatestMeasurement main={row.main}/>{/if}
             <small>확인할 항목 {attentionText(count(asset), notesState)}</small>
             {#if note}<strong class="primary-reason">{note.label}</strong>
               <a class="investigate" href={note.href}>{note.kind==="departure"&&row?.finding?"최근 측정 살펴보기":note.action} →</a>{/if}
@@ -245,7 +250,6 @@
             {:else if row}<small>{row.kind === "vibration" ? "진동 측정" : "운전 수준을 나눌 정보 없음"}</small>
             {:else}<small>{waiting}</small>{/if}
               {#if row?.operation?.shares}<p class="shares">{row.operation.shares.map((share,band)=>bandName(row.operation!.names,band)+" "+percent(share)).join(" · ")}</p>{/if}
-              {#if row?.finding&&row.main?.latest}<p class="reason-detail">마지막 저장값 · {row.main.label} <strong class="latest">{changeValue(row.main.latest.value,row.main.unit)}</strong></p>{/if}
               {#if row?.copied}<p class="reason-detail">신호 {row.copied}개는 변화 비교에서 제외했습니다. <a href={href(asset.assetId)}>해당 기록 확인 →</a></p>{/if}
               {#if note}<p class="reason-detail">{note.detail}</p>{/if}
             {#if reasons && (notes[asset.assetId]??0)>0}<a class="reason-link" href={"#attention-"+encodeURIComponent(asset.assetId)} onclick={()=>showReasons(asset.assetId)}>확인 항목 모두 보기 →</a>{/if}
@@ -260,6 +264,7 @@
 </section>
 
 <style>
+  .bearing-start{display:grid;gap:var(--space-1)}.bearing-start small{font-size:var(--font-label);color:var(--color-ink-muted)}
   .view-options>summary{cursor:pointer;font-size:var(--font-small);color:var(--color-action);font-weight:650;padding-block:var(--space-2)}.view-options:not(.compact)>summary{display:none}.view-options.compact[open] .filters{padding-top:var(--space-2)}
   .head-tools{display:flex;align-items:center;justify-content:end;gap:var(--space-3) var(--space-5);flex-wrap:wrap}.bearing-entry{font-size:var(--font-small);font-weight:650}.trace-cell :global(figure){margin:0}.trace-cell :global(figcaption){font-size:var(--font-label)}
   .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2) var(--space-4)}

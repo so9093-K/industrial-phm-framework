@@ -25,7 +25,7 @@
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
-  import {assetTabUrl, routeUrl} from "../routes";
+  import {assetTabUrl, routeUrl, summarySelectionUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
@@ -99,14 +99,49 @@
   });
   // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
   type Pick = {kind: "history" | "vibration"; index: number};
-  let picked: Pick | null = $state(null);
+  let pickedKey = $state(new URLSearchParams(location.search).get("summary_change"));
+  const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
+  const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
   const focus = $derived.by((): Pick | null => {
-    if (picked) return picked;
     const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
+    const h=history?.intervals.findIndex(item=>historyKey(item)===pickedKey)??-1;
+    if(h>=0)return {kind:"history",index:h};
+    const v=measured?.intervals.findIndex(change=>vibrationKey(change)===pickedKey)??-1;
+    if(v>=0)return {kind:"vibration",index:v};
     if (history?.intervals.length) return {kind: "history", index: 0};
     if (measured?.intervals.length) return {kind: "vibration", index: 0};
     return null;
   });
+  function selectChange(pick:Pick) {
+    const records:RecordFindings|null=findings, measured:VibrationRecord|null=vibration;
+    let target:URL, key:string;
+    if(pick.kind==="history"&&records?.intervals[pick.index]) {
+      const item=records.intervals[pick.index];
+      const links=findingLinks(asset.assetId,item,records.baseline,records.bucketSeconds,records.record);
+      target=new URL(links.compare??links.signal??links.outlook,location.origin);
+      if(links.signal) {
+        const signal=new URL(links.signal,location.origin);
+        for(const name of ["monitor_range","monitor_from","monitor_to","monitor_pick"])
+          if(signal.searchParams.has(name))target.searchParams.set(name,signal.searchParams.get(name)!);
+      }
+      target.searchParams.set("relation_x",item.channel);
+      const other=item.related.find(row=>row.state!=="within")??item.related[0];
+      if(other)target.searchParams.set("relation_y",other.channel);
+      key=historyKey(item);
+    } else if(pick.kind==="vibration"&&measured?.intervals[pick.index]) {
+      const change=measured.intervals[pick.index];
+      target=new URL(vibrationLinks(asset.assetId,change).compare,location.origin);
+      target.searchParams.set("vibration_feature",change.feature);
+      target.searchParams.set("vibration_at",String(change.from));
+      target.searchParams.set("acq_relation_x",change.feature);
+      if(change.related[0])target.searchParams.set("acq_relation_y",change.related[0].feature);
+      for(const part of ["a_from","a_to","b_from","b_to"])
+        target.searchParams.set("acq_"+part,target.searchParams.get("feature_"+part)!);
+      key=vibrationKey(change);
+    } else return;
+    history.replaceState(history.state,"",summarySelectionUrl(location.href,target.href,key,pick.kind));
+    pickedKey=key;
+  }
   const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
   const focusSpan = $derived.by(() => {
     const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
@@ -311,7 +346,7 @@
       <h2 id="others-title">이 기록의 다른 변화 {otherChanges.length}건</h2>
       <ul class="other-changes">
         {#each otherChanges as row (row.key)}
-          <li><button type="button" onclick={() => picked = row.pick} aria-label={row.label + " 변화 크게 보기"}>
+          <li><button type="button" onclick={() => selectChange(row.pick)} aria-label={row.label + " 변화 크게 보기"}>
             <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button>
             {#if row.href}<a href={row.href}>구간 조사 →</a>{/if}</li>
         {/each}
