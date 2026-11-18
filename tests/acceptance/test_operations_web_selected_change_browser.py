@@ -110,6 +110,17 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                 pw.expect(
                     page.locator(".series" if kind == "history" else ".acquisition .evidence").first
                 ).to_be_visible(timeout=30000)
+                if kind == "vibration":
+                    # The default comparison tab has no explicit method query. An edited
+                    # period must still become the relationship screen's current period.
+                    assert "method" not in parse_qs(urlsplit(page.url).query)
+                    end = chosen["to"] - 1
+                    page.locator(".acquisition .ranges fieldset").nth(1).get_by_label(
+                        "끝", exact=True
+                    ).fill(str(end - 1))  # one-minute intervals, displayed from zero
+                    page.get_by_role("button", name="비교하기", exact=True).click()
+                    pw.expect(page.locator(".acquisition .evidence")).to_be_visible(timeout=30000)
+                    selected["feature_b_to"] = [str(end)]
                 compared = parse_qs(urlsplit(page.url).query, keep_blank_values=True)
                 for key in (
                     (
@@ -140,7 +151,7 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                     assert related["monitor_source"] == ["B"]
                 else:
                     assert related["acq_b_from"] == [str(chosen["from"])]
-                    assert related["acq_b_to"] == [str(chosen["to"])]
+                    assert related["acq_b_to"] == selected["feature_b_to"]
                 tabs.get_by_role("link", name="신호", exact=True).click()
                 signal_query = parse_qs(urlsplit(page.url).query)
                 assert signal_query[

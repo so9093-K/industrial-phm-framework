@@ -59,6 +59,10 @@ test("a selected bearing change keeps its feature and acquisition periods across
   assert.equal(relation.searchParams.get("acq_b_from"),"23");
   const revised=new URL(relation);revised.searchParams.set("acq_b_to","29");
   assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=compare",revised.href),'http://local').searchParams.get("feature_b_to"),"29");
+  revised.searchParams.set("acq_relation_x","horizontal.rms");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=signals",revised.href),'http://local').searchParams.get("vibration_feature"),"horizontal.rms");
+  const defaultComparison=new URL(comparison);defaultComparison.searchParams.delete("method");defaultComparison.searchParams.set("feature_b_to","28");
+  assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=relation",defaultComparison.href),'http://local').searchParams.get("acq_b_to"),"28");
   comparison.searchParams.set("acquisition_feature","horizontal.rms");
   assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=relation",comparison.href),'http://local').searchParams.get("acq_relation_x"),"horizontal.rms");
 });

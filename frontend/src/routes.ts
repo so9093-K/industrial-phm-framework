@@ -96,14 +96,15 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
     if(current.searchParams.has("summary_kind"))next.searchParams.set("summary_kind",selectedKind);
   }
   // Feature comparison and relationship screens name the same acquisition periods differently.
-  if(from.tab==="change"&&(from.method==="compare"||from.method==="relation")) {
-    const prefix=from.method==="compare"?"feature_":"acq_", target=prefix==="feature_"?"acq_":"feature_";
+  if(from.tab==="change"&&(from.method===null||from.method==="compare"||from.method==="relation")) {
+    const prefix=from.method==="relation"?"acq_":"feature_", target=prefix==="feature_"?"acq_":"feature_";
     for(const span of ["a_from","a_to","b_from","b_to"])
       if(current.searchParams.has(prefix+span))next.searchParams.set(target+span,current.searchParams.get(prefix+span)!);
   }
   const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
   const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];
-  const feature = (sourceKey ? current.searchParams.get(sourceKey) : null)
+  const feature = (from.tab==="change"&&from.method==="relation"?current.searchParams.get("acq_relation_x"):null)
+    ?? (sourceKey ? current.searchParams.get(sourceKey) : null)
     ?? Object.values(keys).map(key => current.searchParams.get(key)).find(value => value);
   if (feature) next.searchParams.set(targetKey ?? "vibration_feature", feature);
   if(to.method==="relation"&&!(from.tab==="change"&&from.method==="relation")) {
