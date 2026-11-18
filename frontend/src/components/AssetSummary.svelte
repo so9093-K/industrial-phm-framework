@@ -100,7 +100,9 @@
   });
   // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
   type Pick = {kind: "history" | "vibration"; index: number};
-  let pickedKey = $state(new URLSearchParams(location.search).get("summary_change"));
+  const initialSelection=new URLSearchParams(location.search);
+  const seedContext=!["monitor_channel","vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature"].some(key=>initialSelection.has(key));
+  let pickedKey = $state(initialSelection.get("summary_change"));
   let reviewDrafts:Record<string,{sequence:number;text:string}>=$state({});
   const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
   const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
@@ -150,7 +152,7 @@
     const current=focus;
     const ready=(!data?.history||findingState==="ready"||findingState==="failed")
       &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
-    if(current&&pickedKey===null&&ready)untrack(()=>selectChange(current));
+    if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current));
   });
   const focusSpan = $derived.by(() => {
     const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
@@ -369,6 +371,7 @@
       {#if data?.history}<p class="context small"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>{/if}
     </section>
   {/if}
+</aside>
   <section class="ui-panel more rail-section" aria-labelledby="more-title">
   <h2 id="more-title">이어서 확인할 것</h2>
   <dl class="rows">
@@ -446,7 +449,6 @@
     </dd></div>
   </dl>
 </section>
-</aside>
 </div>
 
 <details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
@@ -489,6 +491,11 @@
   .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
   .facts-panel > h2.eyebrow { margin: 0; font-size: var(--font-small); font-weight: 650; color: var(--color-ink-muted); }
   .rail { display: grid; gap: var(--space-4); min-width: 0; }
+  .more{grid-column:1 / -1}
+  @media(min-width:1100px){
+    .more .rows{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:var(--space-3) var(--space-6)}
+    .more .rows>div:first-child{grid-row:span 2}
+  }
   .rail-section { padding: var(--space-4) var(--space-5); }
   .rail-section h2 { font-size: var(--font-body); margin: 0 0 var(--space-2); }
   @media (max-width: 1099px) { .summary-layout { grid-template-columns: minmax(0, 1fr); } }

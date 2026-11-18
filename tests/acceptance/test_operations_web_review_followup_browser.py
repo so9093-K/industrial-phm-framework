@@ -64,9 +64,13 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 )
                 page.goto(origin + "/web/?page=assets&monitor_asset=motor")
                 card = page.locator(".found > li").first
-                pw.expect(card.locator("path.trace")).to_be_visible()
+                pw.expect(card.locator("figure").first).to_be_visible()
                 path = card.locator("path.trace").get_attribute("d")
-                assert path.count("M") == 2 and "L" in path
+                # The focused change can be a horizontal line after the gap. Its
+                # whole-record strip must still leave the unmeasured stretch blank.
+                assert path and "L" in path
+                whole = card.locator(".strip path.judged").get_attribute("d")
+                assert whole and whole.count("M") == 2 and "L" in whole
                 pw.expect(card.locator("circle.sample")).not_to_have_count(0)
                 page.goto(
                     origin
