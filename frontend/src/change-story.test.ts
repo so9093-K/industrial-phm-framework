@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {changeNumbers, changeSentence, object, subject} from "./change-story.ts";
+import {changeHeadline, changeNumbers, changeSentence, object, subject} from "./change-story.ts";
 
 test("a name takes the subject particle its last sound asks for", () => {
   assert.deepEqual(["T상전압", "주파수", "수직 진동 RMS", "전류 L", "채널 1", "채널 2", "온도 (입구)"].map(subject),
@@ -29,4 +29,11 @@ test("both numbers say what they are, how steady the first was and how far the s
     after: {caption: "이 구간의 중앙값", value: "193", note: "처음보다 193 높음"},
   });
   assert.equal(changeNumbers({label: "전류", unit: "A", direction: "up", reference: null, typical: 3}), null);
+});
+
+
+test("the entry headline stays brief while keeping its comparison direction", () => {
+  assert.equal(changeHeadline({label:"수직 진동 RMS",feature:"feature.Vertical_vibration_signals.rms",direction:"up"}),"수직 진동 크기 (RMS)가 비교 기준보다 높았습니다.");
+  assert.equal(changeHeadline({label:"전류",direction:"up"}),"전류가 비교 기준보다 높았습니다.");
+  assert.equal(changeHeadline({label:"온도",direction:"down",kind:"level-change"}),"온도가 일정하던 기준값보다 낮았습니다.");
 });

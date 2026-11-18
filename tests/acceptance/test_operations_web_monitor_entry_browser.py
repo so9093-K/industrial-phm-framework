@@ -212,8 +212,14 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
                 pw.expect(one.locator(".latest")).to_have_text("65 °C", timeout=30000)
                 pw.expect(two.locator(".latest")).to_have_text("30 °C", timeout=30000)
                 pw.expect(one.get_by_role("cell").nth(1)).to_contain_text("2020년 10월 22일")
-                # The multi-asset graph uses the same gap rule as the single-asset graph.
-                assert one.locator("svg path").get_attribute("d").count("M") >= 2
+                # The entry chart shows the change itself, not a line connecting the
+                # earlier 40°C record across the unmeasured half-hour gap to 65°C.
+                assert "L" not in one.locator("svg path").get_attribute("d")
+                samples = one.locator("circle.sample").evaluate_all(
+                    "points => [...new Set(points.map(point => point.getAttribute('cy')))]"
+                )
+                assert len(samples) == 1
+                assert one.locator("line.reference").get_attribute("y1") != samples[0]
                 initial_two_reads = reads["pump-2"]
                 mode["hold"] = True
                 append("pump-1", "original", 180, 190, 70)
@@ -303,7 +309,7 @@ def test_vibration_entry_plots_the_changed_feature_not_the_representative_rms(
                 page.goto(origin + "/web/")
                 focus = page.get_by_role("article", name="bearing-a 기록 요약")
                 pw.expect(focus.get_by_role("heading", level=4)).to_contain_text(
-                    "수직 진동 RMS", timeout=30000
+                    "수직 진동 크기 (RMS)", timeout=30000
                 )
                 figure = focus.get_by_role("figure", name="수직 진동 RMS 기록 추이")
                 pw.expect(figure).to_be_visible()
@@ -322,6 +328,74 @@ def test_vibration_entry_plots_the_changed_feature_not_the_representative_rms(
                     "23번째 측정"
                 )
                 assert not errors
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
+def test_prepared_bearing_entry_opens_its_group_and_disappears_after_registration(
+    tmp_path: Path,
+) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "bearing-entry", bind=False)
+    snapshot = json.loads(asset_list("compressor"))
+    datasets = {
+        "schema_version": 1,
+        "available": True,
+        "can_import": False,
+        "meaning": "public-datasets-found-in-the-datasets-folder-not-imported-evidence",
+        "jobs": {},
+        "items": [
+            {
+                "dataset_id": "aihub:compressor",
+                "kind": "aihub-239",
+                "asset_id": "compressor",
+                "equipment": "공기압축기",
+                "split": "학습용",
+                "device_id": "1306",
+                "device_board_id": "1",
+                "bytes": 100,
+                "stored": True,
+                "partial": False,
+                "source_changed": False,
+            },
+            {
+                "dataset_id": "xjtu-sy:Bearing1_1",
+                "kind": "xjtu-sy",
+                "asset_id": "Bearing1_1",
+                "rotational_speed_hz": 35.0,
+                "radial_load_kn": 12.0,
+                "acquisitions": 123,
+                "stored": False,
+                "partial": False,
+                "source_changed": False,
+            },
+        ],
+    }
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 900})
+                page.route("**/api/v1/monitor", lambda route: route.fulfill(json=snapshot))
+                page.route("**/api/v1/datasets", lambda route: route.fulfill(json=datasets))
+                page.goto(origin + "/web/")
+                entry = page.get_by_role("link", name="공개 베어링 진동 기록 가져오기 →")
+                pw.expect(entry).to_be_visible()
+                entry.click()
+                group = page.locator(".datasets > details").first
+                pw.expect(group.locator("summary")).to_contain_text("XJTU-SY")
+                assert group.get_attribute("open") is not None
+                pw.expect(group).to_contain_text("Bearing1_1")
+                # Discovery stays useful in a read-only workspace, without posting an import.
+                pw.expect(group.get_by_role("button", name="가져오기", exact=True)).to_be_disabled()
+                snapshot["assets"] = json.loads(asset_list("compressor", "Bearing1_1"))["assets"]
+                page.goto(origin + "/web/")
+                pw.expect(page.get_by_role("heading", name="설비 기록 2개")).to_be_visible()
+                pw.expect(entry).to_have_count(0)
             finally:
                 browser.close()
     finally:

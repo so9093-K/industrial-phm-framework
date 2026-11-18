@@ -27,7 +27,7 @@
     </svg>
     {#snippet footer()}<XAxis lo={first} hi={last} scale={main.axis==="time"?{kind:"clock"}:main.periodSeconds?{kind:"elapsed",period:main.periodSeconds}:{kind:"order"}}/>{/snippet}
   </ValueAxis>
-  <figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 특징값"}{range?" · 음영은 발견한 변화":""}</figcaption>
+  <figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 값"}{range?" · 음영은 발견한 변화":""}</figcaption>
 </figure>
 {/if}
 <style>

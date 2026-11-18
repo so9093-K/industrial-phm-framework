@@ -478,7 +478,7 @@ def test_stored_reviews_stay_reachable_when_their_count_cannot_be_read(
                 ]
                 index.update(status=200, ids=[])
                 page.reload()
-                pw.expect(entry).to_contain_text("저장한 검토가 없습니다", timeout=30000)
+                pw.expect(entry).to_have_text("정비 검토함 열기 →", timeout=30000)
                 pw.expect(entry.get_by_role("link", name="정비 검토함 열기 →")).to_be_visible()
                 index.update(ids=["motor-01", "motor-02"])
                 page.reload()
