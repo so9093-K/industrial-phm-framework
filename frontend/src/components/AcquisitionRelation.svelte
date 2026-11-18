@@ -190,8 +190,8 @@
           <dl>
             <div><dt>분석한 측정</dt><dd>{group.analyzed}회</dd></div>
             <div><dt>쓸 수 있는 특징 짝</dt><dd>{group.pairs}개</dd></div>
-            <div><dt>피어슨</dt><dd>{count(group.pearson)}</dd></div>
-            <div><dt>스피어먼</dt><dd>{count(group.spearman)}</dd></div>
+            <div><dt>상관계수 (값 그대로)</dt><dd>{count(group.pearson)}</dd></div>
+            <div><dt>상관계수 (순위로)</dt><dd>{count(group.spearman)}</dd></div>
           </dl>
           </details>
           <details>

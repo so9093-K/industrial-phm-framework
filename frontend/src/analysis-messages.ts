@@ -1,6 +1,7 @@
 /** The message an analysis screen leads with: what changed, how plain that is, and what to look at
  * next. Every sentence is built from numbers the screen already shows; nothing is fitted or
  * guessed, and no sentence names a cause or a fault. */
+import {object, subject, withAnd} from "./change-story.ts";
 import {worseThanPersistence} from "./forecast-fit.ts";
 import type {BandShare} from "./spectrum.ts";
 import type {RatioLine} from "./model-trend.ts";
@@ -142,7 +143,8 @@ const way = (t: Tie) => t.kind === "same" || t.kind === "opposite"
 const was = (t: Tie) => way(t) ? way(t) + "였고" : t.kind === "none" ? "뚜렷한 관계가 없었고" : "관계가 분명하지 않았고";
 const is = (t: Tie) => way(t) ? way(t) + "입니다" : t.kind === "none" ? "뚜렷한 관계가 없습니다" : "관계가 분명하지 않습니다";
 function coefficients(side: RelationSide, t: Tie): string {
-  return "피어슨 " + side.pearson!.toFixed(2) + (t.kind === "unclear" && side.spearman !== null ? " · 스피어먼 " + side.spearman.toFixed(2) : "");
+  // 통계 이름(피어슨·스피어먼) 대신 무엇으로 계산했는지 말한다: 값 그대로와 크기 순위.
+  return "상관계수 " + side.pearson!.toFixed(2) + (t.kind === "unclear" && side.spearman !== null ? " · 순위로 본 상관계수 " + side.spearman.toFixed(2) : "");
 }
 
 /** How far apart the two periods' Pearson coefficients are, described and not tested: consecutive
@@ -183,11 +185,13 @@ export function sameXText(moved: {shown: {low: number; high: number; a: {median:
   const where = unit(short(shown.low) + "~" + short(shown.high), x.unit);
   const values = short(shown.a.median) + " → " + unit(short(shown.b.median), y.unit);
   const usual = unit(short(shown.a.q1) + "~" + short(shown.a.q3), y.unit);
+  // 두 기간 비교와 같은 말을 쓴다: 사분위 범위는 '가운데 절반', 5~95%는 '90%가 있던 범위'.
+  const side = shown.b.median > shown.a.q3 ? "보다 높습니다." : "보다 낮습니다.";
   if (outside === total && total > 1)
-    return "같은 " + x.name + "끼리 견준 범위 " + total + "개 모두에서 기간 B의 " + y.name + " 중앙값이 기간 A의 가운데 50% 밖입니다. "
-      + "짝이 가장 많은 " + where + "에서는 " + values + "입니다(기간 A 가운데 50% " + usual + ").";
-  return "같은 " + x.name + " " + where + "에서 " + y.name + " 중앙값은 " + values + "로, 기간 A의 가운데 50%(" + usual + ") 밖입니다"
-    + (total > 1 ? "(견준 범위 " + total + "개 중 " + outside + "개에서 밖)." : ".");
+    return object(x.name) + " " + total + "개 범위로 나눠 견줘도 모든 범위에서 기간 B의 " + y.name + " 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
+      + "측정이 가장 많은 " + where + "에서는 " + values + "입니다(기간 A 값의 가운데 절반 " + usual + ").";
+  return subject(x.name) + " " + where + "인 측정만 보면 " + y.name + " 중앙값이 " + values + "로, 기간 A 값의 가운데 절반(" + usual + ")" + side
+    + (total > 1 ? " " + x.name + " 범위 " + total + "개 중 " + outside + "개에서 이렇게 달랐습니다." : "");
 }
 
 export function relationMessage(x: string, y: string, a: RelationSide, b: RelationSide,
@@ -236,9 +240,9 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
   let certainty: string | null = null;
   if (few.length) certainty = few.join(" · ") + "이라 계수가 크게 흔들릴 수 있습니다.";
   else if (unclear.length)
-    certainty = "기간 " + unclear.join("·") + "에서는 피어슨과 스피어먼이 서로 다른 방향을 가리켜, 몇몇 측정이 관계를 좌우하고 있을 수 있습니다. 산점도에서 떨어진 점을 확인하세요.";
+    certainty = "기간 " + unclear.join("·") + "에서는 값 그대로 본 상관계수와 순위로 본 상관계수가 서로 다른 방향을 가리켜, 몇몇 측정이 관계를 좌우하고 있을 수 있습니다. 산점도에서 떨어진 점을 확인하세요.";
   else if (spread !== null)
-    certainty = "두 기간의 피어슨 계수는 " + SPREAD_TEXT[spread] + " 다릅니다(" + a.pearson!.toFixed(2) + " → " + b.pearson!.toFixed(2) + "). " + caution;
+    certainty = "두 기간의 상관계수는 " + SPREAD_TEXT[spread] + " 다릅니다(" + a.pearson!.toFixed(2) + " → " + b.pearson!.toFixed(2) + "). " + caution;
   return {headline, meaning, certainty, next};
 }
 
@@ -569,7 +573,7 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
     : a.median !== null && b.median !== null && b.median !== a.median
       ? "기간 A보다 대표값이 " + (b.median>a.median?"높습니다":"낮습니다") : undefined;
   const certainty = insideMiddle && !lowDiffers && (facts.outsidePercent ?? 100) < 50
-    ? "기간 B의 중앙값은 기간 A의 값이 주로 모인 가운데 50% 범위 안에 있습니다. 5~95% 비교 범위는 기간 A의 가운데 약 90%를 포함하므로, 범위 밖 비율을 그 기준과 함께 읽으세요."
+    ? "기간 B의 중앙값은 기간 A 값의 가운데 절반 안에 있습니다. 범위 밖 비율은 기간 A 값도 약 10%는 90% 범위 밖에 있다는 점과 견줘 읽으세요."
     : base.certainty;
   return {...base, conclusion, certainty, meaning: notes.length ? notes.join(" ") : base.meaning};
 }
@@ -582,9 +586,15 @@ export function forecastMessage(facts: {last:number|null; start?:number; end:{es
   const difference=facts.last===null?null:facts.end.estimate-facts.last;
   const check=facts.checks[0];
   return {
-    headline:worseThanPersistence(check) ? "과거 기록에서는 마지막 값이 계속된다고 가정했을 때보다 모델 예측의 오차가 컸습니다." : facts.horizon+"의 예상값은 "+value(facts.end.estimate)+"입니다.",
+    // 예상값 하나만으로는 '추세가 이어지는가'에 답하지 못한다. 예측이 얼마나 변하는지를 그 끝의 범위 폭과 견줘 말한다.
+    headline:worseThanPersistence(check) ? "과거 기록에서는 마지막 값이 계속된다고 가정했을 때보다 모델 예측의 오차가 컸습니다."
+      : facts.start!==undefined&&facts.end.lower!==null&&facts.end.upper!==null
+        ? "예측값은 "+facts.horizon+"까지 "+short(facts.start)+" → "+value(facts.end.estimate)+"로 "+(facts.end.estimate-facts.start>=0?"+":"")+value(facts.end.estimate-facts.start)
+          +" 변합니다. 그 시점의 예측 범위 폭("+value(facts.end.upper-facts.end.lower)+")"
+          +(Math.abs(facts.end.estimate-facts.start)<(facts.end.upper-facts.end.lower)/2?"의 절반보다 작은 변화입니다.":"과 견줄 만한 변화입니다.")
+        : facts.horizon+"의 예상값은 "+value(facts.end.estimate)+"입니다.",
     meaning:(facts.start===undefined?"":"모델 예측은 "+value(facts.start)+"에서 시작하며, 예측값은 이 기간 동안 "+(facts.end.estimate-facts.start>0?"+":"")+value(facts.end.estimate-facts.start)+"만큼 변합니다. ")
-      +(facts.start!==undefined&&facts.last!==null?"마지막 구간 평균 "+value(facts.last)+"과 모델 시작값의 차이는 "+value(facts.start-facts.last)+"입니다. ":facts.last===null?"":"마지막 구간 평균 "+value(facts.last)+" 대비 "+(difference!>0?"+":"")+value(difference!)+"입니다. ")
+      +(facts.start!==undefined&&facts.last!==null?"마지막 구간 평균 "+withAnd(value(facts.last))+" 모델 시작값의 차이는 "+value(facts.start-facts.last)+"입니다. ":facts.last===null?"":"마지막 구간 평균 "+value(facts.last)+" 대비 "+(difference!>0?"+":"")+value(difference!)+"입니다. ")
       +(facts.end.lower!==null&&facts.end.upper!==null?"해당 시점의 예측 범위는 "+value(facts.end.lower)+"~"+value(facts.end.upper)+"입니다.":"해당 시점의 예측 범위는 제공되지 않았습니다."),
     certainty:check?"과거 마지막 "+check.points+"개를 가리고 확인한 평균 오차는 "+value(check.error)+"였습니다. 실제 값이 예측 범위 안에 든 비율은 "+short(check.coverage*100)+"%였습니다."
       :"과거 자료를 가린 예측 검증 결과가 없어, 예상값과 범위를 잠정적으로 확인하세요.",

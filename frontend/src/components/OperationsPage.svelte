@@ -29,7 +29,7 @@
   const WAYS: {id: Way; label: string; note: string; hash: string}[] = [
     {id: "csv", label: "CSV 파일", note: "내 컴퓨터의 측정 기록 파일", hash: ""},
     {id: "public", label: "공개 실측 데이터", note: "AI-Hub 전력 · XJTU-SY 진동", hash: "#public-datasets"},
-    {id: "other", label: "OPC UA · 작업공간 CSV", note: "실시간 수집, 3상 역할 등록", hash: "#opcua-connect"},
+    {id: "other", label: "OPC UA · 작업공간 CSV", note: "실시간 수집, 3상 역할 등록", hash: "#other-connect"},
   ];
   const wayOf = (hash: string): Way => hash === "#public-datasets" ? "public" : hash === "#opcua-connect" || hash === "#other-connect" ? "other" : "csv";
   let way: Way = $state(wayOf(location.hash));

@@ -73,11 +73,11 @@ test("a relation that vanished in B is told as a change, with the crest factor's
   const peak = "feature.Horizontal_vibration_signals.absolute_peak", crest = "feature.Horizontal_vibration_signals.crest_factor";
   const message = relationMessage(peak, crest, {pearson: 0.938, spearman: 0.923, pairs: 75},
     {pearson: -0.336, spearman: 0.141, pairs: 25}, {a: 8.45, b: 6.47})!;
-  assert.equal(message.headline, "두 값의 관계가 달라졌습니다. 기간 A에서는 같은 방향으로 강하게 함께 움직였고(피어슨 0.94), "
-    + "기간 B에서는 관계가 분명하지 않습니다(피어슨 -0.34 · 스피어먼 0.14).");
+  assert.equal(message.headline, "두 값의 관계가 달라졌습니다. 기간 A에서는 같은 방향으로 강하게 함께 움직였고(상관계수 0.94), "
+    + "기간 B에서는 관계가 분명하지 않습니다(상관계수 -0.34 · 순위로 본 상관계수 0.14).");
   assert.match(message.meaning!, /절대 피크를 RMS로 나눈 값/);
   assert.match(message.meaning!, /8.45 → 6.47로 낮아졌습니다. 가끔 튀는 진동보다 진동 전체가 커지는/);
-  assert.match(message.certainty!, /기간 B에서는 피어슨과 스피어먼이 서로 다른 방향/);
+  assert.match(message.certainty!, /기간 B에서는 값 그대로 본 상관계수와 순위로 본 상관계수가 서로 다른 방향/);
 });
 
 test("an unchanged relation says so, and the gap test tells chance from change", () => {
@@ -85,7 +85,7 @@ test("an unchanged relation says so, and the gap test tells chance from change",
   const same = relationMessage(x, y, {pearson: 0.9, spearman: 0.88, pairs: 50}, {pearson: 0.85, spearman: 0.84, pairs: 50}, null)!;
   assert.match(same.headline, /두 기간 모두 두 값은 같은 방향으로 강하게 함께 움직입니다.*관계는 그대로입니다/);
   assert.equal(same.meaning, null);
-  assert.match(same.certainty!, /두 기간의 피어슨 계수는 조금만 다릅니다\(0.90 → 0.85\)\. 연속된 측정은/);
+  assert.match(same.certainty!, /두 기간의 상관계수는 조금만 다릅니다\(0.90 → 0.85\)\. 연속된 측정은/);
   assert.doesNotMatch(same.certainty!, /우연/);
   const few = relationMessage(x, y, {pearson: 0.9, spearman: 0.9, pairs: 6}, {pearson: 0.1, spearman: 0.1, pairs: 40}, null)!;
   assert.match(few.certainty!, /기간 A는 짝이 6개뿐/);
@@ -299,6 +299,9 @@ test("a forecast without criteria explains its endpoint and its own backtest",as
     checks:[{points:20,error:0.5,naive:1,coverage:0.8}]});
   assert.match(message.headline,/12 A/);
   assert.match(message.meaning!,/10 A.*\+2 A.*9 A~15 A/);
+  // 시작값이 있으면 예측이 얼마나 변하는지를 끝 시점의 예측 범위 폭과 견줘 말한다.
+  const moved=forecastMessage({last:214,start:220,end:{estimate:221.3,lower:216,upper:227},unit:"V",horizon:"2020. 10. 29. 23:59",checks:[]});
+  assert.equal(moved.headline,"예측값은 2020. 10. 29. 23:59까지 220 → 221 V로 +1.3 V 변합니다. 그 시점의 예측 범위 폭(11 V)의 절반보다 작은 변화입니다.");
   assert.match(message.certainty!,/20개.*0.5 A.*80%/);
 });
 
@@ -316,7 +319,7 @@ test("nearby medians are described within A's variation, without declaring both 
     b:{usable:100,median:230.5},outsideCount:12,outsidePercent:12,medianChangePercent:0.217,
     onset:null,means:{a:230,b:230.5},aMiddle:{low:229,high:231},lowCurrent:null},[])!;
   assert.equal(result.conclusion,"두 기간의 대표값은 비슷합니다");
-  assert.match(result.certainty!,/가운데 50% 범위 안/);
-  assert.match(result.certainty!,/가운데 약 90%/);
+  assert.match(result.certainty!,/가운데 절반 안/);
+  assert.match(result.certainty!,/약 10%는 90% 범위 밖/);
   assert.doesNotMatch(result.conclusion!,/정상|고장|문제없|분포.*같/);
 });

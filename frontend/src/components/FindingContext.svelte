@@ -9,11 +9,10 @@
 <aside class="finding-context" aria-label="이 변화의 해석과 다음 확인">
   {#if operation && item.operation && (item.band!=null || item.operation.interval)}
     <div>
-    <h4>같은 운전 수준에서도 달랐나요?</h4>
+    <h4>같은 운전 수준끼리 비교했습니다</h4>
     {#if item.band!=null}
-      <p><strong>{bandName(operation,item.band)}</strong>에 해당하는 측정끼리 비교해 찾은 변화입니다.
-        운전 수준을 구분한 신호는 {operation.label}입니다.</p>
-      <p class="limit">전류 수준을 맞춘 비교입니다. 실제 부하·운전 조건이 완전히 같은지는 운전 기록과 대조하세요.</p>
+      <p>{operation.label} 기준 <strong>{bandName(operation,item.band)}</strong> 때의 측정끼리 비교해 찾은 변화입니다.</p>
+      <p class="limit">전류가 같아도 부하가 같았는지는 운전 기록으로 확인하세요.</p>
     {:else if item.operation.interval}
       <p>{shiftText(operation,item.operation)}</p>
       <p>전체 값의 차이에는 운전 수준별 측정 비중이 섞일 수 있습니다. 같은 수준의 값끼리도 비교해 보세요.</p>

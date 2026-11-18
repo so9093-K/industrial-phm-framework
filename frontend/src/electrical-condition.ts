@@ -1,6 +1,7 @@
 /** Load, voltage/current unbalance and the reference-pattern score of a 3-phase asset, for a
  * recent period against an earlier one, as the server measured them. Changed operating
  * conditions are not a fault, and the reference period is not assumed to be normal. */
+import {subject} from "./change-story.ts";
 import {object} from "./writes.ts";
 import {bandName, type LevelNames} from "./record-findings.ts";
 
@@ -213,13 +214,15 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
   }
   const split=pattern.byLevel;
   if(pattern.scored){
-    lines.push((split?"같은 운전 상태끼리 견준 ":"")+"기준 패턴의 99% 점수 범위를 넘은 관측 "+pattern.above+"개 / "+pattern.scoredSamples+"개 ("+measured(pattern.percent,"%")+").");
+    // '99% 점수 범위' 같은 계산 용어 대신, 기준 기간과 견줘 무엇이 몇 개였는지 말한다.
+    lines.push((split?"같은 운전 상태끼리 견줬을 때 ":"")+"기준 기간의 3상 패턴과 크게 다른 관측 "+pattern.above.toLocaleString("ko-KR")+"개 (관측 "
+      +pattern.scoredSamples.toLocaleString("ko-KR")+"개 중 "+measured(pattern.percent,"%")+").");
     if(!pattern.above)lines.push("이번 기간에는 기준 점수 범위를 넘은 관측이 없습니다.");
   }else lines.push((split?"같은 운전 상태의 ":"")+"기준 기간 데이터가 부족하거나 거의 일정해 패턴을 비교하지 않았습니다. 기준 기간을 바꿔 보세요.");
   // Levels the reference period hardly ran at have nothing to be compared with; say how much of the period that was.
   const apart=split?split.parts.filter(part=>!part.scored&&part.targetSamples>0):[];
-  if(split&&apart.length)lines.push("기준 기간에 드물었던 운전 상태라 견주지 않은 관측 · "+apart.map(part=>bandName(split.names,part.band)
-    +" "+part.targetSamples+"개(기준 기간 "+part.referenceSamples+"개)").join(" · ")+".");
+  if(split&&apart.length)lines.push("기준 기간에 거의 없던 운전 상태라 견주지 않은 관측: "+apart.map(part=>bandName(split.names,part.band)
+    +" "+part.targetSamples+"개(기준 기간 "+part.referenceSamples+"개)").join(", ")+".");
   return lines;
 }
 
@@ -239,14 +242,14 @@ function mergeAdjacent(checks:{at:string;label:string;detail:string;metric:Metri
 export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:string;label:string;detail:string;metric:Metric}[]{
   const notable=condition.pattern.scored?condition.pattern.notable:[];
   if(notable.length)return mergeAdjacent(notable.map(item=>{
-    const unit=" "+item.unit,range="기준 5–95% 범위 "+measured(item.low)+"–"+measured(item.high,unit);
+    const unit=" "+item.unit,range="기준 기간 값의 90%가 있던 범위("+measured(item.low)+"~"+measured(item.high,unit)+")";
     // The server names the one phase farthest from its range. Alone it reads like a lost phase
     // even when all three phases read 0 A, so the same moment's R/S/T values come with it.
     const point=condition.timeline.find(row=>Date.parse(row.at)===Date.parse(item.at));
     const phases=item.unit==="V"?point?.voltage:point?.current;
     const detail=phases
       ?(item.unit==="V"?"전압":"전류")+" R/S/T "+phases.map(value=>measured(value)).join(" / ")+unit
-        +" · 가장 멀리 벗어난 "+item.channel+"의 "+range
+        +" · "+subject(item.channel)+" "+range+"에서 가장 멀리 벗어남"
       :item.channel+" "+measured(item.value,unit)+" · "+range;
     const level=item.band!==null&&condition.pattern.byLevel?bandName(condition.pattern.byLevel.names,item.band)+" 중 · ":"";
     return {at:item.at,label:kstTime(item.at),metric:item.unit==="V"?"voltageUnbalance":"currentMean",detail:level+detail};

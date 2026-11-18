@@ -133,7 +133,7 @@
     {@render card("관측 평균 전류", target.currentMean, reference.currentMean, " A")}
     {@render card("전류가 흐른 시간 · 관측 기준", target.currentAboveFloorHours, reference.currentAboveFloorHours, " h")}
     {@render card("전압 불평형 · 최고", target.voltageUnbalanceMax, reference.voltageUnbalanceMax, "%")}
-    {@render card("전류 불평형 · 상위 5% 경계", target.currentUnbalanceP95, reference.currentUnbalanceP95, "%")}
+    {@render card("전류 불평형 · 높은 쪽 5% 시작값", target.currentUnbalanceP95, reference.currentUnbalanceP95, "%")}
   </div>
 {/snippet}
 

@@ -329,7 +329,7 @@
   <p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>
   <ol class="flow" aria-label="진행 순서">
     {#each ["파일 선택", "미리보기·설비 확인", "저장하고 분석"] as label, index (label)}
-      {@const at = stored ? 3 : table ? 1 : 0}
+      {@const at = stored ? 3 : saving || checking ? 2 : table ? 1 : 0}
       <li data-state={index < at ? "done" : index === at ? "current" : "todo"} aria-current={index === at ? "step" : undefined}>
         <span class="mark" aria-hidden="true">{index < at ? "✓" : index + 1}</span>{label}{#if index < at}<span class="visually-hidden"> 완료</span>{/if}</li>
     {/each}

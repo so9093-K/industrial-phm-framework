@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {changeNumbers, changeSentence, subject} from "./change-story.ts";
+import {changeNumbers, changeSentence, object, subject} from "./change-story.ts";
 
 test("a name takes the subject particle its last sound asks for", () => {
   assert.deepEqual(["T상전압", "주파수", "수직 진동 RMS", "전류 L", "채널 1", "채널 2", "온도 (입구)"].map(subject),
     ["T상전압이", "주파수가", "수직 진동 RMS가", "전류 L이", "채널 1이", "채널 2가", "온도 (입구)가"]);
+  assert.deepEqual(["전류평균", "주파수"].map(object), ["전류평균을", "주파수를"]);
 });
 
 test("a change reads as one sentence: what, from when for how long, against what", () => {
