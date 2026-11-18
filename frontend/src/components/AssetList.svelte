@@ -160,11 +160,12 @@
     <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
     <div class="head-tools">
     {#if offerBearing}<a class="bearing-entry" href={bearingHref}>공개 베어링 진동 기록 가져오기 →</a>{/if}
-    {#if assets.length > 1}<div class="filters">
+    {#if assets.length > 1}<details class="view-options" class:compact={assets.length<=3} open={assets.length>3}>
+      <summary>정렬·필터</summary><div class="filters">
       {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
       {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
       <label>정렬 <select bind:value={order}><option value="attention">확인 항목이 중요한 순</option><option value="name">이름순</option></select></label>
-    </div>{/if}
+    </div></details>{/if}
     </div>
   </div>
   {#if assets.length === 1}
@@ -259,6 +260,7 @@
 </section>
 
 <style>
+  .view-options>summary{cursor:pointer;font-size:var(--font-small);color:var(--color-action);font-weight:650;padding-block:var(--space-2)}.view-options:not(.compact)>summary{display:none}.view-options.compact[open] .filters{padding-top:var(--space-2)}
   .head-tools{display:flex;align-items:center;justify-content:end;gap:var(--space-3) var(--space-5);flex-wrap:wrap}.bearing-entry{font-size:var(--font-small);font-weight:650}.trace-cell :global(figure){margin:0}.trace-cell :global(figcaption){font-size:var(--font-label)}
   .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2) var(--space-4)}
   h2{margin:0}h2 span{font-weight:400;color:var(--color-ink-muted);font-size:var(--font-small)}

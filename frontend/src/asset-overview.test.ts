@@ -30,7 +30,7 @@ test("an overview row reads the summary's first change with how the asset ran", 
 test("the kind of equipment is the name without its number", () => {
   assert.equal(equipmentKind("공기압축기 1306"), "공기압축기");
   assert.equal(equipmentKind("펌프·일반모터 4025"), "펌프·일반모터");
-  assert.equal(equipmentKind("Bearing1_1"), "Bearing");
+  assert.equal(equipmentKind("Bearing1_1"), "베어링");
   assert.equal(equipmentKind("보일러"), "보일러");
 });
 
