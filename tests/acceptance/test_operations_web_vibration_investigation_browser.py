@@ -54,7 +54,7 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 page.goto(url)
                 panel = page.get_by_role("region", name="선택한 진동 변화 조사")
                 ask = panel.get_by_role(
-                    "button", name="이 변화는 언제부터 얼마나 이어졌나요?", exact=True
+                    "button", name="변화 구간의 시작과 지속 범위를 설명해 주세요.", exact=True
                 )
                 pw.expect(ask).to_be_enabled()
                 assert not model.requests
@@ -62,11 +62,11 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 selected = parse_qs(urlsplit(page.url).query)
                 assert selected["summary_kind"] == ["vibration"]
                 # Preserve a person's unfinished note when explicitly importing the AI summary.
-                review = page.get_by_role("region", name="이 변화를 어떻게 할까요?")
+                review = page.get_by_role("region", name="검토", exact=True)
                 review.get_by_label("메모 (선택)", exact=True).fill("현장 기록과 대조 중")
                 ask.click()
                 pw.expect(panel.locator(".answer")).to_have_text(summary, timeout=30000)
-                evidence = page.get_by_role("list", name="이 변화를 확인한 근거")
+                evidence = page.get_by_role("list", name="변화 근거", exact=True)
                 href = evidence.locator('a[href*="method=spectrum"]').get_attribute("href")
                 onset = evidence.locator('a[href*="model_position"]').get_attribute("href")
                 query = parse_qs(urlsplit(href).query)

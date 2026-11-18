@@ -74,7 +74,7 @@ test("y is compared at the same x, and a shift there is said even when the corre
   const said=sameXText(moved,x,y);
   assert.equal(said,"전류평균이 29.8~32.5 A인 측정만 보면 R상전압 중앙값이 220 → 224 V로, 기간 A 값의 가운데 절반(219~221 V)보다 높습니다. 전류평균 범위 3개 중 2개에서 이렇게 달랐습니다.");
   const all=movedAtSameX(ranges.filter(item=>item.low!==10.6))!;
-  assert.equal(sameXText(all,x,y),"전류평균을 2개 범위로 나눠 견줘도 모든 범위에서 기간 B의 R상전압 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
+  assert.equal(sameXText(all,x,y),"전류평균을 2개 범위로 나눠 비교해도 모든 범위에서 기간 B의 R상전압 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
     +"측정이 가장 많은 29.8~32.5 A에서는 220 → 224 V입니다(기간 A 값의 가운데 절반 219~221 V).");
   const held=relationMessage("current","voltage",{pearson:-0.77,spearman:-0.8,pairs:900},{pearson:-0.76,spearman:-0.71,pairs:900},null,[],said)!;
   assert.match(held.headline,/반대 방향으로 강하게 함께 움직입니다 \(기간 A 상관계수 -0.77 · 기간 B 상관계수 -0.76\)\. 다만 전류평균이/);

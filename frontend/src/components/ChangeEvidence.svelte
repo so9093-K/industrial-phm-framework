@@ -38,9 +38,9 @@
   });
   const related = $derived(focus.kind === "history"
     ? relatedEvidence(focus.item.related.filter(row => row.state !== "within")
-      .map(row => ({label: row.label, reference: row.reference, current: row.current, unit: row.unit})), "구간")
+      .map(row => ({label: row.label, reference: row.reference, current: row.current, unit: row.unit})))
     : relatedEvidence(focus.change.related.map(row => ({label: plainLabel(row.label, row.feature), reference: row.reference,
-      current: row.current, unit: row.unit})), "측정"));
+      current: row.current, unit: row.unit}))));
 
   $effect(() => {
     const current = focus, period = spans;
@@ -83,20 +83,20 @@
     : assetTabUrl(assetId, "anomaly", "model"));
 </script>
 
-{#snippet line(read: Read, waiting: string, missed: string, href: string | null)}
+{#snippet line(label: string, read: Read, waiting: string, missed: string, href: string | null)}
   {#if read !== null}
     <li class:waiting={read === "loading" || read === "failed"}>
-      <span>{read === "loading" ? waiting : read === "failed" ? missed : read}</span>
+      <span><strong>{label}</strong>{read === "loading" ? waiting : read === "failed" ? missed : read}</span>
       {#if href}<a href={href}>자세히 →</a>{/if}
     </li>
   {/if}
 {/snippet}
 
-<ul class="evidence" aria-label="이 변화를 확인한 근거">
-  {@render line(range, "변화 구간의 값을 기록 처음 30%와 견주고 있습니다.", "범위를 확인하지 못했습니다.", links.range)}
-  {@render line(related, "", "", links.related)}
-  {#if focus.kind === "vibration"}{@render line(spectrum, "같은 두 기간의 주파수를 견주고 있습니다.", "주파수를 확인하지 못했습니다.", links.spectrum)}{/if}
-  {@render line(model, "", "", modelHref)}
+<ul class="evidence" aria-label="변화 근거">
+  {@render line("범위", range, "계산 중", "확인 실패", links.range)}
+  {@render line(focus.kind === "history" ? "함께 변한 신호" : "함께 변한 특징", related, "", "", links.related)}
+  {#if focus.kind === "vibration"}{@render line("주파수", spectrum, "계산 중", "확인 실패", links.spectrum)}{/if}
+  {@render line("모델", model, "", "", modelHref)}
 </ul>
 
 <style>
@@ -104,6 +104,7 @@
   .evidence li { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2) var(--space-5);
     padding-block: var(--space-2); border-top: 1px solid var(--color-border); overflow-wrap: anywhere; }
   .evidence li span { min-width: 0; line-height: 1.6; }
+  .evidence li strong { display: inline-block; min-width: 7.5em; margin-right: var(--space-3); font-size: var(--font-small); color: var(--color-ink-muted); font-weight: 650; }
   .evidence li a { flex: none; font-size: var(--font-small); font-weight: 650; }
-  .waiting span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .waiting span { color: var(--color-ink-muted); }
 </style>

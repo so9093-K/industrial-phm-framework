@@ -213,7 +213,7 @@
               <small>{found.band != null && row.operation ? bandName(row.operation.names, found.band) + " 중 · " : ""}{when(row)}</small>
               <a class="investigate-change" href={inspect??href(asset.assetId)}>변화 구간 조사하기 →</a>
               {#if row.findingCount > 1}<small>다른 변화 {row.findingCount - 1}건</small>{/if}
-            {:else if row}<small>{row.judged ? "처음 30%와 견줘 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
+            {:else if row}<small>{row.judged ? "처음 30% 대비 크게 달라진 구간 없음" : "판단할 신호 없음"}</small>
             {:else}<small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
               <a href={assetTabUrl(asset.assetId,"signals")}>신호 기록 보기 →</a>
               {#if read === "failed"}<button type="button" class="retry" onclick={() => void loadRow(asset.assetId)}>다시 확인</button>{/if}{/if}

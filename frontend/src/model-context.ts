@@ -1,6 +1,5 @@
 /** 상태 요약에서 고른 변화 구간에 모델이 어떻게 판단했는지 센다. 최근 결과만으로는
  * 그 변화를 모델도 보았는지 알 수 없어서, 같은 구간의 결과를 따로 센다. */
-import {subject} from "./change-story.ts";
 import type {ScoreTrend} from "./model-trend.ts";
 import {RARE_IN_REFERENCE, type ModelOperation} from "./model-operation.ts";
 import {bandName} from "./record-findings.ts";
@@ -42,9 +41,9 @@ export function modelEvidence(rows: {name: string; analyzed: number; exceeded: n
   const over = read.filter(row => row.exceeded * 2 >= row.analyzed), under = read.filter(row => row.exceeded * 2 < row.analyzed);
   const count = (value: number) => value.toLocaleString("ko-KR");
   const list = [...over, ...under].map(row => row.name + " " + count(row.analyzed) + "회 중 " + count(row.exceeded) + "회").join(", ");
-  const lead = over.length && under.length ? "모델 판단이 갈립니다 · 기준 초과 " : "모델 기준 초과 · ";
+  const lead = over.length && under.length ? "판단이 갈림 · 기준 초과 " : "기준 초과 ";
   const caution = unlearned && over.length
-    ? " 모델을 학습한 기간에는 " + subject(unlearned.condition) + " " + (unlearned.share === 0 ? "없었습니다" : unlearned.share < 0.01 ? "1% 미만이었습니다" : Math.round(unlearned.share * 100) + "%뿐이었습니다") + "."
+    ? " · 학습 기간에 " + unlearned.condition + (unlearned.share === 0 ? " 없음" : unlearned.share < 0.01 ? " 1% 미만" : " " + Math.round(unlearned.share * 100) + "%")
     : "";
-  return lead + list + "." + caution;
+  return lead + list + caution;
 }

@@ -271,7 +271,7 @@
     const recordEnd = history.record ? Date.parse(history.record.to) : NaN, end = Date.parse(item.end);
     const bucket = (item.bucketSeconds ?? history.bucketSeconds ?? 0) * 1000;
     if (!Number.isFinite(recordEnd) || !Number.isFinite(end) || recordEnd - end <= 2 * bucket) return null;
-    return "이 변화는 " + shortTime(item.end) + "에 끝났습니다. 기록은 " + shortTime(history.record!.to) + "까지 있습니다.";
+    return "변화 종료 " + shortTime(item.end) + " · 기록 마지막 " + shortTime(history.record!.to);
   }
   /** 기록 끝까지 이어진 변화의 세 번째 숫자: 같은 기록의 마지막 구간 평균. */
   function historyLatest(history: RecordFindings, item: FoundInterval): ChangeNumber | null {
@@ -307,7 +307,7 @@
 {/snippet}
 
 {#snippet analysisOptions()}
-  <details class="options" ontoggle={event => showOptions = event.currentTarget.open}><summary>이 설비에서 할 수 있는 분석 보기</summary>
+  <details class="options" ontoggle={event => showOptions = event.currentTarget.open}><summary>적용 가능한 분석</summary>
     {#if showOptions}<AnalysisOptions assetId={asset.assetId} level={3} />{/if}
   </details>
 {/snippet}
@@ -334,7 +334,7 @@
       <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
   {:else if data?.history && findings && findings.judged}
     <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
-      <p class="context">{findings.operation.length?"같은 운전 수준의 측정끼리 비교해":"기록 초반과 비교해"} 뚜렷하게 다른 구간을 찾지 못했습니다. 전체 추세와 값의 범위를 살펴보세요.</p>
+      <p class="context">{findings.operation.length?"같은 운전 수준의 측정끼리 비교해":"기록 초반과 비교해"} 뚜렷하게 다른 구간이 없습니다. 아래는 기록 전체의 추세와 값의 범위입니다.</p>
       {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={260}/>{#if findings.operation.length}<p class="context small">추세에는 서로 다른 운전 상태의 기록도 함께 표시합니다.</p>{/if}{/if}
       <div class="quiet-facts">
         {#if quietSignal}{#if quietSignal.context}<SourceIdentity id={quietSignal.context.sourceId} pointId={quietSignal.context.pointId} interpretationId={quietSignal.context.interpretationId}/>{/if}
@@ -347,29 +347,29 @@
   {:else if data?.history && cumulative.length}
     {@render cumulativeRecords()}
   {:else if data?.history && findings && !data?.vibration}
-    <p class="context">기록 처음 30%와 견줘 판단할 수 있는 신호가 없어, 변화가 있었는지 말할 수 없습니다.
+    <p class="context">기록 처음 30%와 비교해 판단할 수 있는 신호가 없어 변화 여부를 판단하지 않았습니다.
       <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
   {:else if data?.vibration && vibrationState === "loading"}
     <p class="context">진동 측정 전체를 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.vibration && vibrationState === "failed"}
     <p class="context">진동 측정에서 찾은 변화를 불러오지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
   {:else if data?.vibration && vibration?.judged}
-    <p class="context">진동 특징 {vibration.judged}개에서 처음 30%와 견줘 크게 달라진 구간을 찾지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
+    <p class="context">진동 특징 {vibration.judged}개 모두 처음 30% 대비 크게 달라진 구간이 없습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
   {/if}
 
   {#if !evidenceFocus && settled}{@render analysisOptions()}{/if}
 
   {#if evidenceFocus}
     <section class="block" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">이 변화를 확인한 근거</h3>
+      <h3 id="evidence-title">변화 근거</h3>
       {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelLine} />{/key}
-      {#if copiedCount}<p class="context small">다른 항목의 값이 그대로 기록된 신호 {copiedCount}개는 변화 판단에서 뺐습니다(맨 아래 ‘측정 현황·데이터 출처·계산 범위’).</p>{/if}
+      {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
     </section>
   {/if}
 
   {#if otherChanges.length}
     <section class="block" aria-labelledby="others-title">
-      <h3 id="others-title">이 기록의 다른 변화 {otherChanges.length}건</h3>
+      <h3 id="others-title">다른 변화 {otherChanges.length}건</h3>
       {#if focusReason}<p class="context small">{focusReason}</p>{/if}
       <ul class="other-changes">
         {#each otherChanges as row (row.key)}
@@ -405,7 +405,7 @@
     {#if findings && findings.intervals.length}
       <p class="context small">변화 선정 방식 · 계산한 신호 {findings.judged}개에서 오래 이어진 구간·기록 끝의 변화·변화 폭을 보고 서로 다른 구간을 골랐습니다.
         대표값은 집계 구간 평균의 중앙값이며, 비교 기준은 각 신호 기록의 처음 30%입니다.
-        {#if findings.operation.length}운전 상태를 아는 출처는 같은 운전 상태의 값끼리 견주고, 정지해 있던 동안의 값은 판단하지 않습니다.{/if}</p>
+        {#if findings.operation.length}운전 상태를 아는 출처는 같은 운전 상태의 값끼리 비교하고, 정지해 있던 동안의 값은 판단하지 않습니다.{/if}</p>
     {/if}
     {#if findingState === "ready" && copies.length}
       <section class="data-check" aria-labelledby="data-check-title">

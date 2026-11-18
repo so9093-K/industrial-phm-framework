@@ -117,7 +117,7 @@ export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => st
     certainty = "측정 수가 적어(기간 A " + a.usable + "회 · 기간 B " + b.usable + "회) 이 결과만으로 단정하기 이릅니다.";
   else if (share === null) certainty = null;
   else if (share >= 90) certainty = "값 몇 개가 튄 것이 아니라 거의 모든 측정이 벗어나, 값의 수준 자체가 달라졌습니다.";
-  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 기간 A의 비교 범위 안의 값도 남아 있습니다. 기간 B 안에서 언제부터 달라졌는지 함께 보세요.";
+  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 기간 A의 비교 범위 안의 값도 남아 있습니다. 변화 시작 시점은 기간 B의 추이에서 확인할 수 있습니다.";
   else if (share > 10) certainty = "기간 B 측정 중 일부만 벗어났습니다. 벗어난 측정이 한 시기에 몰려 있는지 흩어져 있는지 시간 추이에서 확인하세요.";
   else certainty = "기간 A 안에서도 값의 10%는 이 범위 밖에 있으므로, 이 정도는 뚜렷한 변화로 보기 어렵습니다.";
   const onset = facts.onset && share !== null && share > 10
@@ -188,7 +188,7 @@ export function sameXText(moved: {shown: {low: number; high: number; a: {median:
   // 두 기간 비교와 같은 말을 쓴다: 사분위 범위는 '가운데 절반', 5~95%는 '90%가 있던 범위'.
   const side = shown.b.median > shown.a.q3 ? "보다 높습니다." : "보다 낮습니다.";
   if (outside === total && total > 1)
-    return object(x.name) + " " + total + "개 범위로 나눠 견줘도 모든 범위에서 기간 B의 " + y.name + " 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
+    return object(x.name) + " " + total + "개 범위로 나눠 비교해도 모든 범위에서 기간 B의 " + y.name + " 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
       + "측정이 가장 많은 " + where + "에서는 " + values + "입니다(기간 A 값의 가운데 절반 " + usual + ").";
   return subject(x.name) + " " + where + "인 측정만 보면 " + y.name + " 중앙값이 " + values + "로, 기간 A 값의 가운데 절반(" + usual + ")" + side
     + (total > 1 ? " " + x.name + " 범위 " + total + "개 중 " + outside + "개에서 이렇게 달랐습니다." : "");
@@ -341,9 +341,9 @@ export function modelMessage(reads: ModelRead[], place: (position: number) => st
     : "같은 최근 측정에서 모델마다 판단이 다릅니다. ";
   const headline = lead + states.join(", ") + ".";
   let certainty: string;
-  if (drawn.length === 1) certainty = "모델 하나의 결과이므로 같은 시점에 측정값도 달라졌는지 함께 보세요.";
+  if (drawn.length === 1) certainty = "모델 하나의 결과입니다. 같은 시점의 측정값 변화와 함께 확인해야 합니다.";
   else if (!aligned)
-    certainty = "뒤쪽 측정을 아직 분석하지 않은 모델이 있을 수 있습니다. 같은 측정에서의 판단은 그래프에서 같은 측정 위치의 점수로 견줘 보세요.";
+    certainty = "뒤쪽 측정을 아직 분석하지 않은 모델이 있을 수 있습니다. 같은 측정의 판단은 그래프의 같은 측정 위치에서 비교할 수 있습니다.";
   else if (now.length && now.length < drawn.length)
     certainty = "최근 측정에서 일부 모델만 기준을 넘어 이 결과만으로는 어느 쪽이 맞는지 알 수 없습니다. 같은 시점에 측정값도 달라졌는지 확인하세요.";
   else if (now.length) {
@@ -352,7 +352,7 @@ export function modelMessage(reads: ModelRead[], place: (position: number) => st
       ? "서로 다른 모델이 같은 무렵(" + place(Math.min(...starts)) + ")부터 기준을 넘어, 한 모델만의 반응이 아닙니다."
       : "모델마다 기준을 넘기 시작한 때가 달라, 먼저 반응한 " + place(Math.min(...starts)) + "부터 확인하세요.";
   } else if (crossed.length)
-    certainty = "최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다. 그 구간의 측정값도 함께 보세요.";
+    certainty = "최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다. 그 구간의 측정값도 함께 확인해야 합니다.";
   else certainty = "모델 기준 아래라도 측정값 자체가 달라졌는지는 따로 확인하세요.";
   return {headline, meaning: null, certainty, next};
 }
@@ -506,7 +506,7 @@ export function comparisonMessage(score: {previous: number | null; current: numb
     meaning = "가장 멀리 벗어난 값은 " + top.label + " " + short(top.current) + unit + "이고, 평소 범위는 "
       + short(top.usual!.low) + "~" + short(top.usual!.high) + unit + "입니다.";
   } else if (judged.length && flagged)
-    meaning = "점수는 크게 바뀌었지만 개별 특징값은 평소 범위 안입니다. 하나의 값보다 여러 값의 조합이 평소와 다를 때 점수가 바뀔 수 있으니, 같은 시각의 운전·측정 조건과 함께 보세요.";
+    meaning = "점수는 크게 바뀌었지만 개별 특징값은 평소 범위 안입니다. 하나의 값보다 여러 값의 조합이 평소와 다를 때 점수가 바뀔 수 있으니, 같은 시각의 운전·측정 조건과 함께 확인해야 합니다.";
   const results = judged[0]?.usual?.results ?? 0;
   const certainty = judged.length && usualUntil !== null
     ? "평소 범위는 비교 측정 이전에 이 모델이 분석한 " + results + "개 결과의 5~95% 값입니다."
@@ -541,7 +541,7 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
   if (facts.newValues) {
     const fresh = facts.newValues;
     notes.push("기간 B 측정 " + fresh.total + "회 중 " + fresh.count + "회(" + countShare(fresh.count, fresh.total) + ")는 기간 A에 거의 없던 "
-      + short(fresh.low) + "~" + short(fresh.high) + unit + " 범위의 값입니다(기간 A 측정의 1% 미만). 분포 그림에서 두 기간의 값이 몰린 곳을 견줘 보세요.");
+      + short(fresh.low) + "~" + short(fresh.high) + unit + " 범위의 값입니다(기간 A 측정의 1% 미만). 두 기간의 값이 몰린 위치는 분포 그림에서 비교할 수 있습니다.");
   }
   let lowDiffers = false;
   if (facts.lowCurrent) {
@@ -551,7 +551,7 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
     // A share of stored measurements, not of time, and a low reading, not a stop: spacing can
     // differ, one phase below 1 A says nothing of the others, and a similar share settles no cause.
     notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + shareA + ", 기간 B " + shareB
-      + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리도 견줘 보세요."
+      + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리 비교한 결과도 확인해야 합니다."
         : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요.")
       + " 1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다.");
   }
@@ -573,7 +573,7 @@ export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[]
     : a.median !== null && b.median !== null && b.median !== a.median
       ? "기간 A보다 대표값이 " + (b.median>a.median?"높습니다":"낮습니다") : undefined;
   const certainty = insideMiddle && !lowDiffers && (facts.outsidePercent ?? 100) < 50
-    ? "기간 B의 중앙값은 기간 A 값의 가운데 절반 안에 있습니다. 범위 밖 비율은 기간 A 값도 약 10%는 90% 범위 밖에 있다는 점과 견줘 읽으세요."
+    ? "기간 B의 중앙값은 기간 A 값의 가운데 절반 안에 있습니다. 기간 A 값도 약 10%는 90% 범위 밖이므로, 범위 밖 비율은 이 10%와 비교해 읽어야 합니다."
     : base.certainty;
   return {...base, conclusion, certainty, meaning: notes.length ? notes.join(" ") : base.meaning};
 }

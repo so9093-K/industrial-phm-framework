@@ -83,7 +83,7 @@ test("representative changes keep their reference and preceding-period navigatio
 test("a declared running total is stated with where it began and ended, not judged as a change",()=>{
   const counter:CheckedSignal={channel:"누적전력량",label:"누적전력량",unit:null,state:"cumulative",held:null,later:null,
     first:270288,last:15492723};
-  assert.equal(unjudgedText(counter),"누적전력량(누적값이라 기록 처음과 견준 변화로 판단하지 않음 · 270,000 → 15,500,000)");
+  assert.equal(unjudgedText(counter),"누적전력량(누적값이라 기록 처음 대비 변화로 판단하지 않음 · 270,000 → 15,500,000)");
 });
 
 test("a level change carries its own source, point, meaning and reference into every investigation",()=>{

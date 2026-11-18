@@ -280,7 +280,7 @@
               </div>
             {/each}
           </div>
-          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved}{" "}음영은 두 기간을 견준 {signalName(names,x)} 범위입니다.{/if}{" "}점을 누르면 그 시각을 봅니다.</p>
+          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved}{" "}음영은 두 기간을 비교한 {signalName(names,x)} 범위입니다.{/if}{" "}점을 누르면 그 시각을 봅니다.</p>
           {#if explained}<AnalysisMessage message={explained} showHeadline={false}
             boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
           {/if}

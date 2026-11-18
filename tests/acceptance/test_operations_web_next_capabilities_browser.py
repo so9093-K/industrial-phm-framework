@@ -60,7 +60,7 @@ def _show_options(page: Any) -> None:
     With a change to judge it sits in the data section at the bottom, otherwise in the summary.
     """
     page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
-    page.get_by_text("이 설비에서 할 수 있는 분석 보기", exact=True).click()
+    page.get_by_text("적용 가능한 분석", exact=True).click()
 
 
 @pytest.mark.parametrize("width", [390, 1280])

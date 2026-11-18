@@ -4,7 +4,7 @@
   import type {VibrationChange} from "../vibration-findings";
   import {readPermission} from "../outlook-briefings";
   let {assetId,change,onMemo}:{assetId:string;change:VibrationChange;onMemo:(text:string)=>void}=$props();
-  const questions=["이 변화는 언제부터 얼마나 이어졌나요?","어떤 주파수 성분이 함께 달라졌나요?"];
+  const questions=["변화 구간의 시작과 지속 범위를 설명해 주세요.","함께 달라진 주파수 대역을 설명해 주세요."];
   let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
@@ -31,17 +31,17 @@
   onMount(()=>{const permission=new AbortController();void readPermission(permission.signal).then(value=>{if(!permission.signal.aborted)writable=value;}).catch(()=>{});void refresh();return()=>{permission.abort();cancel();};});
 </script>
 <section class="ui-panel investigation" aria-label="선택한 진동 변화 조사">
-  <h2>AI에게 묻기</h2>
+  <h2>AI 해설</h2>
   {#if error}<p class="error" role="alert">{error} <button type="button" onclick={()=>void refresh()}>다시 읽기</button></p>{/if}
-  {#if waiting}<p role="status">AI가 같은 기간의 특징·주파수 비교 결과를 읽고 답을 쓰고 있습니다.</p>
+  {#if waiting}<p role="status">AI 해설 작성 중 · 같은 기간의 특징·주파수 비교 결과 사용</p>
   {:else if latest?.status==="complete"&&latest.answer}
     <p class="question">질문 · {latest.question}</p>
     <p class="answer">{latest.answer.summary}</p>
-    <p class="by">{latest.answer.source==="model"?"계산된 근거만 읽고 쓴 AI 답입니다.":"AI가 답하지 못해 계산된 요약을 보여 드립니다."}</p>
+    <p class="by">{latest.answer.source==="model"?"계산된 근거만 사용한 AI 해설":"AI 해설 실패 · 계산된 요약"}</p>
     <button type="button" class="ui-button memo" onclick={()=>onMemo(memo)}>판단 메모에 넣기</button>
   {:else if latest?.status==="failed"}<p>설명을 만들지 못했습니다. 그래프와 원본 측정은 계속 볼 수 있습니다.</p>{/if}
   {#if !loading}<div class="questions">{#each questions.filter(text=>text!==latest?.question) as text(text)}<button type="button" class="suggestion" disabled={!writable||waiting} onclick={()=>void ask(text)}>{text}</button>{/each}</div>{/if}
-  <label>{latest?.status==="complete"?"이어서 묻기":"직접 묻기"}<textarea rows="2" maxlength="600" bind:value={question} disabled={!writable||waiting} placeholder="이 변화에서 무엇을 더 확인하면 좋을까요?"></textarea></label>
+  <label>{latest?.status==="complete"?"추가 질문":"질문"}<textarea rows="2" maxlength="600" bind:value={question} disabled={!writable||waiting}></textarea></label>
   <button type="button" class="ui-button ui-button-primary" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>질문하기</button>
   {#if !writable}<p class="by">보기 전용에서는 저장된 설명만 볼 수 있습니다.</p>{/if}
 </section>

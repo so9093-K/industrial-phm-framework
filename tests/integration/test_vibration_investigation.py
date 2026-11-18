@@ -53,7 +53,7 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "회 중" in facts["facts"]["persistence"]
     assert "flow" in facts["facts"] and "spectrum_0" in facts["facts"]
     assert set(facts["actions"]) == {"compare", "model", "spectrum", "onset"}
-    question = "이 변화는 언제부터 얼마나 이어졌나요?"
+    question = "변화 구간의 시작과 지속 범위를 설명해 주세요."
     model = ScriptedModel(
         {
             "summary": "기준보다 높은 진동이 구간 안에서 이어집니다.",

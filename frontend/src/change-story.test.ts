@@ -18,7 +18,7 @@ test("a change reads as one sentence: what, from when for how long, against what
 
 test("both numbers say what they are, how steady the first was and how far the second moved", () => {
   assert.deepEqual(changeNumbers({label: "T상전압", unit: "V", direction: "down", reference: 231, typical: 228, referenceSpread: 0.63}), {
-    before: {caption: "기록 처음 30%의 중앙값", value: "231 V", note: "이 기간의 흔들림 약 ±0.63 V"},
+    before: {caption: "기록 처음 30%의 중앙값", value: "231 V", note: "이 기간의 변동 약 ±0.63 V"},
     after: {caption: "이 구간의 중앙값", value: "228 V", note: "처음보다 3 V 낮음"},
   });
   // A several-fold rise also says how many times; a start at zero has no ratio.

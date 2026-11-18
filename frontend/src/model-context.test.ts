@@ -32,9 +32,9 @@ test("a change at an operating state the model hardly learned is said to need mo
 
 test("the model evidence counts each model over the change, says when they disagree and when the state was never learned", () => {
   assert.equal(modelEvidence([{name: "Isolation Forest", analyzed: 52, exceeded: 2}, {name: "LSTM 오토인코더", analyzed: 52, exceeded: 48}]),
-    "모델 판단이 갈립니다 · 기준 초과 LSTM 오토인코더 52회 중 48회, Isolation Forest 52회 중 2회.");
+    "판단이 갈림 · 기준 초과 LSTM 오토인코더 52회 중 48회, Isolation Forest 52회 중 2회");
   assert.equal(modelEvidence([{name: "Isolation Forest", analyzed: 134, exceeded: 134}], {condition: "약 11 A 운전", share: 0}),
-    "모델 기준 초과 · Isolation Forest 134회 중 134회. 모델을 학습한 기간에는 약 11 A 운전이 없었습니다.");
+    "기준 초과 Isolation Forest 134회 중 134회 · 학습 기간에 약 11 A 운전 없음");
   // 이 구간을 분석한 모델이 없으면 근거 줄을 만들지 않는다.
   assert.equal(modelEvidence([{name: "A", analyzed: 0, exceeded: 0}]), null);
 });

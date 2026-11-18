@@ -305,7 +305,7 @@
         message="이 설비에는 비교할 시계열 기록이 없습니다." />
     {:else if compareState === "empty"}
       <StatusNotice title={focus?"선택한 출처에 비교할 측정이 없습니다":"고른 기간에 측정이 없습니다"}
-        message={focus?"고른 신호와 A/B 기간에 맞는 기록이 없습니다. 다른 출처의 기록을 확인하거나 기간·신호를 바꿔 보세요.":"두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 보세요."} />
+        message={focus?"고른 신호와 A/B 기간에 맞는 기록이 없습니다. 다른 출처의 기록을 확인하거나 기간·신호를 바꿔 다시 비교하세요.":"두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 다시 비교하세요."} />
     {:else if result}
       {#each result.series as row (row.key)}
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
@@ -394,7 +394,7 @@
       <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
     {/if}
     {#if operation}{@const shown = operation}
-        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 견줘 보세요."
+        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 비교해야 합니다."
           : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
     {/if}
     {@render conditions()}

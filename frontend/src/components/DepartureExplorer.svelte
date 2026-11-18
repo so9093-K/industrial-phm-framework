@@ -241,7 +241,7 @@
               <button type="button" class="ui-button" onclick={showFirstExceedance}>시간별 값 보기 →</button>
             </div>
           {/if}
-          <p class="axis-note">세로축 · 기준 구간의 흔들림에 견줘 몇 배 벗어났는지 (최고 {num(Number(chart.peak.toFixed(1)))}배)
+          <p class="axis-note">세로축 · 기준 구간 변동 폭 대비 벗어난 배수 (최고 {num(Number(chart.peak.toFixed(1)))}배)
             <span class="dash">· 점선 {result.threshold}배를 넘으면 크게 벗어난 구간으로 봅니다</span></p>
           <ValueAxis ticks={yTicks(0, chart.max, 8, 192, 4)} height={chart.height} unit="배">
           <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img"

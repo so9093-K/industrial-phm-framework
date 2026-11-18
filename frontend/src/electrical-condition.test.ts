@@ -120,8 +120,8 @@ test("each operating level is compared with the same level, and levels the refer
         {band:2,reference_samples:60,target_samples:40,state:"scored",above_reference_count:2}]}});
   assert.ok(condition.pattern.byLevel);
   const lines=insights(condition);
-  assert.ok(lines.includes("같은 운전 상태끼리 견줬을 때 기준 기간의 3상 패턴과 크게 다른 관측 2개 (관측 40개 중 5%)."));
-  assert.ok(lines.includes("기준 기간에 거의 없던 운전 상태라 견주지 않은 관측: 약 31 A 운전 20개(기준 기간 0개)."));
+  assert.ok(lines.includes("같은 운전 상태끼리 비교했을 때 기준 기간의 3상 패턴과 크게 다른 관측 2개 (관측 40개 중 5%)."));
+  assert.ok(lines.includes("기준 기간에 거의 없던 운전 상태라 비교하지 않은 관측: 약 31 A 운전 20개(기준 기간 0개)."));
   assert.equal(firstChecks(condition)[0].detail,"약 62 A 운전 중 · vR 240 V · 기준 기간 값의 90%가 있던 범위(229~232 V)");
   // A split result must name its levels.
   assert.throws(()=>ready({...base,pattern:{...base.pattern,split:"operating-level",levels:[]}}),/형식/);
