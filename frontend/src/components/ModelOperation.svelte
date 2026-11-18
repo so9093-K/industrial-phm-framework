@@ -19,14 +19,14 @@
     <h3 id={"model-operation-" + bindingId}>운전 상태별 기준 초과 <small>{shown.label} 기준</small></h3>
     {#if told}<p class="told">{told}</p>{/if}
     <div class="table"><table>
-      <thead><tr><th scope="col">상태</th><th scope="col">전류</th><th scope="col">모델 기준 기간</th><th scope="col">분석한 창</th><th scope="col">기준 초과</th></tr></thead>
+      <thead><tr><th scope="col">상태</th><th scope="col">전류</th><th scope="col">모델 기준 기간</th><th scope="col">분석한 구간</th><th scope="col">기준 초과</th></tr></thead>
       <tbody>{#each shown.windows as row (row.band)}
         <tr><th scope="row">{bandName(shown.names, row.band)}</th><td>{bandRange(shown.names, row.band)}</td>
           <td>{shown.reference?.shares ? percent(shown.reference.shares[row.band]) : "기록 없음"}</td>
           <td>{row.count.toLocaleString("ko-KR")}</td><td>{row.exceeded.toLocaleString("ko-KR")} ({percent(row.exceeded / row.count)})</td></tr>
       {/each}</tbody>
     </table></div>
-    <p class="note">창마다 가장 오래 머문 운전 상태로 나눴습니다.{#if shown.unplaced} 전류 측정이 없어 나누지 못한 창 {shown.unplaced.toLocaleString("ko-KR")}개는 표에 없습니다.{/if}</p>
+    <p class="note">구간마다 가장 오래 머문 운전 상태로 나눴습니다.{#if shown.unplaced} 전류 측정이 없어 나누지 못한 구간 {shown.unplaced.toLocaleString("ko-KR")}개는 표에 없습니다.{/if}</p>
   </section>
 {/if}
 

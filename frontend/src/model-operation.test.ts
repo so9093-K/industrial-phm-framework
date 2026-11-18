@@ -12,7 +12,7 @@ test("a model's excesses are said per operating level beside what its reference 
   const read = parseModelOperation(body(operation), "b")!;
   assert.equal(read.windows.length, 3);
   assert.equal(unlearnedText(read),
-    "기준 초과 2,438회 중 2,000회는 모델 기준 기간에 거의 없던 운전 상태(약 11 A 운전·약 31 A 운전)의 창입니다. "
+    "기준 초과 2,438회 중 2,000회는 모델 기준 기간에 거의 없던 운전 상태(약 11 A 운전·약 31 A 운전)의 구간입니다. "
     + "기준 기간에 있던 약 62 A 운전에서는 3,327개 중 438개(13%)가 기준을 넘었습니다.");
   // A model whose reference held every level it later saw has nothing to say apart.
   assert.equal(unlearnedText({...read, reference: {...read.reference!, shares: [0, 0.2, 0.3, 0.5]}}), null);
