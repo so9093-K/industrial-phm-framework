@@ -6,7 +6,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {historyPeriodMessage, type NextStep} from "../analysis-messages";
   import {comparisonWindows, focusFrom, focusParams, windowParams} from "../signal-selection";
-  import {defaultChannel} from "../summary-defaults";
+  import {comparisonDefault, defaultChannel, readSummary} from "../summary-defaults";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
@@ -140,10 +140,24 @@
       if (request.signal.aborted) return;
       sources = data;
       if (!data.channels.length) {sourceState = "empty"; return;}
-      if (!data.channels.includes(selected)) selected = await defaultChannel(assetId, data.channels, request.signal);
+      // 기간을 받지 않고 탭으로 열었으면 상태 요약의 대표 변화와 같은 기준(신호·운전 수준·기간)으로 시작한다.
+      // 그래야 요약이 '높았습니다'라고 한 변화를 이 화면이 다른 기준으로 '비슷합니다'라고 하지 않는다.
+      const asked = new URLSearchParams(location.search);
+      let start: ReturnType<typeof comparisonDefault> = null;
+      if (!asked.has("compare_a") || !asked.has("compare_b")) {
+        const found = await readSummary(assetId, request.signal);
+        if (request.signal.aborted) return;
+        start = found ? comparisonDefault(found, data.channels) : null;
+        if (start && selected && data.channels.includes(selected) && selected !== start.channel) start = null;
+      }
+      if (start) {
+        selected = start.channel; if (!focus) focus = start.focus;
+        if (levelParam === null) level = start.level;
+        handedOver = "summary";
+      } else if (!data.channels.includes(selected)) selected = await defaultChannel(assetId, data.channels, request.signal);
       if (request.signal.aborted) return;
       sourceState = "ready";
-      periods = loadPeriodUrl(defaultPeriods(data.from, data.to));
+      periods = start ? start.periods : loadPeriodUrl(defaultPeriods(data.from, data.to));
       remember();
       await compare();
     } catch (cause: unknown) {
@@ -304,7 +318,7 @@
             <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
             <div class="result-metrics">
               {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p>A보다 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높음":"낮음"}</p>{/if}
-              {#if row.outsidePercent !== null}<p>기간 B 측정의 {row.outsidePercent.toFixed(1)}%가 기간 A에서 흔했던 범위{#if row.periods.a.quantiles}({num(row.periods.a.quantiles[0])}~{num(row.periods.a.quantiles[4])}{unit?" "+unit:""}){/if} 밖 · 기간 A 자신은 약 10%</p>{/if}
+              {#if row.outsidePercent !== null}<p>기간 B 측정의 {row.outsidePercent.toFixed(1)}%가 기간 A 값의 90%가 있던 범위{#if row.periods.a.quantiles}({num(row.periods.a.quantiles[0])}~{num(row.periods.a.quantiles[4])}{unit?" "+unit:""}){/if} 밖 · 기간 A 값도 약 10%는 밖</p>{/if}
               {#if row.periods.a.quantiles && row.periods.b.quantiles}<p>값이 퍼진 정도(가운데 절반의 폭) {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""}</p>{/if}
             </div>
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}

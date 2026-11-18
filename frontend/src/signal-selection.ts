@@ -146,15 +146,16 @@ export function periodsBefore(span: Span): Periods | null {
 }
 
 /** Where handed-over periods were picked; the target screen names it until they are edited. */
-export type PeriodOrigin = "signal" | "departure" | "previous";
+export type PeriodOrigin = "signal" | "departure" | "previous" | "summary";
 export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   previous: "주요 변화 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   departure: "기록 변화 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
+  summary: "상태 요약의 변화와 같은 기준입니다. 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다.",
 };
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");
-  return raw === "signal" || raw === "departure" || raw === "previous" ? raw : null;
+  return raw === "signal" || raw === "departure" || raw === "previous" || raw === "summary" ? raw : null;
 }
 
 /** URL parameters that open another analysis on explicit periods; the target screen says so. */

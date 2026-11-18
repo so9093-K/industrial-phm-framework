@@ -39,7 +39,7 @@ const sameRecordPlace = (a: RecordContext | null | undefined, b: RecordContext |
  * periods are the first 30% the change was judged against and the change itself. Without a current
  * the change is paired with the signal that moved with it. */
 export function relationPair(found: RecordFindings, ids: string[]):
-  {x: string; y: string; focus: SourceFocus | null; periods: Periods | null; note: string} | null {
+  {x: string; y: string; focus: SourceFocus | null; periods: Periods | null; note: string; band: {low: number; high: number | null} | null} | null {
   const {first, main} = summarySignals(found);
   const offered = (channel: string | undefined) => channel !== undefined && ids.includes(channel);
   const periods = first ? departurePeriods(first, found.baseline, found.bucketSeconds) : null;
@@ -49,24 +49,36 @@ export function relationPair(found: RecordFindings, ids: string[]):
     && sameRecordPlace(first.context, main.context)) {
     // The change and the current share a place, so its level is one of this current's levels.
     const operation = found.operation[0];
+    const level = first.band != null ? operation.levels[first.band - 1] ?? null : null;
     const band = first.band != null ? " · " + bandName(operation, first.band) + " 중 변화" : "";
     return {x: main.channel, y: first.channel, focus: contextFocus(main.context), periods,
-      note: "상태 요약의 첫 변화를 기준 전류와 함께 봅니다. 가로축 " + label(main.channel) + ", 세로축 " + first.label + band + "." + during};
+      band: level ? {low: level.low, high: level.high} : null,
+      note: "상태 요약의 대표 변화와 같은 기준입니다. 가로축 " + label(main.channel) + ", 세로축 " + first.label + band + "." + during};
   }
   if (first && offered(first.channel)) {
     const others = first.related.filter(row => offered(row.channel) && row.channel !== first.channel);
     const other = others.find(row => row.state !== "within") ?? others[0];
-    if (other) return {x: first.channel, y: other.channel, focus: contextFocus(first.context ?? null), periods,
-      note: "상태 요약의 첫 변화를 " + (other.state !== "within" ? "같은 구간에 함께 달라진 신호" : "같은 구간의 다른 신호")
+    if (other) return {x: first.channel, y: other.channel, focus: contextFocus(first.context ?? null), periods, band: null,
+      note: "상태 요약의 대표 변화를 " + (other.state !== "within" ? "같은 구간에 함께 달라진 신호" : "같은 구간의 다른 신호")
         + "와 함께 봅니다. 가로축 " + first.label + ", 세로축 " + other.label + "." + during};
   }
   if (main && offered(main.channel)) {
     const other = found.signals.find(row => row.channel !== main.channel && offered(row.channel)
       && (row.state === "scored" || row.state === "level-change") && sameRecordPlace(row.context, main.context));
-    if (other) return {x: main.channel, y: other.channel, focus: contextFocus(main.context), periods: null,
+    if (other) return {x: main.channel, y: other.channel, focus: contextFocus(main.context), periods: null, band: null,
       note: "상태 요약에서 찾은 변화가 없어 기준 전류와 같은 위치의 다른 신호를 봅니다. 가로축 " + label(main.channel) + ", 세로축 " + other.label + "."};
   }
   return null;
+}
+
+/** 두 기간 비교를 탭에서 바로 열었을 때의 기본값: 상태 요약의 대표 변화와 같은 신호·기록·운전 수준과
+ * 기간(판단에 쓴 기록 처음 30%를 A, 변화 구간을 B)을 쓴다. 대표 변화를 이 화면이 다룰 수 없으면 null. */
+export function comparisonDefault(found: RecordFindings, ids: string[]):
+  {channel: string; focus: SourceFocus | null; periods: Periods; level: number | null} | null {
+  const first = found.intervals[0];
+  if (!first || !ids.includes(first.channel)) return null;
+  const periods = departurePeriods(first, found.baseline, found.bucketSeconds);
+  return periods ? {channel: first.channel, focus: contextFocus(first.context ?? null), periods, level: first.band ?? null} : null;
 }
 
 /** The asset's summary, or null when it is not ready within the wait or cannot be read. */

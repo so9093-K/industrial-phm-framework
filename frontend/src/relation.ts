@@ -140,9 +140,12 @@ export function sameXRanges(a: PairedGroup | null, b: PairedGroup | null): SameX
 /** Where B's median left A's middle 50% at the same x: how many of the compared ranges, and the one
  * with the most pairs on both sides to quote. */
 export type MovedAtSameX = {shown: SameX; outside: number; total: number};
-export function movedAtSameX(ranges: SameX[]): MovedAtSameX | null {
-  const outside = ranges.filter(range => range.b.median < range.a.q1 || range.b.median > range.a.q3);
+export function movedAtSameX(ranges: SameX[], within: {low: number; high: number | null} | null = null): MovedAtSameX | null {
+  // 상태 요약이 한 운전 수준에서 찾은 변화라면, 결론도 그 수준의 범위에서 말해야 두 화면의 숫자가 같다.
+  const inBand = (range: SameX) => !within || (range.high > within.low && (within.high === null || range.low < within.high));
+  const considered = ranges.filter(inBand);
+  const outside = considered.filter(range => range.b.median < range.a.q1 || range.b.median > range.a.q3);
   const support = (range: SameX) => Math.min(range.a.pairs, range.b.pairs);
   const shown = outside.reduce<SameX | null>((best, range) => !best || support(range) > support(best) ? range : best, null);
-  return shown ? {shown, outside: outside.length, total: ranges.length} : null;
+  return shown ? {shown, outside: outside.length, total: considered.length} : null;
 }

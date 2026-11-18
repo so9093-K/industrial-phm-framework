@@ -1054,6 +1054,10 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
             # Compare simultaneous signals from the same source and measurement point, at the
             # same operating level.
             other_key, other_band = part(other)
+            # 누적값과 다른 항목의 값이 복사된 기록은 변화 판단에서 뺐으므로,
+            # 함께 달라진 신호로도 들지 않는다.
+            if other_key in cumulative or other_key in copies:
+                continue
             other_record = by_key[other_key]
             if (other_record["source_id"], other_record["point_id"]) != (
                 record["source_id"],

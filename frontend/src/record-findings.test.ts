@@ -40,7 +40,7 @@ test("what the whole record held reads as when, how long, against which range, a
   assert.throws(() => parseRecordFindings({...body(), judged: 0, signals: body().signals.slice(2)}, "comp"));
   const links = findingLinks("comp", found.intervals[0], found.baseline, found.bucketSeconds);
   assert.match(links.signal!, /tab=signals.*monitor_range=window/);
-  assert.match(links.compare!, /method=compare.*compare_origin=departure/);
+  assert.match(links.compare!, /method=compare.*compare_origin=summary/);
   assert.throws(() => parseRecordFindings({...body(), meaning: "fault"}, "comp"));
   assert.throws(() => parseRecordFindings({...body(), interval_count: 0}, "comp"));
   const reversed = body(); reversed.intervals[0].usual = {low: 80, high: 40};
@@ -153,5 +153,5 @@ test("how the equipment ran is read per current level and attached to the change
   const related = {...within.intervals[0],related:[{channel:"압력",label:"압력",unit:"bar",reference:6,current:7,state:"higher" as const}]};
   const relation=findingLinks("comp",related,within.baseline,within.bucketSeconds,within.record).relation!;
   assert.equal(new URL(relation.href,"http://local").searchParams.has("compare_level"),false);
-  assert.match(relation.label,/전체 운전 수준/);
+  assert.match(relation.label,/관계 보기 \(모든 운전 상태\)/);
 });

@@ -240,7 +240,7 @@ export function findingSpan(item: FoundInterval): string {
   const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
   // 문장 안에서는 "2. 2."보다 "2월 2일"이 날짜로 읽힌다.
   const day = new Date(item.start).toLocaleString("ko-KR", {timeZone: "Asia/Seoul",
-    month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+    year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
   if (seconds < 60) return day + "에";
   return day + "부터 " + (item.reason === "record-end" ? "기록 끝까지 " : "") + "약 " + elapsedText(seconds) + " 동안";
 }
@@ -303,7 +303,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     previous = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(periods, "previous"));
   }
   const departure = departurePeriods(item, baseline, bucketSeconds);
-  if (departure) compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(departure, "departure"));
+  if (departure) compare = link(assetTabUrl(assetId, "change", "compare", "history", item.channel), periodParams(departure, "summary"));
   const other = item.related.find(row => row.state !== "within") ?? item.related[0];
   const compared = previous ?? compare;
   let relation: {href: string; label: string} | null = null;
@@ -314,7 +314,7 @@ export function findingLinks(assetId: string, item: FoundInterval, baseline: Rec
     url.searchParams.delete("compare_level");
     url.searchParams.set("relation_x", item.channel);
     url.searchParams.set("relation_y", other.channel);
-    relation = {href: url.pathname + url.search, label: other.label + " 관계 비교" + (item.band != null ? " (전체 운전 수준)" : "")};
+    relation = {href: url.pathname + url.search, label: item.label + "–" + other.label + " 관계 보기" + (item.band != null ? " (모든 운전 상태)" : "")};
   }
   return {signal, compare, previous, relation, outlook: link(assetTabUrl(assetId, "outlook", null, "history", item.channel), {})};
 }
