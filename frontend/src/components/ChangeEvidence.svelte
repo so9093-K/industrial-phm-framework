@@ -4,9 +4,8 @@
   import {readAcquisition, readSpectrum, type Spans} from "../spectrum";
   import {departurePeriods, findingLinks} from "../record-findings";
   import {vibrationLinks} from "../vibration-findings";
-  import {plainLabel} from "../change-story";
   import {assetTabUrl} from "../routes";
-  import {rangeEvidence, relatedEvidence, spectrumEvidence, type EvidenceFocus} from "../change-evidence";
+  import {historyRelated, rangeEvidence, spectrumEvidence, vibrationRelated, type EvidenceFocus} from "../change-evidence";
   /** 대표 변화가 진짜인지 확인한 사실을 한 줄씩. 숫자는 '자세히'로 여는 화면과 같은 계산에서 온다. */
   let {assetId, focus, model, modelDestination = null, modelState="ready"}: {assetId: string; focus: EvidenceFocus; model: string | null;modelDestination?:string|null;modelState?:"loading"|"ready"|"failed"} = $props();
 
@@ -44,11 +43,7 @@
         spectrum_b_from: period.b.from, spectrum_b_to: period.b.to}),
     };
   });
-  const related = $derived(focus.kind === "history"
-    ? relatedEvidence(focus.item.related.filter(row => row.state !== "within")
-      .map(row => ({label: row.label, reference: row.reference, current: row.current, unit: row.unit})))
-    : relatedEvidence(focus.change.related.map(row => ({label: plainLabel(row.label, row.feature), reference: row.reference,
-      current: row.current, unit: row.unit}))));
+  const related = $derived(focus.kind === "history" ? historyRelated(focus.item.related) : vibrationRelated(focus.change.related));
 
   $effect(() => {
     const current = focus, period = spans;

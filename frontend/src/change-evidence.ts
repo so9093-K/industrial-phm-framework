@@ -1,6 +1,7 @@
 /** 상태 요약의 "변화 근거" 한 줄씩. 각 줄은 '자세히'로 여는 분석 화면과 같은 계산의 숫자로
  * 확인한 사실만 말하고, 판정 꼬리표(지속적·일시적·이상)를 붙이지 않는다. */
 import {countShare, shiftedBand, times} from "./analysis-messages.ts";
+import {plainLabel} from "./change-story.ts";
 import type {BandShare} from "./spectrum.ts";
 import type {FoundInterval, RecordFindings} from "./record-findings.ts";
 import type {VibrationChange, VibrationFindings} from "./vibration-findings.ts";
@@ -31,6 +32,17 @@ export function rangeEvidence(facts: {usable: number; outside: number | null; lo
 }
 
 /** 함께 변한 것: 같은 구간(시계열)·같은 측정(진동)에서 함께 달라진 신호 한두 개의 전후 값. */
+/** 시계열 변화와 함께 변한 신호 한 줄. 상태 요약의 근거와 관측 현황이 같은 줄을 쓴다. */
+export function historyRelated(rows: FoundInterval["related"]): string | null {
+  return relatedEvidence(rows.filter(row => row.state !== "within")
+    .map(row => ({label: row.label, reference: row.reference, current: row.current, unit: row.unit})));
+}
+/** 진동 변화와 같은 측정에서 함께 변한 특징 한 줄. */
+export function vibrationRelated(rows: VibrationChange["related"]): string | null {
+  return relatedEvidence(rows.map(row => ({label: plainLabel(row.label, row.feature), reference: row.reference,
+    current: row.current, unit: row.unit})));
+}
+
 export function relatedEvidence(rows: {label: string; reference: number; current: number; unit: string | null}[]): string | null {
   if (!rows.length) return null;
   return rows.slice(0, 2).map(row => row.label + " " + value(row.reference) + " → " + withUnit(row.current, row.unit)).join(", ");

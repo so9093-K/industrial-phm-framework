@@ -25,7 +25,7 @@
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, changeHeadline, latestNumber, plainLabel, type ChangeNumber, changeEnded} from "../change-story";
+  import {CHANGE_WHY, afterChange, changeConclusion, latestNumber, plainLabel, type ChangeNumber, changeEnded} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
@@ -324,10 +324,11 @@
   {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
+  {@const last = ended ? undefined : history.signals.find(row => item.context ? row.context?.key === item.context.key : row.channel === item.channel)?.latest}
   <div class="change-lead"><div class="lead-copy">
-  <h3 class="change-sentence">{changeHeadline(item)}</h3>
-  <p class="context">{findingSpan(item)}{condition ? " · " + condition + " 중의 값끼리 비교" : ""}</p>
-  {#if ended}<p class="context">{ended}</p>{/if}</div>
+  <h3 class="change-sentence">{changeConclusion(item, ended ? {span: findingSpan(item)} : {latest: last ? {caption: "마지막 구간 평균", value: last.value} : null})}</h3>
+  {#if !ended || condition}<p class="context">{[ended ? null : findingSpan(item), condition ? condition + " 중의 값끼리 비교" : null].filter(Boolean).join(" · ")}</p>{/if}
+  {#if ended}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
   <ChangeNumbers facts={item} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
   </div>
   <ChangeInterval finding={item} height={240} focus/>
@@ -475,7 +476,7 @@
 
   .found { list-style: none; margin: 0; padding: 0; }
   .found > li { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
-  .found > li :global(.change-sentence) { margin: 0; font-size: 1.3rem; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; }
+  .found > li :global(.change-sentence) { margin: 0; font-size: 1.3rem; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; word-break: keep-all; }
   .chart-link { margin: 0; font-size: var(--font-small); }
 
   .block { display: grid; gap: var(--space-1); margin-top: var(--space-3); }

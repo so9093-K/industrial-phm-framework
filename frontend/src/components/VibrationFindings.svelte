@@ -2,7 +2,7 @@
   import OverviewTrace from "./OverviewTrace.svelte";
   import {measurementLabel} from "../time-axis";
   import {changeValue} from "../record-findings";
-  import {changeHeadline, latestNumber} from "../change-story";
+  import {changeConclusion, latestNumber} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   import {vibrationLinks, type VibrationChange, type VibrationFindings} from "../vibration-findings";
 
@@ -16,8 +16,9 @@
     ? latestNumber("마지막 측정", last.value, change.typical, change.unit) : null);
 </script>
 
-<div class="change-lead"><div class="lead-copy"><h3 class="change-sentence">{changeHeadline(change)}</h3>
-<p class="context">{place(change.from)}부터 {change.to===record.last?"마지막 측정":place(change.to)}까지 · {change.to-change.from+1}회</p>
+<div class="change-lead"><div class="lead-copy"><h3 class="change-sentence">{changeConclusion(change, latest && last ? {latest: {caption: "마지막 측정값", value: last.value}}
+  : {span: place(change.from) + "부터 " + place(change.to) + "까지 " + (change.to - change.from + 1) + "회 동안"})}</h3>
+{#if latest}<p class="context">{place(change.from)}부터 마지막 측정까지 · {change.to-change.from+1}회</p>{/if}
 </div>
 <ChangeNumbers facts={change} {latest} fallback={"가장 " + (change.direction === "up" ? "높을" : "낮을") + " 때 " + changeValue(change.value, change.unit)} />
 </div>
