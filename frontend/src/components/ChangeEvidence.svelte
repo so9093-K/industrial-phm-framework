@@ -15,10 +15,10 @@
   type Question = "range" | "related" | "spectrum" | "model";
   let selected: Question | null = $state(null);
   const questions = $derived([
-    {key:"range" as const,label:"값의 수준이 달라졌나요?",action:"두 기간 비교하기"},
-    {key:"related" as const,label:"함께 달라진 신호는?",action:"신호 관계 살펴보기"},
-    ...(focus.kind === "vibration" ? [{key:"spectrum" as const,label:"어떤 주파수가 달라졌나요?",action:"주파수 변화 조사하기"}] : []),
-    {key:"model" as const,label:"같은 구간의 모델 반응은?",action:"이 구간의 모델 결과 살펴보기"},
+    {key:"range" as const,label:"값의 범위",action:"두 기간 비교하기"},
+    {key:"related" as const,label:focus.kind === "vibration" ? "함께 변한 특징" : "함께 변한 신호",action:"신호 관계 살펴보기"},
+    ...(focus.kind === "vibration" ? [{key:"spectrum" as const,label:"주파수 변화",action:"주파수 변화 조사하기"}] : []),
+    {key:"model" as const,label:"같은 구간의 모델 결과",action:"이 구간의 모델 결과 살펴보기"},
   ]);
 
   const url = (href: string, params: Record<string, string | number>) => {
@@ -88,7 +88,7 @@
   const href = $derived(selected === "range" ? links.range : selected === "related" ? links.related : selected === "spectrum" ? links.spectrum : modelHref);
 </script>
 
-<div class="questions" role="group" aria-label="이 변화에서 더 알아볼 것">
+<div class="questions" role="group" aria-label="변화 근거">
   {#each questions as question (question.key)}
     <button type="button" aria-pressed={selected === question.key} onclick={() => selected = selected === question.key ? null : question.key}>{question.label}</button>
   {/each}

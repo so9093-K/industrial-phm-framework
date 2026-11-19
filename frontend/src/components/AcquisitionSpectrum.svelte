@@ -183,7 +183,7 @@
       {#if selectionNotice}<p class="selection-notice" role="status">{selectionNotice}</p>{/if}
       <div class="spectrum-investigation" class:measurement-view={viewMode==="measurement"}>
         <section class="spectrum-curve" aria-label={viewMode==="measurement"?"선택 측정의 스펙트럼":"두 기간의 평균 스펙트럼"}>
-          <h3>{viewMode==="measurement"?(selected===null?"측정을 고르세요":selected+"회에서 보이는 주파수"):"어느 주파수가 커졌나?"}</h3>
+          <h3>{viewMode==="measurement"?(selected===null?"측정을 고르세요":selected+"회에서 보이는 주파수"):"두 기간의 평균 스펙트럼"}</h3>
           {#if plotSeries.length}
             <FrequencyPlot frequencies={viewMode==="measurement"?waterfall!.frequencies:result.frequencies} series={plotSeries} {domain} {band}
               height={viewMode==="measurement"?240:150} floor={viewMode==="measurement"||decibel?-60:0}

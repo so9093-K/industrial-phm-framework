@@ -248,7 +248,7 @@
       <details class="ask">
         <summary>{latest ? "이어서 질문하기" : "직접 질문하기"}</summary>
         {#if focus}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("이 지점 전후의 변화를 설명해 주세요.")}>이 지점 전후의 변화 설명</button>{/if}
-        {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체에서 어떤 흐름을 보였어?")}>구간 전체에서 어떤 흐름을 보였어?</button>{/if}
+        {#if compare !== null && earlier.filter(at => at >= compare! && at <= run.position).length >= 4}<button type="button" class="ui-button" disabled={requesting || waiting} onclick={() => void ask("구간 전체의 흐름을 설명해 주세요.")}>구간 전체의 흐름 설명</button>{/if}
         <label>AI에게 물을 질문 (최대 600자)
           <input maxlength="600" value={question} disabled={requesting} placeholder={DEFAULT_QUESTION}
             oninput={(event) => { chosen = true; question = event.currentTarget.value; }} />

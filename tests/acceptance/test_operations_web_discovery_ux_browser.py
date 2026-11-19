@@ -606,8 +606,8 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
                 # 운전 수준은 결론 아래 한 줄에서 말하고, 근거의 '자세히'가 같은 수준으로 비교한다.
                 pw.expect(card).to_contain_text("운전 중의 값끼리 비교")
-                page.get_by_role("button", name="값의 수준이 달라졌나요?", exact=True).click()
-                evidence = page.get_by_role("region", name="값의 수준이 달라졌나요?", exact=True)
+                page.get_by_role("button", name="값의 범위", exact=True).click()
+                evidence = page.get_by_role("region", name="값의 범위", exact=True)
                 page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
                 op = page.locator("details.operation-details")
                 assert op.get_attribute("open") is None

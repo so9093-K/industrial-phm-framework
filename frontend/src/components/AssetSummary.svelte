@@ -398,7 +398,7 @@
 
   {#if evidenceFocus}
     <section class="block" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">이 변화에서 더 알아볼 것</h3>
+      <h3 id="evidence-title">변화 근거</h3>
       {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelLine} {modelState} {modelDestination} />{/key}
       {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
     </section>

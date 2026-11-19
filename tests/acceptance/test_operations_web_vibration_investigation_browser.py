@@ -120,7 +120,7 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 page.unroute("**/api/v1/phm/change-explanations?**", pending)
                 page.get_by_role("button", name="이 변화에 대해 질문하기", exact=True).click()
                 ask = panel.get_by_role(
-                    "button", name="진동 크기와 주파수 변화를 종합하면", exact=False
+                    "button", name="진동 크기와 주파수 변화를 종합해", exact=False
                 )
                 pw.expect(ask).to_be_enabled()
                 assert not model.requests
