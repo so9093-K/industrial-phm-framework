@@ -66,7 +66,7 @@ export function routeUrl(route: Route, channel: string | null = null): string {
 
 /** Resolve tab links when activated, after the child may have changed its URL selection.
  * Measurements, compared results and periods follow; calculation settings and review identities do not. */
-const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind",
+const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind","summary_label",
   "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
   "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
   "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel",
@@ -109,10 +109,10 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
       if(current.searchParams.has(prefix+span))for(const target of ["feature_","acq_","spectrum_"])
         next.searchParams.set(target+span,current.searchParams.get(prefix+span)!);
   }
-  if(to.tab==="anomaly"&&from.tab==="signals"&&current.searchParams.has("vibration_at")) {
+  if(to.tab==="anomaly"&&(from.tab==="signals"||(from.tab==="change"&&(from.data==="vibration"||from.method==="spectrum")))&&current.searchParams.has("vibration_at")) {
     next.searchParams.set("model_position",current.searchParams.get("vibration_at")!);
     const binding=current.searchParams.get("acquisition_binding");
-    if(binding)next.searchParams.set("model_binding",binding);
+    if(from.tab==="signals"&&binding)next.searchParams.set("model_binding",binding);
   }
   const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
   const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];
@@ -159,4 +159,14 @@ export function reviewFocus(search: string): {captureId: string | null; findingI
   const params = new URLSearchParams(search);
   if (params.get("page") !== "maintenance") return {captureId: null, findingId: null};
   return {captureId: params.get("capture_id"), findingId: params.get("finding_id")};
+}
+
+/** Keep the observation that opened an AI follow-up without replacing its explicit target. */
+export function investigationOriginUrl(href: string, currentHref: string): string {
+  const current = new URL(currentHref), next = new URL(href, current);
+  if (current.origin !== next.origin) return next.href;
+  if (parseRoute(current.search).assetId === parseRoute(next.search).assetId)
+    for (const key of ["summary_change", "summary_kind", "summary_label"])
+      if (current.searchParams.has(key)) next.searchParams.set(key, current.searchParams.get(key)!);
+  return next.pathname + next.search + next.hash;
 }

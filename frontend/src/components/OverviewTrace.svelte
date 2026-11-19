@@ -3,17 +3,11 @@
   import {yTicks} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import ModelRugs from "./ModelRugs.svelte";
-  import type {ModelRug} from "../model-context";
-  import PlotCursor from "./PlotCursor.svelte";
-  import {measure} from "../chart-axis";
   /** 기록 추이 하나. 변화가 있으면 변화 판단 범위(처음 30% 기준)(띠), 변화 구간(음영), 꼭 봐야 할 측정(표시)을
    * 그래프 위에 직접 그린다. 설명 문장은 여기 그려진 것을 가리키기만 한다. */
-  type Mark = {at: number; value: number; label: string};
-  let {main, range = null, usual = null, marks = [], rugs = [], height = 180,selected=null,onSelect}: {height?: number; main: NonNullable<OverviewRow["main"]>;
-    range?: {from: number; to: number} | null; usual?: {low: number; high: number} | null; marks?: Mark[]; rugs?: ModelRug[];selected?:number|null;onSelect?:(at:number)=>void} = $props();
+  let {main, range = null, usual = null, height = 180}: {height?: number; main: NonNullable<OverviewRow["main"]>;
+    range?: {from: number; to: number} | null; usual?: {low: number; high: number} | null} = $props();
   const points=$derived(main.trace);
-  const positions=$derived([...new Set([...points.map(point=>point.x),...rugs.flatMap(row=>row.analyzed)])].sort((a,b)=>a-b));
   // 처음 범위도 세로축 안에 들어야 값이 그 범위를 얼마나 벗어났는지 보인다.
   const lo=$derived(Math.min(...points.map(point=>point.value), usual?.low ?? Infinity));
   const hi=$derived(Math.max(...points.map(point=>point.value), usual?.high ?? -Infinity));
@@ -25,48 +19,31 @@
   // Missing continuity metadata is displayed as points, never an assumed continuous record.
   const path=$derived(tracePath(points.map(point=>({x:x(point.x),y:y(point.value),join:point.join}))));
   const left=(at:number)=>Math.min(100,Math.max(0,x(at)/6));
-  const cursor=$derived(selected??(onSelect?last:null));
-  const chosen=$derived(points.find(p=>p.x===cursor));
 </script>
 
 {#if points.length>1}
 <figure class="overview-trend" aria-label={main.label+" 기록 추이"}>
   <ValueAxis ticks={yTicks(lo-pad,hi+pad,0,height)} {height} unit={main.unit}>
-    <PlotCursor {positions} value={cursor} lo={first} hi={last} label="실제 측정 선택" {onSelect}>
     <div class="plot">
       <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label={main.label+" · 측정 공백은 연결하지 않은 기록 추이"}>
         {#each yTicks(lo-pad,hi+pad,0,height) as tick(tick.value)}<line x1="0" x2="600" y1={tick.y} y2={tick.y} class="grid"/>{/each}
         {#if usual}<rect x="0" width="600" y={y(usual.high)} height={Math.max(1,y(usual.low)-y(usual.high))} class="usual"/>{/if}
         {#if range}<rect x={x(Math.max(first,range.from))} width={Math.max(2,x(Math.min(last,range.to))-x(Math.max(first,range.from)))} y="0" height={height} class="interval"/>{/if}
-      {#each marks as mark (mark.at)}<line x1={x(mark.at)} x2={x(mark.at)} y1="0" y2={height} class="mark"/>{/each}
         <path d={path}/>
         {#each points as point,i(i)}<circle cx={x(point.x)} cy={y(point.value)} r="2"/>{/each}
-        {#if cursor!==null&&cursor>=first&&cursor<=last}<line x1={x(cursor)} x2={x(cursor)} y1="0" y2={height} class="selected"/>{/if}
-        {#if chosen}<circle cx={x(chosen.x)} cy={y(chosen.value)} r="4" class="chosen"/>{/if}
       </svg>
       {#if usual}<span class="tag usual-tag" style:left="4px" style:top={(y(usual.high)/height*100)+"%"}>초기 범위</span>{/if}
       {#if range}<span class="tag interval-tag" style:left={left(Math.max(first, range.from))+"%"}>변화 구간</span>{/if}
-      {#each marks as mark (mark.at)}
-        <span class="note" class:right={left(mark.at)>55} style:left={left(mark.at)+"%"} style:top={Math.min(88,Math.max(4,y(mark.value)/height*100))+"%"}>{mark.label}</span>
-      {/each}
     </div>
-    </PlotCursor>
-    {#snippet footer()}<XAxis lo={first} hi={last} scale={main.axis==="time"?{kind:"clock"}:main.periodSeconds?{kind:"elapsed",period:main.periodSeconds}:{kind:"order"}}/>
-      {#if onSelect}<output class="reading">{chosen?chosen.x+"번째 측정 · "+measure(chosen.value,main.unit):cursor!==null?cursor+"번째 측정 · 실측값은 원본에서 확인":"측정 선택"}</output>{/if}
-      <ModelRugs {rugs} lo={first} hi={last} selected={cursor} {onSelect} {range}/>{/snippet}
+    {#snippet footer()}<XAxis lo={first} hi={last} scale={main.axis==="time"?{kind:"clock"}:main.periodSeconds?{kind:"elapsed",period:main.periodSeconds}:{kind:"order"}}/>{/snippet}
   </ValueAxis>
-  {#if !rugs.length}<figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 값"}{usual ? " · 초기 = 기록 처음 30%" : ""}</figcaption>{/if}
+  <figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 값"}{usual ? " · 초기 = 기록 처음 30%" : ""}</figcaption>
 </figure>
 {/if}
 <style>
   .plot{position:relative}
-  .selected{stroke:var(--color-ink);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}.chosen{stroke:var(--color-surface);stroke-width:2}
-  .reading{display:block;min-height:20px;font-size:var(--font-label);font-weight:650;color:var(--color-ink);margin-top:4px}
   .usual{fill:var(--color-ink);fill-opacity:.08}
   .interval{fill:var(--color-caution-ink);fill-opacity:.16}
-  .mark{stroke:var(--color-caution-ink);stroke-width:1.5;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
-  .note{position:absolute;transform:translate(6px,-50%);font-size:var(--font-label);font-weight:650;color:var(--color-ink);background:var(--color-surface);padding:1px 4px;border-radius:3px;white-space:nowrap;pointer-events:none}
-  .note.right{transform:translate(calc(-100% - 6px),-50%)}
   .tag{position:absolute;transform:translateY(-50%);font-size:var(--font-label);color:var(--color-ink-muted);pointer-events:none;white-space:nowrap}
   .usual-tag{transform:translateY(-110%)}
   .interval-tag{top:10px;transform:translateX(6px);color:var(--color-caution-ink);font-weight:650}

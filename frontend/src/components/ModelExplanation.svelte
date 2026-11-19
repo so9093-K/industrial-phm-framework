@@ -166,8 +166,6 @@
           {/each}
         </select>
       </label>
-    {:else}
-      <p class="context">비교할 이전 분석이 없어 {place(run.position)} 한 시점만 설명합니다.</p>
     {/if}
 
     {#if latest?.answer}

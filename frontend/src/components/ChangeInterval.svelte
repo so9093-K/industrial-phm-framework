@@ -3,9 +3,7 @@
   import {measure, yTicks} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import ModelRugs from "./ModelRugs.svelte";
-  import type {ModelRug} from "../model-context";
-  let {finding,height=220,focus=false,rugs=[]}:{finding:FoundInterval;height?:number;focus?:boolean;rugs?:ModelRug[]}=$props();
+  let {finding,height=220,focus=false}:{finding:FoundInterval;height?:number;focus?:boolean}=$props();
   // A single entry chart includes nearby observations before and after the change.
   const displayed=$derived(focus?focusChange(finding):finding);
   const values=$derived(displayed.trace??[]);
@@ -45,7 +43,6 @@
   </div>
   {#snippet footer()}
   <XAxis lo={start} hi={Math.max(end, start + 1)} scale={{kind: "clock"}} />
-  <ModelRugs {rugs} lo={start} hi={Math.max(end, start + 1)} />
   <figcaption>구간별 평균 · 초기 = 기록 처음 30%</figcaption>
   {/snippet}
   </ValueAxis>

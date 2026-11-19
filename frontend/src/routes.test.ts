@@ -184,3 +184,10 @@ test("a selected waveform opens the same model measurement and spectrum keeps ed
   const back=new URL(tabSelectionUrl(base+"&tab=change",spectrum.href),base);
   assert.equal(back.searchParams.get("feature_b_to"),"120");
 });
+
+test("the measurement picked in a vibration relationship travels to the model tab",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=bearing";
+  const relation=base+"&tab=change&method=relation&data=vibration&vibration_at=81&model_position=76";
+  const next=new URL(tabSelectionUrl(base+"&tab=anomaly&method=model",relation),base);
+  assert.equal(next.searchParams.get("model_position"),"81");
+});

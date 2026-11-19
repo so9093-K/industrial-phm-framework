@@ -3,7 +3,7 @@
   import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
   import { readWriteSession } from "./session";
   import {loadModelBindings} from "./model-evidence";
-  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
+  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
@@ -80,8 +80,7 @@
     // a page change or an asset the list does not know reads it again.
     if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
       void quietRefresh();
-    // A new page moves focus to its content. Asset changes restore the select
-    // after its keyed workspace is replaced, instead of leaving focus on the body.
+    // A new page moves focus to its content. Asset links remain focused in their strip.
     if (before.page !== route.page) {
       await tick();
       // Hash navigation on the current page keeps native scrolling; focus still starts at main.
@@ -89,12 +88,6 @@
       document.getElementById("main")?.focus({preventScroll: part !== null});
       part?.scrollIntoView({block: "start"});
     }
-  }
-  async function selectAsset(assetId: string) {
-    if (assetId === route.assetId) return;
-    await navigate(assetUrl(location.href, assetId));
-    await tick();
-    document.querySelector<HTMLSelectElement>("[data-asset-switch]")?.focus();
   }
   function assetHref(assetId: string): string {
     return routeUrl({page: "assets", assetId, tab: "summary", method: null, data: null});
@@ -307,7 +300,7 @@
         checkedAt={observed(snapshot.assessedAt)} />
       {#if selected}
         {#key selected.assetId}
-          <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} onSelectAsset={selectAsset} />
+          <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} />
         {/key}
       {:else if route.assetId}
         <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"

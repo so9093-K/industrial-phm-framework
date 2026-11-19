@@ -285,8 +285,8 @@
       message="이 설비에는 저장된 시계열 기록이 없습니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="비교 조건"
-      summary={names.a+" · "+showTime(periods.a.from)+" ~ "+showTime(periods.a.to)+" / "+names.b+" · "+showTime(periods.b.from)+" ~ "+showTime(periods.b.to)+" (KST)"}>{#snippet children(close)}{#if periods}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names_,selected)}</h3><p>{names.a} · {showTime(periods.a.from)} ~ {showTime(periods.a.to)} / {names.b} · {showTime(periods.b.from)} ~ {showTime(periods.b.to)}</p></div><AnalysisControls title="비교 대상·기간"
+     >{#snippet children(close)}{#if periods}
 
     {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
       {#if compareState!=="empty"}<button type="button" class="ui-button" disabled={!!formError}
@@ -307,7 +307,7 @@
           : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
     {/if}
     {@render conditions(close)}
-    {/if}{/snippet}</AnalysisControls>
+    {/if}{/snippet}</AnalysisControls></header>
     <div class="analysis-body">
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
@@ -329,7 +329,6 @@
         {@const unit = row.unit ?? names_.get(row.channel)?.unit ?? null}
         {@const told = facts(row, unit)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <h3>{signalName(names_, row.channel)}</h3>
           <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
           {#if row.periods.a.median !== null && row.periods.b.median !== null}
             <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}<small>중앙값{told.versus ? " · " + told.versus : ""}</small></p>

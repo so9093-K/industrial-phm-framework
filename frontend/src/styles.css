@@ -74,8 +74,9 @@ p { margin: .4rem 0 var(--space-4); }
   border-radius: var(--radius-panel);
 }
 .ui-button {
-  border: 1px solid var(--color-border);
-  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-control-border);
+  min-height: var(--control-min-height, 44px);
+  padding: var(--control-padding, var(--space-3) var(--space-4));
   border-radius: var(--radius-control);
   color: var(--color-ink);
   background: var(--color-surface);
@@ -137,7 +138,6 @@ main:has(.workspace-asset){padding-block:var(--space-3)}
 
 /* Shared spacing only; each investigation chooses how its plots and selected values relate. */
 .analysis-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start;min-width:0}
-.analysis-workspace.analysis-full{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
 .change-lead{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);align-items:center;gap:var(--space-5);padding-block:var(--space-3)}
 .change-lead .lead-copy{display:grid;gap:var(--space-2)}
 .change-lead .change-values{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:start;gap:var(--space-3)}
@@ -156,3 +156,15 @@ main:has(.workspace-asset){padding-block:var(--space-3)}
 .result-statement{margin:var(--space-2) 0 var(--space-3);font-size:1.25rem;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
 .result-note{margin:0 0 var(--space-3);color:var(--color-ink-muted);overflow-wrap:anywhere}
 .analysis-body>.result:first-child,.analysis-body>section:first-child{margin-top:0;padding-top:0;border-top:0}
+
+/* Analysis controls use one desktop size, including dialogs opened from the workspace. */
+.workspace-asset { --control-min-height:40px; --control-padding:var(--space-2) var(--space-3); }
+.workspace-asset .ui-button[aria-pressed="true"] {
+  background:var(--color-surface-selected); border-color:var(--color-action); font-weight:650;
+}
+
+.analysis-result-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-3); border-bottom:1px solid var(--color-border); padding-bottom:var(--space-3); }
+.analysis-result-head>div { min-width:0; flex:1 1 300px; }
+.analysis-result-head h3 { margin:0; font-size:var(--font-section); }
+.analysis-result-head p { margin:4px 0 0; font-size:var(--font-small); color:var(--color-ink-muted); }
+.analysis-result-head .analysis-controls { flex:none; }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import {assetOptionLabel, type Asset} from "../monitor";
-  import {noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
+  import AssetName from "./AssetName.svelte";
+  import {modelFact, noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
   import {changeValue} from "../record-findings";
   import {readOverview, sparkline, type OverviewRow} from "../asset-overview";
   import {onDestroy, onMount, untrack} from "svelte";
@@ -161,16 +162,10 @@
     return () => clearTimeout(timer);
   });
 
-  /** 모델이 마지막으로 분석한 측정의 결과를 짧게: 몇 개 모델 중 몇 개가 기준을 넘었는지. */
-  function modelShort(id: string): {text: string; over: boolean} {
-    if (checks.state === "failed") return {text: "모델 상태 미확인", over: false};
+  function modelShort(id: string): string {
+    if (checks.state === "failed") return "모델 상태 미확인";
     const list = checks.models[id] ?? [];
-    if (!list.length) return {text: checks.state === "loading" ? "모델 확인 중" : "적용 모델 없음", over: false};
-    const judged = list.filter(model => model.state === "processed" && model.analyzed?.exceeds != null);
-    const over = judged.filter(model => model.analyzed!.exceeds).length;
-    if (!judged.length) return {text: "모델 분석 대기", over: false};
-    // 칸은 '지금' 상태라 마지막 분석 결과다. 지난 변화 구간에서의 반응은 시간축의 모델 줄이 보여 준다.
-    return over ? {text: "마지막 분석 · 모델 " + judged.length + "개 중 " + over + "개 기준 초과", over: true} : {text: "마지막 분석 · 모델 기준 이하", over: false};
+    return modelFact(list, true) ?? (!list.length ? checks.state === "loading" ? "모델 확인 중" : "적용 모델 없음" : "모델 분석 대기");
   }
   /** 모델 결과 밖의 확인 항목. 칸에 보이는 변화와 같은 신호의 '기록 끝' 항목은 그 변화가 이미 말한다. */
   function problems(id: string, row: OverviewRow | null): {text: string; note: Note}[] {
@@ -226,10 +221,13 @@
       {@const review = reviews[asset.assetId]}
       {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
       <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
-        <span class="top"><strong>{name(asset)}</strong><span class="model" class:over={model.over}>{model.text}</span></span>
+        <span class="top"><strong><AssetName label={name(asset)}/></strong></span>
+        {#if row?.vibrationInterval?.sourceId.startsWith("xjtu-sy-")}<small class="record-kind">베어링 수명시험 · 공개 진동 기록</small>
+        {:else if (row?.historyInterval?.context?.sourceId??row?.main?.context?.sourceId??"").startsWith("aihub239-")}<small class="record-kind">공개 설비 계측 기록{asset.lastObservedAt ? " · 마지막 측정 "+new Date(asset.lastObservedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"}) : ""}</small>{/if}
         <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small>{"\u00a0· 저장된 기록"}</small>{/if}</span>
         {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
+        <small class="model">{model}</small>
         {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}
         {#if asset.attentionCount}<small class="issue">운영 확인 항목 {asset.attentionCount}건</small>{/if}
         {#if imports.get(asset.assetId)}<small class="issue">{imports.get(asset.assetId)!.text}</small>{/if}
@@ -246,22 +244,21 @@
   .bearing-entry { font-size: var(--font-small); font-weight: 650; }
   /* 설비 칸은 가로로 이어지고, 많으면 옆으로 넘겨 본다. */
   .strip { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-1); }
-  .tile { flex: 0 0 360px; display: grid; grid-template-columns:minmax(0,1fr) 72px;gap: 4px var(--space-2); align-content: start; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
-    border-top: 4px solid transparent; border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
+  .tile{position:relative;flex:0 0 360px;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--color-border);border-top:3px solid transparent;border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink);text-decoration:none}
   .tile:hover { border-color: var(--color-action); }
   .compact .tile{flex-basis:300px;display:block;padding:var(--space-2) var(--space-3)}
   .compact .tile>.what,.compact .tile>.how,.compact .tile>.bottom{display:none}
+  .compact .tile>.record-kind,.compact .tile>.model,.compact .tile>small{display:none}
   .tile[aria-current="page"] { border-top-color: var(--color-action); background: var(--color-surface-selected); }
-  .top { grid-column:1/-1;display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
   .top strong { font-size: var(--font-body); }
-  .model { font-size: var(--font-label); color: var(--color-ink-muted); white-space: nowrap; }
-  .model.over { color: var(--color-failure-ink, #b42318); font-weight: 650; }
-  .what { grid-column:1;font-size: var(--font-small); overflow-wrap: anywhere; }
-  .how { grid-column:1;font-size:var(--font-small);font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  .bottom { display:contents }
-  .bottom small{grid-column:1/-1}.bottom svg{grid-column:2;grid-row:2/4;align-self:center;width:72px}
+  .model { font-size: var(--font-label); color: var(--color-ink-muted); }
+  .what { max-width:calc(100% - 80px);font-size: var(--font-small); overflow-wrap: anywhere; }
+  .how { max-width:calc(100% - 80px);font-size:var(--font-small);font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .bottom{display:block}
+  .bottom small{display:block}.bottom svg{position:absolute;right:12px;top:42px;width:72px}
   small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
-  small.issue { grid-column:1/-1;color: var(--color-caution-ink); }
+  small.issue { color: var(--color-caution-ink); }
   svg { width: 120px; height: 28px; flex: none; }
   svg path { fill: none; stroke: var(--color-action); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 </style>

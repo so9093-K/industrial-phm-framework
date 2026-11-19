@@ -1,5 +1,7 @@
 <script lang="ts">
   import {onDestroy,untrack} from "svelte";
+  import {plainLabel} from "../change-story";
+  import {investigationOriginUrl} from "../routes";
   import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {askChange,readChangeDiscussion,changeActionLinks,type ChangeDiscussion} from "../change-investigation";
   import type {VibrationChange} from "../vibration-findings";
@@ -11,7 +13,7 @@
   let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>keepQuestionDraft(draftScope,question));
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
-  let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
+  let request:AbortController|null=null,write:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
   const latest=$derived(records[0]??null);
   const waiting=$derived(busy||latest?.status==="pending");
   const next=$derived(latest?.answer?changeActionLinks(assetId,change,bindingId,latest.answer.actions):[]);
@@ -28,30 +30,31 @@
   }
   async function ask(text:string){
     if(!writable||waiting||!text.trim())return;
-    cancel();const pending=new AbortController();request=pending;busy=true;error="";remaining=240;
+    cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
       await askChange(assetId,reviewKey,text.trim(),latest?.status==="complete"?latest.id:null,pending.signal);
       if(pending.signal.aborted)return;question="";busy=false;await refresh();
-    }catch(cause){if(!pending.signal.aborted){busy=false;error=cause instanceof Error?cause.message:"질문을 보내지 못했습니다.";}}
+    }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"질문을 보내지 못했습니다.";}
+    finally{if(write===pending){write=null;busy=false;}}
   }
   $effect(()=>{
-    if(!active){cancel();busy=false;return;}
+    if(!active){cancel();write?.abort();write=null;busy=false;return;}
     const permission=new AbortController();
     void readPermission(permission.signal).then(value=>{if(!permission.signal.aborted)writable=value;}).catch(()=>{});
-    remaining=240;void refresh();
-    return()=>{permission.abort();cancel();};
+    remaining=240;untrack(()=>void refresh());
+    return()=>{permission.abort();cancel();write?.abort();write=null;busy=false;};
   });
 </script>
 <section class="ui-panel investigation" aria-label="선택한 진동 변화 조사">
-  <h2>선택한 변화의 특징과 주파수를 함께 살펴봅니다</h2>
+  <p class="question">{plainLabel(change.label,change.feature)} · {change.from}–{change.to}번째 측정</p>
   {#if error}<p class="error" role="alert">{error} <button type="button" onclick={()=>void refresh()}>다시 읽기</button></p>{/if}
   {#if waiting}<p role="status">AI 해설 작성 중 · 같은 기간의 특징·주파수 비교 결과 사용</p>
   {:else if latest?.status==="complete"&&latest.answer}
     <p class="question">질문 · {latest.question}</p>
     <p class="answer">{latest.answer.summary}</p>
     {#if latest.answer.next_step}<p class="next-step">{latest.answer.next_step}</p>{/if}
-    <p class="by">{latest.answer.source==="model"?"계산된 근거만 사용한 AI 해설":"AI 해설 실패 · 계산된 요약"}</p>
-    {#if next.length}<div class="next" aria-label="질문에 이어서 살펴볼 분석">{#each next as item(item.key)}<a class="ui-button" href={item.href}>{item.label} →</a>{/each}</div>{/if}
+    <p class="by">{latest.answer.source==="model"?"AI 해석 · 선택한 측정과 분석 결과 사용":"계산 결과 요약 · AI 응답을 사용하지 못했습니다"}</p>
+    {#if next.length}<div class="next" aria-label="질문에 이어서 살펴볼 분석">{#each next as item(item.key)}<a class="ui-button" href={item.href} onclick={event=>event.currentTarget.href=investigationOriginUrl(event.currentTarget.href,location.href)}>{item.label} →</a>{/each}</div>{/if}
     <button type="button" class="ui-button memo" onclick={()=>onMemo(memo)}>판단 메모에 넣기</button>
   {:else if latest?.status==="failed"}<p>설명을 만들지 못했습니다. 그래프와 원본 측정은 계속 볼 수 있습니다.</p>{/if}
   {#if !loading}<div class="questions">{#each questions.filter(item=>item.text!==latest?.question) as item(item.label)}<button type="button" class="suggestion" disabled={!writable||waiting} onclick={()=>void ask(item.text)}>{item.label}</button>{/each}</div>{/if}
@@ -61,5 +64,5 @@
 </section>
 <style>
   .next{display:flex;flex-wrap:wrap;gap:var(--space-2)}
-  .investigation{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-5);min-width:0}h2{font-size:var(--font-body);margin:0}p{margin:0;font-size:var(--font-small);overflow-wrap:anywhere}.by,.question{color:var(--color-ink-muted)}.answer{font-size:var(--font-body);line-height:1.7}.by{font-size:var(--font-label)}.questions{display:flex;flex-wrap:wrap;gap:var(--space-2)}.memo{justify-self:start}.suggestion{text-align:left;font:inherit;font-size:var(--font-small);padding:var(--space-2);border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);cursor:pointer}.suggestion:disabled{cursor:default;opacity:.6}label{display:grid;gap:var(--space-2);font-size:var(--font-small)}textarea{width:100%;min-width:0;border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:var(--space-2);font:inherit;background:var(--color-surface);color:var(--color-ink)}.ui-button-primary{justify-self:start}.error{color:var(--color-failure-ink)}
+  .investigation{display:grid;gap:var(--space-3);padding:var(--space-4) var(--space-5);min-width:0}p{margin:0;font-size:var(--font-small);overflow-wrap:anywhere}.by,.question{color:var(--color-ink-muted)}.answer{font-size:var(--font-body);line-height:1.7}.by{font-size:var(--font-label)}.questions{display:flex;flex-wrap:wrap;gap:var(--space-2)}.memo{justify-self:start}.suggestion{text-align:left;font:inherit;font-size:var(--font-small);padding:var(--space-2);border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);cursor:pointer}.suggestion:disabled{cursor:default;opacity:.6}label{display:grid;gap:var(--space-2);font-size:var(--font-small)}textarea{width:100%;min-width:0;border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:var(--space-2);font:inherit;background:var(--color-surface);color:var(--color-ink)}.ui-button-primary{justify-self:start}.error{color:var(--color-failure-ink)}
 </style>

@@ -71,7 +71,7 @@
   .rows{position:relative;font-size:12px;color:var(--color-ink-muted);text-align:right;font-variant-numeric:tabular-nums}
   .rows>span{position:absolute;right:0;transform:translateY(-50%);white-space:nowrap}.map{position:relative;min-width:0}
   canvas{display:block;width:100%;image-rendering:pixelated;cursor:crosshair}canvas:focus-visible{outline:3px solid var(--color-focus);outline-offset:3px}
-  .selected-row{position:absolute;left:0;right:0;border-top:2px solid var(--color-caution-ink);pointer-events:none}
+  .selected-row{position:absolute;left:0;right:0;border-top:2px solid var(--color-ink);pointer-events:none}
   .band-edge{position:absolute;top:0;border-left:1px dashed var(--color-caution-ink);pointer-events:none}
   .tip{position:absolute;z-index:1;display:grid;padding:var(--space-2);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control);font-size:12px;pointer-events:none;width:max-content;max-width:min(240px,100%);overflow-wrap:anywhere;box-shadow:0 2px 8px #0002}
   .legend{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-1) var(--space-3);font-size:12px;color:var(--color-ink-muted)}

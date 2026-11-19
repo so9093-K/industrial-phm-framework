@@ -212,7 +212,7 @@
       message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="신호·비교 기간">{#snippet children(close)}{#if available && periods}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>A · {periodText("a")} / B · {periodText("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
 
     <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
       <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
@@ -223,7 +223,7 @@
     {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
 
     {@render conditions(close)}
-    {/if}{/snippet}</AnalysisControls>
+    {/if}{/snippet}</AnalysisControls></header>
     <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 시각에 기록된 측정 짝을 찾고 있습니다."/>

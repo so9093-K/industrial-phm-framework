@@ -30,7 +30,3 @@ export function rareAtChange(operation: ModelOperation, condition: string): numb
   }
   return null;
 }
-
-/** 변화 그래프 아래 한 줄: 한 모델이 분석한 위치와 기준을 넘은 위치(그래프 가로축 단위), 그리고 이름·횟수. */
-export type ModelRug = {label: string; analyzed: number[]; exceeded: number[];
-  name?: string; trend?: ScoreTrend; divisor?: number};

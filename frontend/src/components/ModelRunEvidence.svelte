@@ -19,13 +19,13 @@
     loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
-  import {beforeInterval,readScoreTrend,type Interval} from "../model-trend";
+  import {beforeInterval,type Interval} from "../model-trend";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
   import {measurementLinks} from "../measurement-links";
   import {loadFeatureSource,type FeatureSource} from "../acquisition-profile";
 
-  let {assetId,timing=null,measurements=null,selectedPosition:overviewPosition=null,onPosition,contextual=false}:{assetId:string;timing?:AcquisitionTiming|null;contextual?:boolean;
+  let {assetId,timing=null,measurements=null,selectedPosition:overviewPosition=null,onPosition}:{assetId:string;timing?:AcquisitionTiming|null;
     selectedPosition?:number|null;onPosition?:(at:number)=>void;
     /** First and last stored vibration measurement, to continue from a chosen one. */
     measurements?:{first:number;last:number}|null}=$props();
@@ -173,8 +173,8 @@
     listState="loading";traceState="empty";detailState="empty";error="";
     try{
       const [models,features]=await Promise.all([loadModelBindings(assetId,request.signal),
-        contextual?loadFeatureSource(assetId,request.signal).catch(()=>null):Promise.resolve(null)]);
-      const available=contextual&&features?models.filter(model=>model.sourceId===features.sourceId&&model.pointId===null):models;
+        measurements?loadFeatureSource(assetId,request.signal).catch(()=>null):Promise.resolve(null)]);
+      const available=features?models.filter(model=>model.sourceId===features.sourceId&&model.pointId===null):models;
       if(request.signal.aborted)return;
       featureSource=features;
       bindings=available;
@@ -204,10 +204,9 @@
     traceState="loading";detailState="empty";error="";
     const request=new AbortController();traceRequest=request;
     try{
-      const [data,full]=await Promise.all([loadModelTrace(matched,request.signal),contextual?readScoreTrend(matched,request.signal).catch(()=>null):Promise.resolve(null)]);
+      const data=await loadModelTrace(matched,request.signal);
       if(request.signal.aborted)return;
       trace=data;
-      if(full){trendSteps=full.points.map(point=>point.pointer);intervals=full.intervals;}
       if(!data.steps.length){traceState="empty";remember();return;}
       traceState="ready";
       const preferred=overviewPosition===null?selectedPosition:String(overviewPosition);
@@ -322,9 +321,9 @@
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
     {#if binding}
-      <div class="analysis-workspace model-workspace" class:contextual><div class="model-toolbar">
-      {#if contextual}<nav class="model-choice" aria-label="적용 모델">{#each bindings as model(model.bindingId)}<button type="button" class="ui-button" aria-pressed={model.bindingId===selectedBinding} onclick={()=>void chooseBinding(model.bindingId,true)}>{names.get(model.bindingId)}</button>{/each}</nav>{/if}
-      <AnalysisControls title={contextual?"모델 설정":"모델"} summary={contextual?null:names.get(binding.bindingId)}>{#snippet children(close)}{#if binding}
+      <div class="analysis-workspace model-workspace"><div class="model-toolbar">
+      <nav class="model-choice" aria-label="적용 모델">{#each bindings as model(model.bindingId)}<button type="button" class="ui-button" aria-pressed={model.bindingId===selectedBinding} onclick={()=>void chooseBinding(model.bindingId,true)}>{names.get(model.bindingId)}</button>{/each}</nav>
+      <AnalysisControls title="모델 설정">{#snippet children(close)}{#if binding}
     {#if bindings.length>1}
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>{close();void chooseBinding(e.currentTarget.value);}}>
@@ -390,7 +389,7 @@
           <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
         {/if}
 
-        <div class="step-actions"><button type="button" class="ui-button" disabled={!adjacent(-1)} onclick={()=>{const step=adjacent(-1);if(step){followLatest=false;void chooseStep(step);}}}>이전 측정</button><button type="button" class="ui-button" disabled={!adjacent(1)} onclick={()=>{const step=adjacent(1);if(step){followLatest=false;void chooseStep(step);}}}>다음 측정</button></div></div>
+        <div class="step-actions"><button type="button" class="ui-button" disabled={!adjacent(-1)} onclick={()=>{const step=adjacent(-1);if(step){followLatest=false;void chooseStep(step);}}}>이전 측정</button><button type="button" class="ui-button" disabled={!adjacent(1)} onclick={()=>{const step=adjacent(1);if(step){followLatest=false;void chooseStep(step);}}}>다음 측정</button><button type="button" class="ui-button" disabled={!result} onclick={showSelectedInput}>{measurements?"원본 파형·입력값":"입력 측정값"}</button></div></div>
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
         {:else if detailState==="failed"}
@@ -406,8 +405,10 @@
             {@const summary=scoreSummary(result.output)}
             <div class="selected-result"><h3>{place(result.position)}</h3>
               <span class="context">점수 {num(summary.score,"기록 없음")} · 기준 {num(summary.threshold,"기록 없음")}</span>
-              <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button></div>
+</div>
           {/if}
+          {#if result.state==="skipped"}<button type="button" class="ui-button input-details" onclick={()=>inputOpen=true}>원본·모델 상세</button>{/if}
+          <TaskDialog bind:open={inputOpen} title="선택한 측정의 원본·모델 상세"><div class="selected-more">
           <div class="selected-meta"><p class="context">측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
             · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
           {#if measurements&&binding.stepKind==="acquisition-snapshot"}
@@ -415,8 +416,7 @@
             {#if links.length}<p class="continue">같은 측정으로 이어서 보기
               {#each links.filter(item=>item.key!=="features") as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
           {/if}</div>
-          {#if result.state==="skipped"}<button type="button" class="ui-button input-details" onclick={()=>inputOpen=true}>원본·모델 상세</button>{/if}
-          <TaskDialog bind:open={inputOpen} title="선택한 측정의 원본·모델 상세"><div class="selected-more">
+
           {#if result.state!=="skipped"}{@const summary=scoreSummary(result.output)}
             <details><summary>점수·판정 상세</summary>
           <p class="context">{selectedScoreMessage(summary).meaning}</p>
@@ -476,15 +476,11 @@
   {/if}
 </section>
 <style>
-  .model-workspace.contextual{grid-template-columns:minmax(0,1fr)}
-  .contextual>.analysis-body{display:contents}
-  .contextual>.model-comparison-area{grid-column:1;grid-row:auto;border:0;padding:0}
   .model-toolbar{grid-column:1/-1;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
-  .model-toolbar :global(.analysis-controls){flex:1;margin:0}
+  .model-toolbar :global(.analysis-controls){flex:none;margin:0;margin-left:auto}
   .model-choice{display:flex;flex-wrap:wrap;gap:var(--space-2)}
-  .model-choice button[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:700}
-  /* 그래프 아래 전체 폭: 고른 측정의 결과와 그 측정이 이전과 무엇이 달랐는지를 한 묶음으로 본다. */
-  .model-workspace{grid-template-columns:minmax(0,1.05fr) minmax(520px,1fr);gap:var(--space-5)}
+  /* 모델 곡선과 선택 측정의 비교를 한 작업 영역에서 읽는다. */
+  .model-workspace{grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr);gap:var(--space-5)}
   .model-workspace>.analysis-body{grid-column:1;grid-row:2}
   .model-comparison-area{grid-column:2;grid-row:2;min-width:0;border-left:1px solid var(--color-border);padding-left:var(--space-5);display:grid;gap:var(--space-2)}
   .measurement-picker{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-2)}.measurement-picker>p{display:none}.step-actions{display:flex;gap:var(--space-1)}
@@ -492,7 +488,6 @@
   @media(max-width:1150px){.model-workspace{grid-template-columns:minmax(0,1fr)}.model-workspace>.analysis-body,.model-comparison-area{grid-column:1;grid-row:auto}.model-comparison-area{border-left:0;border-top:1px solid var(--color-border);padding-left:0;padding-top:var(--space-4)}}
   .selected-result{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
   .selected-result h3{margin:0;font-size:1.2rem}
-  .selected-result .ui-button{margin-left:auto}
   .selected-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-5)}
   .selected-meta p{margin:0}
   .selected-more{display:flex;flex-wrap:wrap;align-items:start;gap:0 var(--space-5)}

@@ -157,13 +157,14 @@ function analyzedPlace(model:MonitoredModel):string{
 }
 
 /** Summarize a shared input only when its stream and measured interval match. */
-export function modelFact(list:MonitoredModel[]):string|null{
+export function modelFact(list:MonitoredModel[], compact=false):string|null{
   const name=namer(list);
   const judged=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds!=null);
   if(!judged.length)return null;
   if(judged.length>1&&!judged.every(model=>sameInput(judged[0],model)))
-    return "모델별 마지막 분석 · "+judged.map(model=>name(model)+" · "+analyzedPlace(model)+": 기준 "+(model.analyzed!.exceeds?"초과":"이하")).join(" / ");
+    return compact ? "모델마다 분석한 측정이 다름" : "모델별 마지막 분석 · "+judged.map(model=>name(model)+" · "+analyzedPlace(model)+": 기준 "+(model.analyzed!.exceeds?"초과":"이하")).join(" / ");
   const over=judged.filter(model=>model.analyzed!.exceeds).map(name),under=judged.filter(model=>!model.analyzed!.exceeds).map(name);
+  if(compact)return "마지막 분석 · "+(over.length?"모델 "+judged.length+"개 중 "+over.length+"개 기준 초과":"모델 기준 이하");
   const place="마지막 분석 · "+analyzedPlace(judged[0]);
   if(!over.length)return place+" 기준 이하 · "+under.join(", ");
   return place+" 기준 초과 · "+over.join(", ")+(under.length?" (기준 이하 · "+under.join(", ")+")":"");
