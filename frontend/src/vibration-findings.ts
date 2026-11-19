@@ -86,6 +86,8 @@ export function vibrationLinks(assetId: string, change: VibrationChange): {signa
   compare.searchParams.set("feature_a_to", String(change.baseline.to));
   compare.searchParams.set("feature_b_from", String(change.from));
   compare.searchParams.set("feature_b_to", String(change.to));
+  // 비교 화면이 기간 이름을 중심 화면과 같게('초기'·'변화 구간') 쓰도록 출처를 함께 넘긴다.
+  compare.searchParams.set("compare_origin", "summary");
   return {signal: signal.pathname + signal.search, compare: compare.pathname + compare.search};
 }
 

@@ -2,15 +2,17 @@
   import {num} from "../format";
   import XAxis from "./XAxis.svelte";
   import {niceTicks} from "../chart-axis";
-  import type {Histogram} from "../comparison";
+  import {newValues, type Histogram} from "../comparison";
 
   /** Period A and B on one value axis. Above, how each period's values spread over the same equal
    * bins, as a share of its own measurements, so two groups of values show where a median would
    * sit between them. Below, the 5–95% range as a line, the middle half (25–75%) as a box and the
-   * median as a mark. Counts and quantiles are the stored ones; nothing is estimated here. */
-  type Props = {a: number[] | null; b: number[] | null; histogram?: Histogram | null; unit: string | null; label: string};
-  let {a, b, histogram = null, unit, label}: Props = $props();
-  const rows = $derived([{name: "기간 A", q: a, kind: "a"}, {name: "기간 B", q: b, kind: "b"}]
+   * median as a mark. Counts and quantiles are the stored ones; nothing is estimated here.
+   * names: 모니터링에서 열면 '초기'·'변화 구간', 직접 고른 기간이면 '기간 A'·'기간 B'. */
+  type Props = {a: number[] | null; b: number[] | null; histogram?: Histogram | null; unit: string | null; label: string;
+    names?: {a: string; b: string}};
+  let {a, b, histogram = null, unit, label, names = {a: "기간 A", b: "기간 B"}}: Props = $props();
+  const rows = $derived([{name: names.a, q: a, kind: "a"}, {name: names.b, q: b, kind: "b"}]
     .filter((row): row is {name: string; q: number[]; kind: string} => row.q !== null && row.q.length === 5));
   const HEIGHT = 120;
   const shares = $derived.by(() => {
@@ -42,29 +44,58 @@
     }).join(" ");
     return path + " L" + scale.x(bins.at(-1)!.high) + " " + HEIGHT + " Z";
   }
+  // 범례 대신 두 분포의 꼭대기에 이름을 붙인다. 서로 가까우면 왼쪽 것은 왼쪽으로, 오른쪽 것은 오른쪽으로 비켜 쓴다.
+  const peaks = $derived.by(() => {
+    const found = shares.flatMap((side) => {
+      const index = side.values.indexOf(Math.max(...side.values)), bin = bins[index];
+      return bin ? [{kind: side.kind, name: side.kind === "a" ? names.a : names.b,
+        at: scale.x((bin.low + bin.high) / 2) / 8, top: y(side.values[index])}] : [];
+    });
+    return found.map((peak) => {
+      const other = found.find((each) => each.kind !== peak.kind);
+      const leftward = peak.at > 88 || (peak.at >= 12 && !!other && peak.at < other.at);
+      return {...peak, leftward};
+    });
+  });
+  // B의 대부분은 A와 같은 값에 있는데 일부가 A에 거의 없던 값으로 따로 몰렸으면 그 자리를 칠한다(중앙값이 거의
+  // 안 움직여 놓치기 쉬운 경우). B 전체가 옮겨 갔으면 두 모양이 이미 보여 주므로 칠하지 않는다.
+  const fresh = $derived.by(() => {
+    const found = newValues(histogram);
+    if (!found || !histogram?.a || !histogram.b) return null;
+    const totalA = histogram.a.reduce((sum, count) => sum + count, 0);
+    const common = histogram.b.reduce((sum, count, bin) => sum + (histogram.a![bin] / totalA >= 0.01 ? count : 0), 0);
+    return common >= 0.5 * found.total ? found : null;
+  });
   const suffix = $derived(unit ? " " + unit : "");
   const percentOf = (side: {values: number[]} | undefined, index: number) =>
     side ? (side.values[index] * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%" : "없음";
 </script>
 
 {#if rows.length || shares.length}
-  <figure class="ranges">
+  <figure class="ranges" class:has-fresh={!!fresh}>
     {#if shares.length}
       <div class="share-axis" aria-hidden="true" style={"height:" + HEIGHT + "px"}>
         <span class="name">측정 비율</span>
         {#each ticks as tick (tick)}<span class="tick" style={"top:" + y(tick / 100) + "px"}>{tick}%</span>{/each}
       </div>
+      <div class="plot">
       <svg class="shape" viewBox={"0 0 800 " + HEIGHT} style={"height:" + HEIGHT + "px"} preserveAspectRatio="none" role="img"
-        aria-label={label + " 값 분포 · 같은 폭 " + bins.length + "개 구간에 든 측정 비율. 기간 A는 회색 면, 기간 B는 진한 선."}>
+        aria-label={label + " 값 분포 · 같은 폭 " + bins.length + "개 구간에 든 측정 비율. " + names.a + "는 회색 면, " + names.b + "는 진한 선."}>
+        {#if fresh}<rect x={scale.x(fresh.low)} width={Math.max(2, scale.x(fresh.high) - scale.x(fresh.low))} y="0" height={HEIGHT} class="fresh" />{/if}
         {#each ticks as tick (tick)}<line x1="0" x2="800" y1={y(tick / 100)} y2={y(tick / 100)} class="grid" />{/each}
         {#each shares as side (side.kind)}<path d={outline(side.values)} class={"area " + side.kind} />{/each}
         <line x1="0" x2="800" y1={HEIGHT} y2={HEIGHT} class="base" />
         {#each bins as bin (bin.index)}
           <rect x={scale.x(bin.low)} width={Math.max(1, scale.x(bin.high) - scale.x(bin.low))} y="0" height={HEIGHT} class="hit">
-            <title>{num(bin.low)}~{num(bin.high)}{suffix} · 기간 A {percentOf(shares.find((side) => side.kind === "a"), bin.index)} · 기간 B {percentOf(shares.find((side) => side.kind === "b"), bin.index)}</title>
+            <title>{num(bin.low)}~{num(bin.high)}{suffix} · {names.a} {percentOf(shares.find((side) => side.kind === "a"), bin.index)} · {names.b} {percentOf(shares.find((side) => side.kind === "b"), bin.index)}</title>
           </rect>
         {/each}
       </svg>
+      {#each peaks as peak (peak.kind)}
+        <span class={"peak " + peak.kind} class:leftward={peak.leftward} style:left={peak.at + "%"} style:top={peak.top + "px"}>{peak.name}</span>
+      {/each}
+      {#if fresh}<span class="fresh-tag" class:leftward={scale.x(fresh.low) / 8 > 55} style:left={(scale.x(fresh.low) / 8 > 55 ? scale.x(fresh.high) : scale.x(fresh.low)) / 8 + "%"}>{names.a}에 거의 없던 값 · {names.b} {fresh.total}회 중 {fresh.count}회</span>{/if}
+      </div>
     {/if}
     {#if rows.length}
       <div class="row-labels" aria-hidden="true">{#each rows as row (row.kind)}<span>{row.name}</span>{/each}</div>
@@ -80,12 +111,7 @@
     {/if}
     <span></span>
     <XAxis lo={scale.low} hi={scale.high} scale={{kind:"value"}} note={"가로축 · " + label + (unit ? " · " + unit : "")} />
-    <figcaption>
-      {#each rows as row (row.kind)}
-        <span><i class={"key " + row.kind}></i>{row.name} · 중앙값 {num(row.q[2])}{suffix} · 가운데 절반 {num(row.q[1])}~{num(row.q[3])}</span>
-      {/each}
-      {#if shares.length}<span>위 그림 · 두 기간의 값 전체를 같은 폭 {bins.length}개 구간으로 나눠, 각 기간 측정 중 몇 %가 그 구간에 있었는지 그렸습니다. 구간에 마우스를 올리면 비율이 보입니다.</span>{/if}
-    </figcaption>
+    {#if rows.length}<figcaption>상자는 가운데 절반, 선은 90% 범위, 세로선은 중앙값</figcaption>{/if}
   </figure>
 {/if}
 
@@ -112,8 +138,15 @@
   .box.a { fill: var(--color-ink-muted); fill-opacity: 0.22; }
   .box.b { fill: var(--color-surface); stroke-width: 2.5; }
   .median { stroke: var(--color-ink); stroke-width: 2; }
-  figcaption { grid-column:1/-1;display: grid; gap: var(--space-1); margin-top: var(--space-2); color: var(--color-ink-muted); font-size: var(--font-small); }
-  .key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-inline-end: var(--space-1); vertical-align: middle; }
-  .key.a { background: color-mix(in srgb, var(--color-ink-muted) 22%, var(--color-surface)); border: 1px solid var(--color-ink-muted); }
-  .key.b { background: var(--color-surface); border: 2.5px solid var(--color-action); }
+  figcaption { grid-column:1/-1; margin-top: var(--space-2); color: var(--color-ink-muted); font-size: var(--font-small); }
+  .plot { position: relative; min-width: 0; }
+  .ranges.has-fresh { margin-top: var(--space-6); }
+  .peak { position: absolute; transform: translate(6px, -2px); font-size: var(--font-label); font-weight: 650; white-space: nowrap; pointer-events: none;
+    background: var(--color-surface); padding: 0 3px; border-radius: 3px; }
+  .peak.leftward { transform: translate(calc(-100% - 6px), -2px); }
+  .peak.a { color: var(--color-ink-muted); }
+  .peak.b { color: var(--color-action); }
+  .fresh { fill: var(--color-caution-ink); fill-opacity: 0.12; }
+  .fresh-tag { position: absolute; bottom: 100%; transform: translateY(-2px); font-size: var(--font-label); font-weight: 650; color: var(--color-caution-ink); white-space: nowrap; pointer-events: none; }
+  .fresh-tag.leftward { transform: translate(-100%, -2px); }
 </style>

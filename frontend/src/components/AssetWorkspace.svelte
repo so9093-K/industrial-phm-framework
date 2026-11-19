@@ -146,19 +146,22 @@
       data = value; dataState = "ready";
     }).catch(() => { if (!request.signal.aborted) dataState = "failed"; });
   }
+  // 목록을 주기적으로 다시 읽으면 asset·route가 새 객체로 들어온다. 탭 이름(문자열)이 바뀔 때만 다시 읽어야
+  // 열린 분석이 처음부터 다시 계산되지 않는다.
+  const tab = $derived(route.tab);
   // A first model analysis or a new receipt can make another task available
   // while this asset remains open. Re-read input facts when entering a tab.
   $effect(() => {
-    route.tab;
-    reloadData();
+    tab;
+    untrack(reloadData);
     return () => dataRequest?.abort();
   });
   // A tab change reuses this component; fetch only for analysis selection, not
   // for every signal view or summary (which owns its separate options read).
   $effect(() => {
-    route.tab;
+    tab;
     if (!needsCapability) return;
-    reloadCapability();
+    untrack(reloadCapability);
     return () => capabilityRequest?.abort();
   });
 </script>
@@ -269,8 +272,7 @@
       {:else if route.tab === "change" && kind === "vibration"}
         <AcquisitionFeatureProfile assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
       {:else if route.tab === "change"}
-        <PeriodComparison assetId={asset.assetId}
-          electrical={capabilities?.items.some((item) => item.id === "electrical" && item.status === "ready") ?? false} />
+        <PeriodComparison assetId={asset.assetId} />
       {:else if route.tab === "outlook" && kind === "vibration"}
         <AcquisitionOutlook assetId={asset.assetId} />
       {:else}

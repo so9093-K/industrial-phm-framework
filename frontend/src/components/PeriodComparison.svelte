@@ -2,10 +2,11 @@
   import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import RangeCompare from "./RangeCompare.svelte";
-  import {assetTabUrl, systemUrl} from "../routes";
-  import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {historyPeriodMessage, type NextStep} from "../analysis-messages";
-  import {comparisonWindows, focusFrom, focusParams, windowParams} from "../signal-selection";
+  import {systemUrl} from "../routes";
+  import {countShare} from "../analysis-messages";
+  import {versusStart} from "../change-story";
+  import {rangeEvidence} from "../change-evidence";
+  import {focusFrom, focusParams} from "../signal-selection";
   import {comparisonDefault, defaultChannel, readSummary} from "../summary-defaults";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -13,39 +14,18 @@
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import {ORIGIN_TEXT, periodOrigin, type PeriodOrigin} from "../signal-selection";
-  // What one source's two periods show, first: what changed, how plain it is, where to look next.
-  function told(read: ProfileResult, row: ProfileSeries) {
-    const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
-    const next: NextStep[] = [];
-    for (const view of comparisonWindows(read.periods)) {
-      const url = new URL(assetTabUrl(assetId, "signals", null, null, row.channel), location.origin);
-      for (const [key, value] of Object.entries({...windowParams(view.window, view.pick), ...focusParams({source:row.source, point:row.point, interpretation:row.interpretation})})) url.searchParams.set(key, value);
-      next.push({label: view.label, href: url.pathname + url.search});
-    }
-    const low = a.lowCurrent !== null && b.lowCurrent !== null ? {a: a.lowCurrent, b: b.lowCurrent} : null;
-    if (low && electrical) next.push({label: "3상 평균 전류와 상별 값을 3상 전력·불평형에서 보기", href: assetTabUrl(assetId, "change", "electrical")});
-    return historyPeriodMessage({
-      unit: row.unit ?? names?.get(row.channel)?.unit ?? null,
-      a: {usable: a.usable, median: a.median, low: qa?.[0] ?? null, high: qa?.[4] ?? null},
-      b: {usable: b.usable, median: b.median},
-      outsideCount: row.outsideCount, outsidePercent: row.outsidePercent, medianChangePercent: row.medianChangePercent,
-      onset: null, means: {a: a.mean, b: b.mean}, aMiddle: qa ? {low: qa[1], high: qa[3]} : null, lowCurrent: low,
-      newValues: newValues(row.histogram),
-    }, next);
-  }
   import {
-    defaultPeriods, newValues, readProfile, readSources, validatePeriods, NoHistoryError,
+    defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
     type CompareOperation, type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
   } from "../comparison";
   import {bandName, bandRange, percent} from "../record-findings";
 
-  /** electrical: whether R·S·T roles resolve for this asset, so 3상 전력·불평형 can actually run. */
-  type Props = {assetId: string; electrical?: boolean};
-  let {assetId, electrical = false}: Props = $props();
+  type Props = {assetId: string};
+  let {assetId}: Props = $props();
   let sources_: Map<string, string> = $state(new Map());
   $effect(() => { void readSourceNames().then((value) => sources_ = value); });
-  let names: SignalNames = $state(new Map());
-  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names = value; }); });
+  let names_: SignalNames = $state(new Map());
+  $effect(() => { const asset = assetId; void readSignalNames(asset).then((value) => { if (asset === assetId) names_ = value; }); });
   type State = "loading" | "ready" | "edited" | "empty" | "failed" | "unavailable";
   let sourceState: State = $state("loading");
   let compareState: State = $state("loading");
@@ -82,6 +62,21 @@
   };
   const showTime = (iso: string): string =>
     new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 19).replace("T", " ");
+  // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
+  const names = $derived(handedOver === "summary" ? {a: "초기", b: "변화 구간"} : {a: "기간 A", b: "기간 B"});
+  /** 한 출처의 두 기간: 크기 한 마디, 기간 A 값의 90% 범위 밖 측정 수, 전류가 낮았던 측정 비율이 크게 다를 때 그 차이. */
+  function facts(row: ProfileSeries, unit: string | null) {
+    const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
+    const versus = a.median !== null && b.median !== null ? versusStart(b.median, a.median, unit, names.a) : null;
+    const condition = level !== null && operation ? bandName(operation.names, level) : null;
+    const outside = rangeEvidence({usable: b.usable, outside: row.outsideCount, low: qa?.[0] ?? null, high: qa?.[4] ?? null,
+      unit, condition, percent: row.outsidePercent}, names);
+    // 측정 수 기준 비율이다. 두 기간에서 10%p 넘게 다르면 값 차이에 운전 여부 차이가 섞였을 수 있다.
+    const low = a.lowCurrent !== null && b.lowCurrent !== null && a.usable && b.usable
+      && Math.abs(a.lowCurrent / a.usable - b.lowCurrent / b.usable) >= 0.1
+      ? "전류 1 A 미만 측정 · " + names.a + " " + countShare(a.lowCurrent, a.usable) + " · " + names.b + " " + countShare(b.lowCurrent, b.usable) : null;
+    return {versus, outside, low};
+  }
 
   function loadPeriodUrl(fallback: Periods): Periods {
     const params = new URLSearchParams(location.search);
@@ -234,7 +229,7 @@
       <label for="compare-channel">신호
         <select id="compare-channel" value={selected}
           onchange={e => {if(!formError)close();selectChannel(e.currentTarget.value);}}>
-          {#each sources.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
+          {#each sources.channels as id (id)}<option value={id}>{signalName(names_,id)}</option>{/each}
         </select>
       </label>
     </div>
@@ -291,18 +286,17 @@
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
     <div class="analysis-workspace analysis-full"><AnalysisControls title="비교 조건"
-      summary={"기간 A · "+showTime(periods.a.from)+" ~ "+showTime(periods.a.to)+" / 기간 B · "+showTime(periods.b.from)+" ~ "+showTime(periods.b.to)+" (KST)"}>{#snippet children(close)}{#if periods}
+      summary={names.a+" · "+showTime(periods.a.from)+" ~ "+showTime(periods.a.to)+" / "+names.b+" · "+showTime(periods.b.from)+" ~ "+showTime(periods.b.to)+" (KST)"}>{#snippet children(close)}{#if periods}
 
     {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
       {#if compareState!=="empty"}<button type="button" class="ui-button" disabled={!!formError}
         onclick={()=>{focus=null;remember();close();void compare();}}>다른 출처의 기록 보기</button>{/if}{/if}
     <div class="period-summary" role="group" aria-label="현재 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
+      <p><strong>{names.a} · {handedOver === "summary" ? "기록 처음 30%" : "비교 기준"}</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
+      <p><strong>{names.b}{handedOver === "summary" ? "" : " · 살펴볼 구간"}</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
     </div>
 
-
-    {#if handedOver}
+    {#if handedOver && handedOver !== "summary"}
       <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
     {/if}
     {#if beforeRecord > 0}
@@ -332,37 +326,24 @@
       {#if focus}<button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     {:else if result}
       {#each result.series as row (row.key)}
-        {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
-        {@const message = told(result, row)}
+        {@const unit = row.unit ?? names_.get(row.channel)?.unit ?? null}
+        {@const told = facts(row, unit)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <h3>{names?.get(row.channel)?.label??row.channel}</h3>
+          <h3>{signalName(names_, row.channel)}</h3>
           <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
-          {#if message}
-            {#if message.conclusion}<p class="result-conclusion">{message.conclusion}</p>{/if}
-            <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}</p>
-            <div class="result-metrics">
-              {#if row.medianChangePercent !== null && row.medianChangePercent !== 0}<p>A보다 {Math.abs(row.medianChangePercent).toFixed(1)}% {row.medianChangePercent>0?"높음":"낮음"}</p>{/if}
-              {#if row.outsidePercent !== null}<p>기간 B 측정의 {row.outsidePercent.toFixed(1)}%가 기간 A 값의 90%가 있던 범위{#if row.periods.a.quantiles}({num(row.periods.a.quantiles[0])}~{num(row.periods.a.quantiles[4])}{unit?" "+unit:""}){/if} 밖 · 기간 A 값도 약 10%는 밖</p>{/if}
-              {#if row.periods.a.quantiles && row.periods.b.quantiles}<p>값이 퍼진 정도(가운데 절반의 폭) {num(row.periods.a.quantiles[3]-row.periods.a.quantiles[1])} → {num(row.periods.b.quantiles[3]-row.periods.b.quantiles[1])}{unit?" "+unit:""}</p>{/if}
-            </div>
-          {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
-          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={names?.get(row.channel)?.label??row.channel} />
-          {#if message}<details><summary>비교 결과 해석</summary><AnalysisMessage {message} showHeadline={false}
-            boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
-          </details>{/if}
+          {#if row.periods.a.median !== null && row.periods.b.median !== null}
+            <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}<small>중앙값{told.versus ? " · " + told.versus : ""}</small></p>
+            {#if told.outside}<p class="fact">{told.outside}</p>{/if}
+            {#if told.low}<p class="fact">{told.low}</p>{/if}
+          {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 계산할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
+          <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={signalName(names_, row.channel)} names={names} />
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
-            {#if message}<p class="context">{message.headline}</p>{/if}
           <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
-          {#if row.medianChange !== null}
-            <p class="headline">중앙값 변화(B − A) <strong>{num(row.medianChange)}{unit ? " " + unit : ""}</strong>
-              {#if row.outsidePercent !== null}<span> · B의 값 중 A의 비교 범위(5~95%) 밖 {row.outsidePercent.toFixed(1)}%</span>{/if}
-            </p>
-          {/if}
           <div class="table-wrap">
             <table>
               <caption>이 출처·측정 위치의 기간별 통계 (개별 측정값 아님)</caption>
-              <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+              <thead><tr><th scope="col">항목</th><th scope="col">{names.a}</th><th scope="col">{names.b}</th></tr></thead>
               <tbody>
                 <tr><th scope="row">측정 수</th><td>{row.periods.a.observations}</td><td>{row.periods.b.observations}</td></tr>
                 <tr><th scope="row">유효 측정</th><td>{row.periods.a.usable}</td><td>{row.periods.b.usable}</td></tr>
@@ -380,7 +361,7 @@
           </details>
           <details>
             <summary>기술 상세</summary>
-            <p class="context">측정 의미 ID {row.interpretation} · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
+            <p class="context">측정 의미 ID {row.interpretation} · ‘90% 범위’는 {names.a} 값의 5~95% 범위입니다. {names.a} 값도 약 10%는 이 범위 밖에 있고, {names.a}가 정상 운전이었다는 뜻은 아닙니다.</p>
           </details>
         </section>
       {/each}
@@ -391,7 +372,7 @@
         <section class="operation" aria-labelledby="compare-operation">
           <h3 id="compare-operation">운전 수준 <small>{shown.label} 기준</small></h3>
         <div class="table"><table>
-          <thead><tr><th scope="col">운전 수준</th><th scope="col">전류</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+          <thead><tr><th scope="col">운전 수준</th><th scope="col">전류</th><th scope="col">{names.a}</th><th scope="col">{names.b}</th></tr></thead>
           <tbody>{#each [0, ...shown.names.levels.map((_, index) => index + 1)] as band (band)}
             <tr><th scope="row">{bandName(shown.names, band)}</th><td>{bandRange(shown.names, band)}</td>
               <td>{shown.shares.a ? percent(shown.shares.a[band]) : "측정 없음"}</td><td>{shown.shares.b ? percent(shown.shares.b[band]) : "측정 없음"}</td></tr>
@@ -406,7 +387,8 @@
 </section>
 
 <style>
-  .result-conclusion{font-weight:650;margin:var(--space-2) 0}
+  .fact{margin:0;line-height:1.6}
+  .primary-insight small{display:inline-block;margin-left:var(--space-3);font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
   .period-summary{font-size:var(--font-small)}.period-summary p{margin:0}.period-summary span{display:block}
   .compare { min-width: 0; }
   .primary-insight { font-size:var(--font-result); font-weight:700; line-height:1.6; overflow-wrap:anywhere; }
@@ -430,8 +412,6 @@
   legend { font-weight: 700; }
   .series { border-top: 1px solid var(--color-border); padding-top: var(--space-4); margin-top: var(--space-6); }
   h3 { overflow-wrap: anywhere; }
-  .headline { font-size: var(--font-section); overflow-wrap: anywhere; }
-  .headline span { font-size: var(--font-small); color: var(--color-ink-muted); }
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
   .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-block: var(--space-3); }

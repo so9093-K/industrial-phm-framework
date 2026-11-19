@@ -41,16 +41,17 @@ const TEMPERATURE = /°|℃|℉/;
 const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
 const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
 /** 초기(기록 처음 30%의 중앙값)와 비교한 크기 한 마디. 1.5배 이상이면 배수, 2/3 이하면 초기의 몇 %,
- * 그 사이면 차이와 비율. 온도처럼 0이 기준이 아닌 단위는 차이만 쓴다. */
-export function versusStart(value: number, reference: number | null, unit: string | null): string | null {
+ * 그 사이면 차이와 비율. 온도처럼 0이 기준이 아닌 단위는 차이만 쓴다. 두 기간 비교처럼 기준 이름이
+ * 다르면 name으로 바꾼다(예: '기간 A의 약 2배'). */
+export function versusStart(value: number, reference: number | null, unit: string | null, name = "초기"): string | null {
   if (reference === null) return null;
   const ratio = !TEMPERATURE.test(unit ?? "") && reference > 0 && value > 0 ? value / reference : null;
-  if (ratio !== null && ratio >= 1.5) return "초기의 약 " + ratioText(ratio) + "배";
-  if (ratio !== null && ratio <= 1 / 1.5) return "초기의 약 " + Math.round(ratio * 100) + "%";
+  if (ratio !== null && ratio >= 1.5) return name + "의 약 " + ratioText(ratio) + "배";
+  if (ratio !== null && ratio <= 1 / 1.5) return name + "의 약 " + Math.round(ratio * 100) + "%";
   const gap = value - reference;
-  if (gap === 0) return "초기와 같음";
+  if (gap === 0) return name + "와 같음";
   const part = ratio !== null && unit !== "%" ? "(" + share(Math.abs(gap) / reference) + ")" : "";
-  return "초기보다 " + amount(Math.abs(gap), unit) + part + (gap > 0 ? " 높음" : " 낮음");
+  return name + "보다 " + amount(Math.abs(gap), unit) + part + (gap > 0 ? " 높음" : " 낮음");
 }
 
 /** 결론 한 문장: 변화의 모양만 쉬운 말로 말한다(언제부터, 지금도 이어지는지, 마지막에 한 번 더 크게 움직였는지).
