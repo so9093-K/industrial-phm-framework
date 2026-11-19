@@ -116,15 +116,80 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 page.goto(origin + "/web/")
                 assets = page.locator('section[aria-labelledby="asset-list-title"]')
                 operations = page.locator("details.monitor-operations")
-                pw.expect(assets.locator(".row").first).to_contain_text("changing", timeout=30000)
-                pw.expect(assets.locator(".primary-reason").first).to_be_visible()
                 rows = assets.locator(".row")
-                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
+                # 기록 끝까지 이어진 변화가 운영 확인 3건과 대기 중인 모델보다 앞선다.
+                pw.expect(rows.first).to_contain_text("changing", timeout=30000)
                 pw.expect(rows.first).to_contain_text("과거 저장 기록")
-                pw.expect(rows.first.locator(".primary-reason")).to_contain_text("temperature")
+                pw.expect(rows.first.locator(".change-values")).to_contain_text("마지막 구간 평균")
+                pw.expect(rows.first).to_contain_text("모델 · 적용 모델 없음")
+                pw.expect(rows.nth(1)).to_contain_text("모델 · 새 입력 분석 대기")
+                pw.expect(rows.nth(1)).to_contain_text("운영 · 확인 항목 3건")
                 pw.expect(page.locator(".meta").first).to_contain_text("목록 확인 시각")
-                direct = rows.first.get_by_role("link", name="변화 구간 조사하기", exact=False)
+                opened = rows.first.get_by_role("link", name="changing", exact=True)
+                assert parse_qs(urlsplit(opened.get_attribute("href")).query)["monitor_asset"] == [
+                    "changing"
+                ]
+                assert operations.get_attribute("open") is None
+                assert assets.bounding_box()["y"] < operations.bounding_box()["y"]
+                rows.nth(1).get_by_role("link", name="보기 →", exact=True).click()
+                pw.expect(operations).to_have_attribute("open", "")
+                pw.expect(operations.get_by_role("heading", name="운영 서비스")).to_be_visible()
+                # At equal importance the larger count wins, then the server's original order.
+                model.update(
+                    processing_state="processed",
+                    latest_analyzed={"position": 5, "output": {"exceeds_threshold": True}},
+                    open_interval={"start_position": 3, "step_count": 3},
+                )
+                page.reload()
+                pw.expect(rows.first).to_contain_text("stable")
+                pw.expect(rows.first).to_contain_text("모델 · 최근 측정 기준 초과")
+                stable["attention_count"] = 0
+                snapshot["assets"]["items"].reverse()
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.nth(1)).to_contain_text("stable")
+                pw.expect(rows.nth(1)).not_to_contain_text("운영 · 확인 항목")
+                # Server-confirmed operating checks without a model note still count.
+                operating = json.loads(asset_list("operating"))["assets"]["items"][0]
+                operating["attention_count"] = 4
+                snapshot["assets"]["items"].append(operating)
+                page.reload()
+                # The signal change and model crossing remain ahead of these four checks.
+                pw.expect(rows.nth(2)).to_contain_text("operating")
+                pw.expect(rows.nth(2)).to_contain_text("운영 · 확인 항목 4건")
+                model["processing_state"] = "pending"
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(rows.nth(1)).to_contain_text("operating")
+                pw.expect(rows.nth(1)).to_contain_text("운영 · 확인 항목 4건")
+                pw.expect(rows.nth(1)).not_to_contain_text("새 입력 분석 대기")
+                pw.expect(rows.nth(2)).to_contain_text("stable")
+                pw.expect(rows.nth(2)).to_contain_text("모델 · 새 입력 분석 대기")
+                snapshot["assets"]["items"].pop()
+                # A failed read clears old reasons; only counts and source order remain.
+                monitor_failed = True
+                stable["attention_count"] = 3
+                page.reload()
+                pw.expect(rows.first).to_contain_text("stable")
+                pw.expect(rows.first).to_contain_text("모델 · 상태를 읽지 못함")
+                pw.expect(
+                    page.get_by_text("모델·수신 확인 항목을 읽지 못했습니다", exact=False)
+                ).to_be_visible()
+                pw.expect(assets).not_to_contain_text("새 입력 분석 대기")
+                # A partial read keeps the importance of the reasons it actually returned.
+                monitor_failed = False
+                model["processing_state"] = "pending"
+                phm["truncated"] = True
+                page.reload()
+                pw.expect(rows.first).to_contain_text("changing")
+                pw.expect(
+                    page.get_by_text("모델·수신 확인 항목을 일부만 읽었습니다", exact=False)
+                ).to_be_visible()
+                page.unroute("**/api/v1/phm/monitor")
+                # 행은 상태 요약으로 가고, 그 화면이 같은 변화의 원본 구간으로 잇는다.
+                rows.first.get_by_role("link", name="changing", exact=True).click()
+                direct = page.get_by_role("link", name="원본 신호에서 이 구간 보기", exact=False)
+                pw.expect(direct).to_be_visible(timeout=30000)
                 picked = parse_qs(
                     urlsplit(direct.get_attribute("href")).query, keep_blank_values=True
                 )
@@ -136,60 +201,7 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 )
                 assert picked["monitor_range"] == ["window"]
                 assert picked["monitor_pick"][0].startswith("2020-")
-                assert operations.get_attribute("open") is None
-                assert assets.bounding_box()["y"] < operations.bounding_box()["y"]
-                assets.locator(".row-details summary").first.click()
-                assets.locator(".reason-link").first.click()
-                pw.expect(page.locator("#attention-changing")).to_be_visible()
-                assert operations.get_attribute("open") is not None
-                # At equal importance the larger count wins, then the server's original order.
-                model.update(
-                    processing_state="processed",
-                    latest_analyzed={"position": 5, "output": {"exceeds_threshold": True}},
-                    open_interval={"start_position": 3, "step_count": 3},
-                )
-                page.reload()
-                pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("확인할 항목 4건")
-                stable["attention_count"] = 0
-                snapshot["assets"]["items"].reverse()
-                page.reload()
-                pw.expect(rows.first).to_contain_text("changing")
-                pw.expect(rows.first).to_contain_text("확인할 항목 1건")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 1건")
-                # Server-confirmed operating checks without a primary note still count.
-                operating = json.loads(asset_list("operating"))["assets"]["items"][0]
-                operating["attention_count"] = 4
-                snapshot["assets"]["items"].append(operating)
-                page.reload()
-                # The signal change and model crossing remain ahead of these four checks.
-                pw.expect(rows.nth(2)).to_contain_text("operating")
-                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 4건")
-                model["processing_state"] = "pending"
-                page.reload()
-                pw.expect(rows.first).to_contain_text("changing")
-                pw.expect(rows.nth(1)).to_contain_text("operating")
-                pw.expect(rows.nth(1)).to_contain_text("확인할 항목 4건")
-                pw.expect(rows.nth(1).locator(".primary-reason")).to_have_count(0)
-                pw.expect(rows.nth(2)).to_contain_text("stable")
-                pw.expect(rows.nth(2)).to_contain_text("확인할 항목 1건")
-                snapshot["assets"]["items"].pop()
-                # A failed read clears old reasons; only counts and source order remain.
-                monitor_failed = True
-                stable["attention_count"] = 3
-                page.reload()
-                pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("일부 미확인")
-                pw.expect(assets.locator(".primary-reason")).to_have_count(0)
-                # A partial read keeps the importance of the reasons it actually returned.
-                monitor_failed = False
-                model["processing_state"] = "pending"
-                phm["truncated"] = True
-                page.reload()
-                pw.expect(rows.first).to_contain_text("changing")
-                pw.expect(rows.first).to_contain_text("최소 1건 · 일부 미확인")
-                page.unroute("**/api/v1/phm/monitor")
-                rows.first.get_by_role("link", name="변화 구간 조사하기", exact=False).click()
+                direct.click()
                 series = page.locator(".series")
                 pw.expect(series).to_have_count(1)
                 pw.expect(series.locator("svg").first).to_be_visible()
@@ -566,10 +578,7 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(rows.nth(0).locator(".asset")).to_contain_text("공기압축기 1")
                 pw.expect(rows.nth(1).locator(".asset")).to_contain_text("펌프 2")
                 pw.expect(rows.nth(2).locator(".asset")).to_contain_text("공기압축기 3")
-                pw.expect(rows.first.locator(".finding")).to_contain_text("역률", timeout=30000)
-                pw.expect(rows.first.locator(".bar")).to_be_hidden()
-                rows.first.get_by_text("운전·확인 상세", exact=True).click()
-                pw.expect(rows.first.locator(".bar")).to_be_visible()
+                pw.expect(rows.first.locator(".headline")).to_contain_text("역률", timeout=30000)
                 options = page.locator(".view-options")
                 pw.expect(options).not_to_have_attribute("open", "")
                 pw.expect(page.get_by_role("checkbox", name="종류별로 묶기")).to_be_hidden()
@@ -579,20 +588,8 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(rows.nth(1).locator(".asset")).to_contain_text("공기압축기 3")
                 pw.expect(rows.nth(2).locator(".asset")).to_contain_text("펌프 2")
                 page.get_by_role("checkbox", name="종류별로 묶기").uncheck()
-                inspect = rows.first.locator(".finding")
-                target = parse_qs(
-                    urlsplit(inspect.get_attribute("href")).query, keep_blank_values=True
-                )
-                assert target["tab"] == ["signals"] and target["monitor_source"] == [
-                    "compressor-file"
-                ]
-                inspect.click()
-                pw.expect(page.locator(".series").first).to_be_visible(timeout=30000)
-                assert parse_qs(urlsplit(page.url).query)["monitor_source"] == ["compressor-file"]
                 with page.expect_response("**/api/v1/explore/findings?**") as response:
-                    page.get_by_role("navigation", name="설비 화면").get_by_role(
-                        "link", name="상태 요약", exact=True
-                    ).click()
+                    rows.first.get_by_role("link", name="공기압축기 1", exact=True).click()
                 finding = response.value.json()["intervals"][0]
                 card = page.locator(".found > li").first
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {equipmentKind, latestReading, parseOverview, sparkline} from "./asset-overview.ts";
+import {equipmentKind, parseOverview, sparkline} from "./asset-overview.ts";
 import {findingLinks} from "./record-findings.ts";
 
 const row = {schema_version: 1, asset_id: "공기압축기 1306", kind: "history", finding_count: 3, judged: 25, copied: 9,
@@ -27,14 +27,11 @@ test("an overview row reads the summary's first change with how the asset ran", 
   assert.equal(empty.kind, null);
 });
 
-test("the last stored value next to a change is that changed signal's own, never the main signal's", () => {
+test("the last value next to a change is that changed signal's own, never the main signal's", () => {
   const changed = parseOverview({...row, finding: {...row.finding, latest: {at: "2020-10-22T14:59:08+00:00", value: 221.4}}}, row.asset_id);
-  assert.deepEqual(latestReading(changed), {label: "R상전압", unit: "V", periodSeconds: null,
-    latest: {at: "2020-10-22T14:59:08+00:00", position: null, value: 221.4}});
+  assert.deepEqual(changed.finding?.latest, {at: "2020-10-22T14:59:08+00:00", position: null, value: 221.4});
   // 변화한 신호의 값을 못 읽으면 대표 신호(전류평균) 값으로 대신하지 않는다.
-  assert.equal(latestReading(parseOverview(row, row.asset_id))?.latest, null);
-  const quiet = parseOverview({...row, finding: null}, row.asset_id);
-  assert.equal(latestReading(quiet)?.label, "전류평균");
+  assert.equal(parseOverview(row, row.asset_id).finding?.latest, null);
 });
 
 test("the kind of equipment is the name without its number", () => {

@@ -1135,9 +1135,11 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         main = row["main"]
         assert main["label"] == "전류" and main["unit"] == "A" and main["axis"] == "time"
         assert main["latest"]["value"] == pytest.approx(9.4)
-        # 마지막 저장값은 대표 신호(전류)가 아니라 변화한 신호(역률)의 값으로 읽는다.
-        assert row["finding"]["latest"]["value"] == pytest.approx(0.515)
-        assert row["finding"]["latest"]["at"] is not None
+        # 마지막 값은 대표 신호(전류)가 아니라 변화한 신호(역률)의 값이고, 상태 요약과 같은
+        # 마지막 구간 평균이다.
+        own = next(signal for signal in summary["signals"] if signal["key"] == first["key"])
+        assert row["finding"]["latest"] == own["latest"] | {"position": None}
+        assert row["finding"]["latest"]["value"] == pytest.approx(0.515, abs=0.01)
         assert 0 < len(main["trace"]) <= 48
         assert len(main["trace_join"]) == len(main["trace"]) and not main["trace_join"][0]
         status, row = get("/api/v1/explore/overview", asset_id="bearing-a")

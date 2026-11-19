@@ -7,8 +7,6 @@ import type {LevelNames} from "./record-findings.ts";
 import {parseFindingInterval, type FoundInterval} from "./record-findings.ts";
 
 type Reading = {at: string | null; position: number | null; value: number};
-/** 마지막 저장값 한 줄에 필요한 것: 어느 신호의, 어떤 값이, 언제. */
-export type LatestReading = {label: string; unit: string | null; periodSeconds: number | null; latest: Reading | null};
 
 export type OverviewRow = {
   assetId: string; kind: "history" | "vibration" | null;
@@ -19,7 +17,7 @@ export type OverviewRow = {
   finding: {label: string; unit: string | null; band: number | null; direction: "up" | "down"; kind: string;
     reference: number | null; typical: number | null; value: number;
     start: string | null; end: string | null; from: number | null; to: number | null;
-    /** 변화한 신호 자신의 마지막 저장값. 대표 신호의 값과 섞지 않는다. */
+    /** 변화한 신호 자신의 마지막 값(이력은 상태 요약과 같은 마지막 구간 평균). 대표 신호의 값과 섞지 않는다. */
     latest: Reading | null} | null;
   findingCount: number; judged: number; copied: number;
   historyInterval: FoundInterval | null;
@@ -35,13 +33,6 @@ const text = (raw: unknown): string | null => typeof raw === "string" && raw ? r
 function reading(raw: unknown): Reading | null {
   const value = object(raw);
   return value ? {at: text(value.at), position: optional(value.position), value: finite(value.value)} : null;
-}
-
-/** 변화가 있으면 변화한 신호의 마지막 저장값, 없으면 대표 신호의 마지막 저장값. */
-export function latestReading(row: OverviewRow): LatestReading | null {
-  if (row.finding) return {label: row.finding.label, unit: row.finding.unit, latest: row.finding.latest,
-    periodSeconds: row.vibrationInterval?.periodSeconds ?? row.main?.periodSeconds ?? null};
-  return row.main ? {label: row.main.label, unit: row.main.unit, latest: row.main.latest, periodSeconds: row.main.periodSeconds} : null;
 }
 
 export function parseOverview(raw: unknown, assetId: string): OverviewRow {

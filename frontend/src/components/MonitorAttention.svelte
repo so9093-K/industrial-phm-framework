@@ -3,14 +3,14 @@
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
-  import {attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AttentionState, type Departure, type PhmMonitor, type Note} from "../monitor-attention";
+  import {assetChecks, attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AssetChecks, type AttentionState, type Departure, type PhmMonitor} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
-  /** What needs a look, read again every few seconds while this page is visible. A failed
-   * read hides the earlier items rather than showing them as current. */
-  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onNotes: (counts: Record<string, number>,state:AttentionState,primary:Record<string,Note>) => void};
-  let {snapshot,onTick, onNotes}: Props = $props();
+  /** 설비별 확인 사실(모델·수신·기록 변화)을 화면이 보이는 동안 몇 초마다 다시 읽어 표에 넘기고,
+   * 여기에는 운영 서비스·수신 품질 항목만 보여 준다. 읽지 못하면 이전 항목을 지금 것처럼 남기지 않는다. */
+  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onChecks: (checks: AssetChecks) => void};
+  let {snapshot,onTick, onChecks}: Props = $props();
   const INTERVAL = 3000;
   // The guided demo replays a stored snapshot; reading it again would change nothing.
   const live = import.meta.env.MODE !== "showcase";
@@ -39,7 +39,7 @@
     if (!current || loadState === "failed") return "failed";
     return attentionComplete(current,connections,departuresComplete) ? "ready" : "partial";
   });
-  $effect(() => { const model: PhmMonitor | null = phm; onNotes(Object.fromEntries([...(model?.models.map(item => [item.assetId, 0]) ?? []), ...groups.map(group => [group.assetId, group.notes.length])]),notesState,Object.fromEntries(groups.filter(group=>group.notes.length).map(group=>[group.assetId,group.notes[0]]))); });
+  $effect(() => { const model: PhmMonitor | null = phm; onChecks(assetChecks(model?.models ?? [], groups, notesState)); });
   const clock = (at: Date) => at.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
   // Server assessment and HTTP read time must never be substituted for each other.
   const assessed = $derived.by((): Date | null => {
@@ -108,17 +108,16 @@
     {#if destination(item)}<a href={destination(item)!}>상세 확인 →</a>{/if}</li>
 {/snippet}
 
-<section class="ui-panel attention" aria-labelledby="attention-title">
+<section class="ui-panel attention" aria-label="운영 확인 항목">
   <div class="head">
-    <h2 id="attention-title">확인이 필요한 설비</h2>
+    <p class="context">{!live ? "저장된 체험 기록" :
+      (paused ? "자동 갱신 멈춤 · " : "") +
+      "모델 상태 " + (assessed ? clock(assessed) : "시각 미확인") +
+      " · 수신 " + (sourcesCheckedAt ? clock(sourcesCheckedAt) : "미확인") +
+      " · 기록 변화 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
     {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
   </div>
-  <p class="context">{!live ? "저장된 체험 기록입니다." :
-    (paused ? "자동 갱신을 멈췄습니다 · " : "") +
-    "모델 상태 평가 " + (assessed ? clock(assessed) : "시각 미확인") +
-    " · 수신 조회 " + (sourcesCheckedAt ? clock(sourcesCheckedAt) : "미확인") +
-    " · 변화 조회 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
-  {#if live && !paused}<p class="context">모델·수신 상태는 약 3초마다, 기록의 변화는 최대 30초마다 확인합니다.</p>{/if}
+  {#if live && !paused}<p class="context">확인 주기 · 모델·수신 약 3초, 기록 변화 최대 30초</p>{/if}
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
@@ -128,57 +127,25 @@
     {#if departuresFailed}<StatusNotice kind="uncertain" message="변화 구간을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
     {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="변화 구간을 일부만 확인했습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
-    <!-- With nothing to check, one quiet line says so instead of an empty section per source. -->
-    {#if serviceItems.length || dataItems.length || !snapshot.operationsAttention?.complete}
-    <section aria-label="운영 확인 항목" class="operations-attention">
-      <h3>운영 확인 항목</h3>
-      {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
-      {#if serviceItems.length}
-        <h4>운영 서비스</h4><p class="context">수집·저장·분석 서비스의 처리 상태입니다.</p>
-        <ul>{#each serviceItems as item (item.id)}{@render operation(item)}{/each}</ul>
-      {/if}
-      {#if dataItems.length}
-        <h4>수신·데이터 품질</h4><p class="context">설비 데이터의 수신 상태와 품질을 확인합니다.</p>
-        <ul>{#each dataItems as item (item.id)}{@render operation(item)}{/each}</ul>
-      {/if}
-    </section>
-    {/if}
-    {#if !groups.length}
-      <p>{notesState !== "ready" ? "확인 항목을 일부만 읽었습니다. 미확인 항목이 남아 있습니다." : snapshot.operationsAttention?.items.length?"모델·수신 기준으로 확인할 추가 항목은 없습니다.":"지금 확인할 항목이 없습니다."}</p>
-    {:else}
-      {#if groups.some((group) => group.notes.some((note) => note.kind === "threshold" || note.kind === "crossing"))}
-        <p class="context">모델 기준 초과는 학습한 평소 상태와 다르다는 뜻입니다. 항목을 열면 이유·근거·다음 행동을 봅니다.</p>
-      {/if}
-      <ul class="groups">
-        {#each groups as group (group.assetId)}
-          <li><article aria-labelledby={"attention-" + group.assetId}>
-            <h3 id={"attention-" + group.assetId} tabindex="-1">{assetLabel(snapshot.assets, group.assetId)}</h3>
-            <ul class="notes">
-              {#each group.notes as note (note.id)}
-                <li data-kind={note.kind}><strong>{note.label}</strong><span>{note.detail}</span>
-                  <a href={note.href}>{note.action} →</a></li>
-              {/each}
-            </ul>
-          </article></li>
-        {/each}
-      </ul>
-    {/if}
   {/if}
+  {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}
+  {#if serviceItems.length}
+    <h3>운영 서비스</h3>
+    <ul>{#each serviceItems as item (item.id)}{@render operation(item)}{/each}</ul>
+  {/if}
+  {#if dataItems.length}
+    <h3>수신·데이터 품질</h3>
+    <ul>{#each dataItems as item (item.id)}{@render operation(item)}{/each}</ul>
+  {/if}
+  {#if !serviceItems.length && !dataItems.length && snapshot.operationsAttention?.complete !== false}<p>운영 확인 항목 없음</p>{/if}
 </section>
 
 <style>
   .attention { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
-  .operations-attention{margin-block:var(--space-4);padding-block:var(--space-3);border-bottom:1px solid var(--color-border)}.operations-attention ul{padding-left:var(--space-4)}.operations-attention h4{margin:var(--space-3) 0 0}.operations-attention li{display:grid;gap:var(--space-2);padding-block:var(--space-2);overflow-wrap:anywhere}
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); align-items: center; }
-  h2, h3 { margin: 0; }
-  h3 { font-size: var(--font-section); overflow-wrap: anywhere; }
+  h3 { margin: var(--space-2) 0 0; font-size: var(--font-body); }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
-  .groups, .notes { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-  .groups > li { min-width: 0; }
-  article { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3) var(--space-4);
-    display: grid; gap: var(--space-2); }
-  .notes li { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); align-items: baseline; overflow-wrap: anywhere; }
-  .notes span { color: var(--color-ink-muted); font-size: var(--font-small); }
-  .notes li[data-kind="threshold"] strong, .notes li[data-kind="refusal"] strong, .notes li[data-kind="unavailable"] strong { color: var(--color-failure-ink); }
+  ul { margin: 0; padding-left: var(--space-4); }
+  li { display: grid; gap: var(--space-2); padding-block: var(--space-2); overflow-wrap: anywhere; }
 </style>

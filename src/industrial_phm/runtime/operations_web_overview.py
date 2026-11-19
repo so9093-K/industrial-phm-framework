@@ -63,12 +63,18 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
                 "reference": first.get("reference_value"),
                 "typical": first.get("typical_value"),
                 "operation_key": (first.get("operation") or {}).get("key"),
-                "latest": _latest_stored(
-                    history,
-                    asset_id,
-                    first["channel"],
-                    first["source_id"],
-                    first.get("measurement_point_id"),
+                # 상태 요약과 같은 값: 변화한 기록의 마지막 구간 평균.
+                "latest": next(
+                    (
+                        {
+                            "at": row["latest"]["at"],
+                            "position": None,
+                            "value": row["latest"]["value"],
+                        }
+                        for row in found["signals"]
+                        if row["key"] == first["key"] and row.get("latest")
+                    ),
+                    None,
                 ),
             }
         first_operation = ((body["history_interval"] or {}).get("operation") or {}).get("key")

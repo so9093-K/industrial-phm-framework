@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {changeHeadline, changeNumbers, changeSentence, object, plainLabel, subject} from "./change-story.ts";
+import {changeEnded, changeHeadline, changeNumbers, changeSentence, object, plainLabel, subject} from "./change-story.ts";
 
 test("a name takes the subject particle its last sound asks for", () => {
   assert.deepEqual(["T상전압", "주파수", "수직 진동 RMS", "전류 L", "채널 1", "채널 2", "온도 (입구)"].map(subject),
@@ -46,4 +46,13 @@ test("a vibration feature reads in plain words first and keeps its calculation n
   assert.equal(plainLabel("R상전압", null), "R상전압");
   assert.equal(changeHeadline({label:"수직 진동 초과 첨도",feature:"feature.Vertical_vibration_signals.excess_kurtosis",direction:"up"}),
     "수직 진동 충격성 (첨도)가 비교 기준보다 높았습니다.");
+});
+
+test("a change that ended well before the record's end says when it ended; one that reached the end says nothing", () => {
+  // 공기압축기 1306: 10월 5일 07:31에 끝났고 기록은 10월 22일까지 (구간 약 53분).
+  assert.equal(changeEnded("2020-10-05T07:31:42+09:00", "2020-10-22T23:59:09+09:00", 3196.7),
+    "변화 종료 10월 5일 07:31 · 기록 마지막 10월 22일 23:59");
+  // 마지막 두 구간 안에서 끝났으면 기록 끝까지 이어진 변화다.
+  assert.equal(changeEnded("2020-10-22T22:30:00+09:00", "2020-10-22T23:59:09+09:00", 3196.7), null);
+  assert.equal(changeEnded("2020-10-05T07:31:42+09:00", null, 60), null);
 });

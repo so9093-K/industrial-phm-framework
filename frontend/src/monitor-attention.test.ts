@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {attentionByAsset,departureSignalHref,attentionComplete,attentionText,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
+import {assetChecks,attentionByAsset,departureSignalHref,attentionComplete,attentionText,modelFact,noteFact,parseDepartures,parsePhmMonitor,refusalReason} from "./monitor-attention.ts";
 import {parseSources} from "./operations-status.ts";
 
 function model(extra:Record<string,unknown>){
@@ -129,4 +129,26 @@ test("a long change opens its start within the signal limit; missing measurement
   const missing=new URL(departureSignalHref({...item,lastAt:null}),"http://local");
   assert.equal(missing.searchParams.has("monitor_pick"),false);
   assert.equal(missing.searchParams.get("monitor_channel"),"current");
+});
+
+test("the overview row says which models crossed at the latest measurement, by name", () => {
+  const lstm={package_id:"lstm-pkg",estimator_kind:"lstm-autoencoder-v1"};
+  const iforest={package_id:"if-pkg",estimator_kind:"isolation-forest-refit-v1"};
+  const at=(exceeds:boolean)=>({latest_analyzed:{position:123,output:{exceeds_threshold:exceeds}}});
+  assert.equal(modelFact(monitor(model({binding_id:"a",...lstm,...at(true)}),model({binding_id:"b",...iforest,...at(true)})).models),
+    "최근 측정 기준 초과 · LSTM 오토인코더, Isolation Forest");
+  assert.equal(modelFact(monitor(model({binding_id:"a",...lstm,...at(true)}),model({binding_id:"b",...iforest,...at(false)})).models),
+    "최근 측정 기준 초과 · LSTM 오토인코더 (기준 이하 · Isolation Forest)");
+  assert.equal(modelFact(monitor(model({binding_id:"b",...iforest,...at(false)})).models), "최근 측정 기준 이하 · Isolation Forest");
+  // 아직 분석하지 않은 모델은 결과로 말하지 않는다. 대기 중이라는 사실은 확인 항목이 말한다.
+  const waiting=monitor(model({binding_id:"c",...iforest,processing_state:"pending",latest_analyzed:null}));
+  assert.equal(modelFact(waiting.models), null);
+  const [group]=attentionByAsset(waiting.models,null);
+  assert.equal(noteFact(group.notes[0]), "모델 · 새 입력 분석 대기");
+  const checks=assetChecks(waiting.models,[group],"ready");
+  assert.deepEqual(Object.keys(checks.models),["bearing-a"]);
+  assert.equal(checks.notes["bearing-a"][0].kind,"pending");
+  // 모델 기준 초과는 모델 줄이 말하므로 확인 항목 줄로 다시 쓰지 않는다.
+  const [crossed]=attentionByAsset(monitor(model({binding_id:"a",...lstm,...at(true)})).models,null);
+  assert.equal(noteFact(crossed.notes[0]), null);
 });

@@ -125,6 +125,46 @@ export function departureSignalHref(item:Departure):string {
   return url.pathname+url.search;
 }
 
+/** 한 설비의 모델 이름. 같은 방법의 모델이 둘이면 학습한 기간으로 구별한다. */
+function namer(list:MonitoredModel[]):(model:MonitoredModel)=>string{
+  return model=>{
+    const name=methodName(model);
+    return model.reference&&list.some(other=>other!==model&&methodName(other)===name)?name+" ("+model.reference+")":name;
+  };
+}
+
+/** 한 설비의 모델들이 최근 분석한 측정에서 낸 결과 한 줄. 분석을 마친 모델이 없으면 null. */
+export function modelFact(list:MonitoredModel[]):string|null{
+  const name=namer(list);
+  const judged=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds!=null);
+  const over=judged.filter(model=>model.analyzed!.exceeds).map(name),under=judged.filter(model=>!model.analyzed!.exceeds).map(name);
+  if(!judged.length)return null;
+  if(!over.length)return "최근 측정 기준 이하 · "+under.join(", ");
+  return "최근 측정 기준 초과 · "+over.join(", ")+(under.length?" (기준 이하 · "+under.join(", ")+")":"");
+}
+
+/** 모델 결과 밖의 확인 항목을 '항목 · 사실' 한 줄로. 모델 기준 초과는 modelFact가 말하므로 null. */
+export function noteFact(note:Note):string|null{
+  switch(note.kind){
+    case "refusal":return "모델 · "+note.label;
+    case "unavailable":return "모델 · 실행할 수 없음";
+    case "warmup":return "모델 · 입력을 모으는 중";
+    case "pending":return "모델 · 새 입력 분석 대기";
+    case "receipt":return "수신 · "+note.label;
+    case "departure":return "기록 끝 · "+note.label;
+    default:return null;
+  }
+}
+
+/** 관측 현황 표가 행마다 쓰는 확인 사실: 설비별 확인 항목과 적용 모델, 그리고 읽은 정도. */
+export type AssetChecks={notes:Record<string,Note[]>;models:Record<string,MonitoredModel[]>;state:AttentionState};
+export const UNCHECKED:AssetChecks={notes:{},models:{},state:"loading"};
+export function assetChecks(models:MonitoredModel[],groups:AssetAttention[],state:AttentionState):AssetChecks{
+  const byAsset:Record<string,MonitoredModel[]>={};
+  for(const model of models)(byAsset[model.assetId]??=[]).push(model);
+  return {notes:Object.fromEntries(groups.map(group=>[group.assetId,group.notes])),models:byAsset,state};
+}
+
 /** Notes per asset, most urgent first; assets without notes are left out. */
 export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,departures:Departure[]=[]):AssetAttention[]{
   const groups=new Map<string,Note[]>();
@@ -132,11 +172,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
   const byAsset=new Map<string,MonitoredModel[]>();
   for(const model of models)byAsset.set(model.assetId,[...(byAsset.get(model.assetId)??[]),model]);
   for(const [assetId,list] of byAsset){
-    // Two models of one method on an asset are told apart by the period they learned from.
-    const modelName=(model:MonitoredModel)=>{
-      const name=methodName(model);
-      return model.reference&&list.some(other=>other!==model&&methodName(other)===name)?name+" ("+model.reference+")":name;
-    };
+    const modelName=namer(list);
     const vibration=list.some(model=>model.stepKind==="acquisition-snapshot");
     // A run the model still holds open is a change to look at; a latest crossing outside any run is
     // said lower down. Both are told by place and count, never as "continuous" or "not continuous":
@@ -226,13 +262,9 @@ export async function readDepartures(signal:AbortSignal,assetId?:string):Promise
 
 /** Every asset's notes, read once from what 관측 현황 polls, so the asset list and an asset's
  * summary count the same items. A part that cannot be read is left out, not guessed. */
-export async function readAttention(signal:AbortSignal):Promise<{
-  groups:AssetAttention[];counts:Record<string,number>;state:"ready"|"partial";
-}>{
+export async function readAttention(signal:AbortSignal):Promise<AssetChecks>{
   const [phm,sources,departures]=await Promise.all([readPhmMonitor(signal),
     readSources(signal).catch(()=>null),readDepartureStatus(signal).catch(()=>null)]);
-  const groups = attentionByAsset(phm.models,sources?.items??null,departures?.items??[]);
-  return {groups, counts:Object.fromEntries([...phm.models.map(item=>[item.assetId,0]),
-    ...groups.map(group=>[group.assetId,group.notes.length])]),
-    state:attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial"};
+  return assetChecks(phm.models,attentionByAsset(phm.models,sources?.items??null,departures?.items??[]),
+    attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial");
 }
