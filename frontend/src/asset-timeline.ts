@@ -15,10 +15,9 @@ export type TimelineLane = {
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
 };
-/** 같은 기록을 분석한 모델 하나: 점수 기록, 학습 기간, 학습 기간과 변화 구간의 운전 수준 비율. */
+/** 같은 기록을 분석한 모델 하나: 점수 기록과, 변화가 모델이 거의 본 적 없는 운전 상태에서 일어났는지. */
 export type TimelineModel = {
-  key: string; name: string; trend: ScoreTrend; divisor: number; count: string;
-  training: Span | null; shares: {training: number[]; episode: number[]} | null;
+  key: string; name: string; trend: ScoreTrend; divisor: number; count: string; unfamiliar: string | null;
 };
 export type TimelineOperation = {names: LevelNames; columns: (Span & {shares: number[]})[]};
 /** 고른 신호의 앞으로: 서버 예측(과거 검증을 통과했을 때만 선으로), 초기의 몇 배 안내선, 고른 선에 닿는 시점. */
@@ -108,4 +107,19 @@ export function valueAt(points: TimelinePoint[], at: number, reach: number): Tim
   let best: TimelinePoint | null = null;
   for (const point of points) if (!best || Math.abs(point.x - at) < Math.abs(best.x - at)) best = point;
   return best && Math.abs(best.x - at) <= reach ? best : null;
+}
+
+/** 켜진 칸이 이어진 구간. 꺼진 칸이 `gap`개 이하로 끼어 있으면 하나로 잇는다(잠깐 내려간 것은 같은 구간으로 본다). */
+export function runs(points: {x: number; on: boolean}[], gap = 1): Span[] {
+  const out: Span[] = [];
+  let open: Span | null = null, off = 0, lastOn = 0;
+  for (const point of points) {
+    if (point.on) {
+      if (open && off <= gap) open.to = point.x;
+      else { if (open) out.push(open); open = {from: point.x, to: point.x}; }
+      off = 0; lastOn = point.x;
+    } else if (open) off++;
+  }
+  if (open) out.push({...open, to: Math.max(open.to, lastOn)});
+  return out;
 }

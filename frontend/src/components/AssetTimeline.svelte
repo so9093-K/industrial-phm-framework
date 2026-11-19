@@ -4,7 +4,7 @@
   import {drawTrend, type TrendPoint} from "../model-trend";
   import {measurementScale} from "../time-axis";
   import {bandName} from "../record-findings";
-  import {clockText, firstCrossing, focusWindow, spanText, startsZoomed, valueAt, visiblePoints, weekendSpans,
+  import {clockText, firstCrossing, focusWindow, runs, spanText, startsZoomed, valueAt, visiblePoints, weekendSpans,
     type Span, type TimelineLane, type TimelineModel, type TimelineOperation, type TimelineOutlook, type TimelinePoint} from "../asset-timeline";
 
   /** 설비 시간축. 변한 신호들, 운전 상태, 모델 점수를 같은 가로축의 줄로 쌓는다. 한 줄 위에 커서를 올리면
@@ -26,7 +26,7 @@
   $effect(() => { zoomed = startsZoomed(record, episode); });
   // 전망이 있으면 가로축이 기록 끝 뒤로 이어진다.
   // 고른 기준선에 닿는 시점이 예측 구간 뒤에 있으면 그 자리까지 축을 늘려 표시가 그래프 안에 들도록 한다.
-  const reachSteps = $derived(outlook?.reach && (outlook.reach.state === "expected" || outlook.reach.state === "possible")
+  const reachSteps = $derived(outlook?.trusted && outlook.reach && (outlook.reach.state === "expected" || outlook.reach.state === "possible")
     ? (outlook.reach.state === "expected" ? outlook.reach.expected : outlook.reach.earliest) : null);
   const future = $derived(Math.max(outlook?.points.at(-1)?.x ?? record.to, reachSteps !== null ? record.to + reachSteps * 1.05 : record.to));
   const extent = $derived({from: record.from, to: Math.max(record.to, future)});
@@ -154,6 +154,30 @@
     return {at: shown === null ? "마지막 측정 · " + place(record.to) : place(at), parts};
   });
   const xScale = $derived(axis === "time" ? {kind: "clock" as const} : measurementScale(periodSeconds));
+
+  // 기본 화면은 '처음과 달라진 때'의 막대 줄이다. 단위와 계산을 몰라도 무엇이 먼저였고 무엇이 함께 일어났는지 읽힌다.
+  // 값 그래프는 고른 신호 하나만 두고, 나머지(다른 신호·운전 수준·모델 점수)는 '값 그래프 모두 보기'에서 연다.
+  let detail = $state(false);
+  type StripRow = {key: string; name: string; spans: Span[]; note: string; kind: "signal" | "model" | "load"; focus?: boolean; laneKey?: string};
+  const spanLabel = (span: Span) => axis === "time" ? spanText(span.from, span.to)
+    : span.from === span.to ? span.from + "번째 측정" : span.from + "~" + span.to + "번째 측정";
+  const stripRows = $derived.by((): StripRow[] => {
+    const rows: StripRow[] = lanes.map(lane => ({key: "s:" + lane.key, laneKey: lane.key, focus: lane.focus, kind: "signal" as const,
+      name: lane.label + (lane.condition ? " · " + lane.condition.replace(" 운전", "") + " 운전 중" : ""), spans: [lane.interval], note: spanLabel(lane.interval)}));
+    if (operation && operation.names.levels.length) {
+      const top = operation.names.levels.length;
+      const on = runs(operation.columns.map(col => ({x: col.from, on: col.shares[top] >= 0.5})), 2);
+      const width = operation.columns[0] ? operation.columns[0].to - operation.columns[0].from : 0;
+      rows.push({key: "load", kind: "load", name: "고부하 운전(" + bandName(operation.names, top).replace(" 운전", "") + ")",
+        spans: on.map(span => ({from: span.from, to: span.to + width})), note: ""});
+    }
+    for (const model of models) {
+      const points = model.trend.points.filter(p => p.score !== null).map(p => ({x: p.pointer.position / model.divisor, on: p.exceeds === true}));
+      rows.push({key: "m:" + model.key, kind: "model", name: "모델 경보 · " + model.name, spans: runs(points, axis === "acquisition" ? 1 : 3),
+        note: model.count + (model.unfamiliar ? " · " + model.unfamiliar : "")});
+    }
+    return rows;
+  });
 </script>
 
 <section class="timeline" class:compact aria-label="설비 시간축">
@@ -167,6 +191,7 @@
         {#each episodes as item (item.label)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}
       </div>
     {/if}
+    <button type="button" class="detail-toggle" aria-pressed={detail} onclick={() => detail = !detail}>{detail ? "값 그래프 접기" : "값 그래프 모두 보기"}</button>
     <div class="choices" role="group" aria-label="보는 범위">
       <button type="button" aria-pressed={zoomed} onclick={() => zoomed = true}>변화 구간 확대</button>
       <button type="button" aria-pressed={!zoomed} onclick={() => zoomed = false}>기록 전체</button>
@@ -177,7 +202,24 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="rows" bind:this={rows} onpointermove={move} onpointerleave={() => hover = null} onclick={choose}>
-    {#each lanes as lane (lane.key)}
+    <div class="strip-title">처음과 달라진 때</div>
+    {#each stripRows as row (row.key)}
+      <div class="strip-head" class:focus={row.focus}>
+        {#if row.laneKey}<button type="button" class="strip-name" aria-pressed={row.focus} onclick={event => {event.stopPropagation(); onFocus?.(row.laneKey!);}}>{row.name}</button>
+        {:else}<span class="strip-name">{row.name}</span>{/if}
+        <span class="strip-note">{row.note}</span>
+      </div>
+      <div class="gutter"></div>
+      <div class={"plot strip " + row.kind}>
+        <svg viewBox={"0 0 " + W + " 12"} style:height="12px" preserveAspectRatio="none" role="img" aria-label={row.name + " · " + row.spans.map(spanLabel).join(", ")}>
+          <rect x="0" width={W} height="12" class="track"/>
+          {#each row.spans.filter(span => span.to >= lo && span.from <= hi) as span (span.from)}
+            <rect x={clampX(span.from)} width={Math.max(3, clampX(span.to) - clampX(span.from))} height="12" class="bar"/>
+          {/each}
+        </svg>
+      </div>
+    {/each}
+    {#each lanes.filter(lane => detail || lane.focus) as lane (lane.key)}
       {@const height = heightOf(lane)}
       {@const shape = laneShape(lane, height)}
       <div class="lane-head">
@@ -189,12 +231,12 @@
           {@const chosen = outlook.guides.find(g => g.value === outlook!.chosen) ?? null}
           {@const crossed = chosen ? firstCrossing(lane.points, chosen.value, lane.up) : null}
           <span class="outlook-row">
-            <span class="outlook-label">전망 기준선</span>
+            <span class="outlook-label">기준선</span>
             <span class="choices small" role="group" aria-label="전망 기준선">
               {#each outlook.guides as guide (guide.value)}<button type="button" aria-pressed={guide.value === outlook.chosen}
                 onclick={event => {event.stopPropagation(); outlook!.onGuide(guide.value === outlook!.chosen ? null : guide.value);}}>{guide.label}</button>{/each}
             </span>
-            <span class="reach-text">{#if !chosen}{:else if outlook.loading}계산 중{:else if crossed}{chosen.label}({measure(chosen.value, lane.unit)}) · {place(crossed.x)}에서 넘음{:else if outlook.reach && reachSteps !== null}{chosen.label}({measure(chosen.value, lane.unit)}) · {outlook.reach.state === "expected" ? "도달 예상" : "예측 범위로 가장 이르면"} 추가 {reachSteps}{axis === "acquisition" ? "회" : ""} 뒤{:else}{chosen.label}({measure(chosen.value, lane.unit)}) · 전망 기간 안 도달 예상 없음{/if}{#if chosen && !outlook.trusted && !crossed}{" · "}과거 검증에서 예측이 '마지막 값 유지'보다 부정확{/if}</span>
+            <span class="reach-text">{#if !chosen}{:else if outlook.loading}계산 중{:else if crossed}{chosen.label}({measure(chosen.value, lane.unit)}) · {place(crossed.x)}에서 이미 넘음{:else if !outlook.trusted}{chosen.label}({measure(chosen.value, lane.unit)}) · 이 기록으로는 언제 닿을지 믿을 만하게 예측하지 못함{:else if outlook.reach && reachSteps !== null}{chosen.label}({measure(chosen.value, lane.unit)}) · {outlook.reach.state === "expected" ? "약 " + reachSteps + (axis === "acquisition" ? "회" : "") + " 뒤 닿을 것으로 예상" : "빠르면 " + reachSteps + (axis === "acquisition" ? "회" : "") + " 뒤 닿을 수 있음"}{:else}{chosen.label}({measure(chosen.value, lane.unit)}) · 앞으로 볼 범위 안에서는 닿지 않을 것으로 예상{/if}</span>
           </span>
         {/if}
       </div>
@@ -246,7 +288,7 @@
       </div>
     {/each}
 
-    {#if operation}
+    {#if operation && detail}
       <div class="lane-head">
         <strong class="name static">운전 상태</strong>
         <span class="legend">{#each operation.names.levels as _, i (i)}<i style:opacity={levelOpacity(i + 1, operation.names.levels.length)}></i>{bandName(operation.names, i + 1).replace(" 운전", "")}{/each}<i class="stopped"></i>정지</span>
@@ -267,31 +309,18 @@
       </div>
     {/if}
 
-    {#each models as model (model.key)}
+    {#each detail ? models : [] as model (model.key)}
       {@const height = compact ? 36 : 44}
       {@const shape = modelShape(model, height)}
       <div class="lane-head">
-        <strong class="name static">{model.name}</strong><span class="numbers">{model.count}</span>
-        {#if model.shares && operation}
-          <span class="shares" aria-label="학습 기간과 변화 구간의 운전 수준 비율">
-            {#each [["학습 기간", model.shares.training], ["변화 구간", model.shares.episode]] as [name, shares] (name)}
-              <span class="share-row">{name}<span class="bar">{#each (shares as number[]).slice(1) as share, i (i)}<i style:width={share * 100 + "%"} style:opacity={levelOpacity(i + 1, (shares as number[]).length - 1)}></i>{/each}<i class="stopped" style:width={(shares as number[])[0] * 100 + "%"}></i></span></span>
-            {/each}
-          </span>
-        {/if}
+        <strong class="name static">{model.name}</strong><span class="numbers">{model.count}{model.unfamiliar ? " · " + model.unfamiliar : ""}</span>
       </div>
       <div class="gutter" style:height={height + "px"}></div>
       <div class="plot">
         <svg viewBox={"0 0 " + W + " " + height} style:height={height + "px"} preserveAspectRatio="none" role="img" aria-label={model.name + " 점수와 기준"}>
-          {#if model.training && model.training.to >= lo && model.training.from <= hi}
-            <rect x={clampX(model.training.from)} width={Math.max(1, clampX(model.training.to) - clampX(model.training.from))} height={height} class="training"/>
-          {/if}
           <rect x={clampX(episode.from)} width={Math.max(2, clampX(episode.to) - clampX(episode.from))} height={height} class="interval"/>
           <path d={shape.threshold} class="threshold"/><path d={shape.path} class="score"/><path d={shape.over} class="over"/>
         </svg>
-        {#if model.training && model.training.to >= lo && model.training.from <= hi}
-          <span class="tag training-tag" style:left={clampX(model.training.from) / W * 100 + "%"}>학습 기간</span>
-        {/if}
       </div>
     {/each}
 
@@ -299,7 +328,7 @@
     <XAxis {lo} {hi} scale={xScale} />
     {#if shown !== null}<i class="cursor" class:pinned={hover === null} style:left={cursorLeft + "px"}></i>{/if}
   </div>
-  {#if models.length}<p class="key"><span><i class="k-score"></i>모델 점수</span><span><i class="k-over"></i>기준 넘음</span><span><i class="k-threshold"></i>모델 기준</span>{#if axis === "time" && weekends.length}<span><i class="k-weekend"></i>토·일</span>{/if}</p>{/if}
+  {#if detail && models.length}<p class="key"><span><i class="k-score"></i>모델 점수</span><span><i class="k-over"></i>기준 넘음</span><span><i class="k-threshold"></i>모델 기준</span>{#if axis === "time" && weekends.length}<span><i class="k-weekend"></i>토·일</span>{/if}</p>{/if}
 </section>
 
 <style>
@@ -337,14 +366,12 @@
   circle { fill: var(--color-action); }
   .level { fill: var(--color-action); }
   .stopped { fill: var(--color-ink); fill-opacity: .06; }
-  .training { fill: var(--color-ink); fill-opacity: .07; }
   .score { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   .over { fill: none; stroke: var(--color-failure-ink); stroke-width: 2; }
   .threshold { fill: none; stroke: var(--color-caution-ink); stroke-width: 1.2; stroke-dasharray: 4 4; }
   .tag { position: absolute; font-size: var(--font-label); pointer-events: none; white-space: nowrap; }
   .usual-tag { left: 4px; transform: translateY(-110%); color: var(--color-ink-muted); }
   .interval-tag { top: 3px; transform: translateX(5px); color: var(--color-caution-ink); font-weight: 650; background: var(--color-surface); padding: 0 4px; border-radius: 3px; }
-  .training-tag { top: 2px; transform: translateX(4px); color: var(--color-ink-muted); }
   .future { fill: var(--color-ink); fill-opacity: .03; }
   .forecast { fill: none; stroke: var(--color-action); stroke-width: 1.6; stroke-dasharray: 5 4; }
   .forecast-band { fill: var(--color-action); fill-opacity: .12; stroke: none; }
@@ -358,16 +385,25 @@
   .reach-text { color: var(--color-ink); font-variant-numeric: tabular-nums; }
   .outlook-label { color: var(--color-ink-muted); }
   .decision-chip { font-size: var(--font-label); padding: 0 6px; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface-selected); }
-  .training-tag { background: var(--color-surface); padding: 0 3px; border-radius: 3px; }
+  .strip-title { grid-column: 1 / -1; font-size: var(--font-small); font-weight: 700; color: var(--color-ink); }
+  .strip-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin-top: 6px; font-size: var(--font-small); cursor: default; }
+  .strip-name { font: inherit; font-weight: 650; color: var(--color-ink); padding: 0; border: 0; background: none; cursor: pointer; border-bottom: 2px solid transparent; }
+  span.strip-name { cursor: default; }
+  .strip-name[aria-pressed="true"] { border-bottom-color: var(--color-action); }
+  .strip-note { margin-left: auto; color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
+  .plot.strip { border-bottom: 0; }
+  .strip .track { fill: var(--color-ink); fill-opacity: .05; }
+  .strip .bar { rx: 2px; }
+  .strip.signal .bar { fill: var(--color-caution-ink); fill-opacity: .85; }
+  .strip.model .bar { fill: var(--color-failure-ink); fill-opacity: .8; }
+  .strip.load .bar { fill: var(--color-action); fill-opacity: .55; }
+  .detail-toggle { font: inherit; font-size: var(--font-small); padding: 5px 10px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); cursor: pointer; }
+  .detail-toggle[aria-pressed="true"] { background: var(--color-surface-selected); color: var(--color-action); }
+  .lane-head.first-value { margin-top: var(--space-4); }
   .reach-line { position: absolute; top: 0; bottom: 0; border-left: 1.5px dashed var(--color-failure-ink); pointer-events: none; }
-  .legend, .shares { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--color-ink-muted); }
+  .legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--color-ink-muted); }
   .legend i { display: inline-block; width: 10px; height: 10px; margin-right: 3px; background: var(--color-action); vertical-align: middle; }
   .legend i.stopped { background: var(--color-ink); opacity: .08; }
-  .shares { margin-left: var(--space-2); font-size: var(--font-label); }
-  .share-row { display: inline-flex; align-items: center; gap: 4px; }
-  .bar { display: inline-flex; width: 96px; height: 10px; border: 1px solid var(--color-border); }
-  .bar i { display: block; height: 100%; background: var(--color-action); }
-  .bar i.stopped { background: var(--color-ink); opacity: .08; }
   .cursor { position: absolute; top: 0; bottom: 1.6em; width: 0; border-left: 1px solid var(--color-ink); opacity: .55; pointer-events: none; }
   .cursor.pinned { border-left-style: dashed; opacity: .8; }
   .key { margin: 0; display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--font-label); color: var(--color-ink-muted); }
