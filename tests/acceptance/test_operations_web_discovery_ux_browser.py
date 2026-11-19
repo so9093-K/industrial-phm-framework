@@ -769,23 +769,32 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 page.goto(origin + "/web/?" + urlencode(query))
                 selection = page.get_by_role("group", name="선택한 측정으로 주파수 비교")
                 pw.expect(selection).to_be_visible(timeout=30000)
+                picker = page.get_by_label("선택 측정", exact=True)
                 canvas = page.locator(".waterfall canvas").first
-                # Both views investigate the same frequency range; zooming must crop the
-                # original waterfall columns without renumbering its measurement rows.
+                # Mean spectrum and map share the exact domain and physical frequency axis.
                 full = page.get_by_role("button", name="전체 주파수 보기", exact=True)
                 if full.is_visible():
                     full.click()
-                width_before = canvas.evaluate("node=>node.width")
-                page.locator(".band-choices button").first.click()
-                pw.expect(page.locator(".spectrum-toolbar")).to_contain_text("두 그래프 함께 확대")
-                page.wait_for_function(
-                    "before=>document.querySelector('.waterfall canvas').width<before",
-                    arg=width_before,
+                page.get_by_role("button", name="대역 확대", exact=True).click()
+                curve = page.locator(".frequency-plot")
+                grid = page.locator(".frequency-map")
+                zoom = (curve.get_attribute("data-hz-from"), curve.get_attribute("data-hz-to"))
+                assert zoom == (
+                    grid.get_attribute("data-hz-from"),
+                    grid.get_attribute("data-hz-to"),
                 )
-                zoomed_width = canvas.evaluate("node=>node.width")
+                line_box = curve.locator("svg").bounding_box()
+                map_box = canvas.bounding_box()
+                assert abs(line_box["x"] - map_box["x"]) < 1
+                assert abs(line_box["width"] - map_box["width"]) < 1
                 canvas.focus()
+                canvas.press("Home")
                 canvas.press("ArrowDown")
-                pw.expect(selection.locator("select")).to_have_value("7")
+                pw.expect(picker).to_have_value("7")
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
+                assert curve.locator("polyline").count() == 1
+                pw.expect(page.locator(".spectrum-key")).to_contain_text("전체 표시 측정")
+                selection.locator("summary").click()
                 with page.expect_response("**/api/v1/explore/spectrum?**") as response:
                     selection.get_by_role("button", name="기간 B로 사용").click()
                 requested = parse_qs(urlsplit(response.value.url).query)
@@ -796,7 +805,11 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                     "7번째 측정"
                 )
                 canvas.click(position={"x": 20, "y": canvas.bounding_box()["height"] - 1})
-                pw.expect(selection.locator("select")).to_have_value("11")
+                pw.expect(picker).to_have_value("11")
+                pw.expect(
+                    page.get_by_role("heading", name="11회에서 보이는 주파수")
+                ).to_be_visible()
+                selection.locator("summary").click()
                 with page.expect_response("**/api/v1/explore/spectrum?**") as response:
                     selection.get_by_role("button", name="기간 A로 사용").click()
                 requested = parse_qs(urlsplit(response.value.url).query)
@@ -806,9 +819,11 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 pw.expect(page.locator(".spectra p[role=status]").first).to_contain_text(
                     "11번째 측정"
                 )
+                picker.select_option("7")
                 page.reload()
                 pw.expect(selection).to_be_visible()
-                assert canvas.evaluate("node=>node.width") == zoomed_width
+                pw.expect(picker).to_have_value("7")
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
                 saved = parse_qs(urlsplit(page.url).query)
                 assert saved["spectrum_a_from"] == ["11"] and saved["spectrum_a_to"] == ["11"]
                 assert saved["spectrum_b_from"] == ["7"] and saved["spectrum_b_to"] == ["7"]
@@ -822,9 +837,29 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 returned = parse_qs(urlsplit(page.url).query)
                 assert returned["spectrum_hz_from"] == saved["spectrum_hz_from"]
                 assert returned["spectrum_hz_to"] == saved["spectrum_hz_to"]
-                assert canvas.evaluate("node=>node.width") == zoomed_width
+                assert returned["spectrum_measurement"] == ["7"]
+                assert returned["spectrum_view"] == ["measurement"]
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
+                directions = page.get_by_role("group", name="진동 방향").get_by_role("button")
+                directions.last.click()
+                pw.expect(picker).to_have_value("7")
+                pw.expect(directions.last).to_have_attribute("aria-pressed", "true")
                 assert not errors, errors
                 assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
+
+                # A failed map does not remove the independent mean comparison or silently
+                # show an averaged curve as the chosen acquisition's spectrum.
+                page.route(
+                    "**/api/v1/explore/waterfall?**", lambda route: route.fulfill(status=503)
+                )
+                page.reload()
+                pw.expect(
+                    page.get_by_role("heading", name="측정별 주파수 지도를 불러오지 못했습니다")
+                ).to_be_visible()
+                pw.expect(page.locator(".spectrum-curve svg")).to_have_count(0)
+                page.get_by_role("button", name="기간 비교", exact=True).click()
+                pw.expect(page.locator(".spectrum-curve svg")).to_be_visible()
+                assert page.locator(".spectrum-curve polyline").count() == 2
             finally:
                 browser.close()
     finally:

@@ -69,7 +69,8 @@ export function routeUrl(route: Route, channel: string | null = null): string {
 const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind",
   "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
   "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
-  "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel","acquisition_binding",
+  "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel",
+  "spectrum_band","spectrum_measurement","spectrum_view","spectrum_scale","acquisition_binding",
   "model_binding","model_position","model_compare"];
 
 /** Remember a summary choice in the address without navigating or carrying a prior change's filters. */

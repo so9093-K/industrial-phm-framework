@@ -6,15 +6,18 @@ import {
 
 test("a frequency investigation keeps its channel and zoom across tabs and clears them for a new change",()=>{
   const base="http://local/web/?page=assets&monitor_asset=bearing";
-  const focused=base+"&tab=change&method=spectrum&spectrum_channel=vertical&spectrum_hz_from=400&spectrum_hz_to=1600";
+  const focused=base+"&tab=change&method=spectrum&spectrum_channel=vertical&spectrum_hz_from=400&spectrum_hz_to=1600&spectrum_view=measurement&spectrum_measurement=72&spectrum_band=800&spectrum_scale=linear";
   const model=tabSelectionUrl(base+"&tab=anomaly&method=model",focused);
   const back=new URL(tabSelectionUrl(base+"&tab=change&method=spectrum","http://local"+model),"http://local");
   assert.equal(back.searchParams.get("spectrum_channel"),"vertical");
   assert.equal(back.searchParams.get("spectrum_hz_from"),"400");
   assert.equal(back.searchParams.get("spectrum_hz_to"),"1600");
+  for(const key of ["spectrum_view","spectrum_measurement","spectrum_band","spectrum_scale"])
+    assert.equal(back.searchParams.get(key),new URL(focused).searchParams.get(key));
   const other=new URL(summarySelectionUrl(back.href,base+"&feature_b_from=72&feature_b_to=123","other","vibration"),"http://local");
   assert.equal(other.searchParams.has("spectrum_hz_from"),false);
   assert.equal(other.searchParams.has("spectrum_channel"),false);
+  assert.equal(other.searchParams.has("spectrum_measurement"),false);
 });
 
 test("returning to a model keeps its compared measurements but a new phenomenon clears them",()=>{
