@@ -160,13 +160,13 @@
     {@render summaryCards(analyzed.target, analyzed.reference)}
 
     <section class="block" aria-labelledby="condition-insights">
-      <h3 id="condition-insights">기준 기간과 달라진 점</h3>
+      <h3 id="condition-insights">기준 기간 대비 변화</h3>
       <ul>{#each insights(analyzed) as line (line)}<li>{line}</li>{/each}</ul>
     </section>
 
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
-        <h3 id="condition-chart">어느 시각에 달라졌나</h3>
+        <h3 id="condition-chart">시간별 추이</h3>
         <div class="graph-controls"><label>그래프 값
           <select bind:value={metric}>
             {#each Object.entries(METRICS) as [value, info] (value)}<option {value}>{info.label}{info.unit ? " ·" + info.unit : ""}</option>{/each}
@@ -176,7 +176,7 @@
           <label class="toggle"><input type="checkbox" bind:checked={byPhase} /> R·S·T 상별로 보기</label>
         {/if}</div>
       </div>
-      {#if metric === "patternScore"}<p class="context">기준 기간과 전력 패턴이 얼마나 다른지 보여줍니다. 기록 변화나 모델 이상 점수와는 다른 척도입니다.</p>{/if}
+      {#if metric === "patternScore"}<p class="context">기준 기간 대비 전력 패턴의 차이입니다. 기록 변화나 모델 이상 점수와는 다른 척도입니다.</p>{/if}
       {#if !runs.length}
         <p class="context">이 값으로 그릴 관측이 없습니다. 전류가 1A 미만인 관측의 불평형은 계산하지 않습니다.</p>
       {:else}
@@ -209,7 +209,7 @@
     </section>
 
     <section class="block" aria-labelledby="condition-first">
-      <h3 id="condition-first">먼저 확인할 시각</h3>
+      <h3 id="condition-first">우선 확인 시점</h3>
       {#if !(analyzed.pattern.scored && analyzed.pattern.notable.length)}
         <p class="context">{analyzed.pattern.scored ? "기준 점수 범위를 넘은 시각은 없습니다." : "기준 패턴 점수가 없어 벗어남을 평가하지 않았습니다."}
           가장 큰 관측값의 시각을 확인할 수 있습니다.</p>
@@ -257,7 +257,7 @@
     <CautionNote message="운전 조건이 바뀐 것은 고장이 아닙니다. 기준 기간은 정상으로 확인된 기간이 아니며, 기준 패턴과의 차이도 원인이나 고장을 뜻하지 않습니다." />
   {/if}
   </div><aside class="analysis-sidebar" aria-label="비교 조건">
-  <p class="purpose">3상 전류·전압과 불평형이 앞선 기간과 어떻게 달라졌는지 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
+  <p class="purpose">3상 전류·전압과 불평형을 앞선 기간과 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
   <form class="controls" onsubmit={(event) => { event.preventDefault(); void analyze(); }}>
     <label>분석 기간
       <select value={period} onchange={(event) => { period = event.currentTarget.value as ConditionPeriod; void analyze(); }}>

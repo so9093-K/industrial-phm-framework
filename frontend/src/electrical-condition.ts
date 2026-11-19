@@ -215,13 +215,13 @@ export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
   const split=pattern.byLevel;
   if(pattern.scored){
     // '99% 점수 범위' 같은 계산 용어 대신, 기준 기간과 견줘 무엇이 몇 개였는지 말한다.
-    lines.push((split?"같은 운전 상태끼리 견줬을 때 ":"")+"기준 기간의 3상 패턴과 크게 다른 관측 "+pattern.above.toLocaleString("ko-KR")+"개 (관측 "
+    lines.push((split?"같은 운전 상태끼리 비교했을 때 ":"")+"기준 기간의 3상 패턴과 크게 다른 관측 "+pattern.above.toLocaleString("ko-KR")+"개 (관측 "
       +pattern.scoredSamples.toLocaleString("ko-KR")+"개 중 "+measured(pattern.percent,"%")+").");
     if(!pattern.above)lines.push("이번 기간에는 기준 점수 범위를 넘은 관측이 없습니다.");
-  }else lines.push((split?"같은 운전 상태의 ":"")+"기준 기간 데이터가 부족하거나 거의 일정해 패턴을 비교하지 않았습니다. 기준 기간을 바꿔 보세요.");
+  }else lines.push((split?"같은 운전 상태의 ":"")+"기준 기간 데이터가 부족하거나 거의 일정해 패턴을 비교하지 않았습니다. 기준 기간을 바꾸면 비교할 수 있습니다.");
   // Levels the reference period hardly ran at have nothing to be compared with; say how much of the period that was.
   const apart=split?split.parts.filter(part=>!part.scored&&part.targetSamples>0):[];
-  if(split&&apart.length)lines.push("기준 기간에 거의 없던 운전 상태라 견주지 않은 관측: "+apart.map(part=>bandName(split.names,part.band)
+  if(split&&apart.length)lines.push("기준 기간에 거의 없던 운전 상태라 비교하지 않은 관측: "+apart.map(part=>bandName(split.names,part.band)
     +" "+part.targetSamples+"개(기준 기간 "+part.referenceSamples+"개)").join(", ")+".");
   return lines;
 }

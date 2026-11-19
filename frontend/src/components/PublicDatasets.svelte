@@ -108,7 +108,7 @@
   {:else if loadState === "failed" || !datasets}
     <p class="context">공개 데이터 목록을 읽지 못했습니다. <button type="button" class="ui-button" onclick={() => void reload()}>다시 읽기</button></p>
   {:else if !datasets.items.length}
-    <p class="context">아직 준비된 AI-Hub 239·XJTU-SY 원본이 없습니다. 저장소의 <code>data/</code> 폴더에 원본을 준비한 뒤 다시 찾아보세요.</p>
+    <p class="context">아직 준비된 AI-Hub 239·XJTU-SY 원본이 없습니다. 저장소의 <code>data/</code> 폴더에 원본을 준비한 뒤 다시 확인하세요.</p>
     <ul class="preparation"><li><strong>AI-Hub 239</strong><code>data/raw/aihub/239/archives/*/raw/*.zip</code></li>
       <li><strong>XJTU-SY</strong><code>data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets/</code></li></ul>
     <p><a href="https://github.com/so9093-K/industrial-phm-framework/blob/main/data/README.md" target="_blank" rel="noopener noreferrer">데이터 준비 방법 · data/README.md ↗</a></p>

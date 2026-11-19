@@ -293,7 +293,7 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                     explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
                 explanation.get_by_role(
-                    "button", name="이 지점 전후로 무엇이 달라졌어?", exact=True
+                    "button", name="이 지점 전후의 변화 설명", exact=True
                 ).click()
                 pw.expect(explanation.get_by_text("답변 기준 지점 · 4번째 측정")).to_be_visible(
                     timeout=20_000

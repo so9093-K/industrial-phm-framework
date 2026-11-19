@@ -59,16 +59,26 @@ export function changeNumbers(facts: ChangeFacts): {before: ChangeNumber; after:
   return {
     before: {caption: "기록 처음 30%의 중앙값", value: amount(facts.reference, facts.unit),
       note: facts.kind === "level-change" || spread === 0 ? "이 값이 그대로 유지됨"
-        : spread ? "이 기간의 흔들림 약 ±" + amount(spread, facts.unit) : null},
+        : spread ? "이 기간의 변동 약 ±" + amount(spread, facts.unit) : null},
     after: {caption: "이 구간의 중앙값", value: amount(facts.typical, facts.unit),
       note: gap === 0 ? null : "처음보다 " + amount(Math.abs(gap), facts.unit) + (gap > 0 ? " 높음" : " 낮음")
         + (ratio !== null && ratio >= 1.5 ? " · 약 " + digits(ratio) + "배" : "")},
   };
 }
 
+/** 변화가 기록 끝까지 이어졌을 때의 세 번째 숫자: 마지막 값과, 그 값이 이 구간 중앙값과 얼마나 다른지. */
+export function latestNumber(caption: string, value: number, typical: number | null, unit: string | null): ChangeNumber {
+  if (typical === null || value === typical) return {caption, value: amount(value, unit), note: null};
+  const ratio = typical > 0 && value > 0 ? value / typical : null;
+  const note = ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5)
+    ? "이 구간 중앙값의 약 " + digits(ratio) + "배"
+    : "이 구간 중앙값보다 " + amount(Math.abs(value - typical), unit) + (value > typical ? " 높음" : " 낮음");
+  return {caption, value: amount(value, unit), note};
+}
+
 /** 주요 변화로 고른 이유를 꼬리표가 아니라 설명으로 말한다. */
 export const CHANGE_WHY = {
-  sustained: "이 기록에서 오래 이어진 변화라서 먼저 보여 드립니다.",
-  "record-end": "기록이 끝날 때까지 이어진 변화라서 먼저 보여 드립니다.",
-  largest: "이 기록에서 변화 폭이 큰 구간이라서 먼저 보여 드립니다.",
+  sustained: "선정 기준 · 오래 이어진 변화",
+  "record-end": "선정 기준 · 기록 끝까지 이어진 변화",
+  largest: "선정 기준 · 변화 폭이 큰 구간",
 } as const;

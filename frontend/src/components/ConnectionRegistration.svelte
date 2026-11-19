@@ -222,7 +222,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="context">이 위치에 변수가 없습니다. 객체 안쪽을 찾아보세요.</p>
+        <p class="context">이 위치에 변수가 없습니다. 객체 안쪽 노드를 선택하세요.</p>
       {/if}
     {/if}
     {#if mappings.length}
