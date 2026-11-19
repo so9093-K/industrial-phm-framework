@@ -7,7 +7,7 @@
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
-  import { readAttention, UNCHECKED, type AssetChecks } from "./monitor-attention";
+  import { UNCHECKED, type AssetChecks } from "./monitor-attention";
   import { readPublicDatasets } from "./public-datasets";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -29,19 +29,19 @@
   let permissionController: AbortController | null = null;
   // 관측 현황은 확인 사실을 계속 다시 읽고(MonitorAttention), 설비·신호 목록은 열 때 한 번 읽는다.
   let checks: AssetChecks = $state(UNCHECKED);
-  let listChecks: AssetChecks = $state(UNCHECKED);
-  let listChecksRevision = $state(0);
+  // 모니터링 화면(설비 칸 줄 + 고른 설비의 중심 화면). 설비를 고르지 않았으면 첫 설비를 열고 주소에 남긴다.
+  const monitoring = $derived(route.page === "monitor" || route.page === "assets");
+  function monitorHref(assetId: string): string {
+    return routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null});
+  }
   $effect(() => {
-    listChecksRevision;
-    if (route.page !== "assets" || route.assetId) return;
-    const request = new AbortController();
-    listChecks = UNCHECKED;
-    void readAttention(request.signal).then((read) => {
-      if (!request.signal.aborted) listChecks = read;
-    }).catch(() => {if (!request.signal.aborted) listChecks = {...UNCHECKED, state: "failed"};});
-    return () => request.abort();
+    const first = snapshot?.assets[0]?.assetId;
+    if (!monitoring || route.assetId || !first) return;
+    const url = new URL(location.href);
+    url.searchParams.set("monitor_asset", first);
+    history.replaceState(history.state, "", url);
+    route = parseRoute(location.search);
   });
-  const shownChecks = $derived(route.page === "monitor" ? checks : listChecks);
   // An empty workspace offers the public datasets prepared in the data folder, when there are any.
   let publicCount = $state(0);
   $effect(() => {
@@ -58,7 +58,7 @@
   const selected: Asset | undefined = $derived.by(
     () => snapshot?.assets.find((asset: Asset) => asset.assetId === route.assetId));
   const documentTitle = $derived.by(() =>
-    route.page === "assets" && route.assetId
+    (route.page === "assets" || route.page === "monitor") && route.assetId
       ? TAB_INFO[route.tab] + " · " + assetLabel(snapshot?.assets ?? [], route.assetId) + " · Industrial PHM"
       : PAGE_INFO[route.page].label + " · Industrial PHM");
 
@@ -99,7 +99,14 @@
   function assetHref(assetId: string): string {
     return routeUrl({page: "assets", assetId, tab: "summary", method: null, data: null});
   }
+  // 모니터링으로 돌아오면 마지막에 보던 설비·변화 그대로 연다.
+  let lastMonitorUrl = $state("");
+  $effect(() => {
+    route;
+    if (route.page === "monitor" || route.page === "assets") lastMonitorUrl = location.pathname + location.search;
+  });
   function pageHref(page: Route["page"]): string {
+    if (page === "monitor" && lastMonitorUrl) return lastMonitorUrl;
     return routeUrl({page, assetId: page === "assets" ? route.assetId : "", tab: "summary", method: null, data: null});
   }
 
@@ -238,7 +245,7 @@
     <a class="brand" href="/web/">Industrial PHM</a>
     <nav class="topnav" aria-label="업무 메뉴" bind:this={topnav}>
       {#each PRIMARY_PAGES as page (page)}
-        <a href={pageHref(page)} aria-current={route.page === page ? "page" : undefined}>
+        <a href={pageHref(page)} aria-current={route.page === page || (page === "monitor" && route.page === "assets") ? "page" : undefined}>
           {PAGE_INFO[page].label}
         </a>
       {/each}
@@ -287,11 +294,31 @@
       {/key}
     {/if}
   {:else if snapshot}
-    {#if route.page === "assets" && selected}
-      {#key selected.assetId}
-        <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed}
-          onSelectAsset={selectAsset} />
-      {/key}
+    {#if monitoring && loadState !== "empty" && snapshot.assets.length}
+      {#if snapshot.systemReadUncertain}
+        <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
+      {/if}
+      {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
+      {#if checks.state === "partial" || checks.state === "failed"}
+        <StatusNotice kind="uncertain" message={checks.state === "failed" ? "모델·수신 확인 항목을 읽지 못했습니다. 설비 칸의 모델 결과와 확인 항목이 빠져 있습니다."
+          : "모델·수신 확인 항목을 일부만 읽었습니다. 설비 칸에는 읽은 항목만 있습니다."} />
+      {/if}
+      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks}
+        checkedAt={observed(snapshot.assessedAt)} onRefresh={() => void refresh()} />
+      {#if selected}
+        {#key selected.assetId}
+          <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} onSelectAsset={selectAsset} />
+        {/key}
+      {:else if route.assetId}
+        <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
+          message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
+      {/if}
+      <div class="monitor-footer">
+        <ReviewEntry compact/>
+        <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":" · 없음"}</summary>
+          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
+        </details>
+      </div>
     {:else}
       <PageHeading title={PAGE_INFO[route.page].label} description={PAGE_INFO[route.page].description}
         meta={route.page === "monitor" ? "목록 확인 시각 · " + observed(snapshot.assessedAt) : ""}
@@ -331,25 +358,12 @@
       {:else if loadState === "empty"}
         <!-- Monitor and the asset list share the start panel above. -->
       {:else}
-        {#if route.page === "assets" && route.assetId}
-          <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
-            message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
-        {/if}
-
-        {#if shownChecks.state === "partial" || shownChecks.state === "failed"}
-          <StatusNotice kind="uncertain" message={shownChecks.state === "failed" ? "모델·수신 확인 항목을 읽지 못했습니다. 표의 모델 결과와 확인 항목이 빠져 있습니다."
-            : "모델·수신 확인 항목을 일부만 읽었습니다. 표에는 읽은 항목만 있습니다."}
-            actionLabel={route.page === "assets" ? "확인 항목 다시 읽기" : undefined} onAction={route.page === "assets" ? () => listChecksRevision++ : undefined} />
-        {/if}
-        <AssetList assets={snapshot.assets} {observed} href={assetHref} checks={shownChecks} operationsHere={route.page === "monitor"} />
+        <!-- 모니터링(설비 칸 줄 + 중심 화면)은 위에서 그린다. -->
       {/if}
-      {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}
-        <div class="monitor-footer">
-          {#if loadState!=="empty"}<ReviewEntry compact/>{/if}
-          <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":" · 없음"}</summary>
-            <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
-          </details>
-        </div>
+      {#if monitoring && snapshot.operationsAttention?.items.length}
+        <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목 · {snapshot.operationsAttention.items.length}건</summary>
+          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
+        </details>
       {/if}
     {/if}
   {/if}

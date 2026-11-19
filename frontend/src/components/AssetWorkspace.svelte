@@ -77,21 +77,6 @@
       || (route.data !== null && usesDataKind(route.tab, method)
         && !kindsOf(current).includes(route.data));
   });
-  const facts = $derived.by(() => {
-    if (!data) return "";
-    const parts: string[] = [];
-    if (data.history) parts.push("시계열 신호 " + data.history.signals + "개");
-    if (data.vibration) parts.push("진동 측정 " + data.vibration.measurements + "회");
-    return parts.join(" · ");
-  });
-
-  function at(tab: Tab, nextMethod: Method | null = null, nextKind: DataKind | null = null): string {
-    return routeUrl({page: "assets", assetId: asset.assetId, tab, method: nextMethod, data: nextKind});
-  }
-  function retainSelection(event: MouseEvent) {
-    const link = event.currentTarget as HTMLAnchorElement;
-    link.href = tabSelectionUrl(link.href, location.href);
-  }
   // 모니터링(중심) 화면은 설비마다 한 번 읽은 데이터로 계속 떠 있다. 분석 서랍을 열 때 다시 읽는 데이터는
   // 서랍에만 쓰고, 중심 화면의 계산을 다시 시작하지 않는다.
   let summaryData: AssetData | null = $state(null);
@@ -103,6 +88,24 @@
       else if (state === "failed" && summaryData === null) summaryState = "failed";
     });
   });
+  // 설비 한 줄 소개는 서랍이 데이터를 다시 읽는 동안에도 처음 읽은 값으로 둔다.
+  const known = $derived.by((): AssetData | null => { const fresh: AssetData | null = data, first: AssetData | null = summaryData; return fresh ?? first; });
+  const facts = $derived.by(() => {
+    const read: AssetData | null = known;
+    if (!read) return "";
+    const parts: string[] = [];
+    if (read.history) parts.push("시계열 신호 " + read.history.signals + "개");
+    if (read.vibration) parts.push("진동 측정 " + read.vibration.measurements + "회");
+    return parts.join(" · ");
+  });
+
+  function at(tab: Tab, nextMethod: Method | null = null, nextKind: DataKind | null = null): string {
+    return routeUrl({page: "assets", assetId: asset.assetId, tab, method: nextMethod, data: nextKind});
+  }
+  function retainSelection(event: MouseEvent) {
+    const link = event.currentTarget as HTMLAnchorElement;
+    link.href = tabSelectionUrl(link.href, location.href);
+  }
   const drawerOpen = $derived(route.tab !== "summary");
   const drawerTitle = $derived(route.tab === "change" || route.tab === "anomaly"
     ? (method ? METHOD_INFO[method] : TAB_INFO[route.tab]) : TAB_INFO[route.tab]);
@@ -165,16 +168,9 @@
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
       <!-- 한 줄: 어떤 기록인지와 시간을 어떻게 읽는지. 마지막 측정의 위치는 요약의 숫자가 말한다. -->
-      <p class="meta">{#if !asset.lastObservedAt && data?.vibration}{flowLabel(asset.flow)}{facts ? " · " + facts : ""} · {data.vibration.timing
-        ? "기록된 측정 간격 " + elapsedText(data.vibration.timing.periodSeconds) : "측정 간격 기록 없음(측정 회차로 표시)"} · 실제 측정 시각 기록 없음{:else}마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}{/if}</p>
+      <p class="meta">{#if !asset.lastObservedAt && known?.vibration}{flowLabel(asset.flow)}{facts ? " · " + facts : ""} · {known.vibration.timing
+        ? "기록된 측정 간격 " + elapsedText(known.vibration.timing.periodSeconds) : "측정 간격 기록 없음(측정 회차로 표시)"} · 실제 측정 시각 기록 없음{:else}마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}{/if}</p>
     </div>
-    {#if assets.length > 1}
-      <label class="switch-asset">다른 설비
-        <select data-asset-switch value={asset.assetId} onchange={(event) => onSelectAsset(event.currentTarget.value)}>
-          {#each assets as option (option.assetId)}<option value={option.assetId}>{assetOptionLabel(assets, option.assetId)}</option>{/each}
-        </select>
-      </label>
-    {/if}
   </div>
 
   {#if unfinished}<p class="import-note" role="status">{unfinished.text}
@@ -302,18 +298,12 @@
   .drawer-body{min-width:0;display:grid;gap:var(--space-3)}
   @media(max-width:860px){.drawer{width:100vw;padding-inline:var(--space-4)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); }
-  .title { min-width: 0; }
-  h1 { overflow-wrap: anywhere; font-size:clamp(1.3rem,2vw,1.7rem); }
-  .meta { color: var(--color-ink-muted); margin: var(--space-1) 0 0; overflow-wrap: anywhere; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: var(--space-3); }
+  .title { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
+  h1 { overflow-wrap: anywhere; font-size: 1.3rem; margin: 0; }
+  .meta { color: var(--color-ink-muted); margin: 0; overflow-wrap: anywhere; font-size: var(--font-small); }
   .import-note { margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--color-uncertain-border);
     background: var(--color-uncertain-surface); color: var(--color-caution-ink); font-size: var(--font-small); overflow-wrap: anywhere; }
-  .switch-asset { display: grid; gap: var(--space-1); font-size: var(--font-small); font-weight: 700; }
-  .switch-asset select {
-    font: inherit; font-weight: 400; min-height: 44px; padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--color-border); border-radius: var(--radius-control);
-    background: var(--color-surface); color: var(--color-ink);
-  }
   .task-chooser { display: grid; gap: var(--space-3); }
   .task-chooser h2 { margin: 0; }
   .task-chooser ul { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }

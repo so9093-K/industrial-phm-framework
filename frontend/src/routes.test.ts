@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
+  assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
 test("a frequency investigation keeps its channel and zoom across tabs and clears them for a new change",()=>{
@@ -96,8 +96,7 @@ test("a selected bearing change keeps its feature and acquisition periods across
   assert.equal(new URL(tabSelectionUrl(base+"&tab=change&method=relation",comparison.href),'http://local').searchParams.get("acq_relation_x"),"horizontal.rms");
 });
 
-test("primary navigation stays observation-first while record links resolve directly", () => {
-  assert.deepEqual([...PRIMARY_PAGES], ["monitor", "assets", "system"]);
+test("record links resolve directly to their pages", () => {
   assert.equal(parseRoute("?page=investigations&monitor_asset=motor-a").page, "investigations");
   assert.equal(parseRoute("?page=maintenance&monitor_asset=motor-a&finding_id=f").page, "maintenance");
 });

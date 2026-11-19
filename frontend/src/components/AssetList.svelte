@@ -1,55 +1,41 @@
 <script lang="ts">
-  import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
-  import {modelFact, noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
-  import {bandName, changeValue, findingSpan, findingStart} from "../record-findings";
-  import {equipmentKind, readOverview, type OverviewRow} from "../asset-overview";
+  import {assetOptionLabel, type Asset} from "../monitor";
+  import {noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
+  import {changeValue} from "../record-findings";
+  import {readOverview, sparkline, type OverviewRow} from "../asset-overview";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
-  import {assetTabUrl, routeUrl, systemUrl} from "../routes";
+  import {systemUrl} from "../routes";
   import {readChangeReviews, type ChangeCapture} from "../change-reviews";
   import {vibrationShape} from "../vibration-findings";
   import {DECISION_LABEL, latestDecision} from "../review-writes";
-  import {afterChange, changeConclusion, changeEnded, latestNumber, type ChangeNumber} from "../change-story";
-  import {historyRelated, vibrationRelated} from "../change-evidence";
-  import ChangeInterval from "./ChangeInterval.svelte";
-  import OverviewTrace from "./OverviewTrace.svelte";
-  import ChangeNumbers from "./ChangeNumbers.svelte";
+  import {changeEnded, plainLabel} from "../change-story";
 
-  /** 먼저 열어 볼 설비를 고르는 표. 한 행은 한 설비의 주요 변화·추이·모델 결과·검토 상태이고,
-   * 행을 누르면 그 설비의 상태 요약(같은 변화)으로 간다. */
+  /** 모니터링 화면 맨 위의 설비 칸 줄. 칸마다 그 설비의 주요 변화 한 줄, 작은 추이, 모델의 마지막 분석 결과를 두고,
+   * 누르면 아래 중심 화면이 그 설비로 바뀐다. 확인할 것이 있는 설비가 앞에 온다. */
   type Props = {
     assets: Asset[];
     observed: (at: string | null) => string;
     href: (assetId: string) => string;
-    /** 설비별 확인 항목과 적용 모델. 관측 현황은 계속 다시 읽고, 설비·신호 목록은 한 번 읽는다. */
+    /** 지금 아래 중심 화면에 열린 설비. */
+    selected?: string;
+    /** 설비별 확인 항목과 적용 모델 (모니터링 화면이 계속 다시 읽는다). */
     checks?: AssetChecks;
-    /** 운영 확인 항목을 같은 화면 아래에서 펼칠 수 있으면 true. */
-    operationsHere?: boolean;
+    /** 목록을 읽은 시각과 다시 읽기. */
+    checkedAt?: string;
+    onRefresh?: () => void;
   };
-  let {assets, observed, href, checks = UNCHECKED, operationsHere = false}: Props = $props();
+  let {assets, href, selected = "", checks = UNCHECKED, checkedAt = "", onRefresh}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && checks.notes[asset.assetId] === undefined ? null
       : (asset.attentionCount ?? 0) + (checks.notes[asset.assetId]?.length ?? 0);
-  type Order = "attention" | "name";
-  let order: Order = $state("attention");
-  let kind = $state("");
-  let groupByKind = $state(false);
   const name = (asset: Asset) => assetOptionLabel(assets, asset.assetId);
-  const kinds = $derived([...new Set(assets.map(asset => equipmentKind(name(asset))))].sort());
   // 가장 중요한 확인 항목, 그다음 건수, 그다음 서버가 준 순서.
   const ordered = $derived(assets
     .map((asset, index) => ({asset, index}))
-    .filter(({asset}) => !kind || equipmentKind(name(asset)) === kind)
-    .sort((a, b) => order === "name" ? name(a.asset).localeCompare(name(b.asset), "ko")
-      : notePriority(checks.notes[a.asset.assetId]?.[0]) - notePriority(checks.notes[b.asset.assetId]?.[0])
-        || (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
+    .sort((a, b) => notePriority(checks.notes[a.asset.assetId]?.[0]) - notePriority(checks.notes[b.asset.assetId]?.[0])
+      || (count(b.asset) ?? 0) - (count(a.asset) ?? 0) || a.index - b.index)
     .map(({asset}) => asset));
-  const grouped = $derived.by(() => {
-    if (!groupByKind || kinds.length < 2 || kind) return [{kind: "", rows: ordered}];
-    const by = new Map<string, Asset[]>();
-    for (const asset of ordered) by.set(equipmentKind(name(asset)), [...(by.get(equipmentKind(name(asset))) ?? []), asset]);
-    return [...by].map(([label, rows]) => ({kind: label, rows}));
-  });
 
   // Keep two requests in flight across every monitor update. Only changed assets are
   // queued; superseded requests cannot publish their older overview into a newer row.
@@ -175,18 +161,17 @@
     return () => clearTimeout(timer);
   });
 
-  const operationsHref = routeUrl({page: "monitor", assetId: "", tab: "summary", method: null, data: null}) + "#operations";
-  function openOperations() {
-    const panel = document.getElementById("operations");
-    if (panel instanceof HTMLDetailsElement) panel.open = true;
-  }
-  function modelText(id: string): string | null {
-    if (checks.state === "failed") return "상태를 읽지 못함";
+  /** 모델이 마지막으로 분석한 측정의 결과를 짧게: 몇 개 모델 중 몇 개가 기준을 넘었는지. */
+  function modelShort(id: string): {text: string; over: boolean} {
+    if (checks.state === "failed") return {text: "모델 상태 미확인", over: false};
     const list = checks.models[id] ?? [];
-    if (!list.length) return checks.state === "loading" ? "확인 중" : checks.state === "ready" ? "적용 모델 없음" : null;
-    return modelFact(list);
+    if (!list.length) return {text: checks.state === "loading" ? "모델 확인 중" : "적용 모델 없음", over: false};
+    const judged = list.filter(model => model.state === "processed" && model.analyzed?.exceeds != null);
+    const over = judged.filter(model => model.analyzed!.exceeds).length;
+    if (!judged.length) return {text: "모델 분석 대기", over: false};
+    return over ? {text: "모델 " + judged.length + "개 중 " + over + "개 기준 초과", over: true} : {text: "모델 기준 이하", over: false};
   }
-  /** 모델 결과 밖의 확인 항목. 표에 보이는 변화와 같은 신호의 '기록 끝' 항목은 그 변화가 이미 말한다. */
+  /** 모델 결과 밖의 확인 항목. 칸에 보이는 변화와 같은 신호의 '기록 끝' 항목은 그 변화가 이미 말한다. */
   function problems(id: string, row: OverviewRow | null): {text: string; note: Note}[] {
     const shown = row?.historyInterval;
     return (checks.notes[id] ?? []).flatMap(note => {
@@ -196,147 +181,87 @@
       return text ? [{text, note}] : [];
     });
   }
-  // 상태 요약과 같은 규칙: 변화가 기록 끝까지 이어졌으면 마지막 값을 세 번째 숫자로 둔다.
-  function historyLatest(row: OverviewRow): ChangeNumber | null {
-    const item = row.historyInterval!, last = row.finding?.latest;
-    return last ? latestNumber("마지막 구간 평균", last.value, item.typical, item.unit) : null;
-  }
-  function vibrationLatest(row: OverviewRow): ChangeNumber | null {
-    const change = row.vibrationInterval!.change, last = change.trace.at(-1);
-    return last && change.to === row.finding?.latest?.position && last.at === change.to
-      ? latestNumber("마지막 측정", last.value, change.typical, change.unit) : null;
+  const monthDay = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric"});
+  /** 칸 하나의 주요 변화: 무엇이 처음 → 변화 구간 (→ 마지막) 값으로, 언제부터, 지금도 이어지는지. */
+  function tile(row: OverviewRow | null, read: OverviewRow | "loading" | "failed" | undefined): {what: string; when: string; trace: {x: number; value: number; join?: boolean}[]} {
+    if (!row) return {what: read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중", when: "", trace: []};
+    if (row.historyInterval) {
+      const item = row.historyInterval;
+      const ended = changeEnded(item.end, item.context?.record.to, item.bucketSeconds) !== null;
+      const last = !ended && row.finding?.latest ? " → " + changeValue(row.finding.latest.value, null) : "";
+      return {what: plainLabel(item.label) + " " + (item.reference != null ? changeValue(item.reference, null) + " → " : "")
+          + changeValue(item.typical ?? item.value, null) + last + (item.unit ? " " + item.unit : ""),
+        when: monthDay(item.start) + "부터 · " + (ended ? monthDay(item.end) + " 종료" : "기록 끝까지"),
+        // 칸의 작은 추이는 기록 전체: 같은 운전 수준끼리 비교했으면 그 수준의 값, 아니면 구간 평균.
+        trace: (item.overview ?? []).flatMap(point => {
+          const value = item.overviewKind === "all" || !item.overviewKind ? point.mean : point.judged;
+          return value === null ? [] : [{x: Date.parse(point.at), value, join: point.join}];
+        })};
+    }
+    if (row.vibrationInterval) {
+      const change = row.vibrationInterval.change;
+      const shape = vibrationShape(change, row.finding?.latest?.position ?? null);
+      const last = shape.atEnd ? " → " + changeValue(change.trace.at(-1)!.value, null) : "";
+      return {what: plainLabel(change.label, change.feature) + " " + (change.reference != null ? changeValue(change.reference, null) + " → " : "")
+          + changeValue(change.typical ?? change.value, null) + last + (change.unit ? " " + change.unit : ""),
+        when: change.from + "번째부터 · " + (shape.atEnd ? "기록 끝까지" : change.to + "번째까지"),
+        trace: change.trace.map(point => ({x: point.at, value: point.value, join: point.join}))};
+    }
+    return {what: row.judged ? "크게 달라진 구간 없음" : "판단할 신호 없음",
+      when: row.main?.latest ? row.main.label + " " + changeValue(row.main.latest.value, row.main.unit) : "", trace: row.main?.trace ?? []};
   }
 </script>
 
-<section class="ui-panel" aria-labelledby="asset-list-title">
+<section class="assets" aria-labelledby="asset-list-title">
   <div class="head">
-    <h2 id="asset-list-title">설비 기록 <span>{assets.length}개</span></h2>
-    <div class="head-tools">
-    {#if offerBearing}<div class="bearing-start"><a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>
-      {#if !canImport}<small>보기 전용 · 가져오려면 변경 가능한 작업공간을 여세요.</small>{/if}</div>{/if}
-    {#if assets.length > 1}<details class="view-options" class:compact={assets.length<=3} open={assets.length>3}>
-      <summary>정렬·필터</summary><div class="filters">
-      {#if kinds.length > 1}<label>종류 <select bind:value={kind}><option value="">전체</option>{#each kinds as item (item)}<option value={item}>{item}</option>{/each}</select></label>{/if}
-      {#if kinds.length>1}<label class="group-toggle"><input type="checkbox" bind:checked={groupByKind}/>종류별로 묶기</label>{/if}
-      <label>정렬 <select bind:value={order}><option value="attention">확인 항목 우선</option><option value="name">이름순</option></select></label>
-    </div></details>{/if}
-    </div>
+    <h2 id="asset-list-title">설비 <span>{assets.length}개{checkedAt ? " · 목록 확인 " + checkedAt : ""}</span></h2>
+    <span class="tools">
+      {#if offerBearing}<a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>{/if}
+      <a class="ui-button" href={systemUrl("connections")}>데이터 가져오기</a>
+      {#if onRefresh}<button type="button" class="ui-button" onclick={onRefresh}>다시 불러오기</button>{/if}
+    </span>
   </div>
-  <div class="table" role="table" aria-label="설비별 주요 변화">
-    <div class="columns" role="row">
-      <span role="columnheader">설비</span><span role="columnheader">주요 변화</span>
-      <span role="columnheader">추이</span><span role="columnheader">모델·검토</span>
-    </div>
-    {#each grouped as group (group.kind)}
-      {#if group.kind}<div class="kind" role="row"><span role="cell" aria-colspan="4">{group.kind} · {group.rows.length}대</span></div>{/if}
-      {#each group.rows as asset (asset.assetId)}
-        {@const read = rows[asset.assetId]}
-        {@const row = typeof read === "object" ? read : null}
-        {@const review = reviews[asset.assetId]}
-        {@const model = modelText(asset.assetId)}
-        <div class="row" role="row">
-          <div class="cell asset" role="cell">
-            <a class="open" href={href(asset.assetId)}>{name(asset)}</a>
-            <small>{asset.flow === "stored-history" ? "과거 저장 기록" : flowLabel(asset.flow)} · {asset.lastObservedAt ? "마지막 측정 " + observed(asset.lastObservedAt)
-              : asset.lastPosition != null ? "마지막 " + asset.lastPosition + "번째 측정" : "측정 시각 정보 없음"}</small>
-            {#if imports.get(asset.assetId)}
-              {@const unfinished = imports.get(asset.assetId)!}
-              <small class="issue import">{unfinished.text} <a class="above" href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></small>
-            {/if}
-          </div>
-          <div class="cell" role="cell" data-label="주요 변화">
-            {#if row?.historyInterval}
-              {@const item = row.historyInterval}
-              {@const condition = item.band != null && row.operation && item.operation?.key === row.operation.key ? bandName(row.operation.names, item.band) : null}
-              {@const ended = changeEnded(item.end, item.context?.record.to, item.bucketSeconds)}
-              {@const related = historyRelated(item.related)}
-              <p class="headline">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", condition})}</p>
-              <ChangeNumbers facts={item} latest={ended ? null : historyLatest(row)} fallback="비교 가능한 값 없음" compact/>
-              {#if ended}<small>{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</small>{/if}
-              {#if related}<small>함께 변한 신호 · {related}</small>{/if}
-            {:else if row?.vibrationInterval}
-              {@const change = row.vibrationInterval.change}
-              {@const shape = vibrationShape(change, row.finding?.latest?.position ?? null)}
-              {@const latest = vibrationLatest(row)}
-              {@const related = vibrationRelated(change.related)}
-              <p class="headline">{changeConclusion(change, {span: shape.span, jump: shape.jump})}</p>
-              <ChangeNumbers facts={change} {latest} fallback="비교 가능한 값 없음" compact/>
-              {#if related}<small>함께 변한 특징 · {related}</small>{/if}
-            {:else if row}
-              <p class="headline quiet">{row.judged ? "기록 처음 30% 대비 크게 달라진 구간 없음" : "판단할 신호 없음"}</p>
-              {#if row.main?.latest}<small>마지막 저장값 · {row.main.label} <strong class="latest">{changeValue(row.main.latest.value, row.main.unit)}</strong></small>{/if}
-            {:else}
-              <small role="status">{read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중"}</small>
-              <span class="pending-actions"><a class="above" href={assetTabUrl(asset.assetId, "signals")}>신호 기록 보기 →</a>
-                {#if read === "failed"}<button type="button" class="retry above" onclick={() => loadRow(asset.assetId)}>다시 확인</button>{/if}</span>
-            {/if}
-          </div>
-          <div class="cell trace-cell" role="cell" data-label="추이">
-            {#if row?.historyInterval?.trace?.length}
-              <ChangeInterval finding={row.historyInterval} height={110} focus/>
-            {:else if row?.vibrationInterval}
-              {@const changed = row.vibrationInterval}
-              <OverviewTrace main={{label: changed.change.label, unit: changed.change.unit, axis: "acquisition", periodSeconds: changed.periodSeconds, latest: null,
-                trace: changed.change.trace.map(point => ({x: point.at, value: point.value, join: point.join}))}} range={changed.change} usual={changed.change.usual}
-                marks={vibrationShape(changed.change, row.finding?.latest?.position ?? null).marks} height={110}/>
-            {:else if row?.main}
-              <OverviewTrace main={row.main} height={110}/>
-            {/if}
-          </div>
-          <div class="cell" role="cell" data-label="모델·검토">
-            <ul class="facts">
-              {#if model}<li>모델 · {model}</li>{/if}
-              {#if review}<li>검토 · {review.text ?? "확인 중"}</li>{/if}
-              {#each problems(asset.assetId, row) as problem (problem.note.id)}
-                <li class="issue">{problem.text}{#if problem.note.kind !== "departure"} <a class="above" href={problem.note.href}>{problem.note.action} →</a>{/if}</li>
-              {/each}
-              {#if asset.attentionCount}
-                <li class="issue">운영 · 확인 항목 {asset.attentionCount}건 <a class="above" href={operationsHref} onclick={operationsHere ? openOperations : undefined}>보기 →</a></li>
-              {/if}
-            </ul>
-          </div>
-        </div>
-      {/each}
+  <nav class="strip" aria-label="설비">
+    {#each ordered as asset (asset.assetId)}
+      {@const read = rows[asset.assetId]}
+      {@const row = typeof read === "object" ? read : null}
+      {@const fact = tile(row, read)}
+      {@const model = modelShort(asset.assetId)}
+      {@const review = reviews[asset.assetId]}
+      {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
+      <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
+        <span class="top"><strong>{name(asset)}</strong><span class="model" class:over={model.over}>{model.text}</span></span>
+        <span class="what">{fact.what}</span>
+        <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
+        {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}
+        {#if asset.attentionCount}<small class="issue">운영 확인 항목 {asset.attentionCount}건</small>{/if}
+        {#if imports.get(asset.assetId)}<small class="issue">{imports.get(asset.assetId)!.text}</small>{/if}
+        {#if review?.text && review.text !== "기록 없음"}<small>검토 · {review.text}</small>{/if}
+      </a>
     {/each}
-  </div>
+  </nav>
 </section>
 
 <style>
-  .bearing-start{display:grid;gap:var(--space-1)}.bearing-start small{font-size:var(--font-label);color:var(--color-ink-muted)}
-  .view-options>summary{cursor:pointer;font-size:var(--font-small);color:var(--color-action);font-weight:650;padding-block:var(--space-2)}.view-options:not(.compact)>summary{display:none}.view-options.compact[open] .filters{padding-top:var(--space-2)}
-  .head-tools{display:flex;align-items:center;justify-content:end;gap:var(--space-3) var(--space-5);flex-wrap:wrap}.bearing-entry{font-size:var(--font-small);font-weight:650}
-  .trace-cell :global(figure){margin:0}.trace-cell :global(figcaption){font-size:var(--font-label)}
-  .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--space-2) var(--space-4);margin-bottom:var(--space-3)}
-  h2{margin:0}h2 span{font-weight:400;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .filters{display:flex;flex-wrap:wrap;gap:var(--space-3);font-size:var(--font-small)}
-  .filters label{display:flex;align-items:center;gap:var(--space-1)}
-  .table{display:grid;border-top:1px solid var(--color-border)}
-  .row,.columns{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr) minmax(0,1.25fr) minmax(0,.95fr);gap:var(--space-4);padding:var(--space-4) var(--space-2);border-bottom:1px solid var(--color-border);align-items:start;min-width:0}
-  .columns{font-size:var(--font-small);color:var(--color-ink-muted);padding-block:var(--space-2)}
-  /* 행 전체가 설비 이름의 링크다. 행 안의 다른 링크·버튼만 그 위에 둔다. */
-  .row{position:relative}
-  .row:hover{background:var(--color-surface-selected)}
-  .row:has(.open:focus-visible){outline:2px solid var(--color-action);outline-offset:-2px}
-  .open{font-weight:700;color:var(--color-ink);text-decoration:none}
-  .open::after{content:"";position:absolute;inset:0}
-  .open:focus-visible{outline:none}
-  .above{position:relative;z-index:1}
-  .kind{padding:var(--space-2);font-weight:650;font-size:var(--font-small);border-bottom:1px solid var(--color-border);background:var(--color-surface-selected)}
-  .cell{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere;word-break:keep-all;align-content:start}
-  .cell small{color:var(--color-ink-muted);font-size:var(--font-small)}
-  .headline{margin:0;font-weight:650}
-  .headline.quiet{font-weight:400}
-  .latest{font-weight:700;color:var(--color-ink);font-variant-numeric:tabular-nums}
-  .facts{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2);font-size:var(--font-small)}
-  .facts .issue{color:var(--color-caution-ink)}
-  .pending-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);margin-top:var(--space-2);font-size:var(--font-small)}
-  .group-toggle input{width:auto;margin:0}
-  .retry{padding:var(--space-1) var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);cursor:pointer}
-  .issue.import{font-size:var(--font-small);color:var(--color-caution-ink)}
-  .cell small.issue{color:var(--color-caution-ink)}
-  @media(max-width:760px){
-    .row{grid-template-columns:1fr;gap:var(--space-2)}
-    .columns{display:none}
-    .cell[data-label]::before{content:attr(data-label);font-size:var(--font-small);color:var(--color-ink-muted);font-weight:650}
-  }
+  .assets { display: grid; gap: var(--space-2); min-width: 0; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
+  h2 { margin: 0; font-size: var(--font-body); } h2 span { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .bearing-entry { font-size: var(--font-small); font-weight: 650; }
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+  /* 설비 칸은 가로로 이어지고, 많으면 옆으로 넘겨 본다. */
+  .strip { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-1); }
+  .tile { flex: 0 0 300px; display: grid; gap: 4px; align-content: start; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
+    border-top: 4px solid transparent; border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
+  .tile:hover { border-color: var(--color-action); }
+  .tile[aria-current="page"] { border-top-color: var(--color-action); background: var(--color-surface-selected); }
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
+  .top strong { font-size: var(--font-body); }
+  .model { font-size: var(--font-label); color: var(--color-ink-muted); white-space: nowrap; }
+  .model.over { color: var(--color-failure-ink, #b42318); font-weight: 650; }
+  .what { font-size: var(--font-small); font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .bottom { display: flex; justify-content: space-between; align-items: end; gap: var(--space-2); }
+  small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
+  small.issue { color: var(--color-caution-ink); }
+  svg { width: 120px; height: 28px; flex: none; }
+  svg path { fill: none; stroke: var(--color-action); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 </style>
