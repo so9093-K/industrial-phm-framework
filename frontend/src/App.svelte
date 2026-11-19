@@ -7,7 +7,7 @@
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
-  import { readAttention, type AttentionState, type Note } from "./monitor-attention";
+  import { readAttention, UNCHECKED, type AssetChecks } from "./monitor-attention";
   import { readPublicDatasets } from "./public-datasets";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -27,24 +27,21 @@
   let writable: boolean | null = $state(null);
   let permissionState: "checking" | "ready" | "failed" = $state("checking");
   let permissionController: AbortController | null = null;
-  let primaryNotes:Record<string,Note>=$state({});
-  let listPrimaryNotes:Record<string,Note>=$state({});
-  let notes: Record<string, number> = $state({});
-  let notesState: AttentionState = $state("loading");
-  // The asset list counts the same items as 관측 현황, read once when the list is shown.
-  let listNotes: Record<string, number> = $state({});
-  let listNotesState: AttentionState = $state("loading");
-  let listNotesRevision = $state(0);
+  // 관측 현황은 확인 사실을 계속 다시 읽고(MonitorAttention), 설비·신호 목록은 열 때 한 번 읽는다.
+  let checks: AssetChecks = $state(UNCHECKED);
+  let listChecks: AssetChecks = $state(UNCHECKED);
+  let listChecksRevision = $state(0);
   $effect(() => {
-    listNotesRevision;
+    listChecksRevision;
     if (route.page !== "assets" || route.assetId) return;
     const request = new AbortController();
-    listNotes = {}; listPrimaryNotes={}; listNotesState = "loading";
+    listChecks = UNCHECKED;
     void readAttention(request.signal).then((read) => {
-      if (!request.signal.aborted) {listNotes = read.counts; listNotesState = read.state; listPrimaryNotes=Object.fromEntries(read.groups.filter(group=>group.notes.length).map(group=>[group.assetId,group.notes[0]]));}
-    }).catch(() => {if (!request.signal.aborted) {listNotes = {}; listPrimaryNotes={}; listNotesState = "failed";}});
+      if (!request.signal.aborted) listChecks = read;
+    }).catch(() => {if (!request.signal.aborted) listChecks = {...UNCHECKED, state: "failed"};});
     return () => request.abort();
   });
+  const shownChecks = $derived(route.page === "monitor" ? checks : listChecks);
   // An empty workspace offers the public datasets prepared in the data folder, when there are any.
   let publicCount = $state(0);
   $effect(() => {
@@ -339,19 +336,18 @@
             message="목록이 일부만 조회됐거나 데이터가 바뀌었을 수 있습니다. 다른 설비의 결과로 대신 보여 주지 않습니다." />
         {/if}
 
-        {#if route.page === "assets" && (listNotesState === "partial" || listNotesState === "failed")}
-          <StatusNotice kind="uncertain" message="확인 항목을 일부 읽지 못했습니다. 표시된 건수는 확인된 항목만 포함합니다."
-            actionLabel="확인 항목 다시 읽기" onAction={() => listNotesRevision++} />
+        {#if shownChecks.state === "partial" || shownChecks.state === "failed"}
+          <StatusNotice kind="uncertain" message={shownChecks.state === "failed" ? "모델·수신 확인 항목을 읽지 못했습니다. 표의 모델 결과와 확인 항목이 빠져 있습니다."
+            : "모델·수신 확인 항목을 일부만 읽었습니다. 표에는 읽은 항목만 있습니다."}
+            actionLabel={route.page === "assets" ? "확인 항목 다시 읽기" : undefined} onAction={route.page === "assets" ? () => listChecksRevision++ : undefined} />
         {/if}
-        <AssetList assets={snapshot.assets} {observed} href={assetHref} notes={route.page === "monitor" ? notes : listNotes}
-          notesState={route.page === "monitor" ? notesState : listNotesState}
-          primaryNotes={route.page === "monitor"?primaryNotes:listPrimaryNotes} reasons={route.page === "monitor"} />
+        <AssetList assets={snapshot.assets} {observed} href={assetHref} checks={shownChecks} operationsHere={route.page === "monitor"} />
       {/if}
       {#if route.page === "monitor" && (loadState !== "empty" || snapshot.operationsAttention?.items.length)}
         <div class="monitor-footer">
           {#if loadState!=="empty"}<ReviewEntry compact/>{/if}
-          <details class="ui-panel monitor-operations"><summary>운영 상태·확인 항목 상세{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":""}</summary>
-            <MonitorAttention {snapshot} onTick={quietRefresh} onNotes={(counts,state,primary) => {notes = counts; notesState = state; primaryNotes=primary;}} />
+          <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":" · 없음"}</summary>
+            <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
           </details>
         </div>
       {/if}

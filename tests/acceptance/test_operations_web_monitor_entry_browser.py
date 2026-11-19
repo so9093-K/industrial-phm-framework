@@ -70,13 +70,16 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
 
                 page.route("**/api/v1/explore/overview?**", overview)
                 page.goto(origin + "/web/")
-                focus = page.get_by_role("article", name="공기압축기 1306 기록 요약")
-                pw.expect(focus.get_by_text("과거 저장 기록", exact=True)).to_be_visible()
-                pw.expect(focus.get_by_role("status")).to_contain_text("달라진 값을 확인")
+                table = page.get_by_role("table", name="설비별 주요 변화")
+                row = table.locator(".row").filter(
+                    has=page.get_by_role("link", name="공기압축기 1306", exact=True)
+                )
+                pw.expect(row).to_contain_text("과거 저장 기록")
+                pw.expect(row.get_by_role("status")).to_contain_text("변화 확인 중")
                 pw.expect(page.get_by_role("heading", name="설비 기록 1개")).to_be_visible()
-                pw.expect(page.get_by_role("table", name="설비 비교")).to_have_count(0)
                 pw.expect(page.get_by_label("정렬", exact=True)).to_have_count(0)
-                records = focus.get_by_role("link", name="신호 기록 보기", exact=False)
+                # 계산을 기다리는 동안에도 원본 신호는 열 수 있다.
+                records = row.get_by_role("link", name="신호 기록 보기", exact=False)
                 pw.expect(records).to_be_visible()
                 assert records.bounding_box()["y"] < 600
                 for request in held:
@@ -86,20 +89,24 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 pw.expect(page.locator(".series").first).to_be_visible(timeout=30000)
                 mode["overview"] = "fail"
                 page.goto(origin + "/web/")
-                pw.expect(focus).to_contain_text("주요 변화를 불러오지 못했습니다", timeout=10000)
+                pw.expect(row).to_contain_text("변화를 불러오지 못함", timeout=10000)
                 pw.expect(
-                    focus.get_by_role("link", name="신호 기록 보기", exact=False)
+                    row.get_by_role("link", name="신호 기록 보기", exact=False)
                 ).to_be_visible()
                 mode["overview"] = "ready"
-                focus.get_by_role("button", name="변화 다시 확인", exact=True).click()
-                values = focus.locator(".change-values")
+                row.get_by_role("button", name="다시 확인", exact=True).click()
+                values = row.locator(".change-values")
                 pw.expect(values).to_contain_text("40 °C", timeout=30000)
                 pw.expect(values).to_contain_text("65 °C")
-                pw.expect(focus.locator(".change-trend svg path.trace")).to_have_count(1)
-                pw.expect(focus.get_by_label("마지막 저장값")).to_be_visible()
-                pw.expect(focus.get_by_label("마지막 저장값")).to_contain_text("2020. 10. 22.")
-                investigate = focus.get_by_role("link", name="변화 구간 조사하기", exact=False)
-                assert investigate.bounding_box()["y"] < 750
+                # 기록 끝까지 이어진 변화는 상태 요약과 같은 마지막 구간 평균을 세 번째 숫자로 둔다.
+                pw.expect(values).to_contain_text("마지막 구간 평균")
+                pw.expect(row.locator(".trace-cell svg path.trace")).to_have_count(1)
+                # 행은 상태 요약으로 가고, 그 화면이 같은 변화의 원본 구간으로 잇는다.
+                row.get_by_role("link", name="공기압축기 1306", exact=True).click()
+                investigate = page.get_by_role(
+                    "link", name="원본 신호에서 이 구간 보기", exact=False
+                )
+                pw.expect(investigate).to_be_visible(timeout=30000)
                 query = parse_qs(
                     urlsplit(investigate.get_attribute("href")).query, keep_blank_values=True
                 )
@@ -116,18 +123,20 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 assert parse_qs(urlsplit(page.url).query)["monitor_source"] == ["measured-file"]
                 snapshot["assets"]["items"] = json.loads(asset_list("quiet"))["assets"]["items"]
                 page.goto(origin + "/web/")
-                quiet = page.get_by_role("article", name="quiet 기록 요약")
-                pw.expect(quiet).to_contain_text(
-                    "크게 달라진 구간을 찾지 못했습니다", timeout=30000
+                quiet = table.locator(".row").filter(
+                    has=page.get_by_role("link", name="quiet", exact=True)
                 )
-                pw.expect(quiet).to_contain_text("마지막 저장값 40 °C")
+                pw.expect(quiet).to_contain_text("크게 달라진 구간 없음", timeout=30000)
+                pw.expect(quiet).to_contain_text("마지막 저장값")
+                pw.expect(quiet.locator(".latest")).to_have_text("40 °C")
                 pw.expect(quiet.locator("figure.overview-trend")).to_be_visible()
                 assert (
                     quiet.locator("figure.overview-trend path").get_attribute("d").count("M") >= 2
                 )
-                pw.expect(
-                    quiet.get_by_role("link", name="신호 기록 보기", exact=False)
-                ).to_be_visible()
+                opened = quiet.get_by_role("link", name="quiet", exact=True)
+                assert parse_qs(urlsplit(opened.get_attribute("href")).query)["monitor_asset"] == [
+                    "quiet"
+                ]
                 snapshot["assets"]["items"] = []
                 page.goto(origin + "/web/")
                 start = page.get_by_role("navigation", name="데이터로 시작하는 방법")
@@ -204,7 +213,7 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
 
                 page.route("**/api/v1/explore/overview?**", overview)
                 page.goto(origin + "/web/")
-                table = page.get_by_role("table", name="설비 비교")
+                table = page.get_by_role("table", name="설비별 주요 변화")
                 one = table.locator(".row").filter(
                     has=page.get_by_role("link", name="pump-1", exact=True)
                 )
@@ -222,7 +231,7 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
                 )
                 assert len(samples) == 1
                 assert one.locator("line.reference").get_attribute("y1") != samples[0]
-                pw.expect(one.get_by_label("마지막 저장값")).to_be_visible()
+                pw.expect(one.locator(".change-values")).to_contain_text("마지막 구간 평균")
                 initial_two_reads = reads["pump-2"]
                 mode["hold"] = True
                 append("pump-1", "original", 180, 190, 70)
@@ -310,16 +319,25 @@ def test_vibration_entry_plots_the_changed_feature_not_the_representative_rms(
                 assert change["feature"] == "feature.Vertical_vibration_signals.rms"
                 assert change["binding_id"] == "anomaly-a" and change["source_id"] == "bench"
                 page.goto(origin + "/web/")
-                focus = page.get_by_role("article", name="bearing-a 기록 요약")
-                pw.expect(focus.get_by_role("heading", level=4)).to_contain_text(
+                row = (
+                    page.get_by_role("table", name="설비별 주요 변화")
+                    .locator(".row")
+                    .filter(has=page.get_by_role("link", name="bearing-a", exact=True))
+                )
+                pw.expect(row.locator(".headline")).to_contain_text(
                     "수직 진동 크기 (RMS)", timeout=30000
                 )
-                figure = focus.get_by_role("figure", name="수직 진동 RMS 기록 추이")
+                figure = row.get_by_role("figure", name="수직 진동 RMS 기록 추이")
                 pw.expect(figure).to_be_visible()
                 pw.expect(figure.locator("svg circle")).to_have_count(len(change["trace"]))
                 assert figure.locator("svg path").get_attribute("d").count("M") == 2
                 assert float(figure.locator("svg rect.interval").get_attribute("width")) > 0
-                investigate = focus.get_by_role("link", name="변화 구간 조사하기", exact=False)
+                # 행은 상태 요약으로 가고, 그 화면이 같은 특징의 변화 시작 측정으로 잇는다.
+                row.get_by_role("link", name="bearing-a", exact=True).click()
+                investigate = page.get_by_role(
+                    "link", name="변화가 시작된 측정의 원본 보기", exact=False
+                )
+                pw.expect(investigate).to_be_visible(timeout=30000)
                 query = parse_qs(urlsplit(investigate.get_attribute("href")).query)
                 assert query["vibration_feature"] == [change["feature"]]
                 assert query["vibration_at"] == [str(change["from"])]

@@ -12,11 +12,11 @@ export type DataKind = "history" | "vibration";
 export type Route = {page: Page; assetId: string; tab: Tab; method: Method | null; data: DataKind | null};
 
 export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
-  monitor: {label: "관측 현황", description: "기록에서 달라진 신호와 먼저 확인할 설비를 살펴봅니다."},
-  assets: {label: "설비·신호", description: "설비를 고르면 상태 요약부터 이상 징후·신호·변화·전망을 차례로 봅니다."},
-  investigations: {label: "분석 기록", description: "어떤 입력과 모델로 언제 분석 결과가 나왔는지 확인합니다."},
-  maintenance: {label: "정비 검토", description: "저장한 분석 결과와 전망에 판단·메모를 남기고, 이전 검토를 이어갑니다."},
-  system: {label: "운영 관리", description: "로컬 서비스 실행 상태, 데이터 연결과 저장소 조회 상태를 확인합니다."},
+  monitor: {label: "관측 현황", description: "설비별 주요 변화 · 모델 결과 · 검토 상태"},
+  assets: {label: "설비·신호", description: "설비별 상태 요약 · 이상 징후 · 신호 · 변화 분석 · 신호 추세 전망"},
+  investigations: {label: "분석 기록", description: "분석 결과별 입력 · 모델 · 분석 시각"},
+  maintenance: {label: "정비 검토", description: "저장한 분석 결과와 전망의 판단 · 메모 기록"},
+  system: {label: "운영 관리", description: "로컬 서비스 실행 상태 · 데이터 연결 · 저장소 조회 상태"},
 };
 export const TAB_INFO: Record<Tab, string> = {
   summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "신호 추세 전망",

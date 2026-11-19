@@ -76,6 +76,16 @@ export function latestNumber(caption: string, value: number, typical: number | n
   return {caption, value: amount(value, unit), note};
 }
 
+const shortTime = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric",
+  hour: "2-digit", minute: "2-digit", hour12: false});
+/** 변화가 기록 끝보다 먼저 끝났으면 언제 끝났고 기록은 언제까지인지. 마지막 두 구간 안에서 끝났으면
+ * 기록 끝까지 이어진 변화로 보고 null을 돌려준다. 상태 요약과 관측 현황이 같은 규칙을 쓴다. */
+export function changeEnded(end: string, recordTo: string | null | undefined, bucketSeconds: number | null | undefined): string | null {
+  const last = recordTo ? Date.parse(recordTo) : NaN, until = Date.parse(end);
+  if (!Number.isFinite(last) || !Number.isFinite(until) || last - until <= 2 * (bucketSeconds ?? 0) * 1000) return null;
+  return "변화 종료 " + shortTime(end) + " · 기록 마지막 " + shortTime(recordTo!);
+}
+
 /** 주요 변화로 고른 이유를 꼬리표가 아니라 설명으로 말한다. */
 export const CHANGE_WHY = {
   sustained: "선정 기준 · 오래 이어진 변화",

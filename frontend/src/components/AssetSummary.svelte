@@ -25,7 +25,7 @@
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, changeHeadline, latestNumber, plainLabel, type ChangeNumber} from "../change-story";
+  import {CHANGE_WHY, changeHeadline, latestNumber, plainLabel, type ChangeNumber, changeEnded} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
@@ -55,7 +55,7 @@
     notes = null; notesState = "loading";
     try {
       const read = await readAttention(request.signal);
-      if (!request.signal.aborted) {notes = read.groups.find(group=>group.assetId===asset.assetId)?.notes??[]; notesState = read.state;}
+      if (!request.signal.aborted) {notes = read.notes[asset.assetId] ?? []; notesState = read.state;}
     } catch {if (!request.signal.aborted) {notes = null; notesState = "failed";}}
   }
   // What the whole stored record held, not only whether it ends away from its start.
@@ -264,15 +264,8 @@
     const reason = shown?.kind === "history" ? shown.item.reason : shown?.kind === "vibration" ? shown.change.reason : null;
     return reason ? CHANGE_WHY[reason] : null;
   });
-  const shortTime = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: false});
-  /** 변화가 기록 끝보다 먼저 끝났으면 언제 끝났고 기록은 언제까지인지. */
-  function endedText(history: RecordFindings, item: FoundInterval): string | null {
-    const recordEnd = history.record ? Date.parse(history.record.to) : NaN, end = Date.parse(item.end);
-    const bucket = (item.bucketSeconds ?? history.bucketSeconds ?? 0) * 1000;
-    if (!Number.isFinite(recordEnd) || !Number.isFinite(end) || recordEnd - end <= 2 * bucket) return null;
-    return "변화 종료 " + shortTime(item.end) + " · 기록 마지막 " + shortTime(history.record!.to);
-  }
+  const endedText = (history: RecordFindings, item: FoundInterval): string | null =>
+    changeEnded(item.end, item.context?.record.to ?? history.record?.to, item.bucketSeconds ?? history.bucketSeconds);
   /** 기록 끝까지 이어진 변화의 세 번째 숫자: 같은 기록의 마지막 구간 평균. */
   function historyLatest(history: RecordFindings, item: FoundInterval): ChangeNumber | null {
     const own = history.signals.find(row => item.context ? row.context?.key === item.context.key : row.channel === item.channel);
