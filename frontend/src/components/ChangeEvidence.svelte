@@ -6,19 +6,13 @@
   import {vibrationLinks} from "../vibration-findings";
   import {assetTabUrl} from "../routes";
   import {historyRelated, rangeEvidence, spectrumEvidence, vibrationRelated, type EvidenceFocus} from "../change-evidence";
-  /** 대표 변화가 진짜인지 확인한 사실을 한 줄씩. 숫자는 '자세히'로 여는 화면과 같은 계산에서 온다. */
-  let {assetId, focus}: {assetId: string; focus: EvidenceFocus} = $props();
+  /** 고른 변화에서 여는 분석들. 줄마다 그 분석이 이 변화에서 찾은 사실 한 줄과, 같은 구간으로 여는 링크가 있다.
+   * 분석은 모니터링 화면 위 서랍으로 열리고, 닫으면 이 화면으로 돌아온다. */
+  let {assetId, focus, model = null}: {assetId: string; focus: EvidenceFocus; model?: {text: string; href: string | null} | null} = $props();
 
   type Read = string | null | "loading" | "failed";
   let range: Read = $state("loading");
   let spectrum: Read = $state("loading");
-  type Question = "range" | "related" | "spectrum";
-  let selected: Question | null = $state(null);
-  const questions = $derived([
-    {key:"range" as const,label:"값의 범위",action:"두 기간 비교하기"},
-    {key:"related" as const,label:focus.kind === "vibration" ? "함께 변한 특징" : "함께 변한 신호",action:"신호 관계 살펴보기"},
-    ...(focus.kind === "vibration" ? [{key:"spectrum" as const,label:"주파수 변화",action:"주파수 변화 조사하기"}] : []),
-  ]);
 
   const url = (href: string, params: Record<string, string | number>) => {
     const target = new URL(href, location.origin);
@@ -30,25 +24,27 @@
   const links = $derived.by(() => {
     if (focus.kind === "history") {
       const own = findingLinks(assetId, focus.item, focus.record.baseline, focus.record.bucketSeconds, focus.record.record);
-      return {range: own.compare ?? own.previous, related: own.relation?.href ?? own.compare, spectrum: null};
+      return {range: own.compare ?? own.previous, related: own.relation?.href ?? own.compare, spectrum: null, signal: own.signal, outlook: own.outlook};
     }
     const change = focus.change, period = spans!;
     const related = change.related[0];
+    const own = vibrationLinks(assetId, change);
     return {
-      range: vibrationLinks(assetId, change).compare,
+      range: own.compare,
       related: related ? url(assetTabUrl(assetId, "change", "relation", "vibration"), {acq_relation_x: change.feature,
         acq_relation_y: related.feature, acq_a_from: period.a.from, acq_a_to: period.a.to, acq_b_from: period.b.from, acq_b_to: period.b.to}) : null,
       spectrum: url(assetTabUrl(assetId, "change", "spectrum"), {spectrum_a_from: period.a.from, spectrum_a_to: period.a.to,
         spectrum_b_from: period.b.from, spectrum_b_to: period.b.to}),
+      signal: own.signal, outlook: assetTabUrl(assetId, "outlook", null, "vibration"),
     };
   });
   const related = $derived(focus.kind === "history" ? historyRelated(focus.item.related) : vibrationRelated(focus.change.related));
 
   $effect(() => {
     const current = focus, period = spans;
-    const question = selected;
     const request = new AbortController();
-    if (question === "range") void (async () => {
+    range = "loading";
+    void (async () => {
       try {
         if (current.kind === "history") {
           const item = current.item, periods = departurePeriods(item, current.record.baseline, current.record.bucketSeconds);
@@ -70,7 +66,8 @@
         }
       } catch { if (!request.signal.aborted) range = "failed"; }
     })();
-    if (question === "spectrum" && current.kind === "vibration") void (async () => {
+    if (current.kind === "vibration") void (async () => {
+      spectrum = "loading";
       try {
         const acquisition = await readAcquisition(assetId, request.signal);
         if (!acquisition) { spectrum = null; return; }
@@ -80,27 +77,32 @@
     })();
     return () => request.abort();
   });
-  const answer = $derived(selected === "range" ? range : selected === "related" ? related : spectrum);
-  const href = $derived(selected === "range" ? links.range : selected === "related" ? links.related : links.spectrum);
+  const said = (read: Read, none: string) => read === "loading" ? "계산 중" : read === "failed" ? "결과를 읽지 못함" : read ?? none;
+  const rows = $derived([
+    {name: "두 기간 비교", fact: said(range, "비교 결과 없음"), href: links.range},
+    {name: focus.kind === "vibration" ? "특징 관계" : "신호 관계", fact: related ?? "함께 변한 " + (focus.kind === "vibration" ? "특징" : "신호") + " 없음", href: links.related},
+    ...(focus.kind === "vibration" ? [{name: "주파수 분석", fact: said(spectrum, "주파수 결과 없음"), href: links.spectrum}] : []),
+    ...(model ? [{name: "모델 점수", fact: model.text, href: model.href}] : []),
+    {name: "원본 신호", fact: focus.kind === "vibration" ? "변화가 시작된 " + focus.change.from + "번째 측정" : "변화 구간의 원본 값", href: links.signal},
+    {name: "추세 전망", fact: "이 신호의 앞으로의 추세와 과거 자료 검증", href: links.outlook},
+  ]);
 </script>
 
-<div class="questions" role="group" aria-label="변화 근거">
-  {#each questions as question (question.key)}
-    <button type="button" aria-pressed={selected === question.key} onclick={() => selected = selected === question.key ? null : question.key}>{question.label}</button>
+<ul class="entries" aria-label="분석 열기">
+  {#each rows as row (row.name)}
+    <li>{#if row.href}<a href={row.href}><strong>{row.name}</strong><span>{row.fact}</span></a>
+      {:else}<div class="off"><strong>{row.name}</strong><span>{row.fact}</span></div>{/if}</li>
   {/each}
-</div>
-{#if selected}
-  <section class="answer" aria-label={questions.find(row => row.key === selected)?.label}>
-    <p role="status">{answer === "loading" ? "선택한 구간을 비교하고 있습니다." : answer === "failed" ? "비교 결과를 불러오지 못했습니다. 분석 화면에서 다시 확인할 수 있습니다."
-      : answer ?? (selected === "related" ? "이 구간에서 함께 달라진 신호를 찾지 못했습니다." : "이 구간의 비교 결과가 아직 없습니다.")}</p>
-    {#if href}<a class="ui-button" {href}>{questions.find(row => row.key === selected)?.action} →</a>{/if}
-  </section>
-{/if}
+</ul>
 
 <style>
-  .questions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  .questions button { font: inherit; font-size: var(--font-small); padding: var(--space-2) var(--space-3); cursor: pointer; border: 1px solid var(--color-control-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-action); }
-  .questions button[aria-pressed="true"] { background: var(--color-surface-selected); border-color: var(--color-action); font-weight: 650; }
-  .answer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border-left: 3px solid var(--color-action); background: var(--color-surface-selected); margin-top: var(--space-2); }
-  .answer p { flex: 1; min-width: min(100%, 300px); margin: 0; overflow-wrap: anywhere; line-height: 1.6; }
+  .entries { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-2); }
+  .entries a, .entries .off { display: grid; gap: 2px; height: 100%; padding: var(--space-3); border: 1px solid var(--color-border);
+    border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
+  .entries a:hover { border-color: var(--color-action); background: var(--color-surface-selected); }
+  .entries strong { font-size: var(--font-small); color: var(--color-action); }
+  .entries strong::after { content: " →"; }
+  .entries .off strong { color: var(--color-ink-muted); }
+  .entries .off strong::after { content: ""; }
+  .entries span { font-size: var(--font-small); color: var(--color-ink); overflow-wrap: anywhere; word-break: keep-all; }
 </style>

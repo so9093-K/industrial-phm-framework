@@ -173,31 +173,23 @@
     if (span.axis === "time") return isTimeWindow(binding.stepKind) && binding.sourceId === span.sourceId && (binding.pointId ?? null) === span.pointId;
     return !isTimeWindow(binding.stepKind);
   }
-  const otherChanges = $derived.by(() => {
+  // 왼쪽 변화 목록: 이 설비 기록에서 찾은 변화 모두. 고르면 가운데 그래프와 분석이 그 변화로 바뀐다.
+  const changeList = $derived.by(() => {
     const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration, shown = focus;
-    const rows: {key: string; pick: Pick; label: string; line: string; when: string}[] = [];
-    history?.intervals.forEach((item, index) => {
-      if (shown?.kind === "history" && shown.index === index) return;
-      rows.push({key: "h" + index, pick: {kind: "history", index}, label: item.label,
-        line: "처음 30%보다 " + (item.direction === "up" ? "높음" : "낮음") + (item.reference != null && item.typical != null ? " · " + changeValue(item.reference, null) + " → " + changeValue(item.typical, item.unit) : ""),
-        when: findingText(item, item.bucketSeconds ?? history.bucketSeconds).when});
-    });
-    measured?.intervals.forEach((change, index) => {
-      if (shown?.kind === "vibration" && shown.index === index) return;
-      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: plainLabel(change.label, change.feature),
-        line: "처음 30%보다 " + (change.direction === "up" ? "높음" : "낮음") + (change.reference != null && change.typical != null ? " · " + changeValue(change.reference, null) + " → " + changeValue(change.typical, change.unit) : ""),
-        when: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to) + " · " + (change.to - change.from + 1) + "회"});
-    });
+    const values = (reference: number | null, typical: number | null, unit: string | null, up: boolean) =>
+      reference != null && typical != null ? changeValue(reference, null) + " → " + changeValue(typical, unit) : up ? "처음보다 높음" : "처음보다 낮음";
+    const rows: {key: string; pick: Pick; label: string; values: string; when: string; atEnd: boolean; selected: boolean}[] = [];
+    history?.intervals.forEach((item, index) => rows.push({key: historyKey(item), pick: {kind: "history", index},
+      label: plainLabel(item.label, item.channel), values: values(item.reference, item.typical, item.unit, item.direction === "up"),
+      when: findingText(item, item.bucketSeconds ?? history.bucketSeconds).when,
+      atEnd: changeEnded(item.end, item.context?.record.to ?? history.record?.to, item.bucketSeconds ?? history.bucketSeconds) === null,
+      selected: shown?.kind === "history" && shown.index === index}));
+    measured?.intervals.forEach((change, index) => rows.push({key: vibrationKey(change), pick: {kind: "vibration", index},
+      label: plainLabel(change.label, change.feature), values: values(change.reference, change.typical, change.unit, change.direction === "up"),
+      when: change.from + "~" + change.to + "번째 측정 · " + (change.to - change.from + 1) + "회", atEnd: change.to === measured.last,
+      selected: shown?.kind === "vibration" && shown.index === index}));
     return rows;
   });
-  const changeChoices = $derived.by(() => {
-    const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
-    return [
-      ...(history?.intervals.map((item,index) => ({key:historyKey(item),pick:{kind:"history" as const,index},label:plainLabel(item.label,item.channel)})) ?? []),
-      ...(measured?.intervals.map((item,index) => ({key:vibrationKey(item),pick:{kind:"vibration" as const,index},label:plainLabel(item.label,item.feature)})) ?? []),
-    ];
-  });
-  const selectedChange = $derived(focus ? changeChoices.find(row => row.pick.kind === focus.kind && row.pick.index === focus.index)?.key : "");
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -277,6 +269,17 @@
         analyzed: judged.map(at), exceeded: judged.filter(point => point.exceeds).map(at)}];
     });
   });
+  const modelEntry = $derived.by((): {text: string; href: string | null} | null => {
+    const span = focusSpan;
+    if (!span) return null;
+    const rows = scores.filter(item => readsFocus(item.binding)).flatMap(item => {
+      const read = histories[item.binding.bindingId];
+      if (typeof read !== "object") return [];
+      const at = modelAtChange(read.trend, span, span.axis);
+      return [modelName(item.binding) + " " + at.exceeded + "/" + at.analyzed];
+    });
+    return rows.length ? {text: "변화 구간 기준 초과 · " + rows.join(", "), href: modelDestination} : null;
+  });
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number];bindingId:string} | null} | null => {
     const shown = evidenceFocus;
@@ -313,7 +316,6 @@
 {#snippet historyCard(history: RecordFindings, item: FoundInterval)}
   {@const told = findingText(item, item.bucketSeconds ?? history.bucketSeconds)}
   {@const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined}
-  {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
   <div class="change-lead"><div class="lead-copy">
@@ -321,10 +323,7 @@
   {#if ended}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
   <ChangeNumbers facts={item} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
   </div>
-  <ChangeInterval finding={item} height={240} focus rugs={modelRugs}/>
-  {#if modelRugs.length && modelDestination}<p class="chart-link"><a href={modelDestination}>이 구간의 모델 점수 보기 →</a></p>{/if}
-  <RecordStrip finding={focusChange(item)} {condition} />
-  {#if links.signal}<p class="chart-link"><a href={links.signal}>원본 신호에서 이 구간 보기 →</a></p>{/if}
+  <ChangeInterval finding={item} height={200} focus rugs={modelRugs}/>
 {/snippet}
 
 {#snippet analysisOptions()}
@@ -341,20 +340,20 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-<div class="summary-layout">
-<section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <div class="summary-heading">
-    <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
-    {#if changeChoices.length > 1}<label class="change-picker">살펴볼 변화
-      <select aria-label="살펴볼 변화" value={selectedChange} onchange={event => {const choice=changeChoices.find(row=>row.key===event.currentTarget.value);if(choice)selectChange(choice.pick);}}>
-        {#each changeChoices as row (row.key)}<option value={row.key}>{row.label}</option>{/each}
-      </select>
-    </label>{/if}
-  </div>
+<div class="monitor">
+<aside class="ui-panel changes" aria-labelledby="changes-title">
+  <h2 id="changes-title">변화 목록 {#if changeList.length}<span>{changeList.length}건</span>{/if}</h2>
+  {#if changeList.length}
+    <ul>{#each changeList as row (row.key)}<li><button type="button" aria-pressed={row.selected} onclick={() => selectChange(row.pick)}>
+      <strong>{row.label}</strong><span>{row.values}</span><small>{row.when}{row.atEnd ? " · 기록 끝까지" : ""}</small></button></li>{/each}</ul>
+  {:else}<p class="context small">{settled ? "기록 처음 30%와 크게 다른 구간 없음" : "기록 전체를 처음 30%와 비교하는 중"}</p>{/if}
+  {#if decision}<div class="summary-actions">{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} />{/key}</div>{/if}
+</aside>
+<section class="ui-panel facts-panel" aria-label="고른 변화">
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
-    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} rugs={modelRugs} {modelDestination} />{/key}</li></ul>
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} rugs={modelRugs} />{/key}</li></ul>
   {:else if data?.history && findingState === "loading"}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
@@ -389,22 +388,21 @@
 
   {#if evidenceFocus}
     <section class="block" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">변화 근거</h3>
-      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} />{/key}
+      <h3 id="evidence-title">이 변화의 분석</h3>
+      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelEntry} />{/key}
       {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
     </section>
   {/if}
+  {#if focus?.kind === "history" && findings?.intervals[focus.index]}
+    <!-- 기록 전체에서 이 변화가 어디에 있는지: 분석 목록 아래의 맥락. -->
+    <RecordStrip finding={focusChange(findings.intervals[focus.index])} condition={evidenceFocus?.kind === "history" ? evidenceFocus.condition : null} />
+  {/if}
 
-  {#if decision}<div class="summary-actions">{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} />{/key}</div>{/if}
 </section>
 </div>
 
 <details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
   {#if focusReason}<p class="context small">{focusReason}</p>{/if}
-  {#if otherChanges.length}<ul class="other-changes" aria-label="기록의 다른 변화">
-    {#each otherChanges as row (row.key)}<li><button type="button" onclick={() => selectChange(row.pick)} aria-label={row.label + " 변화 크게 보기"}>
-      <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button></li>{/each}
-  </ul>{/if}
   <dl class="facts">
     <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
     <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
@@ -457,29 +455,30 @@
 </details>
 
 <style>
-  .summary-layout { min-width: 0; }
-  .summary-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-  .summary-heading h2 { margin: 0; font-size: var(--font-small); color: var(--color-ink-muted); }
-  .change-picker { display: flex; gap: var(--space-2); align-items: center; font-size: var(--font-small); color: var(--color-ink-muted); }
-  .change-picker select { max-width: min(420px, 70vw); padding: var(--space-2); border: 1px solid var(--color-control-border); border-radius: var(--radius-control); font: inherit; color: var(--color-ink); background: var(--color-surface); }
-  .summary-actions { display: flex; justify-content: end; border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+  /* 모니터링 중심 화면: 왼쪽 변화 목록이 가운데 그래프와 분석을 고른다. */
+  .monitor { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-4); align-items: start; min-width: 0; }
+  @media (max-width: 960px) { .monitor { grid-template-columns: 1fr; } }
+  .changes { display: grid; gap: var(--space-2); align-content: start; position: sticky; top: var(--space-3); }
+  .changes h2 { margin: 0; font-size: var(--font-body); }
+  .changes h2 span { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
+  .changes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+  .changes button { width: 100%; display: grid; gap: 2px; text-align: left; padding: var(--space-2) var(--space-3); font: inherit; cursor: pointer;
+    border: 1px solid var(--color-border); border-left: 4px solid transparent; border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
+  .changes button:hover { border-color: var(--color-action); }
+  .changes button[aria-pressed="true"] { border-left-color: var(--color-action); background: var(--color-surface-selected); }
+  .changes strong { font-size: var(--font-small); }
+  .changes span { font-size: var(--font-small); font-variant-numeric: tabular-nums; }
+  .changes small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
+  .summary-actions { border-top: 1px solid var(--color-border); padding-top: var(--space-3); margin-top: var(--space-2); }
+  .summary-actions :global(.decision) { display: grid; }
   .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
 
   .found { list-style: none; margin: 0; padding: 0; }
   .found > li { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
   .found > li :global(.change-sentence) { margin: 0; font-size: 1.3rem; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; word-break: keep-all; }
-  .chart-link { margin: 0; font-size: var(--font-small); }
 
   .block { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
   .block > h3 { margin: 0 0 var(--space-1); font-size: var(--font-body); }
-  .other-changes { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: grid; gap: var(--space-2);
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
-  .other-changes button { width: 100%; height: 100%; display: grid; gap: 2px; align-content: start; padding: var(--space-3);
-    border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface);
-    text-align: left; color: var(--color-ink); font: inherit; cursor: pointer; }
-  .other-changes button:hover { border-color: var(--color-action); }
-  .other-changes span { font-size: var(--font-small); }
-  .other-changes small { font-size: var(--font-label); color: var(--color-ink-muted); }
 
   .quiet-record { display: grid; gap: var(--space-2); }
   .quiet-record h3 { margin: 0; font-size: var(--font-section); }

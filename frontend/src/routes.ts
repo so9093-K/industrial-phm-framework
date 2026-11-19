@@ -13,13 +13,13 @@ export type Route = {page: Page; assetId: string; tab: Tab; method: Method | nul
 
 export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
   monitor: {label: "관측 현황", description: "설비별 주요 변화 · 모델 결과 · 검토 상태"},
-  assets: {label: "설비·신호", description: "설비별 상태 요약 · 이상 징후 · 신호 · 변화 분석 · 신호 추세 전망"},
+  assets: {label: "설비·신호", description: "설비별 모니터링과 변화 분석 · 이상 징후 · 원본 신호 · 신호 추세 전망"},
   investigations: {label: "분석 기록", description: "분석 결과별 입력 · 모델 · 분석 시각"},
   maintenance: {label: "정비 검토", description: "저장한 분석 결과와 전망의 판단 · 메모 기록"},
   system: {label: "운영 관리", description: "로컬 서비스 실행 상태 · 데이터 연결 · 저장소 조회 상태"},
 };
 export const TAB_INFO: Record<Tab, string> = {
-  summary: "상태 요약", anomaly: "이상 징후", signals: "신호", change: "변화 분석", outlook: "신호 추세 전망",
+  summary: "모니터링", anomaly: "이상 징후", signals: "원본 신호", change: "변화 분석", outlook: "신호 추세 전망",
 };
 export const METHOD_INFO: Record<Method, string> = {
   model: "모델 이상 점수", baseline: "기록 변화 찾기",
