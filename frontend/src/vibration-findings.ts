@@ -3,6 +3,7 @@
  * said as observed: which feature, from which acquisition to which, against which values. */
 import {assetTabUrl} from "./routes.ts";
 import {object} from "./writes.ts";
+import {lastJump} from "./change-story.ts";
 
 export type VibrationChange = {
   reviewKey?:string;
@@ -86,4 +87,22 @@ export function vibrationLinks(assetId: string, change: VibrationChange): {signa
   compare.searchParams.set("feature_b_from", String(change.from));
   compare.searchParams.set("feature_b_to", String(change.to));
   return {signal: signal.pathname + signal.search, compare: compare.pathname + compare.search};
+}
+
+/** 진동 변화의 결론 모양과 그래프 표시: 변화가 시작된 측정, 그리고 기록 끝까지 이어졌으면 마지막 측정의 급변.
+ * 결론 문장과 그래프가 같은 두 지점을 가리키게 한다. `last`는 기록의 마지막 측정 번호다. */
+export function vibrationShape(change: VibrationChange, last: number | null): {
+  span: string; atEnd: boolean; jump: {place: string; value: number} | null; marks: {at: number; value: number; label: string}[];
+} {
+  const atEnd = last !== null && change.to === last && change.trace.at(-1)?.at === last;
+  const jump = atEnd ? lastJump(change.trace, change.direction) : null;
+  const onset = change.trace.find(point => point.at >= change.from);
+  const value = (number: number) => number.toLocaleString("ko-KR", {maximumSignificantDigits: 3}) + (change.unit ? " " + change.unit : "");
+  return {
+    atEnd,
+    span: jump ? change.from + "번째 측정부터" : atEnd ? change.from + "번째 측정부터 마지막 측정까지" : change.from + "번째부터 " + change.to + "번째 측정까지",
+    jump: jump ? {place: jump.at + "번째 측정", value: jump.value} : null,
+    marks: [...(onset ? [{at: onset.at, value: onset.value, label: change.from + "번째부터"}] : []),
+      ...(jump ? [{at: jump.at, value: jump.value, label: jump.at + "번째 " + value(jump.value)}] : [])],
+  };
 }

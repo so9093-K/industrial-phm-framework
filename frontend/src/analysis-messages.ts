@@ -139,7 +139,7 @@ export function tie(side: RelationSide): Tie | null {
   return {kind: p > 0 ? "same" : "opposite", strong: Math.abs(p) >= 0.7};
 }
 const way = (t: Tie) => t.kind === "same" || t.kind === "opposite"
-  ? (t.kind === "same" ? "같은 방향으로 " : "반대 방향으로 ") + (t.strong ? "강하게" : "어느 정도") + " 함께 움직" : null;
+  ? (t.kind === "same" ? "같은 방향으로" : "반대 방향으로") + " 함께 움직" : null;
 const was = (t: Tie) => way(t) ? way(t) + "였고" : t.kind === "none" ? "뚜렷한 관계가 없었고" : "관계가 분명하지 않았고";
 const is = (t: Tie) => way(t) ? way(t) + "입니다" : t.kind === "none" ? "뚜렷한 관계가 없습니다" : "관계가 분명하지 않습니다";
 function coefficients(side: RelationSide, t: Tie): string {
@@ -221,10 +221,11 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
     meaning = link === "crest"
       ? "파고율은 절대 피크를 RMS로 나눈 값이라 두 값은 계산식으로 묶여 있습니다. RMS가 거의 그대로일 때는 피크가 클수록 파고율도 커지고, RMS가 피크보다 더 크게 늘면 파고율은 작아집니다."
       : "파고율은 절대 피크를 RMS로 나눈 값이라, 피크가 그대로일 때 RMS가 커지면 파고율은 작아집니다.";
+    // 계산식으로 묶인 두 값의 상관계수보다, 파고율이 어떻게 바뀌었는지가 진동의 성격 변화를 말한다. 그래서 그것을 먼저 쓴다.
     if (crest?.a && crest.b && Math.abs(crest.b / crest.a - 1) >= 0.1)
-      meaning += " 파고율 중앙값은 " + short(crest.a) + " → " + short(crest.b) + (crest.b < crest.a
-        ? "로 낮아졌습니다. 가끔 튀는 진동보다 진동 전체가 커지는 쪽으로 바뀌었다는 뜻입니다."
-        : "로 높아졌습니다. 진동 전체보다 순간적으로 튀는 값이 더 커졌다는 뜻입니다.");
+      headline = "파고율 중앙값이 " + short(crest.a) + " → " + short(crest.b) + (crest.b < crest.a
+        ? "로 낮아졌습니다. 가끔 튀는 진동보다 진동 전체가 커지는 쪽으로 바뀌었습니다. "
+        : "로 높아졌습니다. 진동 전체보다 순간적으로 튀는 값이 더 커졌습니다. ") + headline;
   } else if (link === "rms-std") {
     meaning = "진동처럼 평균이 0에 가까운 값에서는 RMS와 표준편차가 거의 같은 값입니다. 함께 움직이는 것은 계산상 당연하므로 서로 다른 근거로 세지 마세요.";
   } else if (link === "peaks") {

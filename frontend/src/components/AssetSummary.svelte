@@ -16,7 +16,7 @@
   import {isTimeWindow, loadLatestScores, modelName, type LatestScore} from "../model-evidence";
   import {readScoreTrend, type ScoreTrend} from "../model-trend";
   import {readModelOperation, unlearnedText} from "../model-operation";
-  import {modelAtChange, modelEvidence, rareAtChange} from "../model-context";
+  import {modelAtChange, rareAtChange, type ModelRug} from "../model-context";
   import type {ModelOperation} from "../model-operation";
   import {measurementLabel} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
@@ -24,7 +24,7 @@
   import {assetTabUrl, summarySelectionUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
+  import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingStart, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
   import {CHANGE_WHY, afterChange, changeConclusion, latestNumber, plainLabel, type ChangeNumber, changeEnded} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
@@ -244,30 +244,6 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
-  const modelState=$derived.by(():"loading"|"ready"|"failed"=>{
-    const reading=scores.filter(item=>readsFocus(item.binding));
-    if(scoresState==="loading"||reading.some(item=>histories[item.binding.bindingId]===undefined||histories[item.binding.bindingId]==="loading"))return "loading";
-    if(scoresState==="failed"||(reading.length>0&&reading.every(item=>histories[item.binding.bindingId]==="failed")))return "failed";
-    return "ready";
-  });
-  // 모델 근거 한 줄: 이 변화 구간을 분석한 모델만 센다. 점수 기록을 다 읽기 전에는 말하지 않는다.
-  const modelLine = $derived.by((): string | null => {
-    const span = focusSpan;
-    if (!span) return null;
-    const reading = scores.filter(item => readsFocus(item.binding));
-    if (!reading.length || reading.some(item => histories[item.binding.bindingId] === "loading" || histories[item.binding.bindingId] === undefined)) return null;
-    let unlearned: {condition: string; share: number} | null = null;
-    const rows = reading.flatMap(item => {
-      const read = histories[item.binding.bindingId];
-      if (typeof read !== "object") return [];
-      const at = modelAtChange(read.trend, span, span.axis);
-      const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
-      if (rare !== null && at.exceeded && !unlearned) unlearned = {condition: span.condition!, share: rare};
-      return [{name: modelName(item.binding), ...at, complete:!read.trend.truncated}];
-    });
-    const line=modelEvidence(rows, unlearned);
-    return line && reading.some(item=>histories[item.binding.bindingId]==="failed") ? line+" · 일부 모델 결과 조회 실패" : line;
-  });
   const modelDestination = $derived.by(():string|null => {
     const span=focusSpan;
     if(!span)return null;
@@ -284,6 +260,22 @@
     const url=new URL(assetTabUrl(asset.assetId,"anomaly","model"),location.origin);
     url.searchParams.set("model_binding",first.binding);url.searchParams.set("model_position",String(first.position));
     return url.pathname+url.search;
+  });
+  // 변화 그래프 아래 모델 줄: 이 변화와 같은 기록을 분석한 모델마다 기준을 넘은 위치와 변화 구간 안의 횟수.
+  const modelRugs = $derived.by((): ModelRug[] => {
+    const span = focusSpan;
+    if (!span) return [];
+    return scores.filter(item => readsFocus(item.binding)).flatMap(item => {
+      const read = histories[item.binding.bindingId];
+      if (typeof read !== "object") return [];
+      const at = (point: ScoreTrend["points"][number]) => span.axis === "time" ? point.pointer.position / 1000 : point.pointer.position;
+      const judged = read.trend.points.filter(point => point.pointer.state === "analyzed" && point.score !== null);
+      const counts = modelAtChange(read.trend, span, span.axis);
+      const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
+      return [{label: modelName(item.binding) + " · 변화 구간 " + counts.analyzed + "회 중 " + counts.exceeded + "회 기준 초과"
+        + (rare !== null ? " · 학습 기간에 " + span.condition + " 거의 없음" : "") + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
+        analyzed: judged.map(at), exceeded: judged.filter(point => point.exceeds).map(at)}];
+    });
   });
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number];bindingId:string} | null} | null => {
@@ -324,14 +316,13 @@
   {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
-  {@const last = ended ? undefined : history.signals.find(row => item.context ? row.context?.key === item.context.key : row.channel === item.channel)?.latest}
   <div class="change-lead"><div class="lead-copy">
-  <h3 class="change-sentence">{changeConclusion(item, ended ? {span: findingSpan(item)} : {latest: last ? {caption: "마지막 구간 평균", value: last.value} : null})}</h3>
-  {#if !ended || condition}<p class="context">{[ended ? null : findingSpan(item), condition ? condition + " 중의 값끼리 비교" : null].filter(Boolean).join(" · ")}</p>{/if}
+  <h3 class="change-sentence">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", condition})}</h3>
   {#if ended}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
   <ChangeNumbers facts={item} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
   </div>
-  <ChangeInterval finding={item} height={240} focus/>
+  <ChangeInterval finding={item} height={240} focus rugs={modelRugs}/>
+  {#if modelRugs.length && modelDestination}<p class="chart-link"><a href={modelDestination}>이 구간의 모델 점수 보기 →</a></p>{/if}
   <RecordStrip finding={focusChange(item)} {condition} />
   {#if links.signal}<p class="chart-link"><a href={links.signal}>원본 신호에서 이 구간 보기 →</a></p>{/if}
 {/snippet}
@@ -363,7 +354,7 @@
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
-    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} />{/key}</li></ul>
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} rugs={modelRugs} {modelDestination} />{/key}</li></ul>
   {:else if data?.history && findingState === "loading"}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
@@ -399,7 +390,7 @@
   {#if evidenceFocus}
     <section class="block" aria-labelledby="evidence-title">
       <h3 id="evidence-title">변화 근거</h3>
-      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelLine} {modelState} {modelDestination} />{/key}
+      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} />{/key}
       {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
     </section>
   {/if}

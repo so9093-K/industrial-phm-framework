@@ -238,13 +238,18 @@ export const changeValue = value;
 /** "2026년 2월 2일(월) 08:18부터 약 1시간 21분 동안": 문장 안에서 변화가 언제 시작해 얼마나 이어졌는지. */
 export function findingSpan(item: FoundInterval): string {
   const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
+  const day = findingStart(item);
+  if (seconds < 60) return day + "에";
+  return day + "부터 " + (item.reason === "record-end" ? "기록 끝까지 " : "") + "약 " + elapsedText(seconds) + " 동안";
+}
+/** 변화가 시작된 때를 문장 안에서 읽히는 형태로: "2020년 10월 4일(일) 09:19". */
+export function findingStart(item: FoundInterval): string {
   // 문장 안에서는 "2. 2."보다 "2월 2일"이 날짜로 읽히고, 요일이 있으면 휴일·주말 운전을 알아볼 수 있다.
   const at = new Date(item.start), zone = {timeZone: "Asia/Seoul"};
   const day = at.toLocaleDateString("ko-KR", {...zone, year: "numeric", month: "long", day: "numeric"})
     + "(" + at.toLocaleDateString("ko-KR", {...zone, weekday: "short"}) + ") "
     + at.toLocaleTimeString("ko-KR", {...zone, hour: "2-digit", minute: "2-digit", hour12: false});
-  if (seconds < 60) return day + "에";
-  return day + "부터 " + (item.reason === "record-end" ? "기록 끝까지 " : "") + "약 " + elapsedText(seconds) + " 동안";
+  return day;
 }
 /** When, for how long, and what was observed; a value is a bucket mean, so it says so. */
 export function findingText(item: FoundInterval, bucketSeconds: number | null): {when: string; what: string} {

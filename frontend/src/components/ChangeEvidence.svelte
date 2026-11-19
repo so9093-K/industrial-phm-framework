@@ -7,18 +7,17 @@
   import {assetTabUrl} from "../routes";
   import {historyRelated, rangeEvidence, spectrumEvidence, vibrationRelated, type EvidenceFocus} from "../change-evidence";
   /** 대표 변화가 진짜인지 확인한 사실을 한 줄씩. 숫자는 '자세히'로 여는 화면과 같은 계산에서 온다. */
-  let {assetId, focus, model, modelDestination = null, modelState="ready"}: {assetId: string; focus: EvidenceFocus; model: string | null;modelDestination?:string|null;modelState?:"loading"|"ready"|"failed"} = $props();
+  let {assetId, focus}: {assetId: string; focus: EvidenceFocus} = $props();
 
   type Read = string | null | "loading" | "failed";
   let range: Read = $state("loading");
   let spectrum: Read = $state("loading");
-  type Question = "range" | "related" | "spectrum" | "model";
+  type Question = "range" | "related" | "spectrum";
   let selected: Question | null = $state(null);
   const questions = $derived([
     {key:"range" as const,label:"값의 범위",action:"두 기간 비교하기"},
     {key:"related" as const,label:focus.kind === "vibration" ? "함께 변한 특징" : "함께 변한 신호",action:"신호 관계 살펴보기"},
     ...(focus.kind === "vibration" ? [{key:"spectrum" as const,label:"주파수 변화",action:"주파수 변화 조사하기"}] : []),
-    {key:"model" as const,label:"같은 구간의 모델 결과",action:"이 구간의 모델 결과 살펴보기"},
   ]);
 
   const url = (href: string, params: Record<string, string | number>) => {
@@ -81,11 +80,8 @@
     })();
     return () => request.abort();
   });
-  const modelHref = $derived(modelDestination ?? (focus.kind === "vibration" && focus.record.bindingId
-    ? url(assetTabUrl(assetId, "anomaly", "model"), {model_binding: focus.record.bindingId, model_position: focus.change.from})
-    : null));
-  const answer = $derived(selected === "range" ? range : selected === "related" ? related : selected === "spectrum" ? spectrum : modelState!=="ready"?modelState:model);
-  const href = $derived(selected === "range" ? links.range : selected === "related" ? links.related : selected === "spectrum" ? links.spectrum : modelHref);
+  const answer = $derived(selected === "range" ? range : selected === "related" ? related : spectrum);
+  const href = $derived(selected === "range" ? links.range : selected === "related" ? links.related : links.spectrum);
 </script>
 
 <div class="questions" role="group" aria-label="변화 근거">
@@ -96,7 +92,7 @@
 {#if selected}
   <section class="answer" aria-label={questions.find(row => row.key === selected)?.label}>
     <p role="status">{answer === "loading" ? "선택한 구간을 비교하고 있습니다." : answer === "failed" ? "비교 결과를 불러오지 못했습니다. 분석 화면에서 다시 확인할 수 있습니다."
-      : answer ?? (selected === "related" ? "이 구간에서 함께 달라진 신호를 찾지 못했습니다." : selected==="model"?"이 구간을 분석한 모델 결과가 없습니다.":"이 구간의 비교 결과가 아직 없습니다.")}</p>
+      : answer ?? (selected === "related" ? "이 구간에서 함께 달라진 신호를 찾지 못했습니다." : "이 구간의 비교 결과가 아직 없습니다.")}</p>
     {#if href}<a class="ui-button" {href}>{questions.find(row => row.key === selected)?.action} →</a>{/if}
   </section>
 {/if}

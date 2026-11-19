@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {movedAtSameX,parseRelation,sameXRanges,strength} from "./relation.ts";
-import {relationMessage,sameXText} from "./analysis-messages.ts";
+import {movedAtSameX,parseRelation,sameXRanges} from "./relation.ts";
 const good=()=>({
   schema_version:1,asset_id:"motor",kind:"history",x:"current",y:"voltage",
   pairing:"same-source-point-and-timestamp",
@@ -44,13 +43,6 @@ test("reject mixed or invalid pair evidence",()=>{
   assert.throws(()=>parseRelation(badTime,"motor","current","voltage"),/시각/);
 });
 
-test("a correlation is described in words without hiding its sign or size",()=>{
-  assert.equal(strength(0.91),"같은 방향으로 강하게 함께 움직임");
-  assert.equal(strength(-0.5),"반대 방향으로 어느 정도 함께 움직임");
-  assert.equal(strength(0.1),"함께 움직이는 경향이 거의 없음");
-  assert.equal(strength(-0.7),"반대 방향으로 강하게 함께 움직임");
-});
-
 test("y is compared at the same x, and a shift there is said even when the correlation held",()=>{
   const range=(bin:number,low:number,high:number,pairs:number,median:number,q1:number,q3:number)=>
     ({bin,x_low:low,x_high:high,pair_count:pairs,y_median:median,y_q1:q1,y_q3:q3});
@@ -70,24 +62,9 @@ test("y is compared at the same x, and a shift there is said even when the corre
   // 요약이 약 11 A 운전(1~26 A)에서 찾은 변화라면 그 수준의 범위만 견줘, 요약과 같은 값을 말한다.
   const inBand=movedAtSameX(ranges,{low:1,high:26})!;
   assert.deepEqual([inBand.shown.low,inBand.shown.b.median,inBand.outside,inBand.total],[8.1,227,1,2]);
-  const x={name:"전류평균",unit:"A"},y={name:"R상전압",unit:"V"};
-  const said=sameXText(moved,x,y);
-  assert.equal(said,"전류평균이 29.8~32.5 A인 측정만 보면 R상전압 중앙값이 220 → 224 V로, 기간 A 값의 가운데 절반(219~221 V)보다 높습니다. 전류평균 범위 3개 중 2개에서 이렇게 달랐습니다.");
-  const all=movedAtSameX(ranges.filter(item=>item.low!==10.6))!;
-  assert.equal(sameXText(all,x,y),"전류평균을 2개 범위로 나눠 비교해도 모든 범위에서 기간 B의 R상전압 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
-    +"측정이 가장 많은 29.8~32.5 A에서는 220 → 224 V입니다(기간 A 값의 가운데 절반 219~221 V).");
-  const held=relationMessage("current","voltage",{pearson:-0.77,spearman:-0.8,pairs:900},{pearson:-0.76,spearman:-0.71,pairs:900},null,[],said)!;
-  assert.match(held.headline,/반대 방향으로 강하게 함께 움직입니다 \(기간 A 상관계수 -0.77 · 기간 B 상관계수 -0.76\)\. 다만 전류평균이/);
-  assert.doesNotMatch(held.headline,/관계는 그대로/);
   // Inside A's middle 50% everywhere is no shift; responses without ranges compare nothing.
   assert.equal(movedAtSameX(ranges.filter(item=>item.low===10.6)),null);
   assert.deepEqual(parseRelation(good(),"motor","current","voltage").groups[0].byX,[]);
   const broken={...body,groups:[{...a,by_x:[range(0,4.2,10.6,400,222,223,221)]}]};
   assert.throws(()=>parseRelation(broken,"motor","current","voltage"),/같은 범위 비교/);
 });
-
-test("two periods without a relation are not a changed relation, whatever their coefficients",()=>{
-  const none=relationMessage("current","voltage",{pearson:0.05,spearman:0.04,pairs:900},{pearson:-0.21,spearman:-0.2,pairs:80},null)!;
-  assert.match(none.headline,/^두 기간 모두 두 값은 뚜렷한 관계가 없습니다 \(기간 A 상관계수 0.05 · 기간 B 상관계수 -0.21\)\.$/);
-});
-

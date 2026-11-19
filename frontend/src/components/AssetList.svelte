@@ -1,13 +1,13 @@
 <script lang="ts">
   import {assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {modelFact, noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
-  import {bandName, changeValue, findingSpan} from "../record-findings";
+  import {bandName, changeValue, findingSpan, findingStart} from "../record-findings";
   import {equipmentKind, readOverview, type OverviewRow} from "../asset-overview";
-  import {measurementLabel} from "../time-axis";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
   import {assetTabUrl, routeUrl, systemUrl} from "../routes";
   import {readChangeReviews, type ChangeCapture} from "../change-reviews";
+  import {vibrationShape} from "../vibration-findings";
   import {DECISION_LABEL, latestDecision} from "../review-writes";
   import {afterChange, changeConclusion, changeEnded, latestNumber, type ChangeNumber} from "../change-story";
   import {historyRelated, vibrationRelated} from "../change-evidence";
@@ -249,24 +249,18 @@
               {@const item = row.historyInterval}
               {@const condition = item.band != null && row.operation && item.operation?.key === row.operation.key ? bandName(row.operation.names, item.band) : null}
               {@const ended = changeEnded(item.end, item.context?.record.to, item.bucketSeconds)}
-              {@const last = row.finding?.latest ?? null}
               {@const related = historyRelated(item.related)}
-              <p class="headline">{changeConclusion(item, ended ? {span: findingSpan(item)} : {latest: last ? {caption: "마지막 구간 평균", value: last.value} : null})}</p>
+              <p class="headline">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", condition})}</p>
               <ChangeNumbers facts={item} latest={ended ? null : historyLatest(row)} fallback="비교 가능한 값 없음" compact/>
-              {#if !ended}<small>{findingSpan(item)}</small>{/if}
-              {#if condition}<small>{condition} 중의 값끼리 비교</small>{/if}
               {#if ended}<small>{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</small>{/if}
               {#if related}<small>함께 변한 신호 · {related}</small>{/if}
             {:else if row?.vibrationInterval}
               {@const change = row.vibrationInterval.change}
-              {@const place = (at: number) => measurementLabel(at, row.vibrationInterval!.periodSeconds)}
+              {@const shape = vibrationShape(change, row.finding?.latest?.position ?? null)}
               {@const latest = vibrationLatest(row)}
-              {@const count = change.to - change.from + 1}
               {@const related = vibrationRelated(change.related)}
-              <p class="headline">{changeConclusion(change, latest ? {latest: {caption: "마지막 측정값", value: change.trace.at(-1)!.value}}
-                : {span: place(change.from) + "부터 " + place(change.to) + "까지 " + count + "회 동안"})}</p>
+              <p class="headline">{changeConclusion(change, {span: shape.span, jump: shape.jump})}</p>
               <ChangeNumbers facts={change} {latest} fallback="비교 가능한 값 없음" compact/>
-              {#if latest}<small>{place(change.from)}부터 마지막 측정까지 · {count}회</small>{/if}
               {#if related}<small>함께 변한 특징 · {related}</small>{/if}
             {:else if row}
               <p class="headline quiet">{row.judged ? "기록 처음 30% 대비 크게 달라진 구간 없음" : "판단할 신호 없음"}</p>
@@ -283,7 +277,8 @@
             {:else if row?.vibrationInterval}
               {@const changed = row.vibrationInterval}
               <OverviewTrace main={{label: changed.change.label, unit: changed.change.unit, axis: "acquisition", periodSeconds: changed.periodSeconds, latest: null,
-                trace: changed.change.trace.map(point => ({x: point.at, value: point.value, join: point.join}))}} range={changed.change} height={110}/>
+                trace: changed.change.trace.map(point => ({x: point.at, value: point.value, join: point.join}))}} range={changed.change} usual={changed.change.usual}
+                marks={vibrationShape(changed.change, row.finding?.latest?.position ?? null).marks} height={110}/>
             {:else if row?.main}
               <OverviewTrace main={row.main} height={110}/>
             {/if}
