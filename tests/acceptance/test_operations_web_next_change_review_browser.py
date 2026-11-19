@@ -78,14 +78,14 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             )
             page.goto(url)
             card = page.locator(".found > li").first
-            pw.expect(card).to_contain_text("일정하던 기준값보다 높았습니다")
+            pw.expect(card).to_contain_text("처음 일정하던 값보다")
             assert card.bounding_box()["y"] < 844
             signal_href = card.get_by_role(
                 "link", name="원본 신호에서 이 구간 보기", exact=False
             ).get_attribute("href")
             pw.expect(card.locator("svg path.trace")).to_have_count(1)
-            page.get_by_role("button", name="값의 수준이 달라졌나요?", exact=True).click()
-            evidence = page.get_by_role("region", name="값의 수준이 달라졌나요?", exact=True)
+            page.get_by_role("button", name="값의 범위", exact=True).click()
+            evidence = page.get_by_role("region", name="값의 범위", exact=True)
             compare = evidence.get_by_role(
                 "link", name="두 기간 비교하기", exact=False
             ).get_attribute("href")

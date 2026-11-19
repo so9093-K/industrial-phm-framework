@@ -9,7 +9,8 @@
   import {assetTabUrl, routeUrl, systemUrl} from "../routes";
   import {readChangeReviews, type ChangeCapture} from "../change-reviews";
   import {DECISION_LABEL, latestDecision} from "../review-writes";
-  import {changeEnded, changeHeadline, latestNumber, type ChangeNumber} from "../change-story";
+  import {afterChange, changeConclusion, changeEnded, latestNumber, type ChangeNumber} from "../change-story";
+  import {historyRelated, vibrationRelated} from "../change-evidence";
   import ChangeInterval from "./ChangeInterval.svelte";
   import OverviewTrace from "./OverviewTrace.svelte";
   import ChangeNumbers from "./ChangeNumbers.svelte";
@@ -248,18 +249,25 @@
               {@const item = row.historyInterval}
               {@const condition = item.band != null && row.operation && item.operation?.key === row.operation.key ? bandName(row.operation.names, item.band) : null}
               {@const ended = changeEnded(item.end, item.context?.record.to, item.bucketSeconds)}
-              <p class="headline">{changeHeadline(item)}</p>
+              {@const last = row.finding?.latest ?? null}
+              {@const related = historyRelated(item.related)}
+              <p class="headline">{changeConclusion(item, ended ? {span: findingSpan(item)} : {latest: last ? {caption: "마지막 구간 평균", value: last.value} : null})}</p>
               <ChangeNumbers facts={item} latest={ended ? null : historyLatest(row)} fallback="비교 가능한 값 없음" compact/>
-              <small>{findingSpan(item)}</small>
+              {#if !ended}<small>{findingSpan(item)}</small>{/if}
               {#if condition}<small>{condition} 중의 값끼리 비교</small>{/if}
-              {#if ended}<small>{ended}</small>{/if}
+              {#if ended}<small>{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</small>{/if}
+              {#if related}<small>함께 변한 신호 · {related}</small>{/if}
             {:else if row?.vibrationInterval}
               {@const change = row.vibrationInterval.change}
               {@const place = (at: number) => measurementLabel(at, row.vibrationInterval!.periodSeconds)}
               {@const latest = vibrationLatest(row)}
-              <p class="headline">{changeHeadline(change)}</p>
+              {@const count = change.to - change.from + 1}
+              {@const related = vibrationRelated(change.related)}
+              <p class="headline">{changeConclusion(change, latest ? {latest: {caption: "마지막 측정값", value: change.trace.at(-1)!.value}}
+                : {span: place(change.from) + "부터 " + place(change.to) + "까지 " + count + "회 동안"})}</p>
               <ChangeNumbers facts={change} {latest} fallback="비교 가능한 값 없음" compact/>
-              <small>{place(change.from)}부터 {latest ? "마지막 측정" : place(change.to)}까지 · {change.to - change.from + 1}회</small>
+              {#if latest}<small>{place(change.from)}부터 마지막 측정까지 · {count}회</small>{/if}
+              {#if related}<small>함께 변한 특징 · {related}</small>{/if}
             {:else if row}
               <p class="headline quiet">{row.judged ? "기록 처음 30% 대비 크게 달라진 구간 없음" : "판단할 신호 없음"}</p>
               {#if row.main?.latest}<small>마지막 저장값 · {row.main.label} <strong class="latest">{changeValue(row.main.latest.value, row.main.unit)}</strong></small>{/if}

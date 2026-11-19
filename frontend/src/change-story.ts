@@ -19,19 +19,13 @@ export function subject(word: string): string { return word + (closed(word) ? "�
 export function withAnd(word: string): string { return word + (closed(word) ? "과" : "와"); }
 /** 이름 뒤에 목적격 조사 '을/를'을 붙인다. */
 export function object(word: string): string { return word + (closed(word) ? "을" : "를"); }
+/** 이름 뒤에 보조사 '은/는'을 붙인다. */
+export function topic(word: string): string { return word + (closed(word) ? "은" : "는"); }
 
 export type ChangeFacts = {
   label: string; unit: string | null; direction: "up" | "down"; kind?: "departure" | "level-change";
   reference: number | null; typical: number | null; referenceSpread?: number | null;
 };
-
-/** 한 문장 결론. `span`은 "2. 2. 08:18부터 약 1시간 21분 동안"처럼 언제부터 얼마 동안인지,
- * `condition`은 같은 운전 수준끼리 견줬을 때 그 수준의 이름이다. */
-export function changeSentence(facts: ChangeFacts, span: string, condition: string | null = null): string {
-  const basis = facts.kind === "level-change" ? "기록 처음 30%에 일정하던 값"
-    : condition ? "같은 운전 수준(" + condition + ")의 기록 처음 30%" : "기록 처음 30%";
-  return subject(facts.label) + " " + span + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
-}
 
 const PLAIN_FEATURES: [suffix: string, term: RegExp, plain: string][] = [
   [".rms", / RMS$/, " 크기 (RMS)"], [".excess_kurtosis", / 초과 첨도$/, " 충격성 (첨도)"],
@@ -43,10 +37,35 @@ export function plainLabel(label: string, feature?: string | null): string {
   return found ? label.replace(found[1], found[2]) : label;
 }
 
-/** First-screen headline: keep timing and comparison conditions in the adjacent context. */
-export function changeHeadline(facts: Pick<ChangeFacts, "label" | "direction" | "kind"> & {feature?:string}): string {
-  const basis = facts.kind === "level-change" ? "일정하던 기준값" : "비교 기준";
-  return subject(plainLabel(facts.label, facts.feature)) + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
+const TEMPERATURE = /°|℃|℉/;
+const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
+/** 처음 값과 비교한 크기. 1.5배 이상이면 배수, 2/3 이하면 처음의 몇 %, 그 사이면 차이와 비율로 말한다.
+ * 온도처럼 0이 기준이 아닌 단위는 배수·비율이 뜻을 갖지 않으므로 차이만 말한다. */
+function compared(value: number, reference: number, unit: string | null, basis: string, now: boolean): string {
+  const ratio = !TEMPERATURE.test(unit ?? "") && reference > 0 && value > 0 ? value / reference : null;
+  const be = now ? "입니다" : "였습니다";
+  if (ratio !== null && ratio >= 1.5) return basis + "의 약 " + digits(ratio) + "배" + be;
+  if (ratio !== null && ratio <= 1 / 1.5) return basis + "의 약 " + share(ratio) + be;
+  const gap = value - reference;
+  const part = ratio !== null && unit !== "%" ? "(" + share(Math.abs(gap) / reference) + ")" : "";
+  return basis + "보다 " + amount(Math.abs(gap), unit) + part + " "
+    + (gap >= 0 ? (now ? "높습니다" : "높았습니다") : (now ? "낮습니다" : "낮았습니다"));
+}
+
+/** 변화가 지금 어떤지: 기록 끝까지 이어졌으면 마지막 값, 먼저 끝났으면 언제부터 얼마 동안이었는지. */
+export type ChangeNow = {latest: {caption: string; value: number} | null} | {span: string};
+/** 결론 한 문장. 신호 이름과 방향만으로는 설비끼리 구별되지 않으므로, 마지막 측정까지 이어졌는지와
+ * 처음과 비교한 크기를 함께 말한다. 판정 꼬리표는 붙이지 않는다 (docs/terminology.md). */
+export function changeConclusion(facts: ChangeFacts & {feature?: string | null}, now: ChangeNow): string {
+  const name = subject(plainLabel(facts.label, facts.feature));
+  const basis = facts.kind === "level-change" ? "처음 일정하던 값" : "처음";
+  const up = facts.direction === "up";
+  if ("span" in now) return name + " " + now.span + " " + (facts.reference === null || facts.typical === null
+    ? basis + "보다 " + (up ? "높았습니다" : "낮았습니다")
+    : compared(facts.typical, facts.reference, facts.unit, basis, false)) + ".";
+  const head = name + " 마지막 측정까지 " + basis + "보다 " + (up ? "높았" : "낮았");
+  if (!now.latest || facts.reference === null) return head + "습니다.";
+  return head + "고, " + topic(now.latest.caption) + " " + compared(now.latest.value, facts.reference, facts.unit, basis, true) + ".";
 }
 
 export type ChangeNumber = {caption: string; value: string; note: string | null};
@@ -84,6 +103,21 @@ export function changeEnded(end: string, recordTo: string | null | undefined, bu
   const last = recordTo ? Date.parse(recordTo) : NaN, until = Date.parse(end);
   if (!Number.isFinite(last) || !Number.isFinite(until) || last - until <= 2 * (bucketSeconds ?? 0) * 1000) return null;
   return "변화 종료 " + shortTime(end) + " · 기록 마지막 " + shortTime(recordTo!);
+}
+
+/** 기록 끝 전에 끝난 변화 뒤의 사실 한 줄: 이후 구간 가운데 비교한 값(같은 운전 수준끼리 비교했으면 그 수준의 값)이
+ * 있는 구간 수와, 그중 처음 범위 안의 수. 이후 같은 조건이 드물면 '돌아왔다'고 볼 근거도 적다는 것을 숫자로 보여 준다. */
+export function afterChange(end: string, usual: {low: number; high: number}, rows: {at: string; mean: number; judged: number | null}[],
+  kind: "all" | "level" | "running", condition: string | null): string | null {
+  const after = rows.filter(row => Date.parse(row.at) > Date.parse(end));
+  if (!after.length) return null;
+  const values = after.flatMap(row => {const value = kind === "all" ? row.mean : row.judged; return value === null ? [] : [value];});
+  const inside = values.filter(value => value >= usual.low && value <= usual.high).length;
+  const where = inside === values.length ? "모두 처음 범위 안" : inside === 0 ? "모두 처음 범위 밖" : inside + "개 처음 범위 안";
+  const head = "변화 구간 끝 " + shortTime(end) + " · 이후 구간 " + after.length + "개";
+  const who = kind === "level" && condition ? condition : kind === "running" ? "운전 중" : null;
+  if (!who) return head + ", " + where;
+  return head + " 중 " + who + " " + (values.length ? values.length + "개, " + where : "없음");
 }
 
 /** 주요 변화로 고른 이유를 꼬리표가 아니라 설명으로 말한다. */

@@ -5,7 +5,7 @@
   import type {VibrationChange} from "../vibration-findings";
   import {readPermission} from "../outlook-briefings";
   let {assetId,change,onMemo,active=true,bindingId=null}:{assetId:string;change:VibrationChange;onMemo:(text:string)=>void;active?:boolean;bindingId?:string|null}=$props();
-  const questions=["진동 크기와 주파수 변화를 종합하면 무엇을 알 수 있고, 무엇은 더 확인해야 하나요?","두 모델의 결과가 다를 때 이 변화는 어떻게 해석해야 하나요?"];
+  const questions=["진동 크기와 주파수 변화를 종합해 알 수 있는 것과 더 확인할 것을 설명해 주세요.","두 모델의 결과가 다를 때 이 변화의 해석을 설명해 주세요."];
   const draftScope=untrack(()=>"change:"+assetId+":"+change.reviewKey);
   let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>keepQuestionDraft(draftScope,question));

@@ -235,12 +235,14 @@ const value = (number: number, unit: string | null) =>
 export const CHANGE_REASON = {sustained: "오래 이어진 변화", "record-end": "기록 끝까지 이어진 변화", largest: "변화 폭이 큰 구간"};
 export const changeValue = value;
 
-/** "2. 2. 08:18부터 약 1시간 21분 동안": 문장 안에서 변화가 언제 시작해 얼마나 이어졌는지. */
+/** "2026년 2월 2일(월) 08:18부터 약 1시간 21분 동안": 문장 안에서 변화가 언제 시작해 얼마나 이어졌는지. */
 export function findingSpan(item: FoundInterval): string {
   const seconds = (Date.parse(item.end) - Date.parse(item.start)) / 1000;
-  // 문장 안에서는 "2. 2."보다 "2월 2일"이 날짜로 읽힌다.
-  const day = new Date(item.start).toLocaleString("ko-KR", {timeZone: "Asia/Seoul",
-    year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+  // 문장 안에서는 "2. 2."보다 "2월 2일"이 날짜로 읽히고, 요일이 있으면 휴일·주말 운전을 알아볼 수 있다.
+  const at = new Date(item.start), zone = {timeZone: "Asia/Seoul"};
+  const day = at.toLocaleDateString("ko-KR", {...zone, year: "numeric", month: "long", day: "numeric"})
+    + "(" + at.toLocaleDateString("ko-KR", {...zone, weekday: "short"}) + ") "
+    + at.toLocaleTimeString("ko-KR", {...zone, hour: "2-digit", minute: "2-digit", hour12: false});
   if (seconds < 60) return day + "에";
   return day + "부터 " + (item.reason === "record-end" ? "기록 끝까지 " : "") + "약 " + elapsedText(seconds) + " 동안";
 }

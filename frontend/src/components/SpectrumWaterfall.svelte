@@ -43,7 +43,7 @@
 </script>
 
 <section class="waterfall" aria-label="측정별 주파수 지도">
-  <h3>이 대역은 언제 달라졌나?</h3>
+  <h3>측정별 주파수 지도</h3>
   <div class="frequency-map" data-hz-from={domain.from} data-hz-to={domain.to}>
     <div class="rows" style:height={height+"px"} aria-hidden="true">
       {#each ticks as row(row)}<span style:top={(100*(row+.5)/data.acquisitions.length)+"%"}>{data.acquisitions[row]}회</span>{/each}
