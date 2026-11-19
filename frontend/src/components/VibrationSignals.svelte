@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {onMount} from "svelte";
+  import {onMount,untrack} from "svelte";
   import {preferredFeature} from "../acquisition-profile";
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
@@ -13,7 +13,7 @@
 
   /** A vibration asset's measurements: one feature of each stored waveform, in acquisition order.
    * The raw waveform of one measurement opens from the anomaly tab. */
-  let {assetId}: {assetId: string} = $props();
+  let {assetId,selectedPosition=null,onPosition}: {assetId: string;selectedPosition?:number|null;onPosition?:(at:number)=>void} = $props();
   let options: AcquisitionOptions | null = $state(null);
   let trend: AcquisitionTrend | null = $state(null);
   let listState: "loading" | "ready" | "empty" | "failed" = $state("loading");
@@ -22,6 +22,11 @@
   // One measurement picked on the chart (or handed over from another screen) stays chosen across features.
   const handed = Number(new URLSearchParams(location.search).get("vibration_at"));
   let chosen: number | null = $state(Number.isSafeInteger(handed) && handed > 0 ? handed : null);
+  $effect(()=>{
+    const at=selectedPosition,data=trend;
+    if(at===null||!data?.points.some(point=>point.ordinal===at))return;
+    untrack(()=>{if(chosen!==at)choose(at);});
+  });
   let request: AbortController | null = null;
   const chart = $derived.by(() => { const current: AcquisitionTrend | null = trend; return current ? trendChart(current) : null; });
   const latest = $derived.by(() => { const current: AcquisitionTrend | null = trend; return current?.points.at(-1) ?? null; });
@@ -38,6 +43,7 @@
   }
   function choose(ordinal: number) {
     chosen = ordinal;
+    onPosition?.(ordinal);
     const url = new URL(location.href);
     url.searchParams.set("vibration_at", String(ordinal));
     history.replaceState(history.state, "", url);

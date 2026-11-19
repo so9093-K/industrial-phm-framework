@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {onMount} from "svelte";
+  import {onMount,untrack} from "svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
@@ -16,7 +16,7 @@
     SpectrumUnavailable,WaveformUnavailable,type Acquisition,type Spans,type Spectrum} from "../spectrum";
   import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
 
-  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
+  let {assetId,timing=null,selectedPosition=null,onPosition}:{assetId:string;timing?:AcquisitionTiming|null;selectedPosition?:number|null;onPosition?:(at:number)=>void}=$props();
   type State="loading"|"ready"|"empty"|"failed"|"unavailable"|"missing-waveform";
   let sourceState:State=$state("loading"),resultState:State=$state("empty");
   let acquisition:Acquisition|null=$state(null),spans:Spans|null=$state(null),result:Spectrum|null=$state(null);
@@ -48,6 +48,11 @@
       {label:"기간 B",values:decibel?relativePower(channel.b,top):channel.b,comparison:true}]:[]);
   const linked=$derived.by(()=>{const current:Acquisition|null=acquisition;return current&&selected!==null?measurementLinks(assetId,selected,{first:current.first,last:current.last,bindingId:current.binding},"spectrum"):[];});
   let sourceRequest:AbortController|null=null,spectrumRequest:AbortController|null=null,mapRequest:AbortController|null=null;
+  $effect(()=>{
+    const at=selectedPosition,available=waterfall;
+    if(at===null||!available?.acquisitions.includes(at))return;
+    untrack(()=>{if(selected!==at){selected=at;remember();}});
+  });
 
   function remember(){
     if(!spans)return;
@@ -106,7 +111,7 @@
     selectionNotice="기간 "+n.toUpperCase()+"를 "+place(selected)+" 한 측정으로 바꿨습니다. 반대 기간은 유지했습니다.";
     remember();void analyze();
   }
-  function chooseMeasurement(ordinal:number){selected=ordinal;viewMode="measurement";remember();}
+  function chooseMeasurement(ordinal:number){selected=ordinal;viewMode="measurement";remember();onPosition?.(ordinal);}
   function zoomBand(){if(band&&result){focused=aroundBand(band,result.samplingRate/2);remember();}}
   function chooseBand(value:number){bandFrom=value;if(focused)zoomBand();remember();}
   function chooseChannel(id:string){selectedChannel=id;if(focused)zoomBand();remember();}
@@ -172,13 +177,10 @@
         {#if result.channels.length>1}<div class="button-group" role="group" aria-label="진동 방향">
           {#each result.channels as item(item.id)}<button class="ui-button" type="button" aria-pressed={selectedChannel===item.id} onclick={()=>chooseChannel(item.id)}>{item.label}</button>{/each}
         </div>{/if}
-        {#if waterfall&&waterfall.acquisitions.length}<label class="measurement-picker">측정 <select aria-label="선택 측정" value={selected??""} onchange={event=>chooseMeasurement(Number(event.currentTarget.value))}>
-          {#each waterfall.acquisitions as ordinal(ordinal)}<option value={ordinal}>{ordinal}회</option>{/each}
-        </select></label>{/if}
-        {#if band}<label>대역 <select aria-label="살펴볼 주파수 대역" value={band.from} onchange={event=>chooseBand(Number(event.currentTarget.value))}>
+        {#if band}<label>주파수 범위 <select aria-label="살펴볼 주파수 대역" value={focused?band.from:"all"} onchange={event=>{if(event.currentTarget.value==="all"){focused=null;remember();}else{chooseBand(Number(event.currentTarget.value));zoomBand();remember();}}}>
+          <option value="all">전체 주파수</option>
           {#each channel.shares as share(share.from)}<option value={share.from}>{frequencyLabel(share.from)}–{frequencyLabel(share.to)} Hz</option>{/each}
-        </select></label><button class="ui-button" type="button" onclick={zoomBand}>대역 확대</button>{/if}
-        {#if focused}<button class="ui-button" type="button" onclick={()=>{focused=null;remember();}}>전체 주파수 보기</button>{/if}
+        </select></label>{/if}
       </div>
       {#if selectionNotice}<p class="selection-notice" role="status">{selectionNotice}</p>{/if}
       <div class="spectrum-investigation" class:measurement-view={viewMode==="measurement"}>
@@ -205,7 +207,9 @@
       </div>
       {#if waterfall&&waterfall.acquisitions.length}
         <div class="measurement-actions" role="group" aria-label="선택한 측정으로 주파수 비교">
-          <span>{selected}회 선택</span>
+          <label>측정 <select aria-label="선택 측정" value={selected??""} onchange={event=>chooseMeasurement(Number(event.currentTarget.value))}>
+            {#each waterfall.acquisitions as ordinal(ordinal)}<option value={ordinal}>{ordinal}회</option>{/each}
+          </select></label>
           {#if linked.find(link=>link.key==="model")}<a href={linked.find(link=>link.key==="model")!.href}>원본 파형·모델 보기 →</a>{/if}
           <details class="use-measurement"><summary>이 측정으로 비교</summary><div>
             <span>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</span>
@@ -252,7 +256,7 @@
   .spectrum-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding-block:var(--space-3);border-block:1px solid var(--color-border);margin-bottom:var(--space-4)}
   .button-group{display:flex;gap:var(--space-1)}button[aria-pressed="true"]{background:var(--color-surface-selected);font-weight:650;border-color:var(--color-action)}
   label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--font-small);min-width:0}
-  .spectra select,.spectra button{font-size:var(--font-small)}.spectra button.ui-button{padding:var(--space-2) var(--space-3);min-height:40px}.spectrum-toolbar label{margin-left:auto}.spectrum-toolbar .measurement-picker{margin-left:0}.spectrum-toolbar select{max-width:17rem}
+  .spectra select,.spectra button{font-size:var(--font-small)}.spectra button.ui-button{padding:var(--space-2) var(--space-3);min-height:40px}.spectrum-toolbar label{margin-left:auto}.spectrum-toolbar select{max-width:17rem}
   .spectrum-investigation{display:grid;gap:var(--space-4);min-width:0}.spectrum-curve{min-width:0}
   .spectrum-curve h3{font-size:var(--font-small);margin:0 0 var(--space-2);font-weight:650}
   .measurement-view{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6)}.measurement-view .spectrum-curve{grid-column:2;grid-row:1}
@@ -260,7 +264,7 @@
   .spectrum-key{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-1) var(--space-4);font-size:12px;color:var(--color-ink-muted);margin:var(--space-1) 0 0;min-height:24px}
   .spectrum-key i{display:inline-block;width:18px;border-top:2px solid var(--color-ink-muted);margin-right:var(--space-1);vertical-align:middle}.spectrum-key i.b{border-top:2px dashed var(--color-action)}
   .scale{font-size:12px}.scale input{margin:0}.measurement-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-top:var(--space-4);font-size:var(--font-small)}
-  .measurement-actions a{margin-right:auto}.measurement-picker select{min-width:6rem}.use-measurement>div{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+  .measurement-actions a{margin-right:auto}.use-measurement>div{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
   summary{cursor:pointer;color:var(--color-action);font-size:var(--font-small)}.analysis-details{margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
   .analysis-details h4{color:var(--color-ink);margin-bottom:var(--space-1)}.selection-notice{font-size:var(--font-small);margin-block:var(--space-2);color:var(--color-action)}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}caption{text-align:left}th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--color-border)}

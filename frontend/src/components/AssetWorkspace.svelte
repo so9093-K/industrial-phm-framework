@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {untrack} from "svelte";
+  import {untrack,tick} from "svelte";
   import {elapsedText} from "../time-axis";
   import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
@@ -109,20 +109,25 @@
   const drawerOpen = $derived(route.tab !== "summary");
   const drawerTitle = $derived(route.tab === "change" || route.tab === "anomaly"
     ? (method ? METHOD_INFO[method] : TAB_INFO[route.tab]) : TAB_INFO[route.tab]);
+  const analysisTabs=$derived.by(()=>{
+    const input=kind??defaultKind(data),available=methodsFor("change",data,capabilities,input);
+    const rows:{label:string;tab:Tab;method:Method|null;kind:DataKind|null}[]=[];
+    if(data?.history||data?.vibration)rows.push({label:"실측 신호",tab:"signals",method:null,kind:null});
+    if(available.includes("compare"))rows.push({label:"기간 비교",tab:"change",method:"compare",kind:input});
+    if(available.includes("relation"))rows.push({label:"신호 관계",tab:"change",method:"relation",kind:input});
+    if(available.includes("spectrum"))rows.push({label:"주파수",tab:"change",method:"spectrum",kind:null});
+    if(available.includes("electrical"))rows.push({label:"3상 전력",tab:"change",method:"electrical",kind:null});
+    rows.push({label:"모델 반응",tab:"anomaly",method:anomalyDefault,kind:null});
+    rows.push({label:"전망·예상 여유",tab:"outlook",method:null,kind:input});
+    return rows;
+  });
   let backLink: HTMLAnchorElement | null = $state(null);
   let drawer: HTMLElement | null = $state(null);
-  // 서랍은 앱 상단 메뉴 아래에서 시작해, 다른 메뉴로 가는 길을 가리지 않는다.
-  let drawerTop = $state(0);
+  let changeVersion = $state(0);
+  let selectedAt = $state<number | null>(null);
   $effect(() => {
     if (!drawerOpen) return;
-    const place = () => drawerTop = Math.max(0, document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0);
-    place();
-    window.addEventListener("scroll", place, {passive: true});
-    return () => window.removeEventListener("scroll", place);
-  });
-  $effect(() => {
-    if (!drawerOpen) return;
-    drawer?.focus({preventScroll: true});
+    void tick().then(()=>drawer?.focus({preventScroll:true}));
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") backLink?.click(); };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
@@ -156,18 +161,17 @@
     untrack(reloadData);
     return () => dataRequest?.abort();
   });
-  // A tab change reuses this component; fetch only for analysis selection, not
-  // for every signal view or summary (which owns its separate options read).
+  // Every open analysis offers the other supported views of this same phenomenon.
   $effect(() => {
     tab;
-    if (!needsCapability) return;
+    if (tab==="summary") return;
     untrack(reloadCapability);
     return () => capabilityRequest?.abort();
   });
 </script>
 
 <div class="workspace-asset" aria-busy={dataState === "loading"}>
-  <div class="head visually-hidden">
+  <div class="head" class:visually-hidden={!drawerOpen}>
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
       <!-- 한 줄: 어떤 기록인지와 시간을 어떻게 읽는지. 마지막 측정의 위치는 요약의 숫자가 말한다. -->
@@ -184,29 +188,19 @@
       message="다시 불러오거나 다른 설비를 선택하세요."
       actionLabel="다시 불러오기" onAction={reloadData} />
   {/if}
-  <!-- 중심: 이 설비의 모니터링 화면. 분석은 이 위의 서랍으로 열고, 닫으면 여기로 돌아온다. -->
-  <div class="center" inert={drawerOpen}>
-    <AssetSummary {asset} data={summaryData} dataState={summaryState} {observed} />
+  <div class="analysis-layout" class:analysing={drawerOpen}>
+  <div class="center">
+    <AssetSummary {asset} data={summaryData} dataState={summaryState} {observed} compact={drawerOpen}
+      bind:selectedAt onChange={() => changeVersion++} />
   </div>
 
   {#if drawerOpen}
-  <a class="drawer-backdrop" style:top={drawerTop + "px"} href={at("summary")} onclick={retainSelection} aria-label="모니터링으로 돌아가기" tabindex="-1"></a>
-  <section class="drawer" style:top={drawerTop + "px"} aria-labelledby="drawer-title" tabindex="-1" bind:this={drawer}>
+  <section class="drawer" aria-labelledby="drawer-title" tabindex="-1" bind:this={drawer}>
     <header class="drawer-head">
-      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 모니터링</a>
-      <h2 id="drawer-title">{drawerTitle}</h2>
-      {#if dataState === "ready" && (!needsCapability || capabilityState === "ready") && !chooseKind && (methods.length || kind)}
+      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>분석 닫기</a>
+      <h2 id="drawer-title" class="visually-hidden">{drawerTitle}</h2>
+      {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
         <div class="choices">
-          <!-- Shown once the asset's data is known, so a method it cannot use never flashes up. -->
-          {#if methods.length > 1}
-            <nav class="segmented" aria-label="분석 방법">
-              {#each methods as option (option)}
-                <a href={at(route.tab, option, usesDataKind(route.tab, option) ? kind : null)}
-                  onclick={retainSelection} onauxclick={retainSelection} oncontextmenu={retainSelection}
-                  aria-current={method === option ? "true" : undefined}>{METHOD_INFO[option]}</a>
-              {/each}
-            </nav>
-          {/if}
           {#if kind && kindsOf(data).length > 1}
             <nav class="segmented" aria-label="데이터 종류">
               {#each eligibleKinds as option (option)}
@@ -217,6 +211,12 @@
           {/if}
         </div>
       {/if}
+    <nav class="analysis-tabs" aria-label="선택한 변화의 분석">
+      {#each analysisTabs as item(item.label)}
+        <a href={at(item.tab,item.method,item.kind)} onclick={retainSelection}
+          aria-current={route.tab===item.tab && (item.method===null||item.method===method)?"page":undefined}>{item.label}</a>
+      {/each}
+    </nav>
     </header>
     <div class="drawer-body">
   {#if dataState === "failed"}
@@ -252,17 +252,19 @@
       </ul>
     </section>
   {:else}
-    {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind}
+    {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind + ":" + changeVersion}
       {#if route.tab === "signals"}
         {#if data?.history || !data?.vibration}<SignalExplorer assetId={asset.assetId} />{/if}
-        {#if data?.vibration}<VibrationSignals assetId={asset.assetId} />{/if}
+        {#if data?.vibration}<VibrationSignals assetId={asset.assetId} selectedPosition={selectedAt} onPosition={at=>selectedAt=at}/>{/if}
       {:else if route.tab === "anomaly" && method === "baseline"}
         <DepartureExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly"}
         <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null}
+          contextual
+          selectedPosition={data?.vibration?selectedAt:null} onPosition={at=>{if(data?.vibration)selectedAt=at;}}
           measurements={data?.vibration ? {first: data.vibration.first, last: data.vibration.last} : null} />
       {:else if route.tab === "change" && method === "spectrum"}
-        <AcquisitionSpectrum assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
+        <AcquisitionSpectrum assetId={asset.assetId} timing={data?.vibration?.timing ?? null} selectedPosition={selectedAt} onPosition={at=>selectedAt=at}/>
       {:else if route.tab === "change" && method === "electrical"}
         <ElectricalCondition assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "relation" && kind === "vibration"}
@@ -283,22 +285,27 @@
     </div>
   </section>
   {/if}
+  </div>
   <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
 </div>
 
 <style>
-  /* 분석 서랍: 모니터링 화면 위에 열리고, 왼쪽에 중심 화면이 비친다. 닫으면 같은 변화로 돌아온다. */
-  .drawer-backdrop{position:fixed;inset:0;background:rgb(15 30 40 / .28);z-index:40}
-  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(1200px,calc(100vw - 220px));background:var(--color-page,var(--color-surface-selected));
-    box-shadow:-12px 0 32px rgb(15 30 40 / .22);z-index:41;overflow-y:auto;padding:var(--space-4) var(--space-6) var(--space-8);display:grid;gap:var(--space-3);align-content:start;outline:none}
-  .drawer-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-5);position:sticky;top:calc(-1 * var(--space-4));z-index:2;
-    background:inherit;padding-block:var(--space-3);border-bottom:1px solid var(--color-border)}
+  .analysis-layout{min-width:0;display:grid;gap:var(--space-4);align-items:start}
+  .analysis-layout.analysing{grid-template-columns:minmax(340px,.85fr) minmax(0,1.65fr)}
+  .center{min-width:0}
+  @media(min-width:1051px){.analysing>.center{position:sticky;top:var(--space-3)}}
+  .drawer{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
+  .drawer-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);
+    padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
   .drawer-head h2{margin:0;font-size:var(--font-section)}
   .drawer-head .choices{margin-left:auto}
-  .back{font-weight:700;text-decoration:none;padding:var(--space-2) var(--space-3);border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface)}
+  .back{order:3;margin-left:auto;font-size:var(--font-small);font-weight:650;text-decoration:none;padding:var(--space-2);color:var(--color-action)}
   .back:hover{border-color:var(--color-action)}
   .drawer-body{min-width:0;display:grid;gap:var(--space-3)}
-  @media(max-width:860px){.drawer{width:100vw;padding-inline:var(--space-4)}}
+  .analysis-tabs{order:0;display:flex;flex-wrap:wrap;gap:var(--space-1)}
+  .analysis-tabs a{padding:var(--space-2);font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted);text-decoration:none;border-bottom:3px solid transparent}
+  .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}
+  @media(max-width:1050px){.analysis-layout.analysing{grid-template-columns:minmax(0,1fr)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: var(--space-3); }

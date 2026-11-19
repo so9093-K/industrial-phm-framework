@@ -215,7 +215,7 @@
         </table></div>
       {/if}
       {#if latest.answer.nextStep}
-        <p><strong>다음에 볼 것</strong> · {latest.answer.nextStep}</p>
+        <p>{latest.answer.nextStep}</p>
       {/if}
       {#if latest.features.length}
         <details>

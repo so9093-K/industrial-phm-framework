@@ -76,7 +76,7 @@ export async function readVibrationFindings(assetId: string, signal: AbortSignal
 }
 
 /** The feature at the change's first acquisition, and the change against the first 30%. */
-export function vibrationLinks(assetId: string, change: VibrationChange): {signal: string; compare: string} {
+export function vibrationLinks(assetId: string, change: VibrationChange): {signal: string; compare: string; spectrum:string;outlook:string} {
   const signal = new URL(assetTabUrl(assetId, "signals", null, "vibration"), "http://local");
   signal.searchParams.set("vibration_feature", change.feature);
   signal.searchParams.set("vibration_at", String(change.from));
@@ -88,7 +88,15 @@ export function vibrationLinks(assetId: string, change: VibrationChange): {signa
   compare.searchParams.set("feature_b_to", String(change.to));
   // 비교 화면이 기간 이름을 중심 화면과 같게('초기'·'변화 구간') 쓰도록 출처를 함께 넘긴다.
   compare.searchParams.set("compare_origin", "summary");
-  return {signal: signal.pathname + signal.search, compare: compare.pathname + compare.search};
+  const spectrum=new URL(assetTabUrl(assetId,"change","spectrum"),"http://local");
+  spectrum.searchParams.set("spectrum_channel",change.feature.slice(8,change.feature.lastIndexOf(".")));
+  for(const period of ["a","b"] as const){const span=period==="a"?change.baseline:change;
+    spectrum.searchParams.set("spectrum_"+period+"_from",String(span.from));
+    spectrum.searchParams.set("spectrum_"+period+"_to",String(span.to));}
+  const outlook=new URL(assetTabUrl(assetId,"outlook",null,"vibration"),"http://local");
+  outlook.searchParams.set("acq_forecast_feature",change.feature);
+  return {signal: signal.pathname + signal.search, compare: compare.pathname + compare.search,
+    spectrum:spectrum.pathname+spectrum.search,outlook:outlook.pathname+outlook.search};
 }
 
 /** 진동 변화의 결론 모양과 그래프 표시: 변화가 시작된 측정, 그리고 기록 끝까지 이어졌으면 마지막 측정의 급변.

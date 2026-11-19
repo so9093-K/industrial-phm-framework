@@ -3,6 +3,7 @@ import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettin
 /** Two server-owned acquisition projections, never an invented observation clock. */
 import {parseOutlookSettings,type Conditions,type OutlookSettings,type Horizon,type Reach,type Scenario} from "./projections.ts";
 import {yTicks,type Tick} from "./chart-axis.ts";
+import {parseSignalEvolution,type SignalEvolution} from "./signal-evolution.ts";
 
 export type TimeBasis="recorded"|"assumed"|"ordinal";
 export type AcquisitionFeature={
@@ -24,6 +25,7 @@ export type AcquisitionProjection={
   scenarios:Scenario[];checks?:Backtest[];
   /** The outlook's own check over its reach search; `checks` belong to the drawn forecast. */
   reachChecks?:Backtest[];
+  evolution?:SignalEvolution|null;
 };
 export class AcquisitionOutlookUnavailable extends Error {}
 export class AcquisitionVersionMismatch extends Error {}
@@ -216,7 +218,7 @@ export function parseAcquisitionPair(
     timeBasis:basis,recordedPeriod:recorded,assumedPeriod:assumed,effectivePeriod:effective,
     horizonCount:forecastCount,searchCount,searchUntil,outlookSettings,
     conditions,record:{first,last,points},forecast:future,history,fitted,fit:parseForecastFit(forecast),scenarios,
-    unit:typeof forecast.unit==="string"&&forecast.unit.trim()?forecast.unit:null};
+    unit:typeof forecast.unit==="string"&&forecast.unit.trim()?forecast.unit:null,evolution:parseSignalEvolution(outlookRaw)};
 }
 
 export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;

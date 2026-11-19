@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SignalEvolution from "./SignalEvolution.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
@@ -266,7 +267,7 @@
     </div>
     <div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
-    {#if investigation}<p class="intro">이어서 조사하는 구간 · {clock(new Date(investigation.from).toISOString())} ~ {clock(new Date(investigation.to).toISOString())}. 전망은 해당 구간으로 학습을 제한하지 않고, 선택한 기록의 마지막 시점을 기준으로 계산합니다.</p>{/if}
+    {#if investigation}<p class="intro" title={clock(new Date(investigation.from).toISOString())+" ~ "+clock(new Date(investigation.to).toISOString())}>조사 구간과 별도로, 선택한 기록의 마지막 시점부터 전망합니다.</p>{/if}
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
       <StatusNotice message="전망을 계산하고 있습니다." />
@@ -348,6 +349,7 @@
             </figcaption>
           </figure>
         {/if}
+        {#if projection.evolution}<SignalEvolution data={projection.evolution} unit={projection.unit}/>{/if}
         <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
         <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
         {#if told}<AnalysisMessage message={told} showHeadline={false}

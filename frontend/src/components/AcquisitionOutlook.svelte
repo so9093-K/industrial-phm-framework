@@ -3,6 +3,7 @@
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
   import SourceIdentity from "./SourceIdentity.svelte";
+  import SignalEvolution from "./SignalEvolution.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
   import {worseThanPersistence} from "../forecast-fit";
@@ -49,6 +50,9 @@
   let managementText=$state(params.get("acq_management")??"");
   let endText=$state(params.get("acq_end")??"");
   let direction:Direction=$state(params.get("acq_direction")==="lower"?"lower":"upper");
+  const criteriaPending=$derived.by(()=>{const current:AcquisitionProjection|null=outlook;return current!==null&&(current.conditions.direction!==direction
+    ||current.conditions.management!==(managementText.trim()?Number(managementText):null)
+    ||current.conditions.end!==(endText.trim()?Number(endText):null));});
   let listAbort:AbortController|null=null;
   let resultAbort:AbortController|null=null;
   const available=$derived.by(():AcquisitionFeature[]=>
@@ -149,7 +153,7 @@
     <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
     <div class="inputs">
       <label>진동 특징
-        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
+        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;managementText="";endText="";invalidate();void calculate();}}>
           {#each options.features as item (item.id)}
             <option value={item.id} disabled={!item.countForecast}>
               {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
@@ -168,38 +172,18 @@
         onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
     </div>
 
-    <AnalysisControls title="기준·모델 설정">{#snippet children(close)}{#if options}
+    <AnalysisControls title="고급 설정">{#snippet children(close)}{#if options}
     <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
       <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
         <input type="number" min="1" max="86400" step="any" value={assumedText}
           placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
           oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
       </label></details>
-    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="inputs">      <label>기준 방향
-        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label>관리 기준 (선택)
-        <input type="number" step="any" value={managementText}
-          oninput={e=>{managementText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label>종료 기준 (선택)
-        <input type="number" step="any" value={endText}
-          oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
     <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
-    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
-
     <button type="button" class="ui-button ui-button-primary" disabled={available.length===0} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
-
     {/if}{/snippet}</AnalysisControls>
     </div>
+
     <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="전망을 계산하고 있습니다."/>
@@ -279,6 +263,7 @@
             </figcaption>
           </figure>
         {/if}
+        {#if outlook.evolution}<SignalEvolution data={outlook.evolution} unit={outlook.unit}/>{/if}
         <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
         <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
         {#if told}<AnalysisMessage message={told} showHeadline={false}
@@ -354,13 +339,37 @@
     {:else}
       <p class="context">진동 특징과 예측 범위를 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
-    </div></div>
+    </div>
+    <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+      <div class="criteria-title"><strong>기준 도달 전망</strong><span>{criteriaPending?"변경한 기준 적용 대기":"현장에서 사용하는 기준값 입력"}</span></div>
+      <div class="inputs">      <label>기준 방향
+        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label>관리 기준{outlook?.unit?" ("+outlook.unit+")":""}
+        <input type="number" step="any" value={managementText}
+          oninput={e=>{managementText=e.currentTarget.value;remember();}}/>
+      </label>
+      <label>종료 기준{outlook?.unit?" ("+outlook.unit+")":""}
+        <input type="number" step="any" value={endText}
+          oninput={e=>{endText=e.currentTarget.value;remember();}}/>
+      </label>
+      <button type="submit" class="ui-button" disabled={available.length===0}>기준 적용</button></div>
+    </form>
+    </div>
   {/if}
 </section>
 <style>
   .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .criteria{display:grid;gap:var(--space-2);padding:var(--space-3);background:var(--color-surface-selected);border-radius:var(--radius-control)}
+  .criteria-title{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--font-small)}
+  .criteria-title span{font-size:var(--font-label);color:var(--color-ink-muted)}
+  .criteria .inputs{grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2);margin:0}
+  .criteria label{gap:4px;font-size:var(--font-label)}.criteria input,.criteria select{padding:var(--space-2)}
+  @media(max-width:600px){.criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
   .forecast-controls{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
-  .forecast-controls>div{flex:1;margin:0;gap:var(--space-3)}
+  .forecast-controls>div{flex:1;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-2)}.forecast-controls .inputs label{flex:1;min-width:100px}.forecast-controls .inputs label:first-child{flex:1.4;min-width:140px}.forecast-controls .inputs button{flex:none;padding:var(--space-2);min-height:40px}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
   .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
 

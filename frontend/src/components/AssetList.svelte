@@ -23,8 +23,9 @@
     checks?: AssetChecks;
     /** 목록을 읽은 시각. */
     checkedAt?: string;
+    compact?: boolean;
   };
-  let {assets, href, selected = "", checks = UNCHECKED, checkedAt = ""}: Props = $props();
+  let {assets, href, selected = "", checks = UNCHECKED, checkedAt = "",compact=false}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && checks.notes[asset.assetId] === undefined ? null
       : (asset.attentionCount ?? 0) + (checks.notes[asset.assetId]?.length ?? 0);
@@ -210,7 +211,7 @@
   }
 </script>
 
-<section class="assets" aria-labelledby="asset-list-title">
+<section class="assets" class:compact aria-labelledby="asset-list-title">
   <div class="head">
     <h2 id="asset-list-title">설비 <span>{assets.length}개{checkedAt ? " · 목록 확인 " + checkedAt : ""}</span></h2>
     {#if offerBearing}<a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>{/if}
@@ -225,7 +226,7 @@
       {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
       <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
         <span class="top"><strong>{name(asset)}</strong><span class="model" class:over={model.over}>{model.text}</span></span>
-        <span class="what">{fact.what}</span>
+        <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small> · 과거 기록</small>{/if}</span>
         {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
         {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}
@@ -244,19 +245,22 @@
   .bearing-entry { font-size: var(--font-small); font-weight: 650; }
   /* 설비 칸은 가로로 이어지고, 많으면 옆으로 넘겨 본다. */
   .strip { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-1); }
-  .tile { flex: 0 0 300px; display: grid; gap: 4px; align-content: start; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
+  .tile { flex: 0 0 360px; display: grid; grid-template-columns:minmax(0,1fr) 72px;gap: 4px var(--space-2); align-content: start; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border);
     border-top: 4px solid transparent; border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
   .tile:hover { border-color: var(--color-action); }
+  .compact .tile{flex-basis:300px;display:block;padding:var(--space-2) var(--space-3)}
+  .compact .tile>.what,.compact .tile>.how,.compact .tile>.bottom{display:none}
   .tile[aria-current="page"] { border-top-color: var(--color-action); background: var(--color-surface-selected); }
-  .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
+  .top { grid-column:1/-1;display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
   .top strong { font-size: var(--font-body); }
   .model { font-size: var(--font-label); color: var(--color-ink-muted); white-space: nowrap; }
   .model.over { color: var(--color-failure-ink, #b42318); font-weight: 650; }
-  .what { font-size: var(--font-small); overflow-wrap: anywhere; }
-  .how { font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  .bottom { display: flex; justify-content: space-between; align-items: end; gap: var(--space-2); }
+  .what { grid-column:1;font-size: var(--font-small); overflow-wrap: anywhere; }
+  .how { grid-column:1;font-size:var(--font-small);font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .bottom { display:contents }
+  .bottom small{grid-column:1/-1}.bottom svg{grid-column:2;grid-row:2/4;align-self:center;width:72px}
   small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
-  small.issue { color: var(--color-caution-ink); }
+  small.issue { grid-column:1/-1;color: var(--color-caution-ink); }
   svg { width: 120px; height: 28px; flex: none; }
   svg path { fill: none; stroke: var(--color-action); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 </style>

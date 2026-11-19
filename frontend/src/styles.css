@@ -133,7 +133,7 @@ input,select,textarea,.ui-button{--color-border:var(--color-control-border)}
 select,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),textarea{
   min-height:40px;border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:var(--space-2) var(--space-3);background:var(--color-surface);color:var(--color-ink);max-width:100%;
 }
-main:has(.workspace-asset){padding-block:var(--space-5)}
+main:has(.workspace-asset){padding-block:var(--space-3)}
 
 /* Shared spacing only; each investigation chooses how its plots and selected values relate. */
 .analysis-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start;min-width:0}

@@ -12,6 +12,7 @@
   import StatusNotice from "./StatusNotice.svelte";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
+  import {pickFrom} from "../signal-selection";
 
   /** 3-phase load, unbalance and the reference-pattern score of a recent period against an
    * earlier one. A failed or mismatched read clears the earlier result instead of keeping it. */
@@ -21,11 +22,21 @@
   const PERIODS: Record<ConditionPeriod, string> = {"1h": "최근 기록 1시간", "6h": "최근 기록 6시간", "24h": "최근 기록 24시간"};
   // The plot stretches to its box, so every label is page text rather than scaled SVG text.
   const W = 800, H = 200, LEFT = 0, RIGHT = 800, TOP = 6, BOTTOM = 194;
-  let period: ConditionPeriod = $state("24h");
+  const query=new URLSearchParams(location.search),picked=pickFrom(query.get("monitor_pick"));
+  const baseline=pickFrom(query.get("compare_a"));
+  const inputTime=(at:number)=>new Date(at+9*3_600_000).toISOString().slice(0,19);
+  const initialPeriod:ConditionPeriod=picked&&picked.to-picked.from<=3_600_000?"1h":picked&&picked.to-picked.from<=6*3_600_000?"6h":"24h";
+  const duration={"1h":3_600_000,"6h":6*3_600_000,"24h":24*3_600_000}[initialPeriod];
+  // This analysis supports references of at most 24 hours. Longer change baselines
+  // cannot be reused: show the actual preceding period, rather than submitting an invalid range.
+  const reusableBaseline=baseline&&picked&&baseline.to-baseline.from<=24*3_600_000&&baseline.to<=picked.to-duration?baseline:null;
+  const handedSource=query.has("monitor_source")?{sourceId:query.get("monitor_source")!,pointId:query.get("monitor_point")||null}:null;
+  const handedKey=handedSource?JSON.stringify([handedSource.sourceId,handedSource.pointId]):"";
+  let period: ConditionPeriod = $state(initialPeriod);
   let sources: ConditionSource[] = $state([]);
-  let sourceKey = $state("");
-  let referenceMode: "previous" | "fixed" = $state("previous");
-  let custom = $state({end: "", referenceStart: "", referenceEnd: ""});
+  let sourceKey = $state(handedKey);
+  let referenceMode: "previous" | "fixed" = $state(reusableBaseline?"fixed":"previous");
+  let custom = $state({end:picked?inputTime(picked.to):"",referenceStart:reusableBaseline?inputTime(reusableBaseline.from):"",referenceEnd:reusableBaseline?inputTime(reusableBaseline.to):""});
   let condition: Condition | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let error = $state("");
@@ -79,7 +90,7 @@
   async function analyze() {
     request?.abort();
     const pending = new AbortController(); request = pending;
-    const source = sources.find((item) => keyOf(item) === sourceKey) ?? null;
+    const source = sources.find((item) => keyOf(item) === sourceKey) ?? (sourceKey===handedKey?handedSource:null);
     loadState = "loading"; condition = null; selectedAt = null; error = "";
     try {
       const value = await readCondition(assetId, period, source, referenceMode === "fixed" ? custom
@@ -184,6 +195,7 @@
       actionLabel={condition.state === "no-history" || condition.state === "unsupported-signals" ? "데이터 연결 확인하기" : undefined}
       actionHref={condition.state === "no-history" || condition.state === "unsupported-signals" ? systemUrl("connections") : undefined} />
   {:else if analyzed}
+    {#if baseline&&!reusableBaseline&&referenceMode==="previous"}<p class="context">3상 전력은 최대 24시간씩 비교합니다. 여기서는 분석 직전의 같은 길이 기간을 기준으로 사용합니다.</p>{/if}
     <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
     <div class="range-row"><p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
       <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
