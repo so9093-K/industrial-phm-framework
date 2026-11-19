@@ -2,6 +2,7 @@
   import {recordParams} from "../record-context";
   import {readOverview, type OverviewRow} from "../asset-overview";
   import OverviewTrace from "./OverviewTrace.svelte";
+  import VibrationInvestigation from "./VibrationInvestigation.svelte";
   import ChangeInterval from "./ChangeInterval.svelte";
   import FindingContext from "./FindingContext.svelte";
   import OperationLevels from "./OperationLevels.svelte";
@@ -14,22 +15,22 @@
   let archiveOpen = $state(false);
   let openReviews:Record<string,boolean> = $state({});
   import SourceIdentity from "./SourceIdentity.svelte";
-  import {onMount} from "svelte";
+  import {onMount,untrack} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
   import {builtModelNote, isTimeWindow, loadLatestScores, modelName, scoreSummary, windowLabel, type LatestScore} from "../model-evidence";
   import {readScoreTrend, trendSummary, type ScoreTrend} from "../model-trend";
   import {readModelOperation, unlearnedText} from "../model-operation";
-  import {modelAtChange, rareAtChange} from "../model-context";
+  import {modelAtChange, rareAtChange, splitAtChange} from "../model-context";
   import type {ModelOperation} from "../model-operation";
   import {measurementLabel} from "../time-axis";
   import {num} from "../format";
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
-  import {assetTabUrl, routeUrl} from "../routes";
+  import {assetTabUrl, routeUrl, summarySelectionUrl} from "../routes";
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
-  import {changeValue, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, changeSentence} from "../change-story";
+  import {changeValue, focusChange, copiedGroups, findingLinks, findingSpan, findingText, readRecordFindings, bandName, percent, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
+  import {CHANGE_WHY, changeHeadline, plainLabel} from "../change-story";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   type Props = {
     asset: Asset;
@@ -99,15 +100,60 @@
   });
   // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
   type Pick = {kind: "history" | "vibration"; index: number};
-  let picked: Pick | null = $state(null);
+  const initialSelection=new URLSearchParams(location.search);
+  const seedContext=!["monitor_channel","vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature"].some(key=>initialSelection.has(key));
+  let pickedKey = $state(initialSelection.get("summary_change"));
+  let reviewDrafts:Record<string,{sequence:number;text:string}>=$state({});
+  const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
+  const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
   const focus = $derived.by((): Pick | null => {
-    if (picked) return picked;
     const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
+    const h=history?.intervals.findIndex(item=>historyKey(item)===pickedKey)??-1;
+    if(h>=0)return {kind:"history",index:h};
+    const v=measured?.intervals.findIndex(change=>vibrationKey(change)===pickedKey)??-1;
+    if(v>=0)return {kind:"vibration",index:v};
     if (history?.intervals.length) return {kind: "history", index: 0};
     if (measured?.intervals.length) return {kind: "vibration", index: 0};
     return null;
   });
+  function selectChange(pick:Pick) {
+    const records:RecordFindings|null=findings, measured:VibrationRecord|null=vibration;
+    let target:URL, key:string;
+    if(pick.kind==="history"&&records?.intervals[pick.index]) {
+      const item=records.intervals[pick.index];
+      const links=findingLinks(asset.assetId,item,records.baseline,records.bucketSeconds,records.record);
+      target=new URL(links.compare??links.signal??links.outlook,location.origin);
+      if(links.signal) {
+        const signal=new URL(links.signal,location.origin);
+        for(const name of ["monitor_range","monitor_from","monitor_to","monitor_pick"])
+          if(signal.searchParams.has(name))target.searchParams.set(name,signal.searchParams.get(name)!);
+      }
+      target.searchParams.set("relation_x",item.channel);
+      const other=item.related.find(row=>row.state!=="within")??item.related[0];
+      if(other)target.searchParams.set("relation_y",other.channel);
+      key=historyKey(item);
+    } else if(pick.kind==="vibration"&&measured?.intervals[pick.index]) {
+      const change=measured.intervals[pick.index];
+      target=new URL(vibrationLinks(asset.assetId,change).compare,location.origin);
+      target.searchParams.set("vibration_feature",change.feature);
+      target.searchParams.set("vibration_at",String(change.from));
+      if(measured.bindingId)target.searchParams.set("acquisition_binding",measured.bindingId);
+      target.searchParams.set("acq_relation_x",change.feature);
+      if(change.related[0])target.searchParams.set("acq_relation_y",change.related[0].feature);
+      for(const part of ["a_from","a_to","b_from","b_to"])
+        target.searchParams.set("acq_"+part,target.searchParams.get("feature_"+part)!);
+      key=vibrationKey(change);
+    } else return;
+    history.replaceState(history.state,"",summarySelectionUrl(location.href,target.href,key,pick.kind));
+    pickedKey=key;
+  }
   const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
+  $effect(()=>{
+    const current=focus;
+    const ready=(!data?.history||findingState==="ready"||findingState==="failed")
+      &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
+    if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current));
+  });
   const focusSpan = $derived.by(() => {
     const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
     if (shown?.kind === "history" && history?.intervals[shown.index]) {
@@ -143,12 +189,16 @@
     });
     measured?.intervals.forEach((change, index) => {
       if (shown?.kind === "vibration" && shown.index === index) return;
-      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: change.label,
+      rows.push({key: "v" + index, pick: {kind: "vibration", index}, label: plainLabel(change.label, change.feature),
         line: "처음 30%보다 " + (change.direction === "up" ? "높음" : "낮음") + (change.reference != null && change.typical != null ? " · " + changeValue(change.reference, null) + " → " + changeValue(change.typical, change.unit) : ""),
         when: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to) + " · " + (change.to - change.from + 1) + "회",
         href: vibrationLinks(asset.assetId, change).signal});
     });
     return rows;
+  });
+  const hasRail=$derived.by(()=>{
+    const measured: VibrationRecord | null = vibration, shown = focus;
+    return otherChanges.length>0||!!(shown?.kind==="vibration"&&measured?.bindingId&&measured.intervals[shown.index]?.reviewKey);
   });
   $effect(() => {
     if (!data?.history) return;
@@ -195,6 +245,15 @@
     // Which condition failed is said as it is: another source or point, or another last measurement.
     return {over, under, same: sameStream && samePosition, why: !sameStream ? "stream" : samePosition ? null : "position"};
   });
+  // 가운데 변화 구간을 분석한 모델들이 그 구간을 서로 다르게 봤다면, 점수 목록보다 먼저 그 사실을 말한다.
+  const changeSplit = $derived.by(() => {
+    const span = focusSpan;
+    if (!span) return null;
+    return splitAtChange(scores.filter(item => readsFocus(item.binding)).flatMap(item => {
+      const read = histories[item.binding.bindingId];
+      return typeof read === "object" ? [{name: modelName(item.binding), ...modelAtChange(read.trend, span, span.axis)}] : [];
+    }));
+  });
   function verdict(exceeds: boolean | null): string {
     return exceeds === null ? "기준 대비 정보 없음" : exceeds ? "모델 기준 초과" : "모델 기준 이하";
   }
@@ -216,7 +275,8 @@
   {@const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined}
   {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
-  <h3 class="change-sentence">{changeSentence(item, findingSpan(item), condition)}</h3>
+  <h3 class="change-sentence">{changeHeadline(item)}</h3>
+  <p class="context">{findingSpan(item)}</p>
   <div class="card-top">
     <ChangeNumbers facts={item} fallback={told.what} />
     <div class="finding-actions">{#if links.signal}<a class="ui-button ui-button-primary" href={links.signal}>변화 구간 조사하기 →</a>{/if}
@@ -224,8 +284,8 @@
       {#if openReviews[item.reviewKey]}<ChangeReview assetId={asset.assetId} finding={item} onSaved={()=>reviewRevision++} />{/if}
     </details>{/if}</div>
   </div>
-  <ChangeInterval finding={item} height={240} />
-  <RecordStrip finding={item} {condition} />
+  <ChangeInterval finding={item} height={240} focus/>
+  <RecordStrip finding={focusChange(item)} {condition} />
   {#if item.reason}<p class="change-why">{CHANGE_WHY[item.reason]}</p>{/if}
   <FindingContext {item} operation={own} compareHref={links.compare??links.previous} relation={links.relation}/>
   <details><summary>비교 기준·출처·관련 신호</summary>
@@ -253,7 +313,7 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-<div class="summary-layout">
+<div class="summary-layout" class:without-rail={!hasRail}>
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
   <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
   {#if notesState === "partial" || notesState === "failed"}
@@ -272,7 +332,7 @@
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
-    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} />{/key}</li></ul>
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@const selected=vibration.intervals[focus.index]}<VibrationFindings assetId={asset.assetId} record={vibration} change={selected} draftNote={reviewDrafts[selected.reviewKey??""]??null} onReviewed={()=>{reviewRevision++;const next={...reviewDrafts};delete next[selected.reviewKey??""];reviewDrafts=next;}} />{/key}</li></ul>
   {:else if data?.history && findingState === "loading"}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
@@ -305,13 +365,18 @@
   {/if}
 </section>
 
-<aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
+{#if hasRail}<aside class="rail" aria-label="다른 변화와 이어서 확인할 것">
+  {#if focus?.kind==="vibration"&&vibration?.bindingId&&vibration.intervals[focus.index]?.reviewKey}
+    {@const change=vibration.intervals[focus.index]}
+    {#key change.reviewKey}<VibrationInvestigation assetId={asset.assetId} {change} bindingId={vibration.bindingId}
+      onMemo={text=>{const key=change.reviewKey!;reviewDrafts={...reviewDrafts,[key]:{sequence:(reviewDrafts[key]?.sequence??0)+1,text}};}}/>{/key}
+  {/if}
   {#if otherChanges.length}
     <section class="ui-panel rail-section" aria-labelledby="others-title">
       <h2 id="others-title">이 기록의 다른 변화 {otherChanges.length}건</h2>
       <ul class="other-changes">
         {#each otherChanges as row (row.key)}
-          <li><button type="button" onclick={() => picked = row.pick} aria-label={row.label + " 변화 크게 보기"}>
+          <li><button type="button" onclick={() => selectChange(row.pick)} aria-label={row.label + " 변화 크게 보기"}>
             <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button>
             {#if row.href}<a href={row.href}>구간 조사 →</a>{/if}</li>
         {/each}
@@ -319,6 +384,7 @@
       {#if data?.history}<p class="context small"><a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>다른 신호의 변화 찾기 →</a></p>{/if}
     </section>
   {/if}
+</aside>{/if}
   <section class="ui-panel more rail-section" aria-labelledby="more-title">
   <h2 id="more-title">이어서 확인할 것</h2>
   <dl class="rows">
@@ -331,6 +397,7 @@
         <p class="context">이 설비에 적용한 이상 탐지 모델이 없어 모델의 판단은 없습니다.
           {#if data?.history}<a href={assetTabUrl(asset.assetId, "anomaly", "model")}>이 설비 데이터로 모델 만들기 →</a>{/if}</p>
       {:else}
+        {#if changeSplit}<p class="split">{changeSplit}</p>{/if}
         <ul class="scores" aria-labelledby="state-title">
           {#each scores as item (item.binding.bindingId)}
             {@const summary = item.run ? scoreSummary(item.run.output) : null}
@@ -396,7 +463,6 @@
     </dd></div>
   </dl>
 </section>
-</aside>
 </div>
 
 <details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
@@ -436,9 +502,15 @@
 <style>
   /* PC 화면: 가운데에는 변화 하나와 그래프, 오른쪽 열에는 다른 변화와 이어서 확인할 것. */
   .summary-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-4); align-items: start; }
+  .summary-layout.without-rail{grid-template-columns:minmax(0,1fr)}
   .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
   .facts-panel > h2.eyebrow { margin: 0; font-size: var(--font-small); font-weight: 650; color: var(--color-ink-muted); }
   .rail { display: grid; gap: var(--space-4); min-width: 0; }
+  .more{grid-column:1 / -1}
+  @media(min-width:1100px){
+    .more .rows{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));gap:var(--space-3) var(--space-6)}
+    .more .rows>div:first-child{grid-row:span 2}
+  }
   .rail-section { padding: var(--space-4) var(--space-5); }
   .rail-section h2 { font-size: var(--font-body); margin: 0 0 var(--space-2); }
   @media (max-width: 1099px) { .summary-layout { grid-template-columns: minmax(0, 1fr); } }

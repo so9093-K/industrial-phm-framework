@@ -351,8 +351,10 @@ export function copiedGroups(signals: CheckedSignal[]): {from: string; to: strin
 }
 
 
-/** Display the selected change without altering its source, comparison or stored values. */
+/** Keep nearby measured context around a change, without pulling a distant record across a gap. */
 export function focusChange(finding: FoundInterval): FoundInterval {
-  const trace=finding.trace?.filter(row=>Date.parse(row.at)>=Date.parse(finding.start)&&Date.parse(row.at)<=Date.parse(finding.end));
+  const start=Date.parse(finding.start), end=Date.parse(finding.end);
+  const margin=Math.max((end-start)*.2,(finding.bucketSeconds??0)*3000);
+  const trace=finding.trace?.filter(row=>Date.parse(row.at)>=start-margin&&Date.parse(row.at)<=end+margin);
   return trace?.length ? {...finding,trace} : finding;
 }

@@ -17,6 +17,7 @@
   import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakSummary, frequencyText,
     SpectrumUnavailable,WaveformUnavailable,
     type Acquisition,type Spans,type Spectrum,type SpectrumChannel} from "../spectrum";
+  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
 
   let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
   type State="loading"|"ready"|"empty"|"failed"|"unavailable"|"missing-waveform";
@@ -32,6 +33,7 @@
   const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
   let selectionNotice=$state("");
+  let fromSummary=$state(false);
   // Where the first measurement of B stands against the one before it answers "since when".
   const B_START:Record<string,string>={spectrum:"기간 B 첫 측정을 바로 앞 측정과 주파수 비교",model:"기간 B 첫 측정의 원본 파형·모델 점수"};
   const message=$derived.by(()=>{
@@ -99,12 +101,12 @@
   }
   function savedSpans(fallback:Spans):Spans {
     const q=new URLSearchParams(location.search);
+    const prefix=q.has("spectrum_a_from")?"spectrum_":q.has("feature_a_from")?"feature_":"acq_";
     const span=(name:"a"|"b")=>({
-      from:Number(q.get("spectrum_"+name+"_from")),
-      to:Number(q.get("spectrum_"+name+"_to")),
+      from:Number(q.get(prefix+name+"_from")),
+      to:Number(q.get(prefix+name+"_to")),
     });
-    if(!q.has("spectrum_a_from")||!q.has("spectrum_b_to")
-      ||!q.has("spectrum_a_to")||!q.has("spectrum_b_from"))return fallback;
+    if(!["a_from","a_to","b_from","b_to"].every(key=>q.has(prefix+key)))return fallback;
     try{
       const result={a:span("a"),b:span("b")};
       validateSpans(result);return result;
@@ -119,7 +121,14 @@
       if(req.signal.aborted)return;
       if(!data){sourceState="empty";return;}
       acquisition=data;
-      try{spans=savedSpans(defaultSpans(data));}catch(cause:unknown){
+      // 아무 기간도 고르지 않고 열었으면 상태 요약의 대표 변화와 같은 두 기간을 견준다.
+      const q=new URLSearchParams(location.search);
+      const chosen=["spectrum_a_from","feature_a_from","acq_a_from"].some(k=>q.has(k));
+      const found=!chosen?await readVibrationSummary(assetId,req.signal):null;
+      if(req.signal.aborted)return;
+      const summary=found&&found.intervals[0]?vibrationDefault(found,data.binding,[found.intervals[0].feature]):null;
+      fromSummary=summary!==null;
+      try{spans=summary?summary.spans:savedSpans(defaultSpans(data));}catch(cause:unknown){
         sourceState="unavailable";error=cause instanceof Error?cause.message:"파형 비교 기록이 부족합니다.";return;
       }
       sourceState="ready";remember();await analyze();
@@ -132,11 +141,11 @@
   function change(n:"a"|"b",edge:"from"|"to",input:string){
     if(!spans)return;
     spans={...spans,[n]:{...spans[n],[edge]:Number(input)}};
-    spectrumRequest?.abort();result=null;resultState="empty";selectionNotice="";
+    spectrumRequest?.abort();result=null;resultState="empty";selectionNotice="";fromSummary=false;
   }
   function useMeasurement(n:"a"|"b",ordinal:number){
     if(!spans||!acquisition||!Number.isSafeInteger(ordinal)||ordinal<acquisition.first||ordinal>acquisition.last)return;
-    spans={...spans,[n]:{from:ordinal,to:ordinal}};
+    spans={...spans,[n]:{from:ordinal,to:ordinal}};fromSummary=false;
     selectionNotice="기간 "+n.toUpperCase()+"를 "+place(ordinal)+" 한 측정으로 바꿨습니다. 반대 기간은 유지했습니다.";
     remember();void analyze();
   }
@@ -186,6 +195,7 @@
       <StatusNotice message="두 기간을 고르고 주파수 비교하기를 누르세요."/>
     {:else if result}
       {#if message}<AnalysisMessage {message}/>{/if}
+      {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
       <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
       <!-- PC 화면에서는 채널(수평·수직)을 나란히 두어 같은 두 기간을 한눈에 견준다. -->
       <div class="channels">

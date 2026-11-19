@@ -96,6 +96,8 @@ def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
                 pw.expect(values).to_contain_text("40 °C", timeout=30000)
                 pw.expect(values).to_contain_text("65 °C")
                 pw.expect(focus.locator(".change-trend svg path.trace")).to_have_count(1)
+                pw.expect(focus.get_by_label("마지막 저장값")).to_be_visible()
+                pw.expect(focus.get_by_label("마지막 저장값")).to_contain_text("2020. 10. 22.")
                 investigate = focus.get_by_role("link", name="변화 구간 조사하기", exact=False)
                 assert investigate.bounding_box()["y"] < 750
                 query = parse_qs(
@@ -212,14 +214,15 @@ def test_new_history_refreshes_only_its_asset_and_ignores_superseded_overviews(
                 pw.expect(one.locator(".latest")).to_have_text("65 °C", timeout=30000)
                 pw.expect(two.locator(".latest")).to_have_text("30 °C", timeout=30000)
                 pw.expect(one.get_by_role("cell").nth(1)).to_contain_text("2020년 10월 22일")
-                # The entry chart shows the change itself, not a line connecting the
-                # earlier 40°C record across the unmeasured half-hour gap to 65°C.
+                # The nearest earlier sample is beyond the short context window in this
+                # sparse record. Do not stretch the chart or bridge its unmeasured gap.
                 assert "L" not in one.locator("svg path").get_attribute("d")
                 samples = one.locator("circle.sample").evaluate_all(
                     "points => [...new Set(points.map(point => point.getAttribute('cy')))]"
                 )
                 assert len(samples) == 1
                 assert one.locator("line.reference").get_attribute("y1") != samples[0]
+                pw.expect(one.get_by_label("마지막 저장값")).to_be_visible()
                 initial_two_reads = reads["pump-2"]
                 mode["hold"] = True
                 append("pump-1", "original", 180, 190, 70)
@@ -383,8 +386,11 @@ def test_prepared_bearing_entry_opens_its_group_and_disappears_after_registratio
                 page.route("**/api/v1/monitor", lambda route: route.fulfill(json=snapshot))
                 page.route("**/api/v1/datasets", lambda route: route.fulfill(json=datasets))
                 page.goto(origin + "/web/")
-                entry = page.get_by_role("link", name="공개 베어링 진동 기록 가져오기 →")
+                entry = page.get_by_role("link", name="준비된 베어링 진동 기록 보기 →")
                 pw.expect(entry).to_be_visible()
+                pw.expect(
+                    page.get_by_text("보기 전용 · 가져오려면 변경 가능한 작업공간을 여세요.")
+                ).to_be_visible()
                 entry.click()
                 group = page.locator(".datasets > details").first
                 pw.expect(group.locator("summary")).to_contain_text("XJTU-SY")

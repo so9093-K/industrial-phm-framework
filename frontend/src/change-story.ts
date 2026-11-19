@@ -33,11 +33,20 @@ export function changeSentence(facts: ChangeFacts, span: string, condition: stri
   return subject(facts.label) + " " + span + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
 }
 
+const PLAIN_FEATURES: [suffix: string, term: RegExp, plain: string][] = [
+  [".rms", / RMS$/, " 크기 (RMS)"], [".excess_kurtosis", / 초과 첨도$/, " 충격성 (첨도)"],
+  [".skewness", / 왜도$/, " 치우침 (왜도)"], [".crest_factor", / 파고율$/, " 피크 배율 (파고율)"],
+];
+/** 진동 특징 이름은 쉬운 말을 앞에, 계산 이름을 괄호에 둔다: "수직 진동 초과 첨도" → "수직 진동 충격성 (첨도)". */
+export function plainLabel(label: string, feature?: string | null): string {
+  const found = feature ? PLAIN_FEATURES.find(([suffix]) => feature.endsWith(suffix)) : undefined;
+  return found ? label.replace(found[1], found[2]) : label;
+}
+
 /** First-screen headline: keep timing and comparison conditions in the adjacent context. */
 export function changeHeadline(facts: Pick<ChangeFacts, "label" | "direction" | "kind"> & {feature?:string}): string {
   const basis = facts.kind === "level-change" ? "일정하던 기준값" : "비교 기준";
-  const label=facts.feature?.endsWith(".rms") ? facts.label.replace(/ RMS$/, " 크기 (RMS)") : facts.label;
-  return subject(label) + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
+  return subject(plainLabel(facts.label, facts.feature)) + " " + basis + "보다 " + (facts.direction === "up" ? "높았습니다." : "낮았습니다.");
 }
 
 export type ChangeNumber = {caption: string; value: string; note: string | null};

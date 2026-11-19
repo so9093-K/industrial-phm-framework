@@ -1,6 +1,6 @@
 <script lang="ts">
   import {readableSourceId} from "../operations-status";
-  import {onMount} from "svelte";
+  import {onMount,tick} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import CautionNote from "./CautionNote.svelte";
   import ModelConnect from "./ModelConnect.svelte";
@@ -133,10 +133,14 @@
     const url=new URL(location.href);
     url.searchParams.set("monitor_asset",assetId);
     url.searchParams.set("model_binding",binding.bindingId);
-    if(selectedStep)url.searchParams.set("model_position",String(selectedStep.position));
+    if(selectedStep){
+      url.searchParams.set("model_position",String(selectedStep.position));
+      if(binding.stepKind==="acquisition-snapshot"){url.searchParams.set("vibration_at",String(selectedStep.position));url.searchParams.set("acquisition_binding",binding.bindingId);}
+    }
     else url.searchParams.delete("model_position");
     history.replaceState(history.state,"",url);
   }
+  $effect(()=>{if(result&&location.hash==="#selected-model-input")void tick().then(showSelectedInput);});
   async function loadBindings(){
     listRequest?.abort();traceRequest?.abort();resultRequest?.abort();
     const request=new AbortController();listRequest=request;
@@ -376,7 +380,7 @@
           </div>
           </details>
           {/if}
-          <details id="selected-model-input" tabindex="-1"><summary>선택 측정의 원본 데이터</summary>
+          <details id="selected-model-input" tabindex="-1" open={location.hash==="#selected-model-input"}><summary>선택 측정의 원본 데이터</summary>
             {#key result.runId}<ModelInput {binding} position={result.position} {place}/>{/key}
           </details>
           <details>

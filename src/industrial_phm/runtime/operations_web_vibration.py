@@ -8,6 +8,8 @@ interval only to reuse that judgement; every position is reported back as an acq
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
@@ -189,4 +191,14 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
                 "related": related,
             }
         )
+    for change in body["intervals"]:
+        identity = {
+            "asset_id": asset_id,
+            "source_id": binding.source_id,
+            "binding_id": binding.binding_id,
+            "change": change,
+        }
+        change["review_key"] = hashlib.sha256(
+            json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+        ).hexdigest()
     return body

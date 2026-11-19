@@ -19,6 +19,7 @@ from industrial_phm.runtime.operations_web_outlook_capture import (
     _digest,
 )
 from industrial_phm.runtime.operations_web_review import WebReviewConflict, review_decision
+from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 CHANGE_REVIEWS_ROUTE = "/api/v1/explore/change-reviews"
@@ -55,11 +56,25 @@ def capture_change(root: Path, payload: dict[str, object]) -> dict[str, Any]:
         return {"schema_version": 1, "asset_id": asset, "capture_id": identifier}
     found = record_findings(workspace, asset)
     selected = next((item for item in found["intervals"] if item["review_key"] == key), None)
+    change: dict[str, Any] = {"asset_id": asset, "finding": selected}
+    if selected is None:
+        vibration = acquisition_findings(workspace, asset)
+        selected = next(
+            (item for item in vibration["intervals"] if item["review_key"] == key), None
+        )
+        change = {
+            "asset_id": asset,
+            "kind": "vibration",
+            "finding": selected,
+            "source_id": vibration["source_id"],
+            "binding_id": vibration["binding_id"],
+            "period_seconds": vibration["period_seconds"],
+        }
     if selected is None:
         raise WebReviewConflict(
             "the change or its reference period changed; reload before reviewing"
         )
-    saved = store.save({"identity": identity, "change": {"asset_id": asset, "finding": selected}})
+    saved = store.save({"identity": identity, "change": change})
     return {"schema_version": 1, "asset_id": asset, **saved}
 
 

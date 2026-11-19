@@ -171,3 +171,15 @@ test("a focused entry chart retains its comparison and source while matching the
   assert.equal(change.trace.length,4);
   assert.equal(focusChange({...full,trace:[]}).trace?.length,0);
 });
+
+test("entry focus shows a transition and recovery nearby while keeping a distant gap out",()=>{
+  const full=parseRecordFindings(body(),"comp").intervals[0];
+  const at=(minute:number)=>new Date(Date.UTC(2020,9,24,0,minute)).toISOString();
+  const trace=[0,38,39,40,41,42,43,44,80].map((minute,i)=>({at:at(minute),value:minute>=40&&minute<=42?65:40,join:i>1&&minute!==80}));
+  const change={...full,start:at(40),end:at(42),bucketSeconds:60,trace};
+  const focused=focusChange(change);
+  assert.deepEqual(focused.trace,trace.slice(1,-1));
+  assert.equal(focused.trace?.[0].join,false);
+  assert.deepEqual(focusChange(focused),focused);
+  assert.equal(change.trace.length,9);
+});

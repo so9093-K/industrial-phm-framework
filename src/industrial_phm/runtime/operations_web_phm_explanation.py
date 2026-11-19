@@ -16,8 +16,13 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
+from industrial_phm.genai.change_answer import generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
+from industrial_phm.runtime.operations_web_vibration_context import (
+    investigation_facts,
+    selected_change,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MANAGERS: dict[Path, ExplanationManager] = {}
@@ -83,16 +88,32 @@ class ExplanationManager:
                 series=focus_series,
             )
         provider = configured_provider()
+        return self._enqueue(context, provider)
+
+    def request_change(
+        self, asset: str, change_id: str, question: str, parent_id: str | None
+    ) -> dict[str, object]:
+        context = selected_change(self.workspace, asset, change_id)
+        context["question"] = question
+        if parent_id is not None:
+            context["parent_id"] = parent_id
+            context["history"] = self._history(parent_id, context)
+        context["investigation"] = investigation_facts(self.workspace, context)
+        return self._enqueue(context, configured_provider())
+
+    def _enqueue(self, context: dict[str, Any], provider: ExplanationProvider) -> dict[str, object]:
         identifier = self.store.request(context, model=provider.model, owner=self.owner)
 
         def generate() -> None:
             try:
-                answer = generate_grounded_answer(context, provider)
+                answer = (
+                    generate_change_answer if context.get("change_id") else generate_grounded_answer
+                )(context, provider)
             except AnalysisExplanationError:
                 self.store.finish(identifier, owner=self.owner, error="AI explanation unavailable")
             else:
                 # Every reference in the answer was checked against the stored comparison.
-                text = (answer["summary"] + " " + answer["next_step"]).strip()
+                text = (answer["summary"] + " " + answer.get("next_step", "")).strip()
                 self.store.finish(identifier, owner=self.owner, text=text, answer=answer)
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
@@ -100,8 +121,9 @@ class ExplanationManager:
             "schema_version": 1,
             "explanation_id": identifier,
             "status": "pending",
-            "binding_id": binding_id,
-            "position": position,
+            "binding_id": context["binding_id"],
+            "position": context["position"],
+            **({"change_id": context["change_id"]} if context.get("change_id") else {}),
         }
 
     def _history(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
@@ -111,10 +133,12 @@ class ExplanationManager:
             parent["binding_id"],
             parent["position"],
             parent["context"]["signal_comparison"]["previous_position"],
+            parent["context"].get("change_id"),
         ) == (
             context["binding_id"],
             context["position"],
             context["signal_comparison"]["previous_position"],
+            context.get("change_id"),
         )
         if parent is None or not same or parent["status"] != "complete" or not parent["answer"]:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
@@ -135,6 +159,34 @@ def initialize_explanation_manager(root: Path) -> ExplanationManager:
 
 
 def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str, object]:
+    if "change_id" in payload:
+        if (
+            not {"asset_id", "change_id", "question"}
+            <= set(payload)
+            <= {"asset_id", "change_id", "question", "parent_id"}
+        ):
+            raise ValueError("unexpected change explanation fields")
+        if not all(isinstance(value, str) for value in payload.values()):
+            raise ValueError("invalid change question")
+        asset, key, change_question = (
+            str(payload["asset_id"]),
+            str(payload["change_id"]),
+            str(payload["question"]).strip(),
+        )
+        if (
+            not asset
+            or len(asset) > 512
+            or len(key) != 64
+            or any(c not in "0123456789abcdef" for c in key)
+            or not 1 <= len(change_question) <= 600
+        ):
+            raise ValueError("invalid selected change or question")
+        parent = payload.get("parent_id")
+        if parent is not None and len(str(parent)) > 128:
+            raise ValueError("invalid follow-up")
+        return initialize_explanation_manager(root).request_change(
+            asset, key, change_question, str(parent) if parent else None
+        )
     if not {"binding_id", "position"} <= set(payload) or set(payload) - {
         "binding_id",
         "position",

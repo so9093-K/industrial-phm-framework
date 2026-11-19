@@ -172,7 +172,7 @@
           <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
         </div>
         {#if worse}
-          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
+          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 실제 측정의 변화부터 보기 →</a>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
         {#if told && (limited || !worse)}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if limited}

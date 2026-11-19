@@ -32,6 +32,7 @@
     {id: "other", label: "OPC UA · 작업공간 CSV", note: "실시간 수집, 3상 역할 등록", hash: "#other-connect"},
   ];
   const wayOf = (hash: string): Way => hash === "#public-datasets" ? "public" : hash === "#opcua-connect" || hash === "#other-connect" ? "other" : "csv";
+  let csvSelected=$state(false);
   let way: Way = $state(wayOf(location.hash));
   function choose(next: Way) {
     way = next;
@@ -71,7 +72,7 @@
 </nav>
 
 {#if section === "connections"}
-  <section class="ui-panel ways" aria-labelledby="ways-title">
+  <section class="ui-panel ways" class:compact={way==="csv"&&csvSelected} aria-labelledby="ways-title">
     <h2 id="ways-title">데이터 가져오기</h2>
     <div class="way-list" role="group" aria-label="데이터를 가져오는 방법">
       {#each WAYS as item (item.id)}
@@ -80,7 +81,7 @@
       {/each}
     </div>
   </section>
-  <div hidden={way !== "csv"}><CsvStart {writable} onSaved={reload} /></div>
+  <div hidden={way !== "csv"}><CsvStart {writable} onSaved={reload} onFileSelected={selected=>csvSelected=selected} /></div>
   <div hidden={way !== "public"}><PublicDatasets {writable} onImported={reload} /></div>
   <div hidden={way !== "other"}><ConnectionRegistration {writable} onRegistered={reload} /></div>
   <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
@@ -94,6 +95,9 @@
     padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
   .sections a { padding: var(--space-2) var(--space-4); border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; font-weight: 650; }
   .sections a[aria-current="page"] { background: var(--color-surface-selected); color: var(--color-action); }
+  .ways.compact{padding-block:var(--space-2)}
+  .ways.compact h2,.ways.compact button span{display:none}
+  .ways.compact button{padding-block:var(--space-2);min-height:36px}
   .ways h2 { margin: 0 0 var(--space-3); }
   .way-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: var(--space-3); }
   .way-list button { display: grid; gap: var(--space-1); text-align: left; padding: var(--space-3) var(--space-4); min-height: 44px;

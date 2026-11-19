@@ -66,21 +66,59 @@ export function routeUrl(route: Route, channel: string | null = null): string {
 
 /** Resolve tab links when activated, after the child may have changed its URL selection.
  * The selected observations and periods follow; model settings and review identities do not. */
+const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind",
+  "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
+  "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
+  "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","acquisition_binding"];
+
+/** Remember a summary choice in the address without navigating or carrying a prior change's filters. */
+export function summarySelectionUrl(currentHref: string, selectionHref: string, key: string, kind: DataKind): string {
+  const current=new URL(currentHref), selection=new URL(selectionHref,current);
+  if(selection.origin!==current.origin||parseRoute(current.search).assetId!==parseRoute(selection.search).assetId)
+    throw new Error("같은 설비의 변화만 이어서 볼 수 있습니다.");
+  for(const name of OBSERVATION_PARAMS) current.searchParams.delete(name);
+  for(const name of OBSERVATION_PARAMS) if(selection.searchParams.has(name)) current.searchParams.set(name,selection.searchParams.get(name)!);
+  current.searchParams.set("summary_change",key);
+  current.searchParams.set("summary_kind",kind);
+  return current.pathname+current.search+current.hash;
+}
+
 export function tabSelectionUrl(href: string, currentHref: string): string {
   const current = new URL(currentHref), next = new URL(href, current);
   const from = parseRoute(current.search), to = parseRoute(next.search);
   if (next.origin !== current.origin) return next.href;
   if (to.page !== "assets" || from.page !== "assets"
     || !from.assetId || from.assetId !== to.assetId) return next.pathname + next.search + next.hash;
-  const channel = current.searchParams.get("monitor_channel");
-  if (channel) next.searchParams.set("monitor_channel", channel);
-  for(const key of ["record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin"])
+  for(const key of OBSERVATION_PARAMS)
     if(current.searchParams.has(key))next.searchParams.set(key,current.searchParams.get(key)!);
+  const selectedKind=to.data??from.data??current.searchParams.get("summary_kind");
+  if((selectedKind==="history"||selectedKind==="vibration")&&usesDataKind(to.tab,to.method)) {
+    next.searchParams.set("data",selectedKind);
+    if(current.searchParams.has("summary_kind"))next.searchParams.set("summary_kind",selectedKind);
+  }
+  // Feature comparison and relationship screens name the same acquisition periods differently.
+  if(from.tab==="change"&&(from.method===null||["compare","relation","spectrum"].includes(from.method))) {
+    const prefix=from.method==="relation"?"acq_":from.method==="spectrum"?"spectrum_":"feature_";
+    for(const span of ["a_from","a_to","b_from","b_to"])
+      if(current.searchParams.has(prefix+span))for(const target of ["feature_","acq_","spectrum_"])
+        next.searchParams.set(target+span,current.searchParams.get(prefix+span)!);
+  }
+  if(to.tab==="anomaly"&&from.tab==="signals"&&current.searchParams.has("vibration_at")) {
+    next.searchParams.set("model_position",current.searchParams.get("vibration_at")!);
+    const binding=current.searchParams.get("acquisition_binding");
+    if(binding)next.searchParams.set("model_binding",binding);
+  }
   const keys = {signals: "vibration_feature", change: "acquisition_feature", outlook: "acq_forecast_feature"};
   const sourceKey = keys[from.tab as keyof typeof keys], targetKey = keys[to.tab as keyof typeof keys];
-  const feature = (sourceKey ? current.searchParams.get(sourceKey) : null)
+  const feature = (from.tab==="change"&&from.method==="relation"?current.searchParams.get("acq_relation_x"):null)
+    ?? (sourceKey ? current.searchParams.get(sourceKey) : null)
     ?? Object.values(keys).map(key => current.searchParams.get(key)).find(value => value);
   if (feature) next.searchParams.set(targetKey ?? "vibration_feature", feature);
+  if(to.method==="relation"&&!(from.tab==="change"&&from.method==="relation")) {
+    const channel=current.searchParams.get("monitor_channel");
+    if(channel)next.searchParams.set("relation_x",channel);
+    if(feature)next.searchParams.set("acq_relation_x",feature);
+  }
   return next.pathname + next.search + next.hash;
 }
 

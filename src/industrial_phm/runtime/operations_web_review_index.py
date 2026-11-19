@@ -18,6 +18,7 @@ from industrial_phm.application.finding_review import (
     HUMAN_REVIEW_FINDING_SEMANTICS_ID,
     HUMAN_REVIEW_FINDING_STATE,
 )
+from industrial_phm.runtime.operations_web_change_review import ChangeReviewStore
 from industrial_phm.runtime.operations_web_outlook_capture import OutlookCaptureStore
 from industrial_phm.runtime.operations_web_review import PHM_REVIEW_FINDING_SEMANTICS_ID
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -53,6 +54,7 @@ def handle_review_asset_index(
             and item.state == HUMAN_REVIEW_FINDING_STATE
         }
         assets.update(OutlookCaptureStore(workspace.outlook_capture_path).review_asset_ids())
+        assets.update(ChangeReviewStore(workspace.change_review_path).review_asset_ids())
     except ValueError, OSError, sqlite3.Error:
         return HTTPStatus.SERVICE_UNAVAILABLE, {"error": "review_asset_index_unavailable"}
     ordered = sorted(assets)

@@ -12,6 +12,8 @@
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
   import OutlookReviewDetail from "./OutlookReviewDetail.svelte";
+  import ChangeCaptureDetail from "./ChangeCaptureDetail.svelte";
+  import {readChangeReviews,changeCaptureUrl,type ChangeCapture} from "../change-reviews";
 
   type Props = {
     snapshot: Snapshot | null; writable: boolean;
@@ -20,14 +22,16 @@
   let {snapshot, writable, focusAssetId, focusCaptureId, focusFindingId}: Props = $props();
   type Status = "open" | "acknowledged" | "closed";
   type Item =
+    | {kind:"change";key:string;assetId:string;status:Status;at:string;title:string;label:string;href:string;change:ChangeCapture}
     | {kind: "outlook"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string; capture: Capture}
     | {kind: "analysis"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string;
       review: FindingReview; linked: Evidence[] | null};
   const STATUS: Record<Status, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
   // What the item was last judged to need, shown beside its status.
-  const judged = (item: Item) => latestDecision(item.kind === "outlook" ? item.capture.review.events : item.review.events);
+  const judged = (item: Item) => latestDecision(item.kind === "outlook" ? item.capture.review.events : item.kind==="change"?item.change.review.events:item.review.events);
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
   let captures: Capture[] = $state([]);
+  let changes:ChangeCapture[]=$state([]),changeCursors:Record<string,string>=$state({});
   // Display names of the captured series, looked up once each; the ID shows until then.
   let seriesNames: Record<string, string> = $state({});
   $effect(() => {
@@ -50,6 +54,7 @@
   let captureCursors: Record<string, string> = $state({});
   let loadingMore = $state(false);
   let historyProblem = $state("");
+  let historyKind:"outlook"|"change"=$state("outlook");
   let hiddenFindings = $state(false);
   let loadedAssets = $state(0);
   let partialAssetScope = $state(false);
@@ -60,7 +65,7 @@
   let assetIndexRevision: string | null = $state(null);
   // A direct link opens with every status so its subject is visible; later links keep the filter.
   let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
-  let typeFilter: "all" | "analysis" | "outlook" = $state("all");
+  let typeFilter: "all" | "analysis" | "outlook" | "change" = $state("all");
   // The item someone just acted on stays open even when its new status leaves the filter.
   let keptKey: string | null = $state(null);
 
@@ -97,7 +102,11 @@
       label: "저장한 전망",
       href: captureUrl(capture.outlook.assetId, capture.id), capture,
     }));
-    return [...analysis, ...outlooks].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    const changed:Item[]=changes.map(change=>({kind:"change",key:"capture:"+change.id,assetId:change.assetId,
+      status:change.review.status,at:change.review.events.at(-1)?.recordedAt??change.capturedAt,
+      title:assetLabel(snapshot?.assets??[],change.assetId)+" · "+change.finding.label,
+      label:"저장한 주요 변화",href:changeCaptureUrl(change.assetId,change.id),change}));
+    return [...analysis, ...outlooks,...changed].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   });
   const counts = $derived({
     open: items.filter((item) => item.status === "open").length,
@@ -137,7 +146,7 @@
     if (loadingMore) return;
     const [assetId, before] = Object.entries(captureCursors)[0] ?? [];
     if (!assetId || !before) return;
-    loadingMore = true; historyProblem = "";
+    loadingMore = true; historyProblem = "";historyKind="outlook";
     const request = new AbortController(); olderRequest = request;
     try {
       const page = await readCaptures(assetId, {before}, request.signal);
@@ -147,7 +156,7 @@
       if (page.nextBefore) next[assetId] = page.nextBefore;
       else delete next[assetId];
       captureCursors = next;
-      moreAvailable = hiddenFindings || Object.keys(next).length > 0;
+      moreAvailable = hiddenFindings || Object.keys(next).length > 0 || Object.keys(changeCursors).length>0;
     } catch {
       if (!request.signal.aborted) historyProblem = "이전 전망을 읽지 못했습니다. 현재 목록은 그대로 유지됩니다.";
     } finally {
@@ -156,6 +165,16 @@
   }
 
   let scopeRequest: AbortController | null = null;
+  async function loadOlderChanges(){
+    const [asset,before]=Object.entries(changeCursors)[0]??[];if(loadingMore||!asset||!before)return;
+    const request=new AbortController();olderRequest=request;loadingMore=true;historyProblem="";historyKind="change";
+    try{const page=await readChangeReviews(asset,request.signal,{before_id:before});if(request.signal.aborted)return;
+      changes=[...changes,...page.captures.filter(row=>!changes.some(old=>old.id===row.id))];
+      const next={...changeCursors};if(page.next)next[asset]=page.next;else delete next[asset];changeCursors=next;
+      moreAvailable=hiddenFindings||Object.keys(captureCursors).length>0||Object.keys(next).length>0;
+    }catch{if(!request.signal.aborted)historyProblem="이전 주요 변화 검토를 읽지 못했습니다.";}
+    finally{if(!request.signal.aborted)loadingMore=false;}
+  }
 
   async function loadAssetReviews(assets: string[], request: AbortController): Promise<void> {
     const failed = (assetId: string) => {
@@ -163,7 +182,7 @@
         failedAssets = [...failedAssets, assetId];
     };
     const pages = await Promise.all(assets.map(async (assetId) => {
-      const [outlooks, reviews] = await Promise.all([
+      const [outlooks, reviews, changed] = await Promise.all([
         readCaptures(assetId, {}, request.signal).then((page) => {
           if (page.nextBefore) {
             moreAvailable = true;
@@ -178,13 +197,17 @@
           }
           return page.items;
         }).catch(() => { failed(assetId); return []; }),
+        readChangeReviews(assetId,request.signal).then(page=>{
+          if(page.next){moreAvailable=true;changeCursors={...changeCursors,[assetId]:page.next};}
+          return page.captures;
+        }).catch(()=>{failed(assetId);return [];}),
       ]);
-      return {outlooks, reviews};
+      return {outlooks, reviews, changed};
     }));
     if (request.signal.aborted) return;
     const loaded = pages.flatMap((page) => page.outlooks);
     // Direct capture links are exact, even if the capture precedes the first page.
-    if (focusCaptureId && focusAssetId && !loaded.some((item) =>
+    if (focusCaptureId && !focusCaptureId.startsWith("change-review-") && focusAssetId && !loaded.some((item) =>
       item.id === focusCaptureId && item.outlook.assetId === focusAssetId)) {
       try {
         loaded.push(...(await readCaptures(focusAssetId, {captureId: focusCaptureId}, request.signal)).captures);
@@ -194,6 +217,13 @@
       }
     }
     if (request.signal.aborted) return;
+    const loadedChanges=pages.flatMap(page=>page.changed);
+    if(focusCaptureId?.startsWith("change-review-")&&focusAssetId&&!loadedChanges.some(row=>row.id===focusCaptureId)){
+      try{loadedChanges.push(...(await readChangeReviews(focusAssetId,request.signal,{capture_id:focusCaptureId})).captures);}
+      catch{failed(focusAssetId);}
+    }
+    if(request.signal.aborted)return;
+    changes=[...changes,...loadedChanges.filter(row=>!changes.some(old=>old.id===row.id))];
     // Exact bookmarks bypass the recent 100-finding list, just like captures.
     const foundReviews = pages.flatMap((page) => page.reviews);
     if (focusFindingId && focusAssetId && !foundReviews.some((item) => item.findingId === focusFindingId)) {
@@ -300,7 +330,7 @@
     </div>
     <label class="type">종류
       <select value={typeFilter} onchange={(event) => { typeFilter = event.currentTarget.value as typeof typeFilter; keptKey = null; ignoreFocus = true; }}>
-        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="outlook">저장한 전망</option>
+        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="change">주요 변화</option><option value="outlook">저장한 전망</option>
       </select>
     </label>
     {#if loadState === "loading"}
@@ -313,7 +343,7 @@
       {#if partialCounts}
         <p class="context">{focusAssetId ? "선택한 설비 1곳" : "설비 " + loadedAssets + "곳"}의 검토 기록을 불러왔습니다.
           {#if partialAssetScope || hiddenFindings || moreAvailable}
-            전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망은 한 번에 20건씩 읽습니다.
+            전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망과 주요 변화는 한 번에 20건씩 읽습니다.
           {:else} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
           {/if}
         </p>
@@ -341,7 +371,8 @@
           {loadingMore ? "이전 전망 불러오는 중" : "이전 전망 더 보기"}
         </button>
       {/if}
-      {#if historyProblem}<StatusNotice kind="uncertain" message={historyProblem} actionLabel="다시 불러오기" onAction={() => void loadOlderCaptures()} />{/if}
+      {#if Object.keys(changeCursors).length}<button type="button" class="ui-button" disabled={loadingMore} onclick={()=>void loadOlderChanges()}>{loadingMore?"이전 주요 변화 불러오는 중":"이전 주요 변화 더 보기"}</button>{/if}
+      {#if historyProblem}<StatusNotice kind="uncertain" message={historyProblem} actionLabel="다시 불러오기" onAction={() => void(historyKind==="change"?loadOlderChanges():loadOlderCaptures())} />{/if}
     {/if}
   </section>
 
@@ -358,6 +389,9 @@
         actionLabel="다시 불러오기" onAction={() => location.reload()} />
     {:else if !selected}
       <p class="context">목록에서 검토 항목을 고르세요.</p>
+    {:else if selected.kind === "change"}
+      {#key selected.change.id}<ChangeCaptureDetail assetId={selected.assetId} capture={selected.change}
+        onUpdated={updated=>{changes=changes.map(row=>row.id===updated.id?updated:row);keptKey="capture:"+updated.id;statusFilter="all";}}/>{/key}
     {:else if selected.kind === "outlook"}
       {#key selected.capture.id}
         <OutlookReviewDetail capture={selected.capture} {writable} onUpdated={replaceCapture} />

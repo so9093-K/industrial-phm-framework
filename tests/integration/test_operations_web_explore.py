@@ -1135,6 +1135,9 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         main = row["main"]
         assert main["label"] == "전류" and main["unit"] == "A" and main["axis"] == "time"
         assert main["latest"]["value"] == pytest.approx(9.4)
+        # 마지막 저장값은 대표 신호(전류)가 아니라 변화한 신호(역률)의 값으로 읽는다.
+        assert row["finding"]["latest"]["value"] == pytest.approx(0.515)
+        assert row["finding"]["latest"]["at"] is not None
         assert 0 < len(main["trace"]) <= 48
         assert len(main["trace_join"]) == len(main["trace"]) and not main["trace_join"][0]
         status, row = get("/api/v1/explore/overview", asset_id="bearing-a")
@@ -1151,6 +1154,8 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
             row["vibration_interval"]["trace"]
         )
         assert row["main"]["unit"] == "g" and row["main"]["latest"]["position"] == 30
+        assert row["finding"]["latest"]["position"] == 30
+        assert row["finding"]["latest"]["at"] is None
         status, empty = get("/api/v1/explore/overview", asset_id="unknown")
         assert status == 200 and empty["kind"] is None and empty["finding"] is None
     finally:

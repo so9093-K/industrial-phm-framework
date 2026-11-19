@@ -64,6 +64,7 @@ PHM_READ_ROUTES = frozenset(
         "/api/v1/phm/snapshot",
         "/api/v1/phm/window",
         "/api/v1/phm/explanations",
+        "/api/v1/phm/change-explanations",
         "/api/v1/phm/review",
         "/api/v1/phm/operation",
     }
@@ -91,6 +92,20 @@ def handle_phm_read(
             )
         if path == "/api/v1/phm/models":
             return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
+        if path == "/api/v1/phm/change-explanations":
+            from industrial_phm.runtime.operations_web_vibration_context import selected_change
+
+            asset, key = _required_id(params, "asset_id"), _required_id(params, "change_id")
+            selected = selected_change(workspace, asset, key)
+            records = PhmExplanationStore(workspace.phm_explanation_path).list_for(
+                selected["binding_id"], selected["position"], change_id=key
+            )
+            return HTTPStatus.OK, {
+                "schema_version": 1,
+                "asset_id": asset,
+                "change_id": key,
+                "explanations": records,
+            }
         binding_id = _required_id(params, "binding_id")
         if path in {"/api/v1/phm/comparison", "/api/v1/phm/explanations"}:
             owner = next((b for b in store.list_bindings() if b.binding_id == binding_id), None)

@@ -6,6 +6,8 @@ import {readDepartures} from "./monitor-attention.ts";
 import type {RecordContext} from "./record-context.ts";
 import type {Periods} from "./comparison.ts";
 import type {SourceFocus} from "./signal-selection.ts";
+import {readVibrationFindings, type VibrationFindings} from "./vibration-findings.ts";
+import type {Spans} from "./spectrum.ts";
 
 export type SummarySignal = {channel: string; context: RecordContext | null};
 /** Long enough for an asset's summary to be computed the first time; a summary already computed
@@ -100,4 +102,23 @@ export async function defaultSignal(assetId: string, ids: string[], signal: Abor
 
 export async function defaultChannel(assetId: string, ids: string[], signal: AbortSignal, waitMs = SUMMARY_WAIT_MS): Promise<string> {
   return (await defaultSignal(assetId, ids, signal, waitMs)).channel;
+}
+
+/** 진동 탭이 상태 요약의 대표 변화를 그대로 이어받았을 때 함께 보여 주는 문장. */
+export const VIBRATION_SUMMARY_NOTE = "상태 요약의 대표 변화와 같은 기준입니다. 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다.";
+
+/** 진동 탭을 바로 열었을 때의 기본값: 상태 요약이 앞세우는 진동 변화와 같은 특징과 기간(판단에 쓴
+ * 기록 처음 30%를 A, 변화 구간을 B), 그리고 같은 측정에서 함께 달라진 특징 하나. 다른 모델 연결의
+ * 기록이거나 이 화면이 그 특징을 다룰 수 없으면 null이고, 화면은 자기 기본값을 쓴다. */
+export function vibrationDefault(found: VibrationFindings, bindingId: string, features: string[]):
+  {feature: string; related: string | null; spans: Spans} | null {
+  const first = found.intervals[0];
+  if (!first || found.bindingId !== bindingId || !features.includes(first.feature)) return null;
+  const related = first.related.find(row => row.feature !== first.feature && features.includes(row.feature))?.feature ?? null;
+  return {feature: first.feature, related, spans: {a: {from: first.baseline.from, to: first.baseline.to}, b: {from: first.from, to: first.to}}};
+}
+
+/** The asset's vibration summary, or null when it is not ready within the wait or cannot be read. */
+export function readVibrationSummary(assetId: string, signal: AbortSignal, waitMs = SUMMARY_WAIT_MS): Promise<VibrationFindings | null> {
+  return readVibrationFindings(assetId, AbortSignal.any([signal, AbortSignal.timeout(waitMs)])).catch(() => null);
 }
