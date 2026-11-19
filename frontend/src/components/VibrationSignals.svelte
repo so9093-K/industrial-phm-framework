@@ -5,10 +5,10 @@
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
   import {elapsedText, measurementScale, measurementLabel} from "../time-axis";
-  import {assetTabUrl} from "../routes";
   import {loadAcquisitionOptions, type AcquisitionOptions} from "../acquisition-outlook";
   import {readAcquisitionTrend, trendChart, type AcquisitionTrend} from "../acquisition-trend";
   import StatusNotice from "./StatusNotice.svelte";
+  import {plainLabel} from "../change-story";
   import {measurementLinks} from "../measurement-links";
 
   /** A vibration asset's measurements: one feature of each stored waveform, in acquisition order.
@@ -49,11 +49,6 @@
     history.replaceState(history.state, "", url);
   }
 
-  function link(tab: "change" | "outlook", key: string): string {
-    const url = new URL(assetTabUrl(assetId, tab, tab === "change" ? "compare" : null, "vibration"), location.origin);
-    url.searchParams.set(key, feature);
-    return url.pathname + url.search;
-  }
   async function load() {
     request?.abort();
     const pending = new AbortController(); request = pending;
@@ -65,6 +60,7 @@
       const value = await readAcquisitionTrend(assetId, feature, pending.signal);
       if (!pending.signal.aborted) {
         trend = value; trendState = "ready";
+        if(chosen===null){const at=selectedPosition??value.points.at(-1)?.ordinal;if(at!=null&&options&&at>=options.first&&at<=options.last)choose(at);}
         const current=new URL(location.href);
         if(value.bindingId)current.searchParams.set("acquisition_binding",value.bindingId);
         history.replaceState(history.state,"",current);
@@ -97,15 +93,11 @@
   {:else}
     <div class="analysis-workspace signal-workspace"><div class="signal-toolbar" aria-label="특징 선택과 이어서 보기">
 
-    <label class="field">진동 특징
+    <label class="field">진동 신호
       <select value={feature} onchange={(event) => { feature = event.currentTarget.value; void load(); }}>
         {#each options.features as item (item.id)}<option value={item.id}>{item.label}</option>{/each}
       </select>
     </label>
-    <p class="links">이 특징으로 이어서 보기
-      <a href={link("change", "acquisition_feature")}>두 기간 비교 →</a>
-      <a href={link("outlook", "acq_forecast_feature")}>기준 도달 전망 →</a>
-      <a href={assetTabUrl(assetId, "anomaly", "model")}>측정별 원본 파형·모델 점수 →</a></p>
     <p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회{options.recordedPeriod === null ? "" : " · 기록된 측정 간격 " + elapsedText(options.recordedPeriod)}</p>
     </div>
     <div class="analysis-body">
@@ -114,11 +106,11 @@
     {:else if trendState === "failed" || !trend}
       <StatusNotice kind="uncertain" message="고른 특징의 기록을 불러오지 못했습니다. 다른 특징을 고르거나 다시 열어 주세요." />
     {:else}
-      <h3 class="series-title">{trend.label}</h3>
-      {#if latest}<p class="headline">최근 {measurementLabel(latest.ordinal,trend.periodSeconds)} · <strong>{measure(latest.value, trend.unit)}</strong></p>{/if}
+      <h3 class="series-title">{plainLabel(trend.label,feature)}</h3>
       {#if chart}
         {@const period = trend.periodSeconds}
         {@const axisNote = chart.first + "~" + chart.last + "번째 측정" + (period ? " · 기록 시작 후 경과 시간 · 측정 간격 " + elapsedText(period) : "")}
+        <div class="signal-reading" class:has-selection={chosen!==null}><div>
         <figure class="chart">
           <p class="axis-note">최고 {measure(chart.high, trend.unit)} · 최저 {measure(chart.low, trend.unit)}{trend.sampled ? " · 측정이 많아 고르게 " + trend.points.length + "개를 그림" : ""}</p>
           <ValueAxis ticks={chart.ticks} height={chart.height} unit={trend.unit}>
@@ -144,18 +136,20 @@
             value={Math.max(0, chart.marks.findIndex((mark) => mark.ordinal === chosen))}
             oninput={(event) => choose(chart.marks[Number(event.currentTarget.value)].ordinal)} />
         </label>
-        <p class="context">그래프를 누르거나 막대를 움직이면 그 측정을 고릅니다. 같은 측정의 파형·모델 점수·주파수로 바로 이동할 수 있습니다.</p>
+        </div>
         {#if chosen !== null && options}
-          <section class="pick" aria-label="선택한 측정">
-            <h3>{measurementLabel(chosen, period)}</h3>
-            <p>{trend.label} {chosenPoint ? measure(chosenPoint.value, trend.unit) : "· 그래프에 그린 측정 중에는 없음"}</p>
+          <aside class="reading-inspector"><section class="pick" aria-label="선택한 측정">
+            <h3 title={measurementLabel(chosen,period)}>{chosen}번째 측정</h3>
+            <p class="reading-value">{chosenPoint ? measure(chosenPoint.value, trend.unit) : "값은 원본에서 확인"}</p>
+            {#if latest}<p class="context">마지막 저장 · {latest.ordinal}번째 · {measure(latest.value,trend.unit)}</p>{/if}
             <p class="pick-links">
               {#each measurementLinks(assetId, chosen, {first: options.first, last: options.last, feature, bindingId: trend.bindingId}, "trend") as item (item.key)}
                 <a href={item.href}>{item.label} →</a>
               {/each}
             </p>
-          </section>
+          </section></aside>
         {/if}
+        </div>
       {/if}
     {/if}
     </div></div>
@@ -165,17 +159,14 @@
 <style>
   .signal-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
   .signal-toolbar{grid-column:1;grid-row:1;display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-5)}
-  .signal-toolbar .field{min-width:240px;margin:0}.signal-toolbar .links{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:0;font-size:var(--font-small)}
-  .signal-toolbar>.context{flex-basis:100%;font-size:var(--font-small);margin:0}
+  .signal-toolbar .field{min-width:240px;margin:0}
+  .signal-toolbar>.context{font-size:var(--font-small);margin:0}
 
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .field { display: grid; gap: var(--space-2); font-weight: 650; font-size: var(--font-small); margin-block: 0 var(--space-3); }
   .series-title { margin: 0; font-size: var(--font-section); }
   select { width: 100%; min-width: 0; padding: var(--space-3); border: 1px solid var(--color-border);
     border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); }
-  .links { display: grid; gap: var(--space-2); align-items: baseline;
-    color: var(--color-ink-muted); font-size: var(--font-small); }
-  .headline { font-size: var(--font-section); margin: var(--space-1) 0 0; }
   .chart { margin: var(--space-3) 0 0; min-width: 0; }
   .chart svg { display: block; width: 100%; height: 220px;  }
   .chart path { vector-effect: non-scaling-stroke; }
@@ -189,9 +180,12 @@
   .dot { stroke: var(--color-focus); stroke-width: 10; stroke-linecap: round; vector-effect: non-scaling-stroke; }
   .scrub { display: grid; gap: var(--space-1); font-size: var(--font-small); margin-top: var(--space-3); }
   .scrub input { width: 100%; }
-  .pick { margin-top: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
-    border-left: 4px solid var(--color-focus); border-radius: var(--radius-control); display: grid; gap: var(--space-1); }
+  .pick { display:grid; gap:var(--space-2); }
   .pick h3 { margin: 0; font-size: var(--font-body); }
   .pick p { margin: 0; overflow-wrap: anywhere; }
-  .pick-links { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+  .pick-links { display:grid; gap:var(--space-3); font-size:var(--font-small); }
+
+  .signal-reading{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-5);align-items:start}.signal-reading.has-selection{grid-template-columns:minmax(0,1fr) 260px}.signal-reading>div{min-width:0}
+  .reading-inspector{border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}.reading-value{font-size:var(--font-result);font-weight:700}
+  @media(max-width:1000px){.signal-reading.has-selection{grid-template-columns:minmax(0,1fr)}.reading-inspector{border-left:0;border-top:1px solid var(--color-border);padding:var(--space-3) 0 0}}
 </style>
