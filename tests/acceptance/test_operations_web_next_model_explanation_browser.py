@@ -312,6 +312,24 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                 assert record["context"]["signal_comparison"]["previous_position"] == 1
                 explanation.get_by_role("button", name="질문 기준 지점 해제").click()
                 assert explanation.get_by_text("답변 기준 지점 · 4번째 측정").count() == 0
+                # An unsubmitted question survives closing the optional explanation.
+                draft = explanation.get_by_label("AI에게 물을 질문 (최대 600자)")
+                draft.fill("다음에 비교할 특징은 무엇인가요?")
+                explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
+                explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
+                pw.expect(draft).to_have_value("다음에 비교할 특징은 무엇인가요?")
+                # Going to another analysis and returning preserves both compared results.
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                tabs.get_by_role("link", name="이상 징후", exact=True).click()
+                selected = parse_qs(urlsplit(page.url).query)
+                assert selected["model_binding"] == ["anomaly-a"]
+                assert selected["model_position"] == ["8"]
+                assert selected["model_compare"] == ["1"]
+                pw.expect(explanation.get_by_label("비교할 이전 측정")).to_have_value("1")
+                explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
+                explanation.get_by_text("직접 질문하기", exact=True).click()
+                pw.expect(draft).to_have_value("다음에 비교할 특징은 무엇인가요?")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
             finally:
                 browser.close()

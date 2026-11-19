@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
@@ -15,6 +16,35 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 def number(value: float) -> str:
     return f"{float(f'{value:.3g}'):,.12f}".rstrip("0").rstrip(".")
+
+
+def _model_input(workspace: OperationsWorkspace, package_id: str) -> str:
+    """Describe the actual input contract, without treating it as a cause of disagreement."""
+    try:
+        if "/" in package_id or package_id.startswith("."):
+            raise ValueError("invalid package")
+        package = json.loads((workspace.models_path / package_id / "package.json").read_text())
+        inputs = package["input"]
+        sequence = inputs.get("sequence_length", 1)
+        features = inputs["feature_names"]
+        if (
+            not isinstance(sequence, int)
+            or isinstance(sequence, bool)
+            or sequence < 1
+            or not isinstance(features, list)
+            or not features
+        ):
+            raise ValueError("unknown model input")
+        scope = f"연속 {sequence}회 측정의 특징 흐름" if sequence > 1 else "각 측정의 특징 조합"
+        method = {
+            "lstm-autoencoder-v1": "을 재구성한 오차를 자체 기준값과 비교합니다.",
+            "isolation-forest-refit-v1": (
+                "이 학습 분포에서 얼마나 드문지를 자체 기준값과 비교합니다."
+            ),
+        }.get(package.get("estimator_kind"), "을 자체 모델 기준으로 분석합니다.")
+        return f"측정마다 {len(features)}개 특징을 사용하며, {scope}{method}"
+    except OSError, ValueError, KeyError, TypeError, AttributeError:
+        return "모델의 입력 구성을 읽지 못해 어떤 입력 차이가 있는지 확인하지 못했습니다."
 
 
 def selected_change(workspace: OperationsWorkspace, asset: str, key: str) -> dict[str, Any]:
@@ -165,4 +195,10 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             + ("전체가 아닌 표본입니다. " if len(results) < total else "")
             + "다른 모델과 척도·입력 범위가 다를 수 있어 이 횟수를 고장 확률로 해석하지 않습니다."
         )
+        facts[f"model_input_{index}"] = name + ": " + _model_input(workspace, model.package_id)
+    facts["model_limits"] = (
+        "입력 구성과 기준 초과 횟수의 차이는 확인된 사실입니다. "
+        "그러나 이 정보만으로 이번 판단 차이를 유발한 특징이나 원인을 확정하지는 못합니다. "
+        "기준 초과 횟수가 적은 모델이 있다고 측정값의 변화를 없었던 것으로 해석하지 않습니다."
+    )
     return {"facts": facts, "actions": actions}

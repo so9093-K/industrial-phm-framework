@@ -52,11 +52,15 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "중앙값" in facts["facts"]["feature_0"] and "g" in facts["facts"]["feature_0"]
     assert "회 중" in facts["facts"]["persistence"]
     assert "flow" in facts["facts"] and "spectrum_0" in facts["facts"]
+    assert "16개 특징" in facts["facts"]["model_input_0"]
+    assert "각 측정의 특징 조합" in facts["facts"]["model_input_0"]
+    assert "원인을 확정하지는 못합니다" in facts["facts"]["model_limits"]
     assert set(facts["actions"]) == {"compare", "model", "spectrum", "onset"}
     question = "변화 구간의 시작과 지속 범위를 설명해 주세요."
     model = ScriptedModel(
         {
             "summary": "기준보다 높은 진동이 구간 안에서 이어집니다.",
+            "next_step": "주파수 비교에서 어떤 대역의 에너지 비중이 커졌는지 확인하세요.",
             "actions": ["spectrum", "compare"],
         }
     )
@@ -81,6 +85,7 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         time.sleep(0.01)
     assert record and record["status"] == "complete"
     assert record["answer"]["source"] == "model"
+    assert "에너지 비중" in record["answer"]["next_step"]
     sent = json.loads(model.requests[0][1]["content"])
     assert sent["question"] == question and sent["facts"] == facts["facts"]
     assert "primary" not in sent  # No compulsory model-score-first answer.
@@ -137,10 +142,17 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "원본 파형" in missing["facts"]["spectrum"]
 
 
+@pytest.mark.parametrize("invented_field", ["summary", "next_step"])
 def test_change_answer_retries_invented_numbers_and_uses_computed_fallback(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, invented_field: str
 ) -> None:
-    bad = ScriptedModel({"summary": "999배 증가했습니다.", "actions": ["spectrum"]})
+    reply = {
+        "summary": "높은 진동이 이어졌습니다.",
+        "next_step": "두 기간의 주파수 분포를 비교하세요.",
+        "actions": ["spectrum"],
+    }
+    reply[invented_field] = "999배 증가했습니다."
+    bad = ScriptedModel(reply)
     monkeypatch.setattr(change_answer, "complete_json", bad)
     context = {
         "question": "일시적일까?",

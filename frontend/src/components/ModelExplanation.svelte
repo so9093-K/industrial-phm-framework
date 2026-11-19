@@ -1,5 +1,6 @@
 <script lang="ts">
-  import {onMount} from "svelte";
+  import {onDestroy,onMount,untrack} from "svelte";
+  import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {num} from "../format";
   import {scoreSummary, type ModelBinding, type ModelRun} from "../model-evidence";
   import {
@@ -39,6 +40,15 @@
   let timer: ReturnType<typeof setTimeout> | null = null;
   // Poll for up to six minutes: a local-model response can take over one minute.
   let remaining = 240;
+  let previousScope="";
+  $effect(()=>{
+    const scope=JSON.stringify([binding.assetId,binding.bindingId,run.runId,compare,focus?.position??null,focus?.series??null]);
+    untrack(()=>{
+      if(previousScope)keepQuestionDraft(previousScope,question);
+      question=questionDraft(scope);previousScope=scope;
+    });
+  });
+  onDestroy(()=>{if(previousScope)keepQuestionDraft(previousScope,question);});
 
   const RELATION: Record<Relation, string> = {increased: "증가", decreased: "감소", unchanged: "거의 같음"};
   const SOURCE = {"model": "AI 해설 · 근거 확인됨", "model-trimmed": "AI 해설 · 근거 없는 문장 제외",

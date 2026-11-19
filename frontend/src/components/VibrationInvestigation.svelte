@@ -1,16 +1,20 @@
 <script lang="ts">
+  import {onDestroy,untrack} from "svelte";
+  import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {askChange,readChangeDiscussion,changeActionLinks,type ChangeDiscussion} from "../change-investigation";
   import type {VibrationChange} from "../vibration-findings";
   import {readPermission} from "../outlook-briefings";
   let {assetId,change,onMemo,active=true,bindingId=null}:{assetId:string;change:VibrationChange;onMemo:(text:string)=>void;active?:boolean;bindingId?:string|null}=$props();
   const questions=["진동 크기와 주파수 변화를 종합하면 무엇을 알 수 있고, 무엇은 더 확인해야 하나요?","두 모델의 결과가 다를 때 이 변화는 어떻게 해석해야 하나요?"];
-  let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
+  const draftScope=untrack(()=>"change:"+assetId+":"+change.reviewKey);
+  let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
+  onDestroy(()=>keepQuestionDraft(draftScope,question));
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
   let request:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
   const latest=$derived(records[0]??null);
   const waiting=$derived(busy||latest?.status==="pending");
   const next=$derived(latest?.answer?changeActionLinks(assetId,change,bindingId,latest.answer.actions):[]);
-  const memo=$derived(latest?.answer ? change.label+" · 기준 "+change.baseline.from+"~"+change.baseline.to+"회, 변화 "+change.from+"~"+change.to+"회\n"+latest.answer.summary : "");
+  const memo=$derived(latest?.answer ? change.label+" · 기준 "+change.baseline.from+"~"+change.baseline.to+"회, 변화 "+change.from+"~"+change.to+"회\n"+latest.answer.summary+(latest.answer.next_step?"\n다음에 볼 것 · "+latest.answer.next_step:"") : "");
   function cancel(){request?.abort();if(timer!==null)clearTimeout(timer);timer=null;}
   async function refresh(){
     if(!active)return;
@@ -44,6 +48,7 @@
   {:else if latest?.status==="complete"&&latest.answer}
     <p class="question">질문 · {latest.question}</p>
     <p class="answer">{latest.answer.summary}</p>
+    {#if latest.answer.next_step}<p class="next-step"><strong>다음에 볼 것</strong> · {latest.answer.next_step}</p>{/if}
     <p class="by">{latest.answer.source==="model"?"계산된 근거만 사용한 AI 해설":"AI 해설 실패 · 계산된 요약"}</p>
     {#if next.length}<div class="next" aria-label="질문에 이어서 살펴볼 분석">{#each next as item(item.key)}<a class="ui-button" href={item.href}>{item.label} →</a>{/each}</div>{/if}
     <button type="button" class="ui-button memo" onclick={()=>onMemo(memo)}>판단 메모에 넣기</button>

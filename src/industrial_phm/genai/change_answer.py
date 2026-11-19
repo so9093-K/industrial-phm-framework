@@ -21,13 +21,20 @@ ACTION_LABELS = {
 
 INSTRUCTIONS = (
     "당신은 사용자가 선택한 진동 변화를 함께 조사하는 분석 도우미입니다. "
-    "question의 답부터 한국어로 2~4문장으로 쓰세요. 모델 점수를 의무적으로 먼저 설명하지 마세요. "
+    "summary는 question의 답부터 한국어로 2~4문장으로 쓰세요. "
+    "모델 점수를 의무적으로 먼저 설명하지 마세요. "
+    "모델에 대한 질문이 아니라면 모델의 초과 횟수나 입력 차이를 끼워 넣지 마세요. "
     "facts는 선택한 현상과 같은 A/B 구간으로 이미 계산한 특징·지속 여부·주파수 비교입니다. "
     "언제부터인지 물으면 subject의 주요 변화 구간을 중심으로 답하세요. "
     "다른 특징의 시점과 섞지 마세요. "
     "얼마나 이어졌는지 물으면 persistence와 flow를, "
     "어떤 성분이 달라졌는지 물으면 spectrum을 함께 읽어 "
     "그 결과들이 무엇을 말하는지 연결하세요. 숫자 나열로 답을 대신하지 마세요. "
+    "두 모델의 판단 이유를 물으면 model_input의 실제 입력 차이와 model의 반응을 함께 설명하되, "
+    "구조나 척도가 다르다는 사실을 이번 판단 차이의 확정 원인으로 바꾸지 마세요. "
+    "입력 차이 뒤에 '때문입니다'라고 붙이지 말고, 확인된 입력 차이와 "
+    "아직 이번 판단 차이의 원인을 확인하지 못했다는 사실을 나란히 설명하세요. "
+    "이번 기록으로 확인한 현상과 아직 확인하지 못한 이유를 분명하게 구분하세요. "
     "'지속적', '일시적' 같은 꼬리표 대신 "
     "몇 번째 측정부터 몇 번째까지, 몇 회 중 몇 회였는지로 답하세요. "
     "저장된 과거 기록이므로 '지속되고 있습니다'처럼 지금도 그렇다는 현재형으로 쓰지 마세요. "
@@ -40,6 +47,10 @@ INSTRUCTIONS = (
     "필요한 부분을 구분하세요. 자료에 없는 고장 원인을 확정하거나 "
     "정비·설비 제어를 지시하지 마세요. "
     "다음 확인은 available_actions 중 질문을 좁히는 1~2개를 선택하세요. "
+    "next_step은 선택한 후속 분석에서 무엇을 비교하면 "
+    "질문을 더 좁힐 수 있는지 구체적인 한 문장으로 쓰세요. "
+    "'추가 분석이 필요합니다'만 쓰지 말고 비교할 대상과 알아볼 것을 함께 말하세요. "
+    "next_step은 사용자가 실행할 동작을 안내하세요. 직접 분석을 실행하겠다고 약속하지 마세요. "
     "아직 없는 다음 측정만 확인하라고 하지 마세요. "
     "현재 저장된 데이터에서 실행할 수 있는 조사를 고르세요. "
     "facts에 주파수 조회 실패가 있으면 주파수 변화가 확인됐다고 쓰지 마세요. "
@@ -56,6 +67,7 @@ def generate_change_answer(
         "type": "object",
         "properties": {
             "summary": {"type": "string", "maxLength": 500},
+            "next_step": {"type": "string", "minLength": 1, "maxLength": 200},
             "actions": {
                 "type": "array",
                 "minItems": 1,
@@ -63,7 +75,7 @@ def generate_change_answer(
                 "items": {"type": "string", "enum": actions},
             },
         },
-        "required": ["summary", "actions"],
+        "required": ["summary", "next_step", "actions"],
         "additionalProperties": False,
     }
     messages = [
@@ -89,10 +101,14 @@ def generate_change_answer(
             if not isinstance(raw, dict) or not isinstance(raw.get("summary"), str):
                 raise ValueError("질문에 대한 설명이 없습니다.")
             text = raw["summary"].strip()
+            next_step = raw.get("next_step")
             selected = raw.get("actions")
             if (
                 not text
                 or len(text) > 500
+                or not isinstance(next_step, str)
+                or not next_step.strip()
+                or len(next_step) > 200
                 or not isinstance(selected, list)
                 or not 1 <= len(selected) <= 2
                 or any(a not in actions for a in selected)
@@ -100,10 +116,15 @@ def generate_change_answer(
                 raise ValueError("사용 가능한 후속 분석과 짧은 설명을 함께 선택하세요.")
             if any(
                 _normalized(number) not in allowed_numbers(facts)
-                for number in _NUMBER.findall(text)
+                for number in _NUMBER.findall(text + " " + next_step)
             ):
                 raise ValueError("수치와 측정 번호는 facts의 표기만 사용하세요.")
-            return {"summary": text, "actions": list(dict.fromkeys(selected)), "source": "model"}
+            return {
+                "summary": text,
+                "next_step": next_step.strip(),
+                "actions": list(dict.fromkeys(selected)),
+                "source": "model",
+            }
         except AnalysisExplanationError:
             break
         except (ValueError, TypeError) as error:

@@ -101,9 +101,9 @@ test("two models built from one asset's record are told apart by the period they
 });
 
 test("a sustained crossing of a stored-history model is a measured-signal change, not electrical", () => {
-  const groups = attentionByAsset([{bindingId: "b", assetId: "pump-01", stepKind: "history-window", recipeId: null,
+  const groups = attentionByAsset([{bindingId: "b", assetId: "pump-01", sourceId:"source",pointId:null,stepKind: "history-window", recipeId: null,
     packageId: "p", estimatorKind: null, state: "processed", reason: null,
-    analyzed: {position: 2_000_000, exceeds: true}, ongoing: {start: 1_000_000, steps: 5, startAt: "2026-10-16T12:30:00Z"},
+    analyzed: {position: 2_000_000, exceeds: true,eventStart:null,eventEnd:null}, ongoing: {start: 1_000_000, steps: 5, startAt: "2026-10-16T12:30:00Z"},
     processed: 2_000_000}], null);
   assert.equal(groups[0].notes[0].label, "측정 신호 변화 확인 필요");
 });

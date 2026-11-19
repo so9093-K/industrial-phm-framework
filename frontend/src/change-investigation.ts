@@ -3,7 +3,7 @@ import {assetTabUrl} from "./routes.ts";
 import {featureCompareHref} from "./measurement-links.ts";
 export const CHANGE_ACTIONS=["compare","spectrum","onset","model"] as const;
 export type ChangeAction=typeof CHANGE_ACTIONS[number];
-export type ChangeAnswer={summary:string;actions:ChangeAction[];source:"model"|"computed"};
+export type ChangeAnswer={summary:string;next_step?:string;actions:ChangeAction[];source:"model"|"computed"};
 export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null};
 /** An AI suggestion opens an existing analysis of this exact change, never a new default. */
 export function changeActionLinks(asset:string, change:{feature:string;from:number;to:number;baseline:{from:number;to:number}}, binding:string|null, actions:readonly ChangeAction[]) {
@@ -30,7 +30,7 @@ export async function readChangeDiscussion(asset:string,key:string,signal:AbortS
     const row=object(raw),context=object(row?.context),answer=object(row?.answer);
     if(!row||context?.asset_id!==asset||context.change_id!==key||typeof row.id!=="string"||typeof context.question!=="string"
       ||!["pending","complete","failed"].includes(String(row.status)))throw new Error("조사 내용의 대상을 확인하지 못했습니다.");
-    if(answer&&(typeof answer.summary!=="string"||!Array.isArray(answer.actions)||answer.actions.some(a=>!CHANGE_ACTIONS.includes(a as ChangeAction))||!["model","computed"].includes(String(answer.source))))
+    if(answer&&(typeof answer.summary!=="string"||(answer.next_step!==undefined&&(typeof answer.next_step!=="string"||!answer.next_step.trim()||answer.next_step.length>200))||!Array.isArray(answer.actions)||answer.actions.some(a=>!CHANGE_ACTIONS.includes(a as ChangeAction))||!["model","computed"].includes(String(answer.source))))
       throw new Error("조사 설명의 다음 분석을 확인하지 못했습니다.");
     return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],answer:answer as ChangeAnswer|null};
   });

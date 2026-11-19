@@ -17,6 +17,19 @@ test("a frequency investigation keeps its channel and zoom across tabs and clear
   assert.equal(other.searchParams.has("spectrum_channel"),false);
 });
 
+test("returning to a model keeps its compared measurements but a new phenomenon clears them",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=pump";
+  const selected=base+"&tab=anomaly&method=model&model_binding=history-B&model_position=1603378200000000&model_compare=1603377600000000";
+  const away=tabSelectionUrl(base+"&tab=change&method=compare",selected);
+  const back=new URL(tabSelectionUrl(base+"&tab=anomaly&method=model","http://local"+away),base);
+  for(const key of ["model_binding","model_position","model_compare"])
+    assert.equal(back.searchParams.get(key),new URL(selected).searchParams.get(key));
+  const other=new URL(summarySelectionUrl(back.href,base+"&monitor_channel=temperature","another-change","history"),base);
+  assert.equal(other.searchParams.has("model_binding"),false);
+  assert.equal(other.searchParams.has("model_position"),false);
+  assert.equal(other.searchParams.has("model_compare"),false);
+});
+
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
   const origin="http://127.0.0.1:2770";
   const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m&monitor_source=B&monitor_point=&monitor_interpretation=meaning&forecast_prior=0.5&capture_id=old";

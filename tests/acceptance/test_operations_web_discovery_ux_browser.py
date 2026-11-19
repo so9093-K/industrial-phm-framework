@@ -149,7 +149,8 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 )
                 page.reload()
                 pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("모델 · 최근 측정 기준 초과")
+                pw.expect(rows.first).to_contain_text("모델 · 마지막 분석")
+                pw.expect(rows.first).to_contain_text("기준 초과")
                 stable["attention_count"] = 0
                 snapshot["assets"]["items"].reverse()
                 page.reload()
@@ -811,6 +812,17 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 saved = parse_qs(urlsplit(page.url).query)
                 assert saved["spectrum_a_from"] == ["11"] and saved["spectrum_a_to"] == ["11"]
                 assert saved["spectrum_b_from"] == ["7"] and saved["spectrum_b_to"] == ["7"]
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="이상 징후", exact=True).click()
+                tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                page.get_by_role("navigation", name="분석 방법").get_by_role(
+                    "link", name="주파수 분석", exact=True
+                ).click()
+                pw.expect(selection).to_be_visible()
+                returned = parse_qs(urlsplit(page.url).query)
+                assert returned["spectrum_hz_from"] == saved["spectrum_hz_from"]
+                assert returned["spectrum_hz_to"] == saved["spectrum_hz_to"]
+                assert canvas.evaluate("node=>node.width") == zoomed_width
                 assert not errors, errors
                 assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
             finally:

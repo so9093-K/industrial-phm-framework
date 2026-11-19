@@ -15,9 +15,10 @@ import {MAX_SPAN_MS, windowParams, zoomWindow} from "./signal-selection.ts";
 export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
   bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window"|"history-window";recipeId:string|null;
+  sourceId:string|null;pointId:string|null;
   packageId:string;estimatorKind:string|null;
   periodSeconds?:number|null;
-  state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null}|null;
+  state:ModelState;reason:string|null;analyzed:{position:number;exceeds:boolean|null;eventStart:string|null;eventEnd:string|null}|null;
   /** The run of consecutive crossings still going on, if any. */
   ongoing:{start:number;steps:number;startAt:string|null}|null;
   processed:number|null;
@@ -77,14 +78,14 @@ export function parsePhmMonitor(raw:unknown):PhmMonitor{
     const learned=object(row.training_reference);
     const reference=typeof learned?.start==="string"&&typeof learned?.end==="string"
       &&typeof learned?.channels==="number"?referenceLabel(learned.start,learned.end,learned.channels):undefined;
-    return {...(reference?{reference}:{}),bindingId,assetId,stepKind:row.step_kind,recipeId:text(row.recipe_id),
+    return {...(reference?{reference}:{}),bindingId,assetId,sourceId:text(row.source_id),pointId:text(row.measurement_point_id),stepKind:row.step_kind,recipeId:text(row.recipe_id),
       packageId:text(row.package_id)??"",estimatorKind:text(row.estimator_kind),
       periodSeconds:typeof period==="number"&&Number.isFinite(period)&&period>0?period:null,
       ongoing:typeof start==="number"&&Number.isSafeInteger(start)&&typeof steps==="number"&&Number.isSafeInteger(steps)
         ?{start,steps,startAt:text(run?.start_event_at)}:null,
       state:row.processing_state as ModelState,
       reason:text(row.processing_reason),
-      analyzed:at===null?null:{position:at,exceeds:typeof output?.exceeds_threshold==="boolean"?output.exceeds_threshold:null},
+      analyzed:at===null?null:{position:at,exceeds:typeof output?.exceeds_threshold==="boolean"?output.exceeds_threshold:null,eventStart:text(analyzed?.event_start),eventEnd:text(analyzed?.event_end)},
       processed:position(row.latest_processed)};
   });
   return {assessedAt:text(root.assessed_at),models,truncated:root.truncated===true};
@@ -133,14 +134,39 @@ function namer(list:MonitoredModel[]):(model:MonitoredModel)=>string{
   };
 }
 
-/** 한 설비의 모델들이 최근 분석한 측정에서 낸 결과 한 줄. 분석을 마친 모델이 없으면 null. */
+/** A position belongs to one stream; time windows with the same end may cover different inputs. */
+function sameInput(a:MonitoredModel,b:MonitoredModel):boolean{
+  if(!a.sourceId||a.assetId!==b.assetId||a.sourceId!==b.sourceId||a.pointId!==b.pointId
+    ||a.stepKind!==b.stepKind||a.analyzed!.position!==b.analyzed!.position)return false;
+  if(a.stepKind==="acquisition-snapshot")return true;
+  return (["eventStart","eventEnd"] as const).every(key=>{
+    const first=Date.parse(a.analyzed![key]??""),second=Date.parse(b.analyzed![key]??"");
+    return Number.isFinite(first)&&first===second;
+  });
+}
+
+function analyzedPlace(model:MonitoredModel):string{
+  const result=model.analyzed!;
+  if(model.stepKind==="acquisition-snapshot")return result.position+"번째 측정";
+  const start=Date.parse(result.eventStart??""),end=Date.parse(result.eventEnd??"");
+  if(!Number.isFinite(start)||!Number.isFinite(end))return windowLabel(result.position);
+  const clock=(value:number,date:boolean)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",
+    ...(date?{year:"numeric",month:"numeric",day:"numeric"} as const:{}),hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
+  const sameDay=new Date(start).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})===new Date(end).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"});
+  return clock(start,true)+"~"+clock(end,!sameDay);
+}
+
+/** Summarize a shared input only when its stream and measured interval match. */
 export function modelFact(list:MonitoredModel[]):string|null{
   const name=namer(list);
   const judged=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds!=null);
-  const over=judged.filter(model=>model.analyzed!.exceeds).map(name),under=judged.filter(model=>!model.analyzed!.exceeds).map(name);
   if(!judged.length)return null;
-  if(!over.length)return "최근 측정 기준 이하 · "+under.join(", ");
-  return "최근 측정 기준 초과 · "+over.join(", ")+(under.length?" (기준 이하 · "+under.join(", ")+")":"");
+  if(judged.length>1&&!judged.every(model=>sameInput(judged[0],model)))
+    return "모델별 마지막 분석 · "+judged.map(model=>name(model)+" · "+analyzedPlace(model)+": 기준 "+(model.analyzed!.exceeds?"초과":"이하")).join(" / ");
+  const over=judged.filter(model=>model.analyzed!.exceeds).map(name),under=judged.filter(model=>!model.analyzed!.exceeds).map(name);
+  const place="마지막 분석 · "+analyzedPlace(judged[0]);
+  if(!over.length)return place+" 기준 이하 · "+under.join(", ");
+  return place+" 기준 초과 · "+over.join(", ")+(under.length?" (기준 이하 · "+under.join(", ")+")":"");
 }
 
 /** 모델 결과 밖의 확인 항목을 '항목 · 사실' 한 줄로. 모델 기준 초과는 modelFact가 말하므로 null. */

@@ -1,8 +1,14 @@
+<script module lang="ts">
+  import type {ReviewDecision,ReviewStatus} from "../review-writes";
+  type Pending={key:string;eventId:string}|null;
+  // Keep a draft while another analysis is open; never write it into the review history.
+  const drafts=new Map<string,{note:string;decision:ReviewDecision|null;judged:ReviewDecision|null;status:ReviewStatus;pending:Pending}>();
+</script>
 <script lang="ts">
   import {onMount, tick} from "svelte";
   import {
     latestDecision, reviewNote, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict,
-    type ReviewAction, type ReviewDecision, type ReviewEvent, type ReviewStatus,
+    type ReviewAction, type ReviewEvent,
   } from "../review-writes";
 
   /** The review history of one subject and the next human actions on it. Confirming records
@@ -23,7 +29,20 @@
   let decision: ReviewDecision | null = $state(null);
   // On a concurrent review update, rebase the next decision on the persisted judgment.
   // User edits do not trigger this effect; only a changed stored judgment does.
-  $effect(() => { decision = judged; });
+  let restored=false;
+  $effect(() => {
+    const current=judged,key=id,currentStatus=status;
+    if(!restored){
+      const draft=drafts.get(key);drafts.delete(key);restored=true;
+      if(draft&&currentStatus!=="closed"){
+        note=draft.note;
+        const same=draft.judged===current&&draft.status===currentStatus;
+        decision=same?draft.decision:current;pending=same?draft.pending:null;
+        return;
+      }
+    }
+    decision=current;
+  });
   let note = $state("");
   let appliedDraft=0;
   let busy = $state(false);
@@ -40,7 +59,7 @@
   let confirmBox: HTMLElement | null = $state(null);
   let historyHeading: HTMLElement | null = $state(null);
   // A retry of one uncertain action reuses its event ID; a different action gets a new one.
-  let pending: {key: string; eventId: string} | null = null;
+  let pending: Pending = null;
   let controller: AbortController | null = null;
 
   const ACTION = {note: "메모", acknowledge: "확인", close: "검토 종료"};
@@ -88,7 +107,13 @@
   }
   async function askClose() { confirmingClose = true; await tick(); confirmBox?.focus(); }
   async function cancelClose() { confirmingClose = false; await tick(); historyHeading?.focus(); }
-  onMount(() => () => controller?.abort());
+  onMount(() => () => {
+    drafts.delete(id);
+    if(status!=="closed"&&(note||decision!==judged||pending))
+      drafts.set(id,{note,decision,judged,status,pending});
+    if(drafts.size>64)drafts.delete(drafts.keys().next().value!);
+    controller?.abort();
+  });
 </script>
 
 {#snippet decisionField()}

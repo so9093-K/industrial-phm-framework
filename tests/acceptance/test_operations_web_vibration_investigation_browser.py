@@ -30,7 +30,10 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
         )
     analyze(workspace)
     summary = "기준보다 높은 진동이 이어져 일시적인 한 측정의 변화로 보기 어렵습니다."
-    model = ScriptedModel({"summary": summary, "actions": ["spectrum", "onset"]})
+    next_step = "주파수 비교에서 어떤 대역의 에너지 비중이 커졌는지 확인하세요."
+    model = ScriptedModel(
+        {"summary": summary, "next_step": next_step, "actions": ["spectrum", "onset"]}
+    )
     monkeypatch.setattr(change_answer, "complete_json", model)
     monkeypatch.setattr(explanation_runtime, "_MANAGERS", {})
     running = start_web(workspace.root, writer=True)
@@ -71,6 +74,16 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
                 review = page.get_by_role("dialog", name="이 변화의 판단·메모", exact=True)
                 review.get_by_label("메모 (선택)", exact=True).fill("현장 기록과 대조 중")
+                review.get_by_role("radio", name="계속 관찰", exact=True).check()
+                close_task(page, "이 변화의 판단·메모")
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                tabs.get_by_role("link", name="상태 요약", exact=True).click()
+                page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
+                pw.expect(review.get_by_label("메모 (선택)", exact=True)).to_have_value(
+                    "현장 기록과 대조 중"
+                )
+                pw.expect(review.get_by_role("radio", name="계속 관찰", exact=True)).to_be_checked()
                 close_task(page, "이 변화의 판단·메모")
                 assert not discussion_reads
 
@@ -112,8 +125,15 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 pw.expect(ask).to_be_enabled()
                 assert not model.requests
                 assert panel.bounding_box()["y"] < 900
+                panel.get_by_label("질문", exact=True).fill("임시 조사 질문")
+                close_task(page, "이 변화에 대해 질문하기")
+                tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                tabs.get_by_role("link", name="상태 요약", exact=True).click()
+                page.get_by_role("button", name="이 변화에 대해 질문하기", exact=True).click()
+                pw.expect(panel.get_by_label("질문", exact=True)).to_have_value("임시 조사 질문")
                 ask.click()
                 pw.expect(panel.locator(".answer")).to_have_text(summary, timeout=30000)
+                pw.expect(panel.locator(".next-step")).to_contain_text(next_step)
                 href = panel.get_by_role(
                     "link", name="이 구간의 주파수 비교", exact=False
                 ).get_attribute("href")
@@ -129,6 +149,7 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                     "현장 기록과 대조 중\n\n" + memo.input_value().split("\n\n", 1)[1]
                 )
                 assert summary in memo.input_value()
+                assert next_step in memo.input_value()
                 review.get_by_role("radio", name="계속 관찰", exact=True).check()
                 review.get_by_role("button", name="판단 저장", exact=True).click()
                 pw.expect(review.locator(".events li")).to_have_count(1)

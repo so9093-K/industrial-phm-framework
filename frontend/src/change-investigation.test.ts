@@ -28,6 +28,9 @@ test("a question's answer stays on its selected change, including when model and
   try{
     const signal=new AbortController().signal;
     assert.deepEqual((await readChangeDiscussion("bearing",key,signal))[0].answer?.actions,["spectrum","compare"]);
+    assert.equal((await readChangeDiscussion("bearing",key,signal))[0].answer?.next_step,undefined);
+    body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,answer:{...record.answer,next_step:"주파수 비교에서 에너지 비중이 커진 대역을 확인하세요."}}]};
+    assert.match((await readChangeDiscussion("bearing",key,signal))[0].answer!.next_step!,/에너지 비중/);
     body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,context:{...record.context,change_id:"b".repeat(64)}}]};
     await assert.rejects(readChangeDiscussion("bearing",key,signal),/대상/);
     body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,answer:{...record.answer,actions:["arbitrary-url"]}}]};
