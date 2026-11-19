@@ -1,5 +1,5 @@
 <script lang="ts">
-  let viewportWidth=$state(1440);
+  import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
@@ -50,9 +50,13 @@
   const fmt=(value:number)=>value.toExponential(3);
   // Vibration energy is usually dominated by one low band; dB keeps the other bands readable.
   let decibel=$state(true);
-  let focused:Record<string,{from:number;to:number}|null>=$state({});
+  const initialBand = new URLSearchParams(location.search);
+  const bandFrom = Number(initialBand.get("spectrum_hz_from") ?? NaN), bandTo = Number(initialBand.get("spectrum_hz_to") ?? NaN);
+  let focused:{from:number;to:number}|null=$state(Number.isFinite(bandFrom) && Number.isFinite(bandTo) && bandFrom >= 0 && bandTo > bandFrom ? {from:bandFrom,to:bandTo} : null);
+  let initialZoom = !initialBand.has("spectrum_hz_from") && initialBand.get("spectrum_hz")!=="all";
+  let selectedChannel = $state(initialBand.get("spectrum_channel")??"");
   function view(channel:SpectrumChannel, frequencies:number[]) {
-    const selected=focused[channel.id];
+    const selected=focused;
     const indices=frequencies.map((_,i)=>i).filter(i=>!selected||(frequencies[i]>=selected.from&&frequencies[i]<=selected.to));
     // A display bin can be wider than a reported full-resolution change band.
     if(indices.length<2)return {frequencies,a:channel.a,b:channel.b,zoomed:false};
@@ -63,10 +67,11 @@
     const start=Math.max(lo,band.from),end=Math.min(hi,band.to);
     return end>=start?{x:800*(start-lo)/Math.max(hi-lo,1e-12),width:Math.max(2,800*(end-start)/Math.max(hi-lo,1e-12))}:null;
   }
-  function zoomBand(id:string, band:{from:number;to:number}, frequencies:number[]) {
+  function zoomBand(band:{from:number;to:number}, frequencies:number[]) {
     const step=frequencies.length>1?frequencies[1]-frequencies[0]:1;
     const padding=Math.max(band.to-band.from,step*3);
-    focused={...focused,[id]:{from:Math.max(frequencies[0],band.from-padding),to:Math.min(frequencies.at(-1)!,band.to+padding)}};
+    focused={from:Math.max(frequencies[0],band.from-padding),to:Math.min(frequencies.at(-1)!,band.to+padding)};
+    remember();
   }
   type Axis={lo:number;hi:number;map:(value:number)=>number};
   // Linear shows power as stored. dB is relative to the channel's strongest band (0 dB) and
@@ -97,6 +102,11 @@
       url.searchParams.set("spectrum_"+n+"_from",String(spans[n].from));
       url.searchParams.set("spectrum_"+n+"_to",String(spans[n].to));
     }
+    for(const [key,value] of [["spectrum_hz_from",focused?.from],["spectrum_hz_to",focused?.to]] as const) {
+      if(value === undefined)url.searchParams.delete(key);else url.searchParams.set(key,String(value));
+    }
+    if(focused)url.searchParams.delete("spectrum_hz");else url.searchParams.set("spectrum_hz","all");
+    if(selectedChannel)url.searchParams.set("spectrum_channel",selectedChannel);else url.searchParams.delete("spectrum_channel");
     history.replaceState(history.state,"",url);
   }
   function savedSpans(fallback:Spans):Spans {
@@ -159,7 +169,15 @@
       const frozen:Spans={a:{...spans.a},b:{...spans.b}};
       const data=await readSpectrum(assetId,acquisition,frozen,req.signal);
       if(req.signal.aborted)return;
+      if(!data.channels.some(row=>row.id===selectedChannel))selectedChannel=data.channels[0]?.id??"";
+      if(focused && data.frequencies.filter(hz=>focused!.from<=hz&&hz<=focused!.to).length<2){focused=null;selectionNotice="저장한 대역에 표시할 주파수 구간이 부족해 전체 주파수를 표시합니다.";}
       result=data;resultState=data.channels.length?"ready":"empty";remember();
+      if(initialZoom){
+        initialZoom=false;
+        const changed=data.channels.flatMap(channel=>channel.shares).filter(band=>Math.abs(band.b-band.a)>=.1)
+          .sort((a,b)=>Math.abs(b.b-b.a)-Math.abs(a.b-a.a))[0];
+        if(changed)zoomBand(changed,data.frequencies);
+      }
     }catch(cause:unknown){
       if(req.signal.aborted)return;
       error=cause instanceof Error?cause.message:"원본 파워 스펙트럼을 확인할 수 없습니다.";
@@ -169,7 +187,6 @@
   }
   onMount(()=>{void readSource();return()=>{sourceRequest?.abort();spectrumRequest?.abort();};});
 </script>
-<svelte:window bind:innerWidth={viewportWidth}/>
 <section class="ui-panel spectra" aria-labelledby="spectra-title">
   <h2 class="visually-hidden" id="spectra-title">주파수 분석</h2>
   {#if sourceState==="loading"}
@@ -181,7 +198,25 @@
     <StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="비교 기간"
+      summary={"기간 A · "+spans.a.from+"–"+spans.a.to+"번째 / 기간 B · "+spans.b.from+"–"+spans.b.to+"번째 측정"}>{#snippet children(close)}{#if acquisition && spans}
+
+    <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
+    <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
+    <section class="conditions">
+    <div class="periods">
+      {#each ["a","b"] as label(label)}
+        {@const name=label as "a"|"b"}
+        <AcquisitionRange name={name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period}
+          onChange={(edge, ordinal) => change(name, edge, String(ordinal))} />
+      {/each}
+    </div>
+    <button type="button" class="ui-button ui-button-primary" onclick={()=>{close();void analyze();}}>
+      주파수 비교하기
+    </button></section>
+
+    {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="원본 파형의 주파수별 세기를 계산하고 있습니다."/>
     {:else if resultState==="failed"}
@@ -194,21 +229,26 @@
     {:else if resultState==="empty"}
       <StatusNotice message="두 기간을 고르고 주파수 비교하기를 누르세요."/>
     {:else if result}
-      {#if message}<AnalysisMessage {message}/>{/if}
-      {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
-      <details><summary>계산에 사용한 측정 보기</summary><p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p></details>
-      <!-- PC 화면에서는 채널(수평·수직)을 나란히 두어 같은 두 기간을 한눈에 견준다. -->
+      {#if message}<p class="result-statement">{message.headline}</p>{/if}
+      {#if selectionNotice}<p class="context" role="status">{selectionNotice}</p>{/if}
+      <div class="spectrum-toolbar">
+        <div role="group" aria-label="진동 방향">
+          {#each result.channels as channel (channel.id)}<button type="button" class="ui-button" aria-pressed={selectedChannel===channel.id} onclick={()=>{selectedChannel=channel.id;remember();}}>{channel.label}</button>{/each}
+        </div>
+        <p>{focused?frequencyText(focused.from)+"–"+frequencyText(focused.to)+" Hz · 두 그래프 함께 확대":"전체 주파수"}</p>
+        {#if focused}<button type="button" class="ui-button" onclick={()=>{focused=null;remember();}}>전체 주파수 보기</button>{/if}
+      </div>
+      <div class="spectrum-investigation">
       <div class="channels">
-      {#each result.channels as channel(channel.id)}
+      {#each result.channels.filter(row=>row.id===selectedChannel) as channel(channel.id)}
         {@const changed=channel.bands.filter(band=>Math.abs(band.changeDb)>=MEANINGFUL_DB)}
         {@const displayed=view(channel,result.frequencies)}
         {@const frequencies=displayed.frequencies}
         {@const axis=axisFor(channel,decibel)}
         {@const step=frequencies.length>1?frequencies[1]-frequencies[0]:null}
         <section class="series">
-          <h3>{channel.label}</h3>
+          <h3>두 기간의 주파수 비교</h3>
           <p class="axis-note">세로축 · 주파수별 평균 세기 · {decibel?"두 기간 중 가장 센 주파수 대비 dB · ":channel.unit?channel.unit+" · ":""}두 기간은 같은 눈금</p>
-          {#if displayed.zoomed}<button type="button" class="ui-button" onclick={()=>focused={...focused,[channel.id]:null}}>전체 주파수 보기</button>{/if}
           <ValueAxis ticks={yTicks(axis.lo,axis.hi,0,180)} height={180} unit={decibel?"dB":null}>
           <svg role="img" viewBox="0 0 800 180" preserveAspectRatio="none"
             aria-label={"주파수별 세기. 기간 A는 실선, 기간 B는 점선입니다. " + frequencies[0].toFixed(1) + "Hz부터 " + frequencies[frequencies.length-1].toFixed(1) + "Hz까지. 정확한 값은 표에 있습니다."}>
@@ -225,7 +265,10 @@
             scale={{kind:"value"}} note="가로축 · 주파수 (Hz)"/>{/snippet}
           </ValueAxis>
           <p class="legend"><span><i class="key a"></i>기간 A (실선)</span><span><i class="key b"></i>기간 B (점선)</span><span>음영 · {MEANINGFUL_DB} dB 이상 달라진 대역</span></p>
-          <!-- Where each period is strongest, before how the two differ. -->
+          {#if changed.length}<div class="band-choices" role="group" aria-label="변화 대역 확대">
+            {#each changed.slice(0,3) as band,i(i)}<button type="button" class="band-button" onclick={()=>zoomBand(band,result!.frequencies)}>{frequencyText(band.from)}–{frequencyText(band.to)} Hz 확대</button>{/each}
+          </div>{/if}
+          <details><summary>피크·대역별 수치</summary>
           <h4>가장 센 주파수</h4>
           <p class="peaks">기간 A · {peakSummary(result.frequencies,channel.a)}
             <span class="sep">/</span> 기간 B · {peakSummary(result.frequencies,channel.b)}</p>
@@ -234,7 +277,7 @@
             <h4>세기가 크게 달라진 주파수</h4>
             <ol>
               {#each changed as band,i(i)}
-                <li><button type="button" class="band-button" onclick={()=>zoomBand(channel.id,band,result!.frequencies)}>{frequencyText(band.from)}–{frequencyText(band.to)} Hz 확대</button>
+                <li><button type="button" class="band-button" onclick={()=>zoomBand(band,result!.frequencies)}>{frequencyText(band.from)}–{frequencyText(band.to)} Hz 확대</button>
                   · 기간 B 세기가 기간 A의 {times(10**(band.changeDb/10))} ({band.changeDb.toFixed(1)} dB)</li>
               {/each}
             </ol>
@@ -243,6 +286,7 @@
           {:else}
             <StatusNotice message="두 기간 모두 계산할 수 있는 주파수 대역이 없어 변화량을 보여 줄 수 없습니다."/>
           {/if}
+          </details>
           <details>
             <summary>주파수별 세기 값 보기</summary>
             <div class="table-scroll"><table>
@@ -260,6 +304,13 @@
         </section>
       {/each}
       </div>
+      <SpectrumWaterfall {assetId} {place} onUse={useMeasurement} band={focused} channelId={selectedChannel}/>
+      </div>
+      <details><summary>비교한 측정과 결과 해석</summary>
+        {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
+        <p class="context">기간 A {result.used.a.map(place).join(", ")} · 기간 B {result.used.b.map(place).join(", ")}</p>
+        {#if message}<AnalysisMessage {message} showHeadline={false}/>{/if}
+      </details>
       {#if acquisition && result.used.b.length}
         {@const last=Math.max(...result.used.b)}
         <p class="continue">기간 B의 마지막 측정({place(last)})으로 이어서 보기
@@ -276,25 +327,7 @@
           · 적용 모델 연결 {acquisition.binding}</p>
       </details>
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="주파수 비교 조건">
-
-    <label class="scale"><input type="checkbox" bind:checked={decibel}/> 세로축을 dB로 보기 · 끄면 실제 세기(선형)로 봅니다</label>
-    <SourceIdentity id={acquisition.source}/><p class="context">{place(acquisition.first)} ~ {place(acquisition.last)}</p>
-    <details class="conditions" open={viewportWidth>=1100 || resultState!=="ready"}><summary>비교할 측정 변경 · A {place(spans.a.from)} ~ {place(spans.a.to)} / B {place(spans.b.from)} ~ {place(spans.b.to)}</summary>
-    <div class="periods">
-      {#each ["a","b"] as label(label)}
-        {@const name=label as "a"|"b"}
-        <AcquisitionRange name={name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period}
-          onChange={(edge, ordinal) => change(name, edge, String(ordinal))} />
-      {/each}
-    </div>
-    <button type="button" class="ui-button ui-button-primary" onclick={()=>void analyze()}>
-      주파수 비교하기
-    </button></details>
-    {#if selectionNotice}<p class="context" role="status">{selectionNotice}</p>{/if}
-
-    </aside></div>
-    <SpectrumWaterfall {assetId} {place} onUse={useMeasurement} />
+    </div></div>
 
   {/if}
 </section>
@@ -302,23 +335,29 @@
   .spectra{min-width:0}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .periods{display:grid;gap:var(--space-4);grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-block:var(--space-5)}
-  .channels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:var(--space-4) var(--space-6);margin-top:var(--space-3)}
+  .spectrum-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);margin-block:var(--space-3)}
+  .spectrum-toolbar>div{display:flex;gap:var(--space-1)}.spectrum-toolbar p{margin:0;font-size:var(--font-small);color:var(--color-ink-muted)}
+  .spectrum-toolbar button[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:650}
+  .spectrum-investigation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6)}
+  .channels{min-width:0}
+  .band-choices{display:flex;flex-wrap:wrap;gap:var(--space-1)}
+  @media(max-width:1000px){.spectrum-investigation{grid-template-columns:minmax(0,1fr)}}
   /* 나란한 두 채널의 그래프 높이를 맞추려고 첫 칸만 다른 여백을 두지 않는다. */
   .channels>.series{min-width:0;margin:0;padding:0;border:0}
   .series h3{margin:0;font-size:var(--font-section)}.series h4{margin:var(--space-3) 0 var(--space-1);font-size:var(--font-small)}
   .series ol{margin:0;padding-inline-start:var(--space-5);font-size:var(--font-small)}
   .changed-band{fill:var(--color-caution-ink);opacity:.12}
   .band-button{font:inherit;color:var(--color-action);border:0;background:none;text-decoration:underline;cursor:pointer;padding:var(--space-2)}
-  svg{display:block;width:100%;height:220px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
+  svg{display:block;width:100%;height:260px}svg polyline,svg path,svg line{vector-effect:non-scaling-stroke}.axis{stroke:var(--color-border);fill:none;stroke-width:2}
   .grid{stroke:var(--color-border);stroke-width:1}
   .scale{display:flex;gap:var(--space-2);align-items:flex-start;margin-top:var(--space-1);font-size:var(--font-small)}
-  .line-a{fill:none;stroke:var(--color-action);stroke-width:2}
-  .line-b{fill:none;stroke:var(--color-ink-muted);stroke-width:2;stroke-dasharray:5 4}
+  .line-a{fill:none;stroke:var(--color-ink-muted);stroke-width:2}
+  .line-b{fill:none;stroke:var(--color-action);stroke-width:2;stroke-dasharray:5 4}
   .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:var(--space-1) 0}
   .peaks{margin:0;font-weight:650}.peaks .sep{color:var(--color-ink-muted);font-weight:400;margin-inline:var(--space-2)}
   .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
-  .key{display:inline-block;width:18px;height:0;border-top:2px solid var(--color-action);vertical-align:middle;margin-inline-end:var(--space-1)}
-  .key.b{border-top:2px dashed var(--color-ink-muted)}li{overflow-wrap:anywhere}
+  .key{display:inline-block;width:18px;height:0;border-top:2px solid var(--color-ink-muted);vertical-align:middle;margin-inline-end:var(--space-1)}
+  .key.b{border-top:2px dashed var(--color-action)}li{overflow-wrap:anywhere}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}

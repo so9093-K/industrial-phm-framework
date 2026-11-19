@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {elapsedText, xTicks, measurementScale} from "../time-axis";
+  import {xTicks, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import {num} from "../format";
   import {measure, yTicks} from "../chart-axis";
@@ -124,23 +124,20 @@
         <div class="onset-actions">
           {#if first.eventStart && measurementTime(first, period)}<span>{measurementTime(first, period)}</span>{/if}
           <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
-          {#if told.earlier}<span class="earlier">{told.earlier}{#if story?.first && story.first !== first}
-            <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</span>{/if}
         </div>
       </div>
     {:else if summary && !summary.exceeded && !trend.truncated}
       <p class="result-statement">분석한 {summary.analyzed}회 모두 모델 기준 이하였습니다.</p>
     {/if}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
-    {#if period}<p class="context">가로축 · 기록 시작 후 경과 시간 · 기록된 측정 간격 {elapsedText(period)}</p>{/if}
+    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
     <div class="chart" bind:clientWidth={chartWidth}>
     {#if focus}<div class="chart-head"><strong>선택 구간의 점수 추이</strong>
       <button type="button" class="ui-button" onclick={()=>{focus=null;hovered=null;}}>전체 기록 보기</button></div>{/if}
     <ul class="legend" aria-label="모델 점수 범례">
       <li><i class="key score-key"></i>모델 점수</li><li><i class="key over-key"></i>기준 초과</li>
       <li><i class="key threshold-key"></i>모델 기준 {num(threshold)}</li>
-      <li><i class="key interval-key"></i>아래 띠 · 기준을 넘은 측정 비율(진할수록 많음)</li>
-      {#if first}<li><i class="key onset-key"></i>{story?.state === "ongoing" ? "현재 구간 시작" : "마지막 기준 초과"}</li>{/if}<li><i class="key selected-key"></i>선택 측정</li>
+      <li title="아래 띠 · 기준을 넘은 측정 비율(진할수록 많음)"><i class="key interval-key"></i>초과 비율</li>
     </ul>
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
@@ -186,11 +183,13 @@
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
     </svg>
     {#if inspected}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)} · {inspected.exceeds ? "기준 초과" : "기준 이하"}</p>{/if}
-    <p class="context">그래프에서 위치를 선택하면 해당 측정의 결과를 표시합니다. 아래 띠에 마우스를 올리면 그 구간에서 기준을 넘은 측정 수가 보입니다.
+    <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
-    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
     {#if trend.intervals.length}
+      <details><summary>기준 초과 구간 조사 · {trend.intervals.length}개</summary>
+      {#if told?.earlier}<p class="context">{told.earlier}{#if story?.first && story.first !== first}
+        <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</p>{/if}
       <ul class="priorities" aria-label="우선 살펴볼 모델 구간">
         {#each priorities as row (row.interval.start)}
           <li><strong>{row.label}</strong>
@@ -199,7 +198,7 @@
             <button type="button" class="ui-button" onclick={() => inspectInterval(row.interval)}>이 구간 분석 →</button></li>
         {/each}
       </ul>
-      <details><summary>전체 기준 초과 구간 {trend.intervals.length}개</summary>
+      <h4>전체 기준 초과 구간 {trend.intervals.length}개</h4>
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}
           <li>{place(interval.start)} ~ {place(interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{interval.open ? " · 진행 중" : ""}
@@ -231,14 +230,11 @@
   .key { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--color-action); }
   .over-key { border-color: var(--color-failure-ink); }.threshold-key { border-color: var(--color-failure-ink); border-top-style: dashed; }
   .interval-key { height: 10px; border: 0; background: linear-gradient(90deg, color-mix(in srgb, var(--color-failure-ink) 25%, transparent), var(--color-failure-ink)); }
-  .onset-key { border-color: var(--color-caution-ink); border-top-style: dotted; }
-  .selected-key { width: 9px; height: 9px; border: 2px solid var(--color-ink); border-radius: 50%; background: var(--color-action); }
   .inspection-dot { fill: var(--color-action); stroke: var(--color-ink); stroke-width: 2; }
   .readout { padding: var(--space-2); background: var(--color-surface-selected); border-radius: var(--radius-control); font-size: var(--font-small); }
   .onset { display: grid; gap: var(--space-1); }
   .onset .result-statement { margin: 0; }
   .onset-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); font-size: var(--font-small); color: var(--color-ink-muted); }
-  .earlier { flex-basis: 100%; color: var(--color-ink-muted); }
   .link { border: 0; padding: 0; margin-left: var(--space-2); background: none; color: var(--color-action); font: inherit; text-decoration: underline; cursor: pointer; }
   .onset-line { stroke: var(--color-caution-ink); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
   circle.onset-dot { fill: var(--color-caution-ink); stroke: var(--color-surface); stroke-width: 2; }

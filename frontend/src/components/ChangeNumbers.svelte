@@ -6,7 +6,7 @@
   const numbers = $derived(changeNumbers(facts));
 </script>
 {#if numbers}
-  <dl class="change-values" class:compact>
+  <dl class="change-values" class:compact class:with-latest={!!latest}>
     <div><dt title={numbers.before.caption}>{compact?"기록 처음 30%":numbers.before.caption}</dt><dd>{numbers.before.value}</dd>{#if numbers.before.note && !compact}<dd class="note">{numbers.before.note}</dd>{/if}</div>
     <span class="arrow" aria-hidden="true">→</span>
     <div><dt title={numbers.after.caption}>{compact?"변화 구간":numbers.after.caption}</dt><dd>{numbers.after.value}</dd>{#if numbers.after.note && !compact}<dd class="note">{numbers.after.note}</dd>{/if}</div>

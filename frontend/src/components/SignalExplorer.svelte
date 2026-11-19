@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
   import TimeRange from "./TimeRange.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount, tick} from "svelte";
@@ -410,7 +411,63 @@
       message="이 설비에 저장된 신호가 없습니다. 데이터 연결과 수신 상태를 확인하세요."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace signal-workspace"><div class="signal-toolbar" aria-label="신호 선택과 구간 조사">
+
+    <div class="controls">
+      <label for="history-channel">신호
+        <select id="history-channel" value={selectedChannel}
+          onchange={(event) => changeChannel(event.currentTarget.value)}>
+          {#each channels.ids as id (id)}
+            <option value={id}>{signalName(channels.names, id)}</option>
+          {/each}
+        </select>
+      </label>
+      <label for="history-range">조회 기간
+        <select id="history-range" value={range}
+          onchange={(event) => { range = event.currentTarget.value as RangePreset; zoom = null; rememberChannel(); void loadTrend(); }}>
+          {#if range === "window"}<option value="window" disabled>그래프에서 고른 구간</option>{/if}
+          <option value="all">저장된 전체 기록</option>
+          <option value="15m">최근 15분</option><option value="1h">최근 1시간</option>
+          <option value="24h">최근 24시간</option><option value="7d">최근 7일</option>
+        </select>
+      </label>
+      {#if range !== "all" && range !== "window"}<label for="history-anchor">기간 기준
+        <select id="history-anchor" value={anchor}
+          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
+          <option value="latest">마지막 저장 기록</option>
+          <option value="now">지금</option>
+        </select>
+      </label>{/if}
+    </div>
+    {#if siblings.length}<div class="with-actions phase-actions"><button type="button" class="ui-button" onclick={() => setCompanions([...phaseSiblings(channels?.ids ?? [], selectedChannel), ...companions])}>R·S·T 3상 함께 보기</button></div>{/if}
+    {#if channels.truncated}
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
+    {/if}
+      {#if focus}
+        <p class="zoomed"><span>선택한 데이터 출처{focus.point ? " · 측정 위치 "+focus.point : ""}의 기록만 보고 있습니다.</span>
+          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
+      {/if}
+    <AnalysisControls title="함께 볼 신호" action={companions.length?"함께 볼 신호 "+companions.length+"개 변경":"함께 볼 신호 추가"}>
+    <div class="with">
+      <div class="with-actions">
+        {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
+      </div>
+      <div class="choices">
+        {#each channels.ids.filter((id) => id !== selectedChannel) as id (id)}
+          <label><input type="checkbox" checked={companions.includes(id)}
+            disabled={!companions.includes(id) && companions.length >= MAX_COMPANIONS}
+            onchange={() => setCompanions(companions.includes(id) ? companions.filter((other) => other !== id) : [...companions, id])} />
+            {signalName(channels.names, id)}</label>
+        {/each}
+      </div>
+      <p class="context">최대 {MAX_COMPANIONS}개를 같은 시간축에 함께 그립니다. 그래프에서 고른 시점·구간과 확대는 모든 신호에 함께 적용됩니다.</p>
+    </div>
+    </AnalysisControls>
+
+
+
+    </div>
+    <div class="analysis-body">
     {#if trendState === "loading"}
       <StatusNotice message="고른 신호의 측정 기록과 품질을 불러오고 있습니다." />
     {:else if trendState === "failed"}
@@ -429,9 +486,7 @@
           <button type="button" class="ui-button" onclick={unzoom}>전체 기록으로 돌아가기</button></p>
       {/if}
       <p class="explain">
-        선은 시간 구간별 평균, 옅은 막대는 그 구간 안의 최소~최대입니다. 빠진 값이나 품질 불량은
-        잇거나 채우지 않고, 데이터 출처·측정 위치가 다르면 따로 그립니다.
-        그래프를 누르면 그 시점을, 옆으로 끌면 구간을 고릅니다.
+        선 · 구간 평균 / 옅은 막대 · 최소–최대 / 빈 구간 · 측정 없음 · 클릭하여 시점 선택, 드래그하여 구간 선택
       </p>
       {#if groups.length === 0}
         <StatusNotice kind="uncertain" message="고른 기간에 그릴 구간은 없지만 아래에 마지막 저장값이 있을 수 있습니다." />
@@ -450,6 +505,7 @@
             <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
             {@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}
             {#if index === 0}{@render companionCharts(trend)}{/if}
+            {#if picked}{@render pick(group,picked,unit)}{/if}
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
           {/if}
@@ -492,71 +548,24 @@
           </ul>
         </section>
       {/if}
-    {/if}    </div><aside class="analysis-sidebar" aria-label="신호 선택과 구간 조사">
-
-    <div class="controls">
-      <label for="history-channel">신호
-        <select id="history-channel" value={selectedChannel}
-          onchange={(event) => changeChannel(event.currentTarget.value)}>
-          {#each channels.ids as id (id)}
-            <option value={id}>{signalName(channels.names, id)}</option>
-          {/each}
-        </select>
-      </label>
-      <label for="history-range">조회 기간
-        <select id="history-range" value={range}
-          onchange={(event) => { range = event.currentTarget.value as RangePreset; zoom = null; rememberChannel(); void loadTrend(); }}>
-          {#if range === "window"}<option value="window" disabled>그래프에서 고른 구간</option>{/if}
-          <option value="all">저장된 전체 기록</option>
-          <option value="15m">최근 15분</option><option value="1h">최근 1시간</option>
-          <option value="24h">최근 24시간</option><option value="7d">최근 7일</option>
-        </select>
-      </label>
-      {#if range !== "all" && range !== "window"}<label for="history-anchor">기간 기준
-        <select id="history-anchor" value={anchor}
-          onchange={(event) => { anchor = event.currentTarget.value as TimeAnchor; rememberChannel(); void loadTrend(); }}>
-          <option value="latest">마지막 저장 기록</option>
-          <option value="now">지금</option>
-        </select>
-      </label>{/if}
-    </div>
-    {#if siblings.length}<div class="with-actions phase-actions"><button type="button" class="ui-button" onclick={() => setCompanions([...phaseSiblings(channels?.ids ?? [], selectedChannel), ...companions])}>R·S·T 3상 함께 보기</button></div>{/if}
-    {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="신호가 많아 일부만 표시합니다." />
     {/if}
-      {#if focus}
-        <p class="zoomed"><span>선택한 데이터 출처{focus.point ? " · 측정 위치 "+focus.point : ""}의 기록만 보고 있습니다.</span>
-          <button type="button" class="ui-button" onclick={() => { focus = null; rememberChannel(); void loadTrend(); }}>모든 출처 보기</button></p>
-      {/if}
-    <details class="with">
-      <summary>함께 볼 신호{companions.length ? " · " + companions.length + "개" : ""}</summary>
-      <div class="with-actions">
-        {#if companions.length}<button type="button" class="ui-button quiet" onclick={() => setCompanions([])}>모두 빼기</button>{/if}
-      </div>
-      <div class="choices">
-        {#each channels.ids.filter((id) => id !== selectedChannel) as id (id)}
-          <label><input type="checkbox" checked={companions.includes(id)}
-            disabled={!companions.includes(id) && companions.length >= MAX_COMPANIONS}
-            onchange={() => setCompanions(companions.includes(id) ? companions.filter((other) => other !== id) : [...companions, id])} />
-            {signalName(channels.names, id)}</label>
-        {/each}
-      </div>
-      <p class="context">최대 {MAX_COMPANIONS}개를 같은 시간축에 함께 그립니다. 그래프에서 고른 시점·구간과 확대는 모든 신호에 함께 적용됩니다.</p>
-    </details>
     <nav class="continue" aria-label="이 신호로 이어서 보기">
       <span>이 신호로 이어서 보기</span>
       <a href={linkTo(assetTabUrl(assetId, "anomaly", "baseline", null, selectedChannel), {})}>기록 변화 찾기 →</a>
       <a href={linkTo(assetTabUrl(assetId, "change", "compare", "history", selectedChannel), picked&&periodsBefore(picked)?periodParams(periodsBefore(picked)!):{})}>두 기간 비교 →</a>
       <a href={linkTo(assetTabUrl(assetId, "outlook", null, "history", selectedChannel), {})}>기준 도달 전망 →</a>
     </nav>
-
-    {#if trend&&picked}{#each groups as group(group.key)}{@render pick(group,picked,group.unit??channels?.names.get(selectedChannel)?.unit??null)}{/each}{/if}
-    </aside></div>
+    </div></div>
 
   {/if}
 </section>
 
 <style>
+  .signal-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .signal-toolbar{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);padding-bottom:var(--space-3);border-bottom:1px solid var(--color-border)}
+  .signal-toolbar>.controls{flex:1 1 480px}.signal-toolbar .phase-actions{margin:0}
+  .signal-toolbar :global(.analysis-controls){flex:none;margin:0}
+
   .explorer { min-width: 0; }
   .context, .explain { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .explain { margin-block: var(--space-5); }
@@ -609,7 +618,6 @@
   .latest { margin-top: var(--space-6); }
   .latest li { margin-block: var(--space-2); overflow-wrap: anywhere; }
   .with { margin: var(--space-2) 0; }
-  .with summary { cursor: pointer; font-weight: 650; }
   .with-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
   .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-1) var(--space-3); max-height: 16rem; overflow: auto; font-size: var(--font-small); }
   .choices label { display: flex; align-items: center; gap: var(--space-1); }

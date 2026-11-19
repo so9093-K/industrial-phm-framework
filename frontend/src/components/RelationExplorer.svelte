@@ -1,5 +1,5 @@
 <script lang="ts">
-  let viewportWidth=$state(1440);
+  import AnalysisControls from "./AnalysisControls.svelte";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
@@ -167,11 +167,10 @@
   }
   onMount(()=>{void sourceList();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 </script>
-<svelte:window bind:innerWidth={viewportWidth}/>
-{#snippet conditions()}
+{#snippet conditions(close:()=>void)}
   {#if available&&periods}
-    <details class="conditions" open={viewportWidth>=1100 || resultState!=="ready"}>
-    <summary>비교 조건 변경 · {signalName(names,x)} × {signalName(names,y)}</summary>
+    <section class="conditions">
+
     <div class="controls">
       <label for="relation-x">가로축 신호
         <select id="relation-x" value={x} onchange={e=>switchChannel("x",e.currentTarget.value)}>
@@ -195,10 +194,10 @@
         </fieldset>
       {/each}
     </div>
-    <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
+    <button type="button" class="ui-button ui-button-primary" onclick={()=>{close();void compare();}}>
       관계 계산하기
     </button>
-    </details>
+    </section>
   {/if}
 {/snippet}
 
@@ -213,7 +212,19 @@
       message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="신호·비교 기간">{#snippet children(close)}{#if available && periods}
+
+    <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
+      <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
+      <p><strong>기간 B · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
+    </div>
+    {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point?" · "+focus.point:""}의 기록을 보고 있습니다.</p>
+      {#if resultState!=="empty" || !relation}<button type="button" class="ui-button" onclick={()=>{focus=null;remember();close();void compare();}}>다른 출처의 기록 보기</button>{/if}{/if}
+    {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
+
+    {@render conditions(close)}
+    {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 시각에 기록된 측정 짝을 찾고 있습니다."/>
     {:else if resultState==="failed"}
@@ -224,6 +235,7 @@
     {:else if resultState==="empty"}
       <StatusNotice title={!relation?"선택한 조건으로 관계를 계산하세요":focus?"선택한 출처에서는 함께 기록된 신호가 없습니다":"조건에 맞는 측정 짝이 없습니다"}
         message={!relation?"신호나 기간을 바꿨습니다. 관계 계산하기를 눌러 확인하세요.":focus?"고른 신호·기간에서 같은 시각의 측정 짝을 찾지 못했습니다. 신호·기간을 바꾸거나 다른 출처의 기록을 확인하세요.":"시각이나 출처가 다른 측정은 짝짓지 않습니다. 기간이나 신호를 바꿔 보세요."}/>
+      {#if focus && relation}<button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     {:else if relation}
       {#each pairs as pair(pair.key)}
         {@const axes=bounds(pair)}
@@ -334,18 +346,7 @@
         </section>
       {/each}
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="분석 조건과 다음 확인">
-
-    <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
-    </div>
-    {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point?" · "+focus.point:""}의 기록을 보고 있습니다.</p>
-      <button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
-    {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
-
-    {@render conditions()}
-    </aside></div>
+    </div></div>
 
   {/if}
 </section>
@@ -354,7 +355,7 @@
   .record-label{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 var(--space-2)}
   .primary-insight{font-size:var(--font-result);font-weight:700;line-height:1.6;overflow-wrap:anywhere}.primary-context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .conditions{margin-block:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
-  .conditions summary,.coefficients summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}
+  .coefficients summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}
   .period-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:var(--space-3);margin-block:var(--space-3)}
   .period-summary p{display:grid;gap:var(--space-1);margin:0;overflow-wrap:anywhere}.period-summary span{color:var(--color-ink-muted);font-size:var(--font-small)}
   .relation{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}

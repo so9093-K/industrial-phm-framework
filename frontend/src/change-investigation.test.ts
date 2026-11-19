@@ -1,6 +1,24 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {readChangeDiscussion} from "./change-investigation.ts";
+import {readChangeDiscussion,changeActionLinks} from "./change-investigation.ts";
+
+test("an answer's follow-up uses the selected feature and periods, and opens the exact model at onset",()=>{
+  const change={feature:"vertical.rms",baseline:{from:3,to:12},from:23,to:41};
+  const links=changeActionLinks("bearing B",change,"second-model",["compare","spectrum","onset","model"]);
+  const urls=Object.fromEntries(links.map(row=>[row.key,new URL(row.href,"http://local")]));
+  assert.equal(urls.compare.searchParams.get("acquisition_feature"),"vertical.rms");
+  for(const [key,expected] of Object.entries({a_from:3,a_to:12,b_from:23,b_to:41})){
+    assert.equal(urls.compare.searchParams.get("feature_"+key),String(expected));
+    assert.equal(urls.spectrum.searchParams.get("spectrum_"+key),String(expected));
+  }
+  for(const url of Object.values(urls))assert.equal(url.searchParams.get("monitor_asset"),"bearing B");
+  for(const key of ["onset","model"]){
+    assert.equal(urls[key].searchParams.get("model_binding"),"second-model");
+    assert.equal(urls[key].searchParams.get("model_position"),"23");
+  }
+  assert.equal(urls.onset.hash,"#selected-model-input");
+  assert.deepEqual(changeActionLinks("bearing B",change,null,["model","onset"]),[]);
+});
 
 test("a question's answer stays on its selected change, including when model and end measurement coincide",async()=>{
   const original=globalThis.fetch,key="a".repeat(64);

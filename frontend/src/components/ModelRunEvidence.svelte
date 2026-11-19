@@ -1,8 +1,9 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
+  import TaskDialog from "./TaskDialog.svelte";
   import {readableSourceId} from "../operations-status";
   import {onMount,tick} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
-  import CautionNote from "./CautionNote.svelte";
   import ModelConnect from "./ModelConnect.svelte";
   import ModelBuild from "./ModelBuild.svelte";
   import ModelExplanation from "./ModelExplanation.svelte";
@@ -85,8 +86,12 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
-  function showSelectedInput() {
+  let inputOpen=$state(false);
+  async function showSelectedInput() {
     followLatest = false;
+    inputOpen=true;
+    await tick();
+    await tick();
     const input = document.getElementById("selected-model-input") as HTMLDetailsElement | null;
     if (input) input.open = true;
     input?.focus({preventScroll: true});
@@ -101,6 +106,15 @@
     return [names.get(current.bindingId)??"모델",place(run.position),exceeds===null?"판단 정보 없음":exceeds?"기준 초과":"기준 이하"].join(" · ");
   };
   // The recent list, plus a step chosen from the trend that is older than it.
+  function adjacent(direction:number):StepPointer|undefined {
+    const at=selectedStep?.position;
+    if(at===undefined)return undefined;
+    // A recent-only list cannot establish the next step of an older bookmarked result.
+    const steps=trendSteps;
+    if(!steps.some(step=>step.position===at))return undefined;
+    return [...steps].filter(step=>direction<0?step.position<at:step.position>at)
+      .sort((a,b)=>direction<0?b.position-a.position:a.position-b.position)[0];
+  }
   const choices=$derived.by(():StepPointer[]=>{
     const steps=trace?.steps??[];
     const chosen=selectedStep;
@@ -282,31 +296,10 @@
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
     {#if binding}
-      <div class="analysis-workspace"><div class="analysis-body">
-      {#if !binding.packageAvailable}
-        <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
-      {/if}
-      {#if binding.lastProcessed!==null&&binding.lastProcessed!==binding.lastAnalyzed}
-        <StatusNotice kind="uncertain" message={"가장 최근 "+place(binding.lastProcessed)+"은 모델이 분석하지 않았습니다. 이전 점수를 최신 점수처럼 보여 주지 않습니다."}/>
-      {/if}
-      {#if traceState==="loading"}
-        <StatusNotice message="최근 측정의 모델 결과 목록을 불러오고 있습니다."/>
-      {:else if traceState==="failed"}
-        <StatusNotice kind="failure" title="모델 결과 목록을 불러오지 못했습니다" message={error}
-          actionLabel="다시 불러오기" onAction={()=>void chooseBinding(binding!.bindingId)}/>
-      {:else if traceState==="unavailable"}
-        <StatusNotice kind="uncertain" title="모델 결과 기록을 찾을 수 없습니다" message={error}/>
-      {:else if traceState==="empty"}
-        <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
-      {:else if trace}
-        {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
-        {/key}
-      {/if}
-      </div><aside class="analysis-sidebar" aria-label="모델 선택과 측정 조사">
+      <div class="analysis-workspace model-workspace"><AnalysisControls title="모델" summary={names.get(binding.bindingId)}>{#snippet children(close)}{#if binding}
     {#if bindings.length>1}
       <label class="selector">적용 모델
-        <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value)}>
+        <select value={selectedBinding} onchange={e=>{close();void chooseBinding(e.currentTarget.value);}}>
           {#each bindings as item(item.bindingId)}
             <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
           {/each}
@@ -327,7 +320,33 @@
       {/key}
     {/if}
         </details>
-        <label class="selector">측정 선택 (최근 {trace.limit}회)
+      {/if}
+      {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
+      {#if !binding.packageAvailable}
+        <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
+      {/if}
+      {#if binding.lastProcessed!==null&&binding.lastProcessed!==binding.lastAnalyzed}
+        <StatusNotice kind="uncertain" message={"가장 최근 "+place(binding.lastProcessed)+"은 모델이 분석하지 않았습니다. 이전 점수를 최신 점수처럼 보여 주지 않습니다."}/>
+      {/if}
+      {#if traceState==="loading"}
+        <StatusNotice message="최근 측정의 모델 결과 목록을 불러오고 있습니다."/>
+      {:else if traceState==="failed"}
+        <StatusNotice kind="failure" title="모델 결과 목록을 불러오지 못했습니다" message={error}
+          actionLabel="다시 불러오기" onAction={()=>void chooseBinding(binding!.bindingId)}/>
+      {:else if traceState==="unavailable"}
+        <StatusNotice kind="uncertain" title="모델 결과 기록을 찾을 수 없습니다" message={error}/>
+      {:else if traceState==="empty"}
+        <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
+      {:else if trace}
+        {#key binding.bindingId+":"+binding.lastProcessed}
+          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
+        {/key}
+      {/if}
+      </div>
+      {#if trace}
+      <div class="model-comparison-area">
+        <div class="measurement-picker">        <label class="selector">측정 선택 (최근 {trace.limit}회)
           <select value={selectedStep?String(selectedStep.position):""}
             onchange={e=>{
               const item=choices.find(s=>String(s.position)===e.currentTarget.value);
@@ -341,10 +360,8 @@
         {#if trace.steps.length===trace.limit}
           <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
         {/if}
-      {/if}
-      </aside>
-      {#if trace}
-      <div class="model-comparison-area">
+
+        <div class="step-actions"><button type="button" class="ui-button" disabled={!adjacent(-1)} onclick={()=>{const step=adjacent(-1);if(step){followLatest=false;void chooseStep(step);}}}>이전 측정</button><button type="button" class="ui-button" disabled={!adjacent(1)} onclick={()=>{const step=adjacent(1);if(step){followLatest=false;void chooseStep(step);}}}>다음 측정</button></div></div>
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
         {:else if detailState==="failed"}
@@ -367,9 +384,10 @@
           {#if measurements&&binding.stepKind==="acquisition-snapshot"}
             {@const links=measurementLinks(assetId,result.position,{...measurements,bindingId:binding.bindingId},"model")}
             {#if links.length}<p class="continue">같은 측정으로 이어서 보기
-              {#each links as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
+              {#each links.filter(item=>item.key!=="features") as item(item.key)}<a href={item.href}>{item.label} →</a>{/each}</p>{/if}
           {/if}</div>
-          <div class="selected-more">
+          {#if result.state==="skipped"}<button type="button" class="ui-button input-details" onclick={()=>inputOpen=true}>원본·모델 상세</button>{/if}
+          <TaskDialog bind:open={inputOpen} title="선택한 측정의 원본·모델 상세"><div class="selected-more">
           {#if result.state!=="skipped"}{@const summary=scoreSummary(result.output)}
             <details><summary>점수·판정 상세</summary>
           <p class="context">{selectedScoreMessage(summary).meaning}</p>
@@ -407,7 +425,7 @@
               {/if}
             {/if}
           </details>
-          </div>
+          </div></TaskDialog>
         {/if}
         {#if result}
           {#if result.state!=="skipped"}
@@ -419,7 +437,6 @@
                   subject={reviewSubject(binding, result)}/>{/if}
               </details>
             {/key}
-            <CautionNote message="AI 해설은 저장된 측정값 비교를 설명하며 고장 원인을 진단하지 않습니다."/>
           {/if}
         {/if}
       </div>
@@ -431,7 +448,12 @@
 </section>
 <style>
   /* 그래프 아래 전체 폭: 고른 측정의 결과와 그 측정이 이전과 무엇이 달랐는지를 한 묶음으로 본다. */
-  .model-comparison-area{grid-column:1 / -1;min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-4);display:grid;gap:var(--space-2)}
+  .model-workspace{grid-template-columns:minmax(0,1.05fr) minmax(520px,1fr);gap:var(--space-5)}
+  .model-workspace>.analysis-body{grid-column:1;grid-row:2}
+  .model-comparison-area{grid-column:2;grid-row:2;min-width:0;border-left:1px solid var(--color-border);padding-left:var(--space-5);display:grid;gap:var(--space-2)}
+  .measurement-picker{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-2)}.measurement-picker>p{display:none}.step-actions{display:flex;gap:var(--space-1)}
+  .input-details{justify-self:start}
+  @media(max-width:1150px){.model-workspace{grid-template-columns:minmax(0,1fr)}.model-workspace>.analysis-body,.model-comparison-area{grid-column:1;grid-row:auto}.model-comparison-area{border-left:0;border-top:1px solid var(--color-border);padding-left:0;padding-top:var(--space-4)}}
   .selected-result{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
   .selected-result h3{margin:0;font-size:1.2rem}
   .selected-result .ui-button{margin-left:auto}

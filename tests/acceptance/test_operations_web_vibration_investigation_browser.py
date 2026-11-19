@@ -10,7 +10,7 @@ import pytest
 from industrial_phm.genai import change_answer
 from industrial_phm.runtime import operations_web_phm_explanation as explanation_runtime
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
-from tests.support.web_next import asset_list, start_web, stop_web
+from tests.support.web_next import asset_list, close_task, start_web, stop_web
 
 
 def test_selected_bearing_change_answer_and_judgment_are_one_journey(
@@ -42,6 +42,15 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 page = browser.new_page(viewport={"width": 1280, "height": 900})
                 errors = []
                 page.on("pageerror", lambda error: errors.append(str(error)))
+                discussion_reads = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        discussion_reads.append(request.url)
+                        if "/phm/change-explanations?" in request.url
+                        else None
+                    ),
+                )
                 page.route(
                     "**/api/v1/monitor",
                     lambda route: route.fulfill(
@@ -52,23 +61,65 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                     origin + "/web/?" + urlencode({"page": "assets", "monitor_asset": "bearing-a"})
                 )
                 page.goto(url)
+                # Understand the change first. Neither a review form nor AI reads start on entry.
+                pw.expect(
+                    page.get_by_role("button", name="판단·메모 남기기", exact=True)
+                ).to_be_visible()
+                pw.expect(page.get_by_role("region", name="선택한 진동 변화 조사")).to_have_count(0)
+                selected = parse_qs(urlsplit(page.url).query)
+                assert selected["summary_kind"] == ["vibration"]
+                page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
+                review = page.get_by_role("dialog", name="이 변화의 판단·메모", exact=True)
+                review.get_by_label("메모 (선택)", exact=True).fill("현장 기록과 대조 중")
+                close_task(page, "이 변화의 판단·메모")
+                assert not discussion_reads
+
+                def pending(route):
+                    key = parse_qs(urlsplit(route.request.url).query)["change_id"][0]
+                    route.fulfill(
+                        json={
+                            "schema_version": 1,
+                            "asset_id": "bearing-a",
+                            "change_id": key,
+                            "explanations": [
+                                {
+                                    "id": "pending-test",
+                                    "status": "pending",
+                                    "answer": None,
+                                    "context": {
+                                        "asset_id": "bearing-a",
+                                        "change_id": key,
+                                        "question": "기존 질문",
+                                    },
+                                }
+                            ],
+                        }
+                    )
+
+                page.route("**/api/v1/phm/change-explanations?**", pending)
+                page.get_by_role("button", name="이 변화에 대해 질문하기", exact=True).click()
                 panel = page.get_by_role("region", name="선택한 진동 변화 조사")
+                pw.expect(panel.get_by_role("status")).to_contain_text("AI 해설 작성 중")
+                close_task(page, "이 변화에 대해 질문하기")
+                stopped = len(discussion_reads)
+                page.wait_for_timeout(1800)
+                assert len(discussion_reads) == stopped
+                page.unroute("**/api/v1/phm/change-explanations?**", pending)
+                page.get_by_role("button", name="이 변화에 대해 질문하기", exact=True).click()
                 ask = panel.get_by_role(
-                    "button", name="변화 구간의 시작과 지속 범위를 설명해 주세요.", exact=True
+                    "button", name="진동 크기와 주파수 변화를 종합하면", exact=False
                 )
                 pw.expect(ask).to_be_enabled()
                 assert not model.requests
                 assert panel.bounding_box()["y"] < 900
-                selected = parse_qs(urlsplit(page.url).query)
-                assert selected["summary_kind"] == ["vibration"]
-                # Preserve a person's unfinished note when explicitly importing the AI summary.
-                review = page.get_by_role("region", name="검토", exact=True)
-                review.get_by_label("메모 (선택)", exact=True).fill("현장 기록과 대조 중")
                 ask.click()
                 pw.expect(panel.locator(".answer")).to_have_text(summary, timeout=30000)
-                evidence = page.get_by_role("list", name="변화 근거", exact=True)
-                href = evidence.locator('a[href*="method=spectrum"]').get_attribute("href")
-                onset = evidence.locator('a[href*="model_position"]').get_attribute("href")
+                href = panel.get_by_role(
+                    "link", name="이 구간의 주파수 비교", exact=False
+                ).get_attribute("href")
+                onset = panel.get_by_role(
+                    "link", name="변화 시작 측정의 원본 확인", exact=False
+                ).get_attribute("href")
                 query = parse_qs(urlsplit(href).query)
                 for part in ("a_from", "a_to", "b_from", "b_to"):
                     assert query["spectrum_" + part] == selected["feature_" + part]
@@ -82,6 +133,7 @@ def test_selected_bearing_change_answer_and_judgment_are_one_journey(
                 review.get_by_role("button", name="판단 저장", exact=True).click()
                 pw.expect(review.locator(".events li")).to_have_count(1)
                 page.reload()
+                page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
                 pw.expect(review).to_contain_text("현재 판단 · 계속 관찰")
                 pw.expect(review.locator(".events li")).to_contain_text(summary)
                 assert len(model.requests) == 1

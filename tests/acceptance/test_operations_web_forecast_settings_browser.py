@@ -12,7 +12,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import start_web, stop_web
+from tests.support.web_next import close_task, open_analysis_settings, start_web, stop_web
 
 
 def _store_history(
@@ -129,6 +129,7 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     if kind == "history"
                     else "기록 마지막 측정 기준 전망"
                 )
+                open_analysis_settings(page, "기준·모델 설정")
                 if panel.locator("details.calculation-options").get_attribute("open") is None:
                     panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.12")
@@ -141,7 +142,7 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     page.expect_response(endpoint("forecast"), timeout=60_000) as forecast,
                     page.expect_response(endpoint("outlook"), timeout=60_000) as outlook,
                 ):
-                    panel.get_by_role("button", name="계산하기", exact=True).click()
+                    panel.get_by_role("button", name="적용하고 계산하기", exact=True).click()
                 results = {"forecast": forecast.value.json(), "outlook": outlook.value.json()}
                 pw.expect(
                     panel.get_by_role("heading", name=result_heading, exact=True)
@@ -182,11 +183,14 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                 )
                 assert len(briefing_reads) > stopped
                 ai.get_by_text("AI 해설·추가 질문", exact=True).click()
+                panel.get_by_role("button", name="예측 시작값·과거 검증 보기", exact=True).click()
                 panel.get_by_text("과거 자료로 예측 확인", exact=True).click()
                 pw.expect(
                     panel.get_by_role("table", name="첫 행은 최근 과거 검증", exact=False)
                 ).to_be_visible()
                 assert results["forecast"]["rolling_backtests"]
+                close_task(page, "전망 해석·과거 검증")
+                open_analysis_settings(page, "기준·모델 설정")
                 panel.get_by_label("추세 민감도").fill("0.2")
                 pw.expect(
                     panel.get_by_role("heading", name=result_heading, exact=True)
@@ -197,6 +201,7 @@ def test_current_forecast_settings_and_time_horizon_use_real_evidence(
                     panel.get_by_role("heading", name=result_heading, exact=True)
                 ).to_be_visible(timeout=60000)
                 assert len(briefing_reads) == stopped
+                open_analysis_settings(page, "기준·모델 설정")
                 if panel.locator("details.calculation-options").get_attribute("open") is None:
                     panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 pw.expect(panel.get_by_label("추세 민감도")).to_have_value("0.2")
@@ -260,6 +265,7 @@ def test_history_periods_follow_selected_signal_identity_and_training_window(
                 assert selector.locator("option:not([disabled])").count() == 1
                 pw.expect(selector).to_have_value("1h")
                 assert len(forecasts) == 1
+                open_analysis_settings(page, "기준·모델 설정")
                 if panel.locator("details.calculation-options").get_attribute("open") is None:
                     panel.get_by_text("고급 설정 · 모델 계산", exact=True).click()
                 training = panel.get_by_label("최근 학습 개수", exact=False)
@@ -269,7 +275,7 @@ def test_history_periods_follow_selected_signal_identity_and_training_window(
                 assert len(forecasts) == 1
                 training.fill("150")
                 pw.expect(button).to_be_enabled()
-                button.click()
+                panel.get_by_role("button", name="적용하고 계산하기", exact=True).click()
                 pw.expect(
                     panel.get_by_role("heading", name="기록 마지막 시점 기준 전망", exact=True)
                 ).to_be_visible(timeout=60000)
@@ -326,6 +332,7 @@ def test_count_forecast_discloses_actual_validation_range(
                 assert body["backtest"]["points"] == 5
                 assert body["backtest"]["hidden_seconds"] / body["period_seconds"] == 5
                 panel = page.get_by_role("region", name="추세·기준 도달 전망")
+                panel.get_by_role("button", name="예측 시작값·과거 검증 보기", exact=True).click()
                 diagnostic = panel.get_by_role("region", name="예측 시작값과 검증 상태")
                 pw.expect(diagnostic).to_contain_text(
                     f"요청한 예측 범위 {requested}회 · 과거 검증 5개 측정값, 약 5회 구간."
@@ -421,7 +428,9 @@ def test_bookmarked_history_outlook_opens_a_supported_period_or_explains_unavail
                         pw.expect(panel.get_by_text("저장된 예측 기간", exact=False)).to_have_count(
                             0
                         )
-                assert panel.locator("details.calculation-options").get_attribute("open") is None
+                pw.expect(
+                    panel.get_by_role("dialog", name="기준·모델 설정", exact=True)
+                ).to_be_hidden()
                 assert not errors, errors
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 2")
             finally:

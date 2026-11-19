@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {modelAtChange, modelEvidence, rareAtChange} from "./model-context.ts";
+
+test("a partial model history cannot establish disagreement with a fully read model",()=>{
+  const text=modelEvidence([{name:"IF",analyzed:20,exceeded:1,complete:false},{name:"LSTM",analyzed:52,exceeded:48}]);
+  assert.ok(text?.includes("일부 조회"));
+  assert.ok(!text?.includes("판단이 갈림"));
+  assert.ok(text?.includes("구간 전체의 모델 반응을 비교할 수 없습니다"));
+});
 import type {ScoreTrend, TrendPoint} from "./model-trend.ts";
 
 const point = (position: number, exceeds: boolean | null, state: "analyzed" | "skipped" = "analyzed"): TrendPoint => ({

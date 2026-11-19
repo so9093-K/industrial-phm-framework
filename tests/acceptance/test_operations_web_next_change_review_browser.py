@@ -14,7 +14,13 @@ from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from tests.support.phm import phm_workspace
-from tests.support.web_next import InProcessSupervisor, asset_list, stop_web
+from tests.support.web_next import (
+    InProcessSupervisor,
+    asset_list,
+    close_task,
+    open_analysis_settings,
+    stop_web,
+)
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -78,16 +84,20 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
                 "link", name="원본 신호에서 이 구간 보기", exact=False
             ).get_attribute("href")
             pw.expect(card.locator("svg path.trace")).to_have_count(1)
-            evidence = page.get_by_role("list", name="변화 근거", exact=True)
-            compare = evidence.locator('a[href*="method=compare"]').first.get_attribute("href")
+            page.get_by_role("button", name="값의 수준이 달라졌나요?", exact=True).click()
+            evidence = page.get_by_role("region", name="값의 수준이 달라졌나요?", exact=True)
+            compare = evidence.get_by_role(
+                "link", name="두 기간 비교하기", exact=False
+            ).get_attribute("href")
             assert "monitor_source=source-b" in compare and "monitor_point=bearing" in compare
-            # 판단하는 곳은 하나: 오른쪽의 '검토'.
-            review = page.get_by_role("region", name="검토", exact=True)
+            page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
+            review = page.get_by_role("dialog", name="이 변화의 판단·메모", exact=True)
             review.get_by_role("radio", name="계속 관찰").check()
             review.get_by_label("메모 (선택)").fill("운전 기록과 비교함")
             review.get_by_role("button", name="판단 저장", exact=True).click()
             pw.expect(review.locator(".events li")).to_have_count(1)
             page.reload()
+            page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
             pw.expect(review).to_contain_text("현재 판단 · 계속 관찰")
             pw.expect(review.get_by_role("button", name="판단 저장", exact=True)).to_have_count(0)
             review.get_by_label("후속 메모").fill("다음 측정에서 다시 확인함")
@@ -95,6 +105,7 @@ def test_change_review_revisit_keeps_source_and_reference(tmp_path: Path, width:
             pw.expect(review.locator(".events li")).to_have_count(2)
             append("source-b", 120, 180, True)
             page.reload()
+            page.get_by_role("button", name="판단·메모 남기기", exact=True).click()
             archive_summary = page.get_by_text("저장된 검토", exact=True)
             archive_summary.click()
             archive = archive_summary.locator("..")
@@ -216,6 +227,7 @@ def test_partial_model_scores_do_not_turn_the_last_loaded_point_into_latest(tmp_
                     }
                 )
             )
+            open_analysis_settings(page, "모델")
             page.get_by_text("다른 모델의 결과와 비교", exact=True).click()
             comparison = page.locator("section.comparison").filter(
                 has=page.get_by_role("heading", name="모델별 판단 상태 비교")
@@ -228,6 +240,9 @@ def test_partial_model_scores_do_not_turn_the_last_loaded_point_into_latest(tmp_
                 last = rows.nth(index).locator("td").last
                 pw.expect(last).to_contain_text("8번째 측정")
                 pw.expect(last).to_contain_text("2번째 측정")
+            close_task(page, "모델")
+            pw.expect(page.locator(".trend svg")).to_be_visible()
+            pw.expect(page.get_by_role("button", name="이전 측정", exact=True)).to_be_disabled()
             assert errors == []
             browser.close()
     finally:

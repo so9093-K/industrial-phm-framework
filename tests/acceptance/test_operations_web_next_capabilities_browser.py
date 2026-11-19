@@ -11,7 +11,13 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import asset_list, expect_place, start_web, stop_web
+from tests.support.web_next import (
+    asset_list,
+    expect_place,
+    open_analysis_settings,
+    start_web,
+    stop_web,
+)
 
 BASE = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -320,6 +326,7 @@ def test_electrical_period_navigation_keeps_the_explicit_reference(tmp_path: Pat
                     "&monitor_asset=condition-motor&tab=change&method=electrical"
                 )
                 panel = page.get_by_role("region", name="3상 전력·불평형", exact=True)
+                open_analysis_settings(page, "분석·기준 기간")
                 panel.get_by_label("분석 기간").select_option("1h")
                 panel.get_by_text("분석·기준 기간 직접 지정", exact=True).click()
                 panel.get_by_label("분석 끝 시각 (KST)", exact=True).fill("2020-11-13T11:00")

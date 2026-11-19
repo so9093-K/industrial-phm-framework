@@ -30,6 +30,20 @@ def expect_place(pw: Any, page: Any, tab: str, method: str | None = None) -> Non
             )
 
 
+def open_analysis_settings(page: Any, title: str) -> Any:
+    """Change conditions through the same named task the person opens."""
+    dialog = page.get_by_role("dialog", name=title, exact=True)
+    if not dialog.is_visible():
+        page.get_by_role("button", name=title + " 변경", exact=True).click()
+    return dialog
+
+
+def close_task(page: Any, title: str) -> None:
+    page.get_by_role("dialog", name=title, exact=True).get_by_role(
+        "button", name="닫기", exact=True
+    ).click()
+
+
 class InProcessSupervisor:
     """Executes authorized actions the way the supervisor broker does, without IPC.
 

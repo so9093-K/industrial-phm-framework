@@ -1,5 +1,5 @@
 <script lang="ts">
-  let viewportWidth=$state(1440);
+  import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import RangeCompare from "./RangeCompare.svelte";
   import {assetTabUrl, systemUrl} from "../routes";
@@ -225,16 +225,15 @@
     return () => {sourceAbort?.abort(); profileAbort?.abort();};
   });
 </script>
-<svelte:window bind:innerWidth={viewportWidth}/>
 
-{#snippet conditions()}
+{#snippet conditions(close:()=>void)}
   {#if sources&&periods}
-    <details class="conditions" open={viewportWidth>=1100 || compareState !== "ready" || !!formError}>
-      <summary>비교 조건 확인·변경 · {signalName(names, selected)}</summary>
+    <section class="conditions">
+
     <div class="controls">
       <label for="compare-channel">신호
         <select id="compare-channel" value={selected}
-          onchange={e => selectChannel(e.currentTarget.value)}>
+          onchange={e => {if(!formError)close();selectChannel(e.currentTarget.value);}}>
           {#each sources.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
         </select>
       </label>
@@ -264,7 +263,7 @@
       {/each}
     </div>
     <button class="ui-button ui-button-primary" type="button" disabled={!!formError}
-      onclick={() => void compare()}>비교하기</button>
+      onclick={() => {close();void compare();}}>비교하기</button>
     {#if formError}<StatusNotice kind="failure" message={formError}/>{/if}
     {#if operation}{@const shown = operation}
         <label>비교할 값
@@ -275,7 +274,7 @@
           </select>
         </label>
     {/if}
-    </details>
+    </section>
   {/if}
 {/snippet}
 
@@ -291,7 +290,31 @@
       message="이 설비에는 저장된 시계열 기록이 없습니다."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if sources && periods}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="비교 조건"
+      summary={"기간 A · "+showTime(periods.a.from)+" ~ "+showTime(periods.a.to)+" / 기간 B · "+showTime(periods.b.from)+" ~ "+showTime(periods.b.to)+" (KST)"}>{#snippet children(close)}{#if periods}
+
+    {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
+      {#if compareState!=="empty"}<button type="button" class="ui-button" disabled={!!formError}
+        onclick={()=>{focus=null;remember();close();void compare();}}>다른 출처의 기록 보기</button>{/if}{/if}
+    <div class="period-summary" role="group" aria-label="현재 비교 기간">
+      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
+      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
+    </div>
+
+
+    {#if handedOver}
+      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
+    {/if}
+    {#if beforeRecord > 0}
+      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
+    {/if}
+    {#if operation}{@const shown = operation}
+        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 비교해야 합니다."
+          : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
+    {/if}
+    {@render conditions(close)}
+    {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
     {#if compareState === "loading"}
       <StatusNotice message="두 기간의 측정값과 품질을 불러오고 있습니다." />
     {:else if compareState === "failed"}
@@ -306,6 +329,7 @@
     {:else if compareState === "empty"}
       <StatusNotice title={focus?"선택한 출처에 비교할 측정이 없습니다":"고른 기간에 측정이 없습니다"}
         message={focus?"고른 신호와 A/B 기간에 맞는 기록이 없습니다. 다른 출처의 기록을 확인하거나 기간·신호를 바꿔 다시 비교하세요.":"두 기간 모두 이 신호의 저장 측정이 없습니다. 기간이나 신호를 바꿔 다시 비교하세요."} />
+      {#if focus}<button type="button" class="ui-button" onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
     {:else if result}
       {#each result.series as row (row.key)}
         {@const unit = row.unit ?? names?.get(row.channel)?.unit ?? null}
@@ -323,9 +347,9 @@
             </div>
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 해석할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={names?.get(row.channel)?.label??row.channel} />
-          {#if message}<AnalysisMessage {message} showHeadline={false}
+          {#if message}<details><summary>비교 결과 해석</summary><AnalysisMessage {message} showHeadline={false}
             boundary="기간 A의 5–95% 범위와 기간 B의 측정값을 비교합니다." />
-          {/if}
+          </details>{/if}
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
             {#if message}<p class="context">{message.headline}</p>{/if}
@@ -376,29 +400,7 @@
         </section>
       </details>
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="분석 조건과 다음 확인">
-
-    {#if focus}<p class="context">선택한 데이터 출처{focus.point?" · 측정 위치 "+focus.point:""}의 기록을 비교합니다.</p>
-      <button type="button" class="ui-button" disabled={!!formError}
-        onclick={()=>{focus=null;remember();void compare();}}>다른 출처의 기록 보기</button>{/if}
-    <div class="period-summary" role="group" aria-label="현재 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{showTime(periods.a.from)} ~ {showTime(periods.a.to)} (KST)</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{showTime(periods.b.from)} ~ {showTime(periods.b.to)} (KST)</span></p>
-    </div>
-
-
-    {#if handedOver}
-      <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
-    {/if}
-    {#if beforeRecord > 0}
-      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
-    {/if}
-    {#if operation}{@const shown = operation}
-        <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 비교해야 합니다."
-          : bandName(shown.names, level) + " 중에 측정된 값끼리 비교합니다."}</p>
-    {/if}
-    {@render conditions()}
-    </aside></div>
+    </div></div>
 
   {/if}
 </section>

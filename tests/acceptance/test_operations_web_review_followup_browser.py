@@ -9,7 +9,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.phm import phm_workspace
-from tests.support.web_next import asset_list, start_web, stop_web
+from tests.support.web_next import asset_list, open_analysis_settings, start_web, stop_web
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -213,9 +213,7 @@ def test_source_scope_can_be_cleared_after_switching_to_another_sources_signal(
                 pw.expect(
                     comparison.get_by_role("region", name="데이터 출처 b", exact=True)
                 ).to_be_visible()
-                conditions = comparison.locator("details.conditions")
-                if conditions.get_attribute("open") is None:
-                    conditions.locator("summary").first.click()
+                open_analysis_settings(page, "비교 조건")
                 comparison.locator("#compare-channel").select_option("current")
                 pw.expect(comparison).to_contain_text("선택한 출처에 비교할 측정이 없습니다")
                 before = parse_qs(urlsplit(page.url).query)

@@ -135,21 +135,24 @@ select,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
 }
 main:has(.workspace-asset){padding-block:var(--space-5)}
 
-/* A desktop investigation keeps its result and controls visible together. */
-.analysis-workspace{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:var(--space-6);align-items:start;min-width:0}
-.analysis-body{min-width:0}.analysis-sidebar{min-width:0;border-left:1px solid var(--color-border);padding-left:var(--space-5);font-size:var(--font-small);position:sticky;top:var(--space-4);max-height:calc(100vh - 2 * var(--space-4));overflow:auto}
-.analysis-sidebar .controls,.analysis-sidebar .periods,.analysis-sidebar .ranges,.analysis-sidebar .period-summary{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin-block:var(--space-3)}
-.analysis-sidebar details.conditions{padding:0;border:0;border-radius:0;background:none}.analysis-sidebar fieldset{min-width:0}.analysis-sidebar input:not([type="checkbox"]):not([type="radio"]),.analysis-sidebar select{width:100%;min-width:0}
+/* Shared spacing only; each investigation chooses how its plots and selected values relate. */
+.analysis-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);align-items:start;min-width:0}
+.analysis-workspace.analysis-full{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+.change-lead{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);align-items:center;gap:var(--space-5);padding-block:var(--space-3)}
+.change-lead .lead-copy{display:grid;gap:var(--space-2)}
+.change-lead .change-values{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:start;gap:var(--space-3)}
+.change-lead .change-values.with-latest{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1fr)}
+.change-lead .change-values .arrow{align-self:center}
+.change-lead .change-values.plain{display:block}
+@media(max-width:1000px){.change-lead{grid-template-columns:minmax(0,1fr);gap:var(--space-2)}}
+@media(max-width:560px){.change-lead .change-values,.change-lead .change-values.with-latest{grid-template-columns:minmax(0,1fr)}}
+.analysis-body{min-width:0}
 .analysis-body .series:first-child{margin-top:0;padding-top:0;border-top:0}.analysis-body .primary-insight{margin:var(--space-2) 0 var(--space-3);line-height:1.3}.analysis-body .result-metrics{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-5);font-size:var(--font-small);color:var(--color-ink-muted);margin-bottom:var(--space-3)}.analysis-body .result-metrics p{margin:0}
-@media(max-width:1099px){.analysis-workspace{grid-template-columns:minmax(0,1fr)}.analysis-sidebar{position:static;max-height:none;overflow:visible;border-left:0;border-top:1px solid var(--color-border);padding-left:0;padding-top:var(--space-4)}}
 
 .analysis-body h3{margin:0 0 var(--space-2);font-size:var(--font-section)}
 .analysis-body .source-identity{margin-bottom:var(--space-2)}.analysis-body .source-identity summary{min-height:28px;padding-block:var(--space-1)}
-.analysis-sidebar{scrollbar-gutter:stable;overscroll-behavior:contain}
 
 /* 분석 화면의 결론 한 줄: 수치(A → B)는 .primary-insight, 문장 결론은 .result-statement를 쓴다. */
 .result-statement{margin:var(--space-2) 0 var(--space-3);font-size:1.25rem;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
 .result-note{margin:0 0 var(--space-3);color:var(--color-ink-muted);overflow-wrap:anywhere}
-.analysis-sidebar .purpose{margin:0 0 var(--space-3);color:var(--color-ink-muted);line-height:1.6}
-.analysis-sidebar .ui-button-primary{width:100%;min-height:44px}
 .analysis-body>.result:first-child,.analysis-body>section:first-child{margin-top:0;padding-top:0;border-top:0}

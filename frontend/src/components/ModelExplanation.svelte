@@ -34,6 +34,7 @@
   let requesting = $state(false);
   let error = $state("");
   let question = $state("");
+  let aiOpen = $state(false);
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   // Poll for up to six minutes: a local-model response can take over one minute.
@@ -77,6 +78,7 @@
     timer = null;
   }
   async function refresh() {
+    if (!aiOpen) return;
     cancel();
     const pending = new AbortController(); request = pending;
     loadState = "loading"; error = "";
@@ -138,6 +140,7 @@
     void refresh();
     return cancel;
   });
+  $effect(() => { if(aiOpen){remaining=240;void refresh();}else {cancel();requesting=false;} });
 </script>
 
 <section class="explanation" aria-labelledby={"model-ai-" + run.runId}>
@@ -165,7 +168,7 @@
 
 
 
-  <details class="ai-panel" open={requesting || waiting || latest !== null || focus !== null}>
+  <details class="ai-panel" bind:open={aiOpen}>
     <summary>AI 해설·추가 질문</summary>
     {#if requesting}
       <StatusNotice message="해설을 요청하고 있습니다." />
@@ -264,7 +267,7 @@
     padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .ask { display: grid; gap: var(--space-3); }
   .ai-panel { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
-  .ai-panel > summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
+  .ai-panel > summary { cursor:pointer; font-weight:650; color:var(--color-action); padding-block:var(--space-3); }
   .ask button { justify-self: start; margin-top: var(--space-3); }
   .scroll { max-width: 100%; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; }

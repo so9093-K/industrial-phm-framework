@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
+  import TaskDialog from "./TaskDialog.svelte";
+  let validationOpen = $state(false);
   import SourceIdentity from "./SourceIdentity.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
@@ -143,7 +146,61 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
+    <div class="inputs">
+      <label>진동 특징
+        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
+          {#each options.features as item (item.id)}
+            <option value={item.id} disabled={!item.countForecast}>
+              {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
+            </option>
+          {/each}
+        </select>
+      </label>
+
+      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
+      {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
+        <input type="number" min="1" max="2000" step="1" value={countText}
+          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
+      </label>{/if}
+      <button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
+    </div>
+
+    <AnalysisControls title="기준·모델 설정">{#snippet children(close)}{#if options}
+    <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
+      <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
+        <input type="number" min="1" max="86400" step="any" value={assumedText}
+          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
+          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
+      </label></details>
+    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="inputs">      <label>기준 방향
+        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label>관리 기준 (선택)
+        <input type="number" step="any" value={managementText}
+          oninput={e=>{managementText=e.currentTarget.value;invalidate();}}/>
+      </label>
+      <label>종료 기준 (선택)
+        <input type="number" step="any" value={endText}
+          oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
+      </label>
+      </div>
+    </details>
+    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
+    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
+
+    <button type="button" class="ui-button ui-button-primary" disabled={available.length===0} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
+
+    {/if}{/snippet}</AnalysisControls>
+    </div>
+    <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="전망을 계산하고 있습니다."/>
     {:else if resultState==="failed"}
@@ -174,8 +231,8 @@
         {#if worse}
           <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 실제 측정의 변화부터 보기 →</a>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told && (limited || !worse)}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
-        {#if limited}
+        {#if told && !worse}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
+        {#if limited && !worse}
           <div class="tiles">
             {#if outlook.conditions.management!==null}
               <div><span>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
@@ -193,7 +250,7 @@
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if outlook.conditions.management!==null&&chart.management===null}<p class="context">관리 기준 {measure(outlook.conditions.management,outlook.unit)} · 현재 그래프 범위 밖</p>{/if}
           {#if outlook.conditions.end!==null&&chart.endLimit===null}<p class="context">종료 기준 {measure(outlook.conditions.end,outlook.unit)} · 현재 그래프 범위 밖</p>{/if}
-          <figure class="chart">
+          <figure class="chart" class:unreliable={worse}>
             <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
             <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
@@ -222,28 +279,14 @@
             </figcaption>
           </figure>
         {/if}
+        <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
+        <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
         {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
           basis={outlook.record.last + "번째 측정까지의 기록 · " + timeBasis(outlook)}
           boundary="예상 여유의 시작은 기록 마지막 측정입니다." />{/if}
         <ForecastFit showValues={limited} fit={outlook.fit??null} checks={outlook.checks} unit={outlook.unit} axis="acquisition"
           requestedCount={timeHorizon===null?outlook.horizonCount:null} effectivePeriod={outlook.effectivePeriod} />
-        {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
-          <OutlookBriefingPanel projection={outlook} onEvidenceChanged={()=>{
-            resultAbort?.abort();
-            outlook=null;
-            resultState="mismatch";
-            message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
-          }}/>
-          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && outlook ? outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis : null}><summary>검토 기록에 남기기 (선택)</summary>
-            {#if reviewSelection === outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}<ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
-            resultAbort?.abort();
-            outlook=null;
-            resultState="mismatch";
-            message=reason;
-          }}/>{/if}
-          </details>
-        {/key}
         <ForecastValidation checks={outlook.checks}/>
         <details>
           <summary>앞으로 {num(outlook.horizonCount)}회 측정의 예측값{timeHorizon?" · "+timeHorizon+"를 측정 간격으로 환산":""}</summary>
@@ -290,64 +333,37 @@
             <dt>해설 근거 버전 (data_version)</dt><dd>{outlook.dataVersion}</dd>
           </dl>
         </details>
+        </TaskDialog>
+        {#key outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}
+          <OutlookBriefingPanel projection={outlook} onEvidenceChanged={()=>{
+            resultAbort?.abort();
+            outlook=null;
+            resultState="mismatch";
+            message="해설을 확인하는 사이 데이터나 적용 모델, 측정 간격이 바뀌었습니다. 다시 계산하세요.";
+          }}/>
+          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && outlook ? outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis : null}><summary>검토 기록에 남기기 (선택)</summary>
+            {#if reviewSelection === outlook.measurementVersion+":"+outlook.dataVersion+":"+outlook.bindingId+":"+outlook.timeBasis}<ReviewRequest projection={outlook} onEvidenceChanged={reason=>{
+            resultAbort?.abort();
+            outlook=null;
+            resultState="mismatch";
+            message=reason;
+          }}/>{/if}
+          </details>
+        {/key}
       </section>
     {:else}
       <p class="context">진동 특징과 예측 범위를 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="전망 조건">
-    <p class="purpose">선택한 진동 특징의 추세가 앞으로 어떻게 이어질지 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인합니다.</p>
-    <SourceIdentity id={options.sourceId}/><p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회
-      · {options.recordedPeriod===null?"측정 간격 기록 없음":"기록된 측정 간격 "+elapsedText(options.recordedPeriod)}</p>
-    <div class="inputs">
-      <label>진동 특징
-        <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;invalidate();void calculate();}}>
-          {#each options.features as item (item.id)}
-            <option value={item.id} disabled={!item.countForecast}>
-              {item.label} · {item.validPoints}회{item.countForecast?"":" (부족)"}
-            </option>
-          {/each}
-        </select>
-      </label>
-
-      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
-      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
-      {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
-        <input type="number" min="1" max="2000" step="1" value={countText}
-          oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
-      </label>{/if}
-      <button type="button" class="ui-button ui-button-primary"
-        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
-    </div>
-    <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
-      <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
-        <input type="number" min="1" max="86400" step="any" value={assumedText}
-          placeholder={options.recordedPeriod===null?"비우면 측정 횟수로만 계산":"비우면 기록된 간격 사용"}
-          oninput={e=>{assumedText=e.currentTarget.value;invalidate();}}/>
-      </label></details>
-    <details class="optional-criteria" open={managementText.trim() !== "" || endText.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="context">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="inputs">      <label>기준 방향
-        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label>관리 기준 (선택)
-        <input type="number" step="any" value={managementText}
-          oninput={e=>{managementText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label>종료 기준 (선택)
-        <input type="number" step="any" value={endText}
-          oninput={e=>{endText=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
-    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
-    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
-    </aside></div>
+    </div></div>
   {/if}
 </section>
 <style>
+  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .forecast-controls{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .forecast-controls>div{flex:1;margin:0;gap:var(--space-3)}
+  .forecast-controls :global(.analysis-controls){flex:none;margin:0}
+  .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
+
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .inputs>button{align-self:end;min-height:44px}

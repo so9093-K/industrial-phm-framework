@@ -12,7 +12,13 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import asset_list, start_web, stop_web
+from tests.support.web_next import (
+    asset_list,
+    close_task,
+    open_analysis_settings,
+    start_web,
+    stop_web,
+)
 
 
 @pytest.mark.parametrize("kind", ["history", "vibration"])
@@ -89,17 +95,13 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                     if kind == "history" or item["feature"].endswith(".rms")
                 )
                 page.goto(origin + "/web/?" + urlencode({"page": "assets", "monitor_asset": asset}))
-                page.get_by_role(
-                    "button",
-                    # 진동 특징은 화면에 보이는 쉬운 이름으로 고른다: "수직 진동 크기 (RMS)".
-                    name=(
+                page.get_by_label("살펴볼 변화", exact=True).select_option(
+                    label=(
                         chosen["label"]
                         if kind == "history"
                         else chosen["label"].replace(" RMS", " 크기 (RMS)")
                     )
-                    + " 변화 크게 보기",
-                    exact=True,
-                ).click()
+                )
                 card = page.locator(".found > li").first
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text(
                     chosen["label"] if kind == "history" else chosen["label"].split(" RMS")[0]
@@ -113,10 +115,13 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                     assert selected["feature_b_from"] == [str(chosen["from"])]
                 tabs = page.get_by_role("navigation", name="설비 화면")
                 tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                settings_title = "비교 조건" if kind == "history" else "특징·비교 기간"
+                open_analysis_settings(page, settings_title)
                 selector = "#compare-channel" if kind == "history" else "#acquisition-feature"
                 pw.expect(page.locator(selector)).to_have_value(
                     chosen["channel"] if kind == "history" else chosen["feature"], timeout=30000
                 )
+                close_task(page, settings_title)
                 pw.expect(
                     page.locator(".series" if kind == "history" else ".acquisition .evidence").first
                 ).to_be_visible(timeout=30000)
@@ -124,6 +129,7 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                     # The default comparison tab has no explicit method query. An edited
                     # period must still become the relationship screen's current period.
                     assert "method" not in parse_qs(urlsplit(page.url).query)
+                    open_analysis_settings(page, settings_title)
                     end = chosen["to"] - 1
                     page.locator(".acquisition .ranges fieldset").nth(1).get_by_label(
                         "끝", exact=True
@@ -147,6 +153,8 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                 page.get_by_role("navigation", name="분석 방법").get_by_role(
                     "link", name="신호 관계", exact=True
                 ).click()
+                related_settings = "신호·비교 기간" if kind == "history" else "특징·비교 기간"
+                open_analysis_settings(page, related_settings)
                 horizontal = (
                     page.locator("#relation-x")
                     if kind == "history"
@@ -155,6 +163,7 @@ def test_another_summary_change_survives_analysis_tabs_and_reload(
                 pw.expect(horizontal).to_have_value(
                     chosen["channel"] if kind == "history" else chosen["feature"], timeout=30000
                 )
+                close_task(page, related_settings)
                 related = parse_qs(urlsplit(page.url).query, keep_blank_values=True)
                 if kind == "history":
                     assert related["compare_b"] == selected["compare_b"]

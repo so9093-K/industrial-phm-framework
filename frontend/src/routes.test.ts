@@ -4,6 +4,19 @@ import {
   assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
+test("a frequency investigation keeps its channel and zoom across tabs and clears them for a new change",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=bearing";
+  const focused=base+"&tab=change&method=spectrum&spectrum_channel=vertical&spectrum_hz_from=400&spectrum_hz_to=1600";
+  const model=tabSelectionUrl(base+"&tab=anomaly&method=model",focused);
+  const back=new URL(tabSelectionUrl(base+"&tab=change&method=spectrum","http://local"+model),"http://local");
+  assert.equal(back.searchParams.get("spectrum_channel"),"vertical");
+  assert.equal(back.searchParams.get("spectrum_hz_from"),"400");
+  assert.equal(back.searchParams.get("spectrum_hz_to"),"1600");
+  const other=new URL(summarySelectionUrl(back.href,base+"&feature_b_from=72&feature_b_to=123","other","vibration"),"http://local");
+  assert.equal(other.searchParams.has("spectrum_hz_from"),false);
+  assert.equal(other.searchParams.has("spectrum_channel"),false);
+});
+
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
   const origin="http://127.0.0.1:2770";
   const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m&monitor_source=B&monitor_point=&monitor_interpretation=meaning&forecast_prior=0.5&capture_id=old";

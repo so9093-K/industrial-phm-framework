@@ -66,6 +66,10 @@ def test_unavailable_model_answer_can_be_regenerated_without_continuing_the_fall
                     "&method=model&monitor_asset=bearing-a&model_binding=anomaly-a&model_position=3"
                 )
                 explanation = page.get_by_role("region", name="측정 변화 분석")
+                if page.get_by_role("dialog", name="선택한 측정의 원본", exact=True).is_visible():
+                    page.get_by_role("dialog", name="선택한 측정의 원본", exact=True).get_by_role(
+                        "button", name="닫기", exact=True
+                    ).click()
                 if not explanation.locator("details.ai-panel").evaluate("node => node.open"):
                     explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
@@ -160,18 +164,12 @@ def test_model_result_explanation_and_review_request(
                     plot = page.locator(".trend svg")
                     pw.expect(plot).to_be_visible()
                     graph = plot.bounding_box()
-                    sidebar = page.locator(".analysis-sidebar").bounding_box()
-                    assert graph and sidebar and sidebar["x"] > graph["x"] + graph["width"]
+                    inspector = page.locator(".model-comparison-area").bounding_box()
+                    assert graph and inspector and inspector["x"] > graph["x"] + graph["width"]
                     assert graph["y"] + graph["height"] <= 900
-                    pw.expect(explanation.locator(".values-column table")).to_be_visible(
-                        timeout=20000
-                    )
-                    values = explanation.locator(".values-column").bounding_box()
-                    flow = explanation.locator(".flow-column").evaluate(
-                        "element => { const box = element.getBoundingClientRect(); "
-                        "return {x: box.x, width: box.width}; }"
-                    )
-                    assert values and flow and flow["x"] >= values["x"] + values["width"]
+                    pw.expect(explanation.locator(".primary-features")).to_be_visible(timeout=20000)
+                    pw.expect(explanation.locator(".values-column table")).to_have_count(0)
+                    pw.expect(explanation.locator(".flow-column")).to_have_count(0)
                 explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 pw.expect(explanation).to_contain_text("아직 이 비교에 대한 해설이 없습니다")
                 explanation.get_by_role("button", name="해설 만들기").click()
@@ -223,6 +221,7 @@ def test_model_result_explanation_and_review_request(
                 observer = _open(browser, width)
                 observer.goto(f"http://127.0.0.1:{viewer.server_port}{address}")
                 watched = observer.get_by_role("region", name="측정 변화 분석")
+                watched.get_by_text("AI 해설·추가 질문", exact=True).click()
                 pw.expect(watched.get_by_text(SUMMARY)).to_be_visible(timeout=20000)
                 pw.expect(watched).to_contain_text("보기 전용이라 해설을 만들 수 없습니다")
                 assert watched.get_by_role("button", name="해설 만들기").count() == 0
@@ -268,8 +267,10 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
             try:
                 observer = _open(browser, width)
                 observer.goto(f"http://127.0.0.1:{running[0][0].server_port}{suffix}")
+                observer.get_by_role("button", name="전체 특징 비교", exact=True).click()
                 table = observer.get_by_role("table", name="측정 특징 비교")
                 pw.expect(table.get_by_role("row", name="수평 진동 RMS")).to_be_visible()
+                observer.get_by_role("button", name="두 측정 사이의 흐름", exact=True).click()
                 pw.expect(observer.get_by_role("table", name="구간 흐름")).to_be_visible()
                 assert (
                     PhmExplanationStore(workspace.phm_explanation_path).list_for("anomaly-a", 8)
@@ -278,6 +279,7 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                 assert observer.get_by_role("button", name="해설 만들기").count() == 0
                 page = _open(browser, width)
                 page.goto(f"http://127.0.0.1:{running[1][0].server_port}{suffix}")
+                page.get_by_role("button", name="두 측정 사이의 흐름", exact=True).click()
                 flow = page.get_by_role("table", name="구간 흐름")
                 flow.get_by_role("row").first.get_by_role(
                     "button", name="가장 큰 변화", exact=False
@@ -289,6 +291,10 @@ def test_comparison_without_ai_and_range_point_question_keep_exact_scope(
                         "heading", name="4번째 측정 원본 파형"
                     )
                 ).to_be_visible()
+                if page.get_by_role("dialog", name="선택한 측정의 원본", exact=True).is_visible():
+                    page.get_by_role("dialog", name="선택한 측정의 원본", exact=True).get_by_role(
+                        "button", name="닫기", exact=True
+                    ).click()
                 if not explanation.locator("details.ai-panel").evaluate("node => node.open"):
                     explanation.get_by_text("AI 해설·추가 질문", exact=True).click()
                 explanation.get_by_text("직접 질문하기", exact=True).click()
