@@ -15,6 +15,63 @@ from tests.support.phm import analyze, deliver, phm_workspace
 from tests.support.web_next import asset_list, start_web, stop_web
 
 
+def test_monitor_separates_models_last_measurements(tmp_path: Path) -> None:
+    pw = pytest.importorskip("playwright.sync_api")
+    workspace = phm_workspace(tmp_path / "model-times", bind=False)
+    models = [
+        {
+            "binding_id": binding,
+            "asset_id": "bearing-a",
+            "source_id": "bench",
+            "measurement_point_id": None,
+            "step_kind": "acquisition-snapshot",
+            "estimator_kind": estimator,
+            "processing_state": "processed",
+            "latest_analyzed": {"position": position, "output": {"exceeds_threshold": exceeds}},
+        }
+        for binding, estimator, position, exceeds in (
+            ("a", "lstm-autoencoder-v1", 123, True),
+            ("b", "isolation-forest-refit-v1", 120, False),
+        )
+    ]
+    running = start_web(workspace.root, writer=False)
+    origin = f"http://127.0.0.1:{running[0].server_port}"
+    try:
+        with pw.sync_playwright() as runtime:
+            browser = runtime.chromium.launch()
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 900})
+                page.route(
+                    "**/api/v1/monitor",
+                    lambda route: route.fulfill(json=json.loads(asset_list("bearing-a"))),
+                )
+                page.route(
+                    "**/api/v1/phm/monitor",
+                    lambda route: route.fulfill(
+                        json={"schema_version": 1, "items": models, "truncated": False}
+                    ),
+                )
+                page.goto(origin + "/web/")
+                facts = page.get_by_role("table", name="설비별 주요 변화").locator(".facts")
+                pw.expect(facts).to_contain_text(
+                    "LSTM 오토인코더 · 123번째 측정: 기준 초과 / "
+                    "Isolation Forest · 120번째 측정: 기준 이하"
+                )
+                # Once both models reach the same input, a shared measurement is accurate.
+                models[1]["latest_analyzed"]["position"] = 123
+                page.reload()
+                pw.expect(facts).to_contain_text(
+                    "마지막 분석 · 123번째 측정 기준 초과 · "
+                    "LSTM 오토인코더 (기준 이하 · Isolation Forest)"
+                )
+                pw.expect(facts).not_to_contain_text("120번째")
+                assert not page.evaluate("document.documentElement.scrollWidth > innerWidth + 2")
+            finally:
+                browser.close()
+    finally:
+        stop_web(*running)
+
+
 @pytest.mark.parametrize("width", [1024, 1440])
 def test_single_asset_entry_handles_wait_failure_change_and_quiet_records(
     tmp_path: Path, width: int

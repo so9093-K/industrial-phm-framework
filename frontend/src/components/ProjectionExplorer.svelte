@@ -1,4 +1,7 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
+  import TaskDialog from "./TaskDialog.svelte";
+  let validationOpen = $state(false);
   import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,pickFrom,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
@@ -206,7 +209,62 @@
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options!==null}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
+    <div class="controls">
+      <label for="projection-channel">신호
+        <select id="projection-channel" value={channel}
+          onchange={e=>{channel=e.currentTarget.value;selectedRecord="";if(focus)focus={...focus,interpretation:undefined};invalidate();void loadSelectedOptions(true);}}>
+          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
+        </select>
+      </label>
+      {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
+        <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
+          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 항목 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
+        </select>
+      </label>{/if}
+      <label for="projection-horizon">예측 기간
+        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
+          {#each horizons as value (value)}
+            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
+              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
+          {/each}
+        </select>
+      </label>
+      <button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
+        계산하기
+      </button>
+    </div>
+
+    <AnalysisControls title="기준·모델 설정">{#snippet children(close)}{#if options}
+    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
+      <summary>관리·종료 기준 추가 (선택)</summary>
+      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
+      <div class="controls">      <label for="projection-direction">기준 방향
+        <select id="projection-direction" value={direction}
+          onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label for="projection-management">관리 기준 (선택)
+        <input id="projection-management" type="number" step="any"
+          value={management} oninput={e=>{management=e.currentTarget.value;invalidate();}}/>
+      </label>
+      <label for="projection-end">종료 기준 (선택)
+        <input id="projection-end" type="number" step="any"
+          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
+      </label>
+      </div>
+    </details>
+    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
+    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
+
+    <button type="button" class="ui-button ui-button-primary" disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
+
+    {/if}{/snippet}</AnalysisControls>
+    </div>
+    <div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
     {#if investigation}<p class="intro">이어서 조사하는 구간 · {clock(new Date(investigation.from).toISOString())} ~ {clock(new Date(investigation.to).toISOString())}. 전망은 해당 구간으로 학습을 제한하지 않고, 선택한 기록의 마지막 시점을 기준으로 계산합니다.</p>{/if}
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
@@ -243,8 +301,8 @@
         {#if worse}
           <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told && (limited || !worse)}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
-        {#if limited}
+        {#if told && !worse}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
+        {#if limited && !worse}
           <div class="tiles">
             {#if projection.conditions.management!==null}
               <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong>
@@ -261,7 +319,7 @@
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
           {#if projection.conditions.end!==null&&chart.endLimit===null}<p class="intro">종료 기준 {measure(projection.conditions.end,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
-          <figure class="chart">
+          <figure class="chart" class:unreliable={worse}>
             <p class="axis-note">최고 {measure(chart.high, (projection.unit ?? names.get(projection.channel)?.unit ?? null))} · 최저 {measure(chart.low, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</p>
             <ValueAxis ticks={chart.ticks} height={chart.height} unit={(projection.unit ?? names.get(projection.channel)?.unit ?? null)}>
             <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
@@ -290,27 +348,13 @@
             </figcaption>
           </figure>
         {/if}
+        <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
+        <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
         {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={signalName(names, projection.channel)}
           basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
           boundary="예상 여유의 시작은 기록 마지막 측정 시점입니다." />{/if}
         <ForecastFit showValues={limited} fit={projection.fit??null} checks={projection.checks} unit={projection.unit} />
-        {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
-          <OutlookBriefingPanel {projection} onEvidenceChanged={()=>{
-            requestProjection?.abort();
-            projection=null;
-            resultState="unverified";
-            error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
-          }}/>
-          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && projection ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
-            {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
-            requestProjection?.abort();
-            projection=null;
-            resultState="unverified";
-            error=message;
-          }}/>{/if}
-          </details>
-        {/key}
         <ForecastValidation checks={projection.checks}/>
         <details>
           <summary>예측값 표 · {HORIZON_LABEL[projection.horizon]}</summary>
@@ -363,65 +407,39 @@
             <dt>해설 근거 버전 (data_version)</dt><dd>{projection.dataVersion}</dd>
           </dl>
         </details>
+        </TaskDialog>
+        {#key projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}
+          <OutlookBriefingPanel {projection} onEvidenceChanged={()=>{
+            requestProjection?.abort();
+            projection=null;
+            resultState="unverified";
+            error="해설을 확인하는 사이 데이터가 바뀌었습니다. 다시 계산하세요.";
+          }}/>
+          <details class="optional-review" ontoggle={(event)=>reviewSelection=event.currentTarget.open && projection ? projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel : null}><summary>검토 기록에 남기기 (선택)</summary>
+            {#if reviewSelection === projection.measurementVersion+":"+projection.dataVersion+":"+projection.channel}<ReviewRequest {projection} onEvidenceChanged={message=>{
+            requestProjection?.abort();
+            projection=null;
+            resultState="unverified";
+            error=message;
+          }}/>{/if}
+          </details>
+        {/key}
         <p class="intro"><a href={signalHref()}>이 신호의 원본 측정 보기 →</a></p>
       </section>
     {:else if !selectionLoading}
       <p class="intro">신호와 예측 기간을 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="전망 조건">
-    <p class="purpose">선택한 신호의 추세가 앞으로 어떻게 이어질지 예측합니다. 기준값을 추가하면 도달까지의 예상 여유도 확인합니다.</p>
-    <div class="controls">
-      <label for="projection-channel">신호
-        <select id="projection-channel" value={channel}
-          onchange={e=>{channel=e.currentTarget.value;selectedRecord="";if(focus)focus={...focus,interpretation:undefined};invalidate();void loadSelectedOptions(true);}}>
-          {#each options.channels as id (id)}<option value={id}>{signalName(names,id)}</option>{/each}
-        </select>
-      </label>
-      {#if options.records && options.records.length>1}<label for="projection-record">분석할 기록
-        <select id="projection-record" value={selectedRecord} onchange={event=>{selectedRecord=event.currentTarget.value;focus=null;invalidate();void loadSelectedOptions(true);}}>
-          {#each options.records as record (record.key)}<option value={record.key}>{readableSourceId(record.sourceId)} · {record.pointId??"측정 위치 미지정"} · {record.meaningLabel??"측정 항목 미지정"}{record.unit?" · "+record.unit:""} · {clock(record.record.from)} ~ {clock(record.record.to)}</option>{/each}
-        </select>
-      </label>{/if}
-      <label for="projection-horizon">예측 기간
-        <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
-          {#each horizons as value (value)}
-            <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
-              {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
-          {/each}
-        </select>
-      </label>
-      <button type="button" class="ui-button ui-button-primary"
-        onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
-        계산하기
-      </button>
-    </div>
-    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="controls">      <label for="projection-direction">기준 방향
-        <select id="projection-direction" value={direction}
-          onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label for="projection-management">관리 기준 (선택)
-        <input id="projection-management" type="number" step="any"
-          value={management} oninput={e=>{management=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label for="projection-end">종료 기준 (선택)
-        <input id="projection-end" type="number" step="any"
-          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
-    <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
-    <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
-    </aside></div>
+    </div></div>
   {/if}
 </section>
 
 <style>
+  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .forecast-controls{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .forecast-controls>div{flex:1;margin:0;gap:var(--space-3)}
+  .forecast-controls :global(.analysis-controls){flex:none;margin:0}
+  .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
+
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .controls>button{align-self:end;min-height:44px}

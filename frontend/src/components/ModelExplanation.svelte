@@ -1,5 +1,6 @@
 <script lang="ts">
-  import {onMount} from "svelte";
+  import {onDestroy,onMount,untrack} from "svelte";
+  import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {num} from "../format";
   import {scoreSummary, type ModelBinding, type ModelRun} from "../model-evidence";
   import {
@@ -34,10 +35,20 @@
   let requesting = $state(false);
   let error = $state("");
   let question = $state("");
+  let aiOpen = $state(false);
   let request: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   // Poll for up to six minutes: a local-model response can take over one minute.
   let remaining = 240;
+  let previousScope="";
+  $effect(()=>{
+    const scope=JSON.stringify([binding.assetId,binding.bindingId,run.runId,compare,focus?.position??null,focus?.series??null]);
+    untrack(()=>{
+      if(previousScope)keepQuestionDraft(previousScope,question);
+      question=questionDraft(scope);previousScope=scope;
+    });
+  });
+  onDestroy(()=>{if(previousScope)keepQuestionDraft(previousScope,question);});
 
   const RELATION: Record<Relation, string> = {increased: "증가", decreased: "감소", unchanged: "거의 같음"};
   const SOURCE = {"model": "AI 해설 · 근거 확인됨", "model-trimmed": "AI 해설 · 근거 없는 문장 제외",
@@ -77,6 +88,7 @@
     timer = null;
   }
   async function refresh() {
+    if (!aiOpen) return;
     cancel();
     const pending = new AbortController(); request = pending;
     loadState = "loading"; error = "";
@@ -138,6 +150,7 @@
     void refresh();
     return cancel;
   });
+  $effect(() => { if(aiOpen){remaining=240;void refresh();}else {cancel();requesting=false;} });
 </script>
 
 <section class="explanation" aria-labelledby={"model-ai-" + run.runId}>
@@ -165,7 +178,7 @@
 
 
 
-  <details class="ai-panel" open={requesting || waiting || latest !== null || focus !== null}>
+  <details class="ai-panel" bind:open={aiOpen}>
     <summary>AI 해설·추가 질문</summary>
     {#if requesting}
       <StatusNotice message="해설을 요청하고 있습니다." />
@@ -264,7 +277,7 @@
     padding: var(--space-3); background: var(--color-surface); color: var(--color-ink); font: inherit; font-weight: 400; }
   .ask { display: grid; gap: var(--space-3); }
   .ai-panel { border-top: 1px solid var(--color-border); padding-top: var(--space-2); }
-  .ai-panel > summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
+  .ai-panel > summary { cursor:pointer; font-weight:650; color:var(--color-action); padding-block:var(--space-3); }
   .ask button { justify-self: start; margin-top: var(--space-3); }
   .scroll { max-width: 100%; overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; }

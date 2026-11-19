@@ -16,10 +16,12 @@
     ? latestNumber("마지막 측정", last.value, change.typical, change.unit) : null);
 </script>
 
-<h3 class="change-sentence">{changeHeadline(change)}</h3>
+<div class="change-lead"><div class="lead-copy"><h3 class="change-sentence">{changeHeadline(change)}</h3>
 <p class="context">{place(change.from)}부터 {change.to===record.last?"마지막 측정":place(change.to)}까지 · {change.to-change.from+1}회</p>
+</div>
 <ChangeNumbers facts={change} {latest} fallback={"가장 " + (change.direction === "up" ? "높을" : "낮을") + " 때 " + changeValue(change.value, change.unit)} />
-<OverviewTrace main={{label:change.label,unit:change.unit,axis:"acquisition",periodSeconds:record.periodSeconds,latest:null,trace:change.trace.map(point=>({x:point.at,value:point.value,join:point.join}))}} range={change} height={220}/>
+</div>
+<OverviewTrace main={{label:change.label,unit:change.unit,axis:"acquisition",periodSeconds:record.periodSeconds,latest:null,trace:change.trace.map(point=>({x:point.at,value:point.value,join:point.join}))}} range={change} height={240}/>
 <p class="chart-link"><a href={links.signal}>변화가 시작된 측정의 원본 보기 →</a></p>
 
 <style>

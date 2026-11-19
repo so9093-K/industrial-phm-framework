@@ -89,7 +89,20 @@
   {:else if listState === "empty" || !options}
     <StatusNotice kind="uncertain" message="아직 분석된 진동 측정이 없습니다. 측정이 들어오고 분석되면 여기에 보입니다." />
   {:else}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace signal-workspace"><div class="signal-toolbar" aria-label="특징 선택과 이어서 보기">
+
+    <label class="field">진동 특징
+      <select value={feature} onchange={(event) => { feature = event.currentTarget.value; void load(); }}>
+        {#each options.features as item (item.id)}<option value={item.id}>{item.label}</option>{/each}
+      </select>
+    </label>
+    <p class="links">이 특징으로 이어서 보기
+      <a href={link("change", "acquisition_feature")}>두 기간 비교 →</a>
+      <a href={link("outlook", "acq_forecast_feature")}>기준 도달 전망 →</a>
+      <a href={assetTabUrl(assetId, "anomaly", "model")}>측정별 원본 파형·모델 점수 →</a></p>
+    <p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회{options.recordedPeriod === null ? "" : " · 기록된 측정 간격 " + elapsedText(options.recordedPeriod)}</p>
+    </div>
+    <div class="analysis-body">
     {#if trendState === "loading"}
       <StatusNotice message="고른 특징의 기록을 불러오고 있습니다." />
     {:else if trendState === "failed" || !trend}
@@ -139,23 +152,16 @@
         {/if}
       {/if}
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="특징 선택과 이어서 보기">
-    <p class="purpose">측정마다 저장된 파형에서 뽑은 진동 특징의 추이입니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
-    <label class="field">진동 특징
-      <select value={feature} onchange={(event) => { feature = event.currentTarget.value; void load(); }}>
-        {#each options.features as item (item.id)}<option value={item.id}>{item.label}</option>{/each}
-      </select>
-    </label>
-    <p class="links">이 특징으로 이어서 보기
-      <a href={link("change", "acquisition_feature")}>두 기간 비교 →</a>
-      <a href={link("outlook", "acq_forecast_feature")}>기준 도달 전망 →</a>
-      <a href={assetTabUrl(assetId, "anomaly", "model")}>측정별 원본 파형·모델 점수 →</a></p>
-    <p class="context">{options.first}~{options.last}번째 측정 · 분석 {options.count}회{options.recordedPeriod === null ? "" : " · 기록된 측정 간격 " + elapsedText(options.recordedPeriod)}</p>
-    </aside></div>
+    </div></div>
   {/if}
 </section>
 
 <style>
+  .signal-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .signal-toolbar{grid-column:1;grid-row:1;display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-5)}
+  .signal-toolbar .field{min-width:240px;margin:0}.signal-toolbar .links{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);margin:0;font-size:var(--font-small)}
+  .signal-toolbar>.context{flex-basis:100%;font-size:var(--font-small);margin:0}
+
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .field { display: grid; gap: var(--space-2); font-weight: 650; font-size: var(--font-small); margin-block: 0 var(--space-3); }
   .series-title { margin: 0; font-size: var(--font-section); }

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import start_web, stop_web
+from tests.support.web_next import close_task, start_web, stop_web
 
 
 def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
@@ -43,8 +43,10 @@ def test_model_bookmark_and_result_outside_recent_trace(tmp_path: Path) -> None:
                 assert "/web/?" in page.url and "model_binding=anomaly-a" in page.url
                 assert "monitor_asset=bearing-a" in page.url
                 page.reload()
+                page.get_by_role("button", name="이 측정의 원본 확인 →", exact=True).click()
                 page.get_by_text("점수·판정 상세", exact=True).click()
                 pw.expect(page.get_by_role("group", name="2번째 측정 모델 결과")).to_be_visible()
+                close_task(page, "선택한 측정의 원본·모델 상세")
                 page.get_by_role("button", name="이 측정의 원본 확인 →", exact=True).click()
                 pw.expect(page.locator("#selected-model-input")).to_be_focused()
                 pw.expect(page.get_by_label("측정 선택 (최근 64회)")).to_have_value("2")

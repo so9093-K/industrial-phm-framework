@@ -207,7 +207,39 @@
       message="데이터 연결과 수신 상태를 먼저 확인하세요."
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if channels}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace departure-workspace"><div class="departure-controls" aria-label="기록 변화 비교 조건">
+
+
+    <div class="controls">
+      <label for="departure-channel">신호
+        <select id="departure-channel" value={selectedChannel}
+          onchange={(event) => changeChannel(event.currentTarget.value)}>
+          {#each channels.ids as id (id)}<option value={id}>{signalName(channels.names, id)}</option>{/each}
+        </select>
+      </label>
+      <label for="departure-baseline">비교 기준 구간
+        <select id="departure-baseline" value={baseline}
+          onchange={(event) => changeBaseline(event.currentTarget.value as Baseline)}>
+          {#each bases as option (option.value)}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </select>
+      </label>
+      {#if result?.operation}{@const operating=result.operation}
+      <label>비교할 운전 상태
+        <select aria-label="비교할 운전 수준" value={level==="auto"?String(result.operatingLevel??"all"):level} onchange={event=>{level=event.currentTarget.value;rememberSelection();void analyze();}}>
+          <option value="all">모든 운전 상태</option>
+          {#each operating.levels as _,i(i)}<option value={String(i+1)}>{bandName(operating,i+1)} 중의 값</option>{/each}
+        </select>
+      </label>{/if}
+    </div>
+    {#if result?.operation && result.operatingLevel != null}<p class="context">설비 요약과 같은 기준으로, {bandName(result.operation,result.operatingLevel)} 중의 값끼리 비교합니다.</p>{/if}
+    <p class="baseline-purpose">{baseline === "all" ? "기록 전체의 분포에서 유독 다른 구간을 찾습니다. 이전 상태와 이후 상태의 비교는 아닙니다." : "기록 앞쪽 " + (baseline === "first-50" ? "50%" : "30%") + "를 기준으로, 그 뒤에 달라진 구간을 찾습니다."}</p>
+    {#if channels.truncated}
+      <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
+    {/if}
+    </div>
+    <div class="analysis-body">
     {#if analysisState === "loading"}
       <StatusNotice message="고른 신호에서 달라진 구간을 찾고 있습니다." />
     {:else if analysisState === "failed"}
@@ -316,43 +348,15 @@
           이 결과에는 데이터 출처·측정 위치 정보가 들어 있지 않습니다.
           <a href={assetTabUrl(assetId, "signals", null, null, selectedChannel)}>신호 탭에서 출처와 품질 확인 →</a></p>
       </details>
-    {/if}    </div><aside class="analysis-sidebar" aria-label="기록 변화 비교 조건">
-    <p class="purpose">이 기록에서 어느 구간의 값이 달라졌는지 찾습니다. 선택한 기록 자체의 값을 기준으로 비교하며, 학습 모델은 사용하지 않습니다.</p>
-
-    <div class="controls">
-      <label for="departure-channel">신호
-        <select id="departure-channel" value={selectedChannel}
-          onchange={(event) => changeChannel(event.currentTarget.value)}>
-          {#each channels.ids as id (id)}<option value={id}>{signalName(channels.names, id)}</option>{/each}
-        </select>
-      </label>
-      <label for="departure-baseline">비교 기준 구간
-        <select id="departure-baseline" value={baseline}
-          onchange={(event) => changeBaseline(event.currentTarget.value as Baseline)}>
-          {#each bases as option (option.value)}
-            <option value={option.value}>{option.label}</option>
-          {/each}
-        </select>
-      </label>
-      {#if result?.operation}{@const operating=result.operation}
-      <label>비교할 운전 상태
-        <select aria-label="비교할 운전 수준" value={level==="auto"?String(result.operatingLevel??"all"):level} onchange={event=>{level=event.currentTarget.value;rememberSelection();void analyze();}}>
-          <option value="all">모든 운전 상태</option>
-          {#each operating.levels as _,i(i)}<option value={String(i+1)}>{bandName(operating,i+1)} 중의 값</option>{/each}
-        </select>
-      </label>{/if}
-    </div>
-    {#if result?.operation && result.operatingLevel != null}<p class="context">설비 요약과 같은 기준으로, {bandName(result.operation,result.operatingLevel)} 중의 값끼리 비교합니다.</p>{/if}
-    <p class="baseline-purpose">{baseline === "all" ? "기록 전체의 분포에서 유독 다른 구간을 찾습니다. 이전 상태와 이후 상태의 비교는 아닙니다." : "기록 앞쪽 " + (baseline === "first-50" ? "50%" : "30%") + "를 기준으로, 그 뒤에 달라진 구간을 찾습니다."}</p>
-    {#if channels.truncated}
-      <StatusNotice kind="uncertain" message="신호가 많아 일부만 고를 수 있습니다." />
-    {/if}
-    </aside></div>
+    {/if}    </div></div>
 
   {/if}
 </section>
 
 <style>
+  .departure-controls{grid-column:1;grid-row:1;border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .departure-controls .controls{max-width:960px}.departure-controls .baseline-purpose{font-size:var(--font-small);margin:var(--space-2) 0 0;color:var(--color-ink-muted)}
+
   .departures { min-width: 0; }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-4); }

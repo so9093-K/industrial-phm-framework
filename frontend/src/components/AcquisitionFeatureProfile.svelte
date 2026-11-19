@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import AcquisitionPeriodTrend from "./AcquisitionPeriodTrend.svelte";
@@ -164,7 +165,29 @@
       message={message||"이 설비에는 분석된 진동 측정이 없습니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간" summary={profile?profile.label:null}>{#snippet children(close)}{#if source && spans}
+    <p class="purpose">진동 측정에서 뽑은 특징값(예: RMS)을 두 기간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
+    <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
+      · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
+    <label for="acquisition-feature">진동 특징
+      <select id="acquisition-feature" value={selected} onchange={e=>{close();selectFeature(e.currentTarget.value);}}>
+        {#each source.features as item(item.id)}
+          <option value={item.id}>{item.label}</option>
+        {/each}
+      </select>
+    </label>
+    <div class="ranges">
+      {#each ["a","b"] as key(key)}
+        {@const name=key as "a"|"b"}
+        <AcquisitionRange name={name} span={spans[name]} first={source.first} last={source.last} {period}
+          onChange={(edge, ordinal) => editSpan(name, edge, String(ordinal))} />
+      {/each}
+    </div>
+    <button type="button" class="ui-button ui-button-primary" onclick={()=>{close();void compare();}}>
+      비교하기
+    </button>
+    {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
     {#if profileState==="loading"}
       <StatusNotice message="두 기간의 진동 특징을 불러오고 있습니다." />
     {:else if profileState==="failed"}
@@ -176,11 +199,12 @@
       <section class="evidence">
         <h3>{profile.label}</h3>
         {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
-        <p class="context">기간 A {place(profile.spans.a.from)} ~ {place(profile.spans.a.to)}
-          · 기간 B {place(profile.spans.b.from)} ~ {place(profile.spans.b.to)}</p>
-        {#if told}<p class="result-statement">{told.headline}</p>{/if}
+        <p class="context">기간 A · {profile.spans.a.from}–{profile.spans.a.to}번째 / 기간 B · {profile.spans.b.from}–{profile.spans.b.to}번째 측정</p>
+        <p class="comparison-value">{label(profile.a.median)} <span>→</span> {label(profile.b.median)}{profile.unit?" "+profile.unit:""}<small>기간별 중앙값</small></p>
+        {#if told?.certainty}<p class="comparison-conclusion">{told.certainty}</p>{/if}
+        <div class="comparison-plots"><div>
         <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} onLoad={read=>record=read}/>
-        {#if told}<AnalysisMessage message={told} showHeadline={false}/>{/if}
+        </div><div>
         <h3>두 기간의 분포 비교</h3>
         {#if profile.medianChange===null}
           <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
@@ -192,6 +216,8 @@
           </p>
         {/if}
         <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} histogram={profile.histogram??null} unit={profile.unit??null} label={profile.label} />
+        </div></div>
+        {#if told}<details><summary>비교 결과 해석</summary><AnalysisMessage message={told}/></details>{/if}
         <details><summary>기간별 측정 수와 통계</summary><div class="table-scroll"><table>
           <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
           <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
@@ -221,31 +247,15 @@
     {:else}
       <p class="context">두 기간을 고르고 비교하기를 누르면 결과를 표시합니다.</p>
     {/if}
-    </div><aside class="analysis-sidebar" aria-label="비교할 특징과 기간">
-    <p class="purpose">진동 측정에서 뽑은 특징값(예: RMS)을 두 기간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
-    <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
-      · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
-    <label for="acquisition-feature">진동 특징
-      <select id="acquisition-feature" value={selected} onchange={e=>selectFeature(e.currentTarget.value)}>
-        {#each source.features as item(item.id)}
-          <option value={item.id}>{item.label}</option>
-        {/each}
-      </select>
-    </label>
-    <div class="ranges">
-      {#each ["a","b"] as key(key)}
-        {@const name=key as "a"|"b"}
-        <AcquisitionRange name={name} span={spans[name]} first={source.first} last={source.last} {period}
-          onChange={(edge, ordinal) => editSpan(name, edge, String(ordinal))} />
-      {/each}
-    </div>
-    <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
-      비교하기
-    </button>
-    </aside></div>
+    </div></div>
   {/if}
 </section>
 <style>
+  .comparison-plots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);align-items:start;margin-block:var(--space-3)}
+  .comparison-plots>div{min-width:0}
+  .comparison-value{font-size:var(--font-result);font-weight:700;margin:var(--space-3) 0 var(--space-1);font-variant-numeric:tabular-nums}.comparison-value span{color:var(--color-ink-muted);font-weight:400}.comparison-value small{display:inline-block;margin-left:var(--space-3);font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
+  .comparison-conclusion{margin:0;line-height:1.6}
+  @media(max-width:1000px){.comparison-plots{grid-template-columns:minmax(0,1fr)}}
   .acquisition{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .ranges{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}
   label{display:grid;gap:var(--space-2);font-weight:650}

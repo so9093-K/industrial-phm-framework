@@ -3,32 +3,33 @@
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   import VibrationInvestigation from "./VibrationInvestigation.svelte";
   import type {VibrationChange} from "../vibration-findings";
-  /** 판단하는 곳 하나: 이 변화의 판단·메모, AI 해설, 이 설비의 저장된 검토. */
-  let {assetId, reviewKey, ai = null}: {assetId: string; reviewKey: string; ai?: {change: VibrationChange} | null} = $props();
+  import TaskDialog from "./TaskDialog.svelte";
+  let {assetId, reviewKey, ai = null}: {assetId: string; reviewKey: string; ai?: {change: VibrationChange;bindingId:string} | null} = $props();
   let draftNote: {sequence: number; text: string} | null = $state(null);
   let revision = $state(0);
   let archiveOpen = $state(false);
+  let reviewOpen = $state(false), aiOpen = $state(false);
 </script>
 
-<aside class="decision" aria-label="이 변화의 판단">
-  <section class="ui-panel" aria-labelledby="decision-title">
-    <h2 id="decision-title">검토</h2>
+<div class="decision" aria-label="이 변화로 이어서 할 일">
+  {#if ai}<button type="button" class="ui-button" onclick={() => aiOpen = true}>이 변화에 대해 질문하기</button>{/if}
+  <button type="button" class="ui-button" onclick={() => reviewOpen = true}>판단·메모 남기기</button>
+  <TaskDialog title="이 변화의 판단·메모" bind:open={reviewOpen}>
     {#key reviewKey}<ChangeReview {assetId} finding={{reviewKey}} {draftNote} onCommitted={() => revision++} />{/key}
-  </section>
+    <details class="archive" ontoggle={event => archiveOpen = event.currentTarget.open}>
+      <summary>저장된 검토</summary>
+      {#if archiveOpen}<ChangeReviewArchive {assetId} {revision} />{/if}
+    </details>
+  </TaskDialog>
   {#if ai}
-    {#key ai.change.reviewKey}<VibrationInvestigation {assetId} change={ai.change}
-      onMemo={text => {draftNote = {sequence: (draftNote?.sequence ?? 0) + 1, text};}} />{/key}
+    <TaskDialog bind:open={aiOpen} title="이 변화에 대해 질문하기">
+      {#key ai.change.reviewKey}<VibrationInvestigation {assetId} change={ai.change} bindingId={ai.bindingId} active={aiOpen}
+        onMemo={text => {draftNote = {sequence: (draftNote?.sequence ?? 0) + 1, text}; aiOpen = false; reviewOpen = true;}} />{/key}
+    </TaskDialog>
   {/if}
-  <details class="ui-panel archive" ontoggle={event => archiveOpen = event.currentTarget.open}>
-    <summary>저장된 검토</summary>
-    {#if archiveOpen}<ChangeReviewArchive {assetId} {revision} />{/if}
-  </details>
-</aside>
+</div>
 
 <style>
-  .decision { display: grid; gap: var(--space-4); align-content: start; min-width: 0; }
-  .decision > section { padding: var(--space-4) var(--space-5); display: grid; gap: var(--space-2); }
-  h2 { margin: 0; font-size: var(--font-body); }
-  .archive { padding: var(--space-3) var(--space-5); }
+  .decision { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
   .archive summary { cursor: pointer; font-weight: 650; color: var(--color-action); }
 </style>

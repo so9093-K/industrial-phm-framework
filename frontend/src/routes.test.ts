@@ -4,6 +4,35 @@ import {
   assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PRIMARY_PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
+test("a frequency investigation keeps its channel and zoom across tabs and clears them for a new change",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=bearing";
+  const focused=base+"&tab=change&method=spectrum&spectrum_channel=vertical&spectrum_hz_from=400&spectrum_hz_to=1600&spectrum_view=measurement&spectrum_measurement=72&spectrum_band=800&spectrum_scale=linear";
+  const model=tabSelectionUrl(base+"&tab=anomaly&method=model",focused);
+  const back=new URL(tabSelectionUrl(base+"&tab=change&method=spectrum","http://local"+model),"http://local");
+  assert.equal(back.searchParams.get("spectrum_channel"),"vertical");
+  assert.equal(back.searchParams.get("spectrum_hz_from"),"400");
+  assert.equal(back.searchParams.get("spectrum_hz_to"),"1600");
+  for(const key of ["spectrum_view","spectrum_measurement","spectrum_band","spectrum_scale"])
+    assert.equal(back.searchParams.get(key),new URL(focused).searchParams.get(key));
+  const other=new URL(summarySelectionUrl(back.href,base+"&feature_b_from=72&feature_b_to=123","other","vibration"),"http://local");
+  assert.equal(other.searchParams.has("spectrum_hz_from"),false);
+  assert.equal(other.searchParams.has("spectrum_channel"),false);
+  assert.equal(other.searchParams.has("spectrum_measurement"),false);
+});
+
+test("returning to a model keeps its compared measurements but a new phenomenon clears them",()=>{
+  const base="http://local/web/?page=assets&monitor_asset=pump";
+  const selected=base+"&tab=anomaly&method=model&model_binding=history-B&model_position=1603378200000000&model_compare=1603377600000000";
+  const away=tabSelectionUrl(base+"&tab=change&method=compare",selected);
+  const back=new URL(tabSelectionUrl(base+"&tab=anomaly&method=model","http://local"+away),base);
+  for(const key of ["model_binding","model_position","model_compare"])
+    assert.equal(back.searchParams.get(key),new URL(selected).searchParams.get(key));
+  const other=new URL(summarySelectionUrl(back.href,base+"&monitor_channel=temperature","another-change","history"),base);
+  assert.equal(other.searchParams.has("model_binding"),false);
+  assert.equal(other.searchParams.has("model_position"),false);
+  assert.equal(other.searchParams.has("model_compare"),false);
+});
+
 test("tab activation carries the latest chosen signal while dropping workflow-specific settings", () => {
   const origin="http://127.0.0.1:2770";
   const current=origin+"/web/?page=assets&tab=signals&monitor_asset=pump&monitor_channel=temperature&monitor_range=15m&monitor_source=B&monitor_point=&monitor_interpretation=meaning&forecast_prior=0.5&capture_id=old";

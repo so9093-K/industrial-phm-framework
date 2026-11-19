@@ -4,7 +4,7 @@ import {assetChecks,attentionByAsset,departureSignalHref,attentionComplete,atten
 import {parseSources} from "./operations-status.ts";
 
 function model(extra:Record<string,unknown>){
-  return {binding_id:"anomaly-a",asset_id:"bearing-a",step_kind:"acquisition-snapshot",recipe_id:"lstm",
+  return {binding_id:"anomaly-a",asset_id:"bearing-a",source_id:"bench",measurement_point_id:null,step_kind:"acquisition-snapshot",recipe_id:"lstm",
     processing_state:"processed",processing_reason:null,latest_analyzed:{position:3,output:{exceeds_threshold:false}},
     latest_processed:{position:3},latest_review_status:null,...extra};
 }
@@ -136,10 +136,10 @@ test("the overview row says which models crossed at the latest measurement, by n
   const iforest={package_id:"if-pkg",estimator_kind:"isolation-forest-refit-v1"};
   const at=(exceeds:boolean)=>({latest_analyzed:{position:123,output:{exceeds_threshold:exceeds}}});
   assert.equal(modelFact(monitor(model({binding_id:"a",...lstm,...at(true)}),model({binding_id:"b",...iforest,...at(true)})).models),
-    "최근 측정 기준 초과 · LSTM 오토인코더, Isolation Forest");
+    "마지막 분석 · 123번째 측정 기준 초과 · LSTM 오토인코더, Isolation Forest");
   assert.equal(modelFact(monitor(model({binding_id:"a",...lstm,...at(true)}),model({binding_id:"b",...iforest,...at(false)})).models),
-    "최근 측정 기준 초과 · LSTM 오토인코더 (기준 이하 · Isolation Forest)");
-  assert.equal(modelFact(monitor(model({binding_id:"b",...iforest,...at(false)})).models), "최근 측정 기준 이하 · Isolation Forest");
+    "마지막 분석 · 123번째 측정 기준 초과 · LSTM 오토인코더 (기준 이하 · Isolation Forest)");
+  assert.equal(modelFact(monitor(model({binding_id:"b",...iforest,...at(false)})).models), "마지막 분석 · 123번째 측정 기준 이하 · Isolation Forest");
   // 아직 분석하지 않은 모델은 결과로 말하지 않는다. 대기 중이라는 사실은 확인 항목이 말한다.
   const waiting=monitor(model({binding_id:"c",...iforest,processing_state:"pending",latest_analyzed:null}));
   assert.equal(modelFact(waiting.models), null);
@@ -151,4 +151,29 @@ test("the overview row says which models crossed at the latest measurement, by n
   // 모델 기준 초과는 모델 줄이 말하므로 확인 항목 줄로 다시 쓰지 않는다.
   const [crossed]=attentionByAsset(monitor(model({binding_id:"a",...lstm,...at(true)})).models,null);
   assert.equal(noteFact(crossed.notes[0]), null);
+});
+
+test("last results from different measurements or streams are named separately",()=>{
+  const first=model({binding_id:"a",estimator_kind:"lstm-autoencoder-v1",latest_analyzed:{position:123,output:{exceeds_threshold:true}}});
+  const second=model({binding_id:"b",estimator_kind:"isolation-forest-refit-v1",latest_analyzed:{position:120,output:{exceeds_threshold:false}}});
+  assert.equal(modelFact(monitor(first,second).models),
+    "모델별 마지막 분석 · LSTM 오토인코더 · 123번째 측정: 기준 초과 / Isolation Forest · 120번째 측정: 기준 이하");
+  for(const scope of [{source_id:"another-source"},{measurement_point_id:"other-point"},{source_id:null}]){
+    const sameNumber={...second,...scope,latest_analyzed:{position:123,output:{exceeds_threshold:false}}};
+    assert.match(modelFact(monitor(first,sameNumber).models)!,/^모델별 마지막 분석/);
+  }
+});
+
+test("windows ending together are combined only when their measured intervals match",()=>{
+  const end="2020-10-22T14:50:00Z",position=Date.parse(end)*1000;
+  const window=(start:string|null,exceeds:boolean)=>model({binding_id:exceeds?"a":"b",step_kind:"history-window",
+    estimator_kind:exceeds?"lstm-autoencoder-v1":"isolation-forest-refit-v1",
+    latest_analyzed:{position,event_start:start,event_end:end,output:{exceeds_threshold:exceeds}}});
+  const first=window("2020-10-22T14:40:00Z",true);
+  for(const start of ["2020-10-22T14:30:00Z",null])
+    assert.match(modelFact(monitor(first,window(start,false)).models)!,/^모델별 마지막 분석/);
+  const different=modelFact(monitor(first,window("2020-10-22T14:30:00Z",false)).models)!;
+  assert.match(different,/23:40:00~23:50:00/);
+  assert.match(different,/23:30:00~23:50:00/);
+  assert.match(modelFact(monitor(first,window("2020-10-22T23:40:00+09:00",false)).models)!,/^마지막 분석/);
 });

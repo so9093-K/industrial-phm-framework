@@ -44,6 +44,7 @@
     return parts.length ? parts.join(" · ") : "분석할 저장 데이터 없음";
   });
   let scores: LatestScore[] = $state([]);
+  let scoresState:"loading"|"ready"|"failed"=$state("loading");
   let histories: Record<string, "loading" | "failed" | {trend: ScoreTrend; operation: ModelOperation | null; unlearned: string | null}> = $state({});
   // The same items 관측 현황 lists for this asset; null while unread or unreadable.
   let notes: Note[] | null = $state(null);
@@ -86,7 +87,7 @@
     }).catch(() => {if (!request.signal.aborted) vibrationState = "failed";});
     return () => request.abort();
   });
-  // 가운데에는 변화 하나만 크게 보이고, 나머지는 오른쪽 목록에서 골라 바꿔 본다.
+  // One selected phenomenon owns the chart and the next investigation.
   type Pick = {kind: "history" | "vibration"; index: number};
   const initialSelection=new URLSearchParams(location.search);
   const seedContext=!["monitor_channel","vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature"].some(key=>initialSelection.has(key));
@@ -189,6 +190,14 @@
     });
     return rows;
   });
+  const changeChoices = $derived.by(() => {
+    const history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
+    return [
+      ...(history?.intervals.map((item,index) => ({key:historyKey(item),pick:{kind:"history" as const,index},label:plainLabel(item.label,item.channel)})) ?? []),
+      ...(measured?.intervals.map((item,index) => ({key:vibrationKey(item),pick:{kind:"vibration" as const,index},label:plainLabel(item.label,item.feature)})) ?? []),
+    ];
+  });
+  const selectedChange = $derived(focus ? changeChoices.find(row => row.pick.kind === focus.kind && row.pick.index === focus.index)?.key : "");
   $effect(() => {
     if (!data?.history) return;
     const request = new AbortController();
@@ -207,6 +216,7 @@
     void loadLatestScores(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       scores = value;
+      scoresState="ready";
       // 최근 결과 하나만으로는 모델이 기록 전체와 이 변화 구간을 어떻게 봤는지 알 수 없어, 점수 기록도 읽는다.
       for (const item of value) {
         const id = item.binding.bindingId;
@@ -218,7 +228,7 @@
           .then(([trend, operation]) => { if (!request.signal.aborted) histories = {...histories, [id]: {trend, operation, unlearned: operation ? unlearnedText(operation) : null}}; })
           .catch(() => { if (!request.signal.aborted) histories = {...histories, [id]: "failed"}; });
       }
-    }).catch(() => { /* 모델 근거 한 줄만 빠지고, 이상 징후 탭에서 다시 읽을 수 있다. */ });
+    }).catch(() => { if(!request.signal.aborted)scoresState="failed"; });
     void readNotes();
     return () => {request.abort();noteRequest?.abort();};
   });
@@ -234,6 +244,12 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
+  const modelState=$derived.by(():"loading"|"ready"|"failed"=>{
+    const reading=scores.filter(item=>readsFocus(item.binding));
+    if(scoresState==="loading"||reading.some(item=>histories[item.binding.bindingId]===undefined||histories[item.binding.bindingId]==="loading"))return "loading";
+    if(scoresState==="failed"||(reading.length>0&&reading.every(item=>histories[item.binding.bindingId]==="failed")))return "failed";
+    return "ready";
+  });
   // 모델 근거 한 줄: 이 변화 구간을 분석한 모델만 센다. 점수 기록을 다 읽기 전에는 말하지 않는다.
   const modelLine = $derived.by((): string | null => {
     const span = focusSpan;
@@ -247,16 +263,34 @@
       const at = modelAtChange(read.trend, span, span.axis);
       const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
       if (rare !== null && at.exceeded && !unlearned) unlearned = {condition: span.condition!, share: rare};
-      return [{name: modelName(item.binding), ...at}];
+      return [{name: modelName(item.binding), ...at, complete:!read.trend.truncated}];
     });
-    return modelEvidence(rows, unlearned);
+    const line=modelEvidence(rows, unlearned);
+    return line && reading.some(item=>histories[item.binding.bindingId]==="failed") ? line+" · 일부 모델 결과 조회 실패" : line;
+  });
+  const modelDestination = $derived.by(():string|null => {
+    const span=focusSpan;
+    if(!span)return null;
+    const candidates=scores.filter(item=>readsFocus(item.binding)).flatMap(item=>{
+      const read=histories[item.binding.bindingId];
+      if(typeof read!=="object")return [];
+      return read.trend.points.filter(point=>{
+        const at=span.axis==="time"?point.pointer.position/1000:point.pointer.position;
+        return point.pointer.state==="analyzed" && point.score!==null && span.from<=at && at<=span.to;
+      }).map(point=>({binding:item.binding.bindingId,position:point.pointer.position}));
+    }).sort((a,b)=>a.position-b.position || a.binding.localeCompare(b.binding));
+    const first=candidates[0];
+    if(!first)return null;
+    const url=new URL(assetTabUrl(asset.assetId,"anomaly","model"),location.origin);
+    url.searchParams.set("model_binding",first.binding);url.searchParams.set("model_position",String(first.position));
+    return url.pathname+url.search;
   });
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
-  const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number]} | null} | null => {
+  const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number];bindingId:string} | null} | null => {
     const shown = evidenceFocus;
     if (shown?.kind === "history") return shown.item.reviewKey ? {reviewKey: shown.item.reviewKey, ai: null} : null;
     if (shown?.kind === "vibration") return shown.change.reviewKey
-      ? {reviewKey: shown.change.reviewKey, ai: shown.record.bindingId ? {change: shown.change} : null} : null;
+      ? {reviewKey: shown.change.reviewKey, ai: shown.record.bindingId ? {change: shown.change,bindingId:shown.record.bindingId} : null} : null;
     return null;
   });
   const focusReason = $derived.by(() => {
@@ -290,11 +324,13 @@
   {@const links = findingLinks(asset.assetId, item, history.baseline, history.bucketSeconds, history.record)}
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
+  <div class="change-lead"><div class="lead-copy">
   <h3 class="change-sentence">{changeHeadline(item)}</h3>
   <p class="context">{findingSpan(item)}{condition ? " · " + condition + " 중의 값끼리 비교" : ""}</p>
+  {#if ended}<p class="context">{ended}</p>{/if}</div>
   <ChangeNumbers facts={item} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
-  {#if ended}<p class="context">{ended}</p>{/if}
-  <ChangeInterval finding={item} height={200} focus/>
+  </div>
+  <ChangeInterval finding={item} height={240} focus/>
   <RecordStrip finding={focusChange(item)} {condition} />
   {#if links.signal}<p class="chart-link"><a href={links.signal}>원본 신호에서 이 구간 보기 →</a></p>{/if}
 {/snippet}
@@ -313,9 +349,16 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-<div class="summary-layout" class:without-rail={!decision}>
+<div class="summary-layout">
 <section class="ui-panel facts-panel" aria-labelledby="summary-title">
-  <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
+  <div class="summary-heading">
+    <h2 id="summary-title" class="eyebrow">기록에서 찾은 주요 변화</h2>
+    {#if changeChoices.length > 1}<label class="change-picker">살펴볼 변화
+      <select aria-label="살펴볼 변화" value={selectedChange} onchange={event => {const choice=changeChoices.find(row=>row.key===event.currentTarget.value);if(choice)selectChange(choice.pick);}}>
+        {#each changeChoices as row (row.key)}<option value={row.key}>{row.label}</option>{/each}
+      </select>
+    </label>{/if}
+  </div>
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
@@ -354,30 +397,22 @@
 
   {#if evidenceFocus}
     <section class="block" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">변화 근거</h3>
-      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelLine} />{/key}
+      <h3 id="evidence-title">이 변화에서 더 알아볼 것</h3>
+      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelLine} {modelState} {modelDestination} />{/key}
       {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
     </section>
   {/if}
 
-  {#if otherChanges.length}
-    <section class="block" aria-labelledby="others-title">
-      <h3 id="others-title">다른 변화 {otherChanges.length}건</h3>
-      {#if focusReason}<p class="context small">{focusReason}</p>{/if}
-      <ul class="other-changes">
-        {#each otherChanges as row (row.key)}
-          <li><button type="button" onclick={() => selectChange(row.pick)} aria-label={row.label + " 변화 크게 보기"}>
-            <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button></li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
+  {#if decision}<div class="summary-actions">{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} />{/key}</div>{/if}
 </section>
-
-{#if decision}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} />{/if}
 </div>
 
 <details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
+  {#if focusReason}<p class="context small">{focusReason}</p>{/if}
+  {#if otherChanges.length}<ul class="other-changes" aria-label="기록의 다른 변화">
+    {#each otherChanges as row (row.key)}<li><button type="button" onclick={() => selectChange(row.pick)} aria-label={row.label + " 변화 크게 보기"}>
+      <strong>{row.label}</strong><span>{row.line}</span><small>{row.when}</small></button></li>{/each}
+  </ul>{/if}
   <dl class="facts">
     <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
     <div><dt>수신 상태</dt><dd>{flowLabel(asset.flow)}{#if asset.flow !== "stored-history" && asset.lastReceivedAt}
@@ -430,12 +465,13 @@
 </details>
 
 <style>
-  /* PC 화면: 왼쪽은 변화 하나와 그 근거, 오른쪽은 판단하는 곳 하나. */
-  .summary-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--space-4); align-items: start; }
-  .summary-layout.without-rail { grid-template-columns: minmax(0, 1fr); }
-  @media (max-width: 1099px) { .summary-layout { grid-template-columns: minmax(0, 1fr); } }
+  .summary-layout { min-width: 0; }
+  .summary-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+  .summary-heading h2 { margin: 0; font-size: var(--font-small); color: var(--color-ink-muted); }
+  .change-picker { display: flex; gap: var(--space-2); align-items: center; font-size: var(--font-small); color: var(--color-ink-muted); }
+  .change-picker select { max-width: min(420px, 70vw); padding: var(--space-2); border: 1px solid var(--color-control-border); border-radius: var(--radius-control); font: inherit; color: var(--color-ink); background: var(--color-surface); }
+  .summary-actions { display: flex; justify-content: end; border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
   .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
-  .facts-panel > h2.eyebrow { margin: 0; font-size: var(--font-small); font-weight: 650; color: var(--color-ink-muted); }
 
   .found { list-style: none; margin: 0; padding: 0; }
   .found > li { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }

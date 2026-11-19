@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import FeatureScatter from "./FeatureScatter.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
@@ -163,7 +164,37 @@
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다."}/>
   {:else if source && spans}
-    <div class="analysis-workspace"><div class="analysis-body">
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간">{#snippet children(close)}{#if source && spans}
+    <p class="purpose">두 진동 특징이 함께 움직이는 방식이 달라졌는지 같은 측정의 특징값끼리 비교합니다. 계산식으로 연결된 특징의 높은 상관은 새로운 현상을 뜻하지 않을 수 있습니다.</p>
+    <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
+      · {place(source.first)} ~ {place(source.last)}</p>
+    <p class="period-summary">기간 A · 비교 기준 {place(spans.a.from)} ~ {place(spans.a.to)}<br/>기간 B · 살펴볼 구간 {place(spans.b.from)} ~ {place(spans.b.to)}</p>
+    <section class="conditions">
+    <div class="controls">
+      <label>가로축 특징
+        <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>
+          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
+        </select>
+      </label>
+      <label>세로축 특징
+        <select value={y} onchange={e=>feature("y",e.currentTarget.value)}>
+          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
+        </select>
+      </label>
+    </div>
+    <div class="controls">
+      {#each ["a","b"] as name(name)}
+        {@const key=name as "a"|"b"}
+        <AcquisitionRange name={key} span={spans[key]} first={source.first} last={source.last} {period}
+          onChange={(edge, ordinal) => changeSpan(key, edge, String(ordinal))} />
+      {/each}
+    </div>
+    <button type="button" class="ui-button ui-button-primary" onclick={()=>{close();void compare();}}>
+      관계 계산하기
+    </button>
+    </section>
+    {/if}{/snippet}</AnalysisControls>
+    <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 측정의 특징 짝을 불러오고 있습니다."/>
     {:else if resultState==="failed"}
@@ -227,40 +258,11 @@
       <p class="context">두 특징과 기간을 고르고 관계 계산하기를 누르면 결과를 표시합니다.</p>
     {/if}
     <details class="tech"><summary>기술 상세</summary><p class="context">적용 모델 연결 {source.bindingId}</p></details>
-    </div><aside class="analysis-sidebar" aria-label="비교할 특징과 기간">
-    <p class="purpose">두 진동 특징이 함께 움직이는 방식이 달라졌는지 같은 측정의 특징값끼리 비교합니다. 계산식으로 연결된 특징의 높은 상관은 새로운 현상을 뜻하지 않을 수 있습니다.</p>
-    <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
-      · {place(source.first)} ~ {place(source.last)}</p>
-    <p class="period-summary">기간 A · 비교 기준 {place(spans.a.from)} ~ {place(spans.a.to)}<br/>기간 B · 살펴볼 구간 {place(spans.b.from)} ~ {place(spans.b.to)}</p>
-    <details class="conditions" open={resultState!=="ready"}><summary>비교 조건 변경 · {featureLabel(x)} × {featureLabel(y)}</summary>
-    <div class="controls">
-      <label>가로축 특징
-        <select value={x} onchange={e=>feature("x",e.currentTarget.value)}>
-          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
-        </select>
-      </label>
-      <label>세로축 특징
-        <select value={y} onchange={e=>feature("y",e.currentTarget.value)}>
-          {#each source.features as item(item.id)}<option value={item.id}>{item.label}</option>{/each}
-        </select>
-      </label>
-    </div>
-    <div class="controls">
-      {#each ["a","b"] as name(name)}
-        {@const key=name as "a"|"b"}
-        <AcquisitionRange name={key} span={spans[key]} first={source.first} last={source.last} {period}
-          onChange={(edge, ordinal) => changeSpan(key, edge, String(ordinal))} />
-      {/each}
-    </div>
-    <button type="button" class="ui-button ui-button-primary" onclick={()=>void compare()}>
-      관계 계산하기
-    </button>
-    </details>
-    </aside></div>
+    </div></div>
   {/if}
 </section>
 <style>
-  .conditions>summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}.period-summary{overflow-wrap:anywhere}
+  .period-summary{overflow-wrap:anywhere}
   .conditions{padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .controls{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}

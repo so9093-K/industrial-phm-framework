@@ -16,8 +16,8 @@
 {#if operation && operation.windows.length}
   {@const shown = operation}
   <section class="operation" aria-labelledby={"model-operation-" + bindingId}>
-    <h3 id={"model-operation-" + bindingId}>운전 상태별 기준 초과 <small>{shown.label} 기준</small></h3>
     {#if told}<p class="told">{told}</p>{/if}
+    <details><summary id={"model-operation-" + bindingId}>운전 상태별 기준 초과 · {shown.label}</summary>
     <div class="table"><table>
       <thead><tr><th scope="col">상태</th><th scope="col">전류</th><th scope="col">모델 기준 기간</th><th scope="col">분석한 구간</th><th scope="col">기준 초과</th></tr></thead>
       <tbody>{#each shown.windows as row (row.band)}
@@ -27,13 +27,13 @@
       {/each}</tbody>
     </table></div>
     <p class="note">구간마다 가장 오래 머문 운전 상태로 나눴습니다.{#if shown.unplaced} 전류 측정이 없어 나누지 못한 구간 {shown.unplaced.toLocaleString("ko-KR")}개는 표에 없습니다.{/if}</p>
+    </details>
   </section>
 {/if}
 
 <style>
   .operation { display: grid; gap: var(--space-2); margin: var(--space-3) 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-control); }
-  h3 { margin: 0; font-size: var(--font-body); }
-  h3 small { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
+  summary { cursor:pointer; font-size:var(--font-small); color:var(--color-action); font-weight:650; }
   .told { margin: 0; overflow-wrap: anywhere; }
   .table { overflow-x: auto; }
   table { border-collapse: collapse; font-size: var(--font-small); font-variant-numeric: tabular-nums; }

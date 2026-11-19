@@ -12,7 +12,7 @@ import pytest
 
 from industrial_phm.application import JsonSourceRepository
 from industrial_phm.runtime import OperationsWorkspace, initialize_operations_workspace
-from tests.support.web_next import same_origin, start_web, stop_web
+from tests.support.web_next import open_analysis_settings, same_origin, start_web, stop_web
 
 
 def _csv(rows: int = 40) -> bytes:
@@ -339,7 +339,10 @@ def test_csv_with_three_phase_roles_reaches_load_and_unbalance(
                 done.get_by_role("link", name="3상 전력·불평형 보기").click()
                 pw.expect(page).to_have_url(re.compile(r"method=electrical&monitor_asset=motor-01"))
                 panel = page.get_by_role("region", name="3상 전력·불평형")
+                open_analysis_settings(page, "분석·기준 기간")
                 panel.get_by_label("분석 기간").select_option("1h")
+                panel.get_by_role("button", name="분석하기", exact=True).click()
+                panel.get_by_text("기간 전체의 수치·운전 시간 비교", exact=True).click()
                 cards = panel.get_by_label("기준 기간과 비교한 값")
                 pw.expect(cards).to_contain_text("관측 평균 전류", timeout=30_000)
                 assert not errors, errors

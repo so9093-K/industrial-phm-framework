@@ -16,7 +16,14 @@ from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryCon
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
 from tests.acceptance.test_operations_web_forecast_settings_browser import _store_history
 from tests.support.phm import analyze, deliver, phm_workspace
-from tests.support.web_next import InProcessSupervisor, asset_list, start_web, stop_web
+from tests.support.web_next import (
+    InProcessSupervisor,
+    asset_list,
+    close_task,
+    open_analysis_settings,
+    start_web,
+    stop_web,
+)
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -142,7 +149,8 @@ def test_asset_first_monitor_quiet_record_and_public_data_preparation(
                 )
                 page.reload()
                 pw.expect(rows.first).to_contain_text("stable")
-                pw.expect(rows.first).to_contain_text("모델 · 최근 측정 기준 초과")
+                pw.expect(rows.first).to_contain_text("모델 · 마지막 분석")
+                pw.expect(rows.first).to_contain_text("기준 초과")
                 stable["attention_count"] = 0
                 snapshot["assets"]["items"].reverse()
                 page.reload()
@@ -303,8 +311,9 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
                 result = panel.get_by_role("heading", name="기록 마지막 시점 기준 전망", exact=True)
                 pw.expect(result).to_be_visible(timeout=60000)
                 pw.expect(panel.locator("#projection-horizon")).to_be_visible()
-                advanced = panel.locator("details.calculation-options")
-                assert advanced.get_attribute("open") is None
+                pw.expect(
+                    panel.get_by_role("dialog", name="기준·모델 설정", exact=True)
+                ).to_be_hidden()
                 pw.expect(panel.get_by_label("추세 민감도", exact=False)).to_be_hidden()
                 panel.locator("#projection-horizon").select_option("24h")
                 pw.expect(result).to_have_count(0)
@@ -317,14 +326,15 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
                 pw.expect(panel.get_by_text(headline, exact=True)).to_have_count(1)
                 pw.expect(panel.locator(".message .headline")).to_have_count(0)
                 chart = panel.locator("figure.chart")
-                fit = panel.get_by_role("region", name="예측 시작값과 검증 상태")
-                assert chart.bounding_box()["y"] < fit.bounding_box()["y"]
-                assert (
-                    chart.bounding_box()["y"]
-                    < panel.get_by_role("region", name="이 분석에서 알 수 있는 것").bounding_box()[
-                        "y"
-                    ]
+                verification = panel.get_by_role(
+                    "button", name="예측 시작값·과거 검증 보기", exact=True
                 )
+                assert chart.bounding_box()["y"] < verification.bounding_box()["y"]
+                verification.click()
+                pw.expect(
+                    panel.get_by_role("region", name="예측 시작값과 검증 상태")
+                ).to_be_visible()
+                close_task(page, "전망 해석·과거 검증")
                 panel.get_by_text("검토 기록에 남기기 (선택)", exact=True).click()
                 review = panel.locator(".review-request")
                 pw.expect(
@@ -348,7 +358,9 @@ def test_outlook_primary_controls_and_one_primary_review_action(tmp_path: Path, 
                 pw.expect(result).to_be_visible(timeout=60000)
                 count = panel.get_by_label("앞으로 볼 측정 횟수", exact=False)
                 pw.expect(count).to_be_visible()
-                assert panel.locator("details.calculation-options").get_attribute("open") is None
+                pw.expect(
+                    panel.get_by_role("dialog", name="기준·모델 설정", exact=True)
+                ).to_be_hidden()
                 count.fill("5")
                 with page.expect_response("**/api/v1/forecast?**", timeout=60000) as response:
                     panel.get_by_role("button", name="계산하기", exact=True).click()
@@ -429,14 +441,13 @@ def test_less_accurate_forecast_warns_before_reach_tiles_and_chart(
                             < caution.bounding_box()["y"]
                             < chart.bounding_box()["y"]
                         )
-                        if limited:
-                            assert (
-                                caution.bounding_box()["y"]
-                                < panel.locator(".tiles").bounding_box()["y"]
-                            )
+                        pw.expect(panel.locator(".tiles")).to_have_count(0)
+                        panel.get_by_role(
+                            "button", name="예측 시작값·과거 검증 보기", exact=True
+                        ).click()
                         fit = panel.get_by_role("region", name="예측 시작값과 검증 상태")
                         pw.expect(fit).to_contain_text("모델의 오차가 더 컸습니다")
-                        assert chart.bounding_box()["y"] < fit.bounding_box()["y"]
+                        close_task(page, "전망 해석·과거 검증")
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth+2")
             finally:
                 browser.close()
@@ -595,7 +606,8 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 pw.expect(card.get_by_role("heading", level=3)).to_contain_text("역률")
                 # 운전 수준은 결론 아래 한 줄에서 말하고, 근거의 '자세히'가 같은 수준으로 비교한다.
                 pw.expect(card).to_contain_text("운전 중의 값끼리 비교")
-                evidence = page.get_by_role("list", name="변화 근거", exact=True)
+                page.get_by_role("button", name="값의 수준이 달라졌나요?", exact=True).click()
+                evidence = page.get_by_role("region", name="값의 수준이 달라졌나요?", exact=True)
                 page.get_by_text("측정 현황·데이터 출처·계산 범위", exact=True).click()
                 op = page.locator("details.operation-details")
                 assert op.get_attribute("open") is None
@@ -603,7 +615,7 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 op.locator("summary").first.click()
                 pw.expect(op.locator(".operation")).to_be_visible()
                 assert card.bounding_box()["y"] < op.bounding_box()["y"]
-                compare = evidence.get_by_role("link", name="자세히 →").first
+                compare = evidence.get_by_role("link", name="두 기간 비교하기", exact=False)
                 scope = parse_qs(
                     urlsplit(compare.get_attribute("href")).query, keep_blank_values=True
                 )
@@ -613,6 +625,7 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                 ] == [""]
                 assert len(scope["monitor_interpretation"][0]) == 64
                 compare.click()
+                open_analysis_settings(page, "비교 조건")
                 pw.expect(
                     page.get_by_text("중에 측정된 값끼리 비교합니다", exact=False)
                 ).to_be_visible()
@@ -621,15 +634,8 @@ def test_priority_stays_global_and_a_change_leads_to_its_operating_context(
                     "0.955 → 0.605"
                 )
                 pw.expect(comparison.get_by_role("group", name="현재 비교 기간")).to_be_visible()
-                conditions = comparison.locator("details.conditions")
-                if width < 1100:
-                    assert conditions.get_attribute("open") is None
-                else:
-                    pw.expect(conditions.locator("input").first).to_be_visible()
-                    assert (
-                        comparison.locator(".analysis-sidebar").bounding_box()["x"]
-                        > comparison.locator(".analysis-body").bounding_box()["x"]
-                    )
+                pw.expect(comparison.locator("section.conditions input").first).to_be_visible()
+                close_task(page, "비교 조건")
                 distribution = comparison.locator("details.operation-distribution")
                 assert distribution.get_attribute("open") is None
                 assert (
@@ -706,17 +712,15 @@ def test_relation_leads_with_the_change_at_the_same_input_level(
                 group = page.locator(".relation .group")
                 pw.expect(group.locator(".primary-insight")).to_contain_text("y ·", timeout=30000)
                 pw.expect(group.locator(".primary-context")).to_contain_text("x")
-                conditions = page.locator(".relation details.conditions")
-                assert (conditions.get_attribute("open") is not None) == (width >= 1100)
-                pw.expect(page.get_by_role("group", name="현재 관계 비교 기간")).to_be_visible()
+                pw.expect(
+                    page.get_by_role("dialog", name="신호·비교 기간", exact=True)
+                ).to_be_hidden()
                 pw.expect(group.locator(".coefficients dl").first).to_be_hidden()
-                if width < 1100:
-                    conditions.locator("summary").first.click()
-                else:
+                if width >= 1100:
                     graph = group.locator("svg").first.bounding_box()
-                    sidebar = page.locator(".relation .analysis-sidebar").bounding_box()
-                    assert graph and sidebar and sidebar["x"] >= graph["x"] + graph["width"]
-                    assert graph["y"] + graph["height"] <= 900
+                    assert graph and graph["y"] + graph["height"] <= 900
+                open_analysis_settings(page, "신호·비교 기간")
+                pw.expect(page.get_by_role("group", name="현재 관계 비교 기간")).to_be_visible()
                 page.locator("#relation-y").select_option("x")
                 pw.expect(group).to_have_count(0)
                 page.locator("#relation-y").select_option("y")
@@ -765,10 +769,32 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 page.goto(origin + "/web/?" + urlencode(query))
                 selection = page.get_by_role("group", name="선택한 측정으로 주파수 비교")
                 pw.expect(selection).to_be_visible(timeout=30000)
+                picker = page.get_by_label("선택 측정", exact=True)
                 canvas = page.locator(".waterfall canvas").first
+                # Mean spectrum and map share the exact domain and physical frequency axis.
+                full = page.get_by_role("button", name="전체 주파수 보기", exact=True)
+                if full.is_visible():
+                    full.click()
+                page.get_by_role("button", name="대역 확대", exact=True).click()
+                curve = page.locator(".frequency-plot")
+                grid = page.locator(".frequency-map")
+                zoom = (curve.get_attribute("data-hz-from"), curve.get_attribute("data-hz-to"))
+                assert zoom == (
+                    grid.get_attribute("data-hz-from"),
+                    grid.get_attribute("data-hz-to"),
+                )
+                line_box = curve.locator("svg").bounding_box()
+                map_box = canvas.bounding_box()
+                assert abs(line_box["x"] - map_box["x"]) < 1
+                assert abs(line_box["width"] - map_box["width"]) < 1
                 canvas.focus()
+                canvas.press("Home")
                 canvas.press("ArrowDown")
-                pw.expect(selection.locator("select")).to_have_value("7")
+                pw.expect(picker).to_have_value("7")
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
+                assert curve.locator("polyline").count() == 1
+                pw.expect(page.locator(".spectrum-key")).to_contain_text("전체 표시 측정")
+                selection.locator("summary").click()
                 with page.expect_response("**/api/v1/explore/spectrum?**") as response:
                     selection.get_by_role("button", name="기간 B로 사용").click()
                 requested = parse_qs(urlsplit(response.value.url).query)
@@ -778,8 +804,12 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 pw.expect(page.locator(".spectra p[role=status]").first).to_contain_text(
                     "7번째 측정"
                 )
-                canvas.click(position={"x": 20, "y": 179})
-                pw.expect(selection.locator("select")).to_have_value("11")
+                canvas.click(position={"x": 20, "y": canvas.bounding_box()["height"] - 1})
+                pw.expect(picker).to_have_value("11")
+                pw.expect(
+                    page.get_by_role("heading", name="11회에서 보이는 주파수")
+                ).to_be_visible()
+                selection.locator("summary").click()
                 with page.expect_response("**/api/v1/explore/spectrum?**") as response:
                     selection.get_by_role("button", name="기간 A로 사용").click()
                 requested = parse_qs(urlsplit(response.value.url).query)
@@ -789,13 +819,47 @@ def test_waterfall_selection_uses_the_original_measurement_in_one_comparison_per
                 pw.expect(page.locator(".spectra p[role=status]").first).to_contain_text(
                     "11번째 측정"
                 )
+                picker.select_option("7")
                 page.reload()
                 pw.expect(selection).to_be_visible()
+                pw.expect(picker).to_have_value("7")
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
                 saved = parse_qs(urlsplit(page.url).query)
                 assert saved["spectrum_a_from"] == ["11"] and saved["spectrum_a_to"] == ["11"]
                 assert saved["spectrum_b_from"] == ["7"] and saved["spectrum_b_to"] == ["7"]
+                tabs = page.get_by_role("navigation", name="설비 화면")
+                tabs.get_by_role("link", name="이상 징후", exact=True).click()
+                tabs.get_by_role("link", name="변화 분석", exact=True).click()
+                page.get_by_role("navigation", name="분석 방법").get_by_role(
+                    "link", name="주파수 분석", exact=True
+                ).click()
+                pw.expect(selection).to_be_visible()
+                returned = parse_qs(urlsplit(page.url).query)
+                assert returned["spectrum_hz_from"] == saved["spectrum_hz_from"]
+                assert returned["spectrum_hz_to"] == saved["spectrum_hz_to"]
+                assert returned["spectrum_measurement"] == ["7"]
+                assert returned["spectrum_view"] == ["measurement"]
+                pw.expect(page.get_by_role("heading", name="7회에서 보이는 주파수")).to_be_visible()
+                directions = page.get_by_role("group", name="진동 방향").get_by_role("button")
+                directions.last.click()
+                pw.expect(picker).to_have_value("7")
+                pw.expect(directions.last).to_have_attribute("aria-pressed", "true")
                 assert not errors, errors
                 assert not page.evaluate("document.documentElement.scrollWidth>innerWidth+2")
+
+                # A failed map does not remove the independent mean comparison or silently
+                # show an averaged curve as the chosen acquisition's spectrum.
+                page.route(
+                    "**/api/v1/explore/waterfall?**", lambda route: route.fulfill(status=503)
+                )
+                page.reload()
+                pw.expect(
+                    page.get_by_role("heading", name="측정별 주파수 지도를 불러오지 못했습니다")
+                ).to_be_visible()
+                pw.expect(page.locator(".spectrum-curve svg")).to_have_count(0)
+                page.get_by_role("button", name="기간 비교", exact=True).click()
+                pw.expect(page.locator(".spectrum-curve svg")).to_be_visible()
+                assert page.locator(".spectrum-curve polyline").count() == 2
             finally:
                 browser.close()
     finally:
@@ -831,7 +895,9 @@ def test_three_phases_can_be_added_without_opening_companion_settings(
                 page.goto(origin + "/web/?" + urlencode(query))
                 direct = page.get_by_role("button", name="R·S·T 3상 함께 보기", exact=True)
                 pw.expect(direct).to_be_visible(timeout=30000)
-                assert page.locator("details.with").get_attribute("open") is None
+                pw.expect(
+                    page.get_by_role("dialog", name="함께 볼 신호", exact=True)
+                ).to_be_hidden()
                 direct.click()
                 for phase in ("S상전류", "T상전류"):
                     pw.expect(page.locator(".companions h4").filter(has_text=phase)).to_be_visible()

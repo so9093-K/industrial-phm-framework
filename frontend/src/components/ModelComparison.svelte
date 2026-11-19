@@ -8,6 +8,7 @@
   import ModelInput from "./ModelInput.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
+  import TaskDialog from "./TaskDialog.svelte";
   import {AGAINST_TEXT,LEARNED_TEXT,against,comparisonMessage} from "../analysis-messages";
   let {binding,run,compare,place,onFocus}: {binding:ModelBinding;run:ModelRun;compare:number|null;
     place:(at:number)=>string;onFocus:(focus:Focus)=>void}=$props();
@@ -46,8 +47,11 @@
       current.features.map(feature=>({...feature,label:shown(feature.label)})),current.usualUntil,place);
   });
   // The largest changes come first; the rest stay one press away instead of lengthening the page.
-  const FIRST_ROWS=6;
+  const FIRST_ROWS=4;
   let showAll=$state(false);
+  let view:"summary"|"values"|"flow"=$state("summary"), previewOpen=$state(false);
+  const primary = $derived(binding.stepKind === "acquisition-snapshot" && ordered.some(row=>row.feature.endsWith(".rms"))
+    ? ordered.filter(row=>row.feature.endsWith(".rms")).slice(0,2) : ordered.slice(0,2));
   const visible=$derived(showAll?ordered:ordered.slice(0,FIRST_ROWS));
   function exploration(feature:string):string|null {
     if(compare===null||binding.stepKind!=="acquisition-snapshot")return null;
@@ -66,6 +70,7 @@
   }
   function open(position:number,feature:string|null,question=false){
     preview={position,feature};
+    previewOpen=true;
     if(question)onFocus({position,series:feature});
   }
   $effect(()=>{
@@ -94,8 +99,19 @@
   {:else if comparison}
     {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else if !told}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
-    {#if told}<AnalysisMessage message={told}/>{/if}
-    <div class="comparison-columns"><div class="values-column"><div class="scroll"><table>
+    <div class="views" role="group" aria-label="측정 변화 살펴보기">
+      <button type="button" class="ui-button" aria-pressed={view==="summary"} onclick={()=>view="summary"}>주요 측정값</button>
+      <button type="button" class="ui-button" aria-pressed={view==="values"} onclick={()=>view="values"}>전체 특징 비교</button>
+      <button type="button" class="ui-button" aria-pressed={view==="flow"} onclick={()=>view="flow"}>두 측정 사이의 흐름</button>
+    </div>
+    <div class="comparison-columns">{#if view==="summary"}
+      <dl class="primary-features">{#each primary as feature(feature.feature)}<div>
+        <dt><button type="button" class="text-button" onclick={()=>open(run.position,feature.feature)}>{shown(feature.label)}</button></dt>
+        <dd>{num(feature.previous,"—")} <span>→</span> {num(feature.current)}{feature.unit?" "+feature.unit:""}</dd>
+        {#if feature.usual}<dd class="range-note">{AGAINST_TEXT[against(feature.current,feature.usual)]} · 비교 범위 {num(feature.usual.low)}–{num(feature.usual.high)}{feature.unit?" "+feature.unit:""}</dd>{/if}
+      </div>{/each}</dl>
+      {#if primary[0] && exploration(primary[0].feature)}<a class="ui-button" href={exploration(primary[0].feature)!}>이 특징의 구간 비교하기 →</a>{/if}
+    {:else if view==="values"}<div class="values-column"><div class="scroll"><table>
       <caption>측정 특징 비교 · 많이 변한 순서 · 이름을 누르면 원본을 봅니다</caption>
       <thead><tr><th>측정값</th><th>비교 측정</th><th>고른 측정</th><th>변화율</th><th>평소·학습값 범위와 비교</th></tr></thead>
       <tbody>{#each visible as feature(feature.feature)}
@@ -108,7 +124,7 @@
     {#if ordered.length>FIRST_ROWS}<button type="button" class="text-button" aria-expanded={showAll} onclick={()=>showAll=!showAll}>{showAll?"많이 변한 "+FIRST_ROWS+"개만 보기":"나머지 "+(ordered.length-FIRST_ROWS)+"개 측정값도 보기"}</button>{/if}
     {#if exploration(exploreFeature)}<div class="explore"><label>더 살펴볼 특징<select bind:value={exploreFeature}>{#each comparison.features as feature(feature.feature)}<option value={feature.feature}>{shown(feature.label)}</option>{/each}</select></label><a href={exploration(exploreFeature)!}>이 구간을 A/B로 탐색 →</a>{#if outlook(exploreFeature)}<a href={outlook(exploreFeature)!}>이 특징의 기준 도달 전망 →</a>{/if}</div>{/if}
     {#if compare!==null}<button type="button" class="ui-button" onclick={()=>open(compare!,null)}>비교 측정 원본 확인</button>{/if}
-    </div><div class="flow-column">
+    </div>{:else}<div class="flow-column">
     {#if rangeFailed}<StatusNotice kind="uncertain" message="구간 흐름을 읽지 못했습니다. 두 측정의 값은 위에서 볼 수 있습니다."/>
     {:else if range && compare !== null && rows.some(row=>row.shape.trend!=="insufficient")}
       <p class="context">구간 흐름 · {place(compare)} → {place(run.position)} · 분석 {range.steps}개{range.sampled?" · 흐름은 "+range.points+"개 표본, 최대 변화는 전체 기록":""}</p>
@@ -126,12 +142,13 @@
       {#if quiet.length}<p class="context">변화 지점이 없거나 계산할 기록이 부족한 값 {quiet.length}개 · {quiet.map(row=>shown(row.label)).join(", ")}</p>{/if}
       <p class="context">변화 지점을 누르면 그 지점의 원본을 열고 다음 질문의 기준으로 지정합니다.</p>
     {/if}
-    </div></div>
+    </div>{/if}</div>
+    {#if told}<details><summary>측정값 비교 해석</summary><AnalysisMessage message={told} showHeadline={false}/></details>{/if}
   {/if}
   {#if contributions.length}<details><summary>모델이 반영한 특징 ({contributions.length}개)</summary><p class="context">모델 출력의 특징별 기여도입니다. 설비 고장의 원인이나 확률이 아닙니다.</p><dl>{#each contributions as [name,value] (name)}<div><dt>{shown(comparison?.features.find(item=>item.feature===name)?.label??name)}</dt><dd>{num(value)}</dd></div>{/each}</dl></details>{/if}
-  {#if preview}
+  <TaskDialog bind:open={previewOpen} title="선택한 측정의 원본">{#if preview}
     {#key preview.position+":"+preview.feature}<ModelInput {binding} position={preview.position} feature={preview.feature} {place}/>{/key}
-  {/if}
+  {/if}</TaskDialog>
 </section>
 <style>
   .comparison{display:grid;gap:var(--space-3);min-width:0}
@@ -145,6 +162,9 @@
   .flow-row>div{display:flex;gap:var(--space-2);flex-wrap:wrap}.values-column>.ui-button{justify-self:start}
   .values-column,.flow-column{min-width:0;display:grid;align-content:start;gap:var(--space-3)}
   .comparison-columns{display:grid;gap:var(--space-5)}
-  @media(min-width:1100px){.comparison-columns{grid-template-columns:minmax(0,3fr) minmax(0,2fr)}.flow{max-height:460px;overflow-y:auto;scrollbar-gutter:stable}.flow-row{grid-template-columns:minmax(100px,1fr) 1fr}.flow-row>div:last-child{grid-column:1 / -1}.flow-row .ui-button{padding:var(--space-2);font-size:var(--font-small)}}
+  .views{display:flex;gap:var(--space-2);flex-wrap:wrap}.views button[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:650}
+  .primary-features{display:grid;gap:var(--space-3);margin:0}.primary-features>div{border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .primary-features dt .text-button{padding:0;font-weight:650}.primary-features dd{font-size:1.5rem;font-weight:700;margin:var(--space-1) 0 0;font-variant-numeric:tabular-nums}.primary-features dd span{color:var(--color-ink-muted);font-weight:400}.primary-features dd.range-note{font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
+  .flow-row{grid-template-columns:minmax(100px,1fr) 1fr}.flow-row>div:last-child{grid-column:1 / -1}.flow-row .ui-button{padding:var(--space-2);font-size:var(--font-small)}
   @media(max-width:600px){.flow-row{grid-template-columns:1fr}.flow-row>div{flex-direction:column;align-items:start}}
 </style>
