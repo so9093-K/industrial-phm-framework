@@ -169,7 +169,8 @@
     const judged = list.filter(model => model.state === "processed" && model.analyzed?.exceeds != null);
     const over = judged.filter(model => model.analyzed!.exceeds).length;
     if (!judged.length) return {text: "모델 분석 대기", over: false};
-    return over ? {text: "모델 " + judged.length + "개 중 " + over + "개 기준 초과", over: true} : {text: "모델 기준 이하", over: false};
+    // 칸은 '지금' 상태라 마지막 분석 결과다. 지난 변화 구간에서의 반응은 시간축의 모델 줄이 보여 준다.
+    return over ? {text: "마지막 분석 · 모델 " + judged.length + "개 중 " + over + "개 기준 초과", over: true} : {text: "마지막 분석 · 모델 기준 이하", over: false};
   }
   /** 모델 결과 밖의 확인 항목. 칸에 보이는 변화와 같은 신호의 '기록 끝' 항목은 그 변화가 이미 말한다. */
   function problems(id: string, row: OverviewRow | null): {text: string; note: Note}[] {
@@ -226,7 +227,7 @@
       {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
       <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
         <span class="top"><strong>{name(asset)}</strong><span class="model" class:over={model.over}>{model.text}</span></span>
-        <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small> · 과거 기록</small>{/if}</span>
+        <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small>{"\u00a0· 저장된 기록"}</small>{/if}</span>
         {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
         {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}

@@ -47,6 +47,14 @@ export function selectedScoreMessage(summary: {score: number | null; threshold: 
 export function short(value: number): string {
   return value.toLocaleString("ko-KR", {maximumSignificantDigits: 3});
 }
+/** 범위 양 끝: 세 자리로 줄였을 때 같은 값으로 보이면('224~224') 다를 때까지 자릿수를 늘린다. */
+export function shortRange(low: number, high: number): string {
+  for (let digits = 3; digits <= 6; digits++) {
+    const text = (value: number) => value.toLocaleString("ko-KR", {maximumSignificantDigits: digits});
+    if (text(low) !== text(high) || digits === 6) return text(low) + "~" + text(high);
+  }
+  return short(low) + "~" + short(high);
+}
 /** A ratio as "3.6배": whole from ten up, two decimals near 1 so 0.97 never reads as 1. */
 export function times(ratio: number): string {
   const text = ratio >= 10 ? Math.round(ratio).toLocaleString("ko-KR") : ratio >= 1.1 ? ratio.toFixed(1)

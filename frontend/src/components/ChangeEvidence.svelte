@@ -78,13 +78,14 @@
     return () => request.abort();
   });
   const said = (read: Read, none: string) => read === "loading" ? "계산 중" : read === "failed" ? "결과를 읽지 못함" : read ?? none;
+  // 이름과 순서는 분석을 열었을 때의 탭과 같다(들어가는 곳과 도착한 곳을 같은 말로 부른다).
   const rows = $derived([
-    {name: "두 기간 비교", fact: said(range, "비교 결과 없음"), href: links.range},
-    {name: focus.kind === "vibration" ? "특징 관계" : "신호 관계", fact: related ?? "함께 변한 " + (focus.kind === "vibration" ? "특징" : "신호") + " 없음", href: links.related},
-    ...(focus.kind === "vibration" ? [{name: "주파수 분석", fact: said(spectrum, "주파수 결과 없음"), href: links.spectrum}] : []),
-    ...(model ? [{name: "모델 점수", fact: model.text, href: model.href}] : []),
-    {name: "원본 신호", fact: focus.kind === "vibration" ? "변화가 시작된 " + focus.change.from + "번째 측정" : "변화 구간의 원본 값", href: links.signal},
-    {name: "추세 전망", fact: "이 신호의 앞으로의 추세와 과거 자료 검증", href: links.outlook},
+    {name: "실측 신호", fact: focus.kind === "vibration" ? "변화가 시작된 " + focus.change.from + "번째 측정" : "변화 구간의 원본 값", href: links.signal},
+    {name: "기간 비교", fact: said(range, "비교 결과 없음"), href: links.range},
+    {name: "신호 관계", fact: related ?? "함께 변한 " + (focus.kind === "vibration" ? "특징" : "신호") + " 없음", href: links.related},
+    ...(focus.kind === "vibration" ? [{name: "주파수", fact: said(spectrum, "주파수 결과 없음"), href: links.spectrum}] : []),
+    ...(model ? [{name: "모델 반응", fact: model.text, href: model.href}] : []),
+    {name: "전망·예상 여유", fact: "이 신호의 앞으로의 추세와 과거 자료 검증", href: links.outlook},
   ]);
 </script>
 

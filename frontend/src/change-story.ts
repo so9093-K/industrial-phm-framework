@@ -54,17 +54,6 @@ export function versusStart(value: number, reference: number | null, unit: strin
   return name + "보다 " + amount(Math.abs(gap), unit) + part + (gap > 0 ? " 높음" : " 낮음");
 }
 
-/** 결론 한 문장: 변화의 모양만 쉬운 말로 말한다(언제부터, 지금도 이어지는지, 마지막에 한 번 더 크게 움직였는지).
- * 크기는 옆의 숫자 칸이 '초기의 약 n배'로 말하므로 문장에 숫자를 겹쳐 쓰지 않는다. */
-export function changeConclusion(facts: Pick<ChangeFacts, "label" | "direction"> & {feature?: string | null},
-  shape: {span: string; now?: boolean; condition?: string | null; jump?: boolean}): string {
-  const up = facts.direction === "up";
-  const who = (shape.condition ? shape.condition + " 중 " : "") + subject(plainLabel(facts.label, facts.feature));
-  if (shape.jump) return who + " " + shape.span + " 초기보다 " + (up ? "높아졌고" : "낮아졌고")
-    + ", 마지막 측정에서 한 번 더 크게 " + (up ? "뛰었습니다." : "떨어졌습니다.");
-  return who + " " + shape.span + " 초기보다 " + (shape.now ? (up ? "높습니다." : "낮습니다.") : (up ? "높았습니다." : "낮았습니다."));
-}
-
 /** 기록 끝까지 이어진 변화에서 마지막 측정이 직전 측정의 1.5배 넘게(낮아지는 변화면 2/3 아래로) 움직였는지.
  * 변화 구간의 수준과 마지막 한 번의 급변은 서로 다른 일이라 따로 말하고 그래프에도 따로 표시한다. */
 export function lastJump(trace: {at: number; value: number}[], direction: "up" | "down"): {at: number; value: number; before: number} | null {
@@ -85,11 +74,6 @@ export function changeNumbers(facts: ChangeFacts, spanCaption: string | null = n
   };
 }
 
-/** 변화가 기록 끝까지 이어졌을 때의 세 번째 숫자 칸: 마지막 값과 초기 대비 크기. */
-export function latestNumber(caption: string, value: number, reference: number | null, unit: string | null): ChangeNumber {
-  return {caption, value: amount(value, unit), note: versusStart(value, reference, unit)};
-}
-
 const shortTime = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric",
   hour: "2-digit", minute: "2-digit", hour12: false});
 /** 변화가 기록 끝보다 먼저 끝났으면 언제 끝났고 기록은 언제까지인지. 마지막 두 구간 안에서 끝났으면
@@ -98,21 +82,6 @@ export function changeEnded(end: string, recordTo: string | null | undefined, bu
   const last = recordTo ? Date.parse(recordTo) : NaN, until = Date.parse(end);
   if (!Number.isFinite(last) || !Number.isFinite(until) || last - until <= 2 * (bucketSeconds ?? 0) * 1000) return null;
   return "변화 종료 " + shortTime(end) + " · 기록 마지막 " + shortTime(recordTo!);
-}
-
-/** 기록 끝 전에 끝난 변화 뒤의 사실 한 줄: 이후 구간 가운데 비교한 값(같은 운전 수준끼리 비교했으면 그 수준의 값)이
- * 있는 구간 수와, 그중 처음 범위 안의 수. 이후 같은 조건이 드물면 '돌아왔다'고 볼 근거도 적다는 것을 숫자로 보여 준다. */
-export function afterChange(end: string, usual: {low: number; high: number}, rows: {at: string; mean: number; judged: number | null}[],
-  kind: "all" | "level" | "running", condition: string | null): string | null {
-  const after = rows.filter(row => Date.parse(row.at) > Date.parse(end));
-  if (!after.length) return null;
-  const values = after.flatMap(row => {const value = kind === "all" ? row.mean : row.judged; return value === null ? [] : [value];});
-  const inside = values.filter(value => value >= usual.low && value <= usual.high).length;
-  const where = inside === values.length ? "모두 초기 범위 안" : inside === 0 ? "모두 초기 범위 밖" : inside + "개 초기 범위 안";
-  const head = "변화 구간 끝 " + shortTime(end) + " · 이후 구간 " + after.length + "개";
-  const who = kind === "level" && condition ? condition : kind === "running" ? "운전 중" : null;
-  if (!who) return head + ", " + where;
-  return head + " 중 " + who + " " + (values.length ? values.length + "개, " + where : "없음");
 }
 
 /** 주요 변화로 고른 이유를 꼬리표가 아니라 설명으로 말한다. */

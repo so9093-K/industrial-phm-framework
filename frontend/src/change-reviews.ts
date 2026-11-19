@@ -39,10 +39,12 @@ export function parseChangePage(raw: unknown, assetId: string): ChangePage {
       return {kind:"vibration" as const,id:row.capture_id,assetId,capturedAt:row.captured_at,finding:parseVibrationChange(finding),
         sourceId:change.source_id,bindingId:change.binding_id,periodSeconds:change.period_seconds,review:parseReview(row.review)};
     }
+    // 저장한 스냅샷에는 운전 수준 표가 없다. 운전 수준별로 판단한 변화도 다시 읽을 수 있게, 그 표를 가리키는
+    // 꼬리표(operation·band)만 빼고 변화 자체를 읽는다.
     const parsed = parseRecordFindings({schema_version:1, asset_id:assetId,
       meaning:"departures-from-the-first-30-percent-not-fault-diagnosis", baseline:null, bucket_seconds:null,
       signals:[{channel:finding.channel,label:finding.label,unit:finding.unit,state:finding.kind === "level-change" ? "level-change":"scored"}],
-      judged:1, unchecked:0, intervals:[finding], interval_count:1},assetId).intervals[0];
+      judged:1, unchecked:0, intervals:[{...finding, operation:null, band:null}], interval_count:1},assetId).intervals[0];
     return {kind:"history" as const,id:row.capture_id,assetId,capturedAt:row.captured_at,finding:parsed,review:parseReview(row.review)};
   });
   if (root.next_before !== null && (typeof root.next_before !== "string" || root.next_before !== captures.at(-1)?.id))

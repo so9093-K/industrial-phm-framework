@@ -7,7 +7,7 @@
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import FeatureScatter from "./FeatureScatter.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {relationMessage,sameXText,short} from "../analysis-messages";
+  import {relationMessage,sameXText,short,shortRange} from "../analysis-messages";
   import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -253,7 +253,7 @@
           <p class="record-label">{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}{#if pair.point}{" · " + pair.point}{/if}</p>
           {#if explained}
             {#if moved}<p class="primary-insight">{signalName(names,y)} · {short(moved.shown.a.median)} → {short(moved.shown.b.median)}{yUnit?" "+yUnit:""}</p>
-              <p class="primary-context">{signalName(names,x)} {short(moved.shown.low)}~{short(moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
+              <p class="primary-context">{signalName(names,x)} {shortRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
             {:else}<p class="primary-insight">{explained.headline}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
@@ -307,7 +307,7 @@
                 <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">기간 A 중앙값 (가운데 절반)</th><th scope="col">기간 B 중앙값</th><th scope="col">짝 A · B</th></tr></thead>
                 <tbody>{#each ranges as range (range.a.bin)}
                   <tr class:moved={range.b.median<range.a.q1||range.b.median>range.a.q3}>
-                    <td>{unit(short(range.low)+"~"+short(range.high),xUnit)}</td>
+                    <td>{unit(shortRange(range.low,range.high),xUnit)}</td>
                     <td>{unit(short(range.a.median),yUnit)} ({short(range.a.q1)}~{short(range.a.q3)})</td>
                     <td>{unit(short(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · A 값의 가운데 절반 밖":""}</td>
                     <td>{range.a.pairs.toLocaleString("ko-KR")} · {range.b.pairs.toLocaleString("ko-KR")}</td>
