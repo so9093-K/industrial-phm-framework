@@ -403,19 +403,17 @@
   });
   // 시간축의 모델 줄: 고른 변화와 같은 기록을 분석한 모델마다 점수 기록, 학습 기간, 학습 기간과 변화 구간의 운전 수준 비율.
   const timelineModels = $derived.by((): TimelineModel[] => {
-    const span = focusSpan, group = current, shown = evidenceFocus;
+    const span = focusSpan, group = current;
     if (!span || !group) return [];
-    const episodeShares = shown?.kind === "history" ? shown.item.operation?.interval ?? null : null;
     return scores.filter(item => readsFocus(item.binding)).flatMap(item => {
       const read = histories[item.binding.bindingId];
       if (typeof read !== "object") return [];
       const counts = modelAtChange(read.trend, group, span.axis);
-      const reference = read.operation?.reference ?? null;
+      // 사용자에게 필요한 것은 학습 기간이 아니라, 이 경보가 모델이 처음 보는 운전 상태 때문일 수 있는지다.
+      const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
       return [{key: item.binding.bindingId, name: modelName(item.binding), trend: read.trend, divisor: span.axis === "time" ? 1000 : 1,
-        count: "변화 구간에서 기준 넘음 " + counts.exceeded + "/" + counts.analyzed + "회" + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
-        training: reference ? {from: Date.parse(reference.from), to: Date.parse(reference.to)} : null,
-        shares: reference?.shares && episodeShares && reference.shares.length === episodeShares.length
-          ? {training: reference.shares, episode: episodeShares} : null}];
+        count: "변화 구간 " + counts.analyzed + "회 중 " + counts.exceeded + "회 경보" + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
+        unfamiliar: rare !== null ? "모델이 거의 본 적 없는 운전 상태(" + span.condition!.replace(" 운전", "") + ")" : null}];
     });
   });
   const modelEntry = $derived.by((): {text: string; href: string | null} | null => {

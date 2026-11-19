@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {episodes, firstCrossing, focusWindow, operationColumns, spanText, visiblePoints, weekendSpans} from "./asset-timeline.ts";
+import {episodes, firstCrossing, runs, focusWindow, operationColumns, spanText, visiblePoints, weekendSpans} from "./asset-timeline.ts";
 
 test("changes that overlap in time form one episode, in start order", () => {
   // Bearing1_1: 첨도 69–78, RMS 72–123, 왜도 79–82 → 한 시기. 떨어진 변화는 따로.
@@ -41,4 +41,11 @@ test("a guide is first crossed by the first observed value beyond it, in the cha
   assert.equal(firstCrossing(points, 3.1, true)?.x, 123);
   assert.equal(firstCrossing(points, 1.25, true)?.x, 72);
   assert.equal(firstCrossing(points, 0.5, false), null);
+});
+
+test("on-runs join across short dips and stay apart across long ones", () => {
+  const at = (pattern: string) => [...pattern].map((c, x) => ({x, on: c === "1"}));
+  assert.deepEqual(runs(at("0110111000011")), [{from: 1, to: 6}, {from: 11, to: 12}]);
+  assert.deepEqual(runs(at("0000")), []);
+  assert.deepEqual(runs(at("1001"), 2), [{from: 0, to: 3}]);
 });
