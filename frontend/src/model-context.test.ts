@@ -1,13 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {modelAtChange, modelEvidence, rareAtChange} from "./model-context.ts";
+import {modelAtChange, rareAtChange} from "./model-context.ts";
 
-test("a partial model history cannot establish disagreement with a fully read model",()=>{
-  const text=modelEvidence([{name:"IF",analyzed:20,exceeded:1,complete:false},{name:"LSTM",analyzed:52,exceeded:48}]);
-  assert.ok(text?.includes("일부 조회"));
-  assert.ok(!text?.includes("판단이 갈림"));
-  assert.ok(text?.includes("구간 전체의 모델 반응을 비교할 수 없습니다"));
-});
 import type {ScoreTrend, TrendPoint} from "./model-trend.ts";
 
 const point = (position: number, exceeds: boolean | null, state: "analyzed" | "skipped" = "analyzed"): TrendPoint => ({
@@ -35,13 +29,4 @@ test("a change at an operating state the model hardly learned is said to need mo
   assert.equal(rareAtChange(operation, "약 11 A 운전"), 0.02);
   assert.equal(rareAtChange(operation, "약 62 A 운전"), null);
   assert.equal(rareAtChange({...operation, reference: null}, "약 11 A 운전"), null);
-});
-
-test("the model evidence counts each model over the change, says when they disagree and when the state was never learned", () => {
-  assert.equal(modelEvidence([{name: "Isolation Forest", analyzed: 52, exceeded: 2}, {name: "LSTM 오토인코더", analyzed: 52, exceeded: 48}]),
-    "판단이 갈림 · 기준 초과 LSTM 오토인코더 52회 중 48회, Isolation Forest 52회 중 2회");
-  assert.equal(modelEvidence([{name: "Isolation Forest", analyzed: 134, exceeded: 134}], {condition: "약 11 A 운전", share: 0}),
-    "기준 초과 Isolation Forest 134회 중 134회 · 학습 기간에 약 11 A 운전 없음");
-  // 이 구간을 분석한 모델이 없으면 근거 줄을 만들지 않는다.
-  assert.equal(modelEvidence([{name: "A", analyzed: 0, exceeded: 0}]), null);
 });

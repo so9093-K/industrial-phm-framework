@@ -11,11 +11,9 @@
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
-  import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {periodMessage,periodOnset,type NextStep} from "../analysis-messages";
-  import {measurementLinks} from "../measurement-links";
-  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
-  import type {AcquisitionTrend} from "../acquisition-trend";
+  import {readVibrationSummary,vibrationDefault} from "../summary-defaults";
+  import {plainLabel,versusStart} from "../change-story";
+  import {rangeEvidence} from "../change-evidence";
   import {
     FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,preferredFeature,
     type FeatureSource,type FeatureProfile,
@@ -34,8 +32,9 @@
   });
   const place = (at:number) => measurementLabel(at, period);
   let message=$state("");
-  let fromSummary=$state(false);
   const url=new URLSearchParams(location.search);
+  // 두 기간이 모니터링 화면의 '초기'·'변화 구간'과 같은지. 기간을 고치면 꺼지고, 특징만 바꾸면 유지된다.
+  let fromSummary=$state(url.get("compare_origin")==="summary");
   let selected=$state(url.get("acquisition_feature")??"");
   let listAbort:AbortController|null=null;
   let profileAbort:AbortController|null=null;
@@ -60,6 +59,7 @@
     const u=new URL(location.href);
     u.searchParams.set("monitor_asset",assetId);
     u.searchParams.set("acquisition_feature",selected);
+    if(fromSummary)u.searchParams.set("compare_origin","summary");else u.searchParams.delete("compare_origin");
     for(const key of ["a","b"] as const){
       u.searchParams.set("feature_"+key+"_from",String(spans[key].from));
       u.searchParams.set("feature_"+key+"_to",String(spans[key].to));
@@ -104,7 +104,7 @@
   }
   function selectFeature(value:string){
     if(!source?.features.some(x=>x.id===value))return;
-    selected=value;fromSummary=false;profileAbort?.abort();profile=null;profileState="empty";remember();
+    selected=value;profileAbort?.abort();profile=null;profileState="empty";remember();
     void compare();
   }
   function editSpan(period:"a"|"b",edge:"from"|"to",value:string){
@@ -134,21 +134,20 @@
   }
   onMount(()=>{void loadSource();return()=>{listAbort?.abort();profileAbort?.abort();};});
   const label=(value:number|null)=>num(value);
-  // Every stored value of the feature, when none was left out, to find where B first changed.
-  let record:AcquisitionTrend|null=$state(null);
-  const LINK_TEXT:Record<string,string>={trend:"그 측정을 특징 추이에서 보기",model:"그 측정의 원본 파형·모델 점수",
-    spectrum:"그 측정을 바로 앞 측정과 주파수 비교"};
-  const told=$derived.by(()=>{
-    const read:FeatureProfile|null=profile,src:FeatureSource|null=source,values:AcquisitionTrend|null=record;
-    if(!read||!src)return null;
-    const low=read.a.quantiles?.[0]??null,high=read.a.quantiles?.[4]??null;
-    const onset=values&&!values.sampled&&values.feature===read.featureId&&low!==null&&high!==null
-      ?periodOnset(values.points,read.spans.b,low,high):null;
-    const next:NextStep[]=onset?measurementLinks(assetId,onset.first,{first:src.first,last:src.last,
-      feature:read.featureId,bindingId:src.bindingId},"features").map(link=>({label:LINK_TEXT[link.key],href:link.href})):[];
-    return periodMessage({unit:read.unit??null,a:{usable:read.a.usable,median:read.a.median,low,high},
-      b:{usable:read.b.usable,median:read.b.median},outsideCount:read.outsideCount,outsidePercent:read.outsidePercent,
-      medianChangePercent:read.medianChangePercent,onset},place,next);
+  // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
+  const names=$derived(fromSummary?{a:"초기",b:"변화 구간"}:{a:"기간 A",b:"기간 B"});
+  // 기간 A 값의 90% 범위(5~95%): 시간 추이에 띠로 그리고, 그 밖의 B 측정 수를 한 줄로 쓴다.
+  const usual=$derived.by(()=>{
+    const read:FeatureProfile|null=profile,q=read?.a.quantiles;
+    return q&&q.length===5?{low:q[0],high:q[4]}:null;
+  });
+  const facts=$derived.by(()=>{
+    const read:FeatureProfile|null=profile;
+    if(!read)return null;
+    const versus=read.a.median!==null&&read.b.median!==null?versusStart(read.b.median,read.a.median,read.unit??null,names.a):null;
+    const outside=rangeEvidence({usable:read.b.usable,outside:read.outsideCount,low:usual?.low??null,high:usual?.high??null,
+      unit:read.unit??null,condition:null},names);
+    return {versus,outside};
   });
 </script>
 
@@ -165,7 +164,7 @@
       message={message||"이 설비에는 분석된 진동 측정이 없습니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간" summary={profile?profile.label:null}>{#snippet children(close)}{#if source && spans}
+    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간" summary={profile?names.a+" · "+profile.spans.a.from+"–"+profile.spans.a.to+"번째 측정 / "+names.b+" · "+profile.spans.b.from+"–"+profile.spans.b.to+"번째 측정":null}>{#snippet children(close)}{#if source && spans}
     <p class="purpose">진동 측정에서 뽑은 특징값(예: RMS)을 두 기간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
@@ -197,30 +196,21 @@
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
     {:else if profile}
       <section class="evidence">
-        <h3>{profile.label}</h3>
-        {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
-        <p class="context">기간 A · {profile.spans.a.from}–{profile.spans.a.to}번째 / 기간 B · {profile.spans.b.from}–{profile.spans.b.to}번째 측정</p>
-        <p class="comparison-value">{label(profile.a.median)} <span>→</span> {label(profile.b.median)}{profile.unit?" "+profile.unit:""}<small>기간별 중앙값</small></p>
-        {#if told?.certainty}<p class="comparison-conclusion">{told.certainty}</p>{/if}
+        <h3>{plainLabel(profile.label,profile.featureId)}</h3>
+        <p class="comparison-value">{label(profile.a.median)} <span>→</span> {label(profile.b.median)}{profile.unit?" "+profile.unit:""}<small>중앙값{facts?.versus?" · "+facts.versus:""}</small></p>
+        {#if facts?.outside}<p class="comparison-fact">{facts.outside}</p>{/if}
         <div class="comparison-plots"><div>
-        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} onLoad={read=>record=read}/>
+        <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} {names} {usual}/>
         </div><div>
-        <h3>두 기간의 분포 비교</h3>
+        <h3>값 분포</h3>
         {#if profile.medianChange===null}
           <StatusNotice kind="uncertain" message="두 기간의 중앙값을 비교할 특징값이 부족합니다. 0으로 채우지 않습니다." />
-        {:else}
-          <p class="headline">중앙값 변화(B − A) <strong>{num(profile.medianChange)}</strong>
-            {#if profile.outsidePercent!==null}
-              <span> · B의 값 중 A의 비교 범위(5~95%) 밖 {profile.outsidePercent.toFixed(1)}%</span>
-            {/if}
-          </p>
         {/if}
-        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} histogram={profile.histogram??null} unit={profile.unit??null} label={profile.label} />
+        <RangeCompare a={profile.a.quantiles} b={profile.b.quantiles} histogram={profile.histogram??null} unit={profile.unit??null} label={profile.label} {names} />
         </div></div>
-        {#if told}<details><summary>비교 결과 해석</summary><AnalysisMessage message={told}/></details>{/if}
         <details><summary>기간별 측정 수와 통계</summary><div class="table-scroll"><table>
           <caption>선택한 두 구간의 집계 · 경과 시간은 실제 측정 시각이 아닙니다</caption>
-          <thead><tr><th scope="col">항목</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead>
+          <thead><tr><th scope="col">항목</th><th scope="col">{names.a}</th><th scope="col">{names.b}</th></tr></thead>
           <tbody>
             <tr><th scope="row">받은 측정</th><td>{profile.a.delivered}</td><td>{profile.b.delivered}</td></tr>
             <tr><th scope="row">분석한 측정</th><td>{profile.a.analyzed}</td><td>{profile.b.analyzed}</td></tr>
@@ -241,7 +231,7 @@
         <details>
           <summary>기술 상세</summary>
           <p class="context">데이터 출처 {profile.sourceId} · 적용 모델 연결 {profile.bindingId} · 특징 {profile.featureId}
-            · ‘비교 범위 밖’은 기간 A 값의 5~95% 범위를 벗어난 B 값의 비율입니다. 기간 A가 정상 운전이었다는 뜻은 아닙니다.</p>
+            · ‘90% 범위’는 {names.a} 값의 5~95% 범위입니다. {names.a} 값도 약 10%는 이 범위 밖에 있고, {names.a}가 정상 운전이었다는 뜻은 아닙니다.</p>
         </details>
       </section>
     {:else}
@@ -254,7 +244,7 @@
   .comparison-plots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);align-items:start;margin-block:var(--space-3)}
   .comparison-plots>div{min-width:0}
   .comparison-value{font-size:var(--font-result);font-weight:700;margin:var(--space-3) 0 var(--space-1);font-variant-numeric:tabular-nums}.comparison-value span{color:var(--color-ink-muted);font-weight:400}.comparison-value small{display:inline-block;margin-left:var(--space-3);font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
-  .comparison-conclusion{margin:0;line-height:1.6}
+  .comparison-fact{margin:0;line-height:1.6}
   @media(max-width:1000px){.comparison-plots{grid-template-columns:minmax(0,1fr)}}
   .acquisition{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .ranges{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}
@@ -264,7 +254,6 @@
   .evidence{min-width:0}.evidence>h3:first-child{margin-top:0}
   h3{overflow-wrap:anywhere}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .headline{font-size:var(--font-section)}.headline span{font-size:var(--font-small);color:var(--color-ink-muted)}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}
   th,td{padding:var(--space-2);border-bottom:1px solid var(--color-border);text-align:left}
 </style>

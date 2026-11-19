@@ -68,18 +68,6 @@ export function countShare(part: number, whole: number): string {
 }
 const hz = (value: number) => Math.round(value).toLocaleString("ko-KR");
 
-export type PeriodFacts = {
-  unit: string | null;
-  a: {usable: number; median: number | null; low: number | null; high: number | null};
-  b: {usable: number; median: number | null};
-  /** B values outside A's 5–95% range, as a count and a percent of B's usable values. */
-  outsideCount: number | null; outsidePercent: number | null;
-  /** B's median over A's as a percent change, only for a positive magnitude. */
-  medianChangePercent: number | null;
-  /** From the measurement-by-measurement record, when every value is there. */
-  onset: {first: number; stayed: boolean} | null;
-};
-
 /** Where period B first leaves A's usual range, read from every stored value of the feature. */
 export function periodOnset(points: {ordinal: number; value: number}[], b: {from: number; to: number},
   low: number, high: number): {first: number; stayed: boolean} | null {
@@ -87,44 +75,6 @@ export function periodOnset(points: {ordinal: number; value: number}[], b: {from
   const index = inside.findIndex((p) => p.value < low || p.value > high);
   if (index < 0) return null;
   return {first: inside[index].ordinal, stayed: inside.slice(index).every((p) => p.value < low || p.value > high)};
-}
-
-export function periodMessage(facts: PeriodFacts, place: (ordinal: number) => string,
-  next: NextStep[] = []): AnalysisMessage | null {
-  const {a, b} = facts;
-  if (a.median === null || b.median === null) return null;
-  const unit = facts.unit ? " " + facts.unit : "";
-  const range = a.low !== null && a.high !== null ? short(a.low) + "~" + short(a.high) + unit : null;
-  const ratio = facts.medianChangePercent !== null ? 1 + facts.medianChangePercent / 100 : null;
-  const medians = "중앙값은 " + short(a.median) + " → " + short(b.median) + unit
-    + (ratio !== null && ratio >= 0 && ratio <= 1 / 1.5 ? "로 약 " + short(100 * (1 - ratio)) + "% 낮아졌습니다."
-      : ratio !== null && ratio >= 1.5 ? "로 약 " + times(ratio) + "입니다." : "입니다.");
-  const share = facts.outsidePercent;
-  const count = facts.outsideCount ?? (share === null ? null : Math.round(share * b.usable / 100));
-  // "모두" only when every usable measurement is outside; otherwise the count itself, and a
-  // percentage that never rounds 99.5% up to 100% or 0.4% down to 0%.
-  const all = count !== null && b.usable > 0 && count === b.usable;
-  const pct = share === null ? "" : count !== null ? countShare(count, b.usable) : Math.round(share) + "%";
-  let headline: string;
-  if (share === null || range === null) headline = "기간 A와 B의 " + medians;
-  else if (all) headline = "기간 B의 측정 " + b.usable + "회가 모두 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
-  else if (share >= 50) headline = (share === 50 ? "기간 B 측정의 절반(" + count + "회)이"
-    : "기간 B 측정 " + b.usable + "회 중 " + count + "회(" + pct + ")가") + " 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
-  else if (share > 10) headline = "기간 B 측정의 일부(" + pct + ", " + count + "회)만 기간 A의 비교 범위(5~95%, " + range + ")를 벗어났습니다. " + medians;
-  else headline = "기간 B의 값은 대부분 기간 A의 비교 범위(5~95%, " + range + ") 안에 있습니다. " + medians;
-  let certainty: string | null = null;
-  if (b.usable < 5 || a.usable < 10)
-    certainty = "측정 수가 적어(기간 A " + a.usable + "회 · 기간 B " + b.usable + "회) 이 결과만으로 단정하기 이릅니다.";
-  else if (share === null) certainty = null;
-  else if (share >= 90) certainty = "값 몇 개가 튄 것이 아니라 거의 모든 측정이 벗어나, 값의 수준 자체가 달라졌습니다.";
-  else if (share >= 50) certainty = (share > 50 ? "절반 넘게" : "절반이") + " 벗어났지만 기간 A의 비교 범위 안의 값도 남아 있습니다. 변화 시작 시점은 기간 B의 추이에서 확인할 수 있습니다.";
-  else if (share > 10) certainty = "기간 B 측정 중 일부만 벗어났습니다. 벗어난 측정이 한 시기에 몰려 있는지 흩어져 있는지 시간 추이에서 확인하세요.";
-  else certainty = "기간 A 안에서도 값의 10%는 이 범위 밖에 있으므로, 이 정도는 뚜렷한 변화로 보기 어렵습니다.";
-  const onset = facts.onset && share !== null && share > 10
-    ? place(facts.onset.first) + "에서 처음 기간 A의 비교 범위를 벗어났고"
-      + (facts.onset.stayed ? " 그 뒤 기간 B의 측정도 모두 그 범위 밖입니다." : " 그 뒤 기간 B의 측정 중 일부는 그 범위 안으로 돌아왔습니다.")
-    : null;
-  return {headline, meaning: onset, certainty, next};
 }
 
 type Tie = {kind: "same" | "opposite"; strong: boolean} | {kind: "none" | "unclear"};
@@ -139,7 +89,7 @@ export function tie(side: RelationSide): Tie | null {
   return {kind: p > 0 ? "same" : "opposite", strong: Math.abs(p) >= 0.7};
 }
 const way = (t: Tie) => t.kind === "same" || t.kind === "opposite"
-  ? (t.kind === "same" ? "같은 방향으로 " : "반대 방향으로 ") + (t.strong ? "강하게" : "어느 정도") + " 함께 움직" : null;
+  ? (t.kind === "same" ? "같은 방향으로" : "반대 방향으로") + " 함께 움직" : null;
 const was = (t: Tie) => way(t) ? way(t) + "였고" : t.kind === "none" ? "뚜렷한 관계가 없었고" : "관계가 분명하지 않았고";
 const is = (t: Tie) => way(t) ? way(t) + "입니다" : t.kind === "none" ? "뚜렷한 관계가 없습니다" : "관계가 분명하지 않습니다";
 function coefficients(side: RelationSide, t: Tie): string {
@@ -221,10 +171,11 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
     meaning = link === "crest"
       ? "파고율은 절대 피크를 RMS로 나눈 값이라 두 값은 계산식으로 묶여 있습니다. RMS가 거의 그대로일 때는 피크가 클수록 파고율도 커지고, RMS가 피크보다 더 크게 늘면 파고율은 작아집니다."
       : "파고율은 절대 피크를 RMS로 나눈 값이라, 피크가 그대로일 때 RMS가 커지면 파고율은 작아집니다.";
+    // 계산식으로 묶인 두 값의 상관계수보다, 파고율이 어떻게 바뀌었는지가 진동의 성격 변화를 말한다. 그래서 그것을 먼저 쓴다.
     if (crest?.a && crest.b && Math.abs(crest.b / crest.a - 1) >= 0.1)
-      meaning += " 파고율 중앙값은 " + short(crest.a) + " → " + short(crest.b) + (crest.b < crest.a
-        ? "로 낮아졌습니다. 가끔 튀는 진동보다 진동 전체가 커지는 쪽으로 바뀌었다는 뜻입니다."
-        : "로 높아졌습니다. 진동 전체보다 순간적으로 튀는 값이 더 커졌다는 뜻입니다.");
+      headline = "파고율 중앙값이 " + short(crest.a) + " → " + short(crest.b) + (crest.b < crest.a
+        ? "로 낮아졌습니다. 가끔 튀는 진동보다 진동 전체가 커지는 쪽으로 바뀌었습니다. "
+        : "로 높아졌습니다. 진동 전체보다 순간적으로 튀는 값이 더 커졌습니다. ") + headline;
   } else if (link === "rms-std") {
     meaning = "진동처럼 평균이 0에 가까운 값에서는 RMS와 표준편차가 거의 같은 값입니다. 함께 움직이는 것은 계산상 당연하므로 서로 다른 근거로 세지 마세요.";
   } else if (link === "peaks") {
@@ -517,67 +468,6 @@ export function comparisonMessage(score: {previous: number | null; current: numb
     : null;
   return {headline: headline.trim(), meaning, certainty, next};
 }
-
-export type HistoryPeriodFacts = PeriodFacts & {
-  /** Each period's mean and middle half, to tell a moved median from a moved level. */
-  means: {a: number | null; b: number | null};
-  aMiddle: {low: number; high: number} | null;
-  /** For a declared current in A: measurements below 1 A in each period — a low reading, not a stop. */
-  lowCurrent: {a: number; b: number} | null;
-  /** Values B took in a range where A had under 1% of its own. */
-  newValues?: {low: number; high: number; count: number; total: number} | null;
-};
-
-const portion = (part: number, whole: number) => whole > 0 ? part / whole : 0;
-
-/** A stored time series over two periods. Beyond the shared period message, it says whether the
- * share of measurements with no current differs, and when the median moved but the mean barely did,
- * that values may sit at a few levels whose shares changed. Both are observations, not causes. */
-export function historyPeriodMessage(facts: HistoryPeriodFacts, next: NextStep[] = []): AnalysisMessage | null {
-  const base = periodMessage({...facts, onset: null}, (at) => String(at), next);
-  if (!base) return null;
-  const unit = facts.unit ? " " + facts.unit : "";
-  const notes: string[] = [];
-  if (facts.newValues) {
-    const fresh = facts.newValues;
-    notes.push("기간 B 측정 " + fresh.total + "회 중 " + fresh.count + "회(" + countShare(fresh.count, fresh.total) + ")는 기간 A에 거의 없던 "
-      + short(fresh.low) + "~" + short(fresh.high) + unit + " 범위의 값입니다(기간 A 측정의 1% 미만). 두 기간의 값이 몰린 위치는 분포 그림에서 비교할 수 있습니다.");
-  }
-  let lowDiffers = false;
-  if (facts.lowCurrent) {
-    const a = portion(facts.lowCurrent.a, facts.a.usable), b = portion(facts.lowCurrent.b, facts.b.usable);
-    const shareA = countShare(facts.lowCurrent.a, facts.a.usable), shareB = countShare(facts.lowCurrent.b, facts.b.usable);
-    lowDiffers = Math.abs(a - b) >= 0.1;
-    // A share of stored measurements, not of time, and a low reading, not a stop: spacing can
-    // differ, one phase below 1 A says nothing of the others, and a similar share settles no cause.
-    notes.push("유효 측정 중 전류가 1 A 미만인 측정의 비율은 기간 A " + shareA + ", 기간 B " + shareB
-      + (lowDiffers ? "로 다릅니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 두 기간의 차이에는 이 비율 차이가 섞여 있을 수 있으니, 1 A 이상인 측정끼리 비교한 결과도 확인해야 합니다."
-        : "로 비슷합니다(측정 수 기준이라 시간 비율과는 다를 수 있습니다). 이 비율만으로 차이가 어디서 왔는지 정할 수는 없으니, 전류가 낮았던 구간의 길이와 그 밖의 값 분포를 함께 확인하세요.")
-      + " 1 A 미만은 측정된 전류가 낮았다는 뜻이며, 설비가 멈췄는지는 운전 기록이나 다른 상의 값으로 따로 확인해야 합니다.");
-  }
-  const {a, b} = facts, {a: meanA, b: meanB} = facts.means;
-  if (!lowDiffers && a.median !== null && b.median !== null && meanA !== null && meanB !== null && facts.aMiddle) {
-    const medianMove = b.median - a.median, meanMove = meanB - meanA;
-    const width = facts.aMiddle.high - facts.aMiddle.low;
-    const apart = Math.abs(medianMove) >= 0.25 * width && width > 0
-      && (Math.sign(medianMove) !== Math.sign(meanMove) || Math.abs(meanMove) < 0.5 * Math.abs(medianMove));
-    if (apart)
-      notes.push("중앙값은 " + short(a.median) + " → " + short(b.median) + unit + "로 바뀌었지만 평균은 " + short(meanA) + " → " + short(meanB) + unit
-        + (Math.sign(medianMove) !== Math.sign(meanMove) && Math.abs(meanMove) >= 0.1 * Math.abs(medianMove) ? "로 반대로 움직였습니다. " : "로 거의 같습니다. ")
-        + "값이 몇 개의 수준(예: 운전 상태마다 다른 수준)으로 나뉘어 있으면 수준별 측정 비중만 바뀌어도 중앙값이 크게 움직입니다. 분포 그림에서 값이 어디에 몰려 있는지 확인하세요.");
-  }
-  const insideMiddle = a.median !== null && b.median !== null && facts.aMiddle !== null
-    && b.median >= facts.aMiddle.low && b.median <= facts.aMiddle.high;
-  const conclusion = a.usable >= 10 && b.usable >= 10 && insideMiddle
-    ? "두 기간의 대표값은 비슷합니다"
-    : a.median !== null && b.median !== null && b.median !== a.median
-      ? "기간 A보다 대표값이 " + (b.median>a.median?"높습니다":"낮습니다") : undefined;
-  const certainty = insideMiddle && !lowDiffers && (facts.outsidePercent ?? 100) < 50
-    ? "기간 B의 중앙값은 기간 A 값의 가운데 절반 안에 있습니다. 기간 A 값도 약 10%는 90% 범위 밖이므로, 범위 밖 비율은 이 10%와 비교해 읽어야 합니다."
-    : base.certainty;
-  return {...base, conclusion, certainty, meaning: notes.length ? notes.join(" ") : base.meaning};
-}
-
 
 /** A forecast still has a numerical result when no operating criterion has been supplied. */
 export function forecastMessage(facts: {last:number|null; start?:number; end:{estimate:number;lower:number|null;upper:number|null};

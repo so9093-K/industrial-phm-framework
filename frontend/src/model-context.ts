@@ -31,20 +31,5 @@ export function rareAtChange(operation: ModelOperation, condition: string): numb
   return null;
 }
 
-/** 상태 요약의 모델 근거 한 줄: 이 변화 구간을 분석한 모델마다 몇 회 중 몇 회 기준을 넘었는지.
- * 절반 이상 넘은 모델과 절반 미만인 모델이 함께 있으면 판단이 갈렸다고 먼저 말하고, 변화가 모델이 거의
- * 학습하지 않은 운전 상태에서 났으면 그 초과만으로 확인하기 어렵다고 덧붙인다. 척도가 다른 점수는 견주지 않는다. */
-export function modelEvidence(rows: {name: string; analyzed: number; exceeded: number; complete?:boolean}[],
-  unlearned: {condition: string; share: number} | null = null): string | null {
-  const read = rows.filter(row => row.analyzed > 0);
-  if (!read.length) return null;
-  const over = read.filter(row => row.exceeded * 2 >= row.analyzed), under = read.filter(row => row.exceeded * 2 < row.analyzed);
-  const count = (value: number) => value.toLocaleString("ko-KR");
-  const complete=read.every(row=>row.complete!==false);
-  const list = [...over, ...under].map(row => row.name + " " + count(row.analyzed) + "회 중 " + count(row.exceeded) + "회" + (row.complete===false?" (일부 조회)":"")).join(", ");
-  const lead = complete && over.length && under.length ? "판단이 갈림 · 기준 초과 " : "기준 초과 ";
-  const caution = unlearned && over.length
-    ? " · 학습 기간에 " + unlearned.condition + (unlearned.share === 0 ? " 없음" : unlearned.share < 0.01 ? " 1% 미만" : " " + Math.round(unlearned.share * 100) + "%")
-    : "";
-  return lead + list + caution + (complete?"":" · 일부 조회한 점수로 이 구간 전체의 모델 반응을 비교할 수 없습니다.");
-}
+/** 변화 그래프 아래 한 줄: 한 모델이 분석한 위치와 기준을 넘은 위치(그래프 가로축 단위), 그리고 이름·횟수. */
+export type ModelRug = {label: string; analyzed: number[]; exceeded: number[]};

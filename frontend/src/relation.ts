@@ -123,7 +123,7 @@ export function strength(coefficient: number): string {
   const size = Math.abs(coefficient);
   if (size < 0.3) return "함께 움직이는 경향이 거의 없음";
   const direction = coefficient > 0 ? "같은 방향으로" : "반대 방향으로";
-  return direction + (size >= 0.7 ? " 강하게" : " 어느 정도") + " 함께 움직임";
+  return direction + " 함께 움직임";
 }
 
 /** A range of x with enough pairs in both periods to compare y at the same x. */

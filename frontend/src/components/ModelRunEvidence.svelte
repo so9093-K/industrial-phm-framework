@@ -375,8 +375,8 @@
               message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
           {:else}
             {@const summary=scoreSummary(result.output)}
-            <div class="selected-result"><h3>{place(result.position)} · {selectedScoreMessage(summary).headline}</h3>
-              <span class="context">점수 {num(summary.score,"기록 없음")} / 기준 {num(summary.threshold,"기록 없음")}</span>
+            <div class="selected-result"><h3>{place(result.position)}</h3>
+              <span class="context">점수 {num(summary.score,"기록 없음")} · 기준 {num(summary.threshold,"기록 없음")}</span>
               <button type="button" class="ui-button" onclick={showSelectedInput}>이 측정의 원본 확인 →</button></div>
           {/if}
           <div class="selected-meta"><p class="context">측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}

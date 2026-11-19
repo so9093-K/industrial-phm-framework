@@ -17,17 +17,6 @@ export type Span = {from: number; to: number};
 /** The longest window the server reads at once and the longest period it compares. */
 export const MAX_SPAN_MS = 31 * 86400 * 1000;
 
-/** Keep comparison periods reachable when their combined extent exceeds one trend read. */
-export function comparisonWindows(periods: Periods): {label: string; window: Span; pick: Span}[] {
-  const a = {from: Date.parse(periods.a.from), to: Date.parse(periods.a.to)};
-  const b = {from: Date.parse(periods.b.from), to: Date.parse(periods.b.to)};
-  const together = {from: Math.min(a.from,b.from), to: Math.max(a.to,b.to)};
-  if (together.to-together.from <= MAX_SPAN_MS)
-    return [{label:"두 기간을 신호 그래프에서 보기",window:together,pick:b}];
-  return [{label:"기간 A의 신호 추이",window:zoomWindow(a) ?? a,pick:a},
-    {label:"기간 B의 신호 추이",window:zoomWindow(b) ?? b,pick:b}];
-}
-
 export type SpanSummary = {
   buckets: number;
   usable: number;
@@ -151,7 +140,7 @@ export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   previous: "주요 변화 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   departure: "기록 변화 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
-  summary: "상태 요약의 변화와 같은 기준입니다. 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다.",
+  summary: "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 변화 구간입니다.",
 };
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");

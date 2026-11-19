@@ -19,7 +19,7 @@
   <figure class="strip" aria-label={finding.label + " 기록 전체와 변화의 위치"}>
     <ValueAxis ticks={chart.ticks} {height} unit={finding.unit}>
       <svg viewBox={"0 0 " + chart.width + " " + chart.height} preserveAspectRatio="none" role="img" style:height={height + "px"}
-        aria-label={"기록 전체의 구간별 평균. 회색 띠는 비교한 처음 30%, 주황 띠는 변화 구간, 테두리는 위 그래프에서 확대한 범위입니다."}>
+        aria-label={"기록 전체의 구간별 평균. 회색 띠는 초기(기록 처음 30%), 주황 띠는 변화 구간, 테두리는 위 그래프에서 확대한 범위입니다."}>
         {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
         {#if chart.bands.baseline}<rect x={chart.bands.baseline.x} width={chart.bands.baseline.width} y="0" height={chart.height} class="baseline" />{/if}
         {#each chart.ranges as range, i (i)}<line x1={range.x} x2={range.x} y1={range.low} y2={range.high} class="range" />{/each}
@@ -32,7 +32,7 @@
       {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind: "clock"}} />{/snippet}
     </ValueAxis>
     <figcaption>
-      <span><i class="key baseline"></i>비교한 처음 30%</span>
+      <span><i class="key baseline"></i>초기(기록 처음 30%)</span>
       <span><i class="key change"></i>변화 구간</span>
       {#if chart.bands.window}<span><i class="key window"></i>위 그래프의 범위</span>{/if}
       {#if kind !== "all"}<span><i class="key judged"></i>{judgedName}</span><span><i class="key all"></i>모든 운전 상태의 평균</span>{/if}

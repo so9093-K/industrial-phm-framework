@@ -2,8 +2,9 @@
   import {changeNumbers, type ChangeFacts, type ChangeNumber} from "../change-story";
   /** 변화 전후의 두 숫자와, 변화가 기록 끝까지 이어졌으면 마지막 값. 숫자마다 무엇의 값인지 위에,
    * 얼마나 달라졌는지 아래에 적는다. 표 안(compact)에서는 이름을 짧게 쓰고 숫자만 둔다. */
-  let {facts, fallback, compact=false, latest=null}: {facts: ChangeFacts; fallback: string; compact?:boolean; latest?: ChangeNumber | null} = $props();
-  const numbers = $derived(changeNumbers(facts));
+  let {facts, fallback, compact=false, latest=null, spanCaption=null}: {facts: ChangeFacts; fallback: string; compact?:boolean;
+    latest?: ChangeNumber | null; spanCaption?: string | null} = $props();
+  const numbers = $derived(changeNumbers(facts, spanCaption));
 </script>
 {#if numbers}
   <dl class="change-values" class:compact class:with-latest={!!latest}>

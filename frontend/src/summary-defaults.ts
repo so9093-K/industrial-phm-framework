@@ -105,7 +105,7 @@ export async function defaultChannel(assetId: string, ids: string[], signal: Abo
 }
 
 /** 진동 탭이 상태 요약의 대표 변화를 그대로 이어받았을 때 함께 보여 주는 문장. */
-export const VIBRATION_SUMMARY_NOTE = "상태 요약의 대표 변화와 같은 기준입니다. 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다.";
+export const VIBRATION_SUMMARY_NOTE = "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 변화 구간입니다.";
 
 /** 진동 탭을 바로 열었을 때의 기본값: 상태 요약이 앞세우는 진동 변화와 같은 특징과 기간(판단에 쓴
  * 기록 처음 30%를 A, 변화 구간을 B), 그리고 같은 측정에서 함께 달라진 특징 하나. 다른 모델 연결의
