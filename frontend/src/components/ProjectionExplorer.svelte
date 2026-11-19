@@ -398,26 +398,8 @@
     {/if}
     </div>
     <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
-      <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
-        <h3>기준 도달·예상 여유</h3>
-        <p>현장에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="controls">      <label for="projection-direction">기준 방향
-        <select id="projection-direction" value={direction}
-          onchange={e=>{direction=e.currentTarget.value as Direction;save();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label for="projection-management">관리 기준 ({projection?.unit??names.get(channel)?.unit??"단위 미지정"} · 선택)
-        <input id="projection-management" type="number" step="any"
-          value={management} oninput={e=>{management=e.currentTarget.value;save();}}/>
-      </label>
-      <label for="projection-end">종료 기준 ({projection?.unit??names.get(channel)?.unit??"단위 미지정"} · 선택)
-        <input id="projection-end" type="number" step="any"
-          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;save();}}/>
-      </label>
-      </div>
-        <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={selectionLoading||!selectionReady||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button>
-      </form>
+      <h3 class="inspector-title">기준 도달·예상 여유</h3>
+
       {#if projection}
         {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
         {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
@@ -438,6 +420,26 @@
           </div>
         {/if}
       {/if}
+
+      <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+        <p>기준값 입력 (선택)</p>
+      <div class="controls">      <label for="projection-direction">기준 방향
+        <select id="projection-direction" value={direction}
+          onchange={e=>{direction=e.currentTarget.value as Direction;save();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label for="projection-management">관리 기준 ({(projection?.unit??names.get(channel)?.unit)?(projection?.unit??names.get(channel)?.unit)+" · ":""}선택)
+        <input id="projection-management" type="number" step="any"
+          value={management} oninput={e=>{management=e.currentTarget.value;save();}}/>
+      </label>
+      <label for="projection-end">종료 기준 ({(projection?.unit??names.get(channel)?.unit)?(projection?.unit??names.get(channel)?.unit)+" · ":""}선택)
+        <input id="projection-end" type="number" step="any"
+          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;save();}}/>
+      </label>
+      </div>
+        <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={selectionLoading||!selectionReady||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button>
+      </form>
     </aside>
     </div>
   {/if}
@@ -505,8 +507,11 @@
 
   .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
   .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
-  .criteria{display:grid;gap:var(--space-3)}.criteria h3{font-size:var(--font-section);margin:0}.criteria p,.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
+  .criteria{display:grid;gap:var(--space-3)}.criteria p,.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
   .criteria .controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin:0}.criteria input,.criteria select{padding:var(--space-2)}
   .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}.criteria-pending{color:var(--color-caution-ink)}
   @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  .inspector-title{margin:0;font-size:var(--font-section)}
+  .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>

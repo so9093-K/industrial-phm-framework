@@ -325,23 +325,8 @@
     {/if}
     </div>
     <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
-    <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
-      <div class="criteria-title"><strong>기준 도달 전망</strong><span>{criteriaPending?"변경한 기준 적용 대기":"현장에서 사용하는 기준값 입력"}</span></div>
-      <div class="inputs">      <label>기준 방향
-        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label>관리 기준{outlook?.unit?" ("+outlook.unit+")":""}
-        <input type="number" step="any" value={managementText}
-          oninput={e=>{managementText=e.currentTarget.value;remember();}}/>
-      </label>
-      <label>종료 기준{outlook?.unit?" ("+outlook.unit+")":""}
-        <input type="number" step="any" value={endText}
-          oninput={e=>{endText=e.currentTarget.value;remember();}}/>
-      </label>
-      <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={available.length===0||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button></div>
-    </form>
+      <h3 class="inspector-title">기준 도달·예상 여유</h3>
+
     {#if outlook}
       {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
       {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
@@ -363,6 +348,24 @@
           </div>
         {/if}
     {/if}
+
+    <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+      <div class="criteria-title"><strong>기준값 입력</strong><span>선택 사항</span></div>
+      <div class="inputs">      <label>기준 방향
+        <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label>관리 기준{outlook?.unit?" ("+outlook.unit+")":""}
+        <input type="number" step="any" value={managementText}
+          oninput={e=>{managementText=e.currentTarget.value;remember();}}/>
+      </label>
+      <label>종료 기준{outlook?.unit?" ("+outlook.unit+")":""}
+        <input type="number" step="any" value={endText}
+          oninput={e=>{endText=e.currentTarget.value;remember();}}/>
+      </label>
+      <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={available.length===0||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button></div>
+    </form>
     </aside>
     </div>
   {/if}
@@ -432,4 +435,7 @@
   .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}
   .criteria-pending{font-size:var(--font-small);color:var(--color-caution-ink);margin:0}
   @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.forecast-inspector .criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  .inspector-title{margin:0;font-size:var(--font-section)}
+  .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>
