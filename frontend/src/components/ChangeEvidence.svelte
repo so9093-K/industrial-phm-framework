@@ -90,19 +90,14 @@
 
 <ul class="entries" aria-label="분석 열기">
   {#each rows as row (row.name)}
-    <li>{#if row.href}<a href={row.href}><strong>{row.name}</strong><span>{row.fact}</span></a>
-      {:else}<div class="off"><strong>{row.name}</strong><span>{row.fact}</span></div>{/if}</li>
+    <li>{#if row.href}<a href={row.href}>{row.name} →</a>{:else}<span class="off">{row.name}</span>{/if}<span class="fact">{row.fact}</span></li>
   {/each}
 </ul>
 
 <style>
-  .entries { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--space-2); }
-  .entries a, .entries .off { display: grid; gap: 2px; height: 100%; padding: var(--space-3); border: 1px solid var(--color-border);
-    border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-ink); text-decoration: none; }
-  .entries a:hover { border-color: var(--color-action); background: var(--color-surface-selected); }
-  .entries strong { font-size: var(--font-small); color: var(--color-action); }
-  .entries strong::after { content: " →"; }
-  .entries .off strong { color: var(--color-ink-muted); }
-  .entries .off strong::after { content: ""; }
-  .entries span { font-size: var(--font-small); color: var(--color-ink); overflow-wrap: anywhere; word-break: keep-all; }
+  .entries { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); column-gap: var(--space-6); }
+  .entries li { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: var(--space-3); align-items: baseline; padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); font-size: var(--font-small); }
+  .entries a { font-weight: 650; white-space: nowrap; }
+  .off { color: var(--color-ink-muted); }
+  .fact { color: var(--color-ink); overflow-wrap: anywhere; word-break: keep-all; }
 </style>

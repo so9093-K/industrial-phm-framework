@@ -264,7 +264,7 @@
       const judged = read.trend.points.filter(point => point.pointer.state === "analyzed" && point.score !== null);
       const counts = modelAtChange(read.trend, span, span.axis);
       const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
-      return [{label: modelName(item.binding) + " · 변화 구간 " + counts.analyzed + "회 중 " + counts.exceeded + "회 기준 초과"
+      return [{label: modelName(item.binding) + " · 변화 구간에서 기준 넘음 " + counts.exceeded + "/" + counts.analyzed + "회"
         + (rare !== null ? " · 학습 기간에 " + span.condition + " 거의 없음" : "") + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
         analyzed: judged.map(at), exceeded: judged.filter(point => point.exceeds).map(at)}];
     });
@@ -298,7 +298,7 @@
   /** 기록 끝까지 이어진 변화의 세 번째 숫자: 같은 기록의 마지막 구간 평균. */
   function historyLatest(history: RecordFindings, item: FoundInterval): ChangeNumber | null {
     const own = history.signals.find(row => item.context ? row.context?.key === item.context.key : row.channel === item.channel);
-    return own?.latest ? latestNumber("마지막 구간 평균", own.latest.value, item.typical, item.unit) : null;
+    return own?.latest ? latestNumber("마지막 구간 평균", own.latest.value, item.reference, item.unit) : null;
   }
   // Vibration deliveries carry an order, not always a clock; say which one is last.
   const lastMeasured = $derived(!asset.lastObservedAt && data?.vibration
@@ -319,9 +319,9 @@
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
   <div class="change-lead"><div class="lead-copy">
-  <h3 class="change-sentence">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", condition})}</h3>
+  <h3 class="change-sentence">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", now: !ended, condition})}</h3>
   {#if ended}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
-  <ChangeNumbers facts={item} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
+  <ChangeNumbers facts={item} spanCaption={told.when} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
   </div>
   <ChangeInterval finding={item} height={200} focus rugs={modelRugs}/>
 {/snippet}

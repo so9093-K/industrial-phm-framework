@@ -37,22 +37,31 @@ export function plainLabel(label: string, feature?: string | null): string {
   return found ? label.replace(found[1], found[2]) : label;
 }
 
-/** 결론 한 문장: 그래프에 그린 모양을 그대로 말한다. 언제부터 처음 범위를 벗어났고, 그동안 어느 수준이었고,
- * 마지막 측정에서 다시 크게 움직였는지. 배율 하나로 변화 전체를 대신하지 않고, 판정 꼬리표도 붙이지 않는다.
- * `span`은 "72번째 측정부터"·"2020년 10월 4일(일) 09:19부터 약 22시간 동안"처럼 그래프의 변화 구간이다. */
-export function changeConclusion(facts: ChangeFacts & {feature?: string | null; usual: {low: number; high: number}},
-  shape: {span: string; condition?: string | null; jump?: {place: string; value: number} | null}): string {
+const TEMPERATURE = /°|℃|℉/;
+const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
+const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
+/** 초기(기록 처음 30%의 중앙값)와 비교한 크기 한 마디. 1.5배 이상이면 배수, 2/3 이하면 초기의 몇 %,
+ * 그 사이면 차이와 비율. 온도처럼 0이 기준이 아닌 단위는 차이만 쓴다. */
+export function versusStart(value: number, reference: number | null, unit: string | null): string | null {
+  if (reference === null) return null;
+  const ratio = !TEMPERATURE.test(unit ?? "") && reference > 0 && value > 0 ? value / reference : null;
+  if (ratio !== null && ratio >= 1.5) return "초기의 약 " + ratioText(ratio) + "배";
+  if (ratio !== null && ratio <= 1 / 1.5) return "초기의 약 " + Math.round(ratio * 100) + "%";
+  const gap = value - reference;
+  if (gap === 0) return "초기와 같음";
+  const part = ratio !== null && unit !== "%" ? "(" + share(Math.abs(gap) / reference) + ")" : "";
+  return "초기보다 " + amount(Math.abs(gap), unit) + part + (gap > 0 ? " 높음" : " 낮음");
+}
+
+/** 결론 한 문장: 변화의 모양만 쉬운 말로 말한다(언제부터, 지금도 이어지는지, 마지막에 한 번 더 크게 움직였는지).
+ * 크기는 옆의 숫자 칸이 '초기의 약 n배'로 말하므로 문장에 숫자를 겹쳐 쓰지 않는다. */
+export function changeConclusion(facts: Pick<ChangeFacts, "label" | "direction"> & {feature?: string | null},
+  shape: {span: string; now?: boolean; condition?: string | null; jump?: boolean}): string {
   const up = facts.direction === "up";
   const who = (shape.condition ? shape.condition + " 중 " : "") + subject(plainLabel(facts.label, facts.feature));
-  const basis = facts.kind === "level-change"
-    ? "처음 일정하던 값" + (facts.reference === null ? "" : "(" + amount(facts.reference, facts.unit) + ")") + "과 달리"
-    : "처음 30%보다 " + (up ? "높은" : "낮은");
-  const head = who + " " + shape.span + " " + (facts.typical === null
-    ? basis.replace(/(높은|낮은)$/, up ? "높았" : "낮았")
-    : basis + " 중앙값 " + amount(facts.typical, facts.unit) + " 수준이었");
-  return shape.jump
-    ? head + "고, 마지막 " + shape.jump.place + "에서는 " + amount(shape.jump.value, facts.unit) + "까지 다시 크게 " + (up ? "높아졌습니다." : "낮아졌습니다.")
-    : head + "습니다.";
+  if (shape.jump) return who + " " + shape.span + " 초기보다 " + (up ? "높아졌고" : "낮아졌고")
+    + ", 마지막 측정에서 한 번 더 크게 " + (up ? "뛰었습니다." : "떨어졌습니다.");
+  return who + " " + shape.span + " 초기보다 " + (shape.now ? (up ? "높습니다." : "낮습니다.") : (up ? "높았습니다." : "낮았습니다."));
 }
 
 /** 기록 끝까지 이어진 변화에서 마지막 측정이 직전 측정의 1.5배 넘게(낮아지는 변화면 2/3 아래로) 움직였는지.
@@ -65,30 +74,19 @@ export function lastJump(trace: {at: number; value: number}[], direction: "up" |
 }
 
 export type ChangeNumber = {caption: string; value: string; note: string | null};
-/** 변화 전후의 두 숫자와 각각이 무엇인지. 숫자만 놓지 않고, 평소 얼마나 흔들리던 값인지와 차이를 함께 말한다. */
-export function changeNumbers(facts: ChangeFacts): {before: ChangeNumber; after: ChangeNumber} | null {
+/** 숫자 칸 두 개: 초기와 변화 구간. 변화 구간 아래에는 초기와 비교한 크기를 적는다. */
+export function changeNumbers(facts: ChangeFacts, spanCaption: string | null = null): {before: ChangeNumber; after: ChangeNumber} | null {
   if (facts.reference === null || facts.typical === null) return null;
-  const gap = facts.typical - facts.reference;
-  const ratio = facts.reference > 0 && facts.typical > 0 ? facts.typical / facts.reference : null;
-  const spread = facts.referenceSpread ?? null;
   return {
-    before: {caption: "기록 처음 30%의 중앙값", value: amount(facts.reference, facts.unit),
-      note: facts.kind === "level-change" || spread === 0 ? "이 값이 그대로 유지됨"
-        : spread ? "이 기간의 변동 약 ±" + amount(spread, facts.unit) : null},
-    after: {caption: "이 구간의 중앙값", value: amount(facts.typical, facts.unit),
-      note: gap === 0 ? null : "처음보다 " + amount(Math.abs(gap), facts.unit) + (gap > 0 ? " 높음" : " 낮음")
-        + (ratio !== null && ratio >= 1.5 ? " · 약 " + digits(ratio) + "배" : "")},
+    before: {caption: "초기 · 기록 처음 30%", value: amount(facts.reference, facts.unit), note: null},
+    after: {caption: spanCaption ? "변화 구간 · " + spanCaption : "변화 구간", value: amount(facts.typical, facts.unit),
+      note: versusStart(facts.typical, facts.reference, facts.unit)},
   };
 }
 
-/** 변화가 기록 끝까지 이어졌을 때의 세 번째 숫자: 마지막 값과, 그 값이 이 구간 중앙값과 얼마나 다른지. */
-export function latestNumber(caption: string, value: number, typical: number | null, unit: string | null): ChangeNumber {
-  if (typical === null || value === typical) return {caption, value: amount(value, unit), note: null};
-  const ratio = typical > 0 && value > 0 ? value / typical : null;
-  const note = ratio !== null && (ratio >= 1.5 || ratio <= 1 / 1.5)
-    ? "이 구간 중앙값의 약 " + digits(ratio) + "배"
-    : "이 구간 중앙값보다 " + amount(Math.abs(value - typical), unit) + (value > typical ? " 높음" : " 낮음");
-  return {caption, value: amount(value, unit), note};
+/** 변화가 기록 끝까지 이어졌을 때의 세 번째 숫자 칸: 마지막 값과 초기 대비 크기. */
+export function latestNumber(caption: string, value: number, reference: number | null, unit: string | null): ChangeNumber {
+  return {caption, value: amount(value, unit), note: versusStart(value, reference, unit)};
 }
 
 const shortTime = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric",
@@ -109,7 +107,7 @@ export function afterChange(end: string, usual: {low: number; high: number}, row
   if (!after.length) return null;
   const values = after.flatMap(row => {const value = kind === "all" ? row.mean : row.judged; return value === null ? [] : [value];});
   const inside = values.filter(value => value >= usual.low && value <= usual.high).length;
-  const where = inside === values.length ? "모두 변화 판단 범위 안" : inside === 0 ? "모두 변화 판단 범위 밖" : inside + "개 변화 판단 범위 안";
+  const where = inside === values.length ? "모두 초기 범위 안" : inside === 0 ? "모두 초기 범위 밖" : inside + "개 초기 범위 안";
   const head = "변화 구간 끝 " + shortTime(end) + " · 이후 구간 " + after.length + "개";
   const who = kind === "level" && condition ? condition : kind === "running" ? "운전 중" : null;
   if (!who) return head + ", " + where;

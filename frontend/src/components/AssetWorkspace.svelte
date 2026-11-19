@@ -164,7 +164,7 @@
 </script>
 
 <div class="workspace-asset" aria-busy={dataState === "loading"}>
-  <div class="head">
+  <div class="head visually-hidden">
     <div class="title">
       <h1>{assetLabel(assets, asset.assetId)}</h1>
       <!-- 한 줄: 어떤 기록인지와 시간을 어떻게 읽는지. 마지막 측정의 위치는 요약의 숫자가 말한다. -->
@@ -298,6 +298,7 @@
   .drawer-body{min-width:0;display:grid;gap:var(--space-3)}
   @media(max-width:860px){.drawer{width:100vw;padding-inline:var(--space-4)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: var(--space-3); }
   .title { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
   h1 { overflow-wrap: anywhere; font-size: 1.3rem; margin: 0; }

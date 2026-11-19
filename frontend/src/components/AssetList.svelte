@@ -9,7 +9,7 @@
   import {readChangeReviews, type ChangeCapture} from "../change-reviews";
   import {vibrationShape} from "../vibration-findings";
   import {DECISION_LABEL, latestDecision} from "../review-writes";
-  import {changeEnded, plainLabel} from "../change-story";
+  import {changeEnded, plainLabel, versusStart} from "../change-story";
 
   /** 모니터링 화면 맨 위의 설비 칸 줄. 칸마다 그 설비의 주요 변화 한 줄, 작은 추이, 모델의 마지막 분석 결과를 두고,
    * 누르면 아래 중심 화면이 그 설비로 바뀐다. 확인할 것이 있는 설비가 앞에 온다. */
@@ -21,11 +21,10 @@
     selected?: string;
     /** 설비별 확인 항목과 적용 모델 (모니터링 화면이 계속 다시 읽는다). */
     checks?: AssetChecks;
-    /** 목록을 읽은 시각과 다시 읽기. */
+    /** 목록을 읽은 시각. */
     checkedAt?: string;
-    onRefresh?: () => void;
   };
-  let {assets, href, selected = "", checks = UNCHECKED, checkedAt = "", onRefresh}: Props = $props();
+  let {assets, href, selected = "", checks = UNCHECKED, checkedAt = ""}: Props = $props();
   const count = (asset: Asset): number | null =>
     asset.attentionCount === null && checks.notes[asset.assetId] === undefined ? null
       : (asset.attentionCount ?? 0) + (checks.notes[asset.assetId]?.length ?? 0);
@@ -182,16 +181,15 @@
     });
   }
   const monthDay = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric"});
-  /** 칸 하나의 주요 변화: 무엇이 처음 → 변화 구간 (→ 마지막) 값으로, 언제부터, 지금도 이어지는지. */
-  function tile(row: OverviewRow | null, read: OverviewRow | "loading" | "failed" | undefined): {what: string; when: string; trace: {x: number; value: number; join?: boolean}[]} {
-    if (!row) return {what: read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중", when: "", trace: []};
+  /** 칸 하나의 주요 변화: 무엇이, 초기와 비교해 얼마나, 언제부터, 지금도 이어지는지. */
+  function tile(row: OverviewRow | null, read: OverviewRow | "loading" | "failed" | undefined): {what: string; how: string; when: string; trace: {x: number; value: number; join?: boolean}[]} {
+    if (!row) return {what: read === "failed" ? "변화를 불러오지 못함" : "변화 확인 중", how: "", when: "", trace: []};
     if (row.historyInterval) {
       const item = row.historyInterval;
       const ended = changeEnded(item.end, item.context?.record.to, item.bucketSeconds) !== null;
-      const last = !ended && row.finding?.latest ? " → " + changeValue(row.finding.latest.value, null) : "";
-      return {what: plainLabel(item.label) + " " + (item.reference != null ? changeValue(item.reference, null) + " → " : "")
-          + changeValue(item.typical ?? item.value, null) + last + (item.unit ? " " + item.unit : ""),
-        when: monthDay(item.start) + "부터 · " + (ended ? monthDay(item.end) + " 종료" : "기록 끝까지"),
+      const last = !ended && row.finding?.latest ? versusStart(row.finding.latest.value, item.reference, item.unit) : null;
+      return {what: plainLabel(item.label), how: (versusStart(item.typical ?? item.value, item.reference, item.unit) ?? "") + (last ? " → 마지막 " + last.replace("초기의 ", "") : ""),
+        when: monthDay(item.start) + "부터 · " + (ended ? monthDay(item.end) + " 끝남" : "기록 끝까지"),
         // 칸의 작은 추이는 기록 전체: 같은 운전 수준끼리 비교했으면 그 수준의 값, 아니면 구간 평균.
         trace: (item.overview ?? []).flatMap(point => {
           const value = item.overviewKind === "all" || !item.overviewKind ? point.mean : point.judged;
@@ -201,13 +199,13 @@
     if (row.vibrationInterval) {
       const change = row.vibrationInterval.change;
       const shape = vibrationShape(change, row.finding?.latest?.position ?? null);
-      const last = shape.atEnd ? " → " + changeValue(change.trace.at(-1)!.value, null) : "";
-      return {what: plainLabel(change.label, change.feature) + " " + (change.reference != null ? changeValue(change.reference, null) + " → " : "")
-          + changeValue(change.typical ?? change.value, null) + last + (change.unit ? " " + change.unit : ""),
-        when: change.from + "번째부터 · " + (shape.atEnd ? "기록 끝까지" : change.to + "번째까지"),
+      const last = shape.atEnd ? versusStart(change.trace.at(-1)!.value, change.reference, change.unit) : null;
+      return {what: plainLabel(change.label, change.feature), how: (versusStart(change.typical ?? change.value, change.reference, change.unit) ?? "")
+          + (last ? " → 마지막 " + last.replace("초기의 ", "") : ""),
+        when: change.from + "번째 측정부터 · " + (shape.atEnd ? "기록 끝까지" : change.to + "번째까지"),
         trace: change.trace.map(point => ({x: point.at, value: point.value, join: point.join}))};
     }
-    return {what: row.judged ? "크게 달라진 구간 없음" : "판단할 신호 없음",
+    return {what: row.judged ? "크게 달라진 구간 없음" : "판단할 신호 없음", how: "",
       when: row.main?.latest ? row.main.label + " " + changeValue(row.main.latest.value, row.main.unit) : "", trace: row.main?.trace ?? []};
   }
 </script>
@@ -215,11 +213,7 @@
 <section class="assets" aria-labelledby="asset-list-title">
   <div class="head">
     <h2 id="asset-list-title">설비 <span>{assets.length}개{checkedAt ? " · 목록 확인 " + checkedAt : ""}</span></h2>
-    <span class="tools">
-      {#if offerBearing}<a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>{/if}
-      <a class="ui-button" href={systemUrl("connections")}>데이터 가져오기</a>
-      {#if onRefresh}<button type="button" class="ui-button" onclick={onRefresh}>다시 불러오기</button>{/if}
-    </span>
+    {#if offerBearing}<a class="bearing-entry" href={bearingHref}>{canImport?"공개 베어링 진동 기록 가져오기":"준비된 베어링 진동 기록 보기"} →</a>{/if}
   </div>
   <nav class="strip" aria-label="설비">
     {#each ordered as asset (asset.assetId)}
@@ -232,6 +226,7 @@
       <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
         <span class="top"><strong>{name(asset)}</strong><span class="model" class:over={model.over}>{model.text}</span></span>
         <span class="what">{fact.what}</span>
+        {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
         {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}
         {#if asset.attentionCount}<small class="issue">운영 확인 항목 {asset.attentionCount}건</small>{/if}
@@ -247,7 +242,6 @@
   .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-2) var(--space-4); }
   h2 { margin: 0; font-size: var(--font-body); } h2 span { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
   .bearing-entry { font-size: var(--font-small); font-weight: 650; }
-  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
   /* 설비 칸은 가로로 이어지고, 많으면 옆으로 넘겨 본다. */
   .strip { display: flex; gap: var(--space-3); overflow-x: auto; padding-bottom: var(--space-1); }
   .tile { flex: 0 0 300px; display: grid; gap: 4px; align-content: start; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border);
@@ -258,7 +252,8 @@
   .top strong { font-size: var(--font-body); }
   .model { font-size: var(--font-label); color: var(--color-ink-muted); white-space: nowrap; }
   .model.over { color: var(--color-failure-ink, #b42318); font-weight: 650; }
-  .what { font-size: var(--font-small); font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .what { font-size: var(--font-small); overflow-wrap: anywhere; }
+  .how { font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .bottom { display: flex; justify-content: space-between; align-items: end; gap: var(--space-2); }
   small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
   small.issue { color: var(--color-caution-ink); }

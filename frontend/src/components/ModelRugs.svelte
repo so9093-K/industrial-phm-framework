@@ -19,7 +19,7 @@
       </svg>
     </div>
   {/each}
-  <p class="key"><i class="over"></i>모델 기준 초과 <i class="seen"></i>기준 이하</p>
+  <p class="key"><i class="over"></i>모델이 기준을 넘은 측정 <i class="seen"></i>넘지 않은 측정</p>
 </div>
 {/if}
 

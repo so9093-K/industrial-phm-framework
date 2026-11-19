@@ -304,7 +304,7 @@
           : "모델·수신 확인 항목을 일부만 읽었습니다. 설비 칸에는 읽은 항목만 있습니다."} />
       {/if}
       <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks}
-        checkedAt={observed(snapshot.assessedAt)} onRefresh={() => void refresh()} />
+        checkedAt={observed(snapshot.assessedAt)} />
       {#if selected}
         {#key selected.assetId}
           <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} onSelectAsset={selectAsset} />

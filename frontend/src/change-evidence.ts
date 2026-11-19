@@ -18,12 +18,12 @@ const withUnit = (raw: number, unit: string | null) => value(raw) + (unit ? " " 
 const hz = (raw: number) => Math.round(raw).toLocaleString("ko-KR");
 const share = (raw: number) => Math.round(raw * 100) + "%";
 
-/** 범위: 변화 구간의 값이 몇 회 중 몇 회 기록 처음 30% 값의 90%가 있던 범위 밖이었는지. */
+/** 범위: 변화 구간의 값이 몇 회 중 몇 회 초기(기록 처음 30%) 값의 90%가 있던 범위 밖이었는지. */
 export function rangeEvidence(facts: {usable: number; outside: number | null; low: number | null; high: number | null;
   unit: string | null; condition: string | null; percent?: number | null}): string | null {
   const {usable, outside, low, high, unit, condition, percent = null} = facts;
   if (!usable || outside === null || low === null || high === null) return null;
-  const range = "기록 처음 30% 값의 90%가 있던 범위(" + value(low) + "~" + withUnit(high, unit) + ")";
+  const range = "초기 값의 90% 범위(" + value(low) + "~" + withUnit(high, unit) + ")";
   const lead = (condition ? condition + " 중 값끼리 · " : "") + "변화 구간 ";
   if (outside === 0) return lead + count(usable) + "회 모두 " + range + " 안";
   if (outside >= usable) return lead + count(usable) + "회 모두 " + range + " 밖";
@@ -58,5 +58,5 @@ export function spectrumEvidence(channels: {label: string; ratio: number | null;
     + " Hz 대역의 에너지 비중 " + share(moved.band.a) + " → " + share(moved.band.b);
   const strongest = channels.filter(channel => channel.ratio !== null)
     .sort((x, y) => Math.abs(Math.log(y.ratio!)) - Math.abs(Math.log(x.ratio!)))[0];
-  return strongest ? strongest.label + " 전체 에너지 기록 처음의 " + times(strongest.ratio!) + " · 비중이 10%p 이상 커진 대역 없음" : null;
+  return strongest ? strongest.label + " 전체 에너지 초기의 " + times(strongest.ratio!) + " · 비중이 10%p 이상 커진 대역 없음" : null;
 }

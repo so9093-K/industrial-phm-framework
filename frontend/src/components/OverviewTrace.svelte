@@ -32,10 +32,12 @@
         {#each yTicks(lo-pad,hi+pad,0,height) as tick(tick.value)}<line x1="0" x2="600" y1={tick.y} y2={tick.y} class="grid"/>{/each}
         {#if usual}<rect x="0" width="600" y={y(usual.high)} height={Math.max(1,y(usual.low)-y(usual.high))} class="usual"/>{/if}
         {#if range}<rect x={x(Math.max(first,range.from))} width={Math.max(2,x(Math.min(last,range.to))-x(Math.max(first,range.from)))} y="0" height={height} class="interval"/>{/if}
-        {#each marks as mark (mark.at)}<line x1={x(mark.at)} x2={x(mark.at)} y1="0" y2={height} class="mark"/>{/each}
+      {#each marks as mark (mark.at)}<line x1={x(mark.at)} x2={x(mark.at)} y1="0" y2={height} class="mark"/>{/each}
         <path d={path}/>
         {#each points as point,i(i)}<circle cx={x(point.x)} cy={y(point.value)} r="2"/>{/each}
       </svg>
+      {#if usual}<span class="tag usual-tag" style:left="4px" style:top={(y(usual.high)/height*100)+"%"}>초기 범위</span>{/if}
+      {#if range}<span class="tag interval-tag" style:left={left(Math.max(first, range.from))+"%"}>변화 구간</span>{/if}
       {#each marks as mark (mark.at)}
         <span class="note" class:right={left(mark.at)>55} style:left={left(mark.at)+"%"} style:top={Math.min(88,Math.max(4,y(mark.value)/height*100))+"%"}>{mark.label}</span>
       {/each}
@@ -43,7 +45,7 @@
     {#snippet footer()}<XAxis lo={first} hi={last} scale={main.axis==="time"?{kind:"clock"}:main.periodSeconds?{kind:"elapsed",period:main.periodSeconds}:{kind:"order"}}/>
       <ModelRugs {rugs} lo={first} hi={last}/>{/snippet}
   </ValueAxis>
-  <figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 값"}{#if usual} · <i class="key usual"></i>변화 판단 범위(처음 30% 기준){/if}{#if range} · <i class="key interval"></i>변화 구간{/if}</figcaption>
+  <figcaption>{main.label} · {main.axis==="time"?"구간별 평균":"측정별 값"}{usual ? " · 초기 = 기록 처음 30%" : ""}</figcaption>
 </figure>
 {/if}
 <style>
@@ -53,7 +55,9 @@
   .mark{stroke:var(--color-caution-ink);stroke-width:1.5;stroke-dasharray:4 4;vector-effect:non-scaling-stroke}
   .note{position:absolute;transform:translate(6px,-50%);font-size:var(--font-label);font-weight:650;color:var(--color-ink);background:var(--color-surface);padding:1px 4px;border-radius:3px;white-space:nowrap;pointer-events:none}
   .note.right{transform:translate(calc(-100% - 6px),-50%)}
+  .tag{position:absolute;transform:translateY(-50%);font-size:var(--font-label);color:var(--color-ink-muted);pointer-events:none;white-space:nowrap}
+  .usual-tag{transform:translateY(-110%)}
+  .interval-tag{top:10px;transform:translateX(6px);color:var(--color-caution-ink);font-weight:650}
   figure{max-width:100%;min-width:0;margin:var(--space-4) 0}svg{width:100%;display:block}path{fill:none;stroke:var(--color-action);stroke-width:2;vector-effect:non-scaling-stroke}circle{fill:var(--color-action)}.grid{stroke:var(--color-border);stroke-width:1;vector-effect:non-scaling-stroke}
   figcaption{font-size:var(--font-small);color:var(--color-ink-muted);margin-top:var(--space-2)}
-  .key{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}.key.usual{background:var(--color-ink);opacity:.15}.key.interval{background:var(--color-caution-ink);opacity:.3}
 </style>
