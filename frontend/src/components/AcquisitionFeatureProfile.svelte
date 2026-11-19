@@ -74,6 +74,8 @@
       const response=await loadFeatureSource(assetId,request.signal);
       if(request.signal.aborted)return;
       if(!response||!response.features.length){listState="empty";return;}
+      if(url.has("acquisition_source")&&url.get("acquisition_source")!==response.sourceId)
+        throw new Error("고른 측정 기록이 현재 비교할 수 있는 기록과 다릅니다.");
       if(url.has("acquisition_binding")&&url.get("acquisition_binding")!==response.bindingId)
         throw new Error("넘겨받은 모델과 탐색 데이터의 적용 모델이 달라 비교하지 않았습니다.");
       source=response;

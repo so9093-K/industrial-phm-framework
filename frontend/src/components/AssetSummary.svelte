@@ -32,8 +32,13 @@
     data: AssetData | null;
     dataState: "loading" | "ready" | "failed";
     observed: (at: string | null) => string;
+    compact?: boolean;
+    onChange?: () => void;
+    selectedAt?: number | null;
   };
-  let {asset, data, dataState, observed}: Props = $props();
+  let {asset, data, dataState, observed, compact = false, onChange, selectedAt = $bindable(null)}: Props = $props();
+  const assetId=$derived(asset.assetId);
+  const readRevision=$derived(assetId+"\n"+(asset.lastObservedAt??"")+"\n"+(asset.lastReceivedAt??""));
   const stored = $derived.by(() => {
     if (dataState === "loading") return "확인하는 중";
     if (dataState === "failed" || !data) return "확인하지 못함";
@@ -80,9 +85,10 @@
   let vibrationState: "idle" | "loading" | "ready" | "failed" = $state("idle");
   $effect(() => {
     if (!data?.vibration) return;
+    readRevision;
     const request = new AbortController();
     vibrationState = "loading";
-    void readVibrationFindings(asset.assetId, request.signal).then((value) => {
+    void readVibrationFindings(assetId, request.signal).then((value) => {
       if (!request.signal.aborted) {vibration = value; vibrationState = "ready";}
     }).catch(() => {if (!request.signal.aborted) vibrationState = "failed";});
     return () => request.abort();
@@ -124,8 +130,11 @@
       const change=measured.intervals[pick.index];
       target=new URL(vibrationLinks(asset.assetId,change).compare,location.origin);
       target.searchParams.set("vibration_feature",change.feature);
+      target.searchParams.set("acq_forecast_feature",change.feature);
+      target.searchParams.set("spectrum_channel",change.feature.slice(8,change.feature.lastIndexOf(".")));
       target.searchParams.set("vibration_at",String(change.from));
       if(measured.bindingId)target.searchParams.set("acquisition_binding",measured.bindingId);
+      if(measured.sourceId)target.searchParams.set("acquisition_source",measured.sourceId);
       target.searchParams.set("acq_relation_x",change.feature);
       if(change.related[0])target.searchParams.set("acq_relation_y",change.related[0].feature);
       for(const part of ["a_from","a_to","b_from","b_to"])
@@ -134,6 +143,8 @@
     } else return;
     history.replaceState(history.state,"",summarySelectionUrl(location.href,target.href,key,pick.kind));
     pickedKey=key;
+    selectedAt=null;
+    onChange?.();
   }
   const vibrationPlace = (at: number) => measurementLabel(at, vibration?.periodSeconds);
   // 이 데이터로 할 수 있는 분석: 판단할 변화가 없을 때의 다음 질문이라 그때는 본문에, 변화가 있으면 데이터 묶음 안에 둔다.
@@ -171,7 +182,8 @@
     const span = focusSpan;
     if (!span) return false;
     if (span.axis === "time") return isTimeWindow(binding.stepKind) && binding.sourceId === span.sourceId && (binding.pointId ?? null) === span.pointId;
-    return !isTimeWindow(binding.stepKind);
+    return !isTimeWindow(binding.stepKind) && binding.pointId===null && (vibration?.sourceId
+      ?binding.sourceId===vibration.sourceId:binding.bindingId===vibration?.bindingId);
   }
   // 왼쪽 변화 목록: 이 설비 기록에서 찾은 변화 모두. 고르면 가운데 그래프와 분석이 그 변화로 바뀐다.
   const changeList = $derived.by(() => {
@@ -192,13 +204,14 @@
   });
   $effect(() => {
     if (!data?.history) return;
+    readRevision;
     const request = new AbortController();
     quietMain=null;
     findingState = "loading";
-    void readRecordFindings(asset.assetId, request.signal).then(async(value) => {
+    void readRecordFindings(assetId, request.signal).then(async(value) => {
       if (!request.signal.aborted) {findings = value; findingState = "ready";}
       if(!request.signal.aborted&&!value.intervals.length){
-        try{const overview=await readOverview(asset.assetId,request.signal);if(!request.signal.aborted)quietMain=overview.main;}catch{ /* The raw signal remains available if its preview fails. */ }
+        try{const overview=await readOverview(assetId,request.signal);if(!request.signal.aborted)quietMain=overview.main;}catch{ /* The raw signal remains available if its preview fails. */ }
       }
     }).catch(() => {if (!request.signal.aborted) findingState = "failed";});
     return () => request.abort();
@@ -266,6 +279,7 @@
       const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
       return [{label: modelName(item.binding) + " · 변화 구간에서 기준 넘음 " + counts.exceeded + "/" + counts.analyzed + "회"
         + (rare !== null ? " · 학습 기간에 " + span.condition + " 거의 없음" : "") + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
+        name:modelName(item.binding),trend:read.trend,divisor:span.axis==="time"?1000:1,
         analyzed: judged.map(at), exceeded: judged.filter(point => point.exceeds).map(at)}];
     });
   });
@@ -319,11 +333,18 @@
   {@const condition = own && item.band != null ? bandName(own, item.band) : null}
   {@const ended = endedText(history, item)}
   <div class="change-lead"><div class="lead-copy">
-  <h3 class="change-sentence">{changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", now: !ended, condition})}</h3>
-  {#if ended}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
+  <h3 class="change-sentence">{compact?item.label+" · 초기보다 "+(item.direction==="up"?"높음":"낮음"):changeConclusion(item, {span: ended ? findingSpan(item) : findingStart(item) + "부터 기록 끝까지", now: !ended, condition})}</h3>
+  {#if compact&&condition}<p class="context small">{condition} 중의 변화</p>{/if}
+  {#if ended&&!compact}<p class="context">{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p>{/if}</div>
   <ChangeNumbers facts={item} spanCaption={told.when} latest={ended ? null : historyLatest(history, item)} fallback={told.what} />
   </div>
-  <ChangeInterval finding={item} height={200} focus rugs={modelRugs}/>
+  {@render analysisNav()}
+  <ChangeInterval finding={item} height={compact?180:200} focus rugs={modelRugs}/>
+  {#if compact&&ended}<details class="context small"><summary>변화 이후 기록</summary><p>{afterChange(item.end, item.usual, item.overview ?? [], item.overviewKind ?? "all", condition) ?? ended}</p></details>{/if}
+{/snippet}
+
+{#snippet analysisNav()}
+  {#if evidenceFocus && !compact}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelEntry} compact/>{/if}
 {/snippet}
 
 {#snippet analysisOptions()}
@@ -340,7 +361,14 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-<div class="monitor">
+<div class="monitor" class:compact>
+{#if compact}
+<div class="focus-controls">
+  <label>조사 중인 변화 <select value={changeList.find(row=>row.selected)?.key ?? ""} onchange={event=>{const row=changeList.find(row=>row.key===event.currentTarget.value);if(row)selectChange(row.pick);}}>
+    {#each changeList as row(row.key)}<option value={row.key}>{row.label} · {row.values}</option>{/each}
+  </select></label>
+</div>
+{:else}
 <aside class="ui-panel changes" aria-labelledby="changes-title">
   <h2 id="changes-title">변화 목록 {#if changeList.length}<span>{changeList.length}건</span>{/if}</h2>
   {#if changeList.length}
@@ -349,11 +377,12 @@
   {:else}<p class="context small">{settled ? "기록 처음 30%와 크게 다른 구간 없음" : "기록 전체를 처음 30%와 비교하는 중"}</p>{/if}
   {#if decision}<div class="summary-actions">{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} />{/key}</div>{/if}
 </aside>
+{/if}
 <section class="ui-panel facts-panel" aria-label="고른 변화">
   {#if focus?.kind === "history" && findings?.intervals[focus.index]}
     <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}{@render historyCard(findings, findings.intervals[focus.index])}{/key}</li></ul>
   {:else if focus?.kind === "vibration" && vibration?.intervals[focus.index]}
-    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} rugs={modelRugs} />{/key}</li></ul>
+    <ul class="found" aria-label="주요 변화"><li id="primary-change">{#key focus.index}<VibrationFindings assetId={asset.assetId} record={vibration} change={vibration.intervals[focus.index]} rugs={modelRugs} selected={selectedAt} onSelect={at=>selectedAt=at} actions={analysisNav} />{/key}</li></ul>
   {:else if data?.history && findingState === "loading"}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
@@ -386,22 +415,16 @@
 
   {#if !evidenceFocus && settled}{@render analysisOptions()}{/if}
 
-  {#if evidenceFocus}
-    <section class="block" aria-labelledby="evidence-title">
-      <h3 id="evidence-title">이 변화의 분석</h3>
-      {#key pickedKey ?? focus?.kind + String(focus?.index)}<ChangeEvidence assetId={asset.assetId} focus={evidenceFocus} model={modelEntry} />{/key}
-      {#if copiedCount}<p class="context small">변화 판단 제외 · 다른 항목의 값이 그대로 기록된 신호 {copiedCount}개 (‘측정 현황·데이터 출처·계산 범위’에서 확인)</p>{/if}
-    </section>
-  {/if}
-  {#if focus?.kind === "history" && findings?.intervals[focus.index]}
+  {#if !compact && focus?.kind === "history" && findings?.intervals[focus.index]}
     <!-- 기록 전체에서 이 변화가 어디에 있는지: 분석 목록 아래의 맥락. -->
     <RecordStrip finding={focusChange(findings.intervals[focus.index])} condition={evidenceFocus?.kind === "history" ? evidenceFocus.condition : null} />
   {/if}
 
 </section>
+{#if compact && decision}<div class="compact-actions">{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai}/>{/key}</div>{/if}
 </div>
 
-<details class="ui-panel provenance"><summary>측정 현황·데이터 출처·계산 범위</summary>
+<details class="ui-panel provenance" class:compact><summary>측정 현황·데이터 출처·계산 범위</summary>
   {#if focusReason}<p class="context small">{focusReason}</p>{/if}
   <dl class="facts">
     <div><dt>마지막 측정</dt><dd>{lastMeasured}</dd></div>
@@ -457,6 +480,16 @@
 <style>
   /* 모니터링 중심 화면: 왼쪽 변화 목록이 가운데 그래프와 분석을 고른다. */
   .monitor { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-4); align-items: start; min-width: 0; }
+  .monitor.compact{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .focus-controls{display:grid;gap:var(--space-3)}
+  .focus-controls label{display:grid;gap:4px;font-size:var(--font-small);font-weight:650}
+  .compact .facts-panel{padding:var(--space-4)}
+  .compact .facts-panel :global(.change-lead){grid-template-columns:minmax(0,1fr);gap:var(--space-2);padding:0}
+  .compact .facts-panel :global(.change-sentence){font-size:1rem}
+  .compact .facts-panel :global(.change-values){gap:var(--space-2)}
+  .compact .facts-panel :global(.change-values dd:not(.note)){font-size:1.35rem}
+  .compact .facts-panel :global(.change-values dt){font-size:var(--font-label)}
+  .provenance.compact{margin-top:var(--space-2);padding:var(--space-3)}
   @media (max-width: 960px) { .monitor { grid-template-columns: 1fr; } }
   .changes { display: grid; gap: var(--space-2); align-content: start; position: sticky; top: var(--space-3); }
   .changes h2 { margin: 0; font-size: var(--font-body); }
@@ -471,14 +504,11 @@
   .changes small { font-size: var(--font-label); color: var(--color-ink-muted); word-break: keep-all; }
   .summary-actions { border-top: 1px solid var(--color-border); padding-top: var(--space-3); margin-top: var(--space-2); }
   .summary-actions :global(.decision) { display: grid; }
-  .facts-panel { min-width: 0; display: grid; gap: var(--space-3); align-content: start; }
+  .facts-panel { min-width: 0; display: grid; gap: var(--space-2); align-content: start; padding:var(--space-4); }
 
   .found { list-style: none; margin: 0; padding: 0; }
   .found > li { display: grid; gap: var(--space-2); overflow-wrap: anywhere; }
   .found > li :global(.change-sentence) { margin: 0; font-size: 1.3rem; line-height: 1.45; font-weight: 700; overflow-wrap: anywhere; word-break: keep-all; }
-
-  .block { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
-  .block > h3 { margin: 0 0 var(--space-1); font-size: var(--font-body); }
 
   .quiet-record { display: grid; gap: var(--space-2); }
   .quiet-record h3 { margin: 0; font-size: var(--font-section); }

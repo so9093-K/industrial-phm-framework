@@ -70,7 +70,7 @@ const OBSERVATION_PARAMS = ["monitor_channel","record_key","monitor_source","mon
   "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
   "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
   "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel",
-  "spectrum_band","spectrum_measurement","spectrum_view","spectrum_scale","acquisition_binding",
+  "spectrum_band","spectrum_measurement","spectrum_view","spectrum_scale","acquisition_binding","acquisition_source",
   "model_binding","model_position","model_compare"];
 
 /** Remember a summary choice in the address without navigating or carrying a prior change's filters. */
@@ -78,6 +78,10 @@ export function summarySelectionUrl(currentHref: string, selectionHref: string, 
   const current=new URL(currentHref), selection=new URL(selectionHref,current);
   if(selection.origin!==current.origin||parseRoute(current.search).assetId!==parseRoute(selection.search).assetId)
     throw new Error("같은 설비의 변화만 이어서 볼 수 있습니다.");
+  const previousFeature=current.searchParams.get("acq_forecast_feature")??current.searchParams.get("vibration_feature");
+  const nextFeature=selection.searchParams.get("acq_forecast_feature")??selection.searchParams.get("vibration_feature")??selection.searchParams.get("acquisition_feature");
+  if(kind==="vibration"&&previousFeature!==nextFeature)
+    for(const name of ["acq_management","acq_end"])current.searchParams.delete(name);
   for(const name of OBSERVATION_PARAMS) current.searchParams.delete(name);
   for(const name of OBSERVATION_PARAMS) if(selection.searchParams.has(name)) current.searchParams.set(name,selection.searchParams.get(name)!);
   current.searchParams.set("summary_change",key);
@@ -89,7 +93,7 @@ export function tabSelectionUrl(href: string, currentHref: string): string {
   const current = new URL(currentHref), next = new URL(href, current);
   const from = parseRoute(current.search), to = parseRoute(next.search);
   if (next.origin !== current.origin) return next.href;
-  if (to.page !== "assets" || from.page !== "assets"
+  if (to.page !== "assets" || (from.page !== "assets" && from.page !== "monitor")
     || !from.assetId || from.assetId !== to.assetId) return next.pathname + next.search + next.hash;
   for(const key of OBSERVATION_PARAMS)
     if(current.searchParams.has(key))next.searchParams.set(key,current.searchParams.get(key)!);

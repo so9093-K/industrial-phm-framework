@@ -161,7 +161,7 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
     // a change of the relation the coefficients cannot show.
     headline = kept
       ? "두 기간 모두 두 값은 " + is(tb) + " (기간 A " + coefficients(a, ta) + " · 기간 B " + coefficients(b, tb) + ")."
-        + (sameX ? " 다만 " + sameX : neither ? "" : " 관계는 그대로입니다.")
+        + (sameX ? " 다만 " + sameX : "")
       : "두 값의 관계가 달라졌습니다. 기간 A에서는 " + was(ta) + "(" + coefficients(a, ta) + "), 기간 B에서는 " + is(tb)
         + "(" + coefficients(b, tb) + ")." + (sameX ? " " + sameX : "");
   }

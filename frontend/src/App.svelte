@@ -303,7 +303,7 @@
         <StatusNotice kind="uncertain" message={checks.state === "failed" ? "모델·수신 확인 항목을 읽지 못했습니다. 설비 칸의 모델 결과와 확인 항목이 빠져 있습니다."
           : "모델·수신 확인 항목을 일부만 읽었습니다. 설비 칸에는 읽은 항목만 있습니다."} />
       {/if}
-      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks}
+      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks} compact={route.tab!=="summary"}
         checkedAt={observed(snapshot.assessedAt)} />
       {#if selected}
         {#key selected.assetId}

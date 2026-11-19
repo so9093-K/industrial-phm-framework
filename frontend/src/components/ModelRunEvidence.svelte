@@ -2,7 +2,7 @@
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   import {readableSourceId} from "../operations-status";
-  import {onMount,tick} from "svelte";
+  import {onMount,tick,untrack} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import ModelConnect from "./ModelConnect.svelte";
   import ModelBuild from "./ModelBuild.svelte";
@@ -19,12 +19,14 @@
     loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
-  import {beforeInterval,type Interval} from "../model-trend";
+  import {beforeInterval,readScoreTrend,type Interval} from "../model-trend";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
   import {measurementLinks} from "../measurement-links";
+  import {loadFeatureSource,type FeatureSource} from "../acquisition-profile";
 
-  let {assetId,timing=null,measurements=null}:{assetId:string;timing?:AcquisitionTiming|null;
+  let {assetId,timing=null,measurements=null,selectedPosition:overviewPosition=null,onPosition,contextual=false}:{assetId:string;timing?:AcquisitionTiming|null;contextual?:boolean;
+    selectedPosition?:number|null;onPosition?:(at:number)=>void;
     /** First and last stored vibration measurement, to continue from a chosen one. */
     measurements?:{first:number;last:number}|null}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
@@ -32,6 +34,7 @@
   let traceState:State=$state("empty");
   let detailState:State=$state("empty");
   let bindings:ModelBinding[]=$state([]);
+  let featureSource:FeatureSource|null=$state(null);
   let binding:ModelBinding|null=$state(null);
   const period = $derived.by(() => {
     const current: ModelBinding | null = binding;
@@ -43,6 +46,11 @@
   let intervals:Interval[]=$state([]);
   let selectedStep:StepPointer|null=$state(null);
   let result:ModelRun|null=$state(null);
+  $effect(()=>{
+    const at=overviewPosition,ready=traceState==="ready";
+    if(at===null||!ready)return;
+    untrack(()=>{if(selectedStep?.position!==at)void pick(at);});
+  });
   let error=$state("");
   let writable=$state(false);
   let explanationId:string|null=$state(null);
@@ -149,7 +157,10 @@
     url.searchParams.set("model_binding",binding.bindingId);
     if(selectedStep){
       url.searchParams.set("model_position",String(selectedStep.position));
-      if(binding.stepKind==="acquisition-snapshot"){url.searchParams.set("vibration_at",String(selectedStep.position));url.searchParams.set("acquisition_binding",binding.bindingId);}
+      if(binding.stepKind==="acquisition-snapshot"){
+        url.searchParams.set("vibration_at",String(selectedStep.position));
+        if(featureSource?.sourceId===binding.sourceId)url.searchParams.set("acquisition_binding",featureSource.bindingId);
+      }
     }
     else url.searchParams.delete("model_position");
     history.replaceState(history.state,"",url);
@@ -161,8 +172,11 @@
     bindings=[];binding=null;trace=null;selectedStep=null;result=null;
     listState="loading";traceState="empty";detailState="empty";error="";
     try{
-      const available=await loadModelBindings(assetId,request.signal);
+      const [models,features]=await Promise.all([loadModelBindings(assetId,request.signal),
+        contextual?loadFeatureSource(assetId,request.signal).catch(()=>null):Promise.resolve(null)]);
+      const available=contextual&&features?models.filter(model=>model.sourceId===features.sourceId&&model.pointId===null):models;
       if(request.signal.aborted)return;
+      featureSource=features;
       bindings=available;
       if(!available.length){listState="empty";return;}
       listState="ready";
@@ -190,17 +204,19 @@
     traceState="loading";detailState="empty";error="";
     const request=new AbortController();traceRequest=request;
     try{
-      const data=await loadModelTrace(matched,request.signal);
+      const [data,full]=await Promise.all([loadModelTrace(matched,request.signal),contextual?readScoreTrend(matched,request.signal).catch(()=>null):Promise.resolve(null)]);
       if(request.signal.aborted)return;
       trace=data;
+      if(full){trendSteps=full.points.map(point=>point.pointer);intervals=full.intervals;}
       if(!data.steps.length){traceState="empty";remember();return;}
       traceState="ready";
-      const wanted=Number(selectedPosition);
-      if(selectedPosition&&!data.steps.some(item=>item.position===wanted)){
+      const preferred=overviewPosition===null?selectedPosition:String(overviewPosition);
+      const wanted=Number(preferred);
+      if(preferred&&!data.steps.some(item=>item.position===wanted)){
         const record=await loadModelPosition(matched,wanted,request.signal);
         if(request.signal.aborted)return;
         selectedStep={position:record.position,runId:record.runId,state:record.state,stepKey:record.stepKey,changeSeq:record.changeSeq,reason:record.reason};
-        result=record;detailState="ready";remember();return;
+        result=record;detailState="ready";onPosition?.(record.position);remember();return;
       }
       const step=data.steps.find(item=>item.position===wanted)
         ??data.steps.find(item=>item.position===matched.lastAnalyzed)
@@ -218,6 +234,7 @@
     resultRequest?.abort();
     const request=new AbortController();resultRequest=request;
     selectedStep=step;selectedPosition=String(step.position);
+    onPosition?.(step.position);
     result=null;detailState="loading";error="";remember();
     const frozen=binding;
     try{
@@ -251,9 +268,18 @@
       if(!request.signal.aborted&&followLatest){result=null;detailState="failed";error="최신 모델 결과를 다시 읽지 못했습니다.";}
     }finally{polling=false;}
   }
-  function pick(position:number){
+  async function pick(position:number){
     const step=trendSteps.find(item=>item.position===position)??trace?.steps.find(item=>item.position===position);
-    if(step){followLatest=false;void chooseStep(step);}
+    if(step){followLatest=false;await chooseStep(step);return;}
+    if(!binding)return;
+    resultRequest?.abort();const request=new AbortController();resultRequest=request;
+    const owner=binding;followLatest=false;result=null;detailState="loading";
+    try{
+      const read=await loadModelPosition(owner,position,request.signal);
+      if(request.signal.aborted||binding.bindingId!==owner.bindingId)return;
+      selectedStep={position:read.position,runId:read.runId,state:read.state,stepKey:read.stepKey,changeSeq:read.changeSeq,reason:read.reason};
+      result=read;selectedPosition=String(read.position);detailState="ready";onPosition?.(read.position);remember();
+    }catch(cause){if(!request.signal.aborted){detailState="failed";error=cause instanceof Error?cause.message:"선택한 측정을 읽지 못했습니다.";}}
   }
   let connectedNotice=$state("");
   // The notice outlives the panel that asked, since the model list is read again right after.
@@ -296,7 +322,9 @@
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>
   {:else}
     {#if binding}
-      <div class="analysis-workspace model-workspace"><AnalysisControls title="모델" summary={names.get(binding.bindingId)}>{#snippet children(close)}{#if binding}
+      <div class="analysis-workspace model-workspace" class:contextual><div class="model-toolbar">
+      {#if contextual}<nav class="model-choice" aria-label="적용 모델">{#each bindings as model(model.bindingId)}<button type="button" class="ui-button" aria-pressed={model.bindingId===selectedBinding} onclick={()=>void chooseBinding(model.bindingId,true)}>{names.get(model.bindingId)}</button>{/each}</nav>{/if}
+      <AnalysisControls title={contextual?"모델 설정":"모델"} summary={contextual?null:names.get(binding.bindingId)}>{#snippet children(close)}{#if binding}
     {#if bindings.length>1}
       <label class="selector">적용 모델
         <select value={selectedBinding} onchange={e=>{close();void chooseBinding(e.currentTarget.value);}}>
@@ -321,7 +349,7 @@
     {/if}
         </details>
       {/if}
-      {/if}{/snippet}</AnalysisControls>
+      {/if}{/snippet}</AnalysisControls></div>
     <div class="analysis-body">
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
@@ -338,7 +366,7 @@
         <StatusNotice kind="uncertain" title="모델 결과 기록을 찾을 수 없습니다" message={error}/>
       {:else if traceState==="empty"}
         <StatusNotice kind="uncertain" message="아직 모델이 분석한 측정이 없습니다. 기록을 읽지 못한 경우와는 다릅니다."/>
-      {:else if trace}
+      {:else if trace && !contextual}
         {#key binding.bindingId+":"+binding.lastProcessed}
           <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
@@ -447,6 +475,13 @@
   {/if}
 </section>
 <style>
+  .model-workspace.contextual{grid-template-columns:minmax(0,1fr)}
+  .contextual>.analysis-body{display:contents}
+  .contextual>.model-comparison-area{grid-column:1;grid-row:auto;border:0;padding:0}
+  .model-toolbar{grid-column:1/-1;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
+  .model-toolbar :global(.analysis-controls){flex:1;margin:0}
+  .model-choice{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+  .model-choice button[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:700}
   /* 그래프 아래 전체 폭: 고른 측정의 결과와 그 측정이 이전과 무엇이 달랐는지를 한 묶음으로 본다. */
   .model-workspace{grid-template-columns:minmax(0,1.05fr) minmax(520px,1fr);gap:var(--space-5)}
   .model-workspace>.analysis-body{grid-column:1;grid-row:2}

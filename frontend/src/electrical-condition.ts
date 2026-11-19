@@ -74,7 +74,7 @@ export function kstInstant(value:string):string{
   return iso;
 }
 
-export function parseCondition(raw:unknown,assetId:string,expected:ConditionSource|null):Condition{
+export function parseCondition(raw:unknown,assetId:string,expected:Pick<ConditionSource,"sourceId"|"pointId">|null):Condition{
   const root=object(raw);
   if(!root||root.schema_version!==1||root.asset_id!==assetId
     ||root.meaning!=="measured-operating-change-and-reference-pattern-not-fault-diagnosis")invalid();
@@ -136,7 +136,7 @@ function levelSplit(pattern:Record<string,unknown>,levels:Record<string,unknown>
 }
 
 export async function readCondition(
-  assetId:string,period:ConditionPeriod,source:ConditionSource|null,
+  assetId:string,period:ConditionPeriod,source:Pick<ConditionSource,"sourceId"|"pointId">|null,
   custom:{end:string;referenceStart:string;referenceEnd:string},signal:AbortSignal,
 ):Promise<Condition>{
   const query=new URLSearchParams({asset_id:assetId,period});

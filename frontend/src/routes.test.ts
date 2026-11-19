@@ -4,6 +4,21 @@ import {
   assetTabUrl, assetUrl, parseRoute, reviewFocus, routeUrl, tabSelectionUrl, summarySelectionUrl, systemSection, systemUrl, PAGES, PAGE_INFO, TABS, TAB_INFO,
 } from "./routes.ts";
 
+test("analysis entered from monitoring retains the selected phenomenon after refresh",()=>{
+  const current="http://local/web/?monitor_asset=bearing&summary_change=vertical-change&summary_kind=vibration&vibration_feature=feature.Vertical_vibration_signals.rms";
+  const next=new URL(tabSelectionUrl("/web/?page=assets&monitor_asset=bearing&tab=outlook&data=vibration",current),current);
+  assert.equal(next.searchParams.get("summary_change"),"vertical-change");
+  assert.equal(next.searchParams.get("acq_forecast_feature"),"feature.Vertical_vibration_signals.rms");
+});
+
+test("end criteria belong to their feature, while a new interval of that feature keeps them",()=>{
+  const current="http://local/web/?page=assets&tab=outlook&monitor_asset=bearing&acq_forecast_feature=feature.vertical.rms&acq_end=6";
+  const changed=summarySelectionUrl(current,"/web/?page=assets&monitor_asset=bearing&vibration_feature=feature.vertical.skewness","other","vibration");
+  assert.equal(new URL(changed,current).searchParams.has("acq_end"),false);
+  const same=summarySelectionUrl(current,"/web/?page=assets&monitor_asset=bearing&vibration_feature=feature.vertical.rms","same-feature","vibration");
+  assert.equal(new URL(same,current).searchParams.get("acq_end"),"6");
+});
+
 test("a frequency investigation keeps its channel and zoom across tabs and clears them for a new change",()=>{
   const base="http://local/web/?page=assets&monitor_asset=bearing";
   const focused=base+"&tab=change&method=spectrum&spectrum_channel=vertical&spectrum_hz_from=400&spectrum_hz_to=1600&spectrum_view=measurement&spectrum_measurement=72&spectrum_band=800&spectrum_scale=linear";

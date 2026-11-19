@@ -57,7 +57,7 @@
     if(compare===null||binding.stepKind!=="acquisition-snapshot")return null;
     const split=Math.floor((compare+run.position)/2);
     const url=new URL(assetTabUrl(binding.assetId,"change","compare","vibration"),location.origin);
-    for(const [key,value] of Object.entries({acquisition_feature:feature,acquisition_binding:binding.bindingId,
+    for(const [key,value] of Object.entries({acquisition_feature:feature,acquisition_source:binding.sourceId,
       feature_a_from:String(compare),feature_a_to:String(split),feature_b_from:String(split+1),feature_b_to:String(run.position)}))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }

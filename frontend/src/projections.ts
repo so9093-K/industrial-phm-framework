@@ -3,6 +3,7 @@ import {focusGroups,focusParams,type SourceFocus} from "./signal-selection.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {yTicks, type Tick} from "./chart-axis.ts";
+import {parseSignalEvolution,type SignalEvolution} from "./signal-evolution.ts";
 /** Read-only version-coupled history forecast and conditional outlook. */
 export type Horizon = "1h" | "24h" | "7d" | "30d";
 export type Direction = "upper" | "lower";
@@ -17,6 +18,7 @@ export type OutlookSettings = {
   trainingPoints:number|null;seasonality:"auto"|"off";
 };
 export type Projection = {
+  evolution?: SignalEvolution | null;
   assetId: string; channel: string; horizon: Horizon; measurementVersion: string; recordKey?:string; sourcePointRecords?:number;
   dataVersion: string; sourceId: string; pointId: string | null; unit: string | null;
   record: {first: string; last: string; points: number};
@@ -168,7 +170,7 @@ export function parsePairedProjection(
     dataVersion:str(outlook.data_version), sourceId:fs,
     pointId:fp === null ? null : str(fp), unit:typeof forecast.unit === "string" ? forecast.unit : null,
     record: {first:date(record.first),last:date(record.last),points:count(record.points)},
-    future, history, fitted, fit:parseForecastFit(forecast), scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings)};
+    future, history, fitted, fit:parseForecastFit(forecast), scenarios, conditions, outlookSettings:parseOutlookSettings(outlook.settings),evolution:parseSignalEvolution(outlookValue)};
 }
 
 export const HORIZON_LABEL: Record<Horizon, string> = {"1h":"1시간","24h":"24시간","7d":"7일","30d":"30일"};

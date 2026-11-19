@@ -1,38 +1,77 @@
 <script lang="ts">
   import type {ModelRug} from "../model-context";
-  /** 변화 그래프 바로 아래, 같은 가로축에 모델마다 기준을 넘은 측정을 한 줄씩 긋는다. 측정값이 바뀐 때와
-   * 모델이 반응한 때, 모델끼리 반응이 다른지를 문장 없이 그래프에서 견줄 수 있게 한다. */
-  let {rugs, lo, hi}: {rugs: ModelRug[]; lo: number; hi: number} = $props();
-  const x = (at: number) => (at - lo) / Math.max(hi - lo, 1e-9) * 600;
-  const inside = (list: number[]) => list.filter(at => at >= lo && at <= hi);
+  import {drawTrend,type TrendPoint} from "../model-trend";
+  import {measure} from "../chart-axis";
+  import PlotCursor from "./PlotCursor.svelte";
+  let {rugs,lo,hi,selected=null,onSelect,range=null}:{rugs:ModelRug[];lo:number;hi:number;
+    selected?:number|null;onSelect?:(at:number)=>void;range?:{from:number;to:number}|null}=$props();
+  const x=(at:number)=>(at-lo)/Math.max(hi-lo,1e-9)*600;
+  const inside=(list:number[])=>list.filter(at=>at>=lo&&at<=hi);
+  function plot(rug:ModelRug){
+    const divisor=rug.divisor??1;
+    const all=rug.trend?.points.filter(p=>p.pointer.position/divisor>=lo&&p.pointer.position/divisor<=hi)??[];
+    const drawn=drawTrend(all,180);
+    const segments=new Map<number,number>();let segment=0,prior:TrendPoint|null=null;
+    for(const point of all){
+      if(point.score===null||!prior||prior.score===null||(divisor===1&&point.pointer.position!==prior.pointer.position+1))segment++;
+      segments.set(point.pointer.position,segment);prior=point;
+    }
+    const values=all.flatMap(p=>[p.score,p.threshold].filter((v):v is number=>v!==null));
+    const low=Math.min(0,...values),high=Math.max(low+1e-9,...values);
+    const y=(v:number)=>53-(v-low)/(high-low)*46;
+    let path="",threshold="",over="",previous:TrendPoint|null=null;
+    for(const point of drawn){
+      const at=x(point.pointer.position/divisor);
+      if(point.score===null){previous=null;continue;}
+      const joined=previous!==null&&segments.get(point.pointer.position)===segments.get(previous.pointer.position);
+      path+=(joined?"L":"M")+at+" "+y(point.score)+" ";
+      if(point.threshold!==null)threshold+=(joined?"L":"M")+at+" "+y(point.threshold)+" ";
+      if(joined&&(point.exceeds||previous!.exceeds))over+="M"+x(previous!.pointer.position/divisor)+" "+y(previous!.score!)+"L"+at+" "+y(point.score)+" ";
+      previous=point;
+    }
+    const chosen=selected===null?null:all.find(p=>p.pointer.position/divisor===selected)??null;
+    return {path,threshold,over,chosen,y,positions:all.map(p=>p.pointer.position/divisor)};
+  }
 </script>
-
 {#if rugs.length}
-<div class="rugs" aria-label="모델별 기준 초과 위치">
-  {#each rugs as rug (rug.label)}
-    <div class="rug">
-      <span class="label">{rug.label}</span>
-      <svg viewBox="0 0 600 12" preserveAspectRatio="none" role="img" aria-label={rug.label}>
-        <line x1="0" x2="600" y1="6" y2="6" class="base"/>
-        {#each inside(rug.analyzed) as at, i (i)}<line x1={x(at)} x2={x(at)} y1="4" y2="8" class="seen"/>{/each}
-        {#each inside(rug.exceeded) as at, i (i)}<line x1={x(at)} x2={x(at)} y1="0" y2="12" class="over"/>{/each}
+<div class="models" aria-label="실측과 같은 시간축의 모델 점수">
+  {#each rugs as rug(rug.label)}
+    {@const curve=plot(rug)}
+    <section class="model" aria-label={rug.label}>
+      <header><strong>{rug.name??rug.label}</strong>
+        {#if selected!==null}<span>{curve.chosen?.score!=null?"점수 "+measure(curve.chosen.score,null)+" · 기준 "+(curve.chosen.threshold===null?"없음":measure(curve.chosen.threshold,null)):"이 측정의 점수 없음"}</span>{/if}
+      </header>
+      {#if rug.trend}
+      <PlotCursor positions={curve.positions} value={selected} {lo} {hi} {onSelect} label={(rug.name??"모델")+" 측정 선택"}>
+        <svg class="curve" viewBox="0 0 600 60" preserveAspectRatio="none" role="img" aria-label={rug.label+" · 모델 고유 점수와 기준"}>
+          {#if range}<rect x={x(Math.max(lo,range.from))} width={Math.max(0,x(Math.min(hi,range.to))-x(Math.max(lo,range.from)))} height="60" class="interval"/>{/if}
+          <path d={curve.threshold} class="threshold"/>
+          <path d={curve.path} class="score"/><path d={curve.over} class="over"/>
+          {#if selected!==null && selected>=lo && selected<=hi}<line x1={x(selected)} x2={x(selected)} y1="0" y2="60" class="selected"/>{/if}
+          {#if curve.chosen?.score!=null}<circle cx={x(selected!)} cy={curve.y(curve.chosen.score)} r="3"/>{/if}
+        </svg>
+      </PlotCursor>
+      <p class="count">{rug.label.replace((rug.name??"")+" · ","")}</p>
+      {:else}
+      <svg class="rug" viewBox="0 0 600 12" preserveAspectRatio="none" role="img" aria-label={rug.label}>
+        {#each inside(rug.analyzed) as at,i(i)}<line x1={x(at)} x2={x(at)} y1="4" y2="8" class="seen"/>{/each}
+        {#each inside(rug.exceeded) as at,i(i)}<line x1={x(at)} x2={x(at)} y1="0" y2="12" class="over"/>{/each}
       </svg>
-    </div>
+      {/if}
+    </section>
   {/each}
-  <p class="key"><i class="over"></i>모델이 기준을 넘은 측정 <i class="seen"></i>넘지 않은 측정</p>
+  <p class="key"><span><i class="score"></i>모델 점수</span><span><i class="over"></i>기준 초과</span><span><i class="threshold"></i>각 모델의 기준</span></p>
 </div>
 {/if}
-
 <style>
-  .rugs { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
-  .rug { display: grid; gap: 2px; }
-  .label { font-size: var(--font-small); color: var(--color-ink); }
-  svg { display: block; width: 100%; height: 12px; }
-  .base { stroke: var(--color-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .seen { stroke: var(--color-ink-muted); stroke-opacity: .45; stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .over { stroke: var(--color-failure-ink, #b42318); stroke-width: 2; vector-effect: non-scaling-stroke; }
-  .key { margin: 0; font-size: var(--font-label); color: var(--color-ink-muted); display: flex; gap: var(--space-3); align-items: center; }
-  .key i { display: inline-block; width: 2px; height: 10px; margin-right: 4px; vertical-align: middle; }
-  .key i.over { background: var(--color-failure-ink, #b42318); }
-  .key i.seen { background: var(--color-ink-muted); opacity: .45; }
+  .models{display:grid;gap:var(--space-2);margin-top:var(--space-2)}
+  .model{min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-2)}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px;font-size:var(--font-small)}
+  header strong{font-weight:650}header span,.count{font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  .count{margin:2px 0 0}.curve{height:44px}.rug{height:12px}svg{display:block;width:100%;overflow:visible}
+  path{fill:none;stroke-width:1.8;vector-effect:non-scaling-stroke}.score{stroke:var(--color-action)}.over{stroke:var(--color-failure-ink)}
+  .threshold{stroke:var(--color-caution-ink);stroke-dasharray:4 4;stroke-width:1.2}.selected{stroke:var(--color-ink);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+  .interval{fill:var(--color-caution-ink);opacity:.1}circle{fill:var(--color-ink);stroke:var(--color-surface);stroke-width:1}
+  .seen{stroke:var(--color-ink-muted);opacity:.45}.key{margin:0;display:flex;flex-wrap:wrap;gap:var(--space-3);font-size:var(--font-label);color:var(--color-ink-muted)}
+  .key i{display:inline-block;width:16px;border-top:2px solid;vertical-align:middle;margin-right:4px}.key .score{border-color:var(--color-action)}.key .over{border-color:var(--color-failure-ink)}.key .threshold{border-color:var(--color-caution-ink);border-top-style:dashed}
 </style>

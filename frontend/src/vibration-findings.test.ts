@@ -22,6 +22,10 @@ test("vibration changes read by acquisition number and open the feature at the c
   assert.equal(signal.get("vibration_at"), "77");
   const compare = new URL(links.compare, "http://local").searchParams;
   assert.deepEqual(["feature_a_from", "feature_a_to", "feature_b_from", "feature_b_to"].map(key => compare.get(key)), ["1", "37", "77", "123"]);
+  const spectrum=new URL(links.spectrum,"http://local").searchParams;
+  assert.equal(spectrum.get("spectrum_channel"),"Horizontal_vibration_signals");
+  assert.deepEqual(["spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to"].map(key=>spectrum.get(key)),["1","37","77","123"]);
+  assert.equal(new URL(links.outlook,"http://local").searchParams.get("acq_forecast_feature"),change.feature);
   assert.throws(() => parseVibrationFindings(body([{...change, from: 130}]), "bearing"));
   assert.throws(() => parseVibrationFindings(body([change]), "other"));
   assert.equal(parseVibrationFindings({...body([]), first: null, last: null}, "bearing").first, null);

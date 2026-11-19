@@ -12,7 +12,7 @@
 </script>
 
 <div class="decision" aria-label="이 변화로 이어서 할 일">
-  {#if ai}<button type="button" class="ui-button" onclick={() => aiOpen = true}>이 변화에 대해 질문하기</button>{/if}
+  {#if ai}<button type="button" class="ui-button" onclick={() => aiOpen = true}>AI 해석</button>{/if}
   <button type="button" class="ui-button" onclick={() => reviewOpen = true}>판단·메모 남기기</button>
   <TaskDialog title="이 변화의 판단·메모" bind:open={reviewOpen}>
     {#key reviewKey}<ChangeReview {assetId} finding={{reviewKey}} {draftNote} onCommitted={() => revision++} />{/key}
@@ -22,7 +22,7 @@
     </details>
   </TaskDialog>
   {#if ai}
-    <TaskDialog bind:open={aiOpen} title="이 변화에 대해 질문하기">
+    <TaskDialog bind:open={aiOpen} title="선택한 변화의 AI 해석">
       {#key ai.change.reviewKey}<VibrationInvestigation {assetId} change={ai.change} bindingId={ai.bindingId} active={aiOpen}
         onMemo={text => {draftNote = {sequence: (draftNote?.sequence ?? 0) + 1, text}; aiOpen = false; reviewOpen = true;}} />{/key}
     </TaskDialog>

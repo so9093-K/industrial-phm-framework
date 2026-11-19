@@ -4,11 +4,11 @@
   import {readAcquisition, readSpectrum, type Spans} from "../spectrum";
   import {departurePeriods, findingLinks} from "../record-findings";
   import {vibrationLinks} from "../vibration-findings";
-  import {assetTabUrl} from "../routes";
+  import {assetTabUrl,tabSelectionUrl} from "../routes";
   import {historyRelated, rangeEvidence, spectrumEvidence, vibrationRelated, type EvidenceFocus} from "../change-evidence";
   /** 고른 변화에서 여는 분석들. 줄마다 그 분석이 이 변화에서 찾은 사실 한 줄과, 같은 구간으로 여는 링크가 있다.
    * 분석은 모니터링 화면 위 서랍으로 열리고, 닫으면 이 화면으로 돌아온다. */
-  let {assetId, focus, model = null}: {assetId: string; focus: EvidenceFocus; model?: {text: string; href: string | null} | null} = $props();
+  let {assetId, focus, model = null, compact=false}: {assetId: string; focus: EvidenceFocus; model?: {text: string; href: string | null} | null;compact?:boolean} = $props();
 
   type Read = string | null | "loading" | "failed";
   let range: Read = $state("loading");
@@ -33,14 +33,14 @@
       range: own.compare,
       related: related ? url(assetTabUrl(assetId, "change", "relation", "vibration"), {acq_relation_x: change.feature,
         acq_relation_y: related.feature, acq_a_from: period.a.from, acq_a_to: period.a.to, acq_b_from: period.b.from, acq_b_to: period.b.to}) : null,
-      spectrum: url(assetTabUrl(assetId, "change", "spectrum"), {spectrum_a_from: period.a.from, spectrum_a_to: period.a.to,
-        spectrum_b_from: period.b.from, spectrum_b_to: period.b.to}),
-      signal: own.signal, outlook: assetTabUrl(assetId, "outlook", null, "vibration"),
+      spectrum: own.spectrum,
+      signal: own.signal, outlook: own.outlook,
     };
   });
   const related = $derived(focus.kind === "history" ? historyRelated(focus.item.related) : vibrationRelated(focus.change.related));
 
   $effect(() => {
+    if(compact)return;
     const current = focus, period = spans;
     const request = new AbortController();
     range = "loading";
@@ -88,9 +88,9 @@
   ]);
 </script>
 
-<ul class="entries" aria-label="분석 열기">
+<ul class="entries" class:compact aria-label="분석 열기">
   {#each rows as row (row.name)}
-    <li>{#if row.href}<a href={row.href}>{row.name} →</a>{:else}<span class="off">{row.name}</span>{/if}<span class="fact">{row.fact}</span></li>
+    <li>{#if row.href}<a href={row.href} onclick={event=>{event.currentTarget.href=tabSelectionUrl(event.currentTarget.href,location.href);}}>{row.name} →</a>{:else}<span class="off">{row.name}</span>{/if}{#if !compact}<span class="fact">{row.fact}</span>{/if}</li>
   {/each}
 </ul>
 
@@ -100,4 +100,7 @@
   .entries a { font-weight: 650; white-space: nowrap; }
   .off { color: var(--color-ink-muted); }
   .fact { color: var(--color-ink); overflow-wrap: anywhere; word-break: keep-all; }
+  .entries.compact{display:flex;flex-wrap:wrap;gap:var(--space-2);padding-block:var(--space-2)}
+  .compact li{display:block;border:0;padding:0}.compact a{display:block;border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:6px 10px;font-size:var(--font-small);text-decoration:none;background:var(--color-surface)}
+  .compact a:hover{background:var(--color-surface-selected);border-color:var(--color-action)}
 </style>
