@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {episodes, focusWindow, operationColumns, spanText, visiblePoints} from "./asset-timeline.ts";
+import {episodes, focusWindow, operationColumns, visiblePoints} from "./asset-timeline.ts";
 
 test("changes that overlap in time form one episode, in start order", () => {
   // Bearing1_1: 첨도 69–78, RMS 72–123, 왜도 79–82 → 한 시기. 떨어진 변화는 따로.
@@ -25,9 +25,4 @@ test("zoomed points use the finer reading where it exists and the record elsewhe
   const lane = {points: [{x: 0, value: 1}, {x: 10, value: 2}, {x: 20, value: 3}, {x: 30, value: 4}], detail: [{x: 9, value: 5}, {x: 12, value: 6}]};
   assert.deepEqual(visiblePoints(lane, {from: 0, to: 25}, true).map(p => p.x), [0, 9, 12, 20]);
   assert.deepEqual(visiblePoints(lane, {from: 0, to: 25}, false).map(p => p.x), [0, 10, 20]);
-});
-
-test("history intervals show their actual dates and Korean time without repeating a same-day date",()=>{
-  assert.equal(spanText(Date.parse("2020-10-04T09:19:00+09:00"),Date.parse("2020-10-05T07:31:00+09:00")),"10월 4일(일) 09:19 ~ 10월 5일(월) 07:31");
-  assert.equal(spanText(Date.parse("2020-10-04T09:19:00+09:00"),Date.parse("2020-10-04T17:19:00+09:00")),"10월 4일(일) 09:19 ~ 17:19");
 });

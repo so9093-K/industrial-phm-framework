@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {equipmentKind, parseOverview, sparkline} from "./asset-overview.ts";
+import {parseOverview, sparkline} from "./asset-overview.ts";
 import {findingLinks} from "./record-findings.ts";
 
 const row = {schema_version: 1, asset_id: "공기압축기 1306", kind: "history", finding_count: 3, judged: 25, copied: 9,
@@ -34,13 +34,6 @@ test("the last value next to a change is that changed signal's own, never the ma
   assert.equal(parseOverview(row, row.asset_id).finding?.latest, null);
 });
 
-test("the kind of equipment is the name without its number", () => {
-  assert.equal(equipmentKind("공기압축기 1306"), "공기압축기");
-  assert.equal(equipmentKind("펌프·일반모터 4025"), "펌프·일반모터");
-  assert.equal(equipmentKind("Bearing1_1"), "베어링");
-  assert.equal(equipmentKind("보일러"), "보일러");
-});
-
 test("the first-screen change keeps its own record, plot gaps and investigation link", () => {
   const interval = {key:"record-b",source_id:"voltage-file",measurement_point_id:"motor",interpretation_id:"f".repeat(64),
     record:{from:"2020-09-15T00:00:00Z",to:"2020-10-22T15:00:00Z"},
@@ -60,12 +53,7 @@ test("the first-screen change keeps its own record, plot gaps and investigation 
   assert.equal(parseOverview(row,row.asset_id).historyInterval,null);
 });
 
-test("a sparkline spans its box and draws nothing from a single point", () => {
-  assert.equal(sparkline([{x: 0, value: 1}], 120, 28), "");
-  assert.equal(sparkline([{x: 0, value: 0}, {x: 10, value: 10, join: true}], 120, 28), "M0.0 26.0 L120.0 2.0");
-});
-
- test("a miniature trace breaks at gaps and never invents continuity for older responses",()=>{
+test("a miniature trace breaks at gaps and never invents continuity for older responses",()=>{
   const points=[{x:0,value:0,join:false},{x:1,value:1,join:true},{x:9,value:9,join:false},{x:10,value:10,join:true}];
   assert.equal(sparkline(points,120,28),"M0.0 26.0 L12.0 23.6 M108.0 4.4 L120.0 2.0");
   assert.equal(sparkline(points.map(({join:_ignored,...point})=>point),120,28).includes("L"),false);

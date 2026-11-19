@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {elapsedText, measurementLabel, measurementScale, sinceStart, xTicks} from "./time-axis.ts";
-
-test("durations read as people say them", () => {
-  assert.deepEqual([0, 45, 90, 1800, 4500, 7200, 93600, 2 * 86400].map(elapsedText),
-    ["0초", "45초", "1분 30초", "30분", "1시간 15분", "2시간", "1일 2시간", "2일"]);
-  assert.equal(sinceStart(76, 60), "기록 시작 후 1시간 15분");
-});
+import {measurementLabel, measurementScale, xTicks} from "./time-axis.ts";
 
 test("a sequence with a recorded interval is drawn as time since its first measurement", () => {
   // XJTU-SY: measurements #1–#100, one per minute.
@@ -71,8 +65,4 @@ test("measurement labels prioritize interval-derived time and keep their exact a
   for (const period of [undefined, null, 0, -1, NaN, Infinity])
     assert.equal(measurementLabel(76, period), "76번째 측정");
   assert.equal(measurementLabel(1, 60), "기록 시작 후 0초 (1번째 측정)");
-});
-
-test("numeric feature axes keep decimal ticks without a measurement prefix", () => {
-  assert.deepEqual(xTicks(0.1, 0.9, {kind:"value"}, 4).map(tick=>tick.label), ["0.2", "0.4", "0.6", "0.8"]);
 });

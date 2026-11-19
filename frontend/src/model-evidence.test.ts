@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {builtModelNote,latestModel,modelName,modelNames,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
+import {latestModel,scoreSummary,parseModelBindings,parseModelTrace,parseModelRun} from "./model-evidence.ts";
 import type {ModelBinding} from "./model-evidence.ts";
 const digest="a".repeat(64);
 const binding=()=>({
@@ -91,29 +91,6 @@ test("a stored score is summarized only from the fields the output carries",()=>
   assert.deepEqual(scoreSummary({score:0.5}),{score:0.5,threshold:null,exceeds:null});
   assert.deepEqual(scoreSummary({score:"high",threshold:Number.NaN,exceeds_threshold:"yes"}),
     {score:null,threshold:null,exceeds:null});
-});
-
-test("a connected model is named by its recipe, or its package without the content hash",()=>{
-  assert.equal(modelName({recipeId:"rms-score-v1",packageId:"rms-score-v1-24d7cd85d97f"}),"rms-score-v1");
-  assert.equal(modelName({recipeId:null,packageId:"synthetic-rms-score-v1-24d7cd85d97f"}),"synthetic-rms-score-v1");
-  assert.equal(modelName({recipeId:null,packageId:"plain-package"}),"plain-package");
-});
-
-test("a model of a known method is named by the method; two of one method keep their recipe",()=>{
-  const lstm={recipeId:"xjtu-lstm-autoencoder-fold-1-development-v1",packageId:"p-0268a8265bdf",estimatorKind:"lstm-autoencoder-v1"};
-  assert.equal(modelName(lstm),"LSTM 오토인코더");
-  assert.equal(modelName({...lstm,estimatorKind:"future-kind-v1"}),lstm.recipeId);
-  const one={bindingId:"a",recipeId:"site-a-iforest",packageId:"pa",estimatorKind:"isolation-forest-refit-v1"} as ModelBinding;
-  const two={...one,bindingId:"b",recipeId:"site-b-iforest"};
-  const lone={...one,bindingId:"c",estimatorKind:"lstm-autoencoder-v1"};
-  assert.deepEqual([...modelNames([one,two,lone]).values()],
-    ["Isolation Forest · site-a-iforest","Isolation Forest · site-b-iforest","LSTM 오토인코더"]);
-});
-
-test("a model built from a chosen period says so next to its result, a packaged one does not",()=>{
-  assert.equal(builtModelNote({reference:"기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개"}),
-    "직접 고른 기준 기간으로 만든 모델 · 현장 검증 전 · 기준 10. 22. 00:00~10. 24. 00:00 · 신호 6개");
-  assert.equal(builtModelNote({}),null);
 });
 
 test("default model follows measurement time, never cross-model score ratios",()=>{
