@@ -237,6 +237,8 @@ export function groupHistory(trend: HistoryTrend): HistoryGroup[] {
 
 export type SignalChart = {
   width: number; height: number; low: number; high: number;
+  /** Place an annotation on the same value scale as the measured marks. */
+  valueY: (value: number) => number;
   /** Where the plot starts: the window start, or the first stored bucket if later. */
   from: string;
   /** The plotted time span in epoch milliseconds, for the time axis. */
@@ -285,7 +287,7 @@ export function signalChart(
     return {bucket, x: x(bucket.bucketStart), mean: y(bucket.mean!),
       min: y(bucket.minimum ?? bucket.mean!), max: y(bucket.maximum ?? bucket.mean!)};
   });
-  return {width, height, low, high, from: new Date(start).toISOString(), start, end, path: path.trim(), marks,
+  return {width, height, low, high, valueY: y, from: new Date(start).toISOString(), start, end, path: path.trim(), marks,
     ticks: yTicks(lo, hi, top, bottom)};
 }
 

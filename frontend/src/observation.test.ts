@@ -91,3 +91,11 @@ test("every detailed history read sends the selected snapshot and refuses a diff
     assert.deepEqual(paths,["/api/v1/history/trend","/api/v1/explore/profile","/api/v1/explore/relation"]);
   }finally{globalThis.fetch=original;}
 });
+
+test("a historical file uses recorded dates while a collecting source keeps a stopped feed's current-time gap",async()=>{
+  const {observationAnchor}=await import("./observation.ts");
+  const now=Date.parse("2026-11-20T01:00:00Z");
+  assert.equal(observationAnchor("2020-10-22T14:59:08Z",undefined,now),"latest");
+  assert.equal(observationAnchor("2026-11-20T00:59:00Z",{live:null},now),"now");
+  assert.equal(observationAnchor("2020-10-22T14:59:08Z",{live:{receivedAt:null,fresh:false,session:"DISCONNECTED",desired:"running",historyCommittedAt:null}},now),"now");
+});

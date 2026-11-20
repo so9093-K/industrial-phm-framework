@@ -67,6 +67,12 @@ export function receiptStatus(source:Source|undefined,readable:boolean):string{
   if(source.live.receivedAt&&(!source.live.historyCommittedAt||Date.parse(source.live.receivedAt)>Date.parse(source.live.historyCommittedAt)))return "새 측정 저장 대기";
   return source.live.fresh?"수신 중":"연결됨 · 최근 새 값 없음";
 }
+
+/** A collecting source keeps its gaps against the clock; an old file keeps its recorded dates. */
+export function observationAnchor(endAt:string,source:Pick<Source,"live">|undefined,now=Date.now()):"now"|"latest"{
+  const end=Date.parse(endAt);
+  return source?.live||end<=now&&end>=now-3600_000?"now":"latest";
+}
 export function observationLink(assetId:string,channel:string,stream:HistoryStream,meaning:string,window:Span,selection:Span,
   reference:TrendWindow|null,method:"signals"|"compare"|"relation",label:string):string{
   const url=new URL(assetTabUrl(assetId,method==="signals"?"signals":"change",method==="signals"?null:method,"history",channel),"http://local");
