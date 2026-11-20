@@ -1,0 +1,88 @@
+<script lang="ts">
+  import {yTicks} from "../chart-axis";
+  import {tracePath} from "../asset-overview";
+  import {SERIES_COLORS, type FleetChange, type FleetGroup, type FleetSeries} from "../fleet-observation";
+  import {measurementScale} from "../time-axis";
+  import {nearestPosition} from "../plot-selection";
+  import ValueAxis from "./ValueAxis.svelte";
+  import XAxis from "./XAxis.svelte";
+  import PlotCursor from "./PlotCursor.svelte";
+  /** 추이 그래프의 공통 규칙: 같은 단위의 신호 묶음을 한 눈금에 겹치고, 찾은 변화는 옅은 구간과 시작선으로,
+   * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(재생 중이면 재생 위치)이다.
+   * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false. */
+  let {group, series, lo, hi, changes, reference = null, live = false, height = 150, axis = true,
+    picked = $bindable(null), cursor = $bindable(null)}: {
+    group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
+    live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null} = $props();
+  const W = 1000;
+  let hover: number | null = $state(null);
+  const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
+  const low = $derived(values.length ? Math.min(...values, reference ?? Infinity) : 0);
+  const high = $derived(values.length ? Math.max(...values, reference ?? -Infinity) : 1);
+  const pad = $derived(high > low ? (high - low) * 0.1 : Math.max(Math.abs(low) * 0.02, 0.5));
+  const span = $derived(Math.max(hi - lo, group.axis === "time" ? 1000 : 1));
+  const x = (n: number) => (n - lo) / span * W;
+  const y = (n: number) => height - 4 - (n - low + pad) / (high - low + 2 * pad) * (height - 8);
+  const ticks = $derived(values.length ? yTicks(low - pad, high + pad, 4, height - 4, 3) : []);
+  const positions = $derived(series.find(row => row.key === group.focus)?.points.map(point => point.x) ?? series[0]?.points.map(point => point.x) ?? []);
+  const scale = $derived(group.axis === "acquisition" ? measurementScale(group.periodSeconds) : {kind: "clock" as const});
+  const shown = $derived(changes.filter(change => change.from <= lo + span && change.to >= lo));
+  $effect(() => { cursor = hover ?? picked; });
+  function move(event: PointerEvent) {
+    if (event.buttons) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    hover = nearestPosition(positions, lo + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span);
+  }
+  const at = $derived(hover ?? picked);
+  const last = $derived(series.map((row, index) => ({row, index, point: row.points.at(-1)})).filter(item => item.point));
+  // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
+  const end = $derived(Math.max(...series.map(row => row.points.at(-1)?.x ?? lo)));
+  const pct = (n: number) => Math.max(0, Math.min(100, x(n) / W * 100));
+</script>
+
+{#if values.length}
+  <ValueAxis {ticks} {height} unit={group.unit}>
+    <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
+      <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => picked = value}>
+        <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
+          aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 찾은 변화 " + shown.length + "곳" : "")}>
+          {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
+          {#each shown as change (change.key + change.from)}
+            {@const start = Math.max(0, x(change.from))}
+            <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
+          {/each}
+          {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
+          {#each series as row, index (row.key)}
+            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={SERIES_COLORS[index % SERIES_COLORS.length]}/>
+          {/each}
+          {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
+          {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
+        </svg>
+      </PlotCursor>
+      {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
+      {#each last as item (item.row.key)}
+        <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
+          style:--dot={SERIES_COLORS[item.index % SERIES_COLORS.length]}></span>
+      {/each}
+    </div>
+    {#snippet footer()}{#if axis}<XAxis {lo} hi={lo + span} {scale}/>{/if}{/snippet}
+  </ValueAxis>
+{:else}<div class="empty" style:height={height + "px"}>{live ? "재생 위치까지 끝난 측정 구간이 아직 없습니다" : "표시할 측정이 없습니다"}</div>{/if}
+
+<style>
+  .plot{position:relative}
+  svg{display:block;width:100%;overflow:hidden}
+  .grid{stroke:#e3eaee;stroke-width:1}
+  .change{fill:var(--color-change-fill)}
+  .onset{stroke:var(--color-change-line);stroke-width:1.5}
+  .reference{stroke:var(--color-reference-line);stroke-width:1;stroke-dasharray:5 4}
+  path{fill:none;stroke-width:1.6;stroke-linejoin:round}
+  line,path{vector-effect:non-scaling-stroke}
+  .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
+  .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
+  .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
+  .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}
+  @keyframes pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.8);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.dot.live::after{animation:none}}
+  .empty{display:grid;place-items:center;font-size:var(--font-label);color:var(--color-ink-muted);background:repeating-linear-gradient(0deg,transparent 0 24px,#eef2f4 24px 25px)}
+</style>

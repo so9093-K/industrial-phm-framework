@@ -27,6 +27,18 @@
   --color-uncertain-surface: #fff8eb;
   --color-caution-ink: #6b4a06;
 
+  /* 그래프. 데이터 계열 색은 누를 것(action)·상태 색과 섞지 않고, 항상 상·축 이름과 함께 쓴다.
+     세 색은 적·녹·청 색각 이상 시뮬레이션에서도 OKLab 색차 17 이상, 흰 바탕 대비 5:1 이상이다. */
+  --color-series-1: #2563eb;
+  --color-series-2: #b45309;
+  --color-series-3: #374151;
+  --color-series-4: #0f766e;
+  /* 찾은 변화: 구간은 옅은 바탕, 시작은 선. 처음 수준은 회색 점선. */
+  --color-change-fill: rgba(234, 179, 8, .2);
+  --color-change-line: #a16207;
+  --color-change-mark: #ca8a04;
+  --color-reference-line: #64748b;
+
   --space-1: .25rem;
   --space-2: .5rem;
   --space-3: .75rem;

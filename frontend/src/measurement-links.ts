@@ -42,7 +42,7 @@ export function measurementLinks(assetId: string, ordinal: number, context: Meas
   const links: MeasurementLink[] = [
     {key: "trend", label: "이 측정의 진동 추이",
       href: withParams(assetTabUrl(assetId, "signals"), {vibration_at: ordinal, ...chosenFeature})},
-    {key: "model", label: "원본 파형·모델 반응",
+    {key: "model", label: "원본 파형·이상 점수",
       href: withParams(assetTabUrl(assetId, "anomaly", "model"),
         {model_position: ordinal, ...(bindingId ? {model_binding: bindingId} : {})})},
   ];

@@ -25,12 +25,16 @@ _GROUP_POINTS = 320
 _PHASES = ("R상", "S상", "T상")
 
 
-def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+def asset_overview(
+    workspace: OperationsWorkspace, asset_id: str, *, like: str | None = None
+) -> dict[str, Any]:
     """The overview row of one asset.
 
     Args:
         workspace: The operations workspace.
         asset_id: The asset.
+        like: The channel (or vibration feature) the monitored group is built around, so every
+            asset of one dataset shows the same signals. Without it, the asset's first change.
 
     Returns:
         The kind of record, the operating shares, the main signal's latest value and short
@@ -101,7 +105,11 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         )
         if main is not None:
             body["main"] = _history_main(history, asset_id, main)
-        focus = body["history_interval"] or main
+        if like is not None:
+            # 같은 데이터셋의 설비는 같은 이름의 신호로 묶어야 줄끼리 비교된다. 없으면 묶음도 없다.
+            focus = next((row for row in found["signals"] if row["channel"] == like), None)
+        else:
+            focus = body["history_interval"] or main
         if focus is not None:
             body["group"] = _history_group(history, asset_id, found, focus)
         return body
@@ -165,7 +173,7 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
             "axis": "acquisition",
             "period_seconds": found["period_seconds"],
         }
-        focus = found["intervals"][0]["feature"] if found["intervals"] else feature
+        focus = like or (found["intervals"][0]["feature"] if found["intervals"] else feature)
         body["group"] = _vibration_group(
             workspace, store, asset_id, binding.binding_id, binding.source_id, focus
         ) | {"period_seconds": found["period_seconds"]}
@@ -233,6 +241,7 @@ def _history_group(
         series.append(
             {
                 "key": row["key"],
+                "channel": row["channel"],
                 "label": row["label"],
                 "short": row["channel"][:2] if len(members) > 1 else row["label"],
                 "trace": [[bucket.bucket_start.isoformat(), bucket.mean] for bucket in own],
@@ -308,6 +317,7 @@ def _vibration_group(
         series.append(
             {
                 "key": name,
+                "channel": name,
                 "label": label,
                 "short": label.split(" ", 1)[0] if len(names) > 1 else label,
                 "trace": points,
