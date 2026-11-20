@@ -1019,13 +1019,29 @@ def check_file_history_backfill(
 
 
 def run_file_history_backfill(
-    paths: OperationsWorkspace, registry: JsonSourceRepository, source_id: str
+    paths: OperationsWorkspace,
+    registry: JsonSourceRepository,
+    source_id: str,
+    *,
+    catalog_wait_seconds: float = 10.0,
 ) -> dict[str, object]:
-    """Append or recover the checked FILE batch; a retry reuses an existing commit."""
+    """Append or recover the checked FILE batch; a retry reuses an existing commit.
+
+    Args:
+        paths: The workspace.
+        registry: The registered sources.
+        source_id: The FILE source to write.
+        catalog_wait_seconds: How long one write waits for the history catalog. A request
+            answered while the person waits keeps the default; a background job waits longer.
+
+    Returns:
+        The stored batch: counts, segments and the history snapshot.
+    """
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(
             catalog_path=paths.history_catalog_path,
             data_path=paths.history_data_path,
+            catalog_lock_timeout_seconds=catalog_wait_seconds,
         )
     )
     result = backfill_registered_file_source(registry, history, source_id)

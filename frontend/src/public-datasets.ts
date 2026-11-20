@@ -94,6 +94,7 @@ const FAILURE: Record<string, string> = {
   "source-incomplete": "XJTU-SY 베어링 15개가 모두 있어야 모델을 준비할 수 있습니다.",
   "reader-unavailable": "AI-Hub 원천 기록을 읽는 구성 요소가 설치되지 않았습니다.",
   "dataset-unavailable": "데이터 파일을 읽지 못했습니다.",
+  "store-busy": "기록 저장소가 오래 사용 중이라 멈췄습니다. 다시 가져오면 저장된 부분부터 이어 갑니다.",
   "source-changed": "가져오는 동안 원본이 바뀌었습니다. 원본을 그대로 둔 뒤 다시 가져오세요. 기존 기록은 보존됩니다.",
 };
 

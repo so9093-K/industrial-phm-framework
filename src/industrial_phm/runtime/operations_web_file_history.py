@@ -13,6 +13,7 @@ import os
 import threading
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 from industrial_phm.runtime.operations_web_setup import (
@@ -58,6 +59,15 @@ def _failure(error: Exception) -> str:
 # DuckLake has one local writer; every supervisor history job writes while holding this.
 HISTORY_WRITE_LOCK = threading.Lock()
 
+# 사용자가 시킨 배경 쓰기(공개 데이터·큰 FILE 이력)는 화면의 읽기가 끝날 때까지 기다린다.
+# 화면의 변화 계산은 한 번에 십수 초 저장소를 잡을 수 있고, 쓰기는 수백 번 나눠 하므로
+# 기본 10초면 그중 한 번에 작업 전체가 멈춘다. 화면 쪽 읽기는 짧게 기다리고 실패하면
+# 다시 읽으므로 쓰기가 먼저 포기할 이유가 없다.
+BACKGROUND_CATALOG_WAIT_SECONDS = 600.0
+_BACKGROUND_RUN = partial(
+    run_file_history_backfill, catalog_wait_seconds=BACKGROUND_CATALOG_WAIT_SECONDS
+)
+
 
 class FileHistoryJobs:
     """At most one history write at a time; DuckLake has a single local writer."""
@@ -66,7 +76,7 @@ class FileHistoryJobs:
         self,
         workspace: Path,
         *,
-        run: Callable[..., dict[str, object]] = run_file_history_backfill,
+        run: Callable[..., dict[str, object]] = _BACKGROUND_RUN,
     ) -> None:
         self._workspace = OperationsWorkspace(workspace)
         self._root = workspace
