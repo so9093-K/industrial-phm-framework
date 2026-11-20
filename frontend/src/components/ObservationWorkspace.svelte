@@ -9,9 +9,9 @@
   import AssetSummary from "./AssetSummary.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import RecentObservation from "./RecentObservation.svelte";
-  let {asset,data,dataState,observed,sources,sourceState,cycle,onView,selectedAt=$bindable(null)}:{asset:Asset;data:AssetData|null;
+  let {asset,data,dataState,observed,sources,sourceState,cycle,selectedAt=$bindable(null)}:{asset:Asset;data:AssetData|null;
     dataState:"loading"|"ready"|"failed";observed:(at:string|null)=>string;sources:Sources|null;
-    sourceState:"loading"|"ready"|"failed";cycle:number;onView?:(view:"recent"|"record"|"replay")=>void;selectedAt?:number|null}=$props();
+    sourceState:"loading"|"ready"|"failed";cycle:number;selectedAt?:number|null}=$props();
   const params=new URLSearchParams(location.search);
   let view:"recent"|"record"|null=$state(params.get("observation_view")==="recent"?"recent":params.get("observation_view")==="record"?"record":null);
   const sourcePrefix=params.get("observation_asset")===untrack(()=>asset.assetId)?"observation_":"monitor_";
@@ -41,7 +41,6 @@
     untrack(()=>view=initial);
   });
   const displayView=$derived(view??(!params.has("summary_change")&&streams.some(row=>Date.parse(row.endAt)>=Date.now()-3600_000)?"recent":"record"));
-  $effect(()=>onView?.(scope?"replay":displayView));
   $effect(()=>{
     if(displayView!=="recent"||!stream||chosen)return;
     const current=stream;

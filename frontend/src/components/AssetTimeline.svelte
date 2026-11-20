@@ -28,7 +28,8 @@
   const at=$derived(selected??primaryPoints.at(-1)?.x??null);
   const reading=$derived(at===null?null:valueAt(primaryPoints,at,0));
   function shape(lane:TimelineLane,height:number){
-    const points=visiblePoints(lane,range,zoomed),values=points.map(p=>p.value);
+    // 같은 운전 수준의 점도 같은 눈금 안에 그려야 한다(전체 평균보다 높을 수 있다).
+    const points=visiblePoints(lane,range,zoomed),values=[...points,...(lane.matched??[]).filter(p=>p.x>=range.from&&p.x<=range.to)].map(p=>p.value);
     const low=Math.min(lane.usual.low,...values),high=Math.max(lane.usual.high,...values),pad=high>low?(high-low)*.12:Math.max(Math.abs(low)*.05,1);
     const y=(v:number)=>height-(v-low+pad)/(high-low+2*pad)*height;
     return {points,y,ticks:niceTicks(low-pad,high+pad,4).map(value=>({value,top:y(value)/height*100})).filter(p=>p.top>4&&p.top<96),

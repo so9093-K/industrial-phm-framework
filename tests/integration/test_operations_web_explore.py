@@ -1142,6 +1142,12 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert row["finding"]["latest"]["value"] == pytest.approx(0.515, abs=0.01)
         assert 0 < len(main["trace"]) <= 48
         assert len(main["trace_join"]) == len(main["trace"]) and not main["trace_join"][0]
+        # 관제 화면은 변화한 신호를 기록 전체에 걸쳐 그린다. 상(R·S·T)이 없는 신호는 혼자다.
+        group = row["group"]
+        assert group["focus"] == first["key"] and group["label"] == "역률"
+        assert group["record"] == first["record"] and group["axis"] == "time"
+        assert [member["key"] for member in group["series"]] == [first["key"]]
+        assert 0 < len(group["series"][0]["trace"]) == len(group["series"][0]["trace_join"])
         status, row = get("/api/v1/explore/overview", asset_id="bearing-a")
         assert status == 200 and row["kind"] == "vibration" and row["operation"] is None
         assert row["finding"]["label"] == "수평 진동 RMS" and row["finding"]["from"] == 23
@@ -1158,8 +1164,58 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
         assert row["main"]["unit"] == "g" and row["main"]["latest"]["position"] == 30
         assert row["finding"]["latest"]["position"] == 30
         assert row["finding"]["latest"]["at"] is None
+        group = row["group"]
+        assert group["focus"] == row["vibration_interval"]["feature"]
+        assert group["axis"] == "acquisition" and group["record"] == {"from": 1, "to": 30}
+        assert all(member["key"].endswith(".rms") for member in group["series"])
+        assert [point[0] for point in group["series"][0]["trace"]] == list(range(1, 31))
         status, empty = get("/api/v1/explore/overview", asset_id="unknown")
         assert status == 200 and empty["kind"] is None and empty["finding"] is None
+    finally:
+        stop()
+
+
+def test_an_overview_draws_a_changed_phase_with_its_other_phases(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "ws")
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    voltage = json.dumps(
+        {"semantics": {"definition": {"observed_property": "phase voltage", "unit": "V"}}}
+    )
+    channels = ("R상전압", "S상전압", "T상전압", "상전압평균")
+    history.append_file_batch(
+        tuple(
+            FileBackfillEvent(
+                raw_evidence_id=f"file:row:{'d' * 64}:{offset}:{index}",
+                source_id="press-file",
+                asset_id="press-01",
+                channel_id=channel,
+                source_file="press.csv",
+                source_sha256="d" * 64,
+                source_size_bytes=10,
+                sample_index=offset * 1000 + index,
+                event_at=BASE + timedelta(minutes=index),
+                value=(226.0 if index >= 150 else 220.0) + (index % 4) * 0.1 + offset * 0.2,
+                source_metadata_json=voltage,
+            )
+            for offset, channel in enumerate(channels)
+            for index in range(200)
+        ),
+        batch_id="press-01",
+    )
+    get, stop = _serve(workspace.root)
+    try:
+        status, row = get("/api/v1/explore/overview", asset_id="press-01")
+        assert status == 200 and row["kind"] == "history"
+        group = row["group"]
+        # 평균(상전압평균)은 상이 아니라 함께 그리지 않는다.
+        assert [member["label"] for member in group["series"]] == list(channels[:3])
+        assert [member["short"] for member in group["series"]] == ["R상", "S상", "T상"]
+        assert group["label"] == "상전압" and group["unit"] == "V"
+        assert group["focus"] == row["history_interval"]["key"]
+        assert all(member["trace"][-1][1] > 225 for member in group["series"])
     finally:
         stop()
 
