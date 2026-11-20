@@ -13,6 +13,7 @@
   let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>keepQuestionDraft(draftScope,question));
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
+  let questionRevision=0;
   let request:AbortController|null=null,write:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
   const latest=$derived(records[0]??null);
   const waiting=$derived(busy||latest?.status==="pending");
@@ -29,11 +30,14 @@
     }catch(cause){if(!pending.signal.aborted){loading=false;error=cause instanceof Error?cause.message:"조사 조회 실패";}}
   }
   async function ask(text:string){
-    if(!writable||waiting||!text.trim())return;
+    if(!writable||loading||waiting||!text.trim())return;
+    const submitted=text.trim(),revision=questionRevision;
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,text.trim(),latest?.status==="complete"?latest.id:null,pending.signal);
-      if(pending.signal.aborted)return;question="";busy=false;await refresh();
+      await askChange(assetId,reviewKey,submitted,latest?.status==="complete"?latest.id:null,pending.signal);
+      if(pending.signal.aborted)return;
+      if(questionRevision===revision&&question.trim()===submitted)question="";
+      busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"질문을 보내지 못했습니다.";}
     finally{if(write===pending){write=null;busy=false;}}
   }
@@ -48,7 +52,7 @@
 <section class="ui-panel investigation" aria-label="선택한 진동 변화 조사">
   <p class="question">{plainLabel(change.label,change.feature)} · {change.from}–{change.to}번째 측정</p>
   {#if error}<p class="error" role="alert">{error} <button type="button" onclick={()=>void refresh()}>다시 읽기</button></p>{/if}
-  {#if waiting}<p role="status">AI 해설 작성 중 · 같은 기간의 특징·주파수 비교 결과 사용</p>
+  {#if waiting}{#if latest?.status==="pending"}<p class="question">질문 · {latest.question}</p>{/if}<p role="status">AI 해설 작성 중 · 같은 기간의 특징·주파수 비교 결과 사용</p>
   {:else if latest?.status==="complete"&&latest.answer}
     <p class="question">질문 · {latest.question}</p>
     <p class="answer">{latest.answer.summary}</p>
@@ -58,8 +62,9 @@
     <button type="button" class="ui-button memo" onclick={()=>onMemo(memo)}>판단 메모에 넣기</button>
   {:else if latest?.status==="failed"}<p>설명을 만들지 못했습니다. 그래프와 원본 측정은 계속 볼 수 있습니다.</p>{/if}
   {#if !loading}<div class="questions">{#each questions.filter(item=>item.text!==latest?.question) as item(item.label)}<button type="button" class="suggestion" disabled={!writable||waiting} onclick={()=>void ask(item.text)}>{item.label}</button>{/each}</div>{/if}
-  <label>{latest?.status==="complete"?"추가 질문":"질문"}<textarea rows="2" maxlength="600" bind:value={question} disabled={!writable||waiting}></textarea></label>
-  <button type="button" class="ui-button ui-button-primary" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>질문하기</button>
+  <label>{latest?.status==="complete"?"추가 질문":"질문"}<textarea rows="2" maxlength="600" bind:value={question} oninput={()=>questionRevision++} disabled={!writable}
+    placeholder={waiting?"다음 질문을 미리 작성할 수 있습니다.":"이 변화에 대해 궁금한 점을 입력하세요."}></textarea></label>
+  <button type="button" class="ui-button ui-button-primary" disabled={!writable||loading||waiting||!question.trim()} onclick={()=>void ask(question)}>질문하기</button>
   {#if !writable}<p class="by">보기 전용에서는 저장된 설명만 볼 수 있습니다.</p>{/if}
 </section>
 <style>
