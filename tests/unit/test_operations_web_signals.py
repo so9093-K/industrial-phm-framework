@@ -120,3 +120,59 @@ def test_signal_query_validates_requested_groups_before_reading() -> None:
             channel_ids=("voltage-R",),
             window=(start.replace(tzinfo=None), start.replace(tzinfo=None) + timedelta(hours=1)),
         )
+
+
+def test_selected_reference_has_a_value_before_new_observations_and_keeps_it_afterward() -> None:
+    from dataclasses import replace
+
+    from industrial_phm.runtime.operations_web_signals import _reference_changes
+
+    base = MultiSignalMeasurementHistoryBucket(
+        channel_id="current",
+        source_id="file-meter",
+        source_type="file",
+        measurement_point_id=None,
+        bucket_start=AT,
+        bucket_end=AT + timedelta(minutes=1),
+        first_event_at=AT,
+        last_event_at=AT,
+        observation_count=1,
+        usable_count=1,
+        null_count=0,
+        non_good_count=0,
+        conflict_count=0,
+        minimum=2.0,
+        maximum=2.0,
+        mean=2.0,
+        interpretation_json='{"binding":{"definition":{"unit":"A"}}}',
+    )
+    baseline = tuple(
+        replace(
+            base,
+            bucket_start=AT + timedelta(minutes=i),
+            bucket_end=AT + timedelta(minutes=i + 1),
+            first_event_at=AT + timedelta(minutes=i),
+            last_event_at=AT + timedelta(minutes=i),
+        )
+        for i in range(5)
+    )
+    period = (AT, AT + timedelta(minutes=5))
+    before = _reference_changes((), baseline, period)
+    assert before["groups"][0]["state"] == "no-observations-after-reference"
+    assert before["groups"][0]["median"] == 2.0
+    assert before["groups"][0]["intervals"] == []
+    observed = (
+        replace(
+            base,
+            bucket_start=period[1],
+            bucket_end=period[1] + timedelta(minutes=1),
+            mean=4.0,
+            minimum=4.0,
+            maximum=4.0,
+        ),
+    )
+    after = _reference_changes(observed, baseline, period)
+    assert (after["from"], after["to"]) == (before["from"], before["to"])
+    group = after["groups"][0]
+    assert group["state"] == "ready" and group["median"] == 2.0
+    assert group["intervals"][0]["value"] == 4.0

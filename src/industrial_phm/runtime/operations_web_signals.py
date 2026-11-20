@@ -319,7 +319,7 @@ def _reference_changes(
             name=channel, unit=unit, meaning=semantics.get("observed_property")
         ):
             state = "cumulative"
-        elif baseline and observed:
+        elif baseline:
             result = find_departures(
                 {
                     channel: [
@@ -329,11 +329,17 @@ def _reference_changes(
                     ]
                 },
                 reference_period=period,
-                gap=max(b.bucket_end - b.bucket_start for b in observed) * 1.5,
+                gap=max(b.bucket_end - b.bucket_start for b in (observed or baseline)) * 1.5,
             )
             facts = result["channels"][0]
             median = facts.get("median")
-            state = "ready" if median is not None else "insufficient-reference"
+            state = (
+                "insufficient-reference"
+                if median is None
+                else "ready"
+                if observed
+                else "no-observations-after-reference"
+            )
             intervals = [
                 {
                     "from": _time(row["start"]),
@@ -343,8 +349,6 @@ def _reference_changes(
                 }
                 for row in result["intervals"]
             ]
-        elif baseline and not observed:
-            state = "no-observations-after-reference"
         rows.append(
             {
                 "channel_id": channel,
