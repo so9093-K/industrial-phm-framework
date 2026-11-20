@@ -1,4 +1,5 @@
 /** A bounded view of committed measurements, independent of the ingestion protocol. */
+import {originParams} from "./observation-context.ts";
 import {parseTrend,phaseSiblings, type HistoryTrend, type HistoryStream, type TrendWindow} from "./history.ts";
 import {object} from "./writes.ts";
 import {assetTabUrl} from "./routes.ts";
@@ -70,7 +71,7 @@ export function observationLink(assetId:string,channel:string,stream:HistoryStre
   reference:TrendWindow|null,method:"signals"|"compare"|"relation",label:string):string{
   const url=new URL(assetTabUrl(assetId,method==="signals"?"signals":"change",method==="signals"?null:method,"history",channel),"http://local");
   const periods=reference?{a:reference,b:{from:new Date(selection.from).toISOString(),to:new Date(selection.to).toISOString()}}:periodsBefore(selection);
-  const params={...windowParams(window,selection),...focusParams({source:stream.sourceId,point:stream.pointId,interpretation:meaning}),
+  const params={...originParams(assetId,stream.sourceId,stream.pointId,channel,window,selection),...windowParams(window,selection),...focusParams({source:stream.sourceId,point:stream.pointId,interpretation:meaning}),
     ...(periods?periodParams(periods,reference?"observation":"signal"):{}),observation_view:"recent",observation_follow:"paused",
     summary_change:JSON.stringify(["history",streamKey(stream)+":"+channel,new Date(selection.from).toISOString(),new Date(selection.to).toISOString()]),summary_kind:"history",summary_label:label};
   if(method==="relation"){url.searchParams.set("relation_x",channel);const other=phaseSiblings(stream.channels,channel)[0]??stream.channels.find(id=>id!==channel);if(other)url.searchParams.set("relation_y",other);}

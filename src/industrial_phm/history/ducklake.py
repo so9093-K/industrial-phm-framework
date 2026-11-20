@@ -1477,7 +1477,7 @@ class DuckLakeAssetHistory:
         return tuple(_require_str(row[0], "channel_id") for row in rows)
 
     def history_channel_extent(
-        self, asset_id: str, channel_ids: Sequence[str]
+        self, asset_id: str, channel_ids: Sequence[str], *, snapshot_id: int | None = None
     ) -> tuple[datetime, datetime] | None:
         """First and last stored event of these channels, so a view can span the whole record."""
         _validate_identifier(asset_id, "asset_id")
@@ -1486,12 +1486,17 @@ class DuckLakeAssetHistory:
             raise ValueError("channel_ids must not be empty")
         for channel in channels:
             _validate_identifier(channel, "channel_id")
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
             row = connection.execute(
                 f"""
-                SELECT min(event_at), max(event_at) FROM {_CATALOG_NAME}.history.measurement
+                SELECT min(event_at), max(event_at) FROM {_CATALOG_NAME}.history.measurement {at}
                 WHERE asset_id = ? AND event_at IS NOT NULL
                   AND channel_id IN ({", ".join("?" for _ in channels)})
             """,
@@ -1549,16 +1554,23 @@ class DuckLakeAssetHistory:
             return None
         return _require_datetime(row[0], "first_at"), _require_datetime(row[1], "last_at")
 
-    def list_history_streams(self, asset_id: str) -> tuple[HistoryStream, ...]:
+    def list_history_streams(
+        self, asset_id: str, *, snapshot_id: int | None = None
+    ) -> tuple[HistoryStream, ...]:
         """Each (source, point) stream of an asset with the channels and period it holds."""
         _validate_identifier(asset_id, "asset_id")
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
             rows = connection.execute(
                 f"""
                 SELECT source_id, measurement_point_id, channel_id, min(event_at), max(event_at)
-                FROM {_CATALOG_NAME}.history.measurement
+                FROM {_CATALOG_NAME}.history.measurement {at}
                 WHERE asset_id = ? AND event_at IS NOT NULL
                 GROUP BY source_id, measurement_point_id, channel_id
                 ORDER BY source_id, measurement_point_id NULLS FIRST, channel_id LIMIT 1001
@@ -1844,6 +1856,7 @@ class DuckLakeAssetHistory:
         measurement_point_id: str | None,
         start_at: datetime,
         end_at: datetime,
+        snapshot_id: int | None = None,
     ) -> tuple[tuple[str, str], ...]:
         """Each channel's stored meanings in one source and point, without reading values.
 
@@ -1861,11 +1874,16 @@ class DuckLakeAssetHistory:
         _validate_identifier(source_id, "source_id")
         if measurement_point_id is not None:
             _validate_identifier(measurement_point_id, "measurement_point_id")
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
             channels = connection.execute(
-                f"""SELECT DISTINCT channel_id FROM {_CATALOG_NAME}.history.measurement
+                f"""SELECT DISTINCT channel_id FROM {_CATALOG_NAME}.history.measurement {at}
                     WHERE asset_id = ? AND source_id = ?
                         AND measurement_point_id IS NOT DISTINCT FROM ?
                         AND event_at >= ? AND event_at < ? ORDER BY channel_id""",
@@ -1874,14 +1892,14 @@ class DuckLakeAssetHistory:
             sql = f"""
                 WITH selected AS (
                     SELECT raw_evidence_id, source_type, channel_id
-                    FROM {_CATALOG_NAME}.history.measurement
+                    FROM {_CATALOG_NAME}.history.measurement {at}
                     WHERE asset_id = ? AND source_id = ?
                         AND measurement_point_id IS NOT DISTINCT FROM ?
                         AND event_at >= ? AND event_at < ?
                         AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                 ), raw_metadata AS (
                     SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    FROM (SELECT * FROM {_CATALOG_NAME}.raw.file_measurement {at}) f
                     WHERE f.asset_id = ? AND f.source_timestamp >= ? AND f.source_timestamp < ?
                         AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
                     UNION ALL
@@ -1894,7 +1912,7 @@ class DuckLakeAssetHistory:
                             'schema', 'opcua-semantic-snapshot',
                             'semantics', json(o.semantic_binding_json)
                         )::VARCHAR END AS source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    FROM (SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at}) o
                     WHERE o.asset_id = ? AND o.event_at >= ? AND o.event_at < ?
                         AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
                 )
@@ -2192,6 +2210,7 @@ class DuckLakeAssetHistory:
         end_at: datetime,
         edges: Sequence[float] = (),
         bucket_count: int = 1,
+        snapshot_id: int | None = None,
     ) -> ValueOccupancy:
         """Count one signal identity's usable values between value edges, per time bucket.
 
@@ -2238,7 +2257,11 @@ class DuckLakeAssetHistory:
         try:
             self._ensure_initialized(connection)
             _create_profile_points(
-                connection, asset_id, (channel_id,), (("range", start_at, end_at),)
+                connection,
+                asset_id,
+                (channel_id,),
+                (("range", start_at, end_at),),
+                snapshot_id=snapshot_id,
             )
             rows = connection.execute(
                 f"""
@@ -2294,6 +2317,7 @@ class DuckLakeAssetHistory:
         periods: Sequence[tuple[str, datetime, datetime]],
         bins: int = 20,
         level: ProfileLevel | None = None,
+        snapshot_id: int | None = None,
     ) -> tuple[MeasurementProfile, ...]:
         """Exact per-period statistics for each channel/source/point/interpretation.
 
@@ -2313,7 +2337,9 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            _create_profile_points(connection, asset_id, channels, periods, level)
+            _create_profile_points(
+                connection, asset_id, channels, periods, level, snapshot_id=snapshot_id
+            )
             # One value per usable timestamp (a conflict is never usable).
             connection.execute(
                 f"""
@@ -2346,8 +2372,8 @@ class DuckLakeAssetHistory:
                 ), timing AS (
                     SELECT {keys}, median(epoch(event_at - prev_at)) AS median_interval,
                         max(epoch(event_at - prev_at)) AS largest_gap,
-                        arg_max(prev_at, epoch(event_at - prev_at)) AS gap_start,
-                        arg_max(event_at, epoch(event_at - prev_at)) AS gap_end
+                        arg_min(prev_at, (-epoch(event_at - prev_at), prev_at)) AS gap_start,
+                        arg_min(event_at, (-epoch(event_at - prev_at), prev_at)) AS gap_end
                     FROM profile_steps WHERE prev_at IS NOT NULL GROUP BY ALL
                 ), long_gaps AS (
                     SELECT s.period, s.channel_id, s.source_id, s.source_type, s.point_key,
@@ -2366,8 +2392,9 @@ class DuckLakeAssetHistory:
                         FROM profile_steps
                     ) GROUP BY ALL
                 ), constant AS (
-                    SELECT {keys}, max(length) AS longest, arg_max(run_start, length) AS run_start,
-                        arg_max(run_end, length) AS run_end
+                    SELECT {keys}, max(length) AS longest,
+                        arg_min(run_start, (-length, run_start)) AS run_start,
+                        arg_min(run_end, (-length, run_start)) AS run_end
                     FROM runs GROUP BY ALL
                 )
                 SELECT c.*, t.median_interval, t.largest_gap, t.gap_start, t.gap_end,
@@ -2474,6 +2501,7 @@ class DuckLakeAssetHistory:
         y_channel: str,
         periods: Sequence[tuple[str, datetime, datetime]],
         max_points: int = 1500,
+        snapshot_id: int | None = None,
     ) -> tuple[MeasurementPairGroup, ...]:
         """Pair two channels at identical timestamps, per period, source, point and meaning.
 
@@ -2487,7 +2515,9 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            _create_profile_points(connection, asset_id, (x_channel, y_channel), periods)
+            _create_profile_points(
+                connection, asset_id, (x_channel, y_channel), periods, snapshot_id=snapshot_id
+            )
             connection.execute(
                 """
                 CREATE TEMP TABLE profile_side AS
@@ -4177,6 +4207,8 @@ def _create_profile_points(
     channels: Sequence[str],
     periods: Sequence[tuple[str, datetime, datetime]],
     level: ProfileLevel | None = None,
+    *,
+    snapshot_id: int | None = None,
 ) -> None:
     """Raw observations of the periods with their usability, as temp table profile_points.
 
@@ -4186,7 +4218,11 @@ def _create_profile_points(
     """
     if level is not None:
         _create_profile_points(
-            connection, asset_id, tuple(dict.fromkeys((*channels, level.channel_id))), periods
+            connection,
+            asset_id,
+            tuple(dict.fromkeys((*channels, level.channel_id))),
+            periods,
+            snapshot_id=snapshot_id,
         )
         connection.execute(
             """
@@ -4215,6 +4251,9 @@ def _create_profile_points(
             ],
         )
         return
+    at = (
+        "" if snapshot_id is None else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+    )
     low = min(start for _, start, _ in periods)
     high = max(end for _, _, end in periods)
     period_values = ", ".join("(?, ?::TIMESTAMPTZ, ?::TIMESTAMPTZ)" for _ in periods)
@@ -4227,7 +4266,7 @@ def _create_profile_points(
                 count(DISTINCT m.value) OVER identity_window
                 + max(CASE WHEN m.value IS NULL THEN 1 ELSE 0 END) OVER identity_window
                 > 1 AS conflict
-            FROM {_CATALOG_NAME}.history.measurement m
+            FROM (SELECT * FROM {_CATALOG_NAME}.history.measurement {at}) m
             JOIN periods p ON m.event_at >= p.start_at AND m.event_at < p.end_at
             WHERE m.asset_id = ?
                 AND m.channel_id IN (SELECT unnest(?::VARCHAR[]))
@@ -4238,7 +4277,7 @@ def _create_profile_points(
             )
         ), raw_metadata AS (
             SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
-            FROM {_CATALOG_NAME}.raw.file_measurement f
+            FROM (SELECT * FROM {_CATALOG_NAME}.raw.file_measurement {at}) f
             WHERE f.asset_id = ?
                 AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
                 AND f.source_timestamp >= ? AND f.source_timestamp < ?
@@ -4252,7 +4291,7 @@ def _create_profile_points(
                     'schema', 'opcua-semantic-snapshot',
                     'semantics', json(o.semantic_binding_json)
                 )::VARCHAR END AS source_metadata_json
-            FROM {_CATALOG_NAME}.raw.opcua_data_change o
+            FROM (SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at}) o
             WHERE o.asset_id = ?
                 AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
                 AND o.event_at >= ? AND o.event_at < ?

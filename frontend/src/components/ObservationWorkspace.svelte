@@ -12,7 +12,8 @@
     sourceState:"loading"|"ready"|"failed";cycle:number;onView?:(view:"recent"|"record")=>void;selectedAt?:number|null}=$props();
   const params=new URLSearchParams(location.search);
   let view:"recent"|"record"|null=$state(params.get("observation_view")==="recent"?"recent":params.get("observation_view")==="record"?"record":null);
-  let chosen=$state(params.has("monitor_source")?JSON.stringify([params.get("monitor_source"),params.get("monitor_point")||null]):"");
+  const sourcePrefix=params.get("observation_asset")===untrack(()=>asset.assetId)?"observation_":"monitor_";
+  let chosen=$state(params.has(sourcePrefix+"source")?JSON.stringify([params.get(sourcePrefix+"source"),params.get(sourcePrefix+"point")||null]):"");
   let archiveRevision=$state(0);
   const streams=$derived(data?.history?.streams??[]);
   const stream=$derived(chosen?streams.find(row=>streamKey(row)===chosen)??null:[...streams].sort((a,b)=>Date.parse(b.endAt)-Date.parse(a.endAt))[0]??null);

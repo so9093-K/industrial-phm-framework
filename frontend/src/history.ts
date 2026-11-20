@@ -3,6 +3,7 @@
  * Groups MUST retain source + measurement point + semantic interpretation.
  * No chart point is an interpolated measurement or equipment-health diagnosis.
  */
+import {assertObservationSnapshot} from "./observation-context.ts";
 /** "all" spans the stored record of the chosen signal, from its first to its last measurement. */
 import {yTicks, type Tick} from "./chart-axis.ts";
 import {object as dataObject} from "./writes.ts";
@@ -316,14 +317,17 @@ export async function readTrend(
 /** Several signals read in one request, so they share one window and one bucket grid. */
 export async function readTrends(
   assetId: string, channelIds: string[], range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,
-  sourceId: string | null = null,
+  sourceId: string | null = null, snapshot: number | null = null,
 ): Promise<Map<string, HistoryTrend>> {
   const params = new URLSearchParams({asset_id: assetId, buckets: "120"});
   for (const id of channelIds) params.append("channel_id", id);
   if (sourceId) params.set("source_id", sourceId);
   if (typeof range === "string") {params.set("range", range); params.set("anchor", anchor);}
   else {params.set("from", range.from); params.set("to", range.to);}
-  return splitTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelIds);
+  if(snapshot!==null)params.set("snapshot",String(snapshot));
+  const payload=await json("/api/v1/history/trend?" + params, signal);
+  assertObservationSnapshot(payload,snapshot);
+  return splitTrend(payload, assetId, channelIds);
 }
 
 /** One multi-signal trend read as one trend per signal, each checked as if read alone. */

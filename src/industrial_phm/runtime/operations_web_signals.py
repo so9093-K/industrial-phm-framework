@@ -220,7 +220,9 @@ def project_signal_history(
     if window is not None:
         start, end = (edge.astimezone(UTC) for edge in window)
     elif range_preset == WHOLE_RECORD:
-        extent = query_operations_history_extent(reader, asset_id, channel_ids=channel_ids)
+        extent = query_operations_history_extent(
+            reader, asset_id, channel_ids=channel_ids, snapshot_id=selected_snapshot
+        )
         if extent is None:
             start = end - RANGE_DURATIONS["1h"]
         else:

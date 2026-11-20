@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {observationSnapshot} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
   import RangeCompare from "./RangeCompare.svelte";
@@ -205,7 +206,8 @@
       const expected: Periods = {a: {...periods.a}, b: {...periods.b}};
       const source = operation ?? (focus ? {sourceId: focus.source, pointId: focus.point ?? null} : null);
       const data = await readProfile(assetId, selected, expected, request.signal,
-        level === null ? null : {band: level, sourceId: source?.sourceId, pointId: source?.pointId});
+        level === null ? null : {band: level, sourceId: source?.sourceId, pointId: source?.pointId},
+        observationSnapshot(new URLSearchParams(location.search),assetId));
       if (request.signal.aborted) return;
       operation = data.operation;
       result = {...data, series: data.series.filter(row => !focus || (row.source === focus.source && (focus.point === undefined || row.point === focus.point) && (!focus.interpretation || row.interpretation === focus.interpretation)))}; compareState = result.series.length ? "ready" : "empty"; remember();

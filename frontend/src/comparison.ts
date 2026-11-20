@@ -1,4 +1,5 @@
 /** Two-period stored history, separated by exact server source/point/meaning identity. */
+import {assertObservationSnapshot} from "./observation-context.ts";
 import type {LevelNames} from "./record-findings.ts";
 export type Periods = { a: { from: string; to: string }; b: { from: string; to: string } };
 export type PeriodProfile = {
@@ -272,6 +273,7 @@ export async function readSources(assetId: string, signal: AbortSignal): Promise
 export async function readProfile(
   assetId: string, channel: string, periods: Periods, signal: AbortSignal,
   level: {band: number; sourceId?: string; pointId?: string | null} | null = null,
+  snapshot: number | null = null,
 ): Promise<ProfileResult> {
   validatePeriods(periods);
   const query = new URLSearchParams({asset_id:assetId,kind:"history",series:channel,
@@ -281,6 +283,8 @@ export async function readProfile(
     // Without a source the server reads the asset's only source with operating levels.
     if (level.sourceId) {query.set("level_source", level.sourceId); query.set("level_point", level.pointId ?? "");}
   }
-  return parseProfile(await body("/api/v1/explore/profile?" + query, signal),
-    assetId, channel, periods);
+  if(snapshot!==null)query.set("snapshot",String(snapshot));
+  const payload=await body("/api/v1/explore/profile?" + query, signal);
+  assertObservationSnapshot(payload,snapshot);
+  return parseProfile(payload, assetId, channel, periods);
 }

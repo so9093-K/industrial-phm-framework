@@ -66,7 +66,7 @@ export function routeUrl(route: Route, channel: string | null = null): string {
 
 /** Resolve tab links when activated, after the child may have changed its URL selection.
  * Measurements, compared results and periods follow; calculation settings and review identities do not. */
-const OBSERVATION_PARAMS = ["observation_view","observation_range","observation_follow","observation_snapshot","observation_reference_from","observation_reference_to","observation_anchor","monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind","summary_label",
+const OBSERVATION_PARAMS = ["observation_asset","observation_source","observation_point","observation_channel","observation_from","observation_to","observation_pick","observation_view","observation_range","observation_follow","observation_snapshot","observation_reference_from","observation_reference_to","observation_anchor","monitor_channel","record_key","monitor_source","monitor_point","monitor_interpretation","monitor_range","monitor_from","monitor_to","monitor_pick","compare_a","compare_b","compare_origin","compare_level","relation_x","relation_y","summary_change","summary_kind","summary_label",
   "vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature","acq_relation_x","acq_relation_y",
   "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
   "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel",

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TimeRange from "./TimeRange.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
@@ -178,7 +179,7 @@
         ? {from: new Date(zoom.from).toISOString(), to: new Date(zoom.to).toISOString()} : null;
       // The chosen signal and its companions are read together, so all share one window and grid.
       const together = await readTrends(assetId, [selectedChannel, ...companions], chosen ?? (range === "window" ? "all" : range),
-        anchor, request.signal, focus?.source ?? null);
+        anchor, request.signal, focus?.source ?? null, observationSnapshot(new URLSearchParams(location.search),assetId));
       if (request.signal.aborted) return;
       const result = together.get(selectedChannel)!;
       trend = result;
@@ -294,7 +295,7 @@
     const url = new URL(href, location.origin);
     const target=group?{source:group.sourceId,point:group.pointId,interpretation:group.interpretationId}:focus;
     for (const [key, value] of Object.entries({...contextParams(),...(target?focusParams(target):{}), ...extra})) url.searchParams.set(key, value);
-    return url.pathname + url.search;
+    return withObservation(url.href,location.href,assetId);
   }
   const spanText = (span: Span) => span.to - span.from < 1000 ? recorded(new Date(span.from).toISOString())
     : recorded(new Date(span.from).toISOString()) + " ~ " + recorded(new Date(span.to).toISOString());

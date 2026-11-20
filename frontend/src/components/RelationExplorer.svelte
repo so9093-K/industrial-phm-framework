@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -65,7 +66,7 @@
     const params={...windowParams(momentWindow(middle,length),{from:middle,to:middle}),
       ...focusParams({source:pair.source,point:pair.point,interpretation:(channel===x?pair.xMeaning:pair.yMeaning)??undefined})};
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
-    return url.pathname+url.search;
+    return withObservation(url.href,location.href,assetId);
   }
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
@@ -155,7 +156,7 @@
       if(!periods)throw new Error("비교 기간을 선택하세요.");
       const frozen:Periods={a:{...periods.a},b:{...periods.b}};
       validatePeriods(frozen);
-      const response=await readRelation(assetId,x,y,frozen,req.signal);
+      const response=await readRelation(assetId,x,y,frozen,req.signal,observationSnapshot(new URLSearchParams(location.search),assetId));
       if(req.signal.aborted)return;
       relation=response;resultState=pairs.length?"ready":"empty";
       remember();

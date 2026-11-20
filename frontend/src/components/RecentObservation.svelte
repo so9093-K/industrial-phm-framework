@@ -2,7 +2,8 @@
   import {untrack,onDestroy} from "svelte";
   import {groupHistory,readSignalNames,signalName,signalChart,type SignalNames,type HistoryStream,type TrendWindow} from "../history";
   import {readObservation,readWindow,receiptStatus,observationLink,type Observation} from "../observation";
-  import {pickFrom,summarize,type Span} from "../signal-selection";
+  import {observationOrigin} from "../observation-context";
+  import {summarize,type Span} from "../signal-selection";
   import {clockText} from "../asset-timeline";
   import {measure} from "../chart-axis";
   import type {Source} from "../operations-status";
@@ -12,16 +13,16 @@
     sourceReadable:boolean;cycle:number;preferred?:string|null;observed:(at:string|null)=>string}=$props();
   const params=new URLSearchParams(location.search);
   const initialStream=untrack(()=>stream),initialPreferred=untrack(()=>preferred);
-  const initialWindow=params.get("observation_follow")==="paused"?readWindow(params.get("monitor_from"),params.get("monitor_to")):null;
+  const origin=observationOrigin(params,untrack(()=>assetId));
+  const initialWindow=origin?.window??null;
   const ranges=[{id:"15m",label:"15분"},{id:"1h",label:"1시간"},{id:"24h",label:"24시간"}];
-  let channel=$state(params.has("monitor_channel")?params.get("monitor_channel")!:initialPreferred&&initialStream.channels.includes(initialPreferred)?initialPreferred:initialStream.channels[0]);
+  let channel=$state(origin?.channel??(params.has("observation_channel")?params.get("observation_channel")!:initialPreferred&&initialStream.channels.includes(initialPreferred)?initialPreferred:initialStream.channels[0]));
   let range=$state(ranges.some(r=>r.id===params.get("observation_range"))?params.get("observation_range")!:"1h");
   let window:TrendWindow|null=$state(initialWindow);
   let following=$state(initialWindow===null);
-  const initialSnapshot=Number(params.get("observation_snapshot"));
-  let snapshot:number|null=$state(initialWindow&&params.has("observation_snapshot")&&Number.isSafeInteger(initialSnapshot)&&initialSnapshot>=0?initialSnapshot:null);
+  let snapshot:number|null=$state(origin?.snapshot??null);
   let reference:TrendWindow|null=$state(readWindow(params.get("observation_reference_from"),params.get("observation_reference_to")));
-  let picked:Span|null=$state(initialWindow?pickFrom(params.get("monitor_pick")):null);
+  let picked:Span|null=$state(origin?.selection??null);
   let anchor:"now"|"latest"=$state(params.get("observation_anchor")==="now"||(!params.has("observation_anchor")&&Date.parse(initialStream.endAt)>Date.now()-3600_000)?"now":"latest");
   let read:Observation|null=$state(null),names:SignalNames=$state(new Map()),loading=$state(false),error=$state("");
   let request:AbortController|null=null,loadedKey="";
@@ -39,10 +40,10 @@
   function remember(){
     const url=new URL(location.href),q=url.searchParams;
     q.set("observation_view","recent");q.set("observation_follow",following?"following":"paused");q.set("observation_range",range);q.set("observation_anchor",anchor);
-    q.set("monitor_channel",channel);q.set("monitor_source",stream.sourceId);q.set("monitor_point",stream.pointId??"");
-    if(window){q.set("monitor_range","window");q.set("monitor_from",window.from);q.set("monitor_to",window.to);}else{q.delete("monitor_from");q.delete("monitor_to");q.set("monitor_range",range);}
+    q.set("observation_asset",assetId);q.set("observation_channel",channel);q.set("observation_source",stream.sourceId);q.set("observation_point",stream.pointId??"");
+    if(window){q.set("observation_from",window.from);q.set("observation_to",window.to);}else{q.delete("observation_from");q.delete("observation_to");}
     if(snapshot!==null)q.set("observation_snapshot",String(snapshot));else q.delete("observation_snapshot");
-    if(picked){q.set("monitor_pick",new Date(picked.from).toISOString()+"~"+new Date(picked.to).toISOString());}else q.delete("monitor_pick");
+    if(picked){q.set("observation_pick",new Date(picked.from).toISOString()+"~"+new Date(picked.to).toISOString());}else q.delete("observation_pick");
     for(const [key,value] of [["observation_reference_from",reference?.from],["observation_reference_to",reference?.to]] as const){if(value)q.set(key,value);else q.delete(key);}
     history.replaceState(history.state,"",url);
   }

@@ -113,6 +113,15 @@ def _one(query: dict[str, list[str]], name: str) -> str:
     return value
 
 
+def _snapshot(query: dict[str, list[str]], history: DuckLakeAssetHistory) -> int:
+    value = (query.get("snapshot") or ["latest"])[0]
+    if value == "latest":
+        return history.current_snapshot_id()
+    if not value.isascii() or not value.isdigit():
+        raise ValueError("invalid snapshot")
+    return int(value)
+
+
 def _instant(query: dict[str, list[str]], name: str) -> datetime:
     value = datetime.fromisoformat(_one(query, name).replace("Z", "+00:00"))
     if value.utcoffset() is None:
@@ -181,6 +190,7 @@ def handle_explore_read(
                 (name, _instant(query, f"{name}_from"), _instant(query, f"{name}_to"))
                 for name in ("a", "b")
             ]
+            snapshot_id = _snapshot(query, history)
             # How the source ran in each period, and, when asked, only one level compared.
             focus = query.get("level_source")
             operation = comparison_operation(
@@ -189,6 +199,7 @@ def handle_explore_read(
                 periods,
                 source_id=focus[0] if focus else None,
                 point_id=(query.get("level_point") or [""])[0] or None if focus else None,
+                snapshot_id=snapshot_id,
             )
             band = int(_one(query, "level")) if "level" in query else None
             if band is not None and operation is None:
@@ -198,6 +209,7 @@ def handle_explore_read(
                 channel_ids=series,
                 periods=periods,
                 level=operation[1].bounds(band) if operation and band is not None else None,
+                snapshot_id=snapshot_id,
             )
             body = history_series(profiles, periods)
             ranges: dict[str, dict[str, Any]] = {
@@ -205,6 +217,7 @@ def handle_explore_read(
                 for name, start, end in periods
             }
             extra: dict[str, Any] = {
+                "snapshot_id": snapshot_id,
                 "operation": operation[0] if operation else None,
                 "level": band,
             }
@@ -274,13 +287,19 @@ def _relation_or_spectrum(
         if history is None:
             raise LookupError("no stored measurement history")
         x, y = _one(query, "x"), _one(query, "y")
+        snapshot_id = _snapshot(query, history)
         groups = history.query_measurement_pairs(
-            asset_id, x_channel=x, y_channel=y, periods=_time_periods(query)
+            asset_id,
+            x_channel=x,
+            y_channel=y,
+            periods=_time_periods(query),
+            snapshot_id=snapshot_id,
         )
         return body | {
             "x": x,
             "y": y,
             "groups": history_relation(groups, x, y),
+            "snapshot_id": snapshot_id,
             "pairing": "same-source-point-and-timestamp",
         }
     if kind != "acquisition":

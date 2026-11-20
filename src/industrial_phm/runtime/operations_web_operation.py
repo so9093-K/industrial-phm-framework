@@ -78,6 +78,8 @@ def stream_levels(
     current: dict[str, Any],
     start: datetime,
     end: datetime,
+    *,
+    snapshot_id: int | None = None,
 ) -> OperatingLevels:
     """Operating levels of a source from its chosen current over a range.
 
@@ -94,7 +96,7 @@ def stream_levels(
     Raises:
         LookupError: The current holds no usable value in the range.
     """
-    return _levels(_reader(history, asset_id, current, start, end))
+    return _levels(_reader(history, asset_id, current, start, end, snapshot_id=snapshot_id))
 
 
 def stream_operation(
@@ -118,6 +120,8 @@ def _reader(
     record: dict[str, Any],
     start: datetime,
     end: datetime,
+    *,
+    snapshot_id: int | None = None,
 ) -> Callable[..., ValueOccupancy]:
     def occupancy(edges: Sequence[float], buckets: int = 1) -> ValueOccupancy:
         return history.query_value_occupancy(
@@ -128,6 +132,7 @@ def _reader(
             interpretation_json=record["interpretation"],
             start_at=start,
             end_at=end,
+            snapshot_id=snapshot_id,
             edges=edges,
             bucket_count=buckets,
         )
@@ -251,7 +256,11 @@ _SOURCE_LEVELS: dict[tuple[str, ...], tuple[tuple[str, str], OperatingLevels] | 
 
 
 def source_levels(
-    history: DuckLakeAssetHistory, asset_id: str, stream: HistoryStream
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    stream: HistoryStream,
+    *,
+    snapshot_id: int | None = None,
 ) -> tuple[tuple[str, str], OperatingLevels] | None:
     """The current a source's operating levels are read from, and the levels.
 
@@ -271,6 +280,7 @@ def source_levels(
         stream.measurement_point_id or "",
         stream.start_at.isoformat(),
         stream.end_at.isoformat(),
+        str(snapshot_id),
     )
     if key in _SOURCE_LEVELS:
         return _SOURCE_LEVELS[key]
@@ -281,6 +291,7 @@ def source_levels(
         measurement_point_id=stream.measurement_point_id,
         start_at=start,
         end_at=end,
+        snapshot_id=snapshot_id,
     )
     labels = {f"{channel}\0{meaning}": (channel, meaning) for channel, meaning in meanings}
     main = main_current([(name, display_unit(*pair), pair[1]) for name, pair in labels.items()])
@@ -294,7 +305,10 @@ def source_levels(
             "interpretation": meaning,
         }
         try:
-            found = (labels[main], stream_levels(history, asset_id, current, start, end))
+            found = (
+                labels[main],
+                stream_levels(history, asset_id, current, start, end, snapshot_id=snapshot_id),
+            )
         except LookupError:
             found = None
     if len(_SOURCE_LEVELS) > 256:
@@ -310,6 +324,7 @@ def comparison_operation(
     *,
     source_id: str | None = None,
     point_id: str | None = None,
+    snapshot_id: int | None = None,
 ) -> tuple[dict[str, Any], ProfileLevelSource] | None:
     """How the source ran in each compared period, and what a level filter reads from.
 
@@ -326,12 +341,14 @@ def comparison_operation(
     """
     streams = [
         stream
-        for stream in history.list_history_streams(asset_id)
+        for stream in history.list_history_streams(asset_id, snapshot_id=snapshot_id)
         if source_id is None
         or (stream.source_id, stream.measurement_point_id) == (source_id, point_id)
     ]
     found = [
-        (stream, read) for stream in streams if (read := source_levels(history, asset_id, stream))
+        (stream, read)
+        for stream in streams
+        if (read := source_levels(history, asset_id, stream, snapshot_id=snapshot_id))
     ]
     if len(found) != 1:
         return None
@@ -346,6 +363,7 @@ def comparison_operation(
             interpretation_json=meaning,
             start_at=start,
             end_at=end,
+            snapshot_id=snapshot_id,
             edges=levels.edges,
         )
         counts = occupancy.buckets[0].counts if occupancy.buckets else ()
