@@ -243,8 +243,7 @@
 
   {#if dataset}
     {@const kinds = [...new Set(Object.values(dataset.detail))]}
-    <DatasetSchematic kind={dataset.key} equipment={dataset.key === "aihub-239" && kinds.length === 1 ? kinds[0] : null}
-      watching={legend ? legend.label + (legend.series.length > 1 ? "(" + legend.series.map(row => row.short.replace(/상$/, "")).join("·") + ")" : "") : null}/>
+    <DatasetSchematic kind={dataset.key} equipment={dataset.key === "aihub-239" && kinds.length === 1 ? kinds[0] : null}/>
     <div class="toolbar">
       {#if counts.stored}
         <div class="transport" aria-label="저장 기록 재생">
