@@ -3,7 +3,7 @@
   import {vibrationLinks} from "../vibration-findings";
   import {assetTabUrl, tabSelectionUrl} from "../routes";
   import type {EvidenceFocus} from "../change-evidence";
-  let {assetId, focus, modelHref = null}: {assetId: string; focus: EvidenceFocus; modelHref?: string | null} = $props();
+  let {assetId, focus}: {assetId: string; focus: EvidenceFocus} = $props();
   const links = $derived.by(() => {
     if (focus.kind === "history") {
       const own = findingLinks(assetId, focus.item, focus.record.baseline, focus.record.bucketSeconds, focus.record.record);
@@ -16,7 +16,6 @@
   const rows = $derived([
     {label: "변화 구간 비교", href: links.compare, primary: true},
     {label: "원본 신호", href: links.signal},
-    {label: "모델 반응", href: modelHref},
     {label: "주파수", href: links.spectrum},
     {label: "신호 관계", href: links.relation},
     {label: "전망·예상 여유", href: links.outlook},

@@ -1,7 +1,6 @@
-/** 설비 시간축: 한 설비에서 찾은 변화, 그때의 운전 상태, 모델 반응을 같은 가로축에 모은다.
+/** 설비 시간축: 한 설비에서 찾은 변화, 그때의 운전 상태을 같은 가로축에 모은다.
  * 시간이 겹치는 변화는 한 시기로 묶어, 무엇이 먼저였고 무엇이 함께 변했는지 그래프에서 보이게 한다.
- * 새 계산은 하지 않는다. 서버가 준 변화 구간·운전 수준 시간표·모델 점수를 배치만 한다. */
-import type {ScoreTrend} from "./model-trend.ts";
+ * 새 계산은 하지 않는다. 서버가 준 변화 구간·운전 수준 시간표를 배치만 한다. */
 import type {LevelNames} from "./record-findings.ts";
 
 export type Span = {from: number; to: number};
@@ -15,10 +14,6 @@ export type TimelineLane = {
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
   values?: {before:number|null;after:number|null;latest:{value:number;at:number}|null};
-};
-/** 같은 기록을 분석한 모델 하나: 점수 기록과, 변화가 모델이 거의 본 적 없는 운전 상태에서 일어났는지. */
-export type TimelineModel = {
-  key: string; name: string; trend: ScoreTrend; divisor: number; count: string; unfamiliar: string | null;
 };
 export type TimelineOperation = {names: LevelNames; columns: (Span & {shares: number[]})[]};
 /** 시간이 겹치는 변화를 한 시기로 묶는다. 시기는 시작 순서이고, 시기 안의 변화도 시작 순서다. */
@@ -39,7 +34,7 @@ export function focusWindow(record: Span, episode: Span): Span {
   return {from: Math.max(record.from, episode.from - 2 * length), to: Math.min(record.to, episode.to + 2 * length)};
 }
 /** 기록 전체에서 시기가 거의 보이지 않을 만큼(1/60 미만) 짧을 때만 확대해 시작한다. 그 밖에는 기록 전체가
- * 곧 맥락이다: 변화 전의 흐름, 운전 상태가 바뀐 때, 모델의 학습 기간이 한 화면에 보인다. */
+ * 곧 맥락이다: 변화 전의 흐름, 운전 상태가 바뀐 때, 측정값의 변화 양상을 한 화면에 보여 준다. */
 export function startsZoomed(record: Span, episode: Span): boolean {
   return episode.to - episode.from < (record.to - record.from) / 60;
 }

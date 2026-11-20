@@ -4,7 +4,6 @@
 import {object, subject, withAnd} from "./change-story.ts";
 import {worseThanPersistence} from "./forecast-fit.ts";
 import type {BandShare} from "./spectrum.ts";
-import type {RatioLine} from "./model-trend.ts";
 import {elapsedText} from "./time-axis.ts";
 import type {FeatureChange} from "./model-explanations.ts";
 
@@ -244,76 +243,6 @@ export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: 
     ? "기간마다 측정 " + Math.min(used.a, used.b) + "회만 비교해 우연일 수 있습니다."
     : "각 기간에서 고르게 고른 측정 " + used.a + "회·" + used.b + "회의 평균입니다.");
   return {headline, meaning: null, certainty: notes.join(" "), next};
-}
-
-export type ModelRead = {name: string; line: RatioLine};
-
-/** One model's crossings as observed: where and how many, and how its last analyzed measurement
- * stands. No word for a kind of run ("continuous", "one-off") is used: the run rule tolerates
- * measurements below the threshold, so such words would say more, or other, than was seen. */
-function modelState(read: ModelRead, place: (position: number) => string): string {
-  const {name, line} = read, story = line.story;
-  const top = line.points.length ? times(Math.max(...line.points.map((p) => p.ratio))) : null;
-  const latest = line.latest ? place(line.latest.position) : null;
-  const before = story.earlierCount
-    ? "그 전에도 " + story.earlierCount + "회" + (story.first && story.anchor && story.first.pointer.position < story.anchor.pointer.position
-      ? ", 처음 " + place(story.first.pointer.position) : "")
-    : "그 전에는 기준을 넘은 측정 없음";
-  if (story.state === "ongoing" && story.ongoing)
-    return name + " 점수는 " + place(story.ongoing.start) + " 이후 기준을 " + story.ongoing.steps + "회 넘었고, 마지막으로 분석한 "
-      + (latest ?? "측정") + "은 기준 " + (story.lastExceeds === false ? "이하" : "초과") + "입니다(" + before
-      + (top ? ", 가장 높을 때 기준의 " + top : "") + ")";
-  if (story.state === "latest" && story.anchor)
-    return name + " 점수는 마지막으로 분석한 " + place(story.anchor.pointer.position) + "에서 기준을 넘었습니다(" + before + ")";
-  if (story.state === "below" && story.anchor)
-    return name + " 점수는 마지막으로 분석한 " + (latest ?? "측정") + "에서 기준 이하입니다(그 전 기준 초과 " + (story.earlierCount + 1)
-      + "회, 마지막 " + place(story.anchor.pointer.position) + ")";
-  return name + " 점수는 분석한 " + line.analyzed + "회 중 기준을 넘은 측정이 없습니다" + (top ? "(가장 높을 때 기준의 " + top + ")" : "");
-}
-
-/** Where the models' crossings start, so the next look goes to that measurement. */
-export function modelOnset(reads: ModelRead[]): number | null {
-  const starts = reads.flatMap((read) => read.line.story.state === "ongoing" && read.line.story.ongoing
-    ? [read.line.story.ongoing.start] : read.line.story.anchor ? [read.line.story.anchor.pointer.position] : []);
-  return starts.length ? Math.min(...starts) : null;
-}
-
-export function modelMessage(reads: ModelRead[], place: (position: number) => string,
-  next: NextStep[] = []): AnalysisMessage | null {
-  const drawn = reads.filter((read) => read.line.points.length);
-  if (!drawn.length) return null;
-  const states = drawn.map((read) => modelState(read, place));
-  // "Now" is the latest analyzed measurement only. A run the model still holds open within its
-  // allowed gap can end on a measurement below the threshold; that is told per model, not as now.
-  // Each model's trend is read on its own, so their last analyzed measurements can differ; only
-  // the same measurement lets "the latest" be compared across models.
-  const lasts = drawn.map((read) => read.line.latest?.position ?? null);
-  const aligned = lasts.every((position) => position !== null && position === lasts[0]);
-  const now = drawn.filter((read) => read.line.story.lastExceeds === true);
-  const crossed = drawn.filter((read) => read.line.story.state !== "none");
-  const lead = drawn.length === 1 ? ""
-    : !aligned ? "모델마다 마지막으로 분석한 측정이 달라("
-      + drawn.map((read) => read.name + " " + (read.line.latest ? place(read.line.latest.position) : "분석 없음")).join(", ")
-      + ") 같은 최근 측정에서 견줄 수 없습니다. 각 모델의 마지막 분석 기준으로 보면 "
-    : !now.length ? "최근 측정에서 기준을 넘은 모델은 없습니다. "
-    : now.length === drawn.length ? "모든 모델이 최근 측정에서 기준을 넘고 있습니다. "
-    : "같은 최근 측정에서 모델마다 판단이 다릅니다. ";
-  const headline = lead + states.join(", ") + ".";
-  let certainty: string;
-  if (drawn.length === 1) certainty = "모델 하나의 결과입니다. 같은 시점의 측정값 변화와 함께 확인해야 합니다.";
-  else if (!aligned)
-    certainty = "뒤쪽 측정을 아직 분석하지 않은 모델이 있을 수 있습니다. 같은 측정의 판단은 그래프의 같은 측정 위치에서 비교할 수 있습니다.";
-  else if (now.length && now.length < drawn.length)
-    certainty = "최근 측정에서 일부 모델만 기준을 넘어 이 결과만으로는 어느 쪽이 맞는지 알 수 없습니다. 같은 시점에 측정값도 달라졌는지 확인하세요.";
-  else if (now.length) {
-    const starts = now.map((read) => read.line.story.ongoing?.start ?? read.line.story.anchor!.pointer.position);
-    certainty = Math.max(...starts) - Math.min(...starts) <= 3
-      ? "서로 다른 모델이 같은 무렵(" + place(Math.min(...starts)) + ")부터 기준을 넘어, 한 모델만의 반응이 아닙니다."
-      : "모델마다 기준을 넘기 시작한 때가 달라, 먼저 반응한 " + place(Math.min(...starts)) + "부터 확인하세요.";
-  } else if (crossed.length)
-    certainty = "최근 측정은 모든 모델에서 기준 아래지만, 그 전에 기준을 넘은 구간이 있습니다. 그 구간의 측정값도 함께 확인해야 합니다.";
-  else certainty = "모델 기준 아래라도 측정값 자체가 달라졌는지는 따로 확인하세요.";
-  return {headline, meaning: null, certainty, next};
 }
 
 export type OutlookReach = {state: string; expected: number | null; earliest: number | null; latest: number | null};

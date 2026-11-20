@@ -94,7 +94,7 @@
   let resultRequest:AbortController|null=null;
   const clock=(raw:string|null)=>raw?new Date(raw).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
-  let inputOpen=$state(false);
+  let inputOpen=$state(false),comparisonOpen=$state(false);
   async function showSelectedInput() {
     followLatest = false;
     inputOpen=true;
@@ -322,33 +322,29 @@
   {:else}
     {#if binding}
       <div class="analysis-workspace model-workspace"><div class="model-toolbar">
-      <nav class="model-choice" aria-label="적용 모델">{#each bindings as model(model.bindingId)}<button type="button" class="ui-button" aria-pressed={model.bindingId===selectedBinding} onclick={()=>void chooseBinding(model.bindingId,true)}>{names.get(model.bindingId)}</button>{/each}</nav>
-      <AnalysisControls title="모델 설정">{#snippet children(close)}{#if binding}
-    {#if bindings.length>1}
-      <label class="selector">적용 모델
-        <select value={selectedBinding} onchange={e=>{close();void chooseBinding(e.currentTarget.value);}}>
-          {#each bindings as item(item.bindingId)}
-            <option value={item.bindingId}>{names.get(item.bindingId)} · 데이터 출처 {readableSourceId(item.sourceId,bindings.map(each=>each.sourceId))}</option>
-          {/each}
+      <label class="model-choice">이상 탐지 모델
+        <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value,true)}>
+          {#each bindings as model(model.bindingId)}<option value={model.bindingId}>{names.get(model.bindingId)}</option>{/each}
         </select>
       </label>
-    {/if}
+      <AnalysisControls title="모델 설정">{#snippet children()}{#if binding}
       <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
         · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
       {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
       {#if trace}
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
         <button type="button" class="ui-button" onclick={()=>{followLatest=!followLatest;if(followLatest)void poll();}}>{followLatest?"최신 결과 따라보기 멈추기":"최신 결과 따라보기"}</button></p>
-        <details><summary>다른 모델의 결과와 비교</summary>
-    {#if comparable.length>1}
-      {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
-        <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} selectedPosition={selectedStep?.position??null} place={timelinePlace} {period}
-          onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
-      {/key}
-    {/if}
-        </details>
       {/if}
-      {/if}{/snippet}</AnalysisControls></div>
+      {/if}{/snippet}</AnalysisControls>
+      {#if comparable.length>1}<button type="button" class="ui-button" onclick={()=>comparisonOpen=true}>다른 모델과 비교</button>{/if}
+      <TaskDialog bind:open={comparisonOpen} title="같은 측정의 다른 모델 결과">
+        {#if comparisonOpen&&comparable.length>1}
+          {#key comparable.map(item=>item.bindingId+":"+item.lastProcessed).join(",")}
+            <ModelScoreOverlay bindings={comparable} {names} selected={selectedBinding} selectedPosition={selectedStep?.position??null} place={timelinePlace} {period}
+              onChoose={id=>{if(id!==binding?.bindingId)void chooseBinding(id,true);}} onPick={pick}/>
+          {/key}
+        {/if}
+      </TaskDialog></div>
     <div class="analysis-body">
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
@@ -478,7 +474,7 @@
 <style>
   .model-toolbar{grid-column:1/-1;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
   .model-toolbar :global(.analysis-controls){flex:none;margin:0;margin-left:auto}
-  .model-choice{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+  .model-choice{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);font-size:var(--font-small)}.model-choice select{min-width:200px}
   /* 모델 곡선과 선택 측정의 비교를 한 작업 영역에서 읽는다. */
   .model-workspace{grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr);gap:var(--space-5)}
   .model-workspace>.analysis-body{grid-column:1;grid-row:2}

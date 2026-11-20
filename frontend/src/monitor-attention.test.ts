@@ -181,7 +181,7 @@ test("windows ending together are combined only when their measured intervals ma
 test("short equipment statuses combine only models of the same measured input",()=>{
   const first=model({binding_id:"a",latest_analyzed:{position:123,output:{exceeds_threshold:true}}});
   const second=model({binding_id:"b",latest_analyzed:{position:123,output:{exceeds_threshold:false}}});
-  assert.equal(modelFact(monitor(first,second).models,true),"마지막 분석 · 모델 2개 중 1개 기준 초과");
+  assert.equal(modelFact(monitor(first,second).models,true),"마지막 분석 · 기준 초과 결과 있음");
   assert.equal(modelFact(monitor(first,{...second,latest_analyzed:{position:120,output:{exceeds_threshold:false}}}).models,true),"모델마다 분석한 측정이 다름");
   assert.equal(modelFact(monitor(first,{...second,source_id:"another-source"}).models,true),"모델마다 분석한 측정이 다름");
   assert.equal(modelFact(monitor(second).models,true),"마지막 분석 · 모델 기준 이하");

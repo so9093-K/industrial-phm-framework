@@ -2,17 +2,16 @@
   import type {Snippet} from "svelte";
   import XAxis from "./XAxis.svelte";
   import PlotCursor from "./PlotCursor.svelte";
-  import ModelScoreTracks from "./ModelScoreTracks.svelte";
   import ChangeNumbers from "./ChangeNumbers.svelte";
   import {measure,niceTicks} from "../chart-axis";
   import {measurementScale} from "../time-axis";
   import {bandName} from "../record-findings";
   import {versusStart} from "../change-story";
-  import {clockText,focusWindow,spanText,startsZoomed,valueAt,visiblePoints,type Span,type TimelineLane,type TimelineModel,type TimelineOperation} from "../asset-timeline";
-  /** One observation first; more signals and model curves are an explicit comparison. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,models=[],periodSeconds=null,selected=null,onSelect,onFocus,actions}:{
+  import {clockText,focusWindow,spanText,startsZoomed,valueAt,visiblePoints,type Span,type TimelineLane,type TimelineOperation} from "../asset-timeline";
+  /** The observation and its operating conditions share a time axis. */
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,periodSeconds=null,selected=null,onSelect,onFocus,actions}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
-    episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;models?:TimelineModel[];
+    episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
     actions?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void}=$props();
   const W=1000;
   let zoomed=$state(false),comparing=$state(false);
@@ -47,7 +46,7 @@
   {#if actions}{@render actions()}{/if}
   <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={()=>zoomed=false}>기록 전체</button><button type="button" aria-pressed={zoomed} onclick={()=>zoomed=true}>변화 구간 확대</button></div>
     {#if episodes.length>1}<div class="choices" role="group" aria-label="변화 시기">{#each episodes as item(item.label)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}</div>{/if}
-    <button type="button" class="compare-toggle" aria-pressed={comparing} onclick={()=>comparing=!comparing}>{comparing?"선택 신호만 보기":"관련 신호·모델 함께 보기"}</button>
+    <button type="button" class="compare-toggle" aria-pressed={comparing} onclick={()=>comparing=!comparing}>{comparing?"선택 신호만 보기":"관련 신호 함께 보기"}</button>
   </div>
   {#each displayed as lane(lane.key)}{@const height=lane.focus?230:130}{@const drawing=shape(lane,height)}
     {#if comparing}<div class="lane-heading"><strong>{lane.label}</strong><span>{lane.numbers}</span></div>{/if}
@@ -66,7 +65,6 @@
   {#if comparing}
     {#if operation}<div class="lane-heading"><strong>운전 수준</strong><span>{operation.names.levels.map((_,i)=>bandName(operation.names,i+1)).join(" · ")}</span></div>
       <div class="chart"><div></div><svg viewBox={"0 0 "+W+" 32"} style:height="32px" preserveAspectRatio="none" role="img" aria-label="같은 시각의 운전 수준 비율">{#each operation.columns.filter(c=>c.to>=lo&&c.from<=hi) as col(col.from)}{@const width=Math.max(1,clamp(col.to)-clamp(col.from))}{#each col.shares as share,i(i)}<rect x={clamp(col.from)} width={width} y={col.shares.slice(0,i).reduce((a,b)=>a+b,0)*32} height={share*32} fill="var(--color-action)" opacity={i===0?.06:.25+.75*i/col.shares.length}/>{/each}{/each}</svg></div>{/if}
-    {#if models.length}<div class="chart"><div></div><ModelScoreTracks {models} {lo} {hi} selected={at} {onSelect} range={focused.interval}/></div>{/if}
   {:else if related.length}<div class="related" aria-label="같은 시기에 달라진 신호"><h3>같은 시기의 다른 변화</h3>{#each related as lane(lane.key)}<button type="button" onclick={()=>onFocus?.(lane.key)}><strong>{lane.label}</strong><span>{span(lane.interval)}</span><small>{lane.numbers}</small></button>{/each}</div>{/if}
   {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
 </section>

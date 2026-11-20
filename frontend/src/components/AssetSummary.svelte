@@ -6,7 +6,7 @@
   import DecisionPanel from "./DecisionPanel.svelte";
   import OperationLevels from "./OperationLevels.svelte";
   import AssetTimeline from "./AssetTimeline.svelte";
-  import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineModel, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
+  import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
   import {readAcquisitionTrend} from "../acquisition-trend";
   import {readChangeReviews} from "../change-reviews";
   import {DECISION_LABEL} from "../review-writes";
@@ -15,11 +15,6 @@
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount,untrack} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
-  import {isTimeWindow, loadLatestScores, modelName, type LatestScore} from "../model-evidence";
-  import {readScoreTrend, type ScoreTrend} from "../model-trend";
-  import {readModelOperation} from "../model-operation";
-  import {modelAtChange, rareAtChange} from "../model-context";
-  import type {ModelOperation} from "../model-operation";
   import {measurementLabel} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
   import type {AssetData} from "../asset-data";
@@ -48,9 +43,6 @@
       + data.vibration.first + "~" + data.vibration.last + "번째)");
     return parts.length ? parts.join(" · ") : "분석할 저장 데이터 없음";
   });
-  let scores: LatestScore[] = $state([]);
-  let scoresState:"loading"|"ready"|"failed"=$state("loading");
-  let histories: Record<string, "loading" | "failed" | {trend: ScoreTrend; operation: ModelOperation | null}> = $state({});
   // The same items 관측 현황 lists for this asset; null while unread or unreadable.
   let notes: Note[] | null = $state(null);
   let notesState: AttentionState = $state("loading");
@@ -161,30 +153,6 @@
       &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
     if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current));
   });
-  const focusSpan = $derived.by(() => {
-    const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
-    if (shown?.kind === "history" && history?.intervals[shown.index]) {
-      const item = history.intervals[shown.index];
-      const own = item.operation ? history.operation.find(entry => entry.key === item.operation?.key) : undefined;
-      return {axis: "time" as const, from: Date.parse(item.start), to: Date.parse(item.end), sourceId: item.context?.sourceId ?? null,
-        condition: own && item.band != null ? bandName(own, item.band) : null,
-        pointId: item.context?.pointId ?? null, label: findingText(item, item.bucketSeconds ?? history.bucketSeconds).when};
-    }
-    if (shown?.kind === "vibration" && measured?.intervals[shown.index]) {
-      const change = measured.intervals[shown.index];
-      return {axis: "acquisition" as const, from: change.from, to: change.to, sourceId: null, pointId: null, condition: null,
-        label: vibrationPlace(change.from) + " ~ " + vibrationPlace(change.to)};
-    }
-    return null;
-  });
-  /** 이 모델이 가운데 변화와 같은 기록을 분석했는지: 시계열 모델은 같은 출처·위치, 진동 모델은 진동 변화. */
-  function readsFocus(binding: LatestScore["binding"]): boolean {
-    const span = focusSpan;
-    if (!span) return false;
-    if (span.axis === "time") return isTimeWindow(binding.stepKind) && binding.sourceId === span.sourceId && (binding.pointId ?? null) === span.pointId;
-    return !isTimeWindow(binding.stepKind) && binding.pointId===null && (vibration?.sourceId
-      ?binding.sourceId===vibration.sourceId:binding.bindingId===vibration?.bindingId);
-  }
   // 설비 시간축: 고른 변화와 시간이 겹치는 변화를 한 시기로 묶어 같은 가로축에 쌓는다.
   type Item = {key: string; pick: Pick; span: Span};
   const items = $derived.by((): Item[] => {
@@ -317,25 +285,8 @@
     return () => request.abort();
   });
   onMount(() => {
-    const request = new AbortController();
-    void loadLatestScores(asset.assetId, request.signal).then((value) => {
-      if (request.signal.aborted) return;
-      scores = value;
-      scoresState="ready";
-      // 최근 결과 하나만으로는 모델이 기록 전체와 이 변화 구간을 어떻게 봤는지 알 수 없어, 점수 기록도 읽는다.
-      for (const item of value) {
-        const id = item.binding.bindingId;
-        histories = {...histories, [id]: "loading"};
-        void Promise.all([readScoreTrend(item.binding, request.signal),
-          isTimeWindow(item.binding.stepKind) ? readModelOperation(id, request.signal)
-            .catch(() => new Promise(done => setTimeout(done, 2000)).then(() => readModelOperation(id, request.signal))).catch(() => null)
-            : Promise.resolve(null)])
-          .then(([trend, operation]) => { if (!request.signal.aborted) histories = {...histories, [id]: {trend, operation}}; })
-          .catch(() => { if (!request.signal.aborted) histories = {...histories, [id]: "failed"}; });
-      }
-    }).catch(() => { if(!request.signal.aborted)scoresState="failed"; });
     void readNotes();
-    return () => {request.abort();noteRequest?.abort();};
+    return () => noteRequest?.abort();
   });
   // 근거를 찾을 변화: 가운데에 보이는 바로 그 변화.
   const evidenceFocus = $derived.by((): EvidenceFocus | null => {
@@ -348,39 +299,6 @@
     if (shown?.kind === "vibration" && measured?.intervals[shown.index])
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
-  });
-  const modelDestination = $derived.by(():string|null => {
-    const span=focusSpan;
-    if(!span)return null;
-    const candidates=scores.filter(item=>readsFocus(item.binding)).flatMap(item=>{
-      const read=histories[item.binding.bindingId];
-      if(typeof read!=="object")return [];
-      return read.trend.points.filter(point=>{
-        const at=span.axis==="time"?point.pointer.position/1000:point.pointer.position;
-        return point.pointer.state==="analyzed" && point.score!==null && span.from<=at && at<=span.to;
-      }).map(point=>({binding:item.binding.bindingId,position:point.pointer.position,exceeds:point.exceeds===true}));
-    // 모델 반응은 변화 구간에서 모델이 처음 기준을 넘은 측정에서 연다. 넘은 적이 없으면 처음 분석한 측정.
-    }).sort((a,b)=>Number(b.exceeds)-Number(a.exceeds) || a.position-b.position || a.binding.localeCompare(b.binding));
-    const first=candidates[0];
-    if(!first)return null;
-    const url=new URL(assetTabUrl(asset.assetId,"anomaly","model"),location.origin);
-    url.searchParams.set("model_binding",first.binding);url.searchParams.set("model_position",String(first.position));
-    return url.pathname+url.search;
-  });
-  // 시간축의 모델 줄: 고른 변화와 같은 기록을 분석한 모델마다 점수 기록, 학습 기간, 학습 기간과 변화 구간의 운전 수준 비율.
-  const timelineModels = $derived.by((): TimelineModel[] => {
-    const span = focusSpan, group = current;
-    if (!span || !group) return [];
-    return scores.filter(item => readsFocus(item.binding)).flatMap(item => {
-      const read = histories[item.binding.bindingId];
-      if (typeof read !== "object") return [];
-      const counts = modelAtChange(read.trend, span, span.axis);
-      // 사용자에게 필요한 것은 학습 기간이 아니라, 이 경보가 모델이 처음 보는 운전 상태 때문일 수 있는지다.
-      const rare = span.condition && read.operation ? rareAtChange(read.operation, span.condition) : null;
-      return [{key: item.binding.bindingId, name: modelName(item.binding), trend: read.trend, divisor: span.axis === "time" ? 1000 : 1,
-        count: "변화 구간 " + counts.analyzed + "회 중 " + counts.exceeded + "회 경보" + (read.trend.truncated ? " · 점수 기록 일부만 조회" : ""),
-        unfamiliar: rare !== null ? "모델이 거의 본 적 없는 운전 상태(" + span.condition!.replace(" 운전", "") + ")" : null}];
-    });
   });
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number];bindingId:string} | null} | null => {
@@ -426,7 +344,7 @@
 
 {#snippet actions()}
   <div class="investigation-actions">
-    {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus} modelHref={modelDestination}/>{/if}
+    {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus}/>{/if}
     {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} onCommitted={() => reviewRevision++}/>{/key}{/if}
   </div>
 {/snippet}
@@ -435,7 +353,7 @@
 <section class="ui-panel facts-panel" aria-label="고른 변화">
   {#if current && recordSpan && lanes.length}
     <AssetTimeline axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
-      episodes={episodeChoices} {actions} {lanes} operation={timelineOperation} models={timelineModels}
+      episodes={episodeChoices} {actions} {lanes} operation={timelineOperation}
       periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => selectedAt = at}
       onFocus={key => { const item = items.find(row => row.key === key); if (item) selectChange(item.pick); }} />
