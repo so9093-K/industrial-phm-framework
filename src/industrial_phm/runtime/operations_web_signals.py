@@ -149,6 +149,8 @@ def project_signal_history(
     snapshot_id: int | None = None,
     consistent: bool = False,
     reference_period: tuple[datetime, datetime] | None = None,
+    until: datetime | None = None,
+    auto_reference: bool = False,
 ) -> dict[str, object]:
     """Read one bounded multi-signal time window plus stored per-source last points.
 
@@ -178,9 +180,9 @@ def project_signal_history(
         if (consistent or reference_period is not None) and snapshot_id is None
         else snapshot_id
     )
-    end = snapshot.assessed_at
+    end = until or snapshot.assessed_at
     latest: list[dict[str, object]] = []
-    for channel in channel_ids:
+    for channel in channel_ids if until is None else ():
         for point in query_operations_latest_measurements(
             reader, asset_id, channel_id=channel, snapshot_id=selected_snapshot
         ):
@@ -229,6 +231,10 @@ def project_signal_history(
             start, end = extent[0], max(extent[1], extent[0]) + timedelta(seconds=1)
     else:
         start = end - RANGE_DURATIONS[range_preset]
+    if until is not None:
+        end = min(end, until)
+        if start >= end:
+            raise ValueError("window is after the replay position")
     agg = query_operations_multi_signal_measurement_aggregation(
         reader,
         asset_id,
@@ -250,7 +256,13 @@ def project_signal_history(
         raise OperationsReadError("too many historical groups; narrow the query")
 
     comparison = None
-    if reference_period is not None:
+    if auto_reference and reference_period is None and source_id is not None and restrict_point:
+        available = sorted((b for b in buckets if b.mean is not None), key=lambda b: b.bucket_start)
+        if available:
+            count = min(len(available), max(5, len(available) // 3))
+            reference_period = (available[0].bucket_start, available[count - 1].bucket_end)
+            comparison = _reference_changes(buckets, tuple(available[:count]), reference_period)
+    elif reference_period is not None:
         if source_id is None or not restrict_point or reference_period[1] > end:
             raise ValueError("reference must belong to one stream and end before the observation")
         reference = query_operations_multi_signal_measurement_aggregation(

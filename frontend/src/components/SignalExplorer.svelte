@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SignalGroupChart from "./SignalGroupChart.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TimeRange from "./TimeRange.svelte";
@@ -72,7 +73,7 @@
   const shownSources = $derived(trend ? groupHistory(trend).map((group) => group.sourceId) : []);
   const companionGroups = $derived.by(() => companions.flatMap((id) => {
     const read: HistoryTrend | undefined = companionTrends[id];
-    return read ? focusGroups(groupHistory(read), focus).map((group) => ({id, group})) : [];
+    return read ? focusGroups(groupHistory(read), focus?{source:focus.source,...("point" in focus?{point:focus.point}:{})}:null).map((group) => ({id, group})) : [];
   }));
   const unitOf = (id: string, group: HistoryGroup): string | null => group.unit ?? channels?.names.get(id)?.unit ?? null;
   // With companions every chart starts at one instant, and like units share one value range.
@@ -344,23 +345,6 @@
   </ValueAxis>
 {/snippet}
 
-{#snippet companionCharts(read: HistoryTrend)}
-{#if companionGroups.length}
-  <section class="companions" aria-labelledby="companions-title">
-    <h3 id="companions-title">함께 보는 신호 <small>{frame.range ? "같은 시간축 · 같은 세로 눈금" : "같은 시간축"}</small></h3>
-    {#each companionGroups as item (item.id + "\n" + item.group.key)}
-      {@const chart = signalChart(item.group, read.startAt, read.endAt, read.bucketSeconds, {...frame, height: 120})}
-      {@const unit = unitOf(item.id, item.group)}
-      <div class="companion">
-        <h4>{signalName(channels?.names, item.id)}{companionGroups.filter((other) => other.id === item.id).length > 1 ? " · " + sourceLabel(sources, item.group.sourceId, shownSources) : ""}</h4>
-        {#if chart}{@render plot(chart, "with\n" + item.id + "\n" + item.group.key, signalName(channels?.names, item.id), unit)}
-        {:else}<p class="context">이 기간에 그릴 평균값이 없습니다.</p>{/if}
-      </div>
-    {/each}
-  </section>
-{/if}
-{/snippet}
-
 {#snippet pick(group: HistoryGroup, span: Span, unit: string | null)}
   {@const now = summarize(group, span)}
   {@const before = grid && covers(grid, previousSpan(span)) ? summarize(group, previousSpan(span)) : null}
@@ -380,10 +364,11 @@
         <p class="context">바로 앞 같은 길이 기간에는 쓸 수 있는 측정이 없습니다.</p>
       {/if}
     {/if}
-    {#if companionGroups.length}<p class="with-values">같은 {single ? "시점" : "구간"}의 함께 보는 신호 평균 · {companionGroups.map(({id, group: other}) => {
-      const read = summarize(other, span);
-      return signalName(channels?.names, id) + " " + (read?.mean != null ? measure(read.mean, unitOf(id, other)) : "측정 없음");
-    }).join(" · ")}</p>{/if}
+    {#if companionGroups.length}<div class="with-values"><p>같은 {single?"시점":"구간"}의 관련 신호 평균</p><dl>
+      {#each companionGroups as item(item.id+item.group.key)}{@const read=summarize(item.group,span)}
+        <div><dt>{signalName(channels?.names,item.id)}</dt><dd>{read?.mean!=null?measure(read.mean,unitOf(item.id,item.group)):"측정 없음"}</dd></div>
+      {/each}
+    </dl></div>{/if}
     {#if grid && !covers(grid, span)}<p class="context">고른 {single ? "시점" : "구간"}의 일부가 지금 그래프 범위 밖이라 범위 안의 측정만 합했습니다.</p>{/if}
     {#if now&&(now.missing||now.nonGood||now.conflict)}<p class="context">결측 {now.missing} · 품질 불량 {now.nonGood} · 값 충돌 {now.conflict}</p>{/if}
     <div class="pick-actions">
@@ -494,13 +479,14 @@
         {@const shownUnit = group.unit ?? channels?.names.get(selectedChannel)?.unit}
         {@const context = [group.observedProperty ? propertyLabel(group.observedProperty) : null, shownUnit ? "단위 " + shownUnit : null].filter(Boolean)}
         <section class="series" aria-label={"측정 기록 · " + sourceLabel(sources, group.sourceId, shownSources)}>
-          <div class="series-heading"><h3>{signalName(channels?.names,selectedChannel)}</h3><span>{sources.get(group.sourceId)&&sources.get(group.sourceId)!==group.sourceId?sources.get(group.sourceId):sourceSummary(group.sourceId,shownSources)}{group.pointId?" · "+group.pointId:""}</span></div>
+          {#if groups.length>1}<div class="series-heading"><h3>{sources.get(group.sourceId)&&sources.get(group.sourceId)!==group.sourceId?sources.get(group.sourceId):sourceSummary(group.sourceId,shownSources)}{group.pointId?" · "+group.pointId:""}</h3></div>{/if}
           {#if chart}
             {@const unit = shownUnit ?? null}
             <div class="signal-reading" class:has-selection={!!picked}><div>
-            <p class="axis-note">최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>
-            {@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}
-            {#if index === 0}{@render companionCharts(trend)}{/if}
+            {#if index===0 && companionGroups.some(item=>item.group.sourceId===group.sourceId&&item.group.pointId===group.pointId)}
+              <SignalGroupChart series={[{id:selectedChannel,label:signalName(channels?.names,selectedChannel),unit:unit??null,group},...companionGroups.filter(item=>item.group.sourceId===group.sourceId&&item.group.pointId===group.pointId).map(item=>({id:item.id+":"+item.group.key,label:signalName(channels?.names,item.id),unit:unitOf(item.id,item.group),group:item.group}))]} from={trend.startAt} to={trend.endAt} bucketSeconds={trend.bucketSeconds} {picked} onPick={at=>{if(grid){picked=snapSpan(at,at,grid.from,grid.to,grid.step);rememberChannel();}}}/>
+              {#if grid?.step && grid.slots>1 && slots}<TimeRange slots={grid.slots} start={slots.start} end={slots.end} active={picked!==null} label={slotTime} onChange={scrubTo} onClear={()=>picked=null}/>{/if}
+            {:else}<p class="axis-note">{signalName(channels?.names,selectedChannel)} · 최고 {measure(chart.high, unit)} · 최저 {measure(chart.low, unit)}</p>{@render plot(chart, group.key, signalName(channels?.names, selectedChannel), unit)}{/if}
             </div>{#if picked}<aside class="reading-inspector">{@render pick(group,picked,unit)}</aside>{/if}</div>
           {:else}
             <p class="context">그릴 수 있는 평균값이 없습니다. 빠진 값을 0으로 채우지 않습니다.</p>
@@ -581,6 +567,7 @@
     border-radius: var(--radius-control);
   }
   .series { margin-block: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--color-border); }
+  .range-heading+.series{margin-top:0;padding-top:0;border-top:0}
   h3 { font-size: var(--font-body); overflow-wrap: anywhere; }
   svg { display: block; width: 100%; height: 200px; }
   .grid { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; vector-effect: non-scaling-stroke; }
@@ -618,13 +605,11 @@
   .with-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
   .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--space-1) var(--space-3); max-height: 16rem; overflow: auto; font-size: var(--font-small); }
   .choices label { display: flex; align-items: center; gap: var(--space-1); }
-  .companions { display: grid; gap: var(--space-2); margin-top: var(--space-4); }
-  .companions h3 small { font-weight: 400; color: var(--color-ink-muted); font-size: var(--font-small); }
-  .companion h4 { margin: var(--space-2) 0 var(--space-1); font-size: var(--font-small); }
   .with-values { margin: 0; overflow-wrap: anywhere; }
+  .with-values p{font-size:var(--font-label);color:var(--color-ink-muted)}.with-values dl{margin:4px 0 0;display:grid;gap:4px;font-size:var(--font-small)}.with-values dl>div{display:flex;justify-content:space-between;gap:8px}.with-values dd{margin:0;font-weight:650;font-variant-numeric:tabular-nums}
 
   .range-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2);margin-bottom:var(--space-3)}.range-heading p{margin:0;font-size:var(--font-small)}
-  .series-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-bottom:var(--space-2)}.series-heading h3{margin:0;font-size:var(--font-section)}.series-heading>span{font-size:var(--font-small);color:var(--color-ink-muted)}
+  .series-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-bottom:var(--space-2)}.series-heading h3{margin:0;font-size:var(--font-section)}
   .signal-reading{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-5);align-items:start}.signal-reading.has-selection{grid-template-columns:minmax(0,1fr) 290px}.signal-reading>div{min-width:0}
   .reading-inspector{border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}.reading-inspector .pick-value strong{display:block;font-size:var(--font-result)}.reading-inspector .pick-value>span{display:block;font-size:var(--font-small);color:var(--color-ink-muted)}
   .series-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2) var(--space-4);margin-top:var(--space-3);font-size:var(--font-small)}.plot-key{margin:var(--space-1) 0;font-size:var(--font-label);color:var(--color-ink-muted)}

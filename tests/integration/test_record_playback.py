@@ -1,0 +1,138 @@
+"""A replay position must not know measurements that arrived later in the record."""
+
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.runtime.operations_web_change_context import (
+    investigation_facts,
+    selected_change,
+)
+from industrial_phm.runtime.operations_web_change_review import capture_change
+from industrial_phm.runtime.operations_web_explore import record_findings
+from industrial_phm.runtime.operations_web_forecast import acquisition_points, history_points
+from industrial_phm.runtime.operations_web_vibration import acquisition_findings
+from tests.integration.test_operations_web_explore import _serve
+from tests.support.phm import analyze, deliver, phm_workspace
+
+BASE = datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+
+    def write(first: int, last: int, future: bool) -> None:
+        events = []
+        for index in range(first, last):
+            for channel, unit, value in (
+                ("current", "A", 1000.0 if future else 10.0),
+                (
+                    "voltage",
+                    "V",
+                    2000.0 if future else 220 + (10 if index >= 20 else 0) + index % 3 * 0.01,
+                ),
+            ):
+                events.append(
+                    FileBackfillEvent(
+                        raw_evidence_id=f"file:meter:{'a' * 64}:{channel}-{index}",
+                        source_id="meter",
+                        asset_id="compressor",
+                        channel_id=channel,
+                        source_file="meter.csv",
+                        source_sha256="a" * 64,
+                        source_size_bytes=10,
+                        sample_index=index,
+                        event_at=BASE + timedelta(minutes=index),
+                        value=value,
+                        source_metadata_json='{"binding":{"definition":{"unit":"' + unit + '"}}}',
+                    )
+                )
+        history.append_file_batch(tuple(events), batch_id=f"part-{first}")
+
+    write(0, 40, False)
+    until = BASE + timedelta(minutes=40)
+    before = record_findings(workspace, "compressor", until=until)
+    assert before["intervals"]
+    chosen = next(row for row in before["intervals"] if row["channel"] == "voltage")
+    scope = {"record_until": until.isoformat()}
+    context = selected_change(workspace, "compressor", chosen["review_key"], scope)
+    facts = investigation_facts(workspace, context)
+    assert "220" in facts["facts"]["feature_0"] and "230" in facts["facts"]["feature_0"]
+    assert facts["actions"] == ["signals", "compare"]
+    training = history_points(workspace, "compressor", "voltage", scope)
+
+    write(40, 90, True)
+    after = record_findings(workspace, "compressor", until=until)
+    assert after == before
+    assert record_findings(workspace, "compressor")["record"]["to"] > after["record"]["to"]
+    assert record_findings(workspace, "compressor", until=until) == before
+    assert history_points(workspace, "compressor", "voltage", scope) == training
+    assert (
+        investigation_facts(
+            workspace, selected_change(workspace, "compressor", chosen["review_key"], scope)
+        )
+        == facts
+    )
+    assert max(history_points(workspace, "compressor", "voltage")[1]) > 1000
+    saved = capture_change(
+        workspace.root, {"asset_id": "compressor", "finding_id": chosen["review_key"], **scope}
+    )
+    assert saved["capture_id"]
+    # Recent observation also finds a change before a user has configured a reference.
+    get, stop = _serve(workspace.root)
+    try:
+        status, observed = get(
+            "/api/v1/history/trend",
+            asset_id="compressor",
+            channel_id="voltage",
+            source_id="meter",
+            point_id="",
+            range="all",
+            anchor="latest",
+            snapshot="latest",
+            buckets=90,
+            auto_reference="1",
+            record_until=until.isoformat(),
+        )
+        assert status == 200
+        assert observed["reference"]["groups"][0]["intervals"]
+        assert all(b["maximum"] < 1000 for b in observed["buckets"] if b["maximum"] is not None)
+        assert observed["latest_stored"] == []
+    finally:
+        stop()
+
+
+def test_bearing_future_does_not_enter_changes_or_forecast_training(tmp_path: Path) -> None:
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 25):
+        deliver(
+            workspace, tmp_path / "waves", ordinal, 0.5 if ordinal < 13 else 2.0, amplitude_unit="g"
+        )
+    analyze(workspace)
+    before = acquisition_findings(workspace, "bearing-a", until=24)
+    training = acquisition_points(
+        workspace,
+        "bearing-a",
+        "feature.Horizontal_vibration_signals.rms",
+        count_mode=True,
+        selection={"acquisition_until": "24"},
+    )
+    assert before["last"] == 24 and before["intervals"]
+    for ordinal in range(25, 31):
+        deliver(workspace, tmp_path / "waves", ordinal, 100.0, amplitude_unit="g")
+    analyze(workspace)
+    assert acquisition_findings(workspace, "bearing-a", until=24) == before
+    assert (
+        acquisition_points(
+            workspace,
+            "bearing-a",
+            "feature.Horizontal_vibration_signals.rms",
+            count_mode=True,
+            selection={"acquisition_until": "24"},
+        )
+        == training
+    )

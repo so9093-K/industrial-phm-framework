@@ -47,6 +47,7 @@ export async function readObservation(assetId:string,stream:HistoryStream,channe
   if(options.window){query.set("from",options.window.from);query.set("to",options.window.to);}
   else{query.set("range",options.range);query.set("anchor",options.anchor);}
   if(options.reference){query.set("reference_from",options.reference.from);query.set("reference_to",options.reference.to);}
+  else query.set("auto_reference","1");
   const response=await fetch("/api/v1/history/trend?"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){await response.body?.cancel().catch(()=>{});throw Error("새로 저장된 측정을 읽지 못했습니다.");}
   const read=parseObservation(await response.json(),assetId,stream,channel);

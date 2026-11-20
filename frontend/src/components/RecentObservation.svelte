@@ -34,9 +34,10 @@
   const group=$derived([...groups].sort((a,b)=>Date.parse(b.buckets.at(-1)?.lastEventAt??b.buckets.at(-1)?.bucketStart??"")-Date.parse(a.buckets.at(-1)?.lastEventAt??a.buckets.at(-1)?.bucketStart??""))[0]??null);
   const latest=$derived.by(()=>{const current:Observation|null=read;return current?.trend.latest[0]??null;});
   const unit=$derived(latest?.unit??group?.unit??null);
+  const effectiveReference=$derived.by(()=>{const current:Observation|null=read;return reference??current?.reference?.period??null;});
   const comparison=$derived.by(()=>{
     const current:Observation|null=read;
-    if(!group||!reference||!current?.reference||Date.parse(current.reference.period.from)!==Date.parse(reference.from)||Date.parse(current.reference.period.to)!==Date.parse(reference.to))return null;
+    if(!group||!effectiveReference||!current?.reference||Date.parse(current.reference.period.from)!==Date.parse(effectiveReference.from)||Date.parse(current.reference.period.to)!==Date.parse(effectiveReference.to))return null;
     return current.reference.groups.find(item=>item.interpretationId===group.interpretationId&&item.unit===group.unit)??null;
   });
   const changes=$derived([...(comparison?.intervals??[])].sort((a,b)=>b.from-a.from));
@@ -96,7 +97,7 @@
     (value>baseline?"+":"")+measure(value-baseline,of,4);
   function href(method:"signals"|"compare"){
     if(!picked||!read||!group)return "";
-    const url=new URL(observationLink(assetId,channel,stream,group.interpretationId,{from:Date.parse(read.trend.startAt),to:Date.parse(read.trend.endAt)},picked,reference,method,label),location.origin);
+    const url=new URL(observationLink(assetId,channel,stream,group.interpretationId,{from:Date.parse(read.trend.startAt),to:Date.parse(read.trend.endAt)},picked,effectiveReference,method,label),location.origin);
     url.searchParams.set("observation_snapshot",String(read.trend.snapshotId));url.searchParams.set("observation_range",range);url.searchParams.set("observation_anchor",anchor);
     if(reference){url.searchParams.set("observation_reference_from",reference.from);url.searchParams.set("observation_reference_to",reference.to);}
     return url.pathname+url.search;
@@ -124,16 +125,16 @@
       <button type="button" aria-pressed={range===item.id} onclick={()=>changeRange(item.id)}>{item.label}</button>
     {/each}</div>
     <span class="time-context">{#if read}{spanText({from:Date.parse(read.trend.startAt),to:Date.parse(read.trend.endAt)})}{/if}</span>
-    {#if reference}<div class="reference-context"><span>비교 기준 {spanText({from:Date.parse(reference.from),to:Date.parse(reference.to)})}</span>
-      <button type="button" class="quiet" onclick={clearReference}>해제</button></div>{/if}
+    {#if effectiveReference}<div class="reference-context"><span>{reference?"지정한 비교 기준":"자동 비교 · 화면 초반"} {spanText({from:Date.parse(effectiveReference.from),to:Date.parse(effectiveReference.to)})}</span>
+      {#if reference}<button type="button" class="quiet" onclick={clearReference}>자동 비교로</button>{/if}</div>{/if}
   </div>
   {#if error}<StatusNotice kind="uncertain" message={error+(read?" 마지막으로 읽은 관측을 유지합니다.":"")} actionLabel="다시 시도" onAction={()=>void refresh()}/>{/if}
   {#if chart&&read}
     <ObservationChart {chart} origin={Date.parse(read.trend.startAt)} step={read.trend.bucketSeconds?read.trend.bucketSeconds*1000:null} {unit} {label} {averageLabel} {picked}
-      reference={reference?{from:Date.parse(reference.from),to:Date.parse(reference.to)}:null} referenceValue={comparison?.median??null}
+      reference={effectiveReference?{from:Date.parse(effectiveReference.from),to:Date.parse(effectiveReference.to)}:null} referenceValue={comparison?.median??null}
       intervals={comparison?.intervals??[]} onFreeze={beginSelection} onSelect={choose} onCancel={cancelSelection} onClear={resume}/>
     <div class="caption"><span>{averageLabel} · 옅은 선은 측정값의 최소–최대 · 공백은 측정 없음</span>
-      <span>{#if reference}<i class="reference-key"></i> 비교 기준 <i class="change-key"></i> 기준보다 달라진 구간{:else}점을 선택하거나 드래그해 구간 선택{/if}</span>
+      <span>{#if effectiveReference}<i class="reference-key"></i> 비교 기준 <i class="change-key"></i> 기준보다 달라진 구간{:else}점을 선택하거나 드래그해 구간 선택{/if}</span>
     </div>
   {:else if loading}<StatusNotice message="저장된 측정을 읽고 있습니다."/>
   {:else if read}<p class="empty">이 범위에 측정이 없습니다. 마지막 측정 시각과 데이터 연결 상태를 확인하세요.</p>{/if}
@@ -151,7 +152,7 @@
       </nav>
     </aside>
   {/if}
-  {#if reference&&read&&(!loading||comparison)&&(!error||comparison)}
+  {#if effectiveReference&&read&&(!loading||comparison)&&(!error||comparison)}
     {#if comparison?.state==="ready"}
       {#if changes.length}<div class="changes" aria-label="기준 이후 달라진 구간">
         <span>달라진 구간 {changes.length}개</span>

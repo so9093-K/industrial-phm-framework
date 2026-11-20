@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /**
  * Read-only, bounded stored signal history.
  * Groups MUST retain source + measurement point + semantic interpretation.
@@ -292,7 +293,7 @@ export function signalChart(
 }
 
 async function json(url: string, signal: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, { signal, cache: "no-store" });
+  const response = await fetch(url.includes("/history/trend?")?scopedUrl(url,currentPlayback()):url, { signal, cache: "no-store" });
   if (!response.ok) {
     // An unread error body keeps the request open; close it before reporting the failure.
     await response.body?.cancel().catch(() => {});

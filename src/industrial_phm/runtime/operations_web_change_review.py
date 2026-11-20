@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from datetime import datetime
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any
@@ -39,9 +40,12 @@ def _identity(asset: str, key: str) -> dict[str, str]:
 
 
 def capture_change(root: Path, payload: dict[str, object]) -> dict[str, Any]:
-    if set(payload) != {"asset_id", "finding_id"} or not all(
-        isinstance(v, str) for v in payload.values()
-    ):
+    if not {"asset_id", "finding_id"} <= set(payload) <= {
+        "asset_id",
+        "finding_id",
+        "record_until",
+        "acquisition_until",
+    } or not all(isinstance(v, str) for v in payload.values()):
         raise ValueError("invalid change selection")
     asset, key = str(payload["asset_id"]), str(payload["finding_id"])
     identity = _identity(asset, key)
@@ -54,11 +58,28 @@ def capture_change(root: Path, payload: dict[str, object]) -> dict[str, Any]:
     existing = store.list_for(asset, capture_id=identifier)
     if existing:
         return {"schema_version": 1, "asset_id": asset, "capture_id": identifier}
-    found = record_findings(workspace, asset)
+    from industrial_phm.runtime.operations_web_explore import record_selection
+
+    scope = record_selection(
+        {
+            name: str(payload[name])
+            for name in ("record_until", "acquisition_until")
+            if name in payload
+        }
+    )
+    found = record_findings(
+        workspace,
+        asset,
+        until=datetime.fromisoformat(scope["record_until"]) if "record_until" in scope else None,
+    )
     selected = next((item for item in found["intervals"] if item["review_key"] == key), None)
     change: dict[str, Any] = {"asset_id": asset, "finding": selected}
     if selected is None:
-        vibration = acquisition_findings(workspace, asset)
+        vibration = acquisition_findings(
+            workspace,
+            asset,
+            until=int(scope["acquisition_until"]) if "acquisition_until" in scope else None,
+        )
         selected = next(
             (item for item in vibration["intervals"] if item["review_key"] == key), None
         )

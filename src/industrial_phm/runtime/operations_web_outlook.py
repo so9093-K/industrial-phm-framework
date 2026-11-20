@@ -171,6 +171,7 @@ def condition_outlook(
             series,
             assumed_period_seconds=assumed_period_seconds,
             count_mode=True,
+            selection=record_selector,
         )
         seasonal = False
     pairs = [(t, v) for t, v in zip(times, values, strict=True) if math.isfinite(v)]

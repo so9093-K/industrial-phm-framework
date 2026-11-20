@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Server-owned Welch PSD of verified original acquisition waveforms, by ordinal. */
 export type Span={from:number;to:number};
 export type Spans={a:Span;b:Span};
@@ -128,7 +129,7 @@ export function parseSpectrum(
     used:usedOrdinal,channels};
 }
 async function json(path:string,signal:AbortSignal):Promise<unknown>{
-  const response=await fetch(path,{signal,cache:"no-store",credentials:"same-origin"});
+  const response=await fetch(scopedUrl(path,currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404){
     const error:unknown=await response.json().catch(()=>null);
     if(record(error)?.error==="nothing_to_explore")

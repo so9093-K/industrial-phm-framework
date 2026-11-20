@@ -1,7 +1,9 @@
 <script lang="ts">
+  import {type PlaybackScope, scopeParams} from "../record-playback";
   import {recordParams} from "../record-context";
   import {readOverview, type OverviewRow} from "../asset-overview";
   import OverviewTrace from "./OverviewTrace.svelte";
+  import ChangeContext from "./ChangeContext.svelte";
   import ChangeActions from "./ChangeActions.svelte";
   import DecisionPanel from "./DecisionPanel.svelte";
   import OperationLevels from "./OperationLevels.svelte";
@@ -30,10 +32,11 @@
     dataState: "loading" | "ready" | "failed";
     observed: (at: string | null) => string;
     selectedAt?: number | null;
+    playing?:boolean;revision?:number;scope?:PlaybackScope|null;onBusy?:(busy:boolean)=>void;onInvestigate?:()=>void;
   };
-  let {asset, data, dataState, observed, selectedAt = $bindable(null)}: Props = $props();
+  let {asset, data, dataState, observed, selectedAt = $bindable(null),scope=null,revision=0,playing=false,onBusy,onInvestigate}: Props = $props();
   const assetId=$derived(asset.assetId);
-  const readRevision=$derived(assetId);
+  const readRevision=$derived(assetId+":"+JSON.stringify(scope)+":"+revision);
   const stored = $derived.by(() => {
     if (dataState === "loading") return "확인하는 중";
     if (dataState === "failed" || !data) return "확인하지 못함";
@@ -75,13 +78,30 @@
   // 진동 기록의 변화도 시계열 변화와 같은 자리에서 고르고 본다.
   let vibration: VibrationRecord | null = $state(null);
   let vibrationState: "idle" | "loading" | "ready" | "failed" = $state("idle");
+  const busy=$derived.by(()=>{
+    const history:string=findingState, vibration:string=vibrationState;
+    return history==="loading"||vibration==="loading";
+  });
+  $effect(()=>onBusy?.(busy));
+
   $effect(() => {
     if (!data?.vibration) return;
     readRevision;
     const request = new AbortController();
+    untrack(()=>{if(scope&&vibration?.last!=null&&vibration.last>scope.until){vibration=null;quietMain=null;}});
     vibrationState = "loading";
-    void readVibrationFindings(assetId, request.signal).then((value) => {
-      if (!request.signal.aborted) {vibration = value; vibrationState = "ready";}
+    void readVibrationFindings(assetId, request.signal, scope).then((value) => {
+      if (!request.signal.aborted) {
+        vibration = value; vibrationState = "ready";
+        if(!value.intervals.length) {
+          void readAcquisitionTrend(assetId,"feature.Vertical_vibration_signals.rms",request.signal).then(trend=>{
+            if(request.signal.aborted)return;
+            quietMain={label:trend.label,unit:trend.unit,axis:"acquisition",periodSeconds:trend.periodSeconds,
+              latest:trend.points.length?{at:null,position:trend.points.at(-1)!.ordinal,value:trend.points.at(-1)!.value}:null,
+              trace:trend.points.map((p,i)=>({x:p.ordinal,value:p.value,join:i>0&&p.ordinal===trend.points[i-1].ordinal+1}))};
+          }).catch(()=>{});
+        }
+      }
     }).catch(() => {if (!request.signal.aborted) vibrationState = "failed";});
     return () => request.abort();
   });
@@ -102,7 +122,8 @@
     if (measured?.intervals.length) return {kind: "vibration", index: 0};
     return null;
   });
-  function selectChange(pick:Pick) {
+  function selectChange(pick:Pick,manual=true) {
+    if(manual)onInvestigate?.();
     const records:RecordFindings|null=findings, measured:VibrationRecord|null=vibration;
     let target:URL, key:string;
     if(pick.kind==="history"&&records?.intervals[pick.index]) {
@@ -133,6 +154,7 @@
         target.searchParams.set("acq_"+part,target.searchParams.get("feature_"+part)!);
       key=vibrationKey(change);
     } else return;
+    for(const [name,value] of Object.entries(scopeParams(scope)))target.searchParams.set(name,value);
     target.searchParams.set("summary_label",pick.kind==="history"?records!.intervals[pick.index].label:plainLabel(measured!.intervals[pick.index].label,measured!.intervals[pick.index].feature));
     history.replaceState(history.state,"",summarySelectionUrl(location.href,target.href,key,pick.kind));
     pickedKey=key;
@@ -151,7 +173,7 @@
     const current=focus;
     const ready=(!data?.history||findingState==="ready"||findingState==="failed")
       &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
-    if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current));
+    if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current,false));
   });
   // 설비 시간축: 고른 변화와 시간이 겹치는 변화를 한 시기로 묶어 같은 가로축에 쌓는다.
   type Item = {key: string; pick: Pick; span: Span};
@@ -168,7 +190,9 @@
   const current = $derived(grouped.find(group => group.members.some(member => member.pick.index === focus?.index)) ?? null);
   // 진동 특징은 기록 전체 값을 따로 읽는다(변화 응답에는 일부만 실린다).
   let traces: Record<string, TimelinePoint[]> = $state({});
+  $effect(()=>{readRevision;untrack(()=>traces={});});
   $effect(() => {
+    readRevision;
     const measured: VibrationRecord | null = vibration, group = current;
     if (!measured || !group || focus?.kind !== "vibration") return;
     const request = new AbortController();
@@ -192,7 +216,7 @@
     const points: TimelinePoint[] = [];
     let skipped = false;
     for (const row of item.overview ?? []) {
-      const value = kind === "all" ? row.mean : row.judged;
+      const value = row.mean;
       if (value === null) { skipped = true; continue; }
       points.push({x: Date.parse(row.at), value, join: row.join && !skipped});
       skipped = false;
@@ -202,9 +226,10 @@
     const latest = ongoing && own_?.latest ? " · 마지막 " + changeValue(own_.latest.value, item.unit) : "";
     return {key: historyKey(item), label: plainLabel(item.label, item.channel), unit: item.unit,
       condition: own && item.band != null ? bandName(own, item.band) : null,
-      points, detail: (item.trace ?? []).map(row => ({x: Date.parse(row.at), value: row.value, join: row.join})),
+      points, detail: [],
+      matched:kind!=="all"?(item.overview??[]).flatMap(row=>row.judged!==null?[{x:Date.parse(row.at),value:row.judged,join:row.join}]:[]):[],
       usual: item.usual, interval: {from: Date.parse(item.start), to: Date.parse(item.end)},
-      values:{before:item.reference,after:item.typical,latest:ongoing&&own_?.latest?{value:own_.latest.value,at:Date.parse(own_.latest.at)}:null},
+      values:{before:item.reference,after:item.typical,latest:own_?.latest?{value:own_.latest.value,at:Date.parse(own_.latest.at)}:null},
       numbers: magnitude(item.reference, item.typical, item.unit) + latest, focus: focused, up: item.direction === "up"};
   }
   function vibrationLane(measured: VibrationRecord, change: VibrationRecord["intervals"][number], focused: boolean): TimelineLane {
@@ -263,7 +288,7 @@
   });
   const recordSpan = $derived.by((): Span | null => {
     const shown = focus, history: RecordFindings | null = findings, measured: VibrationRecord | null = vibration;
-    if (shown?.kind === "history" && history?.record) return {from: Date.parse(history.record.from), to: Date.parse(history.record.to)};
+    if (shown?.kind === "history" && history?.record){const own=history.intervals[shown.index]?.context?.record??history.record;return {from:Date.parse(own.from),to:Date.parse(own.to)};}
     if (shown?.kind === "vibration" && measured?.first != null && measured.last != null) return {from: measured.first, to: measured.last};
     return null;
   });
@@ -274,11 +299,15 @@
     if (!data?.history) return;
     readRevision;
     const request = new AbortController();
-    quietMain=null;
+    untrack(()=>{if(scope&&findings?.record&&Date.parse(findings.record.to)>scope.until){findings=null;quietMain=null;}});
     findingState = "loading";
-    void readRecordFindings(assetId, request.signal).then(async(value) => {
-      if (!request.signal.aborted) {findings = value; findingState = "ready";}
-      if(!request.signal.aborted&&!value.intervals.length){
+    void readRecordFindings(assetId, request.signal, scope).then(async(value) => {
+      if (!request.signal.aborted) {
+        findings = value; findingState = "ready";
+        const preview=value.signals.find(row=>row.channel===data?.history?.preferred&&row.preview?.length)??value.signals.find(row=>row.preview?.length);
+        if(preview)quietMain={context:preview.context,label:preview.label,unit:preview.unit,axis:"time",periodSeconds:null,latest:preview.latest?{at:preview.latest.at,position:null,value:preview.latest.value}:null,trace:preview.preview!};
+      }
+      if(!request.signal.aborted&&!quietMain&&!scope&&!value.intervals.length){
         try{const overview=await readOverview(assetId,request.signal);if(!request.signal.aborted)quietMain=overview.main;}catch{ /* The raw signal remains available if its preview fails. */ }
       }
     }).catch(() => {if (!request.signal.aborted) findingState = "failed";});
@@ -301,12 +330,10 @@
     return null;
   });
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
-  const decision = $derived.by((): {reviewKey: string; ai: {change: VibrationRecord["intervals"][number];bindingId:string} | null} | null => {
-    const shown = evidenceFocus;
-    if (shown?.kind === "history") return shown.item.reviewKey ? {reviewKey: shown.item.reviewKey, ai: null} : null;
-    if (shown?.kind === "vibration") return shown.change.reviewKey
-      ? {reviewKey: shown.change.reviewKey, ai: shown.record.bindingId ? {change: shown.change,bindingId:shown.record.bindingId} : null} : null;
-    return null;
+  const decision = $derived.by((): {reviewKey:string}|null => {
+    const shown=evidenceFocus;
+    const key=shown?.kind==="history"?shown.item.reviewKey:shown?.change.reviewKey;
+    return key?{reviewKey:key}:null;
   });
   const focusReason = $derived.by(() => {
     const shown = evidenceFocus;
@@ -316,8 +343,12 @@
   const endedText = (history: RecordFindings, item: FoundInterval): string | null =>
     changeEnded(item.end, item.context?.record.to ?? history.record?.to, item.bucketSeconds ?? history.bucketSeconds);
   // Vibration deliveries carry an order, not always a clock; say which one is last.
-  const lastMeasured = $derived(!asset.lastObservedAt && data?.vibration
-    ? measurementLabel(data.vibration.last,data.vibration.timing?.periodSeconds) + " · 측정 시각 기록 없음" : observed(asset.lastObservedAt));
+  const lastMeasured = $derived.by(()=>{
+    const measured:VibrationRecord|null=vibration, history:RecordFindings|null=findings;
+    if(scope?.kind==="vibration")return measurementLabel(measured?.last??scope.until,measured?.periodSeconds);
+    if(scope?.kind==="history")return observed(history?.signals.map(row=>row.latest?.at).filter((at):at is string=>!!at).sort().at(-1)??null);
+    return !asset.lastObservedAt&&data?.vibration?measurementLabel(data.vibration.last,data.vibration.timing?.periodSeconds)+" · 측정 시각 기록 없음":observed(asset.lastObservedAt);
+  });
   // The same count as the asset list: the monitor's own items plus model, receipt and baseline notes.
   const attentionCount = $derived.by((): number | null => {
     const read: Note[] | null = notes;
@@ -342,22 +373,24 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
+{#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} active={!playing}/>{/if}{/snippet}
+
 {#snippet actions()}
-  <div class="investigation-actions">
-    {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus}/>{/if}
-    {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} ai={decision.ai} onCommitted={() => reviewRevision++}/>{/key}{/if}
+  <div class="investigation-actions" inert={busy}>
+    {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus} {onInvestigate}/>{/if}
+    {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} focus={evidenceFocus} {onInvestigate} onCommitted={() => reviewRevision++}/>{/key}{/if}
   </div>
 {/snippet}
 
 <div class="monitor">
-<section class="ui-panel facts-panel" aria-label="고른 변화">
+<section class="ui-panel facts-panel" aria-label="고른 변화" aria-busy={busy}>
   {#if current && recordSpan && lanes.length}
-    <AssetTimeline axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
+    <AssetTimeline context={evidenceFocus?context:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
       episodes={episodeChoices} {actions} {lanes} operation={timelineOperation}
       periodSeconds={vibration?.periodSeconds ?? null}
-      selected={selectedAt} onSelect={at => selectedAt = at}
+      selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}
       onFocus={key => { const item = items.find(row => row.key === key); if (item) selectChange(item.pick); }} />
-  {:else if data?.history && findingState === "loading"}
+  {:else if data?.history && findingState === "loading" && !quietMain}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
     <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
@@ -379,12 +412,13 @@
   {:else if data?.history && findings && !data?.vibration}
     <p class="context">기록 처음 30%와 비교해 판단할 수 있는 신호가 없어 변화 여부를 판단하지 않았습니다.
       <a href={assetTabUrl(asset.assetId, "signals")}>신호를 직접 보기 →</a></p>
-  {:else if data?.vibration && vibrationState === "loading"}
+  {:else if data?.vibration && vibrationState === "loading" && !quietMain}
     <p class="context">진동 측정 전체를 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.vibration && vibrationState === "failed"}
     <p class="context">진동 측정에서 찾은 변화를 불러오지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
-  {:else if data?.vibration && vibration?.judged}
-    <p class="context">진동 특징 {vibration.judged}개 모두 처음 30% 대비 크게 달라진 구간이 없습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
+  {:else if data?.vibration && vibration}
+    {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={260}/>{/if}
+    <p class="context">{vibration.judged?"초반 측정과 비교해 크게 달라진 구간이 없습니다.":"변화를 비교할 초기 측정이 아직 부족합니다."} <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
   {/if}
 
   {#if !evidenceFocus && settled}{@render analysisOptions()}{/if}

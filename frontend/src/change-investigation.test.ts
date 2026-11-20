@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {readChangeDiscussion,changeActionLinks} from "./change-investigation.ts";
+import {parseRecordFindings} from "./record-findings.ts";
+import {readChangeDiscussion,changeActionLinks,investigationLinks} from "./change-investigation.ts";
 
 test("an answer's follow-up uses the selected feature and periods, and opens the exact model at onset",()=>{
   const change={feature:"vertical.rms",baseline:{from:3,to:12},from:23,to:41};
@@ -38,4 +39,17 @@ test("a question's answer stays on its selected change, including when model and
     body={schema_version:1,asset_id:"other",change_id:key,explanations:[record]};
     await assert.rejects(readChangeDiscussion("bearing",key,signal),/다른 변화/);
   }finally{globalThis.fetch=original;}
+});
+
+
+test("an electrical suggestion opens the chosen voltage interval instead of the latest day",()=>{
+  const span={from:"2020-10-01T00:00:00Z",to:"2020-10-05T00:00:00Z"};
+  const record=parseRecordFindings({schema_version:1,asset_id:"compressor",meaning:"departures-from-the-first-30-percent-not-fault-diagnosis",baseline:{from:span.from,to:"2020-10-02T00:00:00Z"},record:span,bucket_seconds:60,judged:1,unchecked:0,interval_count:1,
+    signals:[{channel:"R상전압",label:"R상전압",unit:"V",state:"scored"}],
+    intervals:[{channel:"R상전압",label:"R상전압",unit:"V",start:"2020-10-03T00:00:00Z",end:"2020-10-03T01:00:00Z",direction:"up",value:225,usual:{low:219,high:221},within:[]}]},"compressor");
+  const link=investigationLinks("compressor",{kind:"history",record,item:record.intervals[0],condition:null},["electrical"])[0];
+  const q=new URL(link.href,"http://local").searchParams;
+  assert.equal(q.get("tab"),"change");assert.equal(q.get("method"),"electrical");
+  const picked=q.get("monitor_pick")!.split("~").map(Date.parse);
+  assert.deepEqual(picked,[Date.parse("2020-10-03T00:00:00Z"),Date.parse("2020-10-03T01:00:00Z")]);
 });

@@ -1,3 +1,4 @@
+import {currentPlayback, scopeParams} from "./record-playback.ts";
 import {object, OutcomeUnknown, postReviewWrite, reviewNote, type ReviewAction, type ReviewDecision} from "./review-writes.ts";
 import {parseReview} from "./outlook-captures.ts";
 import {findingText,parseRecordFindings, type FoundInterval} from "./record-findings.ts";
@@ -61,7 +62,7 @@ export async function readChangeReviews(assetId:string, signal:AbortSignal, sele
 }
 export async function captureChange(assetId:string, finding:{reviewKey?:string}, signal:AbortSignal):Promise<string> {
   if (!finding.reviewKey) throw new Error("저장할 변화의 분석 맥락을 확인할 수 없습니다.");
-  const result = await postReviewWrite(ROUTE+"/confirm", {asset_id:assetId,finding_id:finding.reviewKey},signal,
+  const result = await postReviewWrite(ROUTE+"/confirm", {asset_id:assetId,finding_id:finding.reviewKey,...scopeParams(currentPlayback())},signal,
     (status) => {if(status===409) throw new Error("측정 기록이나 기준 기간이 바뀌었습니다. 화면을 새로고침해 확인하세요.");});
   if (result.asset_id !== assetId || typeof result.capture_id !== "string" || !ID.test(result.capture_id)) throw new OutcomeUnknown("저장한 검토의 응답을 확인할 수 없습니다.");
   return result.capture_id;

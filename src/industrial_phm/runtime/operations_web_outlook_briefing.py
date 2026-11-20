@@ -33,6 +33,8 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 BRIEFINGS_ROUTE = "/api/v1/outlook/briefings"
 SELECTION_FIELDS = (
+    "record_until",
+    "acquisition_until",
     "asset_id",
     "kind",
     "series",

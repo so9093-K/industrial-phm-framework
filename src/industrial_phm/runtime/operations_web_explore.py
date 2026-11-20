@@ -7,6 +7,7 @@ import json
 import sqlite3
 import threading
 import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from itertools import pairwise
@@ -90,7 +91,7 @@ _ATTENTION_REUSE_SECONDS = 30.0
 # What a record held: all stored signals, read in the same buckets as the departure screen.
 # Show distinct sustained, end-of-record and large changes, with simultaneous comparisons.
 _FINDINGS_SHOWN = 3
-_findings_cache: dict[tuple[str, str], tuple[datetime, int, float, dict[str, Any]]] = {}
+_findings_cache: dict[tuple[str, str, datetime | None], tuple[int, dict[str, Any]]] = {}
 _findings_locks: dict[tuple[str, str], threading.Lock] = {}
 _findings_guard = threading.Lock()
 # (root, asset) → (record end, record count, computed at, result)
@@ -142,6 +143,18 @@ def handle_explore_read(
 ) -> tuple[HTTPStatus, dict[str, Any]]:
     try:
         query = _query(raw_query)
+        if "record_until" in query:
+            limit = _instant(query, "record_until")
+            if any(_instant(query, name) > limit for name in ("a_to", "b_to") if name in query):
+                raise ValueError("comparison extends beyond the replay position")
+        if "acquisition_until" in query:
+            limit_position = int(_one(query, "acquisition_until"))
+            if limit_position < 1 or any(
+                int(_one(query, name)) > limit_position
+                for name in ("a_to", "b_to")
+                if name in query
+            ):
+                raise ValueError("comparison extends beyond the replay position")
         if path == "/api/v1/explore/attention":
             only = _one(query, "asset_id") if "asset_id" in query else None
             return HTTPStatus.OK, departure_attention(workspace, only)
@@ -154,7 +167,11 @@ def handle_explore_read(
         if path == "/api/v1/explore/anomaly":
             return HTTPStatus.OK, _departures(workspace, asset_id, query)
         if path == "/api/v1/explore/findings":
-            return HTTPStatus.OK, record_findings(workspace, asset_id)
+            return HTTPStatus.OK, record_findings(
+                workspace,
+                asset_id,
+                until=_instant(query, "record_until") if "record_until" in query else None,
+            )
         if path == "/api/v1/explore/overview":
             # Imported here: the overview row is built from this module's findings.
             from industrial_phm.runtime.operations_web_overview import asset_overview
@@ -170,6 +187,9 @@ def handle_explore_read(
                 **acquisition_waterfall(
                     SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
                     binding,
+                    until=int(_one(query, "acquisition_until"))
+                    if "acquisition_until" in query
+                    else None,
                 ),
                 "meaning": "stored-waveform-spectra-not-fault-frequencies",
             }
@@ -177,7 +197,13 @@ def handle_explore_read(
             # Imported here: the vibration findings reuse this module's acquisition helpers.
             from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 
-            return HTTPStatus.OK, acquisition_findings(workspace, asset_id)
+            return HTTPStatus.OK, acquisition_findings(
+                workspace,
+                asset_id,
+                until=int(_one(query, "acquisition_until"))
+                if "acquisition_until" in query
+                else None,
+            )
         series = [value for value in query.get("series", []) if value]
         if not 1 <= len(series) <= MAX_SERIES or len(set(series)) != len(series):
             raise ValueError(f"choose 1 to {MAX_SERIES} distinct series")
@@ -200,6 +226,7 @@ def handle_explore_read(
                 source_id=focus[0] if focus else None,
                 point_id=(query.get("level_point") or [""])[0] or None if focus else None,
                 snapshot_id=snapshot_id,
+                until=_instant(query, "record_until") if "record_until" in query else None,
             )
             band = int(_one(query, "level")) if "level" in query else None
             if band is not None and operation is None:
@@ -415,7 +442,12 @@ def _departures(
     if len(series) != 1:
         raise ValueError("choose one signal and its source record")
     baseline = (query.get("baseline") or ["first-30"])[0]
-    all_records, operations, levels = stream_records(history, asset_id, channels)
+    all_records, operations, levels = stream_records(
+        history,
+        asset_id,
+        channels,
+        until=_instant(query, "record_until") if "record_until" in query else None,
+    )
     records = [item for item in all_records if item["channel"] in series]
     record = select_signal_record(records, {key: values[0] for key, values in query.items()})
     channel = record["channel"]
@@ -565,11 +597,19 @@ def departure_attention(
 
 
 def signal_records(
-    history: DuckLakeAssetHistory, asset_id: str, channels: list[str]
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    channels: list[str],
+    *,
+    until: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Each source/point/meaning keeps its own time grid and observation bounds."""
     records = []
     for stream in history.list_history_streams(asset_id):
+        if until is not None:
+            if until <= stream.start_at:
+                continue
+            stream = replace(stream, end_at=min(stream.end_at, until - timedelta(microseconds=1)))
         selected = [channel for channel in channels if channel in stream.channels]
         for offset in range(0, len(selected), 4):
             discovery_buckets = _DEPARTURE_BUCKETS
@@ -579,7 +619,7 @@ def signal_records(
                         asset_id,
                         channel_ids=selected[offset : offset + 4],
                         start_at=stream.start_at,
-                        end_at=stream.end_at + timedelta(seconds=1),
+                        end_at=until if until is not None else stream.end_at + timedelta(seconds=1),
                         bucket_count=discovery_buckets,
                         source_id=stream.source_id,
                         measurement_point_id=stream.measurement_point_id,
@@ -597,6 +637,8 @@ def signal_records(
             for (channel, meaning), buckets in groups.items():
                 first = min(bucket.first_event_at for bucket in buckets)
                 last = max(bucket.last_event_at for bucket in buckets) + timedelta(seconds=1)
+                if until is not None:
+                    last = min(last, until)
                 width = aggregation.bucket_seconds
                 if (
                     discovery_buckets != _DEPARTURE_BUCKETS
@@ -648,9 +690,22 @@ def signal_records(
 def record_selection(params: dict[str, str]) -> dict[str, str]:
     selectors: dict[str, str] = {
         key: params[key]
-        for key in ("record_key", "monitor_source", "monitor_point", "monitor_interpretation")
+        for key in (
+            "record_key",
+            "monitor_source",
+            "monitor_point",
+            "monitor_interpretation",
+            "record_until",
+            "acquisition_until",
+        )
         if key in params
     }
+    if "record_until" in selectors:
+        at = datetime.fromisoformat(selectors["record_until"])
+        if at.utcoffset() is None:
+            raise ValueError("record_until needs a timezone")
+    if "acquisition_until" in selectors and not 1 <= int(selectors["acquisition_until"]) < 2**62:
+        raise ValueError("acquisition_until must be positive")
     if any(len(value) > 512 for value in selectors.values()):
         raise ValueError("invalid record selector")
     return selectors
@@ -786,7 +841,11 @@ def record_overview(
 
 
 def stream_records(
-    history: DuckLakeAssetHistory, asset_id: str, channels: list[str]
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    channels: list[str],
+    *,
+    until: datetime | None = None,
 ) -> tuple[
     list[dict[str, Any]],
     dict[tuple[str, str | None], StreamOperation],
@@ -802,17 +861,23 @@ def stream_records(
     operations: dict[tuple[str, str | None], StreamOperation] = {}
     levels: dict[str, LevelSeries] = {}
     for stream in history.list_history_streams(asset_id):
+        if until is not None:
+            if until <= stream.start_at:
+                continue
+            stream = replace(stream, end_at=min(stream.end_at, until - timedelta(microseconds=1)))
         selected = [channel for channel in channels if channel in stream.channels]
         if not selected:
             continue
         source, point = stream.source_id, stream.measurement_point_id
         start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
+        if until is not None:
+            end = until
 
         def identity(channel: str, meaning: str, source: str = source, point: Any = point) -> str:
             text = json.dumps([channel, source, point, meaning], ensure_ascii=False)
             return hashlib.sha256(text.encode()).hexdigest()
 
-        read = source_levels(history, asset_id, stream)
+        read = source_levels(history, asset_id, stream, until=until)
         chosen, operating = read if read and read[0][0] in selected else (None, None)
         main = identity(*chosen) if chosen else None
         aggregation = history.query_stream_aggregation(
@@ -834,6 +899,8 @@ def stream_records(
         for (channel, meaning), buckets in groups.items():
             first = min(bucket.first_event_at for bucket in buckets)
             last = max(bucket.last_event_at for bucket in buckets) + timedelta(seconds=1)
+            if until is not None:
+                last = min(last, until)
             own.append(
                 {
                     "key": identity(channel, meaning),
@@ -861,13 +928,17 @@ def stream_records(
         records += own
         record = next((r for r in own if r["key"] == main), None)
         if operating is not None and record is not None and record["points"]:
-            operations[source, point] = stream_operation(history, asset_id, record, operating)
+            operations[source, point] = stream_operation(
+                history, asset_id, record, operating, until=until
+            )
             keys = {(r["channel"], r["interpretation"]): r["key"] for r in own}
             levels |= level_series(aggregation.level_buckets, keys)
     return records, operations, levels
 
 
-def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+def record_findings(
+    workspace: OperationsWorkspace, asset_id: str, *, until: datetime | None = None
+) -> dict[str, Any]:
     """Representative changes from each source/point/meaning record's own first 30%.
 
     A change that came back still counts. Each record owns its aggregation grid, baseline,
@@ -881,10 +952,12 @@ def record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, 
     # The summary, the overview row and each screen's default ask for the same asset together:
     # one computes it, the others wait and read the cached result.
     with lock:
-        return _record_findings(workspace, asset_id)
+        return _record_findings(workspace, asset_id, until=until)
 
 
-def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+def _record_findings(
+    workspace: OperationsWorkspace, asset_id: str, *, until: datetime | None = None
+) -> dict[str, Any]:
     body: dict[str, Any] = {
         "schema_version": 1,
         "asset_id": asset_id,
@@ -905,13 +978,14 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     summary = next((a for a in history.list_history_assets() if a.asset_id == asset_id), None)
     if summary is None:
         return body
-    key = (str(workspace.root), asset_id)
+    key = (str(workspace.root), asset_id, until)
+    snapshot = history.current_snapshot_id()
     held = _findings_cache.get(key)
-    if held is not None and (held[0], held[1]) == (summary.end_at, summary.measurement_count):
-        return held[3]
+    if held is not None and held[0] == snapshot:
+        return held[1]
     channels = list(history.list_history_channels(asset_id))
     checked = channels
-    records, operations, levels = stream_records(history, asset_id, checked)
+    records, operations, levels = stream_records(history, asset_id, checked, until=until)
     points = {record["key"]: record["points"] for record in records}
     by_key = {record["key"]: record for record in records}
     registry = workspace.source_registry_path
@@ -1020,6 +1094,24 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                 "from": iso(copy["from"]),
                 "to": iso(copy["to"]),
             }
+        preview = record["points"]
+        indices = (
+            sorted({round(i * (len(preview) - 1) / 119) for i in range(min(120, len(preview)))})
+            if len(preview) > 120
+            else list(range(len(preview)))
+        )
+        row["preview"] = [
+            [
+                iso(preview[index][0]),
+                preview[index][2],
+                kept > 0
+                and all(
+                    preview[j][0] <= preview[j - 1][1] + timedelta(milliseconds=1)
+                    for j in range(indices[kept - 1] + 1, index + 1)
+                ),
+            ]
+            for kept, index in enumerate(indices)
+        ]
         if record["observations"]:
             last_at, last_value = record["observations"][-1]
             row["latest"] = {"at": iso(last_at), "value": last_value}
@@ -1040,6 +1132,11 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
             row["later"] = {"low": min(later), "high": max(later)} if later else None
         signals.append(row)
     body["signals"] = signals
+    if records:
+        body["record"] = {
+            "from": min(r["record"]["from"] for r in records),
+            "to": max(r["record"]["to"] for r in records),
+        }
     body["operation"] = [
         operation_body(operation, _first_part(points[operation.key]))
         | {
@@ -1107,6 +1204,21 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
             [row for row in comparisons if row["channel"] != name and row["state"] == "within"],
             key=lambda row: (not row["current_signal"], row["distance"], row["channel"]),
         )
+        companion_rows = related(changed, similar)
+        if unit in {"A", "V"}:
+            # A changed phase is investigated beside its other phases and current,
+            # rather than whichever derived quantity had the largest standardized shift.
+            candidates = [row for row in comparisons if row["channel"] != name]
+
+            def companion_rank(row: dict[str, Any], unit: str = unit) -> tuple[int, str]:
+                other_record = by_key[part(row["channel"])[0]]
+                phase = other_record["channel"].startswith(("R상", "S상", "T상"))
+                return (
+                    0 if phase and row["unit"] == unit else 1 if row["current_signal"] else 2,
+                    other_record["channel"],
+                )
+
+            companion_rows = sorted(candidates, key=companion_rank)[:3]
         trace = change_trace(judged[name], record["bucket_seconds"], item["start"], item["end"])
         operation = operations.get((record["source_id"], record["point_id"]))
         shown.append(
@@ -1149,7 +1261,7 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
                         },
                         **record_context(by_key[part(row["channel"])[0]]),
                     }
-                    for row in related(changed, similar)
+                    for row in companion_rows
                 ],
                 # The usual range is the one the departure was judged by.
                 "usual": {
@@ -1196,7 +1308,7 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
             }
             if found["baseline"] is not None
             else None,
-            "record": {"from": iso(summary.start_at), "to": iso(summary.end_at)},
+            "record": body["record"],
             # Each value is a bucket mean over this many seconds, not a single measurement.
             "bucket_seconds": records[0]["bucket_seconds"]
             if records and len({r["bucket_seconds"] for r in records}) == 1
@@ -1207,7 +1319,13 @@ def _record_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str,
     )
     if len(_findings_cache) > 4 * MAX_ATTENTION_ASSETS:
         _findings_cache.clear()
-    _findings_cache[key] = (summary.end_at, summary.measurement_count, time.monotonic(), body)
+    # Keep only the latest replay position per asset, alongside the whole-record result.
+    # Opening/polling an AI question must not recalculate the same bounded record each time.
+    if until is not None:
+        for previous in tuple(_findings_cache):
+            if previous[:2] == key[:2] and previous[2] is not None and previous != key:
+                _findings_cache.pop(previous, None)
+    _findings_cache[key] = (snapshot, body)
     return body
 
 

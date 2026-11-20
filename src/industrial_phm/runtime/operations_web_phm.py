@@ -93,10 +93,19 @@ def handle_phm_read(
         if path == "/api/v1/phm/models":
             return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
         if path == "/api/v1/phm/change-explanations":
-            from industrial_phm.runtime.operations_web_vibration_context import selected_change
+            from industrial_phm.runtime.operations_web_change_context import selected_change
 
             asset, key = _required_id(params, "asset_id"), _required_id(params, "change_id")
-            selected = selected_change(workspace, asset, key)
+            selected = selected_change(
+                workspace,
+                asset,
+                key,
+                {
+                    name: _required_id(params, name)
+                    for name in ("record_until", "acquisition_until")
+                    if name in params
+                },
+            )
             records = PhmExplanationStore(workspace.phm_explanation_path).list_for(
                 selected["binding_id"], selected["position"], change_id=key
             )

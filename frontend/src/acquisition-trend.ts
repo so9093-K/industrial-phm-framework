@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** One stored vibration feature per acquisition (GET /api/v1/acquisition/trend); nothing is fitted. */
 import {yTicks, type Tick} from "./chart-axis.ts";
 
@@ -34,7 +35,7 @@ export function parseAcquisitionTrend(raw: unknown, assetId: string, feature: st
 }
 
 export async function readAcquisitionTrend(assetId: string, feature: string, signal: AbortSignal): Promise<AcquisitionTrend> {
-  const response = await fetch("/api/v1/acquisition/trend?" + new URLSearchParams({asset_id: assetId, feature}),
+  const response = await fetch(scopedUrl("/api/v1/acquisition/trend?" + new URLSearchParams({asset_id: assetId, feature}),currentPlayback()),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});

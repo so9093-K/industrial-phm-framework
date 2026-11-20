@@ -19,7 +19,7 @@ from industrial_phm.application.phm_range import focus_point
 from industrial_phm.genai.change_answer import generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
-from industrial_phm.runtime.operations_web_vibration_context import (
+from industrial_phm.runtime.operations_web_change_context import (
     investigation_facts,
     selected_change,
 )
@@ -91,9 +91,14 @@ class ExplanationManager:
         return self._enqueue(context, provider)
 
     def request_change(
-        self, asset: str, change_id: str, question: str, parent_id: str | None
+        self,
+        asset: str,
+        change_id: str,
+        question: str,
+        parent_id: str | None,
+        scope: dict[str, str] | None = None,
     ) -> dict[str, object]:
-        context = selected_change(self.workspace, asset, change_id)
+        context = selected_change(self.workspace, asset, change_id, scope)
         context["question"] = question
         if parent_id is not None:
             context["parent_id"] = parent_id
@@ -163,7 +168,14 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
         if (
             not {"asset_id", "change_id", "question"}
             <= set(payload)
-            <= {"asset_id", "change_id", "question", "parent_id"}
+            <= {
+                "asset_id",
+                "change_id",
+                "question",
+                "parent_id",
+                "record_until",
+                "acquisition_until",
+            }
         ):
             raise ValueError("unexpected change explanation fields")
         if not all(isinstance(value, str) for value in payload.values()):
@@ -185,7 +197,11 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
         if parent is not None and len(str(parent)) > 128:
             raise ValueError("invalid follow-up")
         return initialize_explanation_manager(root).request_change(
-            asset, key, change_question, str(parent) if parent else None
+            asset,
+            key,
+            change_question,
+            str(parent) if parent else None,
+            {k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload},
         )
     if not {"binding_id", "position"} <= set(payload) or set(payload) - {
         "binding_id",

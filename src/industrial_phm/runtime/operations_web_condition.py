@@ -32,6 +32,7 @@ def project_electrical_condition(
     end_at: datetime | None = None,
     reference_start: datetime | None = None,
     reference_end: datetime | None = None,
+    until: datetime | None = None,
 ) -> dict[str, object]:
     """Analyze recorded values; no review writes, training artifacts or provider labels."""
     base: dict[str, object] = {
@@ -70,7 +71,9 @@ def project_electrical_condition(
     stored_times = [at for point in relevant if (at := point.measurement.event_at) is not None]
     if not stored_times:
         return {**base, "state": "unknown-event-time"}
-    end = end_at or max(stored_times) + timedelta(seconds=1)
+    end = end_at or until or max(stored_times) + timedelta(seconds=1)
+    if until is not None and end > until:
+        raise ConditionSelectionError("target is after the replay position")
     start = end - _PERIODS[period]
     reference_end = reference_end or start
     reference_start = reference_start or reference_end - _PERIODS[period]
@@ -188,6 +191,8 @@ def project_electrical_condition(
         except ValueError:
             # A period beyond the supported read budget cannot be opened with this control.
             next_available = False
+    if until is not None and end + (end - start) > until:
+        next_available = False
     # The levels the summary and the comparison show for this source.
     stream = next(
         (
@@ -197,7 +202,7 @@ def project_electrical_condition(
         ),
         None,
     )
-    read = source_levels(reader, asset_id, stream) if current and stream else None
+    read = source_levels(reader, asset_id, stream, until=until) if current and stream else None
     levels = read[1] if read else None
     result = analyze_electrical_condition(
         reference,

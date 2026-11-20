@@ -14,6 +14,10 @@ from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.genai import change_answer
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.runtime import operations_web_phm_explanation as runtime
+from industrial_phm.runtime.operations_web_change_context import (
+    investigation_facts,
+    selected_change,
+)
 from industrial_phm.runtime.operations_web_change_review import (
     capture_change,
     handle_change_reviews_read,
@@ -22,10 +26,6 @@ from industrial_phm.runtime.operations_web_change_review import (
 from industrial_phm.runtime.operations_web_phm import handle_phm_read
 from industrial_phm.runtime.operations_web_review_index import handle_review_asset_index
 from industrial_phm.runtime.operations_web_vibration import acquisition_findings
-from industrial_phm.runtime.operations_web_vibration_context import (
-    investigation_facts,
-    selected_change,
-)
 from tests.support.phm import ScriptedModel, analyze, deliver, phm_workspace
 
 
@@ -87,7 +87,11 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert record["answer"]["source"] == "model"
     assert "에너지 비중" in record["answer"]["next_step"]
     sent = json.loads(model.requests[0][1]["content"])
-    assert sent["question"] == question and sent["facts"] == facts["facts"]
+    assert sent["question"] == question
+    assert sent["facts"] == {
+        key: value for key, value in facts["facts"].items() if not key.startswith("model_")
+    }
+    assert "model" not in sent["available_actions"]
     assert "primary" not in sent  # No compulsory model-score-first answer.
     assert store.list_for(context["binding_id"], context["position"]) == []
     assert (

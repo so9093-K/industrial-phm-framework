@@ -1,4 +1,4 @@
-"""One selected vibration change read together with the existing comparison and spectrum."""
+"""A selected measured change, its simultaneous signals and useful existing comparisons."""
 
 from __future__ import annotations
 
@@ -47,11 +47,52 @@ def _model_input(workspace: OperationsWorkspace, package_id: str) -> str:
         return "모델의 입력 구성을 읽지 못해 어떤 입력 차이가 있는지 확인하지 못했습니다."
 
 
-def selected_change(workspace: OperationsWorkspace, asset: str, key: str) -> dict[str, Any]:
-    record = acquisition_findings(workspace, asset)
+def selected_change(
+    workspace: OperationsWorkspace, asset: str, key: str, scope: dict[str, str] | None = None
+) -> dict[str, Any]:
+    from datetime import datetime
+
+    from industrial_phm.runtime.operations_web_explore import record_findings, record_selection
+
+    scope = record_selection(scope or {})
+    if "record_until" not in scope:
+        record = acquisition_findings(
+            workspace,
+            asset,
+            until=int(scope["acquisition_until"]) if "acquisition_until" in scope else None,
+        )
+    else:
+        record = {"intervals": []}
     change = next((row for row in record["intervals"] if row["review_key"] == key), None)
     if change is None:
-        raise ValueError("선택한 진동 변화가 달라졌습니다. 요약을 다시 불러오세요.")
+        record = record_findings(
+            workspace,
+            asset,
+            until=datetime.fromisoformat(scope["record_until"])
+            if "record_until" in scope
+            else None,
+        )
+        change = next((row for row in record["intervals"] if row["review_key"] == key), None)
+        if change is None:
+            raise ValueError("선택한 변화가 달라졌습니다. 기록을 다시 불러오세요.")
+        return {
+            "binding_id": "history:" + change["key"],
+            "package_id": None,
+            "analysis_run_id": None,
+            "position": int(datetime.fromisoformat(change["end"]).timestamp() * 1000),
+            "asset_id": asset,
+            "source_id": change["source_id"],
+            "change_id": key,
+            "history_change": change,
+            "operation": record["operation"],
+            "channels": [
+                row["channel"]
+                for row in record["signals"]
+                if row["source_id"] == change["source_id"]
+                and row["measurement_point_id"] == change["measurement_point_id"]
+            ],
+            "signal_comparison": {"previous_position": change["baseline"]["to"]},
+        }
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     binding = next(row for row in store.list_bindings() if row.binding_id == record["binding_id"])
     result = store.latest_result(
@@ -75,6 +116,8 @@ def selected_change(workspace: OperationsWorkspace, asset: str, key: str) -> dic
 
 def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, Any]:
     """Reuse the same A/B computations as the screens; do not rank model score scales."""
+    if "history_change" in context:
+        return history_investigation(context)
     change = context["vibration_change"]
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     binding = next(row for row in store.list_bindings() if row.binding_id == context["binding_id"])
@@ -201,4 +244,50 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
         "그러나 이 정보만으로 이번 판단 차이를 유발한 특징이나 원인을 확정하지는 못합니다. "
         "기준 초과 횟수가 적은 모델이 있다고 측정값의 변화를 없었던 것으로 해석하지 않습니다."
     )
+    return {"facts": facts, "actions": actions}
+
+
+def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
+    """Facts already computed over the selected source, operating level and A/B periods."""
+    change = context["history_change"]
+    unit = change["unit"] or "(단위 미확인)"
+    before, after = change["reference_value"], change["typical_value"]
+    before_text = number(before) if before is not None else "미확인"
+    after_text = number(after) if after is not None else "미확인"
+    facts = {
+        "subject": (
+            f"{change['label']}의 변화 구간은 {change['start']}부터 {change['end']}까지입니다."
+        ),
+        "feature_0": (
+            f"{change['label']}의 비교 구간 중앙값 {before_text} {unit}, "
+            f"변화 구간 중앙값 {after_text} {unit}."
+        ),
+        "scope": "과거 실측 기록의 비교입니다. 그 이후 실제 설비 상태는 알 수 없습니다.",
+        "conditions": (
+            "같은 출처·측정 위치·단위의 자료를 비교했습니다. "
+            "시간별 실제 부하나 정비 원인은 이 값만으로 확정할 수 없습니다."
+        ),
+    }
+    for index, related in enumerate(change.get("related", [])):
+        facts[f"related_{index}"] = (
+            f"같은 비교 구간에서 {related['label']}: {number(related['reference'])} → "
+            f"{number(related['current'])} {related['unit'] or ''}. 비교 상태 {related['state']}."
+        )
+    if change.get("band") is not None and change.get("operation"):
+        operation = next(
+            (row for row in context["operation"] if row["key"] == change["operation"]["key"]), None
+        )
+        if operation:
+            level = operation["levels"][change["band"] - 1]
+            facts["operating_level"] = (
+                f"전류가 약 {number(level['typical'])} {operation['unit'] or ''}인 "
+                "측정끼리 비교한 결과입니다. 전류 수준을 맞춰도 선택한 신호의 차이가 남는다는 "
+                "관측이며, 실제 부하 조건 전체가 같다는 뜻은 아닙니다."
+            )
+    actions = ["signals", "compare"]
+    if any(
+        all(f"{phase}상{quantity}" in context["channels"] for phase in "RST")
+        for quantity in ("전압", "전류")
+    ):
+        actions.append("electrical")
     return {"facts": facts, "actions": actions}

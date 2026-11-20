@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 import {recordContext,type RecordContext} from "./record-context.ts";
 import {focusGroups,focusParams,type SourceFocus} from "./signal-selection.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
@@ -259,7 +260,7 @@ export function spreadRows<T>(rows: T[], count = 8): T[] {
   return Array.from({length: count}, (_, i) => rows[Math.round((i * (rows.length - 1)) / (count - 1))]);
 }
 async function json(url: string, signal: AbortSignal): Promise<unknown> {
-  const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});
+  const response=await fetch(scopedUrl(url, currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});
   if ([404,422].includes(response.status)){
     const result: unknown = await response.json().catch(()=>null);
     const name=object(result)?.error;
