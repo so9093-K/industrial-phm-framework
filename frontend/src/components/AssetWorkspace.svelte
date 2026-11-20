@@ -29,12 +29,12 @@
 
   type Props = {
     asset: Asset;
-    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;onObservationView?:(view:"recent"|"record"|"replay")=>void;
+    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;
     assets: Asset[];
     route: Route;
     observed: (at: string | null) => string;
   };
-  let {asset, assets, route, observed,sources=null,sourceState="loading",cycle=0,onObservationView}: Props = $props();
+  let {asset, assets, route, observed,sources=null,sourceState="loading",cycle=0}: Props = $props();
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
   let capabilities: Capabilities | null = $state(null);
@@ -165,7 +165,7 @@
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
   {#if !analysisOpen}
-    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} onView={onObservationView} bind:selectedAt />
+    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} bind:selectedAt />
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">

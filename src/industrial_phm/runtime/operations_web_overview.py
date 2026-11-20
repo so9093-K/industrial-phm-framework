@@ -20,6 +20,9 @@ from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _TRACE = 48
+# 관제 화면 한 칸의 너비에서 선이 끊겨 보이지 않을 만큼, 그러나 설비마다 가볍게.
+_GROUP_POINTS = 320
+_PHASES = ("R상", "S상", "T상")
 
 
 def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
@@ -31,7 +34,8 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
 
     Returns:
         The kind of record, the operating shares, the main signal's latest value and short
-        trace, the first change of the summary with how many there are, and the data issues.
+        trace, the first change of the summary with how many there are, the data issues, and
+        the monitored group: the changed signal with its other phases or axes over the record.
     """
     body: dict[str, Any] = {
         "schema_version": 1,
@@ -39,6 +43,7 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         "kind": None,
         "operation": None,
         "main": None,
+        "group": None,
         "finding": None,
         "history_interval": None,
         "vibration_interval": None,
@@ -96,6 +101,9 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
         )
         if main is not None:
             body["main"] = _history_main(history, asset_id, main)
+        focus = body["history_interval"] or main
+        if focus is not None:
+            body["group"] = _history_group(history, asset_id, found, focus)
         return body
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     if not store.path.exists():
@@ -157,7 +165,171 @@ def asset_overview(workspace: OperationsWorkspace, asset_id: str) -> dict[str, A
             "axis": "acquisition",
             "period_seconds": found["period_seconds"],
         }
+        focus = found["intervals"][0]["feature"] if found["intervals"] else feature
+        body["group"] = _vibration_group(
+            workspace, store, asset_id, binding.binding_id, binding.source_id, focus
+        ) | {"period_seconds": found["period_seconds"]}
     return body
+
+
+def _history_group(
+    history: DuckLakeAssetHistory,
+    asset_id: str,
+    found: dict[str, Any],
+    focus: dict[str, Any],
+) -> dict[str, Any] | None:
+    """The focus signal and its other phases on the focus record's own time axis.
+
+    Args:
+        history: The stored measurement history.
+        asset_id: The asset.
+        found: The asset's record findings, for the signals and their identities.
+        focus: The signal the asset is monitored by (its first change, else its main signal).
+
+    Returns:
+        The group's name, unit and record, and one bucket-mean trace per member, or None
+        when the focus signal is not among the judged signals.
+    """
+    phased = focus["channel"].startswith(_PHASES) and focus.get("observed_property") is not None
+
+    def member(row: dict[str, Any]) -> bool:
+        if (row["source_id"], row["measurement_point_id"], row["unit"]) != (
+            focus["source_id"],
+            focus["measurement_point_id"],
+            focus["unit"],
+        ):
+            return False
+        # 한 상의 변화는 같은 의미의 다른 상과 겹쳐 봐야 함께 움직였는지 보인다.
+        return row["key"] == focus["key"] or (
+            phased
+            and row["channel"].startswith(_PHASES)
+            and row["observed_property"] == focus["observed_property"]
+        )
+
+    members = sorted(filter(member, found["signals"]), key=lambda row: row["channel"])[:8]
+    if not any(row["key"] == focus["key"] for row in members):
+        return None
+    start = datetime.fromisoformat(focus["record"]["from"])
+    end = max(datetime.fromisoformat(focus["record"]["to"]), start + timedelta(seconds=1))
+    aggregation = history.query_multi_signal_measurement_aggregation(
+        asset_id,
+        channel_ids=[row["channel"] for row in members],
+        start_at=start,
+        end_at=end,
+        bucket_count=_GROUP_POINTS,
+        source_id=focus["source_id"],
+        measurement_point_id=focus["measurement_point_id"],
+    )
+    series = []
+    for row in members:
+        own = [
+            bucket
+            for bucket in aggregation.buckets
+            if bucket.channel_id == row["channel"]
+            and bucket.mean is not None
+            and hashlib.sha256(bucket.interpretation_json.encode()).hexdigest()
+            == row["interpretation_id"]
+        ]
+        series.append(
+            {
+                "key": row["key"],
+                "label": row["label"],
+                "short": row["channel"][:2] if len(members) > 1 else row["label"],
+                "trace": [[bucket.bucket_start.isoformat(), bucket.mean] for bucket in own],
+                "trace_join": [
+                    index > 0
+                    and (bucket.bucket_start - own[index - 1].bucket_start).total_seconds()
+                    <= aggregation.bucket_seconds * 1.5
+                    for index, bucket in enumerate(own)
+                ],
+            }
+        )
+    single = focus.get("label") or focus["channel"]
+    return {
+        "label": focus["channel"][1:] if len(members) > 1 else single,
+        "unit": focus["unit"],
+        "axis": "time",
+        "focus": focus["key"],
+        "record": {"from": focus["record"]["from"], "to": focus["record"]["to"]},
+        "bucket_seconds": aggregation.bucket_seconds,
+        "period_seconds": None,
+        "series": series,
+    }
+
+
+def _vibration_group(
+    workspace: OperationsWorkspace,
+    store: SqlitePhmAnalysisStore,
+    asset_id: str,
+    binding_id: str,
+    source_id: str,
+    focus: str,
+) -> dict[str, Any]:
+    """The focus feature and the same statistic of the other vibration axes, per acquisition.
+
+    Args:
+        workspace: The operations workspace, for units.
+        store: The analysis store.
+        asset_id: The asset.
+        binding_id: The binding whose analyzed acquisitions are read.
+        source_id: The binding's source, for units.
+        focus: The feature the asset is monitored by.
+
+    Returns:
+        The group's name, unit and acquisition range, and one trace per member.
+    """
+    results, total = store.analyzed_between(binding_id, 0, 2**62, max_points=_GROUP_POINTS)
+    statistic = focus.rpartition(".")[2]
+    names = sorted(
+        {
+            name
+            for result in results
+            for name in (result.features or {})
+            if name.startswith("feature.") and name.rpartition(".")[2] == statistic
+        }
+        | {focus}
+    )
+    # 표본으로 줄였으면 표본 간격까지는 이어진 측정으로 본다.
+    stride = (
+        max(1.0, (results[-1].position - results[0].position) / max(1, len(results) - 1))
+        if len(results) < total and results
+        else 1.0
+    )
+    series = []
+    for name in names:
+        points = [
+            [result.position, float(value)]
+            for result in results
+            if isinstance(value := (result.features or {}).get(name), (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+        ]
+        label = feature_label(name)
+        series.append(
+            {
+                "key": name,
+                "label": label,
+                "short": label.split(" ", 1)[0] if len(names) > 1 else label,
+                "trace": points,
+                "trace_join": [
+                    index > 0 and point[0] - points[index - 1][0] <= stride * 1.5
+                    for index, point in enumerate(points)
+                ],
+            }
+        )
+    label = feature_label(focus)
+    return {
+        "label": label.split(" ", 1)[1] if len(names) > 1 and " " in label else label,
+        "unit": feature_unit(workspace, asset_id, source_id, focus),
+        "axis": "acquisition",
+        "focus": focus,
+        "record": {
+            "from": results[0].position if results else None,
+            "to": results[-1].position if results else None,
+        },
+        "bucket_seconds": None,
+        "series": series,
+    }
 
 
 def _first_judged(found: dict[str, Any]) -> dict[str, Any] | None:
