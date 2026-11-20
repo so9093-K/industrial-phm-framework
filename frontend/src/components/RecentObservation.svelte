@@ -43,6 +43,10 @@
   const chart=$derived.by(()=>{const current:Observation|null=read;return current&&group?signalChart(group,current.trend.startAt,current.trend.endAt,current.trend.bucketSeconds,{start:Date.parse(current.trend.startAt),height:300}):null;});
   const selection=$derived(group&&picked?summarize(group,picked):null);
   const label=$derived(signalName(names,channel));
+  const averageLabel=$derived.by(()=>{
+    const current:Observation|null=read;
+    return current?.trend.bucketSeconds?elapsedText(current.trend.bucketSeconds)+" 평균":"구간 평균";
+  });
   function remember(){
     const url=new URL(location.href),q=url.searchParams;
     q.set("observation_view","recent");q.set("observation_follow",following?"following":"paused");q.set("observation_range",range);q.set("observation_anchor",anchor);
@@ -125,10 +129,10 @@
   </div>
   {#if error}<StatusNotice kind="uncertain" message={error+(read?" 마지막으로 읽은 관측을 유지합니다.":"")} actionLabel="다시 시도" onAction={()=>void refresh()}/>{/if}
   {#if chart&&read}
-    <ObservationChart {chart} origin={Date.parse(read.trend.startAt)} step={read.trend.bucketSeconds?read.trend.bucketSeconds*1000:null} {unit} {label} {picked}
+    <ObservationChart {chart} origin={Date.parse(read.trend.startAt)} step={read.trend.bucketSeconds?read.trend.bucketSeconds*1000:null} {unit} {label} {averageLabel} {picked}
       reference={reference?{from:Date.parse(reference.from),to:Date.parse(reference.to)}:null} referenceValue={comparison?.median??null}
       intervals={comparison?.intervals??[]} onFreeze={beginSelection} onSelect={choose} onCancel={cancelSelection} onClear={resume}/>
-    <div class="caption"><span>구간 평균 · 옅은 선은 최소–최대 · 공백은 측정 없음</span>
+    <div class="caption"><span>{averageLabel} · 옅은 선은 측정값의 최소–최대 · 공백은 측정 없음</span>
       <span>{#if reference}<i class="reference-key"></i> 비교 기준 <i class="change-key"></i> 기준보다 달라진 구간{:else}점을 선택하거나 드래그해 구간 선택{/if}</span>
     </div>
   {:else if loading}<StatusNotice message="저장된 측정을 읽고 있습니다."/>
@@ -152,13 +156,13 @@
       {#if changes.length}<div class="changes" aria-label="기준 이후 달라진 구간">
         <span>달라진 구간 {changes.length}개</span>
         {#each changes.slice(0,3) as interval(interval.from)}<button type="button" onclick={()=>choose(interval)}
-          title={spanText(interval)+" · "+measure(interval.value,comparison.unit,4)}>
+          title={spanText(interval)+" · "+averageLabel+" "+measure(interval.value,comparison.unit,4)}>
           {new Date(interval.from).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hourCycle:"h23"})}
-          <strong>최대 {comparison.median!==null?difference(interval.value,comparison.median,comparison.unit):measure(interval.value,comparison.unit,4)}</strong>
+          <strong>{averageLabel} 최대 차이 {comparison.median!==null?difference(interval.value,comparison.median,comparison.unit):measure(interval.value,comparison.unit,4)}</strong>
           <small>{elapsedText((interval.to-interval.from)/1000)}</small>
         </button>{/each}
         {#if changes.length>3}<details><summary>다른 구간 {changes.length-3}개</summary><div class="changes">
-          {#each changes.slice(3) as interval(interval.from)}<button type="button" onclick={()=>choose(interval)}>{spanText(interval)} · {measure(interval.value,comparison.unit,4)}</button>{/each}
+          {#each changes.slice(3) as interval(interval.from)}<button type="button" onclick={()=>choose(interval)}>{spanText(interval)} · {averageLabel} 최대 차이 {comparison.median!==null?difference(interval.value,comparison.median,comparison.unit):measure(interval.value,comparison.unit,4)}</button>{/each}
         </div></details>{/if}
       </div>{:else}<p class="context">비교 기준 이후에 크게 달라진 구간이 없습니다.</p>{/if}
     {:else}<p class="context">{comparison?.state==="cumulative"?"누적값은 수준 변화로 비교하지 않습니다.":comparison?.state==="no-observations-after-reference"?"비교 기준을 적용했습니다. 이후 측정이 저장되면 비교합니다.":"이 기준으로 비교할 측정이 부족합니다. 더 긴 구간을 기준으로 선택하세요."}</p>{/if}

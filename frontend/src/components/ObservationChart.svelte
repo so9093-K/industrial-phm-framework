@@ -6,8 +6,8 @@
   import {clockText} from "../asset-timeline";
   import {measure} from "../chart-axis";
   import type {SignalChart} from "../history";
-  let {chart,origin,step,unit,label,picked,intervals=[],reference=null,referenceValue=null,onFreeze,onSelect,onCancel,onClear}:{chart:SignalChart;
-    origin:number;step:number|null;unit:string|null;label:string;picked:Span|null;intervals?:Span[];reference?:Span|null;referenceValue?:number|null;
+  let {chart,origin,step,unit,label,averageLabel,picked,intervals=[],reference=null,referenceValue=null,onFreeze,onSelect,onCancel,onClear}:{chart:SignalChart;
+    origin:number;step:number|null;unit:string|null;label:string;averageLabel:string;picked:Span|null;intervals?:Span[];reference?:Span|null;referenceValue?:number|null;
     onFreeze:()=>void;onSelect:(span:Span)=>void;onCancel:()=>void;onClear:()=>void}=$props();
   let drag:{from:number;to:number;x:number}|null=$state(null);
   let hover:number|null=$state(null),keyFocus:number|null=null,keyAnchor:number|null=null;
@@ -57,7 +57,7 @@
     onfocus={()=>{keyFocus=picked?.from??null;keyAnchor=null;}}
     onpointerdown={press} onpointermove={move} onpointerleave={()=>{if(!drag)hover=null;}}
     onpointerup={release} onpointercancel={()=>{drag=null;onCancel();}} onkeydown={keydown}>
-    <svg viewBox={"0 0 "+chart.width+" "+chart.height} style:height={chart.height+"px"} preserveAspectRatio="none" role="img" aria-label={label+" · 구간 평균과 최소·최대, 측정이 없는 구간은 연결하지 않음"}>
+    <svg viewBox={"0 0 "+chart.width+" "+chart.height} style:height={chart.height+"px"} preserveAspectRatio="none" role="img" aria-label={label+" · "+averageLabel+"과 최소·최대, 측정이 없는 구간은 연결하지 않음"}>
       {#each chart.ticks as tick(tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid"/>{/each}
       {#if reference}{@const shade=band(reference)}<rect x={shade.x} width={shade.width} height={chart.height} class="reference"/>{/if}
       {#each intervals as interval(interval.from)}{@const shade=band(interval)}<rect x={shade.x} width={shade.width} height={chart.height} class="change"/>
@@ -75,7 +75,7 @@
     {#if baselineY!==null&&referenceValue!==null}<div class="reference-label" title="비교 구간 평균들의 중앙값" style:top={Math.max(4,Math.min(chart.height-22,baselineY-20))+"px"}>
       {baselineY<0?"↑ ":baselineY>chart.height?"↓ ":""}기준 {measure(referenceValue,unit,4)}</div>{/if}
     {#if hovered}<div class="tooltip" style:--tooltip-x={hovered.x/chart.width*100+"%"}>
-      <span>{clockText(Date.parse(hovered.bucket.bucketStart))}</span><strong>평균 {measure(hovered.bucket.mean!,unit,4)}</strong>
+      <span>{clockText(Date.parse(hovered.bucket.bucketStart))}</span><strong>{averageLabel} {measure(hovered.bucket.mean!,unit,4)}</strong>
     </div>{/if}
   </div>
   {#snippet footer()}<XAxis lo={chart.start} hi={chart.end} scale={{kind:"clock"}}/>{/snippet}
