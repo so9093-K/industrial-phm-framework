@@ -243,6 +243,8 @@ def create_operations_web_read_server(
                     "snapshot",
                     "reference_from",
                     "reference_to",
+                    "record_until",
+                    "auto_reference",
                     "from",
                     "to",
                 }
@@ -328,15 +330,28 @@ def create_operations_web_read_server(
                 "restrict_point": bool(points),
                 "snapshot_id": snapshot_id,
                 "consistent": bool(snapshots) or reference is not None,
+                "auto_reference": params.get("auto_reference") == ["1"],
                 "reference_period": reference,
+                "until": self._replay_until(params),
             }
+
+        def _replay_until(self, params: dict[str, list[str]]) -> datetime | None:
+            values = params.get("record_until")
+            if values is None:
+                return None
+            if len(values) != 1:
+                raise ValueError("one replay position required")
+            moment = datetime.fromisoformat(values[0])
+            if moment.utcoffset() is None:
+                raise ValueError("explicit timezone required")
+            return moment
 
         def _condition_query(self) -> dict[str, object]:
             parts = urlsplit(self.path)
             if len(self.path) > 1000:
                 raise ValueError("condition query too long")
             params = parse_qs(
-                parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=8
+                parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=9
             )
             allowed = {
                 "asset_id",
@@ -346,6 +361,7 @@ def create_operations_web_read_server(
                 "end_at",
                 "reference_start",
                 "reference_end",
+                "record_until",
             }
             if set(params) - allowed or any(len(values) != 1 for values in params.values()):
                 raise ValueError("unexpected condition query")
@@ -369,6 +385,7 @@ def create_operations_web_read_server(
                     query[key] = timestamp
             if ("reference_start" in query) != ("reference_end" in query):
                 raise ValueError("reference start/end required together")
+            query["until"] = self._replay_until(params)
             return query
 
         @staticmethod
@@ -573,6 +590,8 @@ def create_operations_web_read_server(
                         reference_period=cast(
                             tuple[datetime, datetime] | None, query["reference_period"]
                         ),
+                        until=cast(datetime | None, query["until"]),
+                        auto_reference=cast(bool, query["auto_reference"]),
                     )
             except ConditionSelectionError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_selection")

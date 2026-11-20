@@ -42,7 +42,9 @@ def feature_rank(feature: str) -> int:
     return _RANK.get(feature.rsplit(".", 1)[-1], 4)
 
 
-def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[str, Any]:
+def acquisition_findings(
+    workspace: OperationsWorkspace, asset_id: str, *, until: int | None = None
+) -> dict[str, Any]:
     """Representative changes in an asset's acquisition features, by acquisition number.
 
     Args:
@@ -53,6 +55,8 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
         The judged features and up to three changes, each with its acquisitions, reference
         values and a short trace; empty when the asset has no analysed acquisitions.
     """
+    if until is not None and until < 1:
+        raise ValueError("acquisition_until must be positive")
     body: dict[str, Any] = {
         "schema_version": 1,
         "asset_id": asset_id,
@@ -72,7 +76,9 @@ def acquisition_findings(workspace: OperationsWorkspace, asset_id: str) -> dict[
     binding = acquisition_binding(store, asset_id)
     if binding is None:
         return body
-    results, _ = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_POINTS)
+    results, _ = store.analyzed_between(
+        binding.binding_id, 0, until if until is not None else 2**62, max_points=_POINTS
+    )
     if not results:
         return body
     period = acquisition_period(workspace, asset_id, binding.source_id)

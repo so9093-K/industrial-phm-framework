@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Two-period stored history, separated by exact server source/point/meaning identity. */
 import {assertObservationSnapshot} from "./observation-context.ts";
 import type {LevelNames} from "./record-findings.ts";
@@ -254,7 +255,7 @@ function parseOperation(raw: unknown): CompareOperation | null {
 }
 
 async function body(url: string, signal: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, {signal, cache:"no-store", credentials:"same-origin"});
+  const response = await fetch(scopedUrl(url,currentPlayback()), {signal, cache:"no-store", credentials:"same-origin"});
   if (response.status === 404) {
     const error: unknown = await response.json().catch(() => null);
     if (rec(error)?.error === "nothing_to_explore") throw new NoHistoryError("비교할 저장 이력이 없습니다.");

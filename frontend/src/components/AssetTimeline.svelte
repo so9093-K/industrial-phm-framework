@@ -2,21 +2,20 @@
   import type {Snippet} from "svelte";
   import XAxis from "./XAxis.svelte";
   import PlotCursor from "./PlotCursor.svelte";
-  import ChangeNumbers from "./ChangeNumbers.svelte";
   import {measure,niceTicks} from "../chart-axis";
   import {measurementScale} from "../time-axis";
   import {bandName} from "../record-findings";
   import {versusStart} from "../change-story";
   import {clockText,focusWindow,spanText,startsZoomed,valueAt,visiblePoints,type Span,type TimelineLane,type TimelineOperation} from "../asset-timeline";
   /** The observation and its operating conditions share a time axis. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,periodSeconds=null,selected=null,onSelect,onFocus,actions}:{
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
-    actions?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void}=$props();
+    actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void}=$props();
   const W=1000;
   let zoomed=$state(false),comparing=$state(false);
   const focused=$derived(lanes.find(lane=>lane.focus)??lanes[0]);
-  $effect(()=>{zoomed=startsZoomed(record,episode);});
+  $effect(()=>{zoomed=startsZoomed(record,episode)||(axis==="time"&&(episode.to-episode.from)<(record.to-record.from)/4);});
   const range=$derived(zoomed?focusWindow(record,episode):record);
   const lo=$derived(range.from),hi=$derived(Math.max(range.to,range.from+1));
   const x=(at:number)=>(at-lo)/(hi-lo)*W,clamp=(at:number)=>Math.max(0,Math.min(W,x(at)));
@@ -25,7 +24,7 @@
   const scale=$derived(axis==="time"?{kind:"clock" as const}:measurementScale(periodSeconds));
   const displayed=$derived(comparing?[focused,...lanes.filter(l=>l!==focused)].filter((l):l is TimelineLane=>!!l):focused?[focused]:[]);
   const related=$derived(lanes.filter(lane=>lane!==focused));
-  const primaryPoints=$derived(focused?visiblePoints(focused,record,zoomed):[]);
+  const primaryPoints=$derived(focused?visiblePoints(focused,range,zoomed):[]);
   const at=$derived(selected??primaryPoints.at(-1)?.x??null);
   const reading=$derived(at===null?null:valueAt(primaryPoints,at,0));
   function shape(lane:TimelineLane,height:number){
@@ -42,13 +41,13 @@
     <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+" 중":""}</p></div>
     <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
   </header>
-  {#if focused.values}<ChangeNumbers facts={{label:focused.label,unit:focused.unit,direction:focused.up?"up":"down",reference:focused.values.before,typical:focused.values.after}} fallback={focused.numbers} spanCaption={span(focused.interval)} latest={focused.values.latest?{caption:"마지막 · "+place(focused.values.latest.at),value:measure(focused.values.latest.value,focused.unit),note:versusStart(focused.values.latest.value,focused.values.before,focused.unit)}:null}/>{:else}<p class="numbers">{focused.numbers}</p>{/if}
-  {#if actions}{@render actions()}{/if}
+  {#if focused.values}<dl class="metrics"><div><dt>비교 구간</dt><dd>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</dd></div><span aria-hidden="true">→</span><div><dt>변화 구간</dt><dd>{focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</dd></div>{#if focused.values.latest}<div class="last"><dt>{axis==="time"?"마지막 구간 평균":"마지막 측정"}</dt><dd>{measure(focused.values.latest.value,focused.unit)}</dd></div>{/if}<small>{focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):""}</small></dl>{:else}<p class="numbers">{focused.numbers}</p>{/if}
   <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={()=>zoomed=false}>기록 전체</button><button type="button" aria-pressed={zoomed} onclick={()=>zoomed=true}>변화 구간 확대</button></div>
     {#if episodes.length>1}<div class="choices" role="group" aria-label="변화 시기">{#each episodes as item(item.label)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}</div>{/if}
     <button type="button" class="compare-toggle" aria-pressed={comparing} onclick={()=>comparing=!comparing}>{comparing?"선택 신호만 보기":"관련 신호 함께 보기"}</button>
   </div>
-  {#each displayed as lane(lane.key)}{@const height=lane.focus?230:130}{@const drawing=shape(lane,height)}
+  <div class="reading-layout"><div class="plots">
+  {#each displayed as lane(lane.key)}{@const height=lane.focus?280:130}{@const drawing=shape(lane,height)}
     {#if comparing}<div class="lane-heading"><strong>{lane.label}</strong><span>{lane.numbers}</span></div>{/if}
     <div class="chart"><div class="gutter" style:height={height+"px"}>{#each drawing.ticks as tick(tick.value)}<span style:top={tick.top+"%"}>{measure(tick.value,lane.unit)}</span>{/each}</div>
       <PlotCursor positions={drawing.points.map(p=>p.x)} value={at} {lo} {hi} label={lane.focus?"실제 측정 선택":lane.label+" 측정 선택"} {onSelect}><div class="plot">
@@ -56,20 +55,27 @@
           {#each drawing.ticks as tick(tick.value)}<line x1="0" x2={W} y1={drawing.y(tick.value)} y2={drawing.y(tick.value)} class="grid"/>{/each}
           <rect width={W} y={drawing.y(lane.usual.high)} height={Math.max(1,drawing.y(lane.usual.low)-drawing.y(lane.usual.high))} class="usual"/><rect x={clamp(lane.interval.from)} width={Math.max(1,clamp(lane.interval.to)-clamp(lane.interval.from))} height={height} class="interval"/>
           <path d={drawing.path} class="trace"/>{#each drawing.points.length<180?drawing.points:[] as point(point.x)}<circle cx={x(point.x)} cy={drawing.y(point.value)} r="2"/>{/each}
+          {#each (lane.matched??[]).filter(p=>p.x>=lo&&p.x<=hi) as point(point.x)}<circle cx={x(point.x)} cy={drawing.y(point.value)} r="3.5" class="matched"/>{/each}
           {#if at!==null&&at>=lo&&at<=hi}<line x1={x(at)} x2={x(at)} y1="0" y2={height} class="cursor"/>{/if}
         </svg><span class="onset" style:left={Math.min(80,clamp(lane.interval.from)/10)+"%"}>{place(lane.interval.from)}부터</span></div></PlotCursor>
       <div class="footer"><XAxis {lo} {hi} {scale}/></div>
     </div>
   {/each}
-  <div class="chart-caption"><p class="key"><i class="usual-key"></i>초기 범위 · 기록 처음 30% <i class="interval-key"></i>변화 구간</p>{#if reading}<output>{place(reading.x)} · {measure(reading.value,focused.unit)}</output>{/if}</div>
+  <div class="chart-caption"><p class="key"><i class="usual-key"></i>비교 범위 <i class="interval-key"></i>변화 구간{#if focused.condition}<span>· 점: 같은 전류 수준의 값</span>{/if}</p>{#if reading}<output>{place(reading.x)} · {measure(reading.value,focused.unit)}</output>{/if}</div>
+  </div>{#if context}<div class="related-context">{@render context()}</div>{/if}</div>
+  {#if actions}<div class="actions">{@render actions()}</div>{/if}
   {#if comparing}
     {#if operation}<div class="lane-heading"><strong>운전 수준</strong><span>{operation.names.levels.map((_,i)=>bandName(operation.names,i+1)).join(" · ")}</span></div>
       <div class="chart"><div></div><svg viewBox={"0 0 "+W+" 32"} style:height="32px" preserveAspectRatio="none" role="img" aria-label="같은 시각의 운전 수준 비율">{#each operation.columns.filter(c=>c.to>=lo&&c.from<=hi) as col(col.from)}{@const width=Math.max(1,clamp(col.to)-clamp(col.from))}{#each col.shares as share,i(i)}<rect x={clamp(col.from)} width={width} y={col.shares.slice(0,i).reduce((a,b)=>a+b,0)*32} height={share*32} fill="var(--color-action)" opacity={i===0?.06:.25+.75*i/col.shares.length}/>{/each}{/each}</svg></div>{/if}
-  {:else if related.length}<div class="related" aria-label="같은 시기에 달라진 신호"><h3>같은 시기의 다른 변화</h3>{#each related as lane(lane.key)}<button type="button" onclick={()=>onFocus?.(lane.key)}><strong>{lane.label}</strong><span>{span(lane.interval)}</span><small>{lane.numbers}</small></button>{/each}</div>{/if}
+  {:else if related.length && !context}<div class="related" aria-label="같은 시기에 달라진 신호"><h3>같은 시기의 다른 변화</h3>{#each related as lane(lane.key)}<button type="button" onclick={()=>onFocus?.(lane.key)}><strong>{lane.label}</strong><span>{span(lane.interval)}</span><small>{lane.numbers}</small></button>{/each}</div>{/if}
   {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
 </section>
 {/if}
 <style>
+  .metrics{display:flex;align-items:center;gap:12px 24px;flex-wrap:wrap;margin:0}.metrics>div{display:grid;gap:2px}.metrics dt{font-size:var(--font-label);color:var(--color-ink-muted)}.metrics dd{margin:0;font-weight:700;font-size:1.7rem;font-variant-numeric:tabular-nums}.metrics>span{color:var(--color-ink-muted);font-size:1.3rem}.metrics small{color:var(--color-ink-muted)}.metrics .last{border-left:1px solid var(--color-border);padding-left:20px}
+  .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}.plots{min-width:0}.related-context{border-left:1px solid var(--color-border);padding-left:20px}.actions{border-top:1px solid var(--color-border);padding-top:12px}
+  @media(max-width:1000px){.reading-layout{grid-template-columns:1fr}.related-context{border-left:0;padding-left:0;border-top:1px solid var(--color-border);padding-top:12px}}
+
   .timeline{display:grid;gap:var(--space-3);min-width:0}.headline{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3)}h2{margin:0;font-size:1.4rem;line-height:1.4}.headline p{margin:5px 0 0;font-size:var(--font-small);color:var(--color-ink-muted)}.signal-choice{display:grid;gap:4px;font-size:var(--font-label);min-width:220px}.signal-choice select{padding:8px}.numbers{margin:0;font-size:var(--font-section);font-weight:650}
   .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);padding-block:var(--space-1)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}button{cursor:pointer;font:inherit}.choices button{padding:6px 10px;font-size:var(--font-small);border:0;background:var(--color-surface);color:var(--color-ink)}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}.compare-toggle{margin-left:auto;border:0;background:none;color:var(--color-action);font-size:var(--font-small);text-decoration:underline;text-underline-offset:3px;padding:7px}
   .chart{display:grid;grid-template-columns:56px minmax(0,1fr);column-gap:8px;min-width:0}.gutter{position:relative;font-size:var(--font-label);color:var(--color-ink-muted)}.gutter span{position:absolute;right:0;transform:translateY(-50%);white-space:nowrap}.footer{grid-column:2}.plot{position:relative;border-bottom:1px solid var(--color-border)}svg{display:block;width:100%}svg path,svg line{vector-effect:non-scaling-stroke}.grid{stroke:var(--color-border);stroke-width:1}.usual{fill:var(--color-ink);opacity:.07}.interval{fill:var(--color-caution-ink);opacity:.12}.trace{fill:none;stroke:var(--color-action);stroke-width:2}circle{fill:var(--color-action)}.cursor{stroke:var(--color-ink);stroke-width:1;stroke-dasharray:3 3}.onset{position:absolute;top:5px;white-space:nowrap;background:var(--color-surface);padding:0 4px;border-radius:3px;font-size:var(--font-label);color:var(--color-caution-ink)}

@@ -1,3 +1,5 @@
+import {scopeParams, type PlaybackScope} from "./record-playback.ts";
+import {phaseSiblings} from "./history.ts";
 /** What one asset's whole stored record held: where its signals left the first 30% of the record,
  * representative sustained, recent and large changes (GET /api/v1/explore/findings). The summary says these as observed facts: when,
  * for how long, which signal, against which range, and how far. It never names a cause. */
@@ -49,6 +51,7 @@ export type Operation = {
 /** Whether a signal was judged, and if not why; a signal not judged never reads as unchanged. */
 export type SignalState = "scored" | "level-change" | "short-baseline" | "constant" | "cumulative" | "copied" | "no-values";
 export type CheckedSignal = {
+  preview?:{x:number;value:number;join:boolean}[];
   context?: RecordContext | null; channel: string; label: string; unit: string | null; state: SignalState;
   /** For a baseline held at one value: that value, and the range the record took afterwards. */
   held: number | null; later: {low: number; high: number} | null;
@@ -122,7 +125,7 @@ export function parseRecordFindings(raw: unknown, assetId: string): RecordFindin
     if (row.later !== undefined && row.later !== null && !later) invalid();
     const latest=object(row.latest),extent=object(row.range),copy=object(row.copied);
     if (row.state === "copied" && !copy) invalid();
-    return {latest:latest?{at:instant(latest.at),value:finite(latest.value)}:null,
+    return {preview:Array.isArray(row.preview)?row.preview.map((entry:unknown)=>{if(!Array.isArray(entry)||entry.length!==3||typeof entry[2]!=="boolean")invalid();return {x:Date.parse(instant(entry[0])),value:finite(entry[1]),join:entry[2]};}):[],latest:latest?{at:instant(latest.at),value:finite(latest.value)}:null,
       range:extent?{low:finite(extent.low),high:finite(extent.high)}:null,
       context: recordContext(row), channel: text(row.channel), label: text(row.label),
       unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null, state: row.state as SignalState,
@@ -217,8 +220,8 @@ export function sharesText(operation: Operation, shares: number[] | null): strin
     .sort((a, b) => b.share - a.share).map(row => bandName(operation, row.band) + " " + percent(row.share)).join(" · ");
 }
 
-export async function readRecordFindings(assetId: string, signal: AbortSignal): Promise<RecordFindings> {
-  const response = await fetch("/api/v1/explore/findings?" + new URLSearchParams({asset_id: assetId}),
+export async function readRecordFindings(assetId: string, signal: AbortSignal, scope: PlaybackScope | null = null): Promise<RecordFindings> {
+  const response = await fetch("/api/v1/explore/findings?" + new URLSearchParams({asset_id: assetId, ...scopeParams(scope)}),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
@@ -267,6 +270,19 @@ function changeSpan(item: FoundInterval, bucketSeconds: number | null): {from: n
   bucketSeconds = item.bucketSeconds ?? bucketSeconds;
   const from = Date.parse(item.start);
   return {from, to: Math.max(Date.parse(item.end), from + Math.max((bucketSeconds ?? 0) * 1000, 1000))};
+}
+
+/** Both the main action and AI suggestions open the actual related signals of this record. */
+export function relatedSignalHref(href:string,item:FoundInterval,signals:Pick<CheckedSignal,"channel"|"unit"|"context">[]):string {
+  if(!item.context)return href;
+  const own=signals.filter(row=>row.context?.sourceId===item.context!.sourceId&&row.context?.pointId===item.context!.pointId);
+  const candidates=item.unit==="V"||item.unit==="A"
+    ? [...phaseSiblings(own.map(row=>row.channel),item.channel),...own.filter(row=>row.unit==="A").map(row=>row.channel)]
+    : item.related.map(row=>row.channel);
+  const companions=[...new Set(candidates)].filter(id=>id!==item.channel&&own.some(row=>row.channel===id)).slice(0,5);
+  const url=new URL(href,"http://local");
+  if(companions.length)url.searchParams.set("monitor_with",companions.join(","));
+  return url.pathname+url.search+url.hash;
 }
 
 /** The interval in the signal graph, and compared with the first 30% it was judged against. */

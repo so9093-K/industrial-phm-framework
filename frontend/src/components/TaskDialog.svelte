@@ -12,7 +12,7 @@
   });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby={id} onclose={() => open = false} oncancel={() => open = false}>
+<dialog bind:this={dialog} aria-labelledby={id} onclose={() => {if(!dialog.open)open = false;}} oncancel={() => open = false}>
   <header><h2 id={id}>{title}</h2><button type="button" class="ui-button" onclick={() => open = false}>닫기</button></header>
   <div class="content">{#if visited}{@render children()}{/if}</div>
 </dialog>

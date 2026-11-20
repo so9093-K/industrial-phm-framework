@@ -104,10 +104,14 @@ def stream_operation(
     asset_id: str,
     record: dict[str, Any],
     levels: OperatingLevels,
+    *,
+    until: datetime | None = None,
 ) -> StreamOperation:
     """How long the source spent in each level over its current's record."""
     start = min(point[0] for point in record["points"])
     end = max(point[1] for point in record["points"]) + timedelta(seconds=1)
+    if until is not None:
+        end = min(end, until)
     timeline = _reader(history, asset_id, record, start, end)(levels.edges, _TIMELINE_BUCKETS)
     return StreamOperation(
         record["key"], levels, timeline, tuple(bucket.bucket_start for bucket in timeline.buckets)
@@ -261,6 +265,7 @@ def source_levels(
     stream: HistoryStream,
     *,
     snapshot_id: int | None = None,
+    until: datetime | None = None,
 ) -> tuple[tuple[str, str], OperatingLevels] | None:
     """The current a source's operating levels are read from, and the levels.
 
@@ -281,10 +286,13 @@ def source_levels(
         stream.start_at.isoformat(),
         stream.end_at.isoformat(),
         str(snapshot_id),
+        str(until),
     )
     if key in _SOURCE_LEVELS:
         return _SOURCE_LEVELS[key]
     start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
+    if until is not None:
+        end = until
     meanings = history.list_stream_meanings(
         asset_id,
         source_id=stream.source_id,
@@ -325,6 +333,7 @@ def comparison_operation(
     source_id: str | None = None,
     point_id: str | None = None,
     snapshot_id: int | None = None,
+    until: datetime | None = None,
 ) -> tuple[dict[str, Any], ProfileLevelSource] | None:
     """How the source ran in each compared period, and what a level filter reads from.
 
@@ -348,7 +357,7 @@ def comparison_operation(
     found = [
         (stream, read)
         for stream in streams
-        if (read := source_levels(history, asset_id, stream, snapshot_id=snapshot_id))
+        if (read := source_levels(history, asset_id, stream, snapshot_id=snapshot_id, until=until))
     ]
     if len(found) != 1:
         return None

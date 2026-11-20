@@ -1,19 +1,17 @@
 <script lang="ts">
   import {assetOptionLabel, type Asset} from "../monitor";
   import AssetName from "./AssetName.svelte";
-  import {modelFact, noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
+  import {noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
   import {changeValue} from "../record-findings";
   import {recentAsset} from "../observation";
   import {readOverview, sparkline, type OverviewRow} from "../asset-overview";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
   import {systemUrl} from "../routes";
-  import {readChangeReviews, type ChangeCapture} from "../change-reviews";
   import {vibrationShape} from "../vibration-findings";
-  import {DECISION_LABEL, latestDecision} from "../review-writes";
   import {changeEnded, plainLabel, versusStart} from "../change-story";
 
-  /** 모니터링 화면 맨 위의 설비 칸 줄. 칸마다 그 설비의 주요 변화 한 줄, 작은 추이, 모델의 마지막 분석 결과를 두고,
+  /** 모니터링 화면 맨 위의 설비 칸 줄. 칸마다 그 설비의 주요 변화와 작은 추이를 두고,
    * 누르면 아래 중심 화면이 그 설비로 바뀐다. 확인할 것이 있는 설비가 앞에 온다. */
   type Props = {
     assets: Asset[];
@@ -104,41 +102,9 @@
     });
   });
 
-  // 행의 변화에 남긴 검토. 변화(검토 키)가 바뀔 때만 다시 읽는다.
-  let reviews: Record<string, {key: string; text: string | null}> = $state({});
-  const reviewReads = new Map<string, AbortController>();
-  const reviewKey = (row: OverviewRow): string | null => row.historyInterval?.reviewKey ?? row.vibrationInterval?.change.reviewKey ?? null;
-  const day = (iso: string) => new Date(iso).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric"});
-  function reviewText(capture: ChangeCapture | null): string {
-    const events = capture?.review.events ?? [];
-    if (!capture || !events.length) return "기록 없음";
-    const decision = latestDecision(events);
-    return (capture.review.status === "closed" ? "종료 · " : "") + (decision ? DECISION_LABEL[decision] : "메모 " + events.length + "건")
-      + " · " + day(events.at(-1)!.recordedAt);
-  }
-  async function loadReview(id: string, key: string) {
-    reviewReads.get(id)?.abort();
-    const pending = new AbortController();
-    reviewReads.set(id, pending);
-    reviews[id] = {key, text: null};
-    try {
-      const page = await readChangeReviews(id, pending.signal, {finding_id: key});
-      if (!pending.signal.aborted) reviews[id] = {key, text: reviewText(page.captures[0] ?? null)};
-    } catch {
-      if (!pending.signal.aborted) reviews[id] = {key, text: "기록을 읽지 못함"};
-    }
-  }
-  $effect(() => {
-    const keys = Object.entries(rows).flatMap(([id, read]) => {
-      const key = typeof read === "object" ? reviewKey(read) : null;
-      return key ? [[id, key] as const] : [];
-    });
-    untrack(() => { for (const [id, key] of keys) if (reviews[id]?.key !== key) void loadReview(id, key); });
-  });
   onDestroy(() => {
     request.abort();
     for (const pending of inFlight.values()) pending.abort();
-    for (const pending of reviewReads.values()) pending.abort();
   });
 
   // An asset still being imported, or left with part of its record, says so on its row; the list
@@ -163,11 +129,6 @@
     return () => clearTimeout(timer);
   });
 
-  function modelShort(id: string): string {
-    if (checks.state === "failed") return "모델 상태 미확인";
-    const list = checks.models[id] ?? [];
-    return modelFact(list, true) ?? (!list.length ? checks.state === "loading" ? "모델 확인 중" : "적용 모델 없음" : "모델 분석 대기");
-  }
   /** 모델 결과 밖의 확인 항목. 칸에 보이는 변화와 같은 신호의 '기록 끝' 항목은 그 변화가 이미 말한다. */
   function problems(id: string, row: OverviewRow | null): {text: string; note: Note}[] {
     const shown = row?.historyInterval;
@@ -218,22 +179,15 @@
       {@const read = rows[asset.assetId]}
       {@const row = typeof read === "object" ? read : null}
       {@const fact = recentAsset(asset)?{what:"최근 측정 보기",how:"",when:asset.lastObservedAt?"마지막 측정 "+new Date(asset.lastObservedAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"저장된 측정 대기",trace:[]}:tile(row, read)}
-      {@const model = modelShort(asset.assetId)}
-      {@const review = reviews[asset.assetId]}
       {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
       <a class="tile" href={href(asset.assetId)} aria-current={asset.assetId === selected ? "page" : undefined}>
-        <span class="top"><strong><AssetName label={name(asset)}/></strong></span>
-        {#if row?.vibrationInterval?.sourceId.startsWith("xjtu-sy-")}<small class="record-kind">베어링 수명시험 · 공개 진동 기록</small>
-        {:else if (row?.historyInterval?.context?.sourceId??row?.main?.context?.sourceId??"").startsWith("aihub239-")}<small class="record-kind">공개 설비 계측 기록{asset.lastObservedAt ? " · 마지막 측정 "+new Date(asset.lastObservedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"}) : ""}</small>{/if}
+        <span class="top"><strong><AssetName label={name(asset)}/></strong><small class="signal-label">{fact.what}</small></span>
         {#if compact}<small class="compact-state">{asset.flow==="stored-history"?"저장 기록":"최근 측정"} · {asset.lastObservedAt?new Date(asset.lastObservedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"}):asset.lastPosition?asset.lastPosition+"번째 측정":"측정 대기"}</small>{/if}
-        <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small>{"\u00a0· 저장된 기록"}</small>{/if}</span>
         {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
-        <small class="model">{model}</small>
         {#each problems(asset.assetId, row) as problem (problem.note.id)}<small class="issue">{problem.text}</small>{/each}
         {#if asset.attentionCount}<small class="issue">운영 확인 항목 {asset.attentionCount}건</small>{/if}
         {#if imports.get(asset.assetId)}<small class="issue">{imports.get(asset.assetId)!.text}</small>{/if}
-        {#if review?.text && review.text !== "기록 없음"}<small>검토 · {review.text}</small>{/if}
       </a>
     {/each}
   </nav>
@@ -249,14 +203,13 @@
   .tile{position:relative;flex:0 0 360px;display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--color-border);border-top:3px solid transparent;border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink);text-decoration:none}
   .tile:hover { border-color: var(--color-action); }
   .compact .tile{flex-basis:300px;display:block;padding:var(--space-2) var(--space-3)}
-  .compact .tile>.what,.compact .tile>.how,.compact .tile>.bottom{display:none}
-  .compact .tile>.record-kind,.compact .tile>.model,.compact .tile>small{display:none}
+  .compact .tile>.how,.compact .tile>.bottom{display:none}
+  .compact .tile>small{display:none}
   .compact .tile>.compact-state{display:block;margin-top:4px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .tile[aria-current="page"] { border-top-color: var(--color-action); background: var(--color-surface-selected); }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
   .top strong { font-size: var(--font-body); }
-  .model { font-size: var(--font-label); color: var(--color-ink-muted); }
-  .what { max-width:calc(100% - 80px);font-size: var(--font-small); overflow-wrap: anywhere; }
+  .signal-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:58%}.compact .signal-label{display:none}
   .how { max-width:calc(100% - 80px);font-size:var(--font-small);font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .bottom{display:block}
   .bottom small{display:block}.bottom svg{position:absolute;right:12px;top:42px;width:72px}

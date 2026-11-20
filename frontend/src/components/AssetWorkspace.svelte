@@ -1,7 +1,6 @@
 <script lang="ts">
   import {untrack,tick} from "svelte";
-  import {elapsedText} from "../time-axis";
-  import {assetLabel, flowLabel, type Asset} from "../monitor";
+  import {assetLabel, type Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
   import {
@@ -30,7 +29,7 @@
 
   type Props = {
     asset: Asset;
-    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;onObservationView?:(view:"recent"|"record")=>void;
+    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;onObservationView?:(view:"recent"|"record"|"replay")=>void;
     assets: Asset[];
     route: Route;
     observed: (at: string | null) => string;
@@ -161,13 +160,6 @@
 </script>
 
 <div class="workspace-asset" aria-busy={dataState === "loading"}>
-  <div class="head" class:visually-hidden={!analysisOpen}>
-    <div class="title">
-      <h1><AssetName label={assetLabel(assets, asset.assetId)}/></h1>
-      <p class="meta">{#if !asset.lastObservedAt && data?.vibration}진동 기록 {data.vibration.measurements}회 · {data.vibration.timing
-        ? elapsedText(data.vibration.timing.periodSeconds)+" 간격" : "측정 순서로 표시"} · 날짜·시각 미기록{:else}{flowLabel(asset.flow)} · 마지막 측정 {observed(asset.lastObservedAt)}{/if}</p>
-    </div>
-  </div>
 
   {#if unfinished}<p class="import-note" role="status">{unfinished.text}
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
@@ -177,7 +169,7 @@
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">
-      <div class="selection-context"><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 모니터링</a>
+      <div class="selection-context"><strong class="analysis-asset"><AssetName label={assetLabel(assets,asset.assetId)}/></strong><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 모니터링</a>
         {#key route.tab+":"+method+":"+kind}<InvestigationContext search={location.search}/>{/key}</div>
       <h2 id="analysis-view-title" class="visually-hidden">{analysisTitle}</h2>
       {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
@@ -269,6 +261,7 @@
 </div>
 
 <style>
+  .analysis-asset{font-size:var(--font-body)}.record-type{font-size:var(--font-label);color:var(--color-ink-muted)}
   .analysis-view{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
   .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--space-3);
     padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
@@ -283,10 +276,6 @@
   .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: 0; }
-  .title { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
-  h1 { overflow-wrap: anywhere; font-size: 1.3rem; margin: 0; }
-  .meta { color: var(--color-ink-muted); margin: 0; overflow-wrap: anywhere; font-size: var(--font-small); }
   .import-note { margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4); border-left: 4px solid var(--color-uncertain-border);
     background: var(--color-uncertain-surface); color: var(--color-caution-ink); font-size: var(--font-small); overflow-wrap: anywhere; }
   .task-chooser { display: grid; gap: var(--space-3); }

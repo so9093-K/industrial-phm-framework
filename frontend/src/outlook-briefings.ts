@@ -1,3 +1,4 @@
+import {currentPlayback, scopeParams} from "./record-playback.ts";
 /** Version-bound outlook explanations; the server alone computes facts and authorizes writes. */
 import {parseOutlookSettings,type Projection} from "./projections.ts";
 import type {AcquisitionProjection} from "./acquisition-outlook.ts";
@@ -50,6 +51,7 @@ export function briefingSelection(projection:BriefingProjection):string{
     changepoint_range:String(projection.outlookSettings.changepointRange),
     seasonality:projection.outlookSettings.seasonality,
   };
+  Object.assign(entries,scopeParams(currentPlayback()));
   if(!isAcquisition(projection)&&projection.recordKey)entries.record_key=projection.recordKey;
   if(isAcquisition(projection)){
     entries.source_id=projection.sourceId;

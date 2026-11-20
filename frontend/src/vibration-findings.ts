@@ -1,3 +1,4 @@
+import {scopeParams, type PlaybackScope} from "./record-playback.ts";
 /** Representative changes in an asset's waveform-acquisition features, by acquisition number
  * (GET /api/v1/explore/vibration). Each is judged against the first 30% of the acquisitions and
  * said as observed: which feature, from which acquisition to which, against which values. */
@@ -65,8 +66,8 @@ export function parseVibrationChange(entry: unknown): VibrationChange {
     })};
 }
 
-export async function readVibrationFindings(assetId: string, signal: AbortSignal): Promise<VibrationFindings> {
-  const response = await fetch("/api/v1/explore/vibration?" + new URLSearchParams({asset_id: assetId}),
+export async function readVibrationFindings(assetId: string, signal: AbortSignal, scope: PlaybackScope | null = null): Promise<VibrationFindings> {
+  const response = await fetch("/api/v1/explore/vibration?" + new URLSearchParams({asset_id: assetId, ...scopeParams(scope)}),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});

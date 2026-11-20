@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {bandName, bandRange, focusChange, copiedGroups, findingLinks, findingText, parseRecordFindings, sharesText, shiftText, unjudgedText, type CheckedSignal} from "./record-findings.ts";
+import {bandName, bandRange, focusChange, copiedGroups, findingLinks, relatedSignalHref, findingText, parseRecordFindings, sharesText, shiftText, unjudgedText, type CheckedSignal} from "./record-findings.ts";
 
 const body = () => ({
   schema_version: 1, asset_id: "comp", meaning: "departures-from-the-first-30-percent-not-fault-diagnosis",
@@ -182,4 +182,24 @@ test("entry focus shows a transition and recovery nearby while keeping a distant
   assert.equal(focused.trace?.[0].join,false);
   assert.deepEqual(focusChange(focused),focused);
   assert.equal(change.trace.length,9);
+});
+
+
+test("related-signal actions keep the selected source and position while using each signal's own meaning",()=>{
+  const item=parseRecordFindings(body(),"comp").intervals[0];
+  const context={key:"selected",sourceId:"B",pointId:"motor",interpretationId:"current-meaning",record:body().record};
+  const chosen={...item,channel:"R상전압",unit:"V",context};
+  const signals=[
+    {channel:"R상전압",unit:"V",context},
+    {channel:"S상전압",unit:"V",context:{...context,key:"s",interpretationId:"voltage-s"}},
+    {channel:"T상전압",unit:"V",context:{...context,sourceId:"A"}},
+    {channel:"R상전류",unit:"A",context:{...context,key:"r-current"}},
+    {channel:"S상전류",unit:"A",context:{...context,pointId:"other"}},
+  ];
+  const href=relatedSignalHref("/web/?monitor_source=B&monitor_point=motor&monitor_pick=10~20",chosen,signals);
+  const query=new URL(href,"http://local").searchParams;
+  assert.deepEqual(query.get("monitor_with")?.split(","),["S상전압","R상전류"]);
+  assert.equal(query.get("monitor_source"),"B");
+  assert.equal(query.get("monitor_point"),"motor");
+  assert.equal(query.get("monitor_pick"),"10~20");
 });

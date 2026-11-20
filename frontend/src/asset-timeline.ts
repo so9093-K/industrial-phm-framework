@@ -8,6 +8,7 @@ export type TimelinePoint = {x: number; value: number; join?: boolean};
 
 /** 시간축 한 줄에 그리는 변화 하나. `points`는 기록 전체, `detail`은 변화 앞뒤를 더 촘촘히 읽은 값(있으면). */
 export type TimelineLane = {
+  matched?:TimelinePoint[];
   key: string; label: string; condition: string | null; unit: string | null;
   points: TimelinePoint[]; detail: TimelinePoint[];
   usual: {low: number; high: number}; interval: Span; numbers: string; focus: boolean; up: boolean;

@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Load, voltage/current unbalance and the reference-pattern score of a 3-phase asset, for a
  * recent period against an earlier one, as the server measured them. Changed operating
  * conditions are not a fault, and the reference period is not assumed to be normal. */
@@ -146,7 +147,7 @@ export async function readCondition(
   if(custom.referenceStart){query.set("reference_start",kstInstant(custom.referenceStart));query.set("reference_end",kstInstant(custom.referenceEnd));}
   const unread="분석할 데이터를 읽지 못했습니다. 이전 결과는 보여 주지 않습니다. 고주파 데이터는 기간을 줄이세요.";
   let response:Response;
-  try{response=await fetch("/api/v1/condition?"+query,{signal,cache:"no-store",credentials:"same-origin"});}
+  try{response=await fetch(scopedUrl("/api/v1/condition?"+query,currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});}
   catch(error){if(signal.aborted)throw error;throw new Error(unread);}
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});

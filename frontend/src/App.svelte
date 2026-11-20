@@ -32,7 +32,7 @@
   // 관측 현황은 확인 사실을 계속 다시 읽고(MonitorAttention), 설비·신호 목록은 열 때 한 번 읽는다.
   let checks: AssetChecks = $state(UNCHECKED);
   let sourceStatus:Sources|null=$state(null), sourceState:"loading"|"ready"|"failed"=$state("loading");
-  let observationCycle=$state(0),observationView=$state<"recent"|"record">(new URLSearchParams(location.search).get("observation_view")==="recent"?"recent":"record");
+  let observationCycle=$state(0),observationView=$state<"recent"|"record"|"replay">(new URLSearchParams(location.search).has("record_until")||new URLSearchParams(location.search).has("acquisition_until")?"replay":new URLSearchParams(location.search).get("observation_view")==="recent"?"recent":"record");
   function receiveSources(value:Sources|null,state:"loading"|"ready"|"failed"){if(value)sourceStatus=value;sourceState=state;}
   // 모니터링 화면(설비 칸 줄 + 고른 설비의 중심 화면). 설비를 고르지 않았으면 첫 설비를 열고 주소에 남긴다.
   const monitoring = $derived(route.page === "monitor" || route.page === "assets");
@@ -300,7 +300,7 @@
         <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
       {/if}
       {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
-      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks} compact={route.tab!=="summary"||observationView==="recent"}
+      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks} compact={route.tab!=="summary"||observationView!=="record"}
         checkedAt={observed(snapshot.assessedAt)} />
       {#if selected}
         {#key selected.assetId}

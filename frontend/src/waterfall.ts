@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Each acquisition's spectrum over the whole record, one row per acquisition, so a reader sees
  * from which acquisition a band's energy changed (GET /api/v1/explore/waterfall). Power is in dB
  * against each channel's strongest bin; it locates energy, it does not name a fault frequency. */
@@ -28,7 +29,7 @@ export function parseWaterfall(raw: unknown, assetId: string): Waterfall {
 }
 
 export async function readWaterfall(assetId: string, signal: AbortSignal): Promise<Waterfall> {
-  const response = await fetch("/api/v1/explore/waterfall?" + new URLSearchParams({asset_id: assetId}),
+  const response = await fetch(scopedUrl("/api/v1/explore/waterfall?" + new URLSearchParams({asset_id: assetId}),currentPlayback()),
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});

@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Two server-owned acquisition projections, never an invented observation clock. */
@@ -255,7 +256,7 @@ export function acquisitionChart(projection:AcquisitionProjection, includeLimits
     ticks:yTicks(lo,hi,top,bottom)};
 }
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
-  const response=await fetch(url,{signal,cache:"no-store",credentials:"same-origin"});
+  const response=await fetch(scopedUrl(url, currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404||response.status===422){
     const payload:unknown=await response.json().catch(()=>null);
     const name=obj(payload)?.error;

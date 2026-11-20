@@ -664,6 +664,7 @@ def acquisition_waterfall(
     binding: PhmBinding,
     *,
     rows: int = WATERFALL_ROWS,
+    until: int | None = None,
 ) -> dict[str, Any]:
     """Welch PSD of acquisitions spread evenly over the whole record, one row per acquisition.
 
@@ -679,7 +680,9 @@ def acquisition_waterfall(
         Display frequencies, the acquisitions read, and per channel each row's power in dB
         relative to the channel's strongest bin over all rows.
     """
-    delivered = snapshots.ordinals_between(binding.source_id, binding.asset_id, 0, 2**62)
+    delivered = snapshots.ordinals_between(
+        binding.source_id, binding.asset_id, 0, until if until is not None else 2**62
+    )
     if not delivered:
         raise LookupError("no delivered acquisition")
     indexes = dict.fromkeys(round(i) for i in np.linspace(0, len(delivered) - 1, rows))

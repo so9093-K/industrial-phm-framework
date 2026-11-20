@@ -13,18 +13,21 @@ from industrial_phm.genai.local_explanation import (
 from industrial_phm.genai.outlook_answer import _NUMBER, _normalized, allowed_numbers
 
 ACTION_LABELS = {
-    "compare": "같은 기간의 특징 변화 비교",
+    "compare": "같은 기간의 값·분포 비교",
+    "signals": "같은 시각의 관련 실측 신호 보기",
+    "electrical": "다른 상전압·전류와 운전 수준 비교",
     "spectrum": "같은 기간의 주파수 변화 보기",
-    "onset": "변화가 시작된 측정의 파형·모델 결과 보기",
+    "onset": "변화가 시작된 측정의 원본 파형 보기",
     "model": "변화가 시작된 측정의 모델 결과 보기",
 }
 
 INSTRUCTIONS = (
-    "당신은 사용자가 선택한 진동 변화를 함께 조사하는 분석 도우미입니다. "
+    "당신은 사용자가 선택한 설비 측정의 변화를 함께 조사하는 분석 도우미입니다. "
     "summary는 question의 답부터 한국어로 2~4문장으로 쓰세요. "
     "모델 점수를 의무적으로 먼저 설명하지 마세요. "
     "모델에 대한 질문이 아니라면 모델의 초과 횟수나 입력 차이를 끼워 넣지 마세요. "
-    "facts는 선택한 현상과 같은 A/B 구간으로 이미 계산한 특징·지속 여부·주파수 비교입니다. "
+    "facts는 선택한 현상과 같은 A/B 구간으로 이미 계산한 측정값·관련 신호·운전 수준·"
+    "지속 여부·주파수 비교입니다. 없는 분석은 추측하지 마세요. "
     "언제부터인지 물으면 subject의 주요 변화 구간을 중심으로 답하세요. "
     "다른 특징의 시점과 섞지 마세요. "
     "얼마나 이어졌는지 물으면 persistence와 flow를, "
@@ -63,6 +66,13 @@ def generate_change_answer(
 ) -> dict[str, Any]:
     investigation = context["investigation"]
     facts, actions = investigation["facts"], investigation["actions"]
+    model_question = any(
+        word in context["question"].lower()
+        for word in ("모델", "점수", "알고리즘", "lstm", "isolation", "model")
+    )
+    if not model_question:
+        facts = {key: value for key, value in facts.items() if not key.startswith("model_")}
+        actions = [action for action in actions if action != "model"]
     schema = {
         "type": "object",
         "properties": {

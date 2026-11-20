@@ -1,3 +1,4 @@
+import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Paired stored measurements from the authoritative history relation endpoint. */
 import {assertObservationSnapshot} from "./observation-context.ts";
 import {validatePeriods, type Periods} from "./comparison.ts";
@@ -108,7 +109,7 @@ export async function readRelation(asset:string,x:string,y:string,periods:Period
     a_from:periods.a.from,a_to:periods.a.to,b_from:periods.b.from,b_to:periods.b.to,
   });
   if(snapshot!==null)params.set("snapshot",String(snapshot));
-  const response=await fetch("/api/v1/explore/relation?"+params,{signal,cache:"no-store",credentials:"same-origin"});
+  const response=await fetch(scopedUrl("/api/v1/explore/relation?"+params,currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404){
     const detail:unknown=await response.json().catch(()=>null);
     if(rec(detail)?.error==="nothing_to_explore")throw new RelationUnavailable("저장된 측정 짝이 없습니다.");

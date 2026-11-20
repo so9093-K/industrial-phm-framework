@@ -104,9 +104,16 @@ def handle_forecast_read(
         if not 0 < len(asset_id) <= 512:
             raise ValueError("asset_id is required")
         if path == "/api/v1/acquisition/trend":
-            return HTTPStatus.OK, acquisition_trend(workspace, asset_id, params.get("feature", ""))
+            return HTTPStatus.OK, acquisition_trend(
+                workspace,
+                asset_id,
+                params.get("feature", ""),
+                until=int(record_selection(params)["acquisition_until"])
+                if "acquisition_until" in params
+                else None,
+            )
         if path == "/api/v1/forecast/options":
-            body = forecast_options(workspace, asset_id)
+            body = forecast_options(workspace, asset_id, selection=record_selection(params))
             if params.get("series"):
                 training = int(params["training_points"]) if params.get("training_points") else None
                 if training is not None and not 20 <= training <= 1000:
@@ -132,6 +139,7 @@ def handle_forecast_read(
                         params["series"],
                         assumed_period_seconds=assumed,
                         count_mode=True,
+                        selection=record_selection(params),
                     )
                 else:
                     raise ValueError("invalid forecast kind")
@@ -243,6 +251,7 @@ def forecast_options(
     asset_id: str,
     *,
     sources: dict[str, Any] | None = None,
+    selection: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Forecast readiness over a single validated view of recorded inputs."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -269,8 +278,11 @@ def forecast_options(
     if acquisition is not None:
         # Use the same bounded analyzed rows and finite feature filtering as the forecast
         # itself. The analyzed-step total may include missing/invalid feature values.
-        results, _ = store.analyzed_between(
-            acquisition["binding_id"], 0, 2**62, max_points=_BUCKETS
+        results, total = store.analyzed_between(
+            acquisition["binding_id"],
+            0,
+            int((selection or {}).get("acquisition_until", 2**62)),
+            max_points=_BUCKETS,
         )
         series = []
         for candidate in acquisition["features"]:
@@ -295,9 +307,9 @@ def forecast_options(
             "source_id": acquisition["source_id"],
             "binding_id": acquisition["binding_id"],
             "series": series,
-            "first": acquisition["first"],
-            "last": acquisition["last"],
-            "count": acquisition["count"],
+            "first": results[0].position if results else acquisition["first"],
+            "last": results[-1].position if results else acquisition["first"],
+            "count": total,
             "period_seconds": period,
             "horizons": {
                 key: None
@@ -317,7 +329,7 @@ def forecast_options(
 
 
 def acquisition_trend(
-    workspace: OperationsWorkspace, asset_id: str, feature: str
+    workspace: OperationsWorkspace, asset_id: str, feature: str, *, until: int | None = None
 ) -> dict[str, Any]:
     """One analyzed vibration feature per acquisition, as stored; nothing is fitted."""
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -327,7 +339,7 @@ def acquisition_trend(
     if feature not in {candidate["key"] for candidate in acquisition["features"]}:
         raise ValueError("unknown acquisition feature")
     results, total = store.analyzed_between(
-        acquisition["binding_id"], 0, 2**62, max_points=_BUCKETS
+        acquisition["binding_id"], 0, until if until is not None else 2**62, max_points=_BUCKETS
     )
     points = _finite_acquisition_points(results, feature)
     return {
@@ -380,6 +392,7 @@ def forecast_series(
             series,
             assumed_period_seconds=assumed_period_seconds,
             count_mode=horizon == "count",
+            selection=record_selector,
         )
         seasonal = False
     else:
@@ -447,7 +460,12 @@ def history_points(
     reader = _history(workspace)
     if reader is None:
         raise LookupError("no stored measurement history")
-    records = signal_records(reader, asset_id, [channel])
+    until = (
+        datetime.fromisoformat(selection["record_until"])
+        if selection and "record_until" in selection
+        else None
+    )
+    records = signal_records(reader, asset_id, [channel], until=until)
     if not records:
         raise LookupError("no stored measurement history")
     record = select_signal_record(records, selection or {}, largest=True)
@@ -485,6 +503,7 @@ def acquisition_points(
     *,
     assumed_period_seconds: float | None = None,
     count_mode: bool = False,
+    selection: dict[str, str] | None = None,
 ) -> tuple[list[datetime], list[float], dict[str, Any]]:
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     binding = acquisition_binding(store, asset_id) if store.path.exists() else None
@@ -495,7 +514,12 @@ def acquisition_points(
         raise ForecastUnavailable("unknown-interval")
     # In count mode an ordinal always has a well-defined next step, even without a clock.
     period = assumed_period_seconds or recorded_period or 1.0
-    results, total = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_BUCKETS)
+    results, total = store.analyzed_between(
+        binding.binding_id,
+        0,
+        int((selection or {}).get("acquisition_until", 2**62)),
+        max_points=_BUCKETS,
+    )
     points = _finite_acquisition_points(results, feature)
     return (
         [_ORIGIN + timedelta(seconds=(position - 1) * period) for position, _ in points],
