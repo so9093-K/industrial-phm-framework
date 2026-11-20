@@ -13,6 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 from industrial_phm.application.asset_display import resolve_channel_labels
 from industrial_phm.application.asset_history import MeasurementSourceQuality
+from industrial_phm.application.exploratory_anomaly import declared_running_total, find_departures
 from industrial_phm.application.measurement_history import MultiSignalMeasurementHistoryBucket
 from industrial_phm.application.signal_exploration import display_unit
 from industrial_phm.history import DuckLakeAssetHistory
@@ -143,6 +144,11 @@ def project_signal_history(
     time_anchor: str = "now",
     source_id: str | None = None,
     window: tuple[datetime, datetime] | None = None,
+    point_id: str | None = None,
+    restrict_point: bool = False,
+    snapshot_id: int | None = None,
+    consistent: bool = False,
+    reference_period: tuple[datetime, datetime] | None = None,
 ) -> dict[str, object]:
     """Read one bounded multi-signal time window plus stored per-source last points.
 
@@ -167,11 +173,20 @@ def project_signal_history(
     if time_anchor not in {"now", "latest"}:
         raise ValueError("unsupported time anchor")
     reader = _history(snapshot)
+    selected_snapshot = (
+        reader.current_snapshot_id()
+        if (consistent or reference_period is not None) and snapshot_id is None
+        else snapshot_id
+    )
     end = snapshot.assessed_at
     latest: list[dict[str, object]] = []
     for channel in channel_ids:
-        for point in query_operations_latest_measurements(reader, asset_id, channel_id=channel):
+        for point in query_operations_latest_measurements(
+            reader, asset_id, channel_id=channel, snapshot_id=selected_snapshot
+        ):
             if source_id is not None and point.measurement.source_id != source_id:
+                continue
+            if restrict_point and point.measurement.measurement_point_id != point_id:
                 continue
             if len(latest) >= MAX_LATEST_POINTS:
                 raise OperationsReadError("too many stored last points; narrow the query")
@@ -187,6 +202,7 @@ def project_signal_history(
                     "event_at": _time(value.event_at),
                     "event_time_basis": value.event_time_basis.value,
                     "value": value.value,
+                    "unit": display_unit(channel, point.source_metadata_json or "{}"),
                     "usable_for_display": (
                         value.value is not None
                         and not point.conflicting_duplicate
@@ -218,10 +234,35 @@ def project_signal_history(
         start_at=start,
         end_at=end,
         bucket_count=bucket_count,
+        source_id=source_id if restrict_point else None,
+        point_id=point_id,
+        snapshot_id=selected_snapshot,
     )
-    buckets = tuple(b for b in agg.buckets if source_id is None or b.source_id == source_id)
+    buckets = tuple(
+        b
+        for b in agg.buckets
+        if (source_id is None or b.source_id == source_id)
+        and (not restrict_point or b.measurement_point_id == point_id)
+    )
     if len(buckets) > MAX_GROUPED_BUCKETS:
         raise OperationsReadError("too many historical groups; narrow the query")
+
+    comparison = None
+    if reference_period is not None:
+        if source_id is None or not restrict_point or reference_period[1] > end:
+            raise ValueError("reference must belong to one stream and end before the observation")
+        reference = query_operations_multi_signal_measurement_aggregation(
+            reader,
+            asset_id,
+            channel_ids=channel_ids,
+            start_at=reference_period[0],
+            end_at=reference_period[1],
+            bucket_count=120,
+            source_id=source_id,
+            point_id=point_id,
+            snapshot_id=agg.snapshot_id,
+        )
+        comparison = _reference_changes(buckets, reference.buckets, reference_period)
 
     return {
         "schema_version": 1,
@@ -237,4 +278,81 @@ def project_signal_history(
         "bucket_seconds": agg.bucket_seconds,
         "buckets": [_bucket(bucket) for bucket in buckets],
         "latest_stored": latest,
+        "reference": comparison,
     }
+
+
+def _reference_changes(
+    current: tuple[MultiSignalMeasurementHistoryBucket, ...],
+    reference: tuple[MultiSignalMeasurementHistoryBucket, ...],
+    period: tuple[datetime, datetime],
+) -> dict[str, object]:
+    """Reuse the existing departure calculation with an explicit, fixed reference period."""
+    groups: dict[
+        tuple[str, str, str | None, str],
+        tuple[list[MultiSignalMeasurementHistoryBucket], list[MultiSignalMeasurementHistoryBucket]],
+    ] = {}
+    for is_reference, population in ((True, reference), (False, current)):
+        for bucket in population:
+            key = (
+                bucket.channel_id,
+                bucket.source_id,
+                bucket.measurement_point_id,
+                bucket.interpretation_json,
+            )
+            baseline, observed = groups.setdefault(key, ([], []))
+            if bucket.usable_count and bucket.mean is not None:
+                if is_reference:
+                    baseline.append(bucket)
+                elif bucket.bucket_start >= period[1]:
+                    observed.append(bucket)
+    rows: list[dict[str, object]] = []
+    for (channel, source, point, interpretation), (baseline, observed) in groups.items():
+        semantics = _semantic(interpretation)
+        unit = display_unit(channel, interpretation)
+        state = "insufficient-reference"
+        intervals: list[dict[str, object]] = []
+        median = None
+        if declared_running_total(
+            name=channel, unit=unit, meaning=semantics.get("observed_property")
+        ):
+            state = "cumulative"
+        elif baseline and observed:
+            result = find_departures(
+                {
+                    channel: [
+                        (b.bucket_start, b.bucket_end, b.mean)
+                        for b in (*baseline, *observed)
+                        if b.mean is not None
+                    ]
+                },
+                reference_period=period,
+                gap=max(b.bucket_end - b.bucket_start for b in observed) * 1.5,
+            )
+            facts = result["channels"][0]
+            median = facts.get("median")
+            state = "ready" if median is not None else "insufficient-reference"
+            intervals = [
+                {
+                    "from": _time(row["start"]),
+                    "to": _time(row["end"]),
+                    "value": row["value"],
+                    "direction": row["direction"],
+                }
+                for row in result["intervals"]
+            ]
+        elif baseline and not observed:
+            state = "no-observations-after-reference"
+        rows.append(
+            {
+                "channel_id": channel,
+                "source_id": source,
+                "measurement_point_id": point,
+                "interpretation_id": hashlib.sha256(interpretation.encode("utf-8")).hexdigest(),
+                "unit": unit,
+                "state": state,
+                "median": median,
+                "intervals": intervals,
+            }
+        )
+    return {"from": _time(period[0]), "to": _time(period[1]), "groups": rows}

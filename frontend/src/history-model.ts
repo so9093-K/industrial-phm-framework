@@ -1,35 +1,14 @@
 /** Building an anomaly model from a person's stored record (ADR-0032). The server reads the record,
  * fits the model and binds it; the browser only says which signals and which period. */
 import {object, postWrite} from "./writes.ts";
+import {parseHistoryStreams, type HistoryStream} from "./history.ts";
 
-/** One source and measurement point of the asset's record: the signals and period it holds. */
-export type HistoryStream = {sourceId: string; pointId: string | null; channels: string[]; startAt: string; endAt: string};
 export type ReferenceChoice = "first-30" | "first-50" | "custom";
 export const WINDOW_CHOICES = [
   {seconds: 300, label: "5분"}, {seconds: 600, label: "10분"},
   {seconds: 1800, label: "30분"}, {seconds: 3600, label: "1시간"},
 ] as const;
 export const MAX_SIGNALS = 8;
-
-const strings = (raw: unknown): string[] =>
-  Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
-
-const instant = (raw: unknown): raw is string => typeof raw === "string" && Number.isFinite(Date.parse(raw));
-
-/** The stored record's streams; empty when the asset has no stored history. */
-export function parseHistoryStreams(raw: unknown): HistoryStream[] {
-  const root = object(raw);
-  if (!root || root.schema_version !== 1) throw new Error("저장된 기록 정보의 형식이 올바르지 않습니다.");
-  const history = object(root.history);
-  if (!history || !Array.isArray(history.streams)) return [];
-  return history.streams.flatMap((item: unknown): HistoryStream[] => {
-    const row = object(item);
-    const channels = strings(row?.channels), point = row?.measurement_point_id;
-    if (!row || typeof row.source_id !== "string" || !row.source_id || !channels.length
-      || !instant(row.start_at) || !instant(row.end_at) || (point !== null && (typeof point !== "string" || !point))) return [];
-    return [{sourceId: row.source_id, pointId: point, channels, startAt: row.start_at, endAt: row.end_at}];
-  });
-}
 
 /** How a stream is named when an asset has more than one. */
 export const streamLabel = (stream: HistoryStream) =>

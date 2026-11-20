@@ -33,7 +33,7 @@
   };
   let {asset, data, dataState, observed, selectedAt = $bindable(null)}: Props = $props();
   const assetId=$derived(asset.assetId);
-  const readRevision=$derived(assetId+"\n"+(asset.lastObservedAt??"")+"\n"+(asset.lastReceivedAt??""));
+  const readRevision=$derived(assetId);
   const stored = $derived.by(() => {
     if (dataState === "loading") return "확인하는 중";
     if (dataState === "failed" || !data) return "확인하지 못함";
@@ -52,7 +52,7 @@
     const request = new AbortController(); noteRequest = request;
     notes = null; notesState = "loading";
     try {
-      const read = await readAttention(request.signal);
+      const read = await readAttention(request.signal,assetId);
       if (!request.signal.aborted) {notes = read.notes[asset.assetId] ?? []; notesState = read.state;}
     } catch {if (!request.signal.aborted) {notes = null; notesState = "failed";}}
   }

@@ -289,9 +289,9 @@ export async function readDepartures(signal:AbortSignal,assetId?:string):Promise
 
 /** Every asset's notes, read once from what 관측 현황 polls, so the asset list and an asset's
  * summary count the same items. A part that cannot be read is left out, not guessed. */
-export async function readAttention(signal:AbortSignal):Promise<AssetChecks>{
+export async function readAttention(signal:AbortSignal,assetId?:string):Promise<AssetChecks>{
   const [phm,sources,departures]=await Promise.all([readPhmMonitor(signal),
-    readSources(signal).catch(()=>null),readDepartureStatus(signal).catch(()=>null)]);
+    readSources(signal).catch(()=>null),readDepartureStatus(signal,assetId).catch(()=>null)]);
   return assetChecks(phm.models,attentionByAsset(phm.models,sources?.items??null,departures?.items??[]),
     attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial");
 }

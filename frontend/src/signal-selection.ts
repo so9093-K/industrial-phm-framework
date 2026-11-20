@@ -135,8 +135,9 @@ export function periodsBefore(span: Span): Periods | null {
 }
 
 /** Where handed-over periods were picked; the target screen names it until they are edited. */
-export type PeriodOrigin = "signal" | "departure" | "previous" | "summary";
+export type PeriodOrigin = "signal" | "departure" | "previous" | "summary" | "observation";
 export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
+  observation: "관측에서 고정한 비교 기준을 기간 A로, 선택한 구간을 기간 B로 가져왔습니다.",
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   previous: "주요 변화 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   departure: "기록 변화 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
@@ -144,7 +145,7 @@ export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
 };
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");
-  return raw === "signal" || raw === "departure" || raw === "previous" || raw === "summary" ? raw : null;
+  return raw === "signal" || raw === "departure" || raw === "previous" || raw === "summary" || raw === "observation" ? raw : null;
 }
 
 /** URL parameters that open another analysis on explicit periods; the target screen says so. */

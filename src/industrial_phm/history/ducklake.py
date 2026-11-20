@@ -1680,6 +1680,7 @@ class DuckLakeAssetHistory:
         source_id: str | None = None,
         measurement_point_id: str | None = None,
         interpretation_json: str | None = None,
+        snapshot_id: int | None = None,
     ) -> MultiSignalMeasurementHistoryAggregation:
         """Bounded small-multiple buckets for several channels on one event-time axis.
 
@@ -1700,6 +1701,11 @@ class DuckLakeAssetHistory:
         if bucket_count > 1000:
             raise ValueError("bucket_count must not exceed 1000")
         width = (end_at - start_at).total_seconds() / bucket_count
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
@@ -1710,7 +1716,7 @@ class DuckLakeAssetHistory:
                         count(DISTINCT value) OVER identity_window
                         + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
                         > 1 AS conflict
-                    FROM {_CATALOG_NAME}.history.measurement
+                    FROM {_CATALOG_NAME}.history.measurement {at}
                     WHERE asset_id = ?
                         AND channel_id IN (SELECT unnest(?::VARCHAR[]))
                         AND event_at >= ? AND event_at < ?
@@ -1724,7 +1730,7 @@ class DuckLakeAssetHistory:
                     -- filters let unrelated files be skipped; a hash-ID join alone
                     -- scans every raw row.
                     SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.file_measurement f
+                    FROM (SELECT * FROM {_CATALOG_NAME}.raw.file_measurement {at}) f
                     INNER JOIN selected s
                         ON f.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'file'
                     WHERE f.asset_id = ?
@@ -1740,7 +1746,7 @@ class DuckLakeAssetHistory:
                             'schema', 'opcua-semantic-snapshot',
                             'semantics', json(o.semantic_binding_json)
                         )::VARCHAR END AS source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
+                    FROM (SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at}) o
                     INNER JOIN selected s
                         ON o.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'opcua'
                     WHERE o.asset_id = ?
@@ -1805,7 +1811,7 @@ class DuckLakeAssetHistory:
             start_at,
             end_at,
             width,
-            int(snapshot[0]),
+            int(snapshot[0]) if snapshot_id is None else snapshot_id,
             tuple(
                 MultiSignalMeasurementHistoryBucket(
                     _require_str(r[0], "channel_id"),
@@ -2961,6 +2967,7 @@ class DuckLakeAssetHistory:
         asset_id: str,
         *,
         channel_id: str,
+        snapshot_id: int | None = None,
     ) -> tuple[MeasurementHistoryPoint, ...]:
         """Latest stored event per source/measurement point, independent of chart limits.
 
@@ -2969,10 +2976,17 @@ class DuckLakeAssetHistory:
         """
         _validate_identifier(asset_id, "asset_id")
         _validate_identifier(channel_id, "channel_id")
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            floor = self._latest_event_floor(connection, asset_id, channel_id=channel_id)
+            floor = self._latest_event_floor(
+                connection, asset_id, channel_id=channel_id, snapshot_id=snapshot_id
+            )
             if floor is None:
                 return ()
             rows = connection.execute(
@@ -2980,10 +2994,10 @@ class DuckLakeAssetHistory:
                 WITH raw_file AS (
                     SELECT raw_evidence_id, 'file' AS source_type, source_metadata_json,
                         source_file, source_sha256
-                    FROM {_CATALOG_NAME}.raw.file_measurement
+                    FROM {_CATALOG_NAME}.raw.file_measurement {at}
                     WHERE asset_id = ? AND channel_id = ? AND source_timestamp >= ?
                     UNION ALL
-                    {_opcua_display_metadata_sql(upper_bound=False)}
+                    {_opcua_display_metadata_sql(upper_bound=False, at=at)}
                 ), ranked AS (
                     SELECT *, row_number() OVER (
                         PARTITION BY source_id, measurement_point_id
@@ -2992,7 +3006,7 @@ class DuckLakeAssetHistory:
                     count(DISTINCT value) OVER observation
                     + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END)
                         OVER observation > 1 AS has_conflict
-                    FROM {_CATALOG_NAME}.history.measurement
+                    FROM {_CATALOG_NAME}.history.measurement {at}
                     WHERE asset_id = ? AND channel_id = ? AND event_at >= ?
                     WINDOW observation AS (PARTITION BY source_id, measurement_point_id, event_at)
                 )
@@ -3371,6 +3385,7 @@ class DuckLakeAssetHistory:
         asset_id: str,
         *,
         channel_id: str | None = None,
+        snapshot_id: int | None = None,
     ) -> datetime | None:
         """Oldest per source/point/channel latest event time, or None without events.
 
@@ -3378,12 +3393,17 @@ class DuckLakeAssetHistory:
         window and raw joins by time. This grouped max reads only identity and time
         columns; ranking every stored row of the asset grows with its history.
         """
+        at = (
+            ""
+            if snapshot_id is None
+            else f"AT (VERSION => {_require_int(snapshot_id, 'snapshot_id')})"
+        )
         channel_filter = "AND channel_id = ?" if channel_id is not None else ""
         row = connection.execute(
             f"""
             SELECT min(latest_at) FROM (
                 SELECT max(event_at) AS latest_at
-                FROM {_CATALOG_NAME}.history.measurement
+                FROM {_CATALOG_NAME}.history.measurement {at}
                 WHERE asset_id = ? {channel_filter} AND event_at IS NOT NULL
                 GROUP BY source_id, measurement_point_id, channel_id
             )
@@ -4257,7 +4277,7 @@ def _create_profile_points(
     )
 
 
-def _opcua_display_metadata_sql(*, upper_bound: bool) -> str:
+def _opcua_display_metadata_sql(*, upper_bound: bool, at: str = "") -> str:
     """OPC UA raw rows as display metadata shaped like FILE metadata semantics.
 
     Only a semantic snapshot naming the row's own source and channel is shown;
@@ -4274,7 +4294,7 @@ def _opcua_display_metadata_sql(*, upper_bound: bool) -> str:
                             'semantics', json(semantic_binding_json)
                         )::VARCHAR END AS source_metadata_json,
                         NULL::VARCHAR AS source_file, NULL::VARCHAR AS source_sha256
-                    FROM {_CATALOG_NAME}.raw.opcua_data_change
+                    FROM {_CATALOG_NAME}.raw.opcua_data_change {at}
                     WHERE asset_id = ? AND channel_id = ? {time_filter}"""
 
 

@@ -9,7 +9,8 @@
     type DataKind, type Method, type Route, type Tab,
   } from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
-  import AssetSummary from "./AssetSummary.svelte";
+  import ObservationWorkspace from "./ObservationWorkspace.svelte";
+  import type {Sources} from "../operations-status";
   import AssetName from "./AssetName.svelte";
   import InvestigationContext from "./InvestigationContext.svelte";
   import SignalExplorer from "./SignalExplorer.svelte";
@@ -29,11 +30,12 @@
 
   type Props = {
     asset: Asset;
+    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;onObservationView?:(view:"recent"|"record")=>void;
     assets: Asset[];
     route: Route;
     observed: (at: string | null) => string;
   };
-  let {asset, assets, route, observed}: Props = $props();
+  let {asset, assets, route, observed,sources=null,sourceState="loading",cycle=0,onObservationView}: Props = $props();
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
   let capabilities: Capabilities | null = $state(null);
@@ -129,14 +131,14 @@
       if (!request.signal.aborted) {capabilities = value; capabilityState = "ready";}
     }).catch(() => {if (!request.signal.aborted) capabilityState = "failed";});
   }
-  function reloadData() {
+  function reloadData(background=false) {
     dataRequest?.abort();
     const request = new AbortController(); dataRequest = request;
-    data = null; dataState = "loading";
+    if(!background){data = null; dataState = "loading";}
     void readAssetData(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       data = value; dataState = "ready";
-    }).catch(() => { if (!request.signal.aborted) dataState = "failed"; });
+    }).catch(() => { if (!request.signal.aborted&&!background) dataState = "failed"; });
   }
   // 목록을 주기적으로 다시 읽으면 asset·route가 새 객체로 들어온다. 탭 이름(문자열)이 바뀔 때만 다시 읽어야
   // 열린 분석이 처음부터 다시 계산되지 않는다.
@@ -145,9 +147,10 @@
   // while this asset remains open. Re-read input facts when entering a tab.
   $effect(() => {
     tab;
-    untrack(reloadData);
+    untrack(()=>reloadData());
     return () => dataRequest?.abort();
   });
+  $effect(()=>{const revision=cycle;if(tab==="summary"&&revision>0)untrack(()=>void reloadData(true));});
   // Every open analysis offers the other supported views of this same phenomenon.
   $effect(() => {
     tab;
@@ -170,7 +173,7 @@
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
   {#if !analysisOpen}
-    <AssetSummary {asset} {data} {dataState} {observed} bind:selectedAt />
+    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} onView={onObservationView} bind:selectedAt />
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">

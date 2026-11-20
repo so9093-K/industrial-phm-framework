@@ -43,6 +43,7 @@ def find_departures(
     *,
     baseline: str = "first-30",
     gap: timedelta | None = None,
+    reference_period: tuple[datetime, datetime] | None = None,
 ) -> dict[str, Any]:
     """Score each signal against its baseline and merge marked points into intervals.
 
@@ -52,6 +53,11 @@ def find_departures(
     """
     if baseline not in BASELINES:
         raise ValueError("unknown baseline")
+    if reference_period is not None and (
+        any(edge.utcoffset() is None for edge in reference_period)
+        or reference_period[0] >= reference_period[1]
+    ):
+        raise ValueError("reference period must be an ordered timezone-aware interval")
     starts = [point[0] for points in series.values() for point in points]
     if not starts:
         raise LookupError("no stored values")
@@ -60,7 +66,7 @@ def find_departures(
         ordered = sorted(set(starts))
         steps = [(b - a).total_seconds() for a, b in pairwise(ordered)]
         gap = timedelta(seconds=1.5 * float(np.median(steps))) if steps else timedelta(0)
-    cut = first + (last - first) * BASELINES[baseline]
+    cut = reference_period[1] if reference_period else first + (last - first) * BASELINES[baseline]
     channels = []
     marks: dict[datetime, dict[str, Any]] = {}
     involved: dict[datetime, set[str]] = {}
@@ -68,15 +74,27 @@ def find_departures(
     for name, points in series.items():
         own_first = min((point[0] for point in points), default=first)
         own_last = max((point[1] for point in points), default=own_first)
-        own_cut = own_first + (own_last - own_first) * BASELINES[baseline]
+        own_cut = (
+            reference_period[1]
+            if reference_period
+            else own_first + (own_last - own_first) * BASELINES[baseline]
+        )
         own_baseline = {
-            "name": baseline,
-            "from": own_first,
-            "to": own_last if baseline == "all" else own_cut,
+            "name": "selected-period" if reference_period else baseline,
+            "from": reference_period[0] if reference_period else own_first,
+            "to": own_last if baseline == "all" and not reference_period else own_cut,
         }
         values = np.asarray([value for _, _, value in points], dtype=float)
         reference = np.asarray(
-            [value for start, _, value in points if baseline == "all" or start < own_cut],
+            [
+                value
+                for start, _, value in points
+                if (
+                    reference_period[0] <= start < reference_period[1]
+                    if reference_period
+                    else baseline == "all" or start < own_cut
+                )
+            ],
             dtype=float,
         )
         if reference.size < 5:
@@ -93,7 +111,9 @@ def find_departures(
             size = abs(float(z))
             if not constant and size > score.get(start, (-1.0, "", end))[0]:
                 score[start] = (size, name, end)
-            beyond_reference = baseline == "all" or start >= own_cut
+            beyond_reference = (
+                start >= own_cut if reference_period else baseline == "all" or start >= own_cut
+            )
             changed = beyond_reference and (size > tolerance if constant else size >= THRESHOLD)
             if changed:
                 marked += 1
@@ -157,7 +177,11 @@ def find_departures(
     intervals.sort(key=lambda item: -(item["peak"]["distance"] or 0))
     return {
         "threshold": THRESHOLD,
-        "baseline": {"name": baseline, "from": first, "to": last if baseline == "all" else cut},
+        "baseline": {
+            "name": "selected-period" if reference_period else baseline,
+            "from": reference_period[0] if reference_period else first,
+            "to": last if baseline == "all" and not reference_period else cut,
+        },
         "channels": channels,
         "score": [(start, value, name) for start, (value, name, _) in sorted(score.items())],
         "intervals": [

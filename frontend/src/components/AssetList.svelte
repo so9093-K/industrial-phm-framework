@@ -3,6 +3,7 @@
   import AssetName from "./AssetName.svelte";
   import {modelFact, noteFact, notePriority, UNCHECKED, type AssetChecks, type Note} from "../monitor-attention";
   import {changeValue} from "../record-findings";
+  import {recentAsset} from "../observation";
   import {readOverview, sparkline, type OverviewRow} from "../asset-overview";
   import {onDestroy, onMount, untrack} from "svelte";
   import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
@@ -86,7 +87,7 @@
     queue.add(id);
     drain();
   }
-  const revisions = $derived(JSON.stringify(assets.map(asset => [asset.assetId,
+  const revisions = $derived(JSON.stringify(assets.filter(asset=>!compact&&!recentAsset(asset)).map(asset => [asset.assetId,
     asset.overviewRevision ?? JSON.stringify([asset.lastObservedAt, asset.lastReceivedAt, asset.lastPosition])])));
   $effect(() => {
     const current = new Map<string, string>(JSON.parse(revisions));
@@ -216,7 +217,7 @@
     {#each ordered as asset (asset.assetId)}
       {@const read = rows[asset.assetId]}
       {@const row = typeof read === "object" ? read : null}
-      {@const fact = tile(row, read)}
+      {@const fact = recentAsset(asset)?{what:"최근 측정 보기",how:"",when:asset.lastObservedAt?"마지막 측정 "+new Date(asset.lastObservedAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"저장된 측정 대기",trace:[]}:tile(row, read)}
       {@const model = modelShort(asset.assetId)}
       {@const review = reviews[asset.assetId]}
       {@const path = fact.trace.length > 1 ? sparkline(fact.trace, 120, 28) : ""}
@@ -224,6 +225,7 @@
         <span class="top"><strong><AssetName label={name(asset)}/></strong></span>
         {#if row?.vibrationInterval?.sourceId.startsWith("xjtu-sy-")}<small class="record-kind">베어링 수명시험 · 공개 진동 기록</small>
         {:else if (row?.historyInterval?.context?.sourceId??row?.main?.context?.sourceId??"").startsWith("aihub239-")}<small class="record-kind">공개 설비 계측 기록{asset.lastObservedAt ? " · 마지막 측정 "+new Date(asset.lastObservedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"}) : ""}</small>{/if}
+        {#if compact}<small class="compact-state">{asset.flow==="stored-history"?"저장 기록":"최근 측정"} · {asset.lastObservedAt?new Date(asset.lastObservedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"}):asset.lastPosition?asset.lastPosition+"번째 측정":"측정 대기"}</small>{/if}
         <span class="what">{fact.what}{#if asset.flow==="stored-history"}<small>{"\u00a0· 저장된 기록"}</small>{/if}</span>
         {#if fact.how}<span class="how">{fact.how}</span>{/if}
         <span class="bottom"><small>{fact.when}</small>{#if path}<svg viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><path d={path}/></svg>{/if}</span>
@@ -249,6 +251,7 @@
   .compact .tile{flex-basis:300px;display:block;padding:var(--space-2) var(--space-3)}
   .compact .tile>.what,.compact .tile>.how,.compact .tile>.bottom{display:none}
   .compact .tile>.record-kind,.compact .tile>.model,.compact .tile>small{display:none}
+  .compact .tile>.compact-state{display:block;margin-top:4px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .tile[aria-current="page"] { border-top-color: var(--color-action); background: var(--color-surface-selected); }
   .top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
   .top strong { font-size: var(--font-body); }

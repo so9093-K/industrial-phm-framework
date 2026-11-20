@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {buildPayload, parseBuildResult, parseHistoryStreams, referencePeriod} from "./history-model.ts";
+import {parseHistoryStreams} from "./history.ts";
+import {buildPayload, parseBuildResult, referencePeriod} from "./history-model.ts";
 import {modelNames, parseModelBindings, parseModelRun, parseModelTrace} from "./model-evidence.ts";
 
 const facts = {schema_version: 1, asset_id: "pump-01", acquisition: null,

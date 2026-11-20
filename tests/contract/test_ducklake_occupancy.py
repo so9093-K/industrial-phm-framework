@@ -112,3 +112,35 @@ def test_edges_must_be_finite_and_increasing(
             end_at=BASE + timedelta(seconds=120),
             edges=edges,
         )
+
+
+def test_selected_observation_keeps_latest_and_buckets_at_one_snapshot(
+    history: DuckLakeAssetHistory,
+) -> None:
+    selected = history.current_snapshot_id()
+    before = history.query_latest_measurements(
+        "pump-01", channel_id="current", snapshot_id=selected
+    )
+    history.append_file_batch(
+        (_event(100, 120, 999.0), _event(101, 10, 777.0)), batch_id="later-observations"
+    )
+    held = history.query_latest_measurements("pump-01", channel_id="current", snapshot_id=selected)
+    assert held == before
+    assert held[0].measurement.value == 500.0
+    assert (
+        history.query_latest_measurements("pump-01", channel_id="current")[0].measurement.value
+        == 999.0
+    )
+    buckets = history.query_multi_signal_measurement_aggregation(
+        "pump-01",
+        channel_ids=["current"],
+        source_id="device-a",
+        measurement_point_id=None,
+        start_at=BASE,
+        end_at=BASE + timedelta(minutes=3),
+        bucket_count=18,
+        snapshot_id=selected,
+    )
+    assert buckets.snapshot_id == selected
+    assert max(bucket.maximum for bucket in buckets.buckets if bucket.maximum is not None) == 500.0
+    assert all(bucket.source_id == "device-a" for bucket in buckets.buckets)

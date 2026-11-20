@@ -14,7 +14,7 @@ import json
 import os
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
@@ -239,12 +239,16 @@ def create_operations_web_read_server(
                     "buckets",
                     "anchor",
                     "source_id",
+                    "point_id",
+                    "snapshot",
+                    "reference_from",
+                    "reference_to",
                     "from",
                     "to",
                 }
             )
             params = parse_qs(
-                parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=12
+                parts.query, keep_blank_values=True, strict_parsing=True, max_num_fields=18
             )
             if not params or set(params) - allowed:
                 raise ValueError("unexpected history query")
@@ -287,6 +291,31 @@ def create_operations_web_read_server(
                 if start.utcoffset() is None or end.utcoffset() is None:
                     raise ValueError("explicit timezone required")
                 window = (start, end)
+            points = params.get("point_id", [])
+            if len(points) > 1 or (points and not sources):
+                raise ValueError("a measurement point requires one source")
+            if points and points[0]:
+                self._validate_id(points[0])
+            snapshots = params.get("snapshot", [])
+            if len(snapshots) > 1 or (
+                snapshots and snapshots[0] != "latest" and not snapshots[0].isascii()
+            ):
+                raise ValueError("invalid snapshot")
+            snapshot_id = None
+            if snapshots and snapshots[0] != "latest":
+                if not snapshots[0].isdigit():
+                    raise ValueError("invalid snapshot")
+                snapshot_id = int(snapshots[0])
+            reference = None
+            if "reference_from" in params or "reference_to" in params:
+                edges = params.get("reference_from", []), params.get("reference_to", [])
+                if any(len(values) != 1 for values in edges) or not sources or not points:
+                    raise ValueError("one source, point and reference period required")
+                reference = tuple(datetime.fromisoformat(values[0]) for values in edges)
+                if any(edge.utcoffset() is None for edge in reference) or not timedelta(
+                    seconds=1
+                ) <= reference[1] - reference[0] <= timedelta(days=31):
+                    raise ValueError("invalid reference period")
             return {
                 "asset_id": asset_id,
                 "channel_ids": tuple(signal_ids),
@@ -295,6 +324,11 @@ def create_operations_web_read_server(
                 "time_anchor": anchors[0],
                 "source_id": sources[0] if sources else None,
                 "window": window,
+                "point_id": points[0] or None if points else None,
+                "restrict_point": bool(points),
+                "snapshot_id": snapshot_id,
+                "consistent": bool(snapshots) or reference is not None,
+                "reference_period": reference,
             }
 
         def _condition_query(self) -> dict[str, object]:
@@ -532,6 +566,13 @@ def create_operations_web_read_server(
                         time_anchor=cast(str, query["time_anchor"]),
                         source_id=cast(str | None, query["source_id"]),
                         window=cast(tuple[datetime, datetime] | None, query["window"]),
+                        point_id=cast(str | None, query["point_id"]),
+                        restrict_point=cast(bool, query["restrict_point"]),
+                        snapshot_id=cast(int | None, query["snapshot_id"]),
+                        consistent=cast(bool, query["consistent"]),
+                        reference_period=cast(
+                            tuple[datetime, datetime] | None, query["reference_period"]
+                        ),
                     )
             except ConditionSelectionError:
                 self._error(HTTPStatus.BAD_REQUEST, "invalid_condition_selection")

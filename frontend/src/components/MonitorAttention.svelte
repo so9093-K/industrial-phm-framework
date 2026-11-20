@@ -3,50 +3,34 @@
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
   import {onMount} from "svelte";
-  import {assetChecks, attentionByAsset, attentionComplete, readDepartureStatus, readPhmMonitor, type AssetChecks, type AttentionState, type Departure, type PhmMonitor} from "../monitor-attention";
+  import {assetChecks, attentionByAsset, attentionComplete, readPhmMonitor, type AssetChecks, type AttentionState, type PhmMonitor} from "../monitor-attention";
   import {readSources, type Sources} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
-  /** 설비별 확인 사실(모델·수신·기록 변화)을 화면이 보이는 동안 몇 초마다 다시 읽어 표에 넘기고,
+  /** 설비별 수신·처리 상태를 화면이 보이는 동안 1분마다 다시 읽어 표에 넘기고,
    * 여기에는 운영 서비스·수신 품질 항목만 보여 준다. 읽지 못하면 이전 항목을 지금 것처럼 남기지 않는다. */
-  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onChecks: (checks: AssetChecks) => void};
-  let {snapshot,onTick, onChecks}: Props = $props();
-  const INTERVAL = 3000;
-  // The guided demo replays a stored snapshot; reading it again would change nothing.
-  const live = import.meta.env.MODE !== "showcase";
+  type Props = {snapshot:Snapshot;onTick: () => Promise<void>; onChecks: (checks: AssetChecks) => void; onSources?:(sources:Sources|null,state:"loading"|"ready"|"failed")=>void};
+  let {snapshot,onTick, onChecks,onSources}: Props = $props();
+  const INTERVAL = 60_000;
   let phm: PhmMonitor | null = $state(null);
   let sources: Sources | null = $state(null);
-  // The baseline check reads stored history, so it is asked again only every 30 seconds; a
-  // failed check drops its earlier items and is asked again on the next read.
-  let departures: Departure[] = $state([]);
-  let departuresFailed = $state(false);
-  let departuresComplete = $state(false);
-  let departuresAt = 0;
-  let departuresCheckedAt: Date | null = $state(null);
-  const DEPARTURE_INTERVAL = 30_000;
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let sourcesCheckedAt: Date | null = $state(null);
-  let paused = $state(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let request: AbortController | null = null;
   const groups = $derived.by(() => {
     const current: PhmMonitor | null = phm, connections: Sources | null = sources;
-    return current ? attentionByAsset(current.models, connections?.items ?? null, departures) : [];
+    return current ? attentionByAsset(current.models, connections?.items ?? null) : [];
   });
   const notesState = $derived.by((): AttentionState => {
     const current: PhmMonitor | null = phm, connections: Sources | null = sources;
     if (loadState === "loading") return "loading";
     if (!current || loadState === "failed") return "failed";
-    return attentionComplete(current,connections,departuresComplete) ? "ready" : "partial";
+    return attentionComplete(current,connections,true) ? "ready" : "partial";
   });
   $effect(() => { const model: PhmMonitor | null = phm; onChecks(assetChecks(model?.models ?? [], groups, notesState)); });
   const clock = (at: Date) => at.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
-  // Server assessment and HTTP read time must never be substituted for each other.
-  const assessed = $derived.by((): Date | null => {
-    const at = phm?.assessedAt ? new Date(phm.assessedAt) : null;
-    return at && !Number.isNaN(at.getTime()) ? at : null;
-  });
-
+  $effect(()=>onSources?.(sources,loadState==="loading"?"loading":loadState==="failed"||sources===null?"failed":"ready"));
   const serviceItems = $derived((snapshot.operationsAttention?.items ?? []).filter((item) => item.destination === "system"));
   const dataItems = $derived((snapshot.operationsAttention?.items ?? []).filter((item) => item.destination !== "system"));
   function destination(item:OperationAttention):string|null {
@@ -58,41 +42,29 @@
   function schedule() {
     if (timer !== null) clearTimeout(timer);
     timer = null;
-    if (live && !paused && !document.hidden) timer = setTimeout(() => void read(), INTERVAL);
+    if (!document.hidden) timer = setTimeout(() => void read(), INTERVAL);
   }
   async function read() {
     request?.abort();
     const pending = new AbortController(); request = pending;
     try {
-      const due = Date.now() - departuresAt >= DEPARTURE_INTERVAL;
-      const [model, connections, found] = await Promise.all([
-        readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null),
-        due ? readDepartureStatus(pending.signal).catch(() => null) : Promise.resolve(undefined), onTick()]);
+      const [model, connections] = await Promise.all([
+        readPhmMonitor(pending.signal), readSources(pending.signal).catch(() => null), onTick()]);
       if (pending.signal.aborted) return;
       phm = model; sources = connections; loadState = "ready";
       sourcesCheckedAt = connections === null ? null : new Date();
-      if (found !== undefined) {
-        departures = found?.items ?? []; departuresFailed = found === null;
-        departuresComplete = found?.complete ?? false;
-        departuresAt = found === null ? 0 : Date.now();
-        departuresCheckedAt = found === null ? null : new Date();
-      }
     } catch {
       if (pending.signal.aborted) return;
       phm = null; sources = null; loadState = "failed";
-      departures = []; departuresComplete = false; departuresFailed = false;
-      departuresCheckedAt = null; departuresAt = 0; sourcesCheckedAt = null;
+      sourcesCheckedAt = null;
     }
     schedule();
   }
-  function toggle() { paused = !paused; if (paused) { if (timer !== null) clearTimeout(timer); timer = null; } else void read(); }
   onMount(() => {
     const visible = () => {
       if (document.hidden) {if (timer !== null) clearTimeout(timer); timer = null;}
       else {
-        // After backgrounding, no former model or departure fact is claimed current.
-        phm = null; sources = null; departures = []; departuresComplete = false;
-        departuresFailed = false; departuresCheckedAt = null; departuresAt = 0;
+        phm = null; sources = null;
         sourcesCheckedAt = null; loadState = "loading";
         void read();
       }
@@ -110,22 +82,14 @@
 
 <section class="ui-panel attention" aria-label="운영 확인 항목">
   <div class="head">
-    <p class="context">{!live ? "저장된 체험 기록" :
-      (paused ? "자동 갱신 멈춤 · " : "") +
-      "모델 상태 " + (assessed ? clock(assessed) : "시각 미확인") +
-      " · 수신 " + (sourcesCheckedAt ? clock(sourcesCheckedAt) : "미확인") +
-      " · 기록 변화 " + (departuresCheckedAt ? clock(departuresCheckedAt) : "미확인")}</p>
-    {#if live}<button type="button" class="ui-button" onclick={toggle}>{paused ? "자동 갱신 다시 시작" : "자동 갱신 멈추기"}</button>{/if}
+    <p class="context">수집·처리 상태 확인 {sourcesCheckedAt ? clock(sourcesCheckedAt) : "중"} · 약 1분마다 확인</p>
   </div>
-  {#if live && !paused}<p class="context">확인 주기 · 모델·수신 약 3초, 기록 변화 최대 30초</p>{/if}
   {#if loadState === "loading"}
     <StatusNotice message="모델 처리 상태와 수신 상태를 확인하고 있습니다." />
   {:else if loadState === "failed" || !phm}
     <StatusNotice kind="uncertain" message="모델 처리 상태를 다시 읽지 못했습니다. 이전 결과를 지금 상태로 보여 주지 않습니다." />
   {:else}
     {#if sources === null}<StatusNotice kind="uncertain" message="데이터 연결 상태를 읽지 못해 수신 확인 항목은 빠져 있습니다." />{/if}
-    {#if departuresFailed}<StatusNotice kind="uncertain" message="변화 구간을 확인하지 못해 해당 항목은 빠져 있습니다." />{/if}
-    {#if !departuresFailed && !departuresComplete}<StatusNotice kind="uncertain" message="변화 구간을 일부만 확인했습니다." />{/if}
     {#if phm.truncated}<StatusNotice kind="uncertain" message="적용 모델이 많아 일부만 확인했습니다." />{/if}
   {/if}
   {#if !snapshot.operationsAttention?.complete}<StatusNotice kind="uncertain" message="운영 확인 항목 전체를 읽지 못했습니다."/>{/if}

@@ -319,6 +319,7 @@ def explore_sources(
         if summary is not None:
             history = {
                 "channels": list(reader.list_history_channels(asset_id))[:200],
+                "preferred_channel": next(iter(_ranked_channels(reader, asset_id)), None),
                 # Each source and measurement point with what it actually holds, so a model is
                 # built from one stream's own signals and period.
                 "streams": [
