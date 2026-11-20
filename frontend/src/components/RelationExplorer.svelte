@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {onMount} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
@@ -65,7 +66,7 @@
     const params={...windowParams(momentWindow(middle,length),{from:middle,to:middle}),
       ...focusParams({source:pair.source,point:pair.point,interpretation:(channel===x?pair.xMeaning:pair.yMeaning)??undefined})};
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
-    return url.pathname+url.search;
+    return withObservation(url.href,location.href,assetId);
   }
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
@@ -155,7 +156,7 @@
       if(!periods)throw new Error("비교 기간을 선택하세요.");
       const frozen:Periods={a:{...periods.a},b:{...periods.b}};
       validatePeriods(frozen);
-      const response=await readRelation(assetId,x,y,frozen,req.signal);
+      const response=await readRelation(assetId,x,y,frozen,req.signal,observationSnapshot(new URLSearchParams(location.search),assetId));
       if(req.signal.aborted)return;
       relation=response;resultState=pairs.length?"ready":"empty";
       remember();
@@ -212,7 +213,7 @@
       message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="신호·비교 기간">{#snippet children(close)}{#if available && periods}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>A · {periodText("a")} / B · {periodText("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
 
     <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
       <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
@@ -223,7 +224,7 @@
     {#if handedOver}<p class="handed">{ORIGIN_TEXT[handedOver]}</p>{:else if summaryNote}<p class="handed">{summaryNote}</p>{/if}
 
     {@render conditions(close)}
-    {/if}{/snippet}</AnalysisControls>
+    {/if}{/snippet}</AnalysisControls></header>
     <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 시각에 기록된 측정 짝을 찾고 있습니다."/>

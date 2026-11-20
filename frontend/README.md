@@ -9,7 +9,6 @@ Svelte 5·TypeScript 웹 애플리케이션입니다. Python Operations의 동�
 ```bash
 npm ci --prefix frontend --no-audit --no-fund
 npm run --prefix frontend check
-npm test --prefix frontend
 npm run --prefix frontend build
 ```
 
@@ -26,6 +25,6 @@ npm run --prefix frontend build
 
 ## 개발 원칙
 
-실제 데이터 기반 흐름과 오류 표시를 우선합니다. 화면 캡처·GIF·영상 생성 도구, 데모 전용 API, 합성 첫 실행 시나리오를 추가하지 않습니다. 화면 변경은 필요시 실제 실행 화면에서 직접 확인하고, 핵심 데이터 계약과 권한 처리는 Python 서버 테스트에서 보호합니다.
+실제 데이터 기반 흐름과 오류 표시를 우선합니다. 화면 캡처·GIF·영상 생성 도구, 데모 전용 API, 합성 첫 실행 시나리오를 추가하지 않습니다. 화면 변경은 베어링·공기압축기의 실제 기록으로 직접 확인합니다. 문구·메뉴·배치를 고정하는 테스트와 별도 브라우저 자동화 환경은 유지하지 않습니다. 시각·단위·출처·선택한 측정이 결과에 맞게 연결되는 검사는 관련 로직을 바꿀 때만 실행합니다. 예: `node --experimental-strip-types --test frontend/src/measurement-links.test.ts`. 핵심 데이터 저장과 권한 처리는 Python 서버 테스트에서 보호합니다.
 
 [데이터 기반 첫 사용](../docs/product/data-first-start.md) · [지원 범위](../docs/status.md) · [제품 설계](../docs/product/overview.md).

@@ -1,11 +1,12 @@
 /** Actual recorded inputs, independent of forecast readiness or algorithms.
  * GET /api/v1/explore/sources owns input facts, never an asset-health verdict. */
+import {parseHistoryStreams,type HistoryStream} from "./history.ts";
 import {methodsOf, type DataKind, type Method, type Tab} from "./routes.ts";
 import type {Capabilities, CapabilityId} from "./capabilities.ts";
 
 export type AcquisitionTiming = {sourceId: string; periodSeconds: number};
 export type AssetData = {
-  history: {signals: number} | null;
+  history: {signals: number;streams?:HistoryStream[];preferred?:string} | null;
   vibration: {measurements: number; first: number; last: number; timing?: AcquisitionTiming} | null;
 };
 
@@ -33,7 +34,7 @@ export function parseAssetData(raw: unknown, assetId: string): AssetData {
     && vibration.period_seconds > 0
     ? {sourceId: vibration.source_id, periodSeconds: vibration.period_seconds} : null;
   return {
-    history: history ? {signals: (history.channels as unknown[]).length} : null,
+    history: history ? {signals: (history.channels as unknown[]).length, ...(Array.isArray(history.streams)?{streams:parseHistoryStreams(root)}:{}), ...(typeof history.preferred_channel==="string"?{preferred:history.preferred_channel}:{})} : null,
     vibration: vibration
       ? {measurements: count(vibration.count), first: count(vibration.first), last: count(vibration.last),
         ...(timing ? {timing} : {})}

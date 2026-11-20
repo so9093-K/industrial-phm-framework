@@ -66,8 +66,11 @@ def query_operations_history_extent(
     asset_id: str,
     *,
     channel_ids: Sequence[str],
+    snapshot_id: int | None = None,
 ) -> tuple[datetime, datetime] | None:
-    return _history_read(lambda: history.history_channel_extent(asset_id, channel_ids))
+    return _history_read(
+        lambda: history.history_channel_extent(asset_id, channel_ids, snapshot_id=snapshot_id)
+    )
 
 
 def query_operations_latest_measurements(
@@ -75,8 +78,13 @@ def query_operations_latest_measurements(
     asset_id: str,
     *,
     channel_id: str,
+    snapshot_id: int | None = None,
 ) -> tuple[MeasurementHistoryPoint, ...]:
-    return _history_read(lambda: history.query_latest_measurements(asset_id, channel_id=channel_id))
+    return _history_read(
+        lambda: history.query_latest_measurements(
+            asset_id, channel_id=channel_id, snapshot_id=snapshot_id
+        )
+    )
 
 
 def query_operations_latest_asset_measurements(
@@ -118,6 +126,9 @@ def query_operations_multi_signal_measurement_aggregation(
     start_at: datetime,
     end_at: datetime,
     bucket_count: int,
+    source_id: str | None = None,
+    point_id: str | None = None,
+    snapshot_id: int | None = None,
 ) -> MultiSignalMeasurementHistoryAggregation:
     return _history_read(
         lambda: history.query_multi_signal_measurement_aggregation(
@@ -126,6 +137,9 @@ def query_operations_multi_signal_measurement_aggregation(
             start_at=start_at,
             end_at=end_at,
             bucket_count=bucket_count,
+            source_id=source_id,
+            measurement_point_id=point_id,
+            snapshot_id=snapshot_id,
         )
     )
 

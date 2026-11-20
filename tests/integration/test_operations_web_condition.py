@@ -105,7 +105,7 @@ def test_next_period_checks_its_own_measurements_not_only_the_last_record(
 
     pytest.importorskip("duckdb")
     workspace = condition_workspace(tmp_path / "next-period", missing=missing)
-    server, thread = start_web(workspace.root, writer=False)
+    server, thread = start_web(workspace.root)
     connection = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
     try:
         connection.request(

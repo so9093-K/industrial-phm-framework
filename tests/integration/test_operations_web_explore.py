@@ -1220,3 +1220,105 @@ def test_screens_asking_for_one_summary_together_compute_it_once(
         reader.join(60)
     assert calls == ["pump-01"]
     assert len(results) == 2 and results[0] is results[1]
+
+
+def test_selected_observation_keeps_signal_comparison_and_relation_at_its_snapshot(
+    tmp_path: Path,
+) -> None:
+    """Late observations change the latest read, not an investigation already selected."""
+    from dataclasses import replace
+
+    pytest.importorskip("duckdb")
+    workspace = phm_workspace(tmp_path / "fixed-observation", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    events = tuple(
+        FileBackfillEvent(
+            raw_evidence_id=f"file:meter:{'b' * 64}:{channel}:{index}",
+            source_id="meter",
+            asset_id="motor",
+            channel_id=channel,
+            measurement_point_id="panel",
+            source_file="motor.csv",
+            source_sha256="b" * 64,
+            source_size_bytes=10,
+            sample_index=index,
+            event_at=BASE + timedelta(minutes=index),
+            value=(10 if index < 8 else 60) + index / 10 if channel == "current" else 230 + index,
+            source_metadata_json=json.dumps({"binding": {"definition": {"unit": unit}}}),
+        )
+        for channel, unit in (("current", "A"), ("voltage", "V"))
+        for index in range(16)
+    )
+    history.append_file_batch(events, batch_id="initial-meter")
+    snapshot = history.current_snapshot_id()
+    periods = dict(
+        a_from=BASE.isoformat(),
+        a_to=(BASE + timedelta(minutes=8)).isoformat(),
+        b_from=(BASE + timedelta(minutes=8)).isoformat(),
+        b_to=(BASE + timedelta(minutes=16)).isoformat(),
+    )
+    queries = [
+        (
+            "/api/v1/history/trend",
+            dict(channel_id="current", range="all", anchor="latest", buckets=16),
+        ),
+        (
+            "/api/v1/explore/profile",
+            dict(
+                kind="history",
+                series=["current"],
+                level_source="meter",
+                level_point="panel",
+                **periods,
+            ),
+        ),
+        ("/api/v1/explore/relation", dict(kind="history", x="current", y="voltage", **periods)),
+    ]
+
+    def measured(body: dict[str, Any]) -> Any:
+        # Parallel floating-point aggregates may differ in their last binary digit.
+        return json.loads(
+            json.dumps({k: v for k, v in body.items() if k != "assessed_at"}),
+            parse_float=lambda value: round(float(value), 9),
+        )
+
+    get, stop = _serve(workspace.root)
+    try:
+        before = []
+        for path, query in queries:
+            status, body = get(path, asset_id="motor", snapshot=snapshot, **query)
+            assert status == 200 and body["snapshot_id"] == snapshot
+            before.append(body)
+        assert before[1]["operation"] is not None  # The operating-level inputs are pinned too.
+        late = tuple(
+            replace(
+                event,
+                raw_evidence_id=event.raw_evidence_id + ":late",
+                sample_index=100,
+                event_at=BASE + timedelta(minutes=14, seconds=30),
+                value=1000.0,
+            )
+            for event in (events[0], events[16])
+        )
+        history.append_file_batch(late, batch_id="late-meter")
+        for (path, query), expected in zip(queries, before, strict=True):
+            status, held = get(path, asset_id="motor", snapshot=snapshot, **query)
+            assert status == 200 and held["snapshot_id"] == snapshot
+            # Assessment time may advance, the measured inputs and computed results may not.
+            assert measured(held) == measured(expected)
+            status, latest = get(path, asset_id="motor", snapshot="latest", **query)
+            assert status == 200 and latest["snapshot_id"] > snapshot
+            key = (
+                "buckets"
+                if path.endswith("trend")
+                else "series"
+                if path.endswith("profile")
+                else "groups"
+            )
+            assert latest[key] != expected[key]
+        for path, query in queries[1:]:
+            assert get(path, asset_id="motor", snapshot="-1", **query)[0] == 400
+    finally:
+        stop()

@@ -263,3 +263,26 @@ def test_opposite_departures_are_not_joined_into_one_direction_and_one_signal_is
     summary = record_changes({"voltage": _points(values)})
     assert len(summary["intervals"]) == 1
     assert summary["intervals"][0]["start"] >= summary["intervals"][0]["baseline"]["to"]
+
+
+def test_fixed_reference_does_not_grow_when_later_measurements_arrive() -> None:
+    start = datetime(2026, 11, 20, tzinfo=UTC)
+    points = [
+        (start + timedelta(minutes=i), start + timedelta(minutes=i + 1), 10.0 if i < 6 else 20.0)
+        for i in range(10)
+    ]
+    reference = (start, start + timedelta(minutes=6))
+    initial = find_departures({"current": points}, reference_period=reference)
+    later = find_departures(
+        {
+            "current": points
+            + [
+                (start + timedelta(minutes=i), start + timedelta(minutes=i + 1), 100.0)
+                for i in range(10, 40)
+            ]
+        },
+        reference_period=reference,
+    )
+    assert initial["baseline"] == later["baseline"]
+    assert initial["channels"][0]["median"] == later["channels"][0]["median"] == 10.0
+    assert initial["intervals"][0]["start"] == later["intervals"][0]["start"] == reference[1]

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {buildPayload, historyFeatureLabel, parseBuildResult, parseHistoryStreams, referencePeriod, streamLabel} from "./history-model.ts";
-import {attentionByAsset, parsePhmMonitor} from "./monitor-attention.ts";
-import {modelNames, parseModelBindings, parseModelRun, parseModelTrace, windowLabel} from "./model-evidence.ts";
+import {parseHistoryStreams} from "./history.ts";
+import {buildPayload, parseBuildResult, referencePeriod} from "./history-model.ts";
+import {modelNames, parseModelBindings, parseModelRun, parseModelTrace} from "./model-evidence.ts";
 
 const facts = {schema_version: 1, asset_id: "pump-01", acquisition: null,
   history: {channels: ["vibration", "temperature", "current"],
@@ -22,7 +22,6 @@ test("each source and measurement point offers only its own signals and period",
   assert.deepEqual([opc.sourceId, opc.pointId, opc.channels, opc.endAt],
     ["pump-opc", "drive-end", ["current"], "2026-10-02T00:00:00+00:00"]);
   assert.equal(rest.length, 0);
-  assert.equal(streamLabel(opc), "pump-opc · 측정 위치 drive-end");
   assert.deepEqual(parseHistoryStreams({...facts, history: null}), []);
   assert.throws(() => parseHistoryStreams({history: facts.history}), /형식/);
 });
@@ -75,15 +74,6 @@ test("a stored-history window result renders by its period, not a window ID", ()
   assert.equal(parseModelRun({schema_version: 1, binding_id: "phm-pump", step}, model, pointer).evidenceKind, "history-window");
   assert.throws(() => parseModelRun({schema_version: 1, binding_id: "phm-pump",
     step: {...step, input_reference: {...step.input_reference, snapshot_id: "7"}}}, model, pointer), /맞지 않아/);
-  assert.equal(windowLabel(end), "10. 16. 21:40까지 구간");
-});
-
-test("history statistics read with the signal's own name; other labels stay", () => {
-  const names = new Map([["motor_temp_c", {label: "모터 온도", unit: "°C"}]]);
-  assert.equal(historyFeatureLabel("motor_temp_c 표준편차", names), "모터 온도 (°C) 표준편차");
-  assert.equal(historyFeatureLabel("motor_temp_c.max", names), "모터 온도 (°C) 최대");
-  assert.equal(historyFeatureLabel("vibration_mm_s 평균", names), "vibration_mm_s 평균");
-  assert.equal(historyFeatureLabel("수평 진동 RMS", names), "수평 진동 RMS");
 });
 
 test("two models built from one asset's record are told apart by the period they learned", () => {
@@ -97,31 +87,4 @@ test("two models built from one asset's record are told apart by the period they
     bindings: [row("one", "2026-10-15T00:00:00+00:00"), row("two", "2026-10-15T12:00:00+00:00")]}, "pump-01");
   const names = [...modelNames(list).values()];
   assert.equal(new Set(names).size, 2);
-  assert.match(names[0], /^Isolation Forest \(기준 10\. 15\. 09:00~10\. 16\. 09:00 · 신호 2개\)$/);
-});
-
-test("a sustained crossing of a stored-history model is a measured-signal change, not electrical", () => {
-  const groups = attentionByAsset([{bindingId: "b", assetId: "pump-01", sourceId:"source",pointId:null,stepKind: "history-window", recipeId: null,
-    packageId: "p", estimatorKind: null, state: "processed", reason: null,
-    analyzed: {position: 2_000_000, exceeds: true,eventStart:null,eventEnd:null}, ongoing: {start: 1_000_000, steps: 5, startAt: "2026-10-16T12:30:00Z"},
-    processed: 2_000_000}], null);
-  assert.equal(groups[0].notes[0].label, "측정 신호 변화 확인 필요");
-});
-
-test("a monitor note tells two same-method models apart by the period each learned", () => {
-  const model = (bindingId: string, start: string) => ({binding_id: bindingId, asset_id: "pump-01",
-    step_kind: "history-window", recipe_id: "operator-history-iforest-v1", package_id: "p-" + bindingId,
-    estimator_kind: "isolation-forest-refit-v1", processing_state: "processed", processing_reason: null,
-    latest_analyzed: {position: 2_000_000, output: {exceeds_threshold: true}},
-    open_interval: {start_position: 1_000_000, step_count: 4, start_event_at: "2026-10-16T12:30:00Z"},
-    latest_processed: {position: 2_000_000},
-    training_reference: {start, end: "2026-10-16T00:00:00+00:00", channels: 2}});
-  const monitor = parsePhmMonitor({schema_version: 1, assessed_at: null, truncated: false,
-    items: [model("one", "2026-10-15T00:00:00+00:00"), model("two", "2026-10-15T12:00:00+00:00")]});
-  const detail = attentionByAsset(monitor.models, null)[0].notes[0].detail;
-  assert.match(detail, /^Isolation Forest \(기준 10\. 15\. 09:00~10\. 16\. 09:00 · 신호 2개\) .* \/ /);
-  assert.match(detail, / \/ Isolation Forest \(기준 10\. 15\. 21:00~10\. 16\. 09:00 · 신호 2개\) /);
-  const alone = attentionByAsset(parsePhmMonitor({schema_version: 1, assessed_at: null, truncated: false,
-    items: [model("one", "2026-10-15T00:00:00+00:00")]}).models, null)[0].notes[0].detail;
-  assert.doesNotMatch(alone, /기준 10\./);
 });

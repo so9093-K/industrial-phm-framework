@@ -1,7 +1,6 @@
-/** 설비 시간축: 한 설비에서 찾은 변화, 그때의 운전 상태, 모델 반응을 같은 가로축에 모은다.
+/** 설비 시간축: 한 설비에서 찾은 변화, 그때의 운전 상태을 같은 가로축에 모은다.
  * 시간이 겹치는 변화는 한 시기로 묶어, 무엇이 먼저였고 무엇이 함께 변했는지 그래프에서 보이게 한다.
- * 새 계산은 하지 않는다. 서버가 준 변화 구간·운전 수준 시간표·모델 점수를 배치만 한다. */
-import type {ScoreTrend} from "./model-trend.ts";
+ * 새 계산은 하지 않는다. 서버가 준 변화 구간·운전 수준 시간표를 배치만 한다. */
 import type {LevelNames} from "./record-findings.ts";
 
 export type Span = {from: number; to: number};
@@ -14,27 +13,9 @@ export type TimelineLane = {
   usual: {low: number; high: number}; interval: Span; numbers: string; focus: boolean; up: boolean;
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
-};
-/** 같은 기록을 분석한 모델 하나: 점수 기록과, 변화가 모델이 거의 본 적 없는 운전 상태에서 일어났는지. */
-export type TimelineModel = {
-  key: string; name: string; trend: ScoreTrend; divisor: number; count: string; unfamiliar: string | null;
+  values?: {before:number|null;after:number|null;latest:{value:number;at:number}|null};
 };
 export type TimelineOperation = {names: LevelNames; columns: (Span & {shares: number[]})[]};
-/** 고른 신호의 앞으로: 서버 예측(과거 검증을 통과했을 때만 선으로), 초기의 몇 배 안내선, 고른 선에 닿는 시점. */
-export type TimelineOutlook = {
-  points: {x: number; estimate: number; lower: number | null; upper: number | null}[];
-  /** 과거 기록 검증에서 예측이 '마지막 값 유지'보다 정확했는지. 아니면 예측선을 그리지 않는다. */
-  trusted: boolean;
-  guides: {value: number; label: string}[]; chosen: number | null;
-  reach: {state: string; expected: number | null; earliest: number | null} | null;
-  loading: boolean; onGuide: (value: number | null) => void;
-};
-
-/** 관측값이 처음 안내선을 넘은 측정. 위로 변한 신호는 그 값 이상, 아래로 변한 신호는 그 값 이하. */
-export function firstCrossing(points: TimelinePoint[], value: number, up: boolean): TimelinePoint | null {
-  return points.find(point => up ? point.value >= value : point.value <= value) ?? null;
-}
-
 /** 시간이 겹치는 변화를 한 시기로 묶는다. 시기는 시작 순서이고, 시기 안의 변화도 시작 순서다. */
 export function episodes<T>(items: T[], span: (item: T) => Span): (Span & {members: T[]})[] {
   const sorted = [...items].sort((a, b) => span(a).from - span(b).from || span(a).to - span(b).to);
@@ -53,7 +34,7 @@ export function focusWindow(record: Span, episode: Span): Span {
   return {from: Math.max(record.from, episode.from - 2 * length), to: Math.min(record.to, episode.to + 2 * length)};
 }
 /** 기록 전체에서 시기가 거의 보이지 않을 만큼(1/60 미만) 짧을 때만 확대해 시작한다. 그 밖에는 기록 전체가
- * 곧 맥락이다: 변화 전의 흐름, 운전 상태가 바뀐 때, 모델의 학습 기간이 한 화면에 보인다. */
+ * 곧 맥락이다: 변화 전의 흐름, 운전 상태가 바뀐 때, 측정값의 변화 양상을 한 화면에 보여 준다. */
 export function startsZoomed(record: Span, episode: Span): boolean {
   return episode.to - episode.from < (record.to - record.from) / 60;
 }
@@ -67,18 +48,7 @@ export function operationColumns(timeline: {at: string; counts: number[]}[], buc
   });
 }
 
-const KST = 9 * 3600 * 1000, DAY = 24 * 3600 * 1000;
-/** 보이는 범위 안의 토·일(한국 시간). 운전 방식이 요일을 따르는지 보이도록 옅게 칠한다. 두 달을 넘으면 칠하지 않는다. */
-export function weekendSpans(range: Span): Span[] {
-  if (range.to - range.from > 62 * DAY) return [];
-  const spans: Span[] = [];
-  for (let day = Math.floor((range.from + KST) / DAY) * DAY - KST; day < range.to; day += DAY) {
-    const weekday = new Date(day + KST).getUTCDay();
-    if (weekday === 0 || weekday === 6) spans.push({from: Math.max(range.from, day), to: Math.min(range.to, day + DAY)});
-  }
-  return spans;
-}
-
+const KST = 9 * 3600 * 1000;
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 /** 시간축의 시각 한 가지 형식: '10월 4일(일) 09:19'. */
 export function clockText(ms: number): string {
@@ -107,19 +77,4 @@ export function valueAt(points: TimelinePoint[], at: number, reach: number): Tim
   let best: TimelinePoint | null = null;
   for (const point of points) if (!best || Math.abs(point.x - at) < Math.abs(best.x - at)) best = point;
   return best && Math.abs(best.x - at) <= reach ? best : null;
-}
-
-/** 켜진 칸이 이어진 구간. 꺼진 칸이 `gap`개 이하로 끼어 있으면 하나로 잇는다(잠깐 내려간 것은 같은 구간으로 본다). */
-export function runs(points: {x: number; on: boolean}[], gap = 1): Span[] {
-  const out: Span[] = [];
-  let open: Span | null = null, off = 0, lastOn = 0;
-  for (const point of points) {
-    if (point.on) {
-      if (open && off <= gap) open.to = point.x;
-      else { if (open) out.push(open); open = {from: point.x, to: point.x}; }
-      off = 0; lastOn = point.x;
-    } else if (open) off++;
-  }
-  if (open) out.push({...open, to: Math.max(open.to, lastOn)});
-  return out;
 }

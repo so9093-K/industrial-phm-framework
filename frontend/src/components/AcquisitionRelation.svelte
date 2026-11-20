@@ -1,4 +1,7 @@
 <script lang="ts">
+  import {investigationOriginUrl} from "../routes";
+  import {measure} from "../chart-axis";
+  import {plainLabel} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import FeatureScatter from "./FeatureScatter.svelte";
@@ -12,7 +15,7 @@
   import {strength} from "../relation";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {formulaLink,middle,relationMessage} from "../analysis-messages";
-  import {featureCompareHref} from "../measurement-links";
+  import {featureCompareHref,measurementLinks} from "../measurement-links";
   import {loadFeatureSource,preferredFeature,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
@@ -21,7 +24,7 @@
     type AcquisitionRelation,
   } from "../acquisition-relation";
 
-  let {assetId,timing=null}:{assetId:string;timing?:AcquisitionTiming|null}=$props();
+  let {assetId,timing=null,selectedPosition=null,onPosition}:{assetId:string;timing?:AcquisitionTiming|null;selectedPosition?:number|null;onPosition?:(at:number)=>void}=$props();
   type State="loading"|"ready"|"empty"|"unavailable"|"failed";
   let sourceState:State=$state("loading");
   let resultState:State=$state("empty");
@@ -35,8 +38,24 @@
   const place = (at:number) => measurementLabel(at, period);
   let error=$state("");
   const params=new URLSearchParams(location.search);
+  let pickedOrdinal=$state<number|null>(Number(params.get("vibration_at"))||null);
+  let pickedPeriod=$state<"a"|"b">("b");
+  const chosen=$derived.by(()=>{
+    const read:AcquisitionRelation|null=relation;if(!read)return null;
+    const ordinal=selectedPosition??pickedOrdinal;
+    const preferred=read.groups.find(group=>group.period===pickedPeriod);
+    const group=(ordinal===null?null:read.groups.find(group=>group===preferred&&group.points.some(point=>point.ordinal===ordinal))
+      ??read.groups.find(group=>group.points.some(point=>point.ordinal===ordinal)))??read.groups.find(group=>group.period==="b")??read.groups[0];
+    const point=group?.points.find(point=>point.ordinal===ordinal)??group?.points[0];
+    return group&&point?{period:group.period,point}:null;
+  });
+  function pickMeasurement(period:"a"|"b",ordinal:number){
+    pickedPeriod=period;pickedOrdinal=ordinal;onPosition?.(ordinal);
+    const url=new URL(location.href);url.searchParams.set("vibration_at",String(ordinal));history.replaceState(history.state,"",url);
+  }
   let x=$state(params.get("acq_relation_x")??"");
   let y=$state(params.get("acq_relation_y")??"");
+  const linked=$derived.by(()=>{const current:FeatureSource|null=source;return current&&chosen?measurementLinks(assetId,chosen.point.ordinal,{first:current.first,last:current.last,feature:x}):[];});
   let fromSummary=$state(false);
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
@@ -135,7 +154,7 @@
     return points.length ? {xmin:Math.min(...points.map(p=>p.x)), xmax:Math.max(...points.map(p=>p.x)),
       ymin:Math.min(...points.map(p=>p.y)), ymax:Math.max(...points.map(p=>p.y))} : null;
   });
-  const featureLabel = (id:string) => source?.features.find(item=>item.id===id)?.label ?? id;
+  const featureLabel = (id:string) => plainLabel(source?.features.find(item=>item.id===id)?.label ?? id,id);
   const message = $derived.by(() => {
     const read:AcquisitionRelation|null = relation;
     const ga = read?.groups.find(group=>group.period==="a"), gb = read?.groups.find(group=>group.period==="b");
@@ -164,7 +183,7 @@
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다."}/>
   {:else if source && spans}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간">{#snippet children(close)}{#if source && spans}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{featureLabel(x)} × {featureLabel(y)}</h3><p>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if source && spans}
     <p class="purpose">두 진동 특징이 함께 움직이는 방식이 달라졌는지 같은 측정의 특징값끼리 비교합니다. 계산식으로 연결된 특징의 높은 상관은 새로운 현상을 뜻하지 않을 수 있습니다.</p>
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)}</p>
@@ -193,7 +212,7 @@
       관계 계산하기
     </button>
     </section>
-    {/if}{/snippet}</AnalysisControls>
+    {/if}{/snippet}</AnalysisControls></header>
     <div class="analysis-body">
     {#if resultState==="loading"}
       <StatusNotice message="같은 측정의 특징 짝을 불러오고 있습니다."/>
@@ -205,7 +224,7 @@
     {:else if relation}
       {#if message}<p class="result-statement">{message.headline}</p>{/if}
       {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
-      <div class="pair">
+      <div class="relation-workspace"><div class="pair">
       {#each relation.groups as group(group.period)}
         <section class="group">
           <h3>기간 {group.period.toUpperCase()}</h3>
@@ -223,7 +242,8 @@
               points={group.points.map(p=>({x:p.x,y:p.y,label:place(p.ordinal)}))}
               xLabel={featureLabel(x)+(relation.xUnit?" ("+relation.xUnit+")":"")}
               yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":"")}
-              caption={null}
+              caption={null} picked={chosen?.period===group.period?group.points.findIndex(point=>point.ordinal===chosen.point.ordinal):null}
+              onPick={index=>pickMeasurement(group.period,group.points[index].ordinal)}
               description={"기간 "+group.period.toUpperCase()+" · 같은 측정 특징 짝 "+group.points.length+"개 산점도."}/>{/if}
           {/if}
           <details><summary>상관계수와 측정 수</summary>
@@ -251,6 +271,14 @@
         </section>
       {/each}
       </div>
+      {#if chosen}<aside class="relation-inspector" aria-label="선택한 측정">
+        <header><h3>{chosen.point.ordinal}번째 측정</h3><span>기간 {chosen.period.toUpperCase()}</span></header>
+        <dl><div><dt>{featureLabel(x)}</dt><dd>{measure(chosen.point.x,relation.xUnit)}</dd></div>
+          <div><dt>{featureLabel(y)}</dt><dd>{measure(chosen.point.y,relation.yUnit)}</dd></div></dl>
+        <nav aria-label="이 측정에서 이어서 분석">{#each linked.filter(link=>link.key!=="features") as link(link.key)}<a href={link.href}
+          onclick={event=>event.currentTarget.href=investigationOriginUrl(event.currentTarget.href,location.href)}>{link.label} →</a>{/each}</nav>
+      </aside>{/if}
+      </div>
       <p class="context plot-note">한 점은 같은 측정의 두 특징값이고, 두 기간은 같은 축 범위로 표시합니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.</p>
       {#if message}<AnalysisMessage {message} showHeadline={false}/>{/if}
       <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
@@ -277,4 +305,11 @@
   table{width:100%;border-collapse:collapse}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}
   .headline{font-size:var(--font-section);font-weight:700}
+
+  .relation-workspace{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:var(--space-5);align-items:start}
+  .relation-inspector{display:grid;gap:var(--space-4);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
+  .relation-inspector header{display:flex;align-items:baseline;justify-content:space-between;gap:var(--space-2)}.relation-inspector header span,.relation-inspector dt{font-size:var(--font-small);color:var(--color-ink-muted)}
+  .relation-inspector dl{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);margin:0}.relation-inspector dd{margin:4px 0 0;font-size:var(--font-result);font-weight:700}
+  .relation-inspector nav{display:grid;gap:var(--space-3);font-size:var(--font-small)}
+  @media(max-width:1100px){.relation-workspace{grid-template-columns:minmax(0,1fr)}.relation-inspector{border-left:0;border-top:1px solid var(--color-border);padding:var(--space-3) 0 0}.relation-inspector dl{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>

@@ -1,4 +1,5 @@
 /** Paired stored measurements from the authoritative history relation endpoint. */
+import {assertObservationSnapshot} from "./observation-context.ts";
 import {validatePeriods, type Periods} from "./comparison.ts";
 
 export type PairedGroup = {
@@ -99,13 +100,14 @@ export function parseRelation(payload: unknown, asset: string, x: string, y: str
   });
   return {asset,x,y,groups};
 }
-export async function readRelation(asset:string,x:string,y:string,periods:Periods,signal:AbortSignal):Promise<Relation>{
+export async function readRelation(asset:string,x:string,y:string,periods:Periods,signal:AbortSignal,snapshot:number|null=null):Promise<Relation>{
   if(x===y)throw new Error("서로 다른 두 신호를 선택해야 관계를 비교할 수 있습니다.");
   validatePeriods(periods);
   const params=new URLSearchParams({
     asset_id:asset,kind:"history",x,y,
     a_from:periods.a.from,a_to:periods.a.to,b_from:periods.b.from,b_to:periods.b.to,
   });
+  if(snapshot!==null)params.set("snapshot",String(snapshot));
   const response=await fetch("/api/v1/explore/relation?"+params,{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404){
     const detail:unknown=await response.json().catch(()=>null);
@@ -115,7 +117,9 @@ export async function readRelation(asset:string,x:string,y:string,periods:Period
     await response.body?.cancel().catch(() => {});
     throw new Error("신호 관계 조회가 실패했습니다. 비교할 짝이 없다는 뜻이 아닙니다.");
   }
-  return parseRelation(await response.json() as unknown,asset,x,y);
+  const payload:unknown=await response.json();
+  assertObservationSnapshot(payload,snapshot);
+  return parseRelation(payload,asset,x,y);
 }
 
 /** Words for a correlation the server computed; the coefficient itself stays visible. */

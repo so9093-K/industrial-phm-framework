@@ -1,7 +1,7 @@
 <script lang="ts">
   import {untrack,tick} from "svelte";
   import {elapsedText} from "../time-axis";
-  import {assetLabel, assetOptionLabel, flowLabel, type Asset} from "../monitor";
+  import {assetLabel, flowLabel, type Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
   import {
@@ -9,7 +9,10 @@
     type DataKind, type Method, type Route, type Tab,
   } from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
-  import AssetSummary from "./AssetSummary.svelte";
+  import ObservationWorkspace from "./ObservationWorkspace.svelte";
+  import type {Sources} from "../operations-status";
+  import AssetName from "./AssetName.svelte";
+  import InvestigationContext from "./InvestigationContext.svelte";
   import SignalExplorer from "./SignalExplorer.svelte";
   import VibrationSignals from "./VibrationSignals.svelte";
   import DepartureExplorer from "./DepartureExplorer.svelte";
@@ -27,12 +30,12 @@
 
   type Props = {
     asset: Asset;
+    sources?:Sources|null;sourceState?:"loading"|"ready"|"failed";cycle?:number;onObservationView?:(view:"recent"|"record")=>void;
     assets: Asset[];
     route: Route;
     observed: (at: string | null) => string;
-    onSelectAsset: (assetId: string) => void;
   };
-  let {asset, assets, route, observed, onSelectAsset}: Props = $props();
+  let {asset, assets, route, observed,sources=null,sourceState="loading",cycle=0,onObservationView}: Props = $props();
   let data: AssetData | null = $state(null);
   let dataState: "loading" | "ready" | "failed" = $state("loading");
   let capabilities: Capabilities | null = $state(null);
@@ -77,21 +80,8 @@
       || (route.data !== null && usesDataKind(route.tab, method)
         && !kindsOf(current).includes(route.data));
   });
-  // 모니터링(중심) 화면은 설비마다 한 번 읽은 데이터로 계속 떠 있다. 분석 서랍을 열 때 다시 읽는 데이터는
-  // 서랍에만 쓰고, 중심 화면의 계산을 다시 시작하지 않는다.
-  let summaryData: AssetData | null = $state(null);
-  let summaryState: "loading" | "ready" | "failed" = $state("loading");
-  $effect(() => {
-    const state: "loading" | "ready" | "failed" = dataState, current: AssetData | null = data;
-    untrack(() => {
-      if (state === "ready" && summaryData === null) {summaryData = current; summaryState = "ready";}
-      else if (state === "failed" && summaryData === null) summaryState = "failed";
-    });
-  });
-  // 설비 한 줄 소개는 서랍이 데이터를 다시 읽는 동안에도 처음 읽은 값으로 둔다.
-  const known = $derived.by((): AssetData | null => { const fresh: AssetData | null = data, first: AssetData | null = summaryData; return fresh ?? first; });
   const facts = $derived.by(() => {
-    const read: AssetData | null = known;
+    const read: AssetData | null = data;
     if (!read) return "";
     const parts: string[] = [];
     if (read.history) parts.push("시계열 신호 " + read.history.signals + "개");
@@ -106,8 +96,8 @@
     const link = event.currentTarget as HTMLAnchorElement;
     link.href = tabSelectionUrl(link.href, location.href);
   }
-  const drawerOpen = $derived(route.tab !== "summary");
-  const drawerTitle = $derived(route.tab === "change" || route.tab === "anomaly"
+  const analysisOpen = $derived(route.tab !== "summary");
+  const analysisTitle = $derived(route.tab === "change" || route.tab === "anomaly"
     ? (method ? METHOD_INFO[method] : TAB_INFO[route.tab]) : TAB_INFO[route.tab]);
   const analysisTabs=$derived.by(()=>{
     const input=kind??defaultKind(data),available=methodsFor("change",data,capabilities,input);
@@ -122,13 +112,12 @@
     return rows;
   });
   let backLink: HTMLAnchorElement | null = $state(null);
-  let drawer: HTMLElement | null = $state(null);
-  let changeVersion = $state(0);
+  let analysisView: HTMLElement | null = $state(null);
   let selectedAt = $state<number | null>(null);
   $effect(() => {
-    if (!drawerOpen) return;
-    void tick().then(()=>drawer?.focus({preventScroll:true}));
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") backLink?.click(); };
+    if (!analysisOpen) return;
+    void tick().then(()=>analysisView?.focus({preventScroll:true}));
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open]")) backLink?.click(); };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   });
@@ -142,14 +131,14 @@
       if (!request.signal.aborted) {capabilities = value; capabilityState = "ready";}
     }).catch(() => {if (!request.signal.aborted) capabilityState = "failed";});
   }
-  function reloadData() {
+  function reloadData(background=false) {
     dataRequest?.abort();
     const request = new AbortController(); dataRequest = request;
-    data = null; dataState = "loading";
+    if(!background){data = null; dataState = "loading";}
     void readAssetData(asset.assetId, request.signal).then((value) => {
       if (request.signal.aborted) return;
       data = value; dataState = "ready";
-    }).catch(() => { if (!request.signal.aborted) dataState = "failed"; });
+    }).catch(() => { if (!request.signal.aborted&&!background) dataState = "failed"; });
   }
   // 목록을 주기적으로 다시 읽으면 asset·route가 새 객체로 들어온다. 탭 이름(문자열)이 바뀔 때만 다시 읽어야
   // 열린 분석이 처음부터 다시 계산되지 않는다.
@@ -158,9 +147,10 @@
   // while this asset remains open. Re-read input facts when entering a tab.
   $effect(() => {
     tab;
-    untrack(reloadData);
+    untrack(()=>reloadData());
     return () => dataRequest?.abort();
   });
+  $effect(()=>{const revision=cycle;if(tab==="summary"&&revision>0)untrack(()=>void reloadData(true));});
   // Every open analysis offers the other supported views of this same phenomenon.
   $effect(() => {
     tab;
@@ -171,34 +161,25 @@
 </script>
 
 <div class="workspace-asset" aria-busy={dataState === "loading"}>
-  <div class="head" class:visually-hidden={!drawerOpen}>
+  <div class="head" class:visually-hidden={!analysisOpen}>
     <div class="title">
-      <h1>{assetLabel(assets, asset.assetId)}</h1>
-      <!-- 한 줄: 어떤 기록인지와 시간을 어떻게 읽는지. 마지막 측정의 위치는 요약의 숫자가 말한다. -->
-      <p class="meta">{#if !asset.lastObservedAt && known?.vibration}{flowLabel(asset.flow)}{facts ? " · " + facts : ""} · {known.vibration.timing
-        ? "기록된 측정 간격 " + elapsedText(known.vibration.timing.periodSeconds) : "측정 간격 기록 없음(측정 회차로 표시)"} · 실제 측정 시각 기록 없음{:else}마지막 측정 {observed(asset.lastObservedAt)} · {flowLabel(asset.flow)}{facts ? " · " + facts : ""}{/if}</p>
+      <h1><AssetName label={assetLabel(assets, asset.assetId)}/></h1>
+      <p class="meta">{#if !asset.lastObservedAt && data?.vibration}진동 기록 {data.vibration.measurements}회 · {data.vibration.timing
+        ? elapsedText(data.vibration.timing.periodSeconds)+" 간격" : "측정 순서로 표시"} · 날짜·시각 미기록{:else}{flowLabel(asset.flow)} · 마지막 측정 {observed(asset.lastObservedAt)}{/if}</p>
     </div>
   </div>
 
   {#if unfinished}<p class="import-note" role="status">{unfinished.text}
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
-  {#if summaryState === "failed"}
-    <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
-      message="다시 불러오거나 다른 설비를 선택하세요."
-      actionLabel="다시 불러오기" onAction={reloadData} />
-  {/if}
-  <div class="analysis-layout" class:analysing={drawerOpen}>
-  <div class="center">
-    <AssetSummary {asset} data={summaryData} dataState={summaryState} {observed} compact={drawerOpen}
-      bind:selectedAt onChange={() => changeVersion++} />
-  </div>
-
-  {#if drawerOpen}
-  <section class="drawer" aria-labelledby="drawer-title" tabindex="-1" bind:this={drawer}>
-    <header class="drawer-head">
-      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>분석 닫기</a>
-      <h2 id="drawer-title" class="visually-hidden">{drawerTitle}</h2>
+  {#if !analysisOpen}
+    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} onView={onObservationView} bind:selectedAt />
+  {:else}
+  <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
+    <header class="analysis-view-head">
+      <div class="selection-context"><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 모니터링</a>
+        {#key route.tab+":"+method+":"+kind}<InvestigationContext search={location.search}/>{/key}</div>
+      <h2 id="analysis-view-title" class="visually-hidden">{analysisTitle}</h2>
       {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
         <div class="choices">
           {#if kind && kindsOf(data).length > 1}
@@ -218,7 +199,7 @@
       {/each}
     </nav>
     </header>
-    <div class="drawer-body">
+    <div class="analysis-view-body">
   {#if dataState === "failed"}
     <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
       message="다시 불러오거나 다른 설비를 선택하세요."
@@ -252,7 +233,7 @@
       </ul>
     </section>
   {:else}
-    {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind + ":" + changeVersion}
+    {#key asset.assetId + ":" + route.tab + ":" + method + ":" + kind}
       {#if route.tab === "signals"}
         {#if data?.history || !data?.vibration}<SignalExplorer assetId={asset.assetId} />{/if}
         {#if data?.vibration}<VibrationSignals assetId={asset.assetId} selectedPosition={selectedAt} onPosition={at=>selectedAt=at}/>{/if}
@@ -260,7 +241,6 @@
         <DepartureExplorer assetId={asset.assetId} />
       {:else if route.tab === "anomaly"}
         <ModelRunEvidence assetId={asset.assetId} timing={data?.vibration?.timing ?? null}
-          contextual
           selectedPosition={data?.vibration?selectedAt:null} onPosition={at=>{if(data?.vibration)selectedAt=at;}}
           measurements={data?.vibration ? {first: data.vibration.first, last: data.vibration.last} : null} />
       {:else if route.tab === "change" && method === "spectrum"}
@@ -268,7 +248,7 @@
       {:else if route.tab === "change" && method === "electrical"}
         <ElectricalCondition assetId={asset.assetId} />
       {:else if route.tab === "change" && method === "relation" && kind === "vibration"}
-        <AcquisitionRelation assetId={asset.assetId} timing={data?.vibration?.timing ?? null} />
+        <AcquisitionRelation assetId={asset.assetId} timing={data?.vibration?.timing ?? null} selectedPosition={selectedAt} onPosition={at=>selectedAt=at}/>
       {:else if route.tab === "change" && method === "relation"}
         <RelationExplorer assetId={asset.assetId} />
       {:else if route.tab === "change" && kind === "vibration"}
@@ -285,30 +265,25 @@
     </div>
   </section>
   {/if}
-  </div>
-  <details><summary>설비 식별 정보</summary><p>설비 ID: {asset.assetId}</p></details>
+  <details><summary>설비·기록 상세</summary><p>{facts}</p><p>설비 ID: {asset.assetId}</p></details>
 </div>
 
 <style>
-  .analysis-layout{min-width:0;display:grid;gap:var(--space-4);align-items:start}
-  .analysis-layout.analysing{grid-template-columns:minmax(340px,.85fr) minmax(0,1.65fr)}
-  .center{min-width:0}
-  @media(min-width:1051px){.analysing>.center{position:sticky;top:var(--space-3)}}
-  .drawer{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
-  .drawer-head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);
-    padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
-  .drawer-head h2{margin:0;font-size:var(--font-section)}
-  .drawer-head .choices{margin-left:auto}
-  .back{order:3;margin-left:auto;font-size:var(--font-small);font-weight:650;text-decoration:none;padding:var(--space-2);color:var(--color-action)}
+  .analysis-view{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
+  .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--space-3);
+    padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+  .analysis-view-head h2{margin:0;font-size:var(--font-section)}
+  .analysis-view-head .choices{margin-left:auto}
+  .selection-context{flex-basis:100%;display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-3);min-width:0}
+  .back{font-size:var(--font-small);font-weight:650;text-decoration:none;padding:var(--space-2);color:var(--color-action)}
   .back:hover{border-color:var(--color-action)}
-  .drawer-body{min-width:0;display:grid;gap:var(--space-3)}
+  .analysis-view-body{min-width:0;display:grid;gap:var(--space-3)}
   .analysis-tabs{order:0;display:flex;flex-wrap:wrap;gap:var(--space-1)}
   .analysis-tabs a{padding:var(--space-2);font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted);text-decoration:none;border-bottom:3px solid transparent}
   .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}
-  @media(max-width:1050px){.analysis-layout.analysing{grid-template-columns:minmax(0,1fr)}}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: var(--space-3); }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-top: 0; }
   .title { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
   h1 { overflow-wrap: anywhere; font-size: 1.3rem; margin: 0; }
   .meta { color: var(--color-ink-muted); margin: 0; overflow-wrap: anywhere; font-size: var(--font-small); }

@@ -42,7 +42,16 @@ export function flowLabel(flow: string): string {
 
 /** Names are presentation only; links, filters and evidence keep the stable ID. */
 export function assetLabel(assets: readonly Asset[], assetId: string): string {
-  return assets.find(asset => asset.assetId === assetId)?.displayName || assetId;
+  const declared = assets.find(asset => asset.assetId === assetId)?.displayName;
+  if (declared && declared !== assetId) return declared;
+  const bearing = /^Bearing(\d+)_(\d+)$/.exec(assetId);
+  return bearing ? "베어링 " + bearing[1] + "-" + bearing[2] : assetId;
+}
+
+/** Separate a familiar equipment name from its number without inventing a location or role. */
+export function assetNameParts(label: string): {name: string; number: string | null} {
+  const parts = /^(베어링|공기압축기|펌프|보일러)\s+(\d+(?:-\d+)?)$/.exec(label);
+  return parts ? {name: parts[1], number: parts[2]} : {name: label, number: null};
 }
 
 export function assetOptionLabel(assets: readonly Asset[], assetId: string): string {

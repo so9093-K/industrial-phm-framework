@@ -70,7 +70,7 @@
   figure{margin:var(--space-3) 0;min-width:0;max-width:760px}
   svg{display:block;width:100%;height:240px}circle{fill:var(--color-action);fill-opacity:0.75}
   .grid{stroke:var(--color-border);stroke-width:1}svg circle,svg line{vector-effect:non-scaling-stroke}
-  .picked{stroke:var(--color-focus);stroke-width:12;stroke-linecap:round}
+  .picked{stroke:var(--color-ink);stroke-width:12;stroke-linecap:round}
   .hit{fill:transparent;cursor:crosshair}.band{fill:var(--color-caution-ink);fill-opacity:.12}
   .point-picker{display:grid;gap:var(--space-2);font-size:var(--font-small)}
   .point-picker input{width:100%;min-height:32px}

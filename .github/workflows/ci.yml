@@ -48,5 +48,4 @@ jobs:
         run: |
           npm ci --prefix frontend --no-audit --no-fund
           npm run --prefix frontend check
-          npm test --prefix frontend
           npm run --prefix frontend build

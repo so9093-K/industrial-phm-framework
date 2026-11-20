@@ -1,6 +1,7 @@
 <script lang="ts">
-  import {xTicks, measurementScale} from "../time-axis";
+  import {xTicks, measurementScale, measurementLabel} from "../time-axis";
   import {onMount} from "svelte";
+  import {movePosition} from "../plot-selection";
   import {num} from "../format";
   import {measure, yTicks} from "../chart-axis";
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
@@ -44,7 +45,7 @@
   const threshold = $derived(scored.find((point) => point.threshold !== null)?.threshold ?? null);
   // What to read first: a run still going on, else a latest one-off crossing, else "below now".
   const story = $derived.by(() => { const current: ScoreTrend | null = trend; return current && !current.truncated ? exceedanceStory(current) : null; });
-  const told = $derived(story ? exceedanceText(story, place) : null);
+  const told = $derived(story ? exceedanceText(story, position=>isTimeWindow(binding.stepKind)?place(position):measurementLabel(position), "마지막 분석") : null);
   const first = $derived(story?.anchor ?? null);
   const priorities = $derived.by(() => { const read: ScoreTrend | null = trend; return priorityIntervals(read?.intervals ?? []); });
   const scale = $derived.by(() => {
@@ -129,7 +130,7 @@
     {:else if summary && !summary.exceeded && !trend.truncated}
       <p class="result-statement">분석한 {summary.analyzed}회 모두 모델 기준 이하였습니다.</p>
     {/if}
-    <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
+    {#if trend.truncated}<StatusNotice kind="uncertain" message="점수 기록을 일부만 읽었습니다. 전체 기록의 마지막 상태는 이 그래프로 판단할 수 없습니다."/>{/if}
     {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
     <div class="chart" bind:clientWidth={chartWidth}>
     {#if focus}<div class="chart-head"><strong>선택 구간의 점수 추이</strong>
@@ -139,6 +140,7 @@
       <li><i class="key threshold-key"></i>모델 기준 {num(threshold)}</li>
       <li title="아래 띠 · 기준을 넘은 측정 비율(진할수록 많음)"><i class="key interval-key"></i>초과 비율</li>
     </ul>
+    <div class="score-cursor" role="slider" tabindex="0" aria-label="모델 측정 선택" aria-valuemin={scored[0]?.pointer.position??0} aria-valuemax={scored.at(-1)?.pointer.position??1} aria-valuenow={selected??scored.at(-1)?.pointer.position??0} aria-valuetext={selected===null?"측정 선택":place(selected)} onkeydown={event=>{const at=movePosition(scored.map(p=>p.pointer.position),selected,event.key);if(at!==null){event.preventDefault();choose(at);}}}>
     <svg viewBox={"0 0 " + W + " " + H} role="img"
       aria-label={"모델 점수 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지 · 기준 " + num(threshold, "없음")}>
       <defs><clipPath id={clipId}><rect x={LEFT} y={TOP} width={RIGHT-LEFT} height={BOTTOM-TOP} /></clipPath>
@@ -181,11 +183,12 @@
       <rect x={LEFT} y={TOP} width={RIGHT-LEFT} height={BOTTOM-TOP} fill="transparent" role="presentation"
         onpointermove={event=>hovered=pointAt(event)} onpointerleave={()=>hovered=null}
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
-    </svg>
+    </svg></div>
     {#if inspected}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)} · {inspected.exceeds ? "기준 초과" : "기준 이하"}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
+    <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
     {#if trend.intervals.length}
       <details><summary>기준 초과 구간 조사 · {trend.intervals.length}개</summary>
       {#if told?.earlier}<p class="context">{told.earlier}{#if story?.first && story.first !== first}
@@ -211,6 +214,7 @@
 </section>
 
 <style>
+  .score-cursor{outline-offset:3px;border-radius:3px}.score-cursor:focus-visible{outline:2px solid var(--color-action)}
   .trend { display: grid; gap: var(--space-2); margin-block: 0 var(--space-4); min-width: 0; }
   h3 { margin: 0; font-size: var(--font-section); }
   p { margin: 0; overflow-wrap: anywhere; }

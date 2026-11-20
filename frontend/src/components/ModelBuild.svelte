@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type {HistoryStream} from "../history";
   import {onMount} from "svelte";
   import {explainWrite} from "../connections";
   import {kstInstant} from "../electrical-condition";
@@ -6,7 +7,7 @@
   import {OutcomeUnknown, WriteForbidden, WriteRejected} from "../writes";
   import {
     buildHistoryModel, MAX_SIGNALS, readHistoryStreams, referencePeriod, streamLabel, WINDOW_CHOICES,
-    type HistoryStream, type ReferenceChoice,
+    type ReferenceChoice,
   } from "../history-model";
   import StatusNotice from "./StatusNotice.svelte";
 

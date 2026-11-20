@@ -4,7 +4,7 @@
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
   import SourceIdentity from "./SourceIdentity.svelte";
-  import {focusFrom,focusParams,pickFrom,type SourceFocus} from "../signal-selection";
+  import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
   import ForecastFit from "./ForecastFit.svelte";
@@ -21,7 +21,7 @@
   import XAxis from "./XAxis.svelte";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
-  import {reachText, recordAgeText, reachCalendarText} from "../reach";
+  import {reachText, reachCalendarText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
@@ -47,7 +47,6 @@
   let selectionReady = $state(false);
   let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
-  const investigation=pickFrom(params.get("monitor_pick"));
   let focus:SourceFocus|null=$state(focusFrom(params));
   let selectedRecord=$state(params.get("record_key")??"");
   let settings=$state(savedSettings(params));
@@ -73,6 +72,9 @@
     for(const [key,value] of Object.entries(record?recordParams(record):focus?focusParams(focus):{}))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }
+  const criteriaPending=$derived.by(()=>{const current:Projection|null=projection;return current!==null&&(current.conditions.direction!==direction
+    ||current.conditions.management!==(management.trim()?Number(management):null)
+    ||current.conditions.end!==(endLimit.trim()?Number(endLimit):null));});
   function parseLimit(value: string): number | null {
     if (value.trim() === "") return null;
     const n = Number(value);
@@ -238,26 +240,7 @@
       </button>
     </div>
 
-    <AnalysisControls title="기준·모델 설정">{#snippet children(close)}{#if options}
-    <details class="optional-criteria" open={management.trim() !== "" || endLimit.trim() !== ""}>
-      <summary>관리·종료 기준 추가 (선택)</summary>
-      <p class="intro">설비에서 사용하는 기준값이 있을 때 입력하세요.</p>
-      <div class="controls">      <label for="projection-direction">기준 방향
-        <select id="projection-direction" value={direction}
-          onchange={e=>{direction=e.currentTarget.value as Direction;invalidate();}}>
-          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
-        </select>
-      </label>
-      <label for="projection-management">관리 기준 (선택)
-        <input id="projection-management" type="number" step="any"
-          value={management} oninput={e=>{management=e.currentTarget.value;invalidate();}}/>
-      </label>
-      <label for="projection-end">종료 기준 (선택)
-        <input id="projection-end" type="number" step="any"
-          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;invalidate();}}/>
-      </label>
-      </div>
-    </details>
+    <AnalysisControls title="모델 설정">{#snippet children(close)}{#if options}
     <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{const changed=settings.trainingPoints!==value.trainingPoints;settings=value;customSettings=true;invalidate();if(changed)void loadSelectedOptions(false);}}/>
     <p class="purpose">조건을 바꾸면 결과는 지워지고 다시 계산해야 합니다.</p>
 
@@ -267,7 +250,6 @@
     </div>
     <div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
-    {#if investigation}<p class="intro" title={clock(new Date(investigation.from).toISOString())+" ~ "+clock(new Date(investigation.to).toISOString())}>조사 구간과 별도로, 선택한 기록의 마지막 시점부터 전망합니다.</p>{/if}
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
       <StatusNotice message="전망을 계산하고 있습니다." />
@@ -281,11 +263,8 @@
     {:else if resultState === "unavailable"}
       <StatusNotice kind="uncertain" title="이 기간은 전망할 수 없습니다" message={error} />
     {:else if projection}
-      {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
-      {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
       {@const chart=outlookChart(projection, includeLimits)}
-      {@const age=recordAgeText(projection.record.last, now)}
       {@const worse=worseThanPersistence(projection.checks?.[0])}
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
@@ -294,28 +273,13 @@
           horizon:clock(projection.future.at(-1)!.at),checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
-          <h3 id="projection-result-title">기록 마지막 시점 기준 전망</h3>
-          <SourceIdentity id={projection.sourceId} pointId={projection.pointId} among={options.records?.map(row=>row.sourceId)??[]}/>
-          <span class="intro">{clock(projection.record.last)}까지의 기록 · 예측 {HORIZON_LABEL[projection.horizon]}</span>
+          <h3 id="projection-result-title">추세 전망</h3>
+          <span class="intro">마지막 실측 · {clock(projection.record.last)} · 예측 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
-        {#if age}<p class="intro">{age}</p>{/if}
         {#if worse}
           <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told && !worse}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
-        {#if limited && !worse}
-          <div class="tiles">
-            {#if projection.conditions.management!==null}
-              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong>
-                <span>{reachCalendarText(current?.management, projection.record.last, now)}</span></div>
-            {/if}
-            {#if projection.conditions.end!==null}
-              <div><span>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"time")}</strong>
-                <span>{reachCalendarText(current?.end, projection.record.last, now)}</span>
-                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
-            {/if}
-          </div>
-        {/if}
+        {#if told && !worse && !limited}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if chart}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
           {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
@@ -352,6 +316,7 @@
         {#if projection.evolution}<SignalEvolution data={projection.evolution} unit={projection.unit}/>{/if}
         <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
         <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
+          <SourceIdentity id={projection.sourceId} pointId={projection.pointId} among={options.records?.map(row=>row.sourceId)??[]}/>
         {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={signalName(names, projection.channel)}
           basis={clock(projection.record.last) + "까지의 기록 · " + HORIZON_LABEL[projection.horizon] + " 앞까지 계산"}
@@ -431,14 +396,60 @@
     {:else if !selectionLoading}
       <p class="intro">신호와 예측 기간을 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
-    </div></div>
+    </div>
+    <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
+      <h3 class="inspector-title">기준 도달·예상 여유</h3>
+
+      {#if projection}
+        {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
+        {@const basis=current&&current.id!=="current"?" · "+label(current.id)+" 기준":""}
+        {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
+        {@const worse=worseThanPersistence(projection.checks?.[0])}
+        {#if criteriaPending}<p class="criteria-pending" role="status">입력한 기준은 아직 적용하지 않았습니다.</p>{/if}
+        {#if limited && !worse}
+          <div class="tiles">
+            {#if projection.conditions.management!==null}
+              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong>
+                <span>{reachCalendarText(current?.management, projection.record.last, now)}</span></div>
+            {/if}
+            {#if projection.conditions.end!==null}
+              <div><span>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"time")}</strong>
+                <span>{reachCalendarText(current?.end, projection.record.last, now)}</span>
+                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
+            {/if}
+          </div>
+        {/if}
+      {/if}
+
+      <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+        <p>기준값 입력 (선택)</p>
+      <div class="controls">      <label for="projection-direction">기준 방향
+        <select id="projection-direction" value={direction}
+          onchange={e=>{direction=e.currentTarget.value as Direction;save();}}>
+          <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
+        </select>
+      </label>
+      <label for="projection-management">관리 기준 ({(projection?.unit??names.get(channel)?.unit)?(projection?.unit??names.get(channel)?.unit)+" · ":""}선택)
+        <input id="projection-management" type="number" step="any"
+          value={management} oninput={e=>{management=e.currentTarget.value;save();}}/>
+      </label>
+      <label for="projection-end">종료 기준 ({(projection?.unit??names.get(channel)?.unit)?(projection?.unit??names.get(channel)?.unit)+" · ":""}선택)
+        <input id="projection-end" type="number" step="any"
+          value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;save();}}/>
+      </label>
+      </div>
+        <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={selectionLoading||!selectionReady||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button>
+      </form>
+    </aside>
+    </div>
   {/if}
 </section>
 
 <style>
-  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
-  .forecast-controls{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
-  .forecast-controls>div{flex:1;margin:0;gap:var(--space-3)}
+  .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
+  .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .forecast-controls>.controls{flex:1 1 500px;min-width:0;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-3)}
+  .forecast-controls>.controls>label{flex:1 1 160px;min-width:0}.forecast-controls>.controls>label:first-child{flex:1.3 1 240px}.forecast-controls>.controls>button{flex:none}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
   .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
 
@@ -493,4 +504,14 @@
   dt { font-weight: 700; }
   dd { margin: var(--space-1) 0 var(--space-3); }
   .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
+
+  .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
+  .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
+  .criteria{display:grid;gap:var(--space-3)}.criteria p,.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
+  .criteria .controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin:0}.criteria input,.criteria select{padding:var(--space-2)}
+  .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}.criteria-pending{color:var(--color-caution-ink)}
+  @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  .inspector-title{margin:0;font-size:var(--font-section)}
+  .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>

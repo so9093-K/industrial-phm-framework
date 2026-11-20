@@ -157,13 +157,14 @@ function analyzedPlace(model:MonitoredModel):string{
 }
 
 /** Summarize a shared input only when its stream and measured interval match. */
-export function modelFact(list:MonitoredModel[]):string|null{
+export function modelFact(list:MonitoredModel[], compact=false):string|null{
   const name=namer(list);
   const judged=list.filter(model=>model.state==="processed"&&model.analyzed?.exceeds!=null);
   if(!judged.length)return null;
   if(judged.length>1&&!judged.every(model=>sameInput(judged[0],model)))
-    return "모델별 마지막 분석 · "+judged.map(model=>name(model)+" · "+analyzedPlace(model)+": 기준 "+(model.analyzed!.exceeds?"초과":"이하")).join(" / ");
+    return compact ? "모델마다 분석한 측정이 다름" : "모델별 마지막 분석 · "+judged.map(model=>name(model)+" · "+analyzedPlace(model)+": 기준 "+(model.analyzed!.exceeds?"초과":"이하")).join(" / ");
   const over=judged.filter(model=>model.analyzed!.exceeds).map(name),under=judged.filter(model=>!model.analyzed!.exceeds).map(name);
+  if(compact)return "마지막 분석 · "+(over.length?"기준 초과 결과 있음":"모델 기준 이하");
   const place="마지막 분석 · "+analyzedPlace(judged[0]);
   if(!over.length)return place+" 기준 이하 · "+under.join(", ");
   return place+" 기준 초과 · "+over.join(", ")+(under.length?" (기준 이하 · "+under.join(", ")+")":"");
@@ -288,9 +289,9 @@ export async function readDepartures(signal:AbortSignal,assetId?:string):Promise
 
 /** Every asset's notes, read once from what 관측 현황 polls, so the asset list and an asset's
  * summary count the same items. A part that cannot be read is left out, not guessed. */
-export async function readAttention(signal:AbortSignal):Promise<AssetChecks>{
+export async function readAttention(signal:AbortSignal,assetId?:string):Promise<AssetChecks>{
   const [phm,sources,departures]=await Promise.all([readPhmMonitor(signal),
-    readSources(signal).catch(()=>null),readDepartureStatus(signal).catch(()=>null)]);
+    readSources(signal).catch(()=>null),readDepartureStatus(signal,assetId).catch(()=>null)]);
   return assetChecks(phm.models,attentionByAsset(phm.models,sources?.items??null,departures?.items??[]),
     attentionComplete(phm,sources,departures?.complete??false)?"ready":"partial");
 }

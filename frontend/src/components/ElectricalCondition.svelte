@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {subject} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import {onMount, tick} from "svelte";
@@ -45,6 +46,8 @@
   let byPhase = $state(true);
   const PHASES = ["R", "S", "T"] as const;
   let selectedAt: string | null = $state(null);
+  let wholePeriod=$state(false);
+  let windowAt=$state<string|null>(null);
   let detail: HTMLElement | null = $state(null);
   let request: AbortController | null = null;
   const keyOf = (source: ConditionSource) => JSON.stringify([source.sourceId, source.pointId]);
@@ -53,13 +56,20 @@
     const current: Condition | null = condition;
     return current && current.analyzed ? current : null;
   });
+  const visibleTimeline=$derived.by(()=>{
+    const current:Analyzed|null=analyzed;if(!current)return [];
+    if(wholePeriod||!windowAt)return current.timeline;
+    const middle=Date.parse(windowAt),halfHour=30*60*1000;
+    const nearby=current.timeline.filter(point=>Math.abs(Date.parse(point.at)-middle)<=halfHour);
+    return nearby.length>=3?nearby:current.timeline;
+  });
   const phased = $derived(metric === "currentMean" && byPhase);
   // One run list per line: the chosen value, or each phase's current read in its place.
   const lines = $derived.by((): TimelinePoint[][][] => {
     const current: Analyzed | null = analyzed;
     if (!current) return [];
-    if (!phased) return [segments(current.timeline, metric)];
-    return PHASES.map((_, index) => segments(current.timeline.map((point) =>
+    if (!phased) return [segments(visibleTimeline, metric)];
+    return PHASES.map((_, index) => segments(visibleTimeline.map((point) =>
       ({...point, currentMean: point.current ? point.current[index] : null})), "currentMean"));
   });
   const runs = $derived(lines.flat());
@@ -68,7 +78,6 @@
     return metric === "patternScore" && current?.pattern.scored ? current.pattern.threshold : null;
   });
   const scale = $derived.by(() => {
-    const current: Analyzed | null = analyzed;
     const values = runs.flat().map((point) => point[metric] as number);
     if (threshold !== null) values.push(threshold);
     const high = values.length ? Math.max(...values) : 1, low = values.length ? Math.min(...values) : 0;
@@ -76,7 +85,7 @@
     const pad = high > low ? Math.max((high - low) * 0.1, 0.01) : Math.max(Math.abs(high) * 0.1, 1);
     const min = Math.max(0, low - pad), max = high + pad;
     // The plot spans the observations themselves; a few minutes of a 24-hour window fill it.
-    const first = current?.timeline[0]?.at, last = current?.timeline[current.timeline.length - 1]?.at;
+    const first = visibleTimeline[0]?.at, last = visibleTimeline.at(-1)?.at;
     const start = first ? Date.parse(first) : 0, end = last && Date.parse(last) > start ? Date.parse(last) : start + 1;
     return {high, low, start, end, ticks: yTicks(min, max, TOP, BOTTOM),
       x: (at: string) => LEFT + ((Date.parse(at) - start) / Math.max(1, end - start)) * (RIGHT - LEFT),
@@ -100,7 +109,13 @@
       sources = value.sources;
       if (!value.sources.some((item) => keyOf(item) === sourceKey)) sourceKey = "";
       condition = value; loadState = "ready";
-      if (value.analyzed && value.target.currentMean === null) metric = "voltageUnbalance";
+      if(value.analyzed){
+        const check=firstChecks(value)[0];
+        selectedAt=value.timeline.find(point=>point.at===check?.at)?.at??value.timeline[0]?.at??null;
+        windowAt=selectedAt;
+        if(check)metric=check.metric;
+        else if(value.target.currentMean===null)metric="voltageUnbalance";
+      }
     } catch (failure) {
       if (pending.signal.aborted) return;
       condition = null; loadState = "failed";
@@ -111,14 +126,15 @@
     custom = shiftedPeriod(current, direction, custom);
     return analyze();
   }
-  async function choose(at: string, nextMetric: Metric | null = null, focus = true) {
+  async function choose(at: string, nextMetric: Metric | null = null, focus = true, recenter = false) {
     if (nextMetric) metric = nextMetric;
     selectedAt = at;
+    if(recenter)windowAt=at;
     await tick();
     if (focus) detail?.focus({preventScroll: true});
   }
   function scrub(index: number) {
-    const point = analyzed?.timeline[index];
+    const point = visibleTimeline[index];
     if (point) void choose(point.at, null, false);
   }
   function pick(event: MouseEvent) {
@@ -149,9 +165,8 @@
   </div>
 {/snippet}
 
-<section class="ui-panel condition" aria-labelledby="condition-title">
-  <h2 class="visually-hidden" id="condition-title">3상 전력·불평형</h2>
-  <div class="analysis-workspace analysis-full"><AnalysisControls title="분석·기준 기간">{#snippet children(close)}
+{#snippet settingsPanel()}
+<AnalysisControls title="분석·기준 기간">{#snippet children(close)}
   <p class="purpose">3상 전류·전압과 불평형을 앞선 기간과 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
   <form class="controls" onsubmit={(event) => { event.preventDefault(); close(); void analyze(); }}>
     <label>분석 기간
@@ -184,7 +199,13 @@
     <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
   </form>
   {/snippet}</AnalysisControls>
+{/snippet}
+
+<section class="ui-panel condition" aria-labelledby="condition-title">
+  <h2 class="visually-hidden" id="condition-title">3상 전력·불평형</h2>
+  <div class="analysis-workspace">
     <div class="analysis-body stack">
+    {#if !analyzed}{@render settingsPanel()}{/if}
   {#if loadState === "loading"}
     <StatusNotice message="고른 기간의 3상 측정값을 분석하고 있습니다." />
   {:else if loadState === "failed"}
@@ -195,21 +216,22 @@
       actionLabel={condition.state === "no-history" || condition.state === "unsupported-signals" ? "데이터 연결 확인하기" : undefined}
       actionHref={condition.state === "no-history" || condition.state === "unsupported-signals" ? systemUrl("connections") : undefined} />
   {:else if analyzed}
-    {#if baseline&&!reusableBaseline&&referenceMode==="previous"}<p class="context">3상 전력은 최대 24시간씩 비교합니다. 여기서는 분석 직전의 같은 길이 기간을 기준으로 사용합니다.</p>{/if}
     <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
     <div class="range-row"><p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
       <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
-    <p class="shift">
+    <div class="shift">
+      {@render settingsPanel()}
       <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
       <button type="button" class="ui-button" disabled={!analyzed.nextPeriodAvailable} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
-    </p></div>
+    </div></div>
+    {#if baseline&&!reusableBaseline&&referenceMode==="previous"}<p class="context">최대 24시간씩 비교 · 기준은 분석 직전 같은 길이의 기간입니다.</p>{/if}
     <p class="result-statement">{insights(analyzed).find(line=>line.includes("3상 패턴")) ?? insights(analyzed).find(line=>line.includes("패턴을 비교하지")) ?? insights(analyzed)[0]}</p>
     {#if insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}<p class="context">{insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}</p>{/if}
     <div class="electrical-investigation"><div>
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
         <h3 id="condition-chart">시간별 추이</h3>
-        <div class="graph-controls"><label>그래프 값
+        <div class="graph-controls"><div class="window-choice" role="group" aria-label="3상 추이 표시 범위"><button type="button" class="ui-button" aria-pressed={!wholePeriod} onclick={()=>{windowAt=selectedAt;wholePeriod=false;}}>선택 시점 주변</button><button type="button" class="ui-button" aria-pressed={wholePeriod} onclick={()=>wholePeriod=true}>전체 기간</button></div><label>그래프 값
           <select bind:value={metric}>
             {#each Object.entries(METRICS) as [value, info] (value)}<option {value}>{info.label}{info.unit ? " ·" + info.unit : ""}</option>{/each}
           </select>
@@ -225,7 +247,7 @@
         <p class="axis-note">최고 {measured(scale.high, METRICS[metric].unit)} · 최저 {measured(scale.low, METRICS[metric].unit)}{#if threshold !== null}<span class="dash"> · 점선: {analyzed.pattern.byLevel ? "같은 운전 상태의 기준 기간 점수 99% (점수는 이 기준선의 배수)" : "기준 기간 점수 99% " + measured(threshold)}</span>{/if}</p>
         <ValueAxis ticks={scale.ticks} height={H} unit={METRICS[metric].unit.trim() || null}>
         <svg viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" role="img"
-          aria-label={(phased ? "R·S·T 상별 전류" : METRICS[metric].label) + " · " + kstTime(analyzed.targetStart) + "부터 " + kstTime(analyzed.targetEnd) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
+          aria-label={(phased ? "R·S·T 상별 전류" : METRICS[metric].label) + " · " + kstTime(new Date(scale.start).toISOString()) + "부터 " + kstTime(new Date(scale.end).toISOString()) + "까지. 빠진 값과 시간 공백은 잇지 않습니다."}>
           {#each scale.ticks as mark (mark.value)}<line x1={LEFT} x2={RIGHT} y1={mark.y} y2={mark.y} class="gridline" />{/each}
           <path d={"M" + LEFT + " " + TOP + " V" + BOTTOM + " H" + RIGHT} class="axis" />
           {#each lines as phaseRuns, index (index)}
@@ -243,10 +265,10 @@
           <p class="legend">{#each PHASES as phase (phase)}<span><i class={"key phase-" + phase}></i>{phase}상 전류</span>{/each}</p>
         {/if}
         <label class="scrub">시각 고르기
-          <input type="range" min="0" max={analyzed.timeline.length - 1} value={Math.max(0, selectedIndex)}
+          <input type="range" min="0" max={visibleTimeline.length - 1} value={Math.max(0,visibleTimeline.findIndex(point=>point.at===selectedAt))}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />
         </label>
-        <p class="context">그래프를 누르거나 막대를 움직이면 그 시각의 상별 값을 아래에서 봅니다. 시각은 한국 시각입니다.</p>
+        <p class="context">그래프를 누르거나 막대를 움직이면 선택한 시각의 상별 값을 확인합니다. 시각은 한국 시각입니다.</p>
       {/if}
     </section>
 
@@ -256,16 +278,27 @@
         <p class="context">{analyzed.pattern.scored ? "기준 점수 범위를 넘은 시각은 없습니다." : "기준 패턴 점수가 없어 벗어남을 평가하지 않았습니다."}
           가장 큰 관측값의 시각을 확인할 수 있습니다.</p>
       {/if}
-      <label>살펴볼 시점<select value={firstChecks(analyzed).findIndex(check=>check.at===selectedAt)} onchange={event=>{const check=firstChecks(analyzed!)[Number(event.currentTarget.value)];if(check)void choose(check.at,check.metric);}}>
-        <option value="-1">그래프에서 선택하거나 시점을 고르세요</option>
+      <label>살펴볼 시점<select value={firstChecks(analyzed).findIndex(check=>check.at===selectedAt)} onchange={event=>{const check=firstChecks(analyzed!)[Number(event.currentTarget.value)];if(check)void choose(check.at,check.metric,true,true);}}>
+        <option value={-1}>그래프에서 선택하거나 시점을 고르세요</option>
         {#each firstChecks(analyzed) as check,index(check.at+check.label)}<option value={index}>{check.label}</option>{/each}
       </select></label>
-      {#if firstChecks(analyzed).find(check=>check.at===selectedAt)?.detail}<p class="context">{firstChecks(analyzed).find(check=>check.at===selectedAt)?.detail}</p>{/if}
     </section>
 
     {#if selected}
+      {@const phaseValues=metric==="voltageUnbalance"?selected.voltage:selected.current}
+      {@const notable=analyzed.pattern.scored?analyzed.pattern.notable.find(point=>Date.parse(point.at)===Date.parse(selected.at)):null}
       <section class="block selected" bind:this={detail} tabindex="-1" aria-labelledby="condition-selected">
-        <h3 id="condition-selected">{kstTime(selected.at)} · 측정값</h3>
+        <h3 id="condition-selected">{kstTime(selected.at)}</h3>
+        <p class="selected-value"><span>{METRICS[metric].label}</span><strong>{measured(selected[metric],METRICS[metric].unit)}</strong></p>
+        {#if notable&&notable.value!==null&&notable.low!==null&&notable.high!==null}<p class="selected-comparison">{subject(notable.channel)} {measured(notable.value," "+notable.unit)} · 비교 범위 {measured(notable.low)}–{measured(notable.high," "+notable.unit)}</p>{/if}
+        {#if phaseValues}
+          {@const largest=Math.max(1,...phaseValues.map(value=>value??0))}
+          <div class="phase-values" aria-label={metric==="voltageUnbalance"?"선택 시점의 상별 전압":"선택 시점의 상별 전류"}>
+            {#each PHASES as phase,index(phase)}<div><span>{phase}상</span><div class="phase-track" aria-hidden="true"><i style:width={(phaseValues[index]??0)/largest*100+"%"}></i></div><strong>{measured(phaseValues[index],metric==="voltageUnbalance"?" V":" A")}</strong></div>{/each}
+          </div>
+        {/if}
+        <details><summary>비교 조건·다른 측정값</summary>
+          {#if firstChecks(analyzed).find(check=>check.at===selectedAt)?.detail}<p class="context">{firstChecks(analyzed).find(check=>check.at===selectedAt)?.detail}</p>{/if}
         <dl>
           {#each Object.entries(METRICS) as [key, info] (key)}
             <div><dt>{info.label}</dt><dd>{measured(selected[key as Metric], info.unit)}</dd></div>
@@ -274,6 +307,7 @@
           {#if selected.current}<div><dt>전류 R / S / T</dt><dd>{selected.current.map((value) => measured(value, " A")).join(" / ")}</dd></div>{/if}
         </dl>
         <p class="next">이 시각에 운전 일정이나 부하가 바뀌었는지와 상별 값을 확인하세요. 전압이 평소 범위에서 크게 벗어났다면 원본 값·단위·센서 상태를 먼저 점검하세요.</p>
+        </details>
       </section>
     {/if}
     </div></div>
@@ -369,4 +403,12 @@
   dd { margin: 0; overflow-wrap: anywhere; }
   .next { font-size: var(--font-small); }
   @media (max-width: 640px) { dl div { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+
+  .shift{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);margin:0}
+  .window-choice{display:flex;gap:0}.window-choice button{border-radius:0}.window-choice button:first-child{border-radius:var(--radius-control) 0 0 var(--radius-control)}.window-choice button+button{border-left:0;border-radius:0 var(--radius-control) var(--radius-control) 0}
+
+  .selected-value{display:grid;gap:4px;margin:0}.selected-value span{font-size:var(--font-small);color:var(--color-ink-muted)}.selected-value strong{font-size:var(--font-result);font-variant-numeric:tabular-nums}
+  .phase-values{display:grid;gap:var(--space-3);padding-block:var(--space-2)}.phase-values>div{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);font-size:var(--font-small)}.phase-values strong{font-variant-numeric:tabular-nums;font-weight:650}
+  .phase-track{height:7px;background:var(--color-surface-selected)}.phase-track i{display:block;height:100%;background:var(--color-action)}
+  .selected-comparison{font-size:var(--font-small);color:var(--color-ink-muted);line-height:1.5}
 </style>

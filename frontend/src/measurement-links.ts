@@ -40,9 +40,9 @@ export function measurementLinks(assetId: string, ordinal: number, context: Meas
   if (!Number.isSafeInteger(ordinal) || ordinal < first || ordinal > last) return [];
   const chosenFeature: Record<string, string> = feature ? {vibration_feature: feature} : {};
   const links: MeasurementLink[] = [
-    {key: "trend", label: "진동 특징 추이에서 보기",
+    {key: "trend", label: "이 측정의 진동 추이",
       href: withParams(assetTabUrl(assetId, "signals"), {vibration_at: ordinal, ...chosenFeature})},
-    {key: "model", label: "원본 파형·모델 점수 보기",
+    {key: "model", label: "원본 파형·모델 반응",
       href: withParams(assetTabUrl(assetId, "anomaly", "model"),
         {model_position: ordinal, ...(bindingId ? {model_binding: bindingId} : {})})},
   ];
@@ -50,7 +50,7 @@ export function measurementLinks(assetId: string, ordinal: number, context: Meas
     links.push({key: "spectrum", label: "바로 앞 측정과 주파수 비교",
       href: withParams(assetTabUrl(assetId, "change", "spectrum"),
         {spectrum_a_from: ordinal - 1, spectrum_a_to: ordinal - 1, spectrum_b_from: ordinal, spectrum_b_to: ordinal})});
-    links.push({key: "features", label: "앞뒤 " + AROUND + "회 특징 비교",
+    links.push({key: "features", label: "앞뒤 " + AROUND + "회 비교",
       href: featureCompareHref(assetId, feature, {a: {from: Math.max(first, ordinal - AROUND), to: ordinal - 1},
         b: {from: ordinal, to: Math.min(last, ordinal + AROUND - 1)}})});
   }

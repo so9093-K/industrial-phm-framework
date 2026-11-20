@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assetLabel, assetOptionLabel, attentionLabel, parseMonitor } from "./monitor.ts";
+import { assetLabel, assetNameParts, assetOptionLabel, attentionLabel, parseMonitor } from "./monitor.ts";
 
 const observed = {
   assets: {
@@ -102,4 +102,20 @@ test("stable attention codes drive Korean labels independently of English descri
   assert.equal(attentionLabel(item("Different English wording", "source-no-new-data", "asset-signals")), "새 측정이 들어오지 않음");
   assert.equal(attentionLabel(item("Something new", "not-yet-known", "system")), "운영 서비스 확인 필요");
   assert.equal(attentionLabel(item("Old server title", null, "investigations")), "분석 결과 확인 필요");
+});
+
+
+test("public bearing names become readable while custom names and record IDs survive", () => {
+  const assets = parseMonitor({...observed, assets:{...observed.assets,items:[
+    {asset_id:"Bearing1_1",asset_display_name:"Bearing1_1"},
+    {asset_id:"Bearing2_3",asset_display_name:"급수 펌프 구동측"},
+    {asset_id:"공기압축기 1301"},
+  ]}}).assets;
+  assert.equal(assetLabel(assets,"Bearing1_1"),"베어링 1-1");
+  assert.equal(assets[0].assetId,"Bearing1_1");
+  assert.equal(assetLabel(assets,"Bearing2_3"),"급수 펌프 구동측");
+  assert.equal(assetLabel(assets,"공기압축기 1301"),"공기압축기 1301");
+  assert.deepEqual(assetNameParts("베어링 1-1"),{name:"베어링",number:"1-1"});
+  assert.deepEqual(assetNameParts("공기압축기 1301"),{name:"공기압축기",number:"1301"});
+  assert.deepEqual(assetNameParts("급수 펌프 2호기"),{name:"급수 펌프 2호기",number:null});
 });

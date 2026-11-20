@@ -2,7 +2,6 @@
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
-  import SourceIdentity from "./SourceIdentity.svelte";
   import SignalEvolution from "./SignalEvolution.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
@@ -152,7 +151,7 @@
   {:else if options}
     <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
     <div class="inputs">
-      <label>진동 특징
+      <label>진동 신호
         <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;managementText="";endText="";invalidate();void calculate();}}>
           {#each options.features as item (item.id)}
             <option value={item.id} disabled={!item.countForecast}>
@@ -197,8 +196,6 @@
       <StatusNotice kind="uncertain" title="이 조건으로는 전망할 수 없습니다" message={message}/>
     {:else if outlook}
       {@const displayFeature=outlook.featureId}
-      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
-      {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const chart=acquisitionChart(outlook,includeLimits)}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
@@ -209,26 +206,13 @@
           horizon:formatOffset(outlook.forecast.at(-1)!.ordinal)+"번째 측정",checks:outlook.checks??[]})}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
-          <h3 id="acq-result-title">기록 마지막 측정 기준 전망</h3>
-          <span class="context">{outlook.record.last}번째 측정까지의 데이터로 계산 · {timeBasis(outlook)}</span>
+          <h3 id="acq-result-title">추세 전망</h3>
+          <span class="context">마지막 실측 · {outlook.record.last}번째 측정 · {timeBasis(outlook)}</span>
         </div>
         {#if worse}
           <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 실제 측정의 변화부터 보기 →</a>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
         {/if}
-        {#if told && !worse}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
-        {#if limited && !worse}
-          <div class="tiles">
-            {#if outlook.conditions.management!==null}
-              <div><span>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
-                {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
-            {/if}
-            {#if outlook.conditions.end!==null}
-              <div><span>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
-                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}
-                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
-            {/if}
-          </div>
-        {/if}
+        {#if told && !worse && !limited}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if chart}
           {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
           {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
@@ -340,8 +324,33 @@
       <p class="context">진동 특징과 예측 범위를 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
     </div>
+    <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
+      <h3 class="inspector-title">기준 도달·예상 여유</h3>
+
+    {#if outlook}
+      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
+      {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
+      {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
+      {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
+      {@const worse=worseThanPersistence(outlook.checks?.[0])}
+      {#if criteriaPending}<p class="criteria-pending" role="status">입력한 기준은 아직 적용하지 않았습니다.</p>{/if}
+        {#if limited && !worse}
+          <div class="tiles">
+            {#if outlook.conditions.management!==null}
+              <div><span>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
+                {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
+            {/if}
+            {#if outlook.conditions.end!==null}
+              <div><span>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
+                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}
+                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
+            {/if}
+          </div>
+        {/if}
+    {/if}
+
     <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
-      <div class="criteria-title"><strong>기준 도달 전망</strong><span>{criteriaPending?"변경한 기준 적용 대기":"현장에서 사용하는 기준값 입력"}</span></div>
+      <div class="criteria-title"><strong>기준값 입력</strong><span>선택 사항</span></div>
       <div class="inputs">      <label>기준 방향
         <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
           <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
@@ -355,8 +364,9 @@
         <input type="number" step="any" value={endText}
           oninput={e=>{endText=e.currentTarget.value;remember();}}/>
       </label>
-      <button type="submit" class="ui-button" disabled={available.length===0}>기준 적용</button></div>
+      <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={available.length===0||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button></div>
     </form>
+    </aside>
     </div>
   {/if}
 </section>
@@ -368,7 +378,7 @@
   .criteria .inputs{grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2);margin:0}
   .criteria label{gap:4px;font-size:var(--font-label)}.criteria input,.criteria select{padding:var(--space-2)}
   @media(max-width:600px){.criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
-  .forecast-controls{grid-column:1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
+  .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .forecast-controls>div{flex:1;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-2)}.forecast-controls .inputs label{flex:1;min-width:100px}.forecast-controls .inputs label:first-child{flex:1.4;min-width:140px}.forecast-controls .inputs button{flex:none;padding:var(--space-2);min-height:40px}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
   .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
@@ -417,4 +427,15 @@
   table{border-collapse:collapse;width:100%}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}dd{overflow-wrap:anywhere}
   .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
+
+  .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
+  .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
+  .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
+  .forecast-inspector .criteria{padding:0;background:none}.forecast-inspector .criteria .inputs{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}
+  .criteria-pending{font-size:var(--font-small);color:var(--color-caution-ink);margin:0}
+  @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.forecast-inspector .criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+  .inspector-title{margin:0;font-size:var(--font-section)}
+  .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>

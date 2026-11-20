@@ -3,8 +3,33 @@
  * Groups MUST retain source + measurement point + semantic interpretation.
  * No chart point is an interpolated measurement or equipment-health diagnosis.
  */
+import {assertObservationSnapshot} from "./observation-context.ts";
 /** "all" spans the stored record of the chosen signal, from its first to its last measurement. */
 import {yTicks, type Tick} from "./chart-axis.ts";
+import {object as dataObject} from "./writes.ts";
+/** One source and measurement point of the asset's record: the signals and period it holds. */
+export type HistoryStream = {sourceId: string; pointId: string | null; channels: string[]; startAt: string; endAt: string};
+const strings = (raw: unknown): string[] =>
+  Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
+
+const instant = (raw: unknown): raw is string => typeof raw === "string" && Number.isFinite(Date.parse(raw));
+
+/** The stored record's streams; empty when the asset has no stored history. */
+export function parseHistoryStreams(raw: unknown): HistoryStream[] {
+  const root = dataObject(raw);
+  if (!root || root.schema_version !== 1) throw new Error("저장된 기록 정보의 형식이 올바르지 않습니다.");
+  const history = dataObject(root.history);
+  if (!history || !Array.isArray(history.streams)) return [];
+  return history.streams.flatMap((item: unknown): HistoryStream[] => {
+    const row = dataObject(item);
+    const channels = strings(row?.channels), point = row?.measurement_point_id;
+    if (!row || typeof row.source_id !== "string" || !row.source_id || !channels.length
+      || !instant(row.start_at) || !instant(row.end_at) || (point !== null && (typeof point !== "string" || !point))) return [];
+    return [{sourceId: row.source_id, pointId: point, channels, startAt: row.start_at, endAt: row.end_at}];
+  });
+}
+
+
 export type RangePreset = "all" | "15m" | "1h" | "24h" | "7d";
 export const RANGE_PRESETS: readonly RangePreset[] = ["all", "15m", "1h", "24h", "7d"];
 export type TimeAnchor = "latest" | "now";
@@ -42,11 +67,12 @@ export type HistoryTrend = {
   endAt: string;
   assessedAt: string | null;
   bucketSeconds: number | null;
+  snapshotId?:number;
   buckets: HistoryBucket[];
   latest: {
     channelId: string; sourceId: string; pointId: string | null;
     eventAt: string | null; value: number | null;
-    usable: boolean; quality: string;
+    usable: boolean; quality: string; unit?:string|null;
   }[];
 };
 
@@ -148,12 +174,14 @@ export function parseTrend(payload: unknown, assetId: string, channelId: string)
     return {
       channelId, sourceId: nonEmpty(b.source_id), pointId: b.measurement_point_id === null ? null : nonEmpty(b.measurement_point_id),
       eventAt: b.event_at === null ? null : time(b.event_at),
+      unit: typeof b.unit === "string" ? b.unit : null,
       value: numberOrNull(b.value), usable: b.usable_for_display === true,
       quality: typeof b.source_quality === "string" ? b.source_quality : "미확인",
     };
   });
   return {
     assetId, startAt, endAt,
+    snapshotId: typeof response.snapshot_id === "number" && Number.isSafeInteger(response.snapshot_id) && response.snapshot_id>=0 ? response.snapshot_id : undefined,
     assessedAt: typeof response.assessed_at === "string" ? response.assessed_at : null,
     bucketSeconds: typeof response.bucket_seconds === "number" && response.bucket_seconds > 0
       ? response.bucket_seconds : null,
@@ -289,14 +317,17 @@ export async function readTrend(
 /** Several signals read in one request, so they share one window and one bucket grid. */
 export async function readTrends(
   assetId: string, channelIds: string[], range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,
-  sourceId: string | null = null,
+  sourceId: string | null = null, snapshot: number | null = null,
 ): Promise<Map<string, HistoryTrend>> {
   const params = new URLSearchParams({asset_id: assetId, buckets: "120"});
   for (const id of channelIds) params.append("channel_id", id);
   if (sourceId) params.set("source_id", sourceId);
   if (typeof range === "string") {params.set("range", range); params.set("anchor", anchor);}
   else {params.set("from", range.from); params.set("to", range.to);}
-  return splitTrend(await json("/api/v1/history/trend?" + params, signal), assetId, channelIds);
+  if(snapshot!==null)params.set("snapshot",String(snapshot));
+  const payload=await json("/api/v1/history/trend?" + params, signal);
+  assertObservationSnapshot(payload,snapshot);
+  return splitTrend(payload, assetId, channelIds);
 }
 
 /** One multi-signal trend read as one trend per signal, each checked as if read alone. */

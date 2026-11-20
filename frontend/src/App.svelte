@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
+  import {recentAsset} from "./observation";
+  import type {Sources} from "./operations-status";
   import { readWriteSession } from "./session";
   import {loadModelBindings} from "./model-evidence";
-  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, assetUrl, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
+  import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
@@ -29,13 +31,18 @@
   let permissionController: AbortController | null = null;
   // 관측 현황은 확인 사실을 계속 다시 읽고(MonitorAttention), 설비·신호 목록은 열 때 한 번 읽는다.
   let checks: AssetChecks = $state(UNCHECKED);
+  let sourceStatus:Sources|null=$state(null), sourceState:"loading"|"ready"|"failed"=$state("loading");
+  let observationCycle=$state(0),observationView=$state<"recent"|"record">(new URLSearchParams(location.search).get("observation_view")==="recent"?"recent":"record");
+  function receiveSources(value:Sources|null,state:"loading"|"ready"|"failed"){if(value)sourceStatus=value;sourceState=state;}
   // 모니터링 화면(설비 칸 줄 + 고른 설비의 중심 화면). 설비를 고르지 않았으면 첫 설비를 열고 주소에 남긴다.
   const monitoring = $derived(route.page === "monitor" || route.page === "assets");
   function monitorHref(assetId: string): string {
-    return routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null});
+    const url=new URL(routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null}),location.origin);
+    const asset=snapshot?.assets.find(row=>row.assetId===assetId);if(asset&&recentAsset(asset))url.searchParams.set("observation_view","recent");
+    return url.pathname+url.search;
   }
   $effect(() => {
-    const first = snapshot?.assets[0]?.assetId;
+    const first = (snapshot?.assets.find(recentAsset)??snapshot?.assets[0])?.assetId;
     if (!monitoring || route.assetId || !first) return;
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", first);
@@ -80,8 +87,7 @@
     // a page change or an asset the list does not know reads it again.
     if (before.page !== route.page || (route.assetId && !snapshot?.assets.some((item) => item.assetId === route.assetId)))
       void quietRefresh();
-    // A new page moves focus to its content. Asset changes restore the select
-    // after its keyed workspace is replaced, instead of leaving focus on the body.
+    // A new page moves focus to its content. Asset links remain focused in their strip.
     if (before.page !== route.page) {
       await tick();
       // Hash navigation on the current page keeps native scrolling; focus still starts at main.
@@ -89,12 +95,6 @@
       document.getElementById("main")?.focus({preventScroll: part !== null});
       part?.scrollIntoView({block: "start"});
     }
-  }
-  async function selectAsset(assetId: string) {
-    if (assetId === route.assetId) return;
-    await navigate(assetUrl(location.href, assetId));
-    await tick();
-    document.querySelector<HTMLSelectElement>("[data-asset-switch]")?.focus();
   }
   function assetHref(assetId: string): string {
     return routeUrl({page: "assets", assetId, tab: "summary", method: null, data: null});
@@ -155,6 +155,7 @@
       if (pending.signal.aborted || read !== snapshotRead) return;
       if (loadState === "ready" || loadState === "empty") {
         snapshot = result;
+        observationCycle++;
         loadState = result.assets.length ? "ready" : "empty";
         quietError = "";
       }
@@ -299,15 +300,11 @@
         <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
       {/if}
       {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
-      {#if checks.state === "partial" || checks.state === "failed"}
-        <StatusNotice kind="uncertain" message={checks.state === "failed" ? "모델·수신 확인 항목을 읽지 못했습니다. 설비 칸의 모델 결과와 확인 항목이 빠져 있습니다."
-          : "모델·수신 확인 항목을 일부만 읽었습니다. 설비 칸에는 읽은 항목만 있습니다."} />
-      {/if}
-      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks} compact={route.tab!=="summary"}
+      <AssetList assets={snapshot.assets} {observed} href={monitorHref} selected={selected?.assetId ?? ""} {checks} compact={route.tab!=="summary"||observationView==="recent"}
         checkedAt={observed(snapshot.assessedAt)} />
       {#if selected}
         {#key selected.assetId}
-          <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} onSelectAsset={selectAsset} />
+          <AssetWorkspace asset={selected} assets={snapshot.assets} {route} {observed} sources={sourceStatus} {sourceState} cycle={observationCycle} onObservationView={view=>observationView=view} />
         {/key}
       {:else if route.assetId}
         <StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다"
@@ -316,7 +313,7 @@
       <div class="monitor-footer">
         <ReviewEntry compact/>
         <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":" · 없음"}</summary>
-          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
+          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} onSources={receiveSources} />
         </details>
       </div>
     {:else}
@@ -362,7 +359,7 @@
       {/if}
       {#if monitoring && snapshot.operationsAttention?.items.length}
         <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목 · {snapshot.operationsAttention.items.length}건</summary>
-          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} />
+          <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={(read) => checks = read} onSources={receiveSources} />
         </details>
       {/if}
     {/if}

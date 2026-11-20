@@ -4,7 +4,7 @@
 
 ## 기본 PR 검사
 
-`.github/workflows/ci.yml`은 잠금 파일·Ruff·기본 데이터 계약 테스트·Svelte/TypeScript 검사·프런트엔드 빌드만 수행합니다. 외부 대형 데이터 다운로드, 브라우저 촬영, 주간 전체 제품 수용, 컨테이너/설치 패키지의 반복 검증은 자동 PR gate가 아닙니다.
+`.github/workflows/ci.yml`은 잠금 파일·Ruff·기본 데이터 계약 테스트·Svelte/TypeScript 검사·프런트엔드 빌드만 수행합니다. 프런트엔드 전체 테스트 실행은 필수 단계가 아닙니다. 외부 대형 데이터 다운로드, 브라우저 촬영, 주간 전체 제품 수용, 컨테이너/설치 패키지의 반복 검증은 자동 PR gate가 아닙니다.
 
 ## 테스트를 남기는 기준
 
@@ -22,11 +22,11 @@
 ```bash
 uv run --locked --extra operations pytest tests/integration/test_file_backfill.py
 uv run --locked --extra operations pytest tests/contract/test_opcua_persistent_runtime.py
-npm run --prefix frontend check
+node --experimental-strip-types --test frontend/src/measurement-links.test.ts
 ```
 
 데이터 소스가 있다면 XJTU-SY 또는 AI-Hub 실기록을 실제로 준비해 핵심 흐름을 확인합니다. 원본이 없어 실행하지 못한 실측 검사는 통과로 적지 않고 **미실행**으로 기록합니다.
 
 실제 배포, 수집 복구, 패키징 변경에서 필요한 통합·컨테이너 검사는 해당 변경에서만 별도로 수행합니다. 기본 PR 통과를 현장 성능 검증·실제 고장 진단 또는 전체 배포 수용으로 확대 해석하지 않습니다.
 
-테스트를 새로 추가하기 전에는 **어떤 실제 고장 또는 데이터 오류를 막는지**와 유지 비용을 설명해야 합니다.
+새 테스트는 실제 데이터 손실·시각·단위·입력과 결과의 불일치를 막는 경우에만 추가합니다. 별도 검증 보고서나 테스트 개수 목표는 요구하지 않습니다.

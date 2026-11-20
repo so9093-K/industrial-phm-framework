@@ -148,14 +148,14 @@
     {#if viewMode==="compare"||resultState!=="ready"}<div class="spectrum-heading">
       {#if result&&channel}
       <div class="spectrum-facts" aria-label={channel.label+" 기간 비교 결과"}>
-        <div><span>기간 평균 에너지 · B/A</span><strong class="energy-ratio">{channel.ratio===null?"비교 불가":measure(channel.ratio,null)+"×"}</strong></div>
+        <div><span>진동 에너지 · 기간 A 대비</span><strong class="energy-ratio">{channel.ratio===null?"비교 불가":measure(channel.ratio,null)+"×"}</strong></div>
         {#if band}<div class="band-share"><span>{frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz 비중</span>
           {#each PERIODS as name(name)}<div class={"share-row "+name}>
             <b>{name.toUpperCase()}</b><span class="track"><i style:width={band[name]*100+"%"}></i></span><strong>{measure(band[name]*100,null)}%</strong>
           </div>{/each}
         </div>{/if}
       </div>{/if}
-      <div class="period-controls"><AnalysisControls title="비교 기간" summary={"A · "+spans.a.from+"–"+spans.a.to+"회 / B · "+spans.b.from+"–"+spans.b.to+"회"}>
+      <div class="period-controls"><p>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</p><AnalysisControls title="비교 기간">
       {#snippet children(close)}{#if acquisition&&spans}
         <div class="periods">{#each PERIODS as name(name)}
           <AcquisitionRange {name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period} onChange={(edge,value)=>change(name,edge,value)}/>
@@ -246,7 +246,7 @@
   .periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:var(--space-4)}
   .spectrum-heading{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-bottom:var(--space-3)}
   .spectrum-facts{flex:1 1 500px;display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:var(--space-6);align-items:start}
-  .period-controls{margin-left:auto;max-width:100%}.period-controls :global(.analysis-controls){flex-direction:column;align-items:flex-end;gap:var(--space-1);margin:0}
+  .period-controls{margin-left:auto;max-width:100%;display:grid;justify-items:end;gap:var(--space-1)}.period-controls p{margin:0;font-size:var(--font-label);color:var(--color-ink-muted)}
   .period-controls :global(.analysis-controls>button){padding:var(--space-2) var(--space-3);font-size:var(--font-small)}
   .spectrum-facts>div>span{display:block;color:var(--color-ink-muted);font-size:var(--font-small);margin-bottom:var(--space-1)}
   .energy-ratio{display:block;font-size:var(--font-result);line-height:1.25;font-variant-numeric:tabular-nums}
@@ -254,7 +254,7 @@
   .share-row strong{text-align:right;font-variant-numeric:tabular-nums}.track{height:8px;background:var(--color-surface-selected)}
   .track i{display:block;height:100%;background:var(--color-ink-muted)}.b .track i{background:var(--color-action)}
   .spectrum-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding-block:var(--space-3);border-block:1px solid var(--color-border);margin-bottom:var(--space-4)}
-  .button-group{display:flex;gap:var(--space-1)}button[aria-pressed="true"]{background:var(--color-surface-selected);font-weight:650;border-color:var(--color-action)}
+  .button-group{display:flex;gap:var(--space-1)}
   label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--font-small);min-width:0}
   .spectra select,.spectra button{font-size:var(--font-small)}.spectra button.ui-button{padding:var(--space-2) var(--space-3);min-height:40px}.spectrum-toolbar label{margin-left:auto}.spectrum-toolbar select{max-width:17rem}
   .spectrum-investigation{display:grid;gap:var(--space-4);min-width:0}.spectrum-curve{min-width:0}

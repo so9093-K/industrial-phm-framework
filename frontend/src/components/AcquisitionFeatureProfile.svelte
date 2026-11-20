@@ -166,7 +166,7 @@
       message={message||"이 설비에는 분석된 진동 측정이 없습니다."}
       actionLabel="데이터 연결 확인하기" actionHref={systemUrl("connections")} />
   {:else if source && spans}
-    <div class="analysis-workspace analysis-full"><AnalysisControls title="특징·비교 기간" summary={profile?names.a+" · "+profile.spans.a.from+"–"+profile.spans.a.to+"번째 측정 / "+names.b+" · "+profile.spans.b.from+"–"+profile.spans.b.to+"번째 측정":null}>{#snippet children(close)}{#if source && spans}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{plainLabel(source.features.find(item=>item.id===selected)?.label??selected,selected)}</h3><p>{names.a} · {spans.a.from}–{spans.a.to}회 / {names.b} · {spans.b.from}–{spans.b.to}회</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if source && spans}
     <p class="purpose">진동 측정에서 뽑은 특징값(예: RMS)을 두 기간 A·B로 나누어 비교합니다. 측정 간격이 있으면 경과 시간으로 표시합니다.</p>
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)} · {source.count}회</p>
@@ -187,7 +187,7 @@
     <button type="button" class="ui-button ui-button-primary" onclick={()=>{close();void compare();}}>
       비교하기
     </button>
-    {/if}{/snippet}</AnalysisControls>
+    {/if}{/snippet}</AnalysisControls></header>
     <div class="analysis-body">
     {#if profileState==="loading"}
       <StatusNotice message="두 기간의 진동 특징을 불러오고 있습니다." />
@@ -198,7 +198,6 @@
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
     {:else if profile}
       <section class="evidence">
-        <h3>{plainLabel(profile.label,profile.featureId)}</h3>
         <p class="comparison-value">{label(profile.a.median)} <span>→</span> {label(profile.b.median)}{profile.unit?" "+profile.unit:""}<small>중앙값{facts?.versus?" · "+facts.versus:""}</small></p>
         {#if facts?.outside}<p class="comparison-fact">{facts.outside}</p>{/if}
         <div class="comparison-plots"><div>
@@ -253,7 +252,7 @@
   label{display:grid;gap:var(--space-2);font-weight:650}
   select{min-width:0;width:100%;border:1px solid var(--color-border);border-radius:var(--radius-control);
     background:var(--color-surface);color:var(--color-ink);padding:var(--space-3)}
-  .evidence{min-width:0}.evidence>h3:first-child{margin-top:0}
+  .evidence{min-width:0}
   h3{overflow-wrap:anywhere}.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-2)}
