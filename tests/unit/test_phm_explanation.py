@@ -279,7 +279,7 @@ def test_status_verdicts_are_flagged_but_negations_are_not() -> None:
     ]
 
 
-def test_follow_up_carries_earlier_answers_of_the_same_comparison_only(
+def test_follow_up_carries_the_turn_it_continues_of_the_same_comparison_only(
     tmp_path: Path, monkeypatch
 ) -> None:
     workspace = phm_workspace(tmp_path / "ws")
@@ -323,7 +323,8 @@ def test_follow_up_carries_earlier_answers_of_the_same_comparison_only(
             "anomaly-a", 4, compare_position=1, question="세 번째", parent_id=second["id"]
         )
     )
-    assert [turn["question"] for turn in seen[2]["history"]] == ["처음 질문", "이어서"]
+    # Only the turn being continued goes back to the model, not the whole thread.
+    assert [turn["question"] for turn in seen[2]["history"]] == ["이어서"]
     with pytest.raises(ValueError, match="same comparison"):
         manager.request(
             "anomaly-a", 4, compare_position=2, question="다른 비교", parent_id=first["id"]

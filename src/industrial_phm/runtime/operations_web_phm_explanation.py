@@ -132,7 +132,11 @@ class ExplanationManager:
         }
 
     def _history(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
-        """Earlier questions and answers of the same comparison, oldest first, at most three."""
+        """The question and answer this follow-up continues: only that one turn.
+
+        A follow-up such as '그럼 ...' needs the turn it continues, not the whole thread. Longer
+        threads made the local model slower and made it copy the answer format instead of answering.
+        """
         parent = self.store.get(parent_id)
         same = parent is not None and (
             parent["binding_id"],
@@ -147,11 +151,7 @@ class ExplanationManager:
         )
         if parent is None or not same or parent["status"] != "complete" or not parent["answer"]:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
-        earlier = list(parent["context"].get("history") or [])
-        earlier.append(
-            {"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}
-        )
-        return earlier[-3:]
+        return [{"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}]
 
 
 def initialize_explanation_manager(root: Path) -> ExplanationManager:
