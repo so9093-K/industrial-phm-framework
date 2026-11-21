@@ -76,8 +76,8 @@ export function visiblePoints(lane: Pick<TimelineLane, "points" | "detail">, ran
 }
 
 /** 가로 위치에서 가장 가까운 값. 칸 간격의 1.5배보다 멀면 그 자리에는 값이 없다고 본다. */
-export function valueAt(points: TimelinePoint[], at: number, reach: number): TimelinePoint | null {
-  let best: TimelinePoint | null = null;
+export function valueAt<T extends TimelinePoint>(points: T[], at: number, reach: number): T | null {
+  let best: T | null = null;
   for (const point of points) if (!best || Math.abs(point.x - at) < Math.abs(best.x - at)) best = point;
   return best && Math.abs(best.x - at) <= reach ? best : null;
 }
