@@ -1132,6 +1132,11 @@ def test_an_overview_row_leads_with_the_change_the_summary_leads_with(tmp_path: 
 
         assert row["finding_count"] == len(summary["intervals"])
         assert row["operation"]["shares"] == [pytest.approx(0.35), pytest.approx(0.65)]
+        # 변화한 신호(역률) 아래 같은 시간축에 부하 신호(전류)를 함께 그린다.
+        companion = row["companion"]
+        assert row["group"]["unit"] != "A" and companion["unit"] == "A"
+        assert [member["label"] for member in companion["series"]] == ["전류"]
+        assert companion["record"] == row["group"]["record"]
         main = row["main"]
         assert main["label"] == "전류" and main["unit"] == "A" and main["axis"] == "time"
         assert main["latest"]["value"] == pytest.approx(9.4)
@@ -1216,6 +1221,8 @@ def test_an_overview_draws_a_changed_phase_with_its_other_phases(tmp_path: Path)
         assert group["label"] == "상전압" and group["unit"] == "V"
         assert group["focus"] == row["history_interval"]["key"]
         assert all(member["trace"][-1][1] > 225 for member in group["series"])
+        # 부하(전류) 신호가 없는 기록에는 함께 그릴 것이 없다.
+        assert row["companion"] is None
         # 데이터셋의 다른 설비와 같은 신호를 보도록 이름으로 묶음을 고를 수 있다.
         status, liked = get("/api/v1/explore/overview", asset_id="press-01", like="T상전압")
         chosen = next(m for m in liked["group"]["series"] if m["channel"] == "T상전압")

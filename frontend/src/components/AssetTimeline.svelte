@@ -12,9 +12,11 @@
   /** 고른 변화를 관제 화면과 같은 그래프 규칙으로 크게 본다. 같은 시기에 함께 변한 신호 중 단위가 같은 것은
    * 한 그래프에 겹치고(R·S·T상은 관제 화면과 같은 색), 단위가 다른 것은 같은 시간축의 작은 그래프로 아래에 둔다.
    * 처음 범위(변화로 판단하지 않는 범위)·처음 수준·같은 운전 수준의 값은 고른 신호에만 그린다. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
+    /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
+    load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<{x:number;value:number;join:boolean}[]>}|null;
     actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
     /** 오른쪽 칸의 AI 해석. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
     assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
@@ -78,6 +80,21 @@
   const inside=(at:number|null)=>at!==null&&at>=lo&&at<=hi?at:null;
   const readAt=$derived(inside(cursor)??inside(selected)??shownLast);
   const shade=(level:number,count:number)=>.18+.72*level/Math.max(1,count);
+  // 보이는 구간(기록 전체·확대)이 바뀔 때마다 그 구간의 부하 추이를 다시 읽는다.
+  let loadPoints:{x:number;value:number;join:boolean}[]|null=$state(null);
+  $effect(()=>{
+    const source=load,from=lo,to=hi;
+    loadPoints=null;
+    if(!source||axis!=="time")return;
+    const request=new AbortController();
+    void source.read(from,to,request.signal).then(points=>{if(!request.signal.aborted)loadPoints=points;}).catch(()=>{});
+    return()=>request.abort();
+  });
+  // 부하 값 읽기도 자기 점 간격의 1.5배 안에서만(보이는 구간을 120칸으로 읽어 전압 칸과 간격이 다르다).
+  const loadReach=$derived.by(()=>{const points=loadPoints??[];const gaps=points.slice(1).map((p,i)=>p.x-points[i].x).sort((a,b)=>a-b);
+    return Math.max(gaps[Math.floor(gaps.length/2)]??1,1000)*1.5;});
+  const loadGroup=$derived.by(():FleetGroup|null=>!load||!loadPoints?null:{label:load.label,unit:load.unit,axis,focus:"load",record,bucketMs:null,periodSeconds,
+    series:[{key:"load",channel:"load",label:load.label,short:load.label,points:loadPoints}]});
 </script>
 {#if focused}
 <section class="timeline" class:chatting aria-label="선택한 변화"><div class="main">
@@ -109,7 +126,15 @@
         dim={emphasis?chart.group.series.filter(row=>!emphasis.lanes.includes(row.key)).map(row=>row.key):[]}
         guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
     {/each}
-    {#if operation}
+    {#if load&&loadGroup}
+      <div class="lane-heading"><strong>{load.label}</strong>{#if readAt!==null}{@const point=valueAt(loadGroup.series[0].points,readAt,loadReach)}<span class="readout"><span><i style:background="var(--color-ink-muted)"></i><b>{point?measure(point.value,load.unit,3):"—"}</b></span></span>{/if}</div>
+      <!-- 운전 수준 띠 대신 실제 전류 추이: 전압이 오른 동안 부하가 어땠는지 같은 시간축에서 읽힌다. -->
+      <div class="load-chart" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}>
+        <TrendChart group={loadGroup} series={loadGroup.series} {lo} {hi} axis={false} height={84} colors={["var(--color-ink-muted)"]}
+          changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
+          guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
+      </div>
+    {:else if operation}
       <div class="lane-heading"><strong>운전 수준</strong><span class="levels">{#each operation.names.levels as _,i(i)}<span><i class="level-key" style:opacity={shade(i+1,operation.names.levels.length)}></i>{bandName(operation.names,i+1)}</span>{/each}<span><i class="level-key stop"></i>정지</span></span></div>
       <!-- 칸마다 가장 오래 운전한 수준 하나를 진하기로 칠한다(진할수록 높은 전류). 부하가 바뀐 때가 띠에서 바로 보인다. -->
       <div class="strip" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}><span></span><svg viewBox="0 0 1000 20" preserveAspectRatio="none" role="img" aria-label="같은 시각에 가장 오래 운전한 수준">
@@ -154,6 +179,7 @@
   .readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}.readout span{display:inline-flex;align-items:center;gap:5px;color:var(--color-ink-muted)}.readout i{display:inline-block;width:12px;height:3px;border-radius:2px}.readout b{color:var(--color-ink);font-weight:650}.readout small{color:var(--color-ink-muted);font-size:var(--font-label)}
   .related-context{display:grid;gap:14px;align-content:start;border-left:1px solid var(--color-border);padding-left:20px;min-width:0}
   .strip.pointed svg{outline:2px solid var(--color-ink);outline-offset:1px}.strip.faint{opacity:.3}
+  .load-chart.pointed :global(svg){outline:2px solid var(--color-ink);outline-offset:1px}.load-chart.faint{opacity:.3}
   .focus-values{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}.focus-values .name{font-size:var(--font-small);font-weight:650}
   .pair{display:flex;align-items:end;gap:14px;font-variant-numeric:tabular-nums}.pair span{display:grid;gap:2px;font-size:1.35rem;font-weight:650;color:var(--color-ink-muted)}.pair small{font-size:var(--font-label);font-weight:400}.pair strong{color:var(--color-ink)}.pair b{padding-bottom:4px;color:var(--color-ink-muted);font-weight:400}.actions{border-top:1px solid var(--color-border);padding-top:12px}
   .decision{margin:0;font-size:var(--font-small);color:var(--color-action)}

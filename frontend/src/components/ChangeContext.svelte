@@ -5,9 +5,6 @@
   let {focus,assetId,active=true}: {focus: EvidenceFocus;assetId:string;active?:boolean} = $props();
   const rows = $derived(focus.kind === "history" ? focus.item.related : focus.change.related);
   const condition = $derived(focus.kind === "history" ? focus.condition : null);
-  const operation = $derived(focus.kind === "history" ? focus.record.operation.find(o => o.key === focus.item.operation?.key) : null);
-  const shares = $derived(focus.kind === "history" ? focus.item.operation : null);
-  const band = $derived(focus.kind === "history" ? focus.item.band : null);
   let spectrum:SpectrumChannel|null=$state(null),spectralState=$state("idle");
   const changedBand=$derived.by(()=>{const current:SpectrumChannel|null=spectrum;return current?[...current.shares].sort((a,b)=>Math.abs(b.b-b.a)-Math.abs(a.b-a.a))[0]??null:null;});
   $effect(()=>{
@@ -33,12 +30,6 @@
       <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><i aria-hidden="true">→</i><strong>{measure(row.current,row.unit,3)}</strong></dd>
     </div>{/each}</dl>
   {:else}<p>함께 비교할 신호가 이 기록에 없습니다.</p>{/if}
-  {#if operation && shares?.baseline && shares.interval && band != null}
-    <div class="operation"><h3>{condition}의 측정 비중</h3>
-      <div class="values"><span>{Math.round(shares.baseline[band]*100)}%</span><strong>{Math.round(shares.interval[band]*100)}%</strong></div>
-      <p>전류 수준을 맞춘 비교이며 실제 부하 조건 전체가 같다는 뜻은 아닙니다.</p>
-    </div>
-  {/if}
   {#if focus.kind==="vibration" && active}<div class="operation">
     <h3>주파수에서 달라진 성분</h3>
     {#if spectrum && changedBand}<p>{Math.round(changedBand.from).toLocaleString()}–{Math.round(changedBand.to).toLocaleString()} Hz 비중</p>
