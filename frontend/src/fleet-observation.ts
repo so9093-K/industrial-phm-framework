@@ -1,15 +1,18 @@
-/** 설비 관제 화면의 한 칸: 설비를 지켜보는 신호 묶음(같은 의미의 R·S·T상, 진동의 수평·수직)과 그 묶음에서 찾은 변화.
+/** 데이터셋 관제의 한 줄: 설비를 지켜보는 신호 묶음(같은 의미의 R·S·T상, 진동의 수평·수직)과 그 묶음에서 찾은 변화.
+ * 한 화면에는 한 데이터셋만 둔다. 기록의 성격(시각·측정 번호)과 기간이 같은 설비끼리만 같은 축에서 비교된다.
  * 저장 기록은 재생할 수 있다. 재생 위치까지 끝난 구간만 그리고, 변화는 그 위치까지의 기록으로 서버가 판정한다. */
 import {readAssetData} from "./asset-data.ts";
 import {episodes} from "./asset-timeline.ts";
 import {groupHistory} from "./history.ts";
 import {readObservation, recentAsset} from "./observation.ts";
 import type {Asset} from "./monitor.ts";
+import type {PublicDatasets} from "./public-datasets.ts";
 import {routeUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
 export type FleetPoint = {x: number; value: number; join: boolean};
-export type FleetSeries = {key: string; label: string; short: string; points: FleetPoint[]};
+/** `channel`은 같은 데이터셋의 다른 설비에서 같은 신호를 찾는 이름이다(전력: 채널 이름, 진동: 특징 이름). */
+export type FleetSeries = {key: string; channel: string; label: string; short: string; points: FleetPoint[]};
 export type FleetGroup = {
   label: string; unit: string | null; axis: "time" | "acquisition"; focus: string;
   /** 기록의 처음과 끝(시각 ms 또는 측정 번호). 재생은 이 범위를 움직인다. */
@@ -17,10 +20,14 @@ export type FleetGroup = {
   /** 시간 기록의 한 점이 덮는 길이(ms). 점은 이 길이가 다 지난 뒤에만 그린다. */
   bucketMs: number | null; periodSeconds: number | null; series: FleetSeries[];
 };
-export type FleetChange = {key: string; label: string; from: number; to: number; up: boolean;
-  before: number | null; after: number | null};
+export type FleetChange = {key: string; channel: string; label: string; from: number; to: number; up: boolean;
+  before: number | null; after: number | null;
+  /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 재생 판정의 변화에는 없다. */
+  ref?: string};
 /** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 재생이 아니다). */
-export type FleetRead = {group: FleetGroup | null; changes: FleetChange[]; live: boolean; href: string};
+export type FleetRead = {group: FleetGroup | null; changes: FleetChange[]; live: boolean; href: string;
+  /** 보는 신호 묶음 밖에서 찾은 변화(예: 상전류를 보는 동안 상전압의 변화). */
+  others: FleetChange[]};
 
 function invalid(): never { throw new Error("설비 관측의 형식이 올바르지 않습니다."); }
 const finite = (raw: unknown): number => typeof raw === "number" && Number.isFinite(raw) ? raw : invalid();
@@ -36,7 +43,8 @@ export function parseGroup(raw: unknown): FleetGroup | null {
     const row = object(raw) ?? invalid();
     const trace = Array.isArray(row.trace) ? row.trace : invalid();
     const joins = Array.isArray(row.trace_join) && row.trace_join.length === trace.length ? row.trace_join : invalid();
-    return {key: text(row.key) ?? invalid(), label: text(row.label) ?? invalid(), short: text(row.short) ?? invalid(),
+    return {key: text(row.key) ?? invalid(), channel: text(row.channel) ?? text(row.key) ?? invalid(),
+      label: text(row.label) ?? invalid(), short: text(row.short) ?? invalid(),
       points: trace.map((point: unknown, index: number) => {
         if (!Array.isArray(point) || point.length !== 2) invalid();
         const x = at(point[0]);
@@ -67,26 +75,33 @@ export function latestEpisode(changes: FleetChange[]): FleetChange[] {
   return episodes(changes, change => change).at(-1)?.members ?? [];
 }
 
-async function json(url: string, signal: AbortSignal): Promise<Record<string, unknown>> {
-  const response = await fetch(url, {signal, cache: "no-store", credentials: "same-origin"});
-  if (!response.ok) {
-    await response.body?.cancel().catch(() => {});
-    throw new Error("설비 관측을 읽지 못했습니다.");
+/** 일시적으로 읽지 못한 응답(503, 연결 끊김)은 잠시 뒤 다시 읽는다. 스택을 막 띄웠을 때 저장소가 아직 열리지 않은 경우다. */
+async function json(url: string, signal: AbortSignal, tries = 5): Promise<Record<string, unknown>> {
+  for (let attempt = 1; ; attempt++) {
+    let response: Response | null = null;
+    try { response = await fetch(url, {signal, cache: "no-store", credentials: "same-origin"}); }
+    catch (cause) { if (signal.aborted || attempt >= tries) throw cause; }
+    if (response?.ok) return object(await response.json() as unknown) ?? invalid();
+    await response?.body?.cancel().catch(() => {});
+    if (response && response.status !== 503 || attempt >= tries) throw new Error("설비 관측을 읽지 못했습니다.");
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, 1000 * 2 ** (attempt - 1));
+      signal.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, {once: true});
+    });
   }
-  return object(await response.json() as unknown) ?? invalid();
 }
 
-/** 묶음 신호에서 찾은 변화. `until`이 있으면 그 위치까지의 기록만으로 판정한 결과다. */
+/** 설비에서 찾은 변화(서버가 고른 대표 변화). `until`이 있으면 그 위치까지의 기록만으로 판정한 결과다. */
 export async function readFleetChanges(assetId: string, group: FleetGroup, until: number | null, signal: AbortSignal): Promise<FleetChange[]> {
-  const keys = new Set(group.series.map(row => row.key));
   const query = new URLSearchParams({asset_id: assetId});
   if (group.axis === "time") {
     if (until !== null) query.set("record_until", new Date(until).toISOString());
     const body = await json("/api/v1/explore/findings?" + query, signal);
     return (Array.isArray(body.intervals) ? body.intervals : []).flatMap((raw: unknown) => {
       const row = object(raw);
-      if (!row || !keys.has(String(row.key))) return [];
-      return [{key: String(row.key), label: text(row.label) ?? String(row.channel), up: row.direction !== "down",
+      if (!row) return [];
+      return [{key: String(row.key), channel: String(row.channel), label: text(row.label) ?? String(row.channel), up: row.direction !== "down",
+        ref: until === null ? JSON.stringify(["history", String(row.key), row.start, row.end]) : undefined,
         from: Date.parse(String(row.start)), to: Date.parse(String(row.end)),
         before: typeof row.reference_value === "number" ? row.reference_value : null,
         after: typeof row.typical_value === "number" ? row.typical_value : null}];
@@ -96,18 +111,26 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
   const body = await json("/api/v1/explore/vibration?" + query, signal);
   return (Array.isArray(body.intervals) ? body.intervals : []).flatMap((raw: unknown) => {
     const row = object(raw);
-    if (!row || !keys.has(String(row.feature))) return [];
-    return [{key: String(row.feature), label: text(row.label) ?? String(row.feature), up: row.direction !== "down",
+    if (!row) return [];
+    return [{key: String(row.feature), channel: String(row.feature), label: text(row.label) ?? String(row.feature), up: row.direction !== "down",
+      ref: until === null ? JSON.stringify(["vibration", String(row.feature), row.from, row.to]) : undefined,
       from: finite(row.from), to: finite(row.to),
       before: typeof row.reference_value === "number" ? row.reference_value : null,
       after: typeof row.typical_value === "number" ? row.typical_value : null}];
   });
 }
 
+/** 보는 묶음 안의 변화와 밖의 변화. */
+export function splitChanges(group: FleetGroup, found: FleetChange[]): {changes: FleetChange[]; others: FleetChange[]} {
+  const keys = new Set(group.series.map(row => row.key));
+  return {changes: found.filter(row => keys.has(row.key)), others: found.filter(row => !keys.has(row.key))};
+}
+
 /** 설비 조사 화면 주소. 재생 중이면 그 위치까지의 기록으로 연다. */
-export function investigationHref(assetId: string, group: FleetGroup | null, until: number | null): string {
+export function investigationHref(assetId: string, group: FleetGroup | null, until: number | null, change?: FleetChange): string {
   const url = new URL(routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null}), "http://local");
   url.searchParams.set("observation_view", "record");
+  if (change?.ref && until === null) url.searchParams.set("summary_change", change.ref);
   if (group && until !== null)
     url.searchParams.set(group.axis === "time" ? "record_until" : "acquisition_until",
       group.axis === "time" ? new Date(until).toISOString() : String(Math.floor(until)));
@@ -115,7 +138,7 @@ export function investigationHref(assetId: string, group: FleetGroup | null, unt
 }
 
 /** 실제로 수신 중인 출처는 최근 1시간 관측(앞선 관측과 비교한 변화 포함), 그 밖에는 저장 기록 전체를 읽는다. */
-export async function readFleet(asset: Asset, signal: AbortSignal): Promise<FleetRead> {
+export async function readFleet(asset: Asset, signal: AbortSignal, like: string | null = null): Promise<FleetRead> {
   if (recentAsset(asset)) {
     const data = await readAssetData(asset.assetId, signal);
     const stream = [...(data.history?.streams ?? [])].sort((a, b) => Date.parse(b.endAt) - Date.parse(a.endAt))[0];
@@ -135,17 +158,79 @@ export async function readFleet(asset: Asset, signal: AbortSignal): Promise<Flee
       return {live: true, href: url.pathname + url.search,
         group: {label: channel, unit: group?.unit ?? null, axis: "time", focus: channel, bucketMs: step, periodSeconds: null,
           record: {from: Date.parse(read.trend.startAt), to: Date.parse(read.trend.endAt)},
-          series: [{key: channel, label: channel, short: channel, points}]},
-        changes: (reference?.intervals ?? []).map(row => ({key: channel, label: channel, from: row.from, to: row.to,
-          up: row.up, before: reference?.median ?? null, after: row.value}))};
+          series: [{key: channel, channel, label: channel, short: channel, points}]},
+        changes: (reference?.intervals ?? []).map(row => ({key: channel, channel, label: channel, from: row.from, to: row.to,
+          up: row.up, before: reference?.median ?? null, after: row.value})), others: []};
     }
   }
-  const body = await json("/api/v1/explore/overview?" + new URLSearchParams({asset_id: asset.assetId}), signal);
+  const query = new URLSearchParams({asset_id: asset.assetId});
+  if (like) query.set("like", like);
+  const body = await json("/api/v1/explore/overview?" + query, signal);
   if (body.asset_id !== asset.assetId) invalid();
   const group = parseGroup(body.group);
-  const changes = group ? await readFleetChanges(asset.assetId, group, null, signal) : [];
-  return {group, changes, live: false, href: investigationHref(asset.assetId, group, null)};
+  const split = group ? splitChanges(group, await readFleetChanges(asset.assetId, group, null, signal)) : {changes: [], others: []};
+  return {group, ...split, live: false, href: investigationHref(asset.assetId, group, null)};
 }
 
-/** 묶음 신호의 선 색. 관련 신호 그래프(SignalGroupChart)와 같은 순서이며, 색 옆에 항상 상·축 이름을 함께 적는다. */
-export const SERIES_COLORS = ["var(--color-action)", "#bd6017", "#557a47", "#8c5793", "#455e73"];
+/** 묶음 신호의 선 색(디자인 토큰). 색 옆에 항상 상·축 이름을 함께 적는다. */
+export const SERIES_COLORS = ["var(--color-series-1)", "var(--color-series-2)", "var(--color-series-3)", "var(--color-series-4)"];
+
+/** 관제 화면의 데이터셋: 같은 출처에서 온 설비들. 공개 데이터는 데이터셋 종류로, 나머지는 '연결한 데이터'로 묶는다. */
+export type MonitorDataset = {key: string; title: string; assetIds: string[]; detail: Record<string, string>};
+const DATASET_TITLE: Record<string, string> = {"aihub-239": "AI-Hub 239 전력 기록", "xjtu-sy": "XJTU-SY 베어링 진동 기록", connected: "연결한 데이터"};
+export function monitorDatasets(assets: Asset[], data: PublicDatasets | null): MonitorDataset[] {
+  const imported = new Map(Object.entries(data?.jobs ?? {}).map(([id, job]) => [job.assetId, id]));
+  const out = new Map<string, MonitorDataset>();
+  for (const asset of assets) {
+    const job = imported.get(asset.assetId);
+    const item = data?.items.find(row => row.datasetId === job) ?? data?.items.find(row => row.assetId === asset.assetId);
+    const key = item?.kind ?? (job?.startsWith("xjtu-sy:") ? "xjtu-sy" : job?.startsWith("aihub239:") ? "aihub-239" : "connected");
+    const dataset = out.get(key) ?? {key, title: DATASET_TITLE[key], assetIds: [], detail: {}};
+    dataset.assetIds.push(asset.assetId);
+    if (item?.kind === "xjtu-sy" && item.speedHz !== null && item.loadKn !== null) dataset.detail[asset.assetId] = item.speedHz + " Hz · " + item.loadKn + " kN";
+    else if (item?.equipment) dataset.detail[asset.assetId] = item.equipment;
+    out.set(key, dataset);
+  }
+  return [...out.values()].sort((a, b) => Object.keys(DATASET_TITLE).indexOf(a.key) - Object.keys(DATASET_TITLE).indexOf(b.key));
+}
+
+/** 같은 축에서 비교할 수 있는 범위. 측정 번호로 세는 시험 기록은 모두 시작부터 맞춰지므로 길이만 비슷하면 되고
+ * (어느 기록도 가장 긴 것의 1/5보다 짧지 않을 것), 시각 기록은 기간이 실제로 겹쳐야 한다(가장 짧은 기록의 절반 이상).
+ * 서로 다른 시기의 기록을 한 달력에 놓으면 설비마다 화면 일부에만 그려지고 비교할 것도 없다. */
+export function sharedSpan(groups: FleetGroup[]): {from: number; to: number} | null {
+  if (groups.length < 2 || groups.some(group => group.axis !== groups[0].axis)) return null;
+  const from = Math.min(...groups.map(group => group.record.from)), to = Math.max(...groups.map(group => group.record.to));
+  const lengths = groups.map(group => group.record.to - group.record.from);
+  if (!(to > from) || lengths.some(length => length < (to - from) * 0.2)) return null;
+  const overlap = Math.min(...groups.map(group => group.record.to)) - Math.max(...groups.map(group => group.record.from));
+  return groups[0].axis === "acquisition" || overlap >= Math.min(...lengths) * 0.5 ? {from, to} : null;
+}
+
+/** 재생 위치: 같은 축이면 하나의 시계(시각 또는 측정 번호), 아니면 기록마다 같은 비율. 기록 시작 전이면 null. */
+export function untilAt(group: FleetGroup, fraction: number, shared: {from: number; to: number} | null): number | null {
+  if (!shared) return positionAt(group, fraction);
+  const clock = shared.from + (shared.to - shared.from) * Math.max(0, Math.min(1, fraction));
+  if (clock < group.record.from) return null;
+  const at = Math.min(group.record.to, clock);
+  return group.axis === "acquisition" ? Math.floor(at) : at;
+}
+
+/** 줄 순서: 마지막 측정까지 이어지는 변화 → 끝난 변화(최근 것부터) → 변화 없음 → 읽지 못함. */
+export function attention(read: FleetRead | null): [number, number] {
+  const group = read?.group;
+  if (!group) return [3, 0];
+  const lead = latestEpisode(read.changes)[0];
+  if (!lead) return [2, 0];
+  return [ongoing(group, read.changes) ? 0 : 1, -Math.max(...latestEpisode(read.changes).map(row => row.from))];
+}
+
+/** 마지막 시기의 변화가 기록(또는 재생 위치) 끝까지 이어지는지. 한 점 길이만큼은 끝으로 본다. */
+export function ongoing(group: FleetGroup, changes: FleetChange[], until = group.record.to): boolean {
+  const slack = group.axis === "time" ? (group.bucketMs ?? 60_000) * 1.5 : 1;
+  return latestEpisode(changes).some(row => row.to >= until - slack);
+}
+
+/** 묶음의 중심 신호 이름(같은 데이터셋의 다른 설비에 같은 묶음을 요청할 때 쓴다). */
+export function focusChannel(group: FleetGroup): string {
+  return group.series.find(row => row.key === group.focus)?.channel ?? group.series[0].channel;
+}

@@ -516,3 +516,47 @@ def test_a_failed_import_keeps_what_failed_and_logs_why(
     (record,) = [r for r in caplog.records if "Public dataset import failed" in r.getMessage()]
     assert target["dataset_id"] in record.getMessage() and "after 18000" in record.getMessage()
     assert record.exc_info is not None and isinstance(record.exc_info[1], RuntimeError)
+
+
+def test_an_import_waits_for_a_screen_reading_the_history_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+    import time
+
+    import filelock
+
+    from industrial_phm.runtime import operations_web_file_history
+
+    root = tmp_path / "data"
+    _aihub(root)
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    items = list_public_datasets(workspace, root)["items"]
+    held = filelock.FileLock(str(workspace.history_catalog_path) + ".phm.lock")
+
+    def import_while_held(dataset_id: str, wait: float) -> dict[str, object]:
+        # 화면의 변화 계산처럼 다른 연결이 저장소를 잠시 잡고 있다.
+        monkeypatch.setattr(operations_web_file_history, "BACKGROUND_CATALOG_WAIT_SECONDS", wait)
+        holding = threading.Event()
+
+        def hold() -> None:
+            with held:
+                holding.set()
+                time.sleep(1.0)
+
+        reader = threading.Thread(target=hold)
+        reader.start()
+        holding.wait()
+        jobs = PublicDatasetJobs(workspace.root, root=root)
+        jobs.start({"dataset_id": dataset_id})
+        jobs.close()
+        reader.join()
+        return list_public_datasets(workspace, root)["jobs"][dataset_id]
+
+    # 기다릴 수 있는 시간 안에 풀리면 가져오기는 끝까지 간다.
+    done = import_while_held(items[0]["dataset_id"], wait=10.0)
+    assert done["state"] == "succeeded"
+    # 끝내 풀리지 않으면 원본 파일 문제가 아니라 저장소가 사용 중이었다고 남긴다.
+    busy = import_while_held(items[1]["dataset_id"], wait=0.2)
+    assert (busy["state"], busy["failure"]) == ("failed", "store-busy")

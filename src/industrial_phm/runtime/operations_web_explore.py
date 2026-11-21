@@ -176,7 +176,9 @@ def handle_explore_read(
             # Imported here: the overview row is built from this module's findings.
             from industrial_phm.runtime.operations_web_overview import asset_overview
 
-            return HTTPStatus.OK, asset_overview(workspace, asset_id)
+            return HTTPStatus.OK, asset_overview(
+                workspace, asset_id, like=_one(query, "like") if "like" in query else None
+            )
         if path == "/api/v1/explore/waterfall":
             binding = acquisition_binding(store, asset_id) if store.path.exists() else None
             if binding is None:

@@ -1216,6 +1216,13 @@ def test_an_overview_draws_a_changed_phase_with_its_other_phases(tmp_path: Path)
         assert group["label"] == "상전압" and group["unit"] == "V"
         assert group["focus"] == row["history_interval"]["key"]
         assert all(member["trace"][-1][1] > 225 for member in group["series"])
+        # 데이터셋의 다른 설비와 같은 신호를 보도록 이름으로 묶음을 고를 수 있다.
+        status, liked = get("/api/v1/explore/overview", asset_id="press-01", like="T상전압")
+        chosen = next(m for m in liked["group"]["series"] if m["channel"] == "T상전압")
+        assert status == 200 and liked["group"]["focus"] == chosen["key"]
+        assert [m["channel"] for m in liked["group"]["series"]] == list(channels[:3])
+        status, missing = get("/api/v1/explore/overview", asset_id="press-01", like="없는 신호")
+        assert status == 200 and missing["group"] is None
     finally:
         stop()
 

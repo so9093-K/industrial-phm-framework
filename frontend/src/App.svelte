@@ -7,7 +7,7 @@
   import {loadModelBindings} from "./model-evidence";
   import { PRIMARY_PAGES, PAGE_INFO, TAB_INFO, parseRoute, reviewFocus, routeUrl, systemSection, systemUrl, type Route } from "./routes";
   import AssetList from "./components/AssetList.svelte";
-  import FleetMonitor from "./components/FleetMonitor.svelte";
+  import DatasetMonitor from "./components/DatasetMonitor.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
   import ReviewEntry from "./components/ReviewEntry.svelte";
   import { readPublicDatasets } from "./public-datasets";
@@ -293,7 +293,7 @@
       {/if}
       {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
       {#if route.page==="monitor"&&!route.assetId}
-        <FleetMonitor assets={snapshot.assets} cycle={observationCycle} checkedAt={observed(snapshot.assessedAt)} onRefresh={()=>void quietRefresh()}/>
+        <DatasetMonitor assets={snapshot.assets} cycle={observationCycle} checkedAt={observed(snapshot.assessedAt)} onRefresh={()=>void quietRefresh()}/>
       {:else}
         <AssetList assets={snapshot.assets} href={monitorHref} selected={selected?.assetId??""}/>
         {#if selected}

@@ -415,14 +415,21 @@ def _import_aihub(
 ) -> None:
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.runtime.aihub_history_import import import_history
-    from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
+    from industrial_phm.runtime.operations_web_file_history import (
+        BACKGROUND_CATALOG_WAIT_SECONDS,
+        HISTORY_WRITE_LOCK,
+    )
 
     binding = _aihub_binding(
         item, item.source_id or _aihub_source(item.dataset_id, item.description)
     )
     assert item.member is not None
     history = DuckLakeAssetHistory(
-        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+        DuckLakeAssetHistoryConfig(
+            workspace.history_catalog_path,
+            workspace.history_data_path,
+            catalog_lock_timeout_seconds=BACKGROUND_CATALOG_WAIT_SECONDS,
+        )
     )
     with HISTORY_WRITE_LOCK:
         import_history(item.path, item.member, binding, *_WHOLE_MEMBER, history, progress=progress)
@@ -435,11 +442,18 @@ def _holds_source(
     if item.kind == "aihub-239":
         from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
         from industrial_phm.runtime.aihub_history_import import holds_selection
-        from industrial_phm.runtime.operations_web_file_history import HISTORY_WRITE_LOCK
+        from industrial_phm.runtime.operations_web_file_history import (
+            BACKGROUND_CATALOG_WAIT_SECONDS,
+            HISTORY_WRITE_LOCK,
+        )
 
         assert item.member is not None
         history = DuckLakeAssetHistory(
-            DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+            DuckLakeAssetHistoryConfig(
+                workspace.history_catalog_path,
+                workspace.history_data_path,
+                catalog_lock_timeout_seconds=BACKGROUND_CATALOG_WAIT_SECONDS,
+            )
         )
         with HISTORY_WRITE_LOCK:
             # An AI-Hub source digest is the archive's own SHA-256.
@@ -590,6 +604,10 @@ def _failure(error: Exception) -> str:
         return error.code
     if isinstance(error, RuntimeError) and "extra" in str(error):
         return "reader-unavailable"
+    # 기록 저장소를 오래 기다리다 멈춘 것은 원본 파일 문제가 아니다.
+    # TimeoutError도 OSError라 먼저 가른다.
+    if isinstance(error, TimeoutError):
+        return "store-busy"
     if isinstance(error, (OSError, FileNotFoundError)):
         return "dataset-unavailable"
     return "import-failed"
