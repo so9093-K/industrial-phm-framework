@@ -309,6 +309,11 @@ export async function readChannels(assetId: string, signal: AbortSignal): Promis
 
 /** A start and end chosen on the chart (ISO with offset); it replaces the preset. */
 export type TrendWindow = {from: string; to: string};
+/** 한 번에 고른 기간으로 읽을 수 있는 한도(서버와 같은 31일). 더 긴 범위는 기록 전체를 같은 칸 수로 읽는다. */
+export const MAX_TREND_WINDOW_MS = 31 * 86_400_000;
+export function trendRange(from: number, to: number): RangePreset | TrendWindow {
+  return to - from > MAX_TREND_WINDOW_MS ? "all" : {from: new Date(from).toISOString(), to: new Date(to).toISOString()};
+}
 
 export async function readTrend(
   assetId: string, channelId: string, range: RangePreset | TrendWindow, anchor: TimeAnchor, signal: AbortSignal,

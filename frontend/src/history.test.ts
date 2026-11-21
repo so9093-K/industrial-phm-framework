@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {groupHistory, latestUnit, parseChannels, parseTrend, phaseSiblings, recordEnd, signalChart, signalName, splitTrend, valueRange} from "./history.ts";
+import {groupHistory, latestUnit, parseChannels, parseTrend, phaseSiblings, recordEnd, signalChart, signalName, splitTrend, trendRange, valueRange} from "./history.ts";
 
 const bucket = (source: string, interpretation: string, mean: number | null, usable = 1) => ({
   channel_id: "R", source_id: source, measurement_point_id: "motor-a",
@@ -123,4 +123,10 @@ test("signals read together are split into one trend each, on the same window", 
   assert.equal(split.get("R")!.buckets.length, 1);
   assert.equal(split.get("S")!.buckets[0].mean, 5);
   assert.equal(split.get("R")!.startAt, split.get("S")!.startAt);
+});
+
+test("a range longer than one chosen-window read (31 days) is read as the whole record", () => {
+  const start = Date.parse("2020-09-15T15:00:00Z");
+  assert.equal(trendRange(start, start + 37 * 86_400_000), "all");
+  assert.deepEqual(trendRange(start, start + 2 * 86_400_000), {from: "2020-09-15T15:00:00.000Z", to: "2020-09-17T15:00:00.000Z"});
 });

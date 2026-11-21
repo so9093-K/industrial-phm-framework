@@ -11,7 +11,7 @@
   import AssetTimeline from "./AssetTimeline.svelte";
   import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
   import {readAcquisitionTrend} from "../acquisition-trend";
-  import {readTrends} from "../history";
+  import {readTrends, trendRange} from "../history";
   import {readChangeReviews} from "../change-reviews";
   import {DECISION_LABEL} from "../review-writes";
   import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
@@ -294,7 +294,8 @@
     if (!own?.context || !own.channel) return null;
     const {sourceId, interpretationId} = own.context, channel = own.channel;
     return {label: own.label, unit: own.unit, read: async (from: number, to: number, signal: AbortSignal) => {
-      const trend = (await readTrends(assetId, [channel], {from: new Date(from).toISOString(), to: new Date(to).toISOString()}, "latest", signal, sourceId)).get(channel)!;
+      // 기록 전체(37일 등)는 고른 기간의 한도를 넘으므로 기록 전체로 읽는다.
+      const trend = (await readTrends(assetId, [channel], trendRange(from, to), "latest", signal, sourceId)).get(channel)!;
       const step = (trend.bucketSeconds ?? 0) * 1000;
       const own = trend.buckets.filter(bucket => bucket.interpretationId === interpretationId && bucket.mean !== null);
       // 평균과 함께 그 시간의 최저~최고: 두 수준을 오가는 설비는 평균이 실제로 돌지 않은 값이 된다.
