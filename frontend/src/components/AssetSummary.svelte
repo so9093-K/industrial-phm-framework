@@ -6,6 +6,7 @@
   import ChangeContext from "./ChangeContext.svelte";
   import ChangeActions from "./ChangeActions.svelte";
   import DecisionPanel from "./DecisionPanel.svelte";
+  import ChangeInvestigation from "./ChangeInvestigation.svelte";
   import OperationLevels from "./OperationLevels.svelte";
   import AssetTimeline from "./AssetTimeline.svelte";
   import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
@@ -14,6 +15,7 @@
   import {DECISION_LABEL} from "../review-writes";
   import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
   import type {EvidenceFocus} from "../change-evidence";
+  import type {Evidence} from "../change-investigation";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount,untrack} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
@@ -224,7 +226,7 @@
     const ongoing = endedText(history, item) === null;
     const own_ = history.signals.find(row => item.context ? row.context?.key === item.context.key : row.channel === item.channel);
     const latest = ongoing && own_?.latest ? " · 마지막 " + changeValue(own_.latest.value, item.unit) : "";
-    return {key: historyKey(item), label: plainLabel(item.label, item.channel), unit: item.unit,
+    return {key: historyKey(item), reviewKey: item.reviewKey, label: plainLabel(item.label, item.channel), unit: item.unit,
       condition: own && item.band != null ? bandName(own, item.band) : null,
       points, detail: [],
       matched:kind!=="all"?(item.overview??[]).flatMap(row=>row.judged!==null?[{x:Date.parse(row.at),value:row.judged,join:row.join}]:[]):[],
@@ -236,7 +238,7 @@
     const points = traces[change.feature] ?? change.trace.map(point => ({x: point.at, value: point.value, join: point.join}));
     const last = change.to === measured.last ? points.at(-1) : undefined;
     const latest = last && last.x === measured.last ? " · 마지막 " + measure(last.value, change.unit) + "(" + versusStart(last.value, change.reference, change.unit) + ")" : "";
-    return {key: vibrationKey(change), label: plainLabel(change.label, change.feature), unit: change.unit, condition: null,
+    return {key: vibrationKey(change), reviewKey: change.reviewKey, label: plainLabel(change.label, change.feature), unit: change.unit, condition: null,
       points, detail: [], usual: change.usual, interval: {from: change.from, to: change.to},
       values:{before:change.reference,after:change.typical,latest:last&&last.x===measured.last?{value:last.value,at:last.x}:null},
       numbers: magnitude(change.reference, change.typical, change.unit) + latest, focus: focused, up: change.direction === "up"};
@@ -329,6 +331,8 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
+  // AI 해석의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
+  let memo: {reviewKey: string; sequence: number; text: string} | null = $state(null);
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey:string}|null => {
     const shown=evidenceFocus;
@@ -375,17 +379,25 @@
 
 {#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} active={!playing}/>{/if}{/snippet}
 
+{#snippet assistant({colorOf, labelOf, point, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
+  point: (evidence: Evidence | null) => void; close: () => void})}
+  {#if evidenceFocus && decision}{#key decision.reviewKey}
+    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} together={lanes.length} {colorOf} {labelOf} {point} onStart={onInvestigate} onClose={close}
+      onMemo={text => memo = {reviewKey: decision!.reviewKey, sequence: (memo?.sequence ?? 0) + 1, text}}/>
+  {/key}{/if}
+{/snippet}
+
 {#snippet actions()}
   <div class="investigation-actions" inert={busy}>
     {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus} {onInvestigate}/>{/if}
-    {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} focus={evidenceFocus} {onInvestigate} onCommitted={() => reviewRevision++}/>{/key}{/if}
+    {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} memo={memo?.reviewKey === decision.reviewKey ? memo : null} {onInvestigate} onCommitted={() => reviewRevision++}/>{/key}{/if}
   </div>
 {/snippet}
 
 <div class="monitor">
 <section class="ui-panel facts-panel" aria-label="고른 변화" aria-busy={busy}>
   {#if current && recordSpan && lanes.length}
-    <AssetTimeline context={evidenceFocus?context:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
+    <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
       episodes={episodeChoices} {actions} {lanes} operation={timelineOperation}
       periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}

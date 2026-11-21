@@ -328,3 +328,36 @@ def test_follow_up_carries_earlier_answers_of_the_same_comparison_only(
         manager.request(
             "anomaly-a", 4, compare_position=2, question="다른 비교", parent_id=first["id"]
         )
+
+
+def test_an_echoed_schema_or_text_after_the_answer_does_not_discard_the_answer() -> None:
+    """A local model may repeat the schema first and keep writing after its answer."""
+    answer = {"summary": "stored comparison answer"}
+    schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            content = json.dumps(schema) + json.dumps(answer) + '\n{"summary": "second"} 끝.'
+            self.wfile.write(json.dumps({"choices": [{"message": {"content": content}}]}).encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        result = complete_json(
+            ExplanationProvider(base_url=f"http://127.0.0.1:{server.server_port}/v1"),
+            [{"role": "user", "content": "{}"}],
+            schema,
+        )
+        assert result == answer
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

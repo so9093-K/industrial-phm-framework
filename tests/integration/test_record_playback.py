@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
@@ -63,6 +64,13 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path
     facts = investigation_facts(workspace, context)
     assert "220" in facts["facts"]["feature_0"] and "230" in facts["facts"]["feature_0"]
     assert facts["actions"] == ["signals", "compare"]
+    # Times read as on the chart (Korean time), so an answer may quote them as people do.
+    start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
+    assert (
+        f"{start.year}년 {start.month}월 {start.day}일 {start:%H:%M}부터"
+        in facts["facts"]["subject"]
+    )
+    assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
     training = history_points(workspace, "compressor", "voltage", scope)
 
     write(40, 90, True)

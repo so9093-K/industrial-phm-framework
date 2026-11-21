@@ -114,7 +114,8 @@ def _offset_token(value: str | None) -> str:
 
 
 def _normalized(token: str) -> str:
-    return token.replace(",", "").lstrip("+")
+    # 시각의 '09'와 문장의 '9'(9시, 10월 4일)는 같은 숫자다.
+    return re.sub(r"^(-?)0+(?=\d)", r"\1", token.replace(",", "").lstrip("+"))
 
 
 def allowed_numbers(facts: dict[str, str]) -> set[str]:

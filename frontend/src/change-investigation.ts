@@ -6,7 +6,35 @@ import {assetTabUrl} from "./routes.ts";
 import {featureCompareHref} from "./measurement-links.ts";
 export const CHANGE_ACTIONS=["compare","spectrum","onset","model","signals","electrical"] as const;
 export type ChangeAction=typeof CHANGE_ACTIONS[number];
-export type ChangeAnswer={summary:string;next_step?:string;actions:ChangeAction[];source:"model"|"computed"};
+/** 답이 근거로 쓴 사실을 화면이 가리킬 수 있는 것으로: 찾은 변화(그래프의 선·구간), 그래프 밖 신호, 운전 수준 띠, 주파수 대역. */
+export type Evidence=
+  |{fact:string;kind:"change";review_key:string;label:string;before:number|null;after:number|null;unit:string|null;where:string}
+  |{fact:string;kind:"signal";label:string;before:number|null;after:number|null;unit:string|null}
+  |{fact:string;kind:"operation";label:string;detail:string;levels?:string[];a?:number[];b?:number[];runs?:{from:string;to:string;level:number}[]}
+  |{fact:string;kind:"spectrum";label:string;from_hz:number;to_hz:number;a:number;b:number;ratio:number|null};
+export type ChangeAnswer={summary:string;next_step?:string;actions:ChangeAction[];evidence?:Evidence[];source:"model"|"computed"};
+const num=(v:unknown)=>typeof v==="number"&&Number.isFinite(v);
+const maybe=(v:unknown)=>v===null||num(v);
+const runs=(list:unknown,count:number)=>Array.isArray(list)&&list.length<=8&&list.every(item=>{const run=object(item);
+  return !!run&&typeof run.from==="string"&&typeof run.to==="string"&&Number.isInteger(run.level)&&(run.level as number)>=0&&(run.level as number)<count&&Date.parse(run.from)<Date.parse(run.to);});
+const shares=(levels:unknown,a:unknown,b:unknown)=>Array.isArray(levels)&&levels.every(name=>typeof name==="string")
+  &&[a,b].every(list=>Array.isArray(list)&&list.length===levels.length&&list.every(v=>num(v)&&v>=0&&v<=1));
+/** 근거 한 줄의 모양을 확인한다. 이전 답(근거 없음)은 빈 목록으로 읽는다. */
+export function readEvidence(raw:unknown):Evidence[]{
+  if(raw===undefined)return [];
+  if(!Array.isArray(raw)||raw.length>3)throw new Error("답의 근거를 확인하지 못했습니다.");
+  return raw.map(item=>{
+    const row=object(item);
+    const ok=row&&typeof row.fact==="string"&&typeof row.label==="string"&&(
+      row.kind==="change"?typeof row.review_key==="string"&&maybe(row.before)&&maybe(row.after)&&typeof row.where==="string"
+      :row.kind==="signal"?maybe(row.before)&&maybe(row.after)
+      :row.kind==="operation"?typeof row.detail==="string"&&(row.levels===undefined||(row.a===undefined?Array.isArray(row.levels):shares(row.levels,row.a,row.b)))
+        &&(row.runs===undefined||Array.isArray(row.levels)&&runs(row.runs,row.levels.length))
+      :row.kind==="spectrum"?num(row.from_hz)&&num(row.to_hz)&&num(row.a)&&num(row.b)&&maybe(row.ratio):false);
+    if(!ok)throw new Error("답의 근거를 확인하지 못했습니다.");
+    return {...row,unit:typeof row!.unit==="string"?row!.unit:null} as Evidence;
+  });
+}
 export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null};
 /** An AI suggestion opens an existing analysis of this exact change, never a new default. */
 export function changeActionLinks(asset:string, change:{feature:string;from:number;to:number;baseline:{from:number;to:number}}, binding:string|null, actions:readonly ChangeAction[]) {
@@ -35,7 +63,8 @@ export async function readChangeDiscussion(asset:string,key:string,signal:AbortS
       ||!["pending","complete","failed"].includes(String(row.status)))throw new Error("조사 내용의 대상을 확인하지 못했습니다.");
     if(answer&&(typeof answer.summary!=="string"||(answer.next_step!==undefined&&(typeof answer.next_step!=="string"||!answer.next_step.trim()||answer.next_step.length>200))||!Array.isArray(answer.actions)||answer.actions.some(a=>!CHANGE_ACTIONS.includes(a as ChangeAction))||!["model","computed"].includes(String(answer.source))))
       throw new Error("조사 설명의 다음 분석을 확인하지 못했습니다.");
-    return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],answer:answer as ChangeAnswer|null};
+    return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],
+      answer:answer?{...answer,evidence:readEvidence(answer.evidence)} as ChangeAnswer:null};
   });
 }
 export async function askChange(asset:string,key:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null):Promise<void> {

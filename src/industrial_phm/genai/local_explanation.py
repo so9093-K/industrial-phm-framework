@@ -108,6 +108,28 @@ def _json_text(text: object) -> object:
     return fenced.group(1) if fenced else text
 
 
+def _answer_object(text: str, schema: dict[str, object]) -> object:
+    """The answer among the JSON values a local model wrote, in order.
+
+    Some local servers put the schema into the prompt instead of constraining decoding; the
+    model then may echo that schema before its answer, or keep writing after it. A value equal
+    to the schema is not an answer. Callers still check every field of what is returned.
+    """
+    decoder = json.JSONDecoder()
+    rest = text.strip()
+    values: list[object] = []
+    while rest and len(values) < 4:
+        try:
+            value, end = decoder.raw_decode(rest)
+        except ValueError:
+            if values:
+                break
+            raise
+        values.append(value)
+        rest = rest[end:].lstrip()
+    return next((value for value in values if value != schema), values[0])
+
+
 def complete_json(
     provider: ExplanationProvider,
     messages: list[dict[str, str]],
@@ -190,7 +212,7 @@ def complete_json(
                 text = _json_text(data["choices"][0]["message"]["content"])
         if not isinstance(text, str) or not text.strip():
             raise AnalysisExplanationError("empty explanation response")
-        return json.loads(text)
+        return _answer_object(text, schema)
     except (
         HTTPError,
         URLError,
