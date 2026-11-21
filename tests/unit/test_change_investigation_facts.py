@@ -100,6 +100,16 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
         "약 62 A 운전",
     ]
     assert targets["operating_share"]["b"] == [0, 0.44, 0.56, 0]
+    # What the investigation looked at, one '항목 · 결과' row each, the selected change first.
+    assert [(row["label"], row["result"]) for row in out["steps"]] == [
+        ("R상전압", "222 → 226 V"),
+        ("약 11 A 운전 비중", "15% → 44%"),
+        ("같은 운전 수준끼리 비교", "약 11 A 운전"),
+        ("S상전압", "222 → 225 V"),
+        ("R상전류", "10.7 → 12.7 A"),
+        ("같은 시기 변화", "S상전압·T상전압"),
+    ]
+    assert all(row["fact"] in facts for row in out["steps"])
 
 
 def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> None:
@@ -135,8 +145,11 @@ def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> No
         "channels": ["R상전압"],
         "episode": [change],
     }
-    facts = history_investigation(context)["facts"]
+    out = history_investigation(context)
+    facts = out["facts"]
     # Window 08:00-23:00 UTC (the change and twice its length before it), shown in Korean time.
     assert facts["operating_flow"].endswith(
         "10월 3일 17:00~10월 3일 19:00 약 62 A 운전, 10월 3일 19:00~10월 4일 09:00 약 31 A 운전."
     )
+    # Hour by hour the dominant level is not a checked row: it hides levels mixed within an hour.
+    assert "operating_flow" not in [row["fact"] for row in out["steps"]]

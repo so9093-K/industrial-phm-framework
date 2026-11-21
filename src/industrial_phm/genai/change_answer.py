@@ -88,17 +88,21 @@ def _evidence(keys: list[str], targets: dict[str, dict[str, Any]]) -> list[dict[
     return out
 
 
+def asks_about_models(question: str) -> bool:
+    """Model scores are read only when the question names them."""
+    return any(
+        word in question.lower()
+        for word in ("모델", "점수", "알고리즘", "lstm", "isolation", "model")
+    )
+
+
 def generate_change_answer(
     context: dict[str, Any], provider: ExplanationProvider
 ) -> dict[str, Any]:
     investigation = context["investigation"]
     facts, actions = investigation["facts"], investigation["actions"]
     targets = investigation.get("targets", {})
-    model_question = any(
-        word in context["question"].lower()
-        for word in ("모델", "점수", "알고리즘", "lstm", "isolation", "model")
-    )
-    if not model_question:
+    if not asks_about_models(context["question"]):
         facts = {key: value for key, value in facts.items() if not key.startswith("model_")}
         actions = [action for action in actions if action != "model"]
     citable = [key for key in facts if key in targets]

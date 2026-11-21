@@ -347,7 +347,7 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
-  // AI 해석의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
+  // AI 조사의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
   let memo: {reviewKey: string; sequence: number; text: string} | null = $state(null);
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey:string}|null => {

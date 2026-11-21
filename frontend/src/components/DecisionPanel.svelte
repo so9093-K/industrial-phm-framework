@@ -3,7 +3,7 @@
   import ChangeReviewArchive from "./ChangeReviewArchive.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   import {untrack} from "svelte";
-  /** 판단·메모 남기기. AI 해석의 답을 메모로 옮기면(memo의 순번이 바뀌면) 그 초안으로 연다. */
+  /** 판단·메모 남기기. AI 조사의 답을 메모로 옮기면(memo의 순번이 바뀌면) 그 초안으로 연다. */
   let {assetId, reviewKey, memo = null, onCommitted,onInvestigate}: {assetId: string; reviewKey: string;
     memo?: {sequence: number; text: string} | null; onCommitted?: () => void;onInvestigate?:()=>void} = $props();
   let draftNote: {sequence: number; text: string} | null = $state(null);

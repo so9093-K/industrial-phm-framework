@@ -18,7 +18,7 @@
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
     load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<{x:number;value:number;join:boolean}[]>}|null;
     actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
-    /** 오른쪽 칸의 AI 해석. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
+    /** 오른쪽 칸의 AI 조사. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
     assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
   let rail=$state<"context"|"assistant">("context");
@@ -103,7 +103,7 @@
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
       {#if assistant}<button type="button" class="ai-toggle" aria-pressed={chatting} onclick={()=>rail=chatting?"context":"assistant"}>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 해석</button>{/if}
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>{/if}
     </div>
   </header>
   {#if !focused.values}<p class="numbers">{focused.numbers}</p>{/if}
@@ -154,7 +154,7 @@
   {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
   </div>
   <!-- AI 대화창은 조사 영역의 오른쪽 전체 높이에 붙는다. 대화가 길어져도 대화창 안에서만 스크롤하고 그래프는 그대로 보인다. -->
-  {#if chatting&&assistant}<aside class="dock" aria-label="AI 해석"><div class="dock-inner">{@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}</div></aside>{/if}
+  {#if chatting&&assistant}<aside class="dock" aria-label="AI 조사"><div class="dock-inner">{@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}</div></aside>{/if}
 </section>
 {/if}
 <style>
