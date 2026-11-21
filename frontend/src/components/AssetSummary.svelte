@@ -113,6 +113,10 @@
   const initialSelection=new URLSearchParams(location.search);
   const seedContext=!["monitor_channel","vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature"].some(key=>initialSelection.has(key));
   let pickedKey = $state(initialSelection.get("summary_change"));
+  // 관제의 'AI 조사'로 들어오면 그 변화의 AI 조사를 바로 시작한다. 새로 읽어도 되풀이하지 않게 주소에서 지운다.
+  const aiRequested = initialSelection.get("ai") === "investigate";
+  let aiStart = $state(aiRequested);
+  if (aiRequested) { const url = new URL(location.href); url.searchParams.delete("ai"); history.replaceState(history.state, "", url); }
   const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
   const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
   const focus = $derived.by((): Pick | null => {
@@ -401,6 +405,7 @@
   point: (evidence: Evidence | null) => void; close: () => void})}
   {#if evidenceFocus && decision}{#key decision.reviewKey}
     <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} together={lanes.length} {colorOf} {labelOf} {point} onStart={onInvestigate} onClose={close}
+      autostart={aiStart && items.some(item => item.key === initialSelection.get("summary_change"))} onAutostart={() => aiStart = false}
       onMemo={text => memo = {reviewKey: decision!.reviewKey, sequence: (memo?.sequence ?? 0) + 1, text}}/>
   {/key}{/if}
 {/snippet}
@@ -415,7 +420,7 @@
 <div class="monitor">
 <section class="ui-panel facts-panel" aria-label="고른 변화" aria-busy={busy}>
   {#if current && recordSpan && lanes.length}
-    <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
+    <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} assistantFirst={aiStart} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
       episodes={episodeChoices} {actions} {lanes} operation={timelineOperation} load={timelineLoad}
       periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}

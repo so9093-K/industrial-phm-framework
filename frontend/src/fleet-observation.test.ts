@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries} from "./fleet-observation.ts";
+import {aiInvestigationHref, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
 
 const hour = 3600_000;
 const phases = parseGroup({label: "상전압", unit: "V", axis: "time", focus: "r", bucket_seconds: 3600, period_seconds: null,
@@ -46,4 +46,17 @@ test("records share one axis only when they can be compared on it", () => {
   assert.equal(sharedSpan([group("time", 0, 37 * day), group("time", 34 * day, 67 * day)]), null);
   assert.deepEqual(sharedSpan([group("time", 0, 37 * day), group("time", 2 * day, 36 * day)]), {from: 0, to: 37 * day});
   assert.equal(sharedSpan([group("acquisition", 1, 123), group("acquisition", 1, 2538)]), null);
+});
+
+test("AI investigation opens the change where it was judged, and asks to start right away", () => {
+  const group: FleetGroup = {label: "상전압", unit: "V", axis: "time", focus: "r", record: {from: 0, to: 10}, bucketMs: null, periodSeconds: null, series: []};
+  const change = {key: "r", channel: "r", label: "R상전압", from: 1, to: 2, up: true, before: 220, after: 224,
+    ref: JSON.stringify(["history", "r", "2020-09-22T02:02:00+00:00", "2020-09-22T02:39:00+00:00"])};
+  const watching = new URL(aiInvestigationHref("compressor 1306", group, Date.parse("2020-09-24T07:40:00Z"), change), "http://local");
+  assert.equal(watching.searchParams.get("summary_change"), change.ref);
+  assert.equal(watching.searchParams.get("record_until"), "2020-09-24T07:40:00.000Z");
+  assert.equal(watching.searchParams.get("ai"), "investigate");
+  const whole = new URL(aiInvestigationHref("compressor 1306", group, null, change), "http://local");
+  assert.equal(whole.searchParams.get("record_until"), null);
+  assert.equal(whole.searchParams.get("summary_change"), change.ref);
 });

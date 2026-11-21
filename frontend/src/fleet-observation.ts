@@ -22,8 +22,10 @@ export type FleetGroup = {
 };
 export type FleetChange = {key: string; channel: string; label: string; from: number; to: number; up: boolean;
   before: number | null; after: number | null;
-  /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 재생 판정의 변화에는 없다. */
-  ref?: string};
+  /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 모니터링 중이면 그 판정 위치(record_until)의 기록에서만 맞는다. */
+  ref?: string;
+  /** 같은 때의 부하(전류): 비교 기준 구간과 변화 구간의 평균. */
+  load?: {label: string; unit: string | null; before: number; after: number} | null};
 /** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 모니터링이 아니다). */
 export type FleetRead = {group: FleetGroup | null; changes: FleetChange[]; live: boolean; href: string;
   /** 보는 신호 묶음 밖에서 찾은 변화(예: 상전류를 보는 동안 상전압의 변화). */
@@ -102,8 +104,11 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
     return (Array.isArray(body.intervals) ? body.intervals : []).flatMap((raw: unknown) => {
       const row = object(raw);
       if (!row) return [];
+      const load = object(row.load);
       return [{key: String(row.key), channel: String(row.channel), label: text(row.label) ?? String(row.channel), up: row.direction !== "down",
-        ref: until === null ? JSON.stringify(["history", String(row.key), row.start, row.end]) : undefined,
+        ref: JSON.stringify(["history", String(row.key), row.start, row.end]),
+        load: load && typeof load.reference === "number" && typeof load.current === "number"
+          ? {label: text(load.label) ?? "부하", unit: text(load.unit), before: load.reference, after: load.current} : null,
         from: Date.parse(String(row.start)), to: Date.parse(String(row.end)),
         before: typeof row.reference_value === "number" ? row.reference_value : null,
         after: typeof row.typical_value === "number" ? row.typical_value : null}];
@@ -115,7 +120,7 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
     const row = object(raw);
     if (!row) return [];
     return [{key: String(row.feature), channel: String(row.feature), label: text(row.label) ?? String(row.feature), up: row.direction !== "down",
-      ref: until === null ? JSON.stringify(["vibration", String(row.feature), row.from, row.to]) : undefined,
+      ref: JSON.stringify(["vibration", String(row.feature), row.from, row.to]),
       from: finite(row.from), to: finite(row.to),
       before: typeof row.reference_value === "number" ? row.reference_value : null,
       after: typeof row.typical_value === "number" ? row.typical_value : null}];
@@ -136,6 +141,14 @@ export function investigationHref(assetId: string, group: FleetGroup | null, unt
   if (group && until !== null)
     url.searchParams.set(group.axis === "time" ? "record_until" : "acquisition_until",
       group.axis === "time" ? new Date(until).toISOString() : String(Math.floor(until)));
+  return url.pathname + url.search;
+}
+
+/** AI 조사로 여는 주소: 그 변화를 판정한 위치의 기록으로 조사 화면을 열고, AI 조사를 바로 시작한다(ai=investigate). */
+export function aiInvestigationHref(assetId: string, group: FleetGroup, analyzed: number | null, change: FleetChange): string {
+  const url = new URL(investigationHref(assetId, group, analyzed), "http://local");
+  if (change.ref) url.searchParams.set("summary_change", change.ref);
+  url.searchParams.set("ai", "investigate");
   return url.pathname + url.search;
 }
 

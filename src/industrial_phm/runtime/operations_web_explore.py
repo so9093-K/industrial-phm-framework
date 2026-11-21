@@ -1223,6 +1223,26 @@ def _record_findings(
             companion_rows = sorted(candidates, key=companion_rank)[:3]
         trace = change_trace(judged[name], record["bucket_seconds"], item["start"], item["end"])
         operation = operations.get((record["source_id"], record["point_id"]))
+        # 같은 때의 부하(운전 수준을 정하는 전류): 모든 운전 수준의 측정을 그대로 평균한다.
+        # 두 수준을 오가는 설비는 중앙값이 한쪽 수준만 가리켜 부하가 줄어든 것을 숨긴다.
+        load = None
+        if operation is not None and operation.key != record_key and operation.key in by_key:
+            spans = {"reference": reference, "current": period}
+            means = {
+                side: [
+                    value
+                    for start, end, value in by_key[operation.key]["points"]
+                    if start <= window[1] and end >= window[0]
+                ]
+                for side, window in spans.items()
+            }
+            if all(means.values()):
+                load_label, load_unit = named(operation.key)
+                load = {
+                    "label": load_label,
+                    "unit": load_unit,
+                    **{side: sum(values) / len(values) for side, values in means.items()},
+                }
         shown.append(
             {
                 "start": iso(item["start"]),
@@ -1272,6 +1292,8 @@ def _record_findings(
                 },
                 # Other signals whose representative value shifted in this interval.
                 "within": [row["label"] for row in changed],
+                # The load (operating-level current) at the same time, averaged over all levels.
+                "load": load,
                 # How the equipment ran in the change and in its reference period.
                 "operation": {
                     "key": operation.key,
