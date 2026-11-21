@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import socket
 import stat
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
@@ -262,6 +263,27 @@ def test_broker_timeout_during_write_is_unknown_not_implicitly_retried(
         with pytest.raises(command.WebCommandRejected, match="command_request_conflict"):
             client.execute(route, {"source_id": "changed"}, request_id=identifier)
     assert committed == [payload]
+
+
+def test_a_write_that_computes_from_stored_records_gets_the_long_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Saving a change review recomputes the change first; that is not an unknown outcome."""
+    from industrial_phm.runtime.operations_web_actions import WEB_SOURCE_ACTION_ROUTES
+
+    def computing(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        time.sleep(0.5)
+        return {"saved": payload["finding_id"]}
+
+    monkeypatch.setattr(command, "execute_web_source_action", computing)
+    monkeypatch.setattr(command, "_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(command, "_LONG_TIMEOUT_SECONDS", 3.0)
+    assert command._LONG_ROUTES <= WEB_SOURCE_ACTION_ROUTES
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        route = "/api/v1/explore/change-reviews/confirm"
+        assert client.execute(route, {"finding_id": "a"}) == {"saved": "a"}
 
 
 def test_command_replay_cache_reaches_bounded_capacity_without_eviction(

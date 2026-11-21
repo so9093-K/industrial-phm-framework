@@ -34,9 +34,20 @@ from industrial_phm.runtime.operations_web_setup import SourceControlConflict
 _MAX_MESSAGE_BYTES = 8192
 _MAX_REQUESTS_PER_GENERATION = 512
 _TIMEOUT_SECONDS = 5.0
-_PHASE_FILE_TIMEOUT_SECONDS = 30.0
-# Commands that read stored records and compute before they answer.
-_LONG_ROUTES = frozenset({"/api/v1/analysis/phase-file", "/api/v1/phm/models/build"})
+_LONG_TIMEOUT_SECONDS = 30.0
+# Commands that read stored records and compute before they answer. The broker is its own
+# process: its first change or outlook calculation after a start does not reuse the Web
+# process's results and takes ~10 s on a month of 1-minute power data.
+_LONG_ROUTES = frozenset(
+    {
+        "/api/v1/analysis/phase-file",
+        "/api/v1/phm/models/build",
+        "/api/v1/explore/change-reviews/confirm",
+        "/api/v1/phm/explanations/request",
+        "/api/v1/outlook/captures/confirm",
+        "/api/v1/outlook/briefings/request",
+    }
+)
 
 
 class WebCommandRejected(RuntimeError):
@@ -76,7 +87,7 @@ class WebCommandClient:
             if len(encoded) > _MAX_MESSAGE_BYTES:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-                timeout = _PHASE_FILE_TIMEOUT_SECONDS if route in _LONG_ROUTES else _TIMEOUT_SECONDS
+                timeout = _LONG_TIMEOUT_SECONDS if route in _LONG_ROUTES else _TIMEOUT_SECONDS
                 connection.settimeout(timeout)
                 connection.connect(self.socket_path)
                 connection.sendall(encoded)
@@ -178,7 +189,7 @@ class SupervisorWebCommandBroker:
                 raise ValueError("invalid bounded command")
             identity = json.dumps([route, payload], sort_keys=True, allow_nan=False)
             if route in _LONG_ROUTES:
-                connection.settimeout(_PHASE_FILE_TIMEOUT_SECONDS)
+                connection.settimeout(_LONG_TIMEOUT_SECONDS)
             with self._lock:
                 cached = self._seen.get(identifier)
                 if cached is not None:
