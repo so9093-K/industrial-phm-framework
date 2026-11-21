@@ -39,6 +39,12 @@
   }
   const duration = (change: FleetChange) => group.axis === "time" ? elapsedText((change.to - change.from) / 1000) : (change.to - change.from + 1) + "회 측정";
   const members = $derived(series.filter(row => episode.some(change => change.key === row.key)).map(row => row.short));
+  // 부하 신호(전류): 전압 그래프 바로 아래 같은 시간축에. 모니터링 중이면 같은 시점까지만 그린다.
+  const companion = $derived(read.companion);
+  const load = $derived(!companion ? [] : !replaying ? companion.series : until === null ? companion.series.map(row => ({...row, points: []})) : visibleSeries(companion, until));
+  const mainHeight = $derived(companion ? Math.round(height * .68) : height);
+  const loadHeight = $derived(companion ? Math.max(48, height - mainHeight - 20) : 0);
+  const loadPoint = $derived(load[0] ? (cursor !== null ? nearest(load[0].points, cursor) : load[0].points.at(-1)) : null);
 </script>
 
 <li class="row" class:ongoing={still} style:--row={height + (shared ? 26 : 50) + "px"}>
@@ -50,14 +56,20 @@
         {@const point = cursor !== null ? nearest(row.points, cursor) : row.points.at(-1)}
         <div><dt><i style:background={SERIES_COLORS[index % SERIES_COLORS.length]}></i>{series.length > 1 ? row.short : group.label}</dt><dd>{point ? measure(point.value, group.unit, 4) : "—"}</dd></div>
       {/each}
+      {#if companion}<div class="load"><dt><i></i>{companion.label}</dt><dd>{loadPoint ? measure(loadPoint.value, companion.unit, 3) : "—"}</dd></div>{/if}
     </dl>
     <span class="time">{#if cursor !== null}{short(cursor)}{#if picked !== null} <button type="button" aria-label="고른 시점 해제" onclick={() => picked = null}>×</button>{/if}
       {:else if lastFocus}{replaying ? "모니터링 시점 " : "마지막 "}{short(group.axis === "time" ? Math.min(until ?? group.record.to, lastFocus.x + (group.bucketMs ?? 0)) : lastFocus.x)}
       {:else}기록 시작 전{/if}</span>
   </div>
   <div class="chart">
-    <TrendChart {group} {series} {lo} {hi} {changes} reference={lead?.before ?? null} live={replaying && playing} {height} axis={!shared}
+    <TrendChart {group} {series} {lo} {hi} {changes} reference={lead?.before ?? null} live={replaying && playing} height={mainHeight} axis={!shared && !companion}
       bind:picked={() => picked, value => { picked = value; if (value !== null) onPause(); }} bind:cursor/>
+    {#if companion}
+      <p class="load-label">{companion.label}</p>
+      <TrendChart group={companion} series={load} {lo} {hi} changes={changes.map(row => ({...row, key: "load:" + row.key}))} height={loadHeight} axis={!shared}
+        colors={["var(--color-ink-muted)"]} guide={cursor} bind:cursor/>
+    {/if}
   </div>
   <div class="fact">
     {#if lead}
@@ -90,6 +102,8 @@
   .values dt{display:flex;align-items:center;gap:6px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .values dt i{display:inline-block;width:12px;height:3px;border-radius:2px}
   .values dd{margin:0;font-size:1.05rem;font-weight:650;font-variant-numeric:tabular-nums}
+  .values .load{margin-top:4px;grid-template-columns:max-content auto}.values .load dt{white-space:nowrap}.values .load dt i{background:var(--color-ink-muted)}.values .load dd{font-size:var(--font-small);font-weight:600}
+  .load-label{margin:2px 0 0 52px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .time{margin-top:auto;font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .time button{border:0;background:none;color:var(--color-ink-muted);cursor:pointer;font-size:14px;padding:0 2px}
   .chart{min-width:0;align-self:center}

@@ -27,7 +27,9 @@ export type FleetChange = {key: string; channel: string; label: string; from: nu
 /** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 모니터링이 아니다). */
 export type FleetRead = {group: FleetGroup | null; changes: FleetChange[]; live: boolean; href: string;
   /** 보는 신호 묶음 밖에서 찾은 변화(예: 상전류를 보는 동안 상전압의 변화). */
-  others: FleetChange[]};
+  others: FleetChange[];
+  /** 묶음 아래 같은 시간축에 그리는 부하 신호(전류). 전압이 오른 때 부하가 어땠는지 함께 보인다. */
+  companion: FleetGroup | null};
 
 function invalid(): never { throw new Error("설비 관측의 형식이 올바르지 않습니다."); }
 const finite = (raw: unknown): number => typeof raw === "number" && Number.isFinite(raw) ? raw : invalid();
@@ -160,7 +162,7 @@ export async function readFleet(asset: Asset, signal: AbortSignal, like: string 
           record: {from: Date.parse(read.trend.startAt), to: Date.parse(read.trend.endAt)},
           series: [{key: channel, channel, label: channel, short: channel, points}]},
         changes: (reference?.intervals ?? []).map(row => ({key: channel, channel, label: channel, from: row.from, to: row.to,
-          up: row.up, before: reference?.median ?? null, after: row.value})), others: []};
+          up: row.up, before: reference?.median ?? null, after: row.value})), others: [], companion: null};
     }
   }
   const query = new URLSearchParams({asset_id: asset.assetId});
@@ -169,7 +171,7 @@ export async function readFleet(asset: Asset, signal: AbortSignal, like: string 
   if (body.asset_id !== asset.assetId) invalid();
   const group = parseGroup(body.group);
   const split = group ? splitChanges(group, await readFleetChanges(asset.assetId, group, null, signal)) : {changes: [], others: []};
-  return {group, ...split, live: false, href: investigationHref(asset.assetId, group, null)};
+  return {group, ...split, live: false, href: investigationHref(asset.assetId, group, null), companion: parseGroup(body.companion)};
 }
 
 /** 묶음 신호의 선 색(디자인 토큰). 색 옆에 항상 상·축 이름을 함께 적는다. */

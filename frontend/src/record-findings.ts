@@ -36,6 +36,8 @@ export type FoundInterval = {
  * level, as found in the record's own current. */
 export type Operation = {
   key: string; label: string; unit: string | null; context?: RecordContext | null;
+  /** 운전 수준을 나눈 신호(예: 전류평균)의 채널. 조사 화면이 같은 시간축에 그 추이를 그린다. */
+  channel?: string | null;
   stoppedBelow: number;
   levels: {low: number; high: number | null; typical: number}[];
   /** The current's own first 30%, which the shares before and after are split at. */
@@ -184,7 +186,8 @@ export function parseOperation(raw: unknown): Operation {
   const read = {record: shareList(shares.record), baseline: shareList(shares.baseline), after: shareList(shares.after)};
   if (Object.values(read).some(list => list && list.length !== bands)) invalid();
   return {key: text(row.key), label: text(row.label), unit: typeof row.unit === "string" && row.unit.trim() ? row.unit : null,
-    context: recordContext(row.context ?? null), stoppedBelow: finite(row.stopped_below), levels, shares: read,
+    context: recordContext(row.context ?? null), channel: typeof object(row.context)?.channel === "string" ? String(object(row.context)!.channel) : null,
+    stoppedBelow: finite(row.stopped_below), levels, shares: read,
     baseline: row.baseline === null || row.baseline === undefined ? null : period(row.baseline),
     bucketSeconds: finite(row.bucket_seconds), timeline, excluded: finite(row.excluded)};
 }

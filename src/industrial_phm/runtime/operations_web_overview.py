@@ -48,6 +48,8 @@ def asset_overview(
         "operation": None,
         "main": None,
         "group": None,
+        # 묶음 아래 같은 시간축에 그리는 부하 신호(전류): 전압이 오른 때의 부하가 함께 보인다.
+        "companion": None,
         "finding": None,
         "history_interval": None,
         "vibration_interval": None,
@@ -112,6 +114,14 @@ def asset_overview(
             focus = body["history_interval"] or main
         if focus is not None:
             body["group"] = _history_group(history, asset_id, found, focus)
+        group = body["group"]
+        if operation is not None and group is not None and group.get("unit") != operation["unit"]:
+            load = next(
+                (row for row in found["signals"] if row["key"] == operation["context"]["key"]),
+                None,
+            )
+            if load is not None:
+                body["companion"] = _history_group(history, asset_id, found, load)
         return body
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     if not store.path.exists():

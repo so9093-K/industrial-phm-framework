@@ -11,6 +11,7 @@
   import AssetTimeline from "./AssetTimeline.svelte";
   import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
   import {readAcquisitionTrend} from "../acquisition-trend";
+  import {readTrends} from "../history";
   import {readChangeReviews} from "../change-reviews";
   import {DECISION_LABEL} from "../review-writes";
   import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
@@ -281,6 +282,21 @@
     }
     return shown?.kind==="vibration"&&measured?.intervals[shown.index]?.to===measured?.last;
   });
+  /** 부하 신호(운전 수준을 나눈 전류): 조사 화면이 고른 변화 아래 같은 시간축에 그 실제 추이를 그린다. */
+  const timelineLoad = $derived.by(() => {
+    const shown = evidenceFocus, history: RecordFindings | null = findings;
+    if (shown?.kind !== "history" || !history || !shown.item.operation) return null;
+    const own = history.operation.find(entry => entry.key === shown.item.operation?.key);
+    if (!own?.context || !own.channel) return null;
+    const {sourceId, interpretationId} = own.context, channel = own.channel;
+    return {label: own.label, unit: own.unit, read: async (from: number, to: number, signal: AbortSignal) => {
+      const trend = (await readTrends(assetId, [channel], {from: new Date(from).toISOString(), to: new Date(to).toISOString()}, "latest", signal, sourceId)).get(channel)!;
+      const step = (trend.bucketSeconds ?? 0) * 1000;
+      const own = trend.buckets.filter(bucket => bucket.interpretationId === interpretationId && bucket.mean !== null);
+      return own.map((bucket, index) => ({x: Date.parse(bucket.bucketStart), value: bucket.mean!,
+        join: index > 0 && Date.parse(bucket.bucketStart) - Date.parse(own[index - 1].bucketStart) <= step * 1.5}));
+    }};
+  });
   /** 고른 변화가 판단된 출처의 운전 수준 시간표. */
   const timelineOperation = $derived.by((): TimelineOperation | null => {
     const shown = evidenceFocus, history: RecordFindings | null = findings;
@@ -398,7 +414,7 @@
 <section class="ui-panel facts-panel" aria-label="고른 변화" aria-busy={busy}>
   {#if current && recordSpan && lanes.length}
     <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
-      episodes={episodeChoices} {actions} {lanes} operation={timelineOperation}
+      episodes={episodeChoices} {actions} {lanes} operation={timelineOperation} load={timelineLoad}
       periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}
       onFocus={key => { const item = items.find(row => row.key === key); if (item) selectChange(item.pick); }} />
