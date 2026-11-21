@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {parseRecordFindings} from "./record-findings.ts";
-import {readChangeDiscussion,changeActionLinks,investigationLinks} from "./change-investigation.ts";
+import {readChangeDiscussion,readSteps,changeActionLinks,investigationLinks} from "./change-investigation.ts";
 
 test("an answer's follow-up uses the selected feature and periods, and opens the exact model at onset",()=>{
   const change={feature:"vertical.rms",baseline:{from:3,to:12},from:23,to:41};
@@ -52,4 +52,18 @@ test("an electrical suggestion opens the chosen voltage interval instead of the 
   assert.equal(q.get("tab"),"change");assert.equal(q.get("method"),"electrical");
   const picked=q.get("monitor_pick")!.split("~").map(Date.parse);
   assert.deepEqual(picked,[Date.parse("2020-10-03T00:00:00Z"),Date.parse("2020-10-03T01:00:00Z")]);
+});
+
+test("the checked rows point at what the chart draws, and a row without a drawing is still listed",()=>{
+  const steps=readSteps({
+    steps:[{fact:"feature_0",label:"R상전압",result:"222 → 226 V"},{fact:"operating_level",label:"같은 운전 수준끼리 비교",result:"약 11 A 운전"},
+      {fact:"model_0",label:"LSTM 오토인코더",result:"기준 초과 52회 중 48회"},{fact:1,label:"x",result:"y"}],
+    targets:{feature_0:{kind:"change",review_key:"a",label:"R상전압",before:222,after:226,unit:"V",where:"10월 4일"},
+      operating_level:{kind:"operation",label:"운전 수준",detail:"약 11 A 운전 중인 측정끼리 비교"}},
+  });
+  assert.deepEqual(steps.map(row=>[row.label,row.result,row.target?.kind??null]),[
+    ["R상전압","222 → 226 V","change"],["같은 운전 수준끼리 비교","약 11 A 운전","operation"],["LSTM 오토인코더","기준 초과 52회 중 48회",null]]);
+  assert.equal(steps[0].target?.fact,"feature_0");
+  assert.deepEqual(readSteps(undefined),[]);
+  assert.deepEqual(readSteps({facts:{}}),[]);
 });

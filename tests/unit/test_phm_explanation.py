@@ -12,6 +12,7 @@ from industrial_phm.application.phm_explanation import PhmExplanationStore
 from industrial_phm.genai.local_explanation import (
     AnalysisExplanationError,
     ExplanationProvider,
+    _answer_object,
     complete_json,
 )
 from industrial_phm.runtime.operations_web_phm_explanation import (
@@ -183,6 +184,17 @@ def test_plain_chat_answers_when_the_model_has_no_structured_output() -> None:
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_an_answer_written_after_an_echoed_schema_in_a_code_fence_is_read() -> None:
+    """Seen from the local model: '```json', the schema, then the answer, fence left open."""
+    schema = {"type": "object", "properties": {"summary": {"type": "string"}}}
+    answer = {"summary": "순서대로 답합니다."}
+    for text in (
+        "```json\n" + json.dumps(schema) + "\n" + json.dumps(answer, ensure_ascii=False),
+        "```json\n" + json.dumps(schema) + "\n```\n```json\n" + json.dumps(answer) + "\n```",
+    ):
+        assert _answer_object(text, schema) == answer
 
 
 def test_ai_unavailable_still_allows_direct_review_of_exact_stored_result(tmp_path: Path) -> None:

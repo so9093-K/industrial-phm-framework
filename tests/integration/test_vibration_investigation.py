@@ -60,6 +60,12 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
     assert facts["targets"]["spectrum_0"]["kind"] == "spectrum"
     assert not any(key.startswith("model_") for key in facts["targets"])
+    # 확인한 항목: the selected change first, then whether it stayed outside and how it moved.
+    steps = facts["steps"]
+    assert steps[0]["fact"] == "feature_0" and " → " in steps[0]["result"]
+    assert [row["fact"] for row in steps[1:3]] == ["persistence", "flow"]
+    assert all(row["fact"] in facts["facts"] for row in steps)
+    assert any(row["fact"].startswith("model_") for row in steps)
     together = [row["review_key"] for row in context["episode"]]
     assert chosen["review_key"] in together
     if len(together) > 1:
@@ -94,6 +100,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         time.sleep(0.01)
     assert record and record["status"] == "complete"
     assert record["answer"]["source"] == "model"
+    # The rows shown as checked are the ones this answer was given: no model rows here.
+    shown = record["context"]["investigation"]["steps"]
+    assert shown and not any(row["fact"].startswith("model_") for row in shown)
     assert "에너지 비중" in record["answer"]["next_step"]
     # An answer that names no evidence still points at the selected change.
     assert [row["review_key"] for row in record["answer"]["evidence"]] == [chosen["review_key"]]
@@ -155,6 +164,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert set(missing["actions"]) == {"compare", "model"}
     assert "spectrum_0" not in missing["facts"]
     assert "원본 파형" in missing["facts"]["spectrum"]
+    assert {"fact": "spectrum", "label": "주파수", "result": "원본 파형을 읽지 못함"} in missing[
+        "steps"
+    ]
 
 
 @pytest.mark.parametrize("invented_field", ["summary", "next_step"])

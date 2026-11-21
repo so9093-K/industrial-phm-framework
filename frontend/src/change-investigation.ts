@@ -35,7 +35,22 @@ export function readEvidence(raw:unknown):Evidence[]{
     return {...row,unit:typeof row!.unit==="string"?row!.unit:null} as Evidence;
   });
 }
-export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null};
+/** 조사가 확인한 항목 한 줄(항목 · 결과). 그래프에 그려진 것이면 target으로 그 자리를 가리킨다. */
+export type Step={label:string;result:string;target:Evidence|null};
+export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;steps:Step[];followUp:boolean};
+/** 질문을 받을 때 서버가 계산해 둔 확인 항목. 이전 기록(항목 없음)은 빈 목록, 모양이 다른 줄은 건너뛴다. */
+export function readSteps(raw:unknown):Step[]{
+  const investigation=object(raw),targets=object(investigation?.targets),steps=investigation?.steps;
+  if(!Array.isArray(steps))return [];
+  return steps.slice(0,12).flatMap(item=>{
+    const row=object(item);
+    if(!row||typeof row.fact!=="string"||typeof row.label!=="string"||typeof row.result!=="string")return [];
+    const drawn=object(targets?.[row.fact]);
+    let target:Evidence|null=null;
+    if(drawn)try{target=readEvidence([{...drawn,fact:row.fact}])[0];}catch{target=null;}
+    return [{label:row.label,result:row.result,target}];
+  });
+}
 /** An AI suggestion opens an existing analysis of this exact change, never a new default. */
 export function changeActionLinks(asset:string, change:{feature:string;from:number;to:number;baseline:{from:number;to:number}}, binding:string|null, actions:readonly ChangeAction[]) {
   const spans={a:change.baseline,b:{from:change.from,to:change.to}};
@@ -64,7 +79,8 @@ export async function readChangeDiscussion(asset:string,key:string,signal:AbortS
     if(answer&&(typeof answer.summary!=="string"||(answer.next_step!==undefined&&(typeof answer.next_step!=="string"||!answer.next_step.trim()||answer.next_step.length>200))||!Array.isArray(answer.actions)||answer.actions.some(a=>!CHANGE_ACTIONS.includes(a as ChangeAction))||!["model","computed"].includes(String(answer.source))))
       throw new Error("조사 설명의 다음 분석을 확인하지 못했습니다.");
     return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],
-      answer:answer?{...answer,evidence:readEvidence(answer.evidence)} as ChangeAnswer:null};
+      answer:answer?{...answer,evidence:readEvidence(answer.evidence)} as ChangeAnswer:null,
+      steps:readSteps(context.investigation),followUp:typeof context.parent_id==="string"};
   });
 }
 export async function askChange(asset:string,key:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null):Promise<void> {

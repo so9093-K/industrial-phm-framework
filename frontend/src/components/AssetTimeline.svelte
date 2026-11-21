@@ -1,5 +1,7 @@
 <script lang="ts">
   import type {Snippet} from "svelte";
+  /** 부하(전류) 한 칸: 평균과 그 시간의 최저~최고. */
+  type LoadPoint={x:number;value:number;join:boolean;low:number;high:number};
   import XAxis from "./XAxis.svelte";
   import TrendChart from "./TrendChart.svelte";
   import {measure} from "../chart-axis";
@@ -16,9 +18,9 @@
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
-    load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<{x:number;value:number;join:boolean}[]>}|null;
+    load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<LoadPoint[]>}|null;
     actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
-    /** 오른쪽 칸의 AI 해석. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
+    /** 오른쪽 칸의 AI 조사. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
     assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
   let rail=$state<"context"|"assistant">("context");
@@ -81,7 +83,7 @@
   const readAt=$derived(inside(cursor)??inside(selected)??shownLast);
   const shade=(level:number,count:number)=>.18+.72*level/Math.max(1,count);
   // 보이는 구간(기록 전체·확대)이 바뀔 때마다 그 구간의 부하 추이를 다시 읽는다.
-  let loadPoints:{x:number;value:number;join:boolean}[]|null=$state(null);
+  let loadPoints:LoadPoint[]|null=$state(null);
   $effect(()=>{
     const source=load,from=lo,to=hi;
     loadPoints=null;
@@ -99,11 +101,11 @@
 {#if focused}
 <section class="timeline" class:chatting aria-label="선택한 변화"><div class="main">
   <header class="headline"><div><h2>{focused.label} · {focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
-    <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+" 중":""}</p></div>
+    <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
       {#if assistant}<button type="button" class="ai-toggle" aria-pressed={chatting} onclick={()=>rail=chatting?"context":"assistant"}>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 해석</button>{/if}
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>{/if}
     </div>
   </header>
   {#if !focused.values}<p class="numbers">{focused.numbers}</p>{/if}
@@ -127,10 +129,11 @@
         guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
     {/each}
     {#if load&&loadGroup}
-      <div class="lane-heading"><strong>{load.label}</strong>{#if readAt!==null}{@const point=valueAt(loadGroup.series[0].points,readAt,loadReach)}<span class="readout"><span><i style:background="var(--color-ink-muted)"></i><b>{point?measure(point.value,load.unit,3):"—"}</b></span></span>{/if}</div>
+      <div class="lane-heading"><strong>{load.label}</strong><span class="levels"><span><i class="mean-key"></i>평균</span><span><i class="spread-key"></i>최저~최고</span></span>
+        {#if readAt!==null}{@const point=valueAt(loadPoints??[],readAt,loadReach)}<span class="readout"><span><i style:background="var(--color-ink-muted)"></i><b>{point?measure(point.value,load.unit,3):"—"}</b>{#if point&&point.high>point.low}<small>{measure(point.low,load.unit,3)}~{measure(point.high,load.unit,3)}</small>{/if}</span></span>{/if}</div>
       <!-- 운전 수준 띠 대신 실제 전류 추이: 전압이 오른 동안 부하가 어땠는지 같은 시간축에서 읽힌다. -->
       <div class="load-chart" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}>
-        <TrendChart group={loadGroup} series={loadGroup.series} {lo} {hi} axis={false} height={84} colors={["var(--color-ink-muted)"]}
+        <TrendChart group={loadGroup} series={loadGroup.series} spread={loadPoints??[]} {lo} {hi} axis={false} height={84} colors={["var(--color-ink-muted)"]}
           changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
           guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
       </div>
@@ -154,7 +157,7 @@
   {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
   </div>
   <!-- AI 대화창은 조사 영역의 오른쪽 전체 높이에 붙는다. 대화가 길어져도 대화창 안에서만 스크롤하고 그래프는 그대로 보인다. -->
-  {#if chatting&&assistant}<aside class="dock" aria-label="AI 해석"><div class="dock-inner">{@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}</div></aside>{/if}
+  {#if chatting&&assistant}<aside class="dock" aria-label="AI 조사"><div class="dock-inner">{@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}</div></aside>{/if}
 </section>
 {/if}
 <style>
@@ -174,6 +177,7 @@
   .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}.plots{min-width:0;display:grid;gap:4px}
   /* 그래프·운전 수준·가로축의 왼쪽 눈금 칸을 같은 폭으로 맞춘다. */
   .plots :global(.plotted){grid-template-columns:56px minmax(0,1fr)}.strip{display:grid;grid-template-columns:56px minmax(0,1fr);gap:var(--space-2)}.strip svg{display:block;width:100%;height:20px}.level{fill:var(--color-ink)}.level.stop{fill:none}
+  .mean-key{display:inline-block;width:12px;height:2px;border-radius:1px;background:var(--color-ink-muted)}.spread-key{display:inline-block;width:12px;height:10px;background:var(--color-ink-muted);opacity:.25}
   .levels{display:inline-flex;flex-wrap:wrap;gap:4px 12px}.levels span{display:inline-flex;align-items:center;gap:5px}.level-key{display:inline-block;width:12px;height:10px;background:var(--color-ink)}.level-key.stop{background:none;border:1px solid var(--color-border);opacity:1}
   .lane-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin-top:8px;padding-left:64px;font-size:var(--font-small)}.lane-heading.main{margin-top:0}.lane-heading .levels{color:var(--color-ink-muted);font-size:var(--font-label)}
   .readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}.readout span{display:inline-flex;align-items:center;gap:5px;color:var(--color-ink-muted)}.readout i{display:inline-block;width:12px;height:3px;border-radius:2px}.readout b{color:var(--color-ink);font-weight:650}.readout small{color:var(--color-ink-muted);font-size:var(--font-label)}

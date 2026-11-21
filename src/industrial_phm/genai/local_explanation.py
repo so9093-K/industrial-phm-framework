@@ -82,6 +82,7 @@ class _NoRedirect(HTTPRedirectHandler):
 # Status codes with which a server declines a request shape rather than failing.
 _UNSUPPORTED = frozenset({400, 404, 405, 422, 501})
 _FENCED = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
+_FENCE_MARK = re.compile(r"^```(?:json)?")
 
 
 def _schema_instructed(
@@ -116,7 +117,14 @@ def _answer_object(text: str, schema: dict[str, object]) -> object:
     to the schema is not an answer. Callers still check every field of what is returned.
     """
     decoder = json.JSONDecoder()
-    rest = text.strip()
+
+    def unfenced(rest: str) -> str:
+        # 값마다 코드 울타리('```json', '```')를 열고 닫거나, 닫지 않고 이어 쓰기도 한다.
+        while rest.startswith("```"):
+            rest = _FENCE_MARK.sub("", rest, count=1).lstrip()
+        return rest
+
+    rest = unfenced(text.strip())
     values: list[object] = []
     while rest and len(values) < 4:
         try:
@@ -126,7 +134,7 @@ def _answer_object(text: str, schema: dict[str, object]) -> object:
                 break
             raise
         values.append(value)
-        rest = rest[end:].lstrip()
+        rest = unfenced(rest[end:].lstrip())
     return next((value for value in values if value != schema), values[0])
 
 

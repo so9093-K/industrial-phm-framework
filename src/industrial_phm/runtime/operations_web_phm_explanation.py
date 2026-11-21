@@ -16,7 +16,7 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.change_answer import generate_change_answer
+from industrial_phm.genai.change_answer import asks_about_models, generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_web_change_context import (
@@ -103,7 +103,13 @@ class ExplanationManager:
         if parent_id is not None:
             context["parent_id"] = parent_id
             context["history"] = self._history(parent_id, context)
-        context["investigation"] = investigation_facts(self.workspace, context)
+        investigation = investigation_facts(self.workspace, context)
+        # 확인한 항목은 이 질문의 답에 실제로 넘기는 것만: 모델을 묻지 않으면 모델 결과는 뺀다.
+        if not asks_about_models(question):
+            investigation["steps"] = [
+                row for row in investigation["steps"] if not row["fact"].startswith("model_")
+            ]
+        context["investigation"] = investigation
         return self._enqueue(context, configured_provider())
 
     def _enqueue(self, context: dict[str, Any], provider: ExplanationProvider) -> dict[str, object]:

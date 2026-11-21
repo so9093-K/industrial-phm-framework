@@ -293,7 +293,9 @@
       const trend = (await readTrends(assetId, [channel], {from: new Date(from).toISOString(), to: new Date(to).toISOString()}, "latest", signal, sourceId)).get(channel)!;
       const step = (trend.bucketSeconds ?? 0) * 1000;
       const own = trend.buckets.filter(bucket => bucket.interpretationId === interpretationId && bucket.mean !== null);
+      // 평균과 함께 그 시간의 최저~최고: 두 수준을 오가는 설비는 평균이 실제로 돌지 않은 값이 된다.
       return own.map((bucket, index) => ({x: Date.parse(bucket.bucketStart), value: bucket.mean!,
+        low: bucket.minimum ?? bucket.mean!, high: bucket.maximum ?? bucket.mean!,
         join: index > 0 && Date.parse(bucket.bucketStart) - Date.parse(own[index - 1].bucketStart) <= step * 1.5}));
     }};
   });
@@ -347,7 +349,7 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
-  // AI 해석의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
+  // AI 조사의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
   let memo: {reviewKey: string; sequence: number; text: string} | null = $state(null);
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
   const decision = $derived.by((): {reviewKey:string}|null => {

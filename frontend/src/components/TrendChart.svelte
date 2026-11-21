@@ -10,11 +10,13 @@
   /** 추이 그래프의 공통 규칙: 같은 단위의 신호 묶음을 한 눈금에 겹치고, 찾은 변화는 옅은 구간과 시작선으로,
    * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(모니터링 중이면 모니터링 시점)이다.
    * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false.
-   * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다. */
-  let {group, series, lo, hi, changes, reference = null, band = null, marks = [], live = false, height = 150, axis = true,
+   * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
+   * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
+  let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
     colors = SERIES_COLORS, guide = null, dim = [], picked = $bindable(null), cursor = $bindable(null), onPick}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
+    spread?: {x: number; low: number; high: number; join: boolean}[];
     live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void;
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
@@ -24,7 +26,15 @@
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
   // 처음 범위와 같은 운전 수준의 값도 같은 눈금 안에 들어와야 한다.
-  const extra = $derived([...(reference === null ? [] : [reference]), ...(band ? [band.low, band.high] : []), ...marks.map(point => point.value)]);
+  const extra = $derived([...(reference === null ? [] : [reference]), ...(band ? [band.low, band.high] : []), ...marks.map(point => point.value),
+    ...spread.flatMap(point => [point.low, point.high])]);
+  // 최저~최고 띠: 이어진 칸끼리 한 덩어리로(측정이 끊긴 곳에서는 띠도 끊는다).
+  const spreadPath = $derived.by(() => {
+    const runs: (typeof spread)[] = [];
+    for (const point of spread) if (point.join && runs.length) runs.at(-1)!.push(point); else runs.push([point]);
+    return runs.map(run => "M" + run.map(point => x(point.x).toFixed(1) + " " + y(point.high).toFixed(1)).join("L")
+      + "L" + [...run].reverse().map(point => x(point.x).toFixed(1) + " " + y(point.low).toFixed(1)).join("L") + "Z").join(" ");
+  });
   const low = $derived(values.length ? Math.min(...values, ...extra) : 0);
   const high = $derived(values.length ? Math.max(...values, ...extra) : 1);
   const pad = $derived(high > low ? (high - low) * 0.1 : Math.max(Math.abs(low) * 0.02, 0.5));
@@ -61,6 +71,7 @@
           {/each}
           {#if band}<rect class="band" x="0" width={Math.min(W, x(end))} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))}/>{/if}
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
+          {#if spread.length}<path class="spread" d={spreadPath} style:fill={colors[0]}/>{/if}
           {#each series as row, index (row.key)}
             <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}
               class:faint={dim.includes(row.key)}/>
@@ -89,6 +100,7 @@
   .onset{stroke:var(--color-change-line);stroke-width:1.5}
   .reference{stroke:var(--color-reference-line);stroke-width:1;stroke-dasharray:5 4}
   .band{fill:var(--color-reference-line);opacity:.1}
+  .spread{stroke:none;opacity:.22}
   .marks{fill:none;stroke-width:6;stroke-linecap:round;opacity:.55}
   path{fill:none;stroke-width:1.6;stroke-linejoin:round}
   line,path{vector-effect:non-scaling-stroke}

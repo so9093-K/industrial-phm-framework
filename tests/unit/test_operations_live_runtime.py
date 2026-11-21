@@ -1,3 +1,5 @@
+import inspect
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -21,6 +23,7 @@ from industrial_phm.application.source_registration import (
     SourceType,
 )
 from industrial_phm.connectors import OpcUaNodeMapping
+from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime import operations_live
 from industrial_phm.runtime.operations_app_wiring import resolve_operations_app_paths
 
@@ -88,6 +91,22 @@ def _file_source() -> RegisteredSource:
     )
 
 
+def _keywords(method: Callable[..., object]) -> set[str]:
+    return {
+        name
+        for name, parameter in inspect.signature(method).parameters.items()
+        if parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    }
+
+
+def _takes_what_history_takes(fake: type, *names: str) -> None:
+    """A fake history takes the real method's keywords, so a new argument fails here first."""
+    for name in names:
+        assert _keywords(getattr(fake, name)) == _keywords(getattr(DuckLakeAssetHistory, name)), (
+            name
+        )
+
+
 def test_live_loader_anchors_recent_window_to_mapped_live_source(
     tmp_path,
     monkeypatch,
@@ -118,8 +137,10 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
         def __init__(self, _config) -> None:
             pass
 
-        def query_latest_measurements(self, _asset_id, *, channel_id):
+        def query_latest_measurements(self, _asset_id, *, channel_id, snapshot_id=None):
             assert channel_id == "current-r"
+            # 실시간 관측은 고정된 저장 시점이 아니라 지금 저장된 최신 값을 읽는다.
+            assert snapshot_id is None
             return newer_file_point, live_point
 
         def query_measurement_page(
@@ -139,6 +160,7 @@ def test_live_loader_anchors_recent_window_to_mapped_live_source(
             query["end_at"] = end_at
             return MeasurementHistoryPage((live_point,), False, point_budget)
 
+    _takes_what_history_takes(_FakeHistory, "query_latest_measurements", "query_measurement_page")
     monkeypatch.setattr(operations_live, "DuckLakeAssetHistory", _FakeHistory)
 
     source = _live_source()
@@ -224,7 +246,7 @@ def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
         snapshot_id=7,
         buckets=(),
     )
-    calls: list[tuple[str, tuple[str, ...], datetime, datetime, int]] = []
+    calls: list[dict[str, object]] = []
 
     class _History:
         def query_multi_signal_measurement_aggregation(
@@ -234,11 +256,28 @@ def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
             channel_ids,
             start_at,
             end_at,
-            bucket_count,
+            bucket_count=120,
+            source_id=None,
+            measurement_point_id=None,
+            interpretation_json=None,
+            snapshot_id=None,
         ):
-            calls.append((asset_id, tuple(channel_ids), start_at, end_at, bucket_count))
+            calls.append(
+                {
+                    "asset_id": asset_id,
+                    "channel_ids": tuple(channel_ids),
+                    "start_at": start_at,
+                    "end_at": end_at,
+                    "bucket_count": bucket_count,
+                    "source_id": source_id,
+                    "measurement_point_id": measurement_point_id,
+                    "interpretation_json": interpretation_json,
+                    "snapshot_id": snapshot_id,
+                }
+            )
             return expected
 
+    _takes_what_history_takes(_History, "query_multi_signal_measurement_aggregation")
     result = operations_live.query_operations_multi_signal_measurement_aggregation(
         _History(),
         "boiler-01",
@@ -246,15 +285,23 @@ def test_multi_signal_trend_wrapper_uses_one_aggregation_query() -> None:
         start_at=NOW - timedelta(hours=1),
         end_at=NOW,
         bucket_count=120,
+        source_id="live-opcua",
+        point_id="panel-main",
+        snapshot_id=7,
     )
 
     assert result == expected
+    # 출처·측정 위치·저장 시점이 그대로 한 번의 조회로 넘어간다.
     assert calls == [
-        (
-            "boiler-01",
-            ("current-r", "temperature"),
-            NOW - timedelta(hours=1),
-            NOW,
-            120,
-        )
+        {
+            "asset_id": "boiler-01",
+            "channel_ids": ("current-r", "temperature"),
+            "start_at": NOW - timedelta(hours=1),
+            "end_at": NOW,
+            "bucket_count": 120,
+            "source_id": "live-opcua",
+            "measurement_point_id": "panel-main",
+            "interpretation_json": None,
+            "snapshot_id": 7,
+        }
     ]
