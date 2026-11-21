@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type {Snippet} from "svelte";
+  import {untrack,type Snippet} from "svelte";
   /** 부하(전류) 한 칸: 평균과 그 시간의 최저~최고. */
   type LoadPoint={x:number;value:number;join:boolean;low:number;high:number};
   import XAxis from "./XAxis.svelte";
@@ -14,16 +14,18 @@
   /** 고른 변화를 관제 화면과 같은 그래프 규칙으로 크게 본다. 같은 시기에 함께 변한 신호 중 단위가 같은 것은
    * 한 그래프에 겹치고(R·S·T상은 관제 화면과 같은 색), 단위가 다른 것은 같은 시간축의 작은 그래프로 아래에 둔다.
    * 처음 범위(변화로 판단하지 않는 범위)·처음 수준·같은 운전 수준의 값은 고른 신호에만 그린다. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant,assistantFirst=false}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
     load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<LoadPoint[]>}|null;
     actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
     /** 오른쪽 칸의 AI 조사. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
-    assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
+    assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>;
+    /** 관제의 'AI 조사'로 들어왔으면 오른쪽 칸을 AI 조사로 연다. */
+    assistantFirst?:boolean}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
-  let rail=$state<"context"|"assistant">("context");
+  let rail=$state<"context"|"assistant">(untrack(()=>assistantFirst)?"assistant":"context");
   const chatting=$derived(rail==="assistant"&&!!assistant);
   // 가리킨 근거: 찾은 변화는 그 줄, 운전 수준은 띠와 고른 신호의 같은 수준 값. 그래프 밖의 근거는 가리키지 않는다.
   let pointed:Evidence|null=$state(null);

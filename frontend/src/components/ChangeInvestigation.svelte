@@ -14,9 +14,11 @@
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. 답의 근거나 확인한 항목을 가리키면(point)
    * 왼쪽 그래프가 그 선·구간·운전 수준 띠만 남긴다. together는 같은 시기로 함께 그린 변화 수,
    * colorOf는 근거 변화가 그래프에서 쓰는 색. 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,onMemo,onStart,onClose,together=1,colorOf=()=>null,labelOf=()=>null,point=()=>{},active=true}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
+  let {assetId,focus,onMemo,onStart,onClose,together=1,colorOf=()=>null,labelOf=()=>null,point=()=>{},active=true,autostart=false,onAutostart}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
     onStart?:()=>void;onClose?:()=>void;together?:number;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
-    point?:(evidence:Evidence|null)=>void;active?:boolean}=$props();
+    point?:(evidence:Evidence|null)=>void;active?:boolean;
+    /** 관제의 'AI 조사'로 들어왔으면 대화가 없을 때 '이 변화 조사'를 바로 보낸다(onAutostart로 한 번만). */
+    autostart?:boolean;onAutostart?:()=>void}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const electrical=$derived(focus.kind==="history"&&(focus.item.unit==="V"||focus.item.unit==="A"));
@@ -105,6 +107,14 @@
     }}
     finally{if(write===pending){write=null;busy=false;}}
   }
+  // 이미 조사한 변화면 그 대화를 그대로 보이고, 보기 전용이면 보내지 않는다.
+  let autoDone=false;
+  $effect(()=>{
+    if(!autostart||autoDone||loading)return;
+    if(thread.length||awaitingQuestion){autoDone=true;onAutostart?.();return;}
+    if(!writable)return;
+    autoDone=true;onAutostart?.();untrack(()=>void ask(investigate.text));
+  });
   function keydown(event:KeyboardEvent){
     // Enter로 보내고 Shift+Enter는 줄바꿈. 한글을 조합하는 중의 Enter는 글자를 확정할 뿐 보내지 않는다.
     if(event.key!=="Enter"||event.shiftKey||event.isComposing||event.keyCode===229)return;

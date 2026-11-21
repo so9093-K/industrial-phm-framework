@@ -655,6 +655,13 @@ def test_starting_from_a_stop_is_how_the_equipment_ran_not_a_change(tmp_path: Pa
         assert datetime.fromisoformat(change["start"]) >= BASE + timedelta(minutes=165)
         assert change["operation"]["interval"] == [0.0, pytest.approx(1.0)]
         assert change["operation"]["baseline"][0] < 0.5
+        # The load at the same time is told beside it: running near 9 A in both periods.
+        assert change["load"] == {
+            "label": "전류",
+            "unit": "A",
+            "reference": pytest.approx(9.2, abs=0.1),
+            "current": pytest.approx(9.2, abs=0.1),
+        }
     finally:
         stop()
 

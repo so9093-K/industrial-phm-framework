@@ -1,13 +1,15 @@
 <script lang="ts">
-  import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
+  import {aiInvestigationHref, investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
-  import {clockText} from "../asset-timeline";
+  import {clockText, episodes} from "../asset-timeline";
   import {versusStart} from "../change-story";
   import {elapsedText} from "../time-axis";
   import AssetName from "./AssetName.svelte";
   import TrendChart from "./TrendChart.svelte";
 
-  /** 데이터셋 관제의 한 줄: 왼쪽 이름·조건·마지막 값, 가운데 추이, 오른쪽 변화 사실과 조사 링크.
+  /** 데이터셋 관제의 한 줄: 왼쪽 이름·조건·마지막 값, 가운데 추이, 오른쪽 AI 관제.
+   * AI 관제는 지금까지 확인한 범위에서 찾은 변화를 시각순으로 알린다: 가장 최근 변화와 같은 때의 부하,
+   * 그 앞의 변화 몇 개. 'AI 조사'는 그 변화를 판정한 위치의 조사 화면을 열고 AI 조사를 바로 시작한다.
    * 부모가 읽기를 끝낸 줄에만 쓴다(묶음이 없거나 다시 읽는 중이면 부모가 대신 자리를 그린다). */
   let {assetId, name, detail, read, group, replaying, until, found, analyzed, lo, hi, shared, height, playing, onPause, onSignal}: {
     assetId: string; name: string; detail: string | null; read: FleetRead; group: FleetGroup;
@@ -45,6 +47,14 @@
   const mainHeight = $derived(companion ? Math.round(height * .68) : height);
   const loadHeight = $derived(companion ? Math.max(48, height - mainHeight - 20) : 0);
   const loadPoint = $derived(load[0] ? (cursor !== null ? nearest(load[0].points, cursor) : load[0].points.at(-1)) : null);
+  // 앞서 찾은 변화(가장 최근 시기 앞의 시기들): 최근 것부터 두 개까지.
+  const earlier = $derived(episodes(changes, change => change).slice(0, -1).reverse().slice(0, 2)
+    .map(span => span.members.find(row => row.key === group.focus) ?? span.members[0]));
+  const named = (episode: FleetChange[], change: FleetChange) => {
+    const names = series.filter(row => episode.some(item => item.key === row.key)).map(row => row.short);
+    return series.length > 1 && names.length ? together(names) + " " + group.label : change.label;
+  };
+  const watched = $derived(read.live ? "최근 관측 확인" : !replaying ? "기록 전체 확인" : analyzed === null ? "변화 판정 중" : "~" + short(analyzed) + "까지 확인");
 </script>
 
 <li class="row" class:ongoing={still} style:--row={height + (shared ? 26 : 50) + "px"}>
@@ -72,18 +82,30 @@
     {/if}
   </div>
   <div class="fact">
+    <p class="watch"><span class="avatar" aria-hidden="true">AI</span><b>AI 관제</b><span>{watched}</span></p>
     {#if lead}
-      <div class="head"><strong class="what">{series.length > 1 ? together(members) + " " + group.label : lead.label}</strong>
-        <a class="open" href={href(lead)} onclick={onPause} aria-label={name + " 변화 조사"}>조사 →</a></div>
-      <span class="size">{lead.before !== null && lead.after !== null ? versusStart(lead.after, lead.before, group.unit) : lead.up ? "높음" : "낮음"}</span>
-      {#if lead.before !== null && lead.after !== null}<span class="numbers">{measure(lead.before, group.unit, 3)} → {measure(lead.after, group.unit, 3)}</span>{/if}
-      <span class="when">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {still ? "마지막 측정까지 이어짐" : duration(lead)}</span>
+      {#key lead.key + lead.from}
+        <article class="notice" aria-label="AI 관제가 찾은 변화">
+          <span class="when">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {still ? "마지막 측정까지 이어짐" : duration(lead)}</span>
+          <strong class="what">{named(episode, lead)}</strong>
+          <span class="size">{lead.before !== null && lead.after !== null ? versusStart(lead.after, lead.before, group.unit) : lead.up ? "높음" : "낮음"}</span>
+          {#if lead.before !== null && lead.after !== null}<span class="numbers">{measure(lead.before, group.unit, 3)} → {measure(lead.after, group.unit, 3)}</span>{/if}
+          {#if lead.load}<span class="load-fact">같은 때 {lead.load.label} {measure(lead.load.before, lead.load.unit, 2)} → {measure(lead.load.after, lead.load.unit, 2)}</span>{/if}
+          <div class="act">
+            {#if !read.live}<a class="ai-start" href={aiInvestigationHref(assetId, group, replaying ? analyzed : null, lead)} onclick={onPause} aria-label={name + " 변화 AI 조사"}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</a>{/if}
+            <a class="open" href={href(lead)} onclick={onPause} aria-label={name + " 변화 조사"}>조사 →</a>
+          </div>
+        </article>
+      {/key}
+      {#each earlier as change (change.key + change.from)}
+        <span class="earlier">{group.axis === "time" ? clockText(change.from) : change.from + "번째"} · {change.label} {change.up ? "높음" : "낮음"}</span>
+      {/each}
     {:else}
       <div class="head"><span class="calm">{replaying && analyzed === null ? "변화 판정 중" : read.live ? "앞선 관측과 달라진 구간 없음" : "기록 앞부분과 달라진 구간 없음"}</span>
         <a class="open" href={href()} onclick={onPause} aria-label={name + " 측정 보기"}>보기 →</a></div>
     {/if}
-    {#if replaying}<small>판정 범위 · {analyzed === null ? "계산 중" : "~" + short(analyzed)}</small>
-    {:else if other}
+    {#if !replaying && other}
       <button type="button" class="other" onclick={() => onSignal(other.channel)} title="보는 신호를 {other.label}(으)로 바꾸기">
         다른 신호 · {other.label} {group.axis === "time" ? clockText(other.from).replace(/ \d\d:\d\d$/, "") : other.from + "번째"}{read.others.length > 1 ? " 외 " + (read.others.length - 1) : ""}</button>
     {/if}
@@ -109,12 +131,24 @@
   .chart{min-width:0;align-self:center}
   /* 세로 눈금 칸 폭을 고정해 줄마다 그래프 시작이 같고 위의 공유 가로축과 맞는다. */
   .chart :global(.plotted){grid-template-columns:44px minmax(0,1fr)}
-  .fact{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:var(--font-small);overflow:hidden}
+  .fact{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:var(--font-small);overflow:hidden}
   .head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-  .what{font-size:var(--font-small);font-weight:650}
-  .size{font-size:1.05rem;font-weight:650;color:var(--color-ink)}
-  .numbers,.when{color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
-  .fact small{font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  .watch{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .watch b{color:var(--color-ink);font-weight:650}
+  .avatar{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--color-action);color:#fff;font-size:9px;font-weight:700}
+  .notice{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--color-border);border-left:3px solid var(--color-change-mark);border-radius:8px;background:#fbfaf6;animation:arrive .5s ease-out}
+  @keyframes arrive{from{opacity:0;transform:translateY(4px);box-shadow:0 0 0 3px rgb(217 160 40 / .35)}}
+  @media (prefers-reduced-motion:reduce){.notice{animation:none}}
+  .what{font-size:var(--font-small);font-weight:650;color:var(--color-ink)}
+  .size{font-size:1.05rem;font-weight:650;color:var(--color-ink);line-height:1.35}
+  .numbers,.when,.load-fact{color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  .when{font-size:12px}
+  .load-fact{color:var(--color-ink)}
+  .act{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+  .ai-start{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--color-action);border-radius:999px;font-size:12px;font-weight:650;color:var(--color-action);text-decoration:none;background:var(--color-surface)}
+  .ai-start:hover{background:var(--color-surface-selected)}
+  .ai-start svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
+  .earlier{font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:2px}
   .calm{color:var(--color-ink-muted)}
   .open{flex:none;font-size:var(--font-small);font-weight:650;color:var(--color-action);text-decoration:none}
   .open:hover{text-decoration:underline}
