@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onMount, untrack} from "svelte";
-  import type {Snapshot} from "../monitor";
+  import {unreadNotice, type Snapshot} from "../monitor";
   import {readRuntimeStatus, COMPONENT, CONDITION, type RuntimeStatus} from "../operations-status";
   import StatusNotice from "./StatusNotice.svelte";
 
@@ -74,7 +74,7 @@
   {:else if !snapshot}
     <StatusNotice kind="failure" title="저장소를 읽지 못했습니다" message={storeError + ""} />
   {:else if snapshot.errorScopes.length}
-    <StatusNotice kind="uncertain" message={"일부 저장소를 읽지 못했습니다: " + snapshot.errorScopes.join(", ") + ". 보이지 않는 관측·분석·검토 기록이 있을 수 있습니다."} />
+    <StatusNotice kind="uncertain" message={unreadNotice(snapshot.errorScopes)} />
   {:else if snapshot.systemReadUncertain}
     <StatusNotice kind="uncertain" message="저장소를 모두 읽었는지 확인하지 못했습니다." />
   {:else}

@@ -167,3 +167,23 @@ export async function readMonitor(signal: AbortSignal): Promise<Snapshot> {
   }
   return parseMonitor(await response.json() as unknown);
 }
+
+/** 서버가 읽지 못한 범위를 사람이 아는 대상의 이름으로. 같은 대상은 한 번만 적는다. */
+const READ_SCOPE: Record<string, string> = {
+  "source-settings": "데이터 출처 설정", "source-runtime": "출처 수신 기록",
+  "file-feature-analysis-results": "분석 결과", "phase-analysis-results": "분석 결과",
+  "phase-analysis-review-results": "분석 결과", "analysis-attempts": "분석 결과",
+  "review-requests": "검토 기록", "maintenance-review": "검토 기록",
+  "live-data": "실시간 수집 상태", "analysis-service": "분석 서비스 상태",
+  "asset-history": "설비 측정 기록", "collection-control": "수집 제어 설정", "phm-monitor": "모델 분석 상태",
+};
+export function unreadTargets(scopes: string[]): string[] {
+  return [...new Set(scopes.map(scope => READ_SCOPE[scope] ?? (scope.startsWith("live-data:") ? "실시간 수집 상태" : "기타 저장소")))];
+}
+/** 읽지 못한 것이 있을 때의 한 줄: 무엇을 못 읽었고 그래서 무엇이 빠졌을 수 있는지. */
+export function unreadNotice(scopes: string[]): string {
+  const targets = unreadTargets(scopes), named = targets.length ? targets.join(" · ") : "일부 저장소";
+  const code = named.charCodeAt(named.length - 1) - 0xac00;
+  const particle = code >= 0 && code < 11172 && code % 28 !== 0 ? "을" : "를";
+  return named + particle + " 읽지 못했습니다. 이 화면에 빠진 설비나 기록이 있을 수 있습니다.";
+}

@@ -8,8 +8,9 @@ this module owns one bounded, error-tolerant operational read snapshot.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 
 from industrial_phm.application import (
     AcquisitionTelemetrySurface,
@@ -513,6 +514,14 @@ def _load_analysis_runtime(
         return None
 
 
+# 설비 기록 목록은 가져오기가 끝날 때만 바뀐다. 다른 화면의 긴 기록 읽기(전망·조사)가
+# 저장소 잠금을 쥐고 있으면 몇 초마다 도는 관측 목록 읽기는 기다리다 놓친다. 이것은 저장소
+# 고장이 아니므로 이 작업공간에서 마지막으로 읽은 목록을 쓰고 '읽지 못함'으로 알리지 않는다.
+# 한 번도 읽지 못했거나 잠금이 아닌 실패는 그대로 알린다.
+LIST_BUSY_WAIT_SECONDS = 2.0
+_LAST_HISTORY_ASSETS: dict[Path, tuple[HistoryAssetSummary, ...]] = {}
+
+
 def _load_history(
     paths: OperationsWorkspace,
     assessed_at: datetime,
@@ -520,14 +529,26 @@ def _load_history(
 ) -> tuple[DuckLakeAssetHistory | None, tuple[HistoryAssetSummary, ...]]:
     if not paths.history_catalog_path.is_file():
         return None, ()
+    config = DuckLakeAssetHistoryConfig(paths.history_catalog_path, paths.history_data_path)
+    known = _LAST_HISTORY_ASSETS.get(paths.history_catalog_path)
     try:
-        reader = DuckLakeAssetHistory(
-            DuckLakeAssetHistoryConfig(paths.history_catalog_path, paths.history_data_path)
+        # 다른 화면이 이어서 쓰는 읽기 객체는 원래 대기 시간을 둔다. 목록만 짧게 기다린다.
+        reader = DuckLakeAssetHistory(config)
+        lister = (
+            reader
+            if known is None
+            else DuckLakeAssetHistory(
+                replace(config, catalog_lock_timeout_seconds=LIST_BUSY_WAIT_SECONDS)
+            )
         )
-        return reader, list_operations_history_assets(reader)
+        assets = list_operations_history_assets(lister)
     except OperationsReadError as error:
+        if known is not None and isinstance(error.__cause__, TimeoutError):
+            return DuckLakeAssetHistory(config), known
         _append_error(errors, "asset-history", error, assessed_at)
         return None, ()
+    _LAST_HISTORY_ASSETS[paths.history_catalog_path] = assets
+    return reader, assets
 
 
 def _load_collection_records(

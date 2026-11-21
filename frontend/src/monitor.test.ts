@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { assetLabel, assetNameParts, assetOptionLabel, attentionLabel, parseMonitor } from "./monitor.ts";
+import { assetLabel, assetNameParts, assetOptionLabel, attentionLabel, parseMonitor, unreadNotice, unreadTargets } from "./monitor.ts";
 
 const observed = {
   assets: {
@@ -118,4 +118,11 @@ test("public bearing names become readable while custom names and record IDs sur
   assert.deepEqual(assetNameParts("베어링 1-1"),{name:"베어링",number:"1-1"});
   assert.deepEqual(assetNameParts("공기압축기 1301"),{name:"공기압축기",number:"1301"});
   assert.deepEqual(assetNameParts("급수 펌프 2호기"),{name:"급수 펌프 2호기",number:null});
+});
+
+test("an unread store is named as the thing a person knows, once", () => {
+  assert.equal(unreadNotice(["asset-history"]), "설비 측정 기록을 읽지 못했습니다. 이 화면에 빠진 설비나 기록이 있을 수 있습니다.");
+  assert.equal(unreadNotice(["source-settings"]), "데이터 출처 설정을 읽지 못했습니다. 이 화면에 빠진 설비나 기록이 있을 수 있습니다.");
+  assert.equal(unreadNotice(["review-requests", "live-data"]), "검토 기록 · 실시간 수집 상태를 읽지 못했습니다. 이 화면에 빠진 설비나 기록이 있을 수 있습니다.");
+  assert.deepEqual(unreadTargets(["phase-analysis-results", "analysis-attempts", "live-data:meter", "live-data"]), ["분석 결과", "실시간 수집 상태"]);
 });
