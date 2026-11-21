@@ -2,6 +2,7 @@
   import {signalChart,valueRange,type HistoryGroup} from "../history";
   import type {Span} from "../signal-selection";
   import PlotCursor from "./PlotCursor.svelte";
+  import {SERIES_COLORS} from "../fleet-observation";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
   let {series,from,to,bucketSeconds,picked,onPick}:{series:{id:string;label:string;unit:string|null;group:HistoryGroup}[];
@@ -18,18 +19,19 @@
   });
   const lo=$derived(Date.parse(from)),hi=$derived(Date.parse(to));
   const positions=$derived([...new Set(series.flatMap(row=>row.group.buckets.filter(b=>b.mean!==null).map(b=>Date.parse(b.bucketStart))))].sort((a,b)=>a-b));
-  const colors=["var(--color-action)","#bd6017","#557a47","#8c5793","#455e73"];
+  // 관제·조사 화면과 같은 데이터 계열 색(R·S·T상이 화면마다 같은 색). 색 옆에는 범례 이름이 있다.
+  const colors=SERIES_COLORS;
 </script>
 <div class="linked" aria-label="같은 시간축의 관련 실측 신호">
   {#each panels as panel(panel.key)}
     {@const primary=panel.rows.find(row=>row.chart)?.chart}
-    {#if primary}<div class="panel"><div class="legend">{#each panel.rows as row,i(row.id)}<span><i style:border-color={colors[i%colors.length]} style:border-top-style={i%2?"dashed":"solid"}></i>{row.label}</span>{/each}</div>
+    {#if primary}<div class="panel"><div class="legend">{#each panel.rows as row,i(row.id)}<span><i style:border-color={colors[i%colors.length]}></i>{row.label}</span>{/each}</div>
       <ValueAxis ticks={primary.ticks} height={panel.height} unit={panel.unit}>
         <PlotCursor {positions} value={picked?.from??null} {lo} {hi} label="관련 신호를 확인할 측정 시점" onSelect={onPick}>
           <svg viewBox={"0 0 "+primary.width+" "+panel.height} style:height={panel.height+"px"} preserveAspectRatio="none" role="img" aria-label={panel.rows.map(row=>row.label).join(" · ")+" · 공통 시간축과 같은 단위의 눈금"}>
             {#each primary.ticks as tick(tick.value)}<line x1="0" x2={primary.width} y1={tick.y} y2={tick.y} class="grid"/>{/each}
             {#if picked}<rect x={Math.max(0,(picked.from-lo)/(hi-lo)*primary.width)} width={Math.max(2,(Math.min(picked.to,hi)-Math.max(picked.from,lo))/(hi-lo)*primary.width)} height={panel.height} class="picked"/>{/if}
-            {#each panel.rows as row,i(row.id)}{#if row.chart}<path d={row.chart.path} stroke={colors[i%colors.length]} stroke-dasharray={i%2?"6 3":undefined}/>{/if}{/each}
+            {#each panel.rows as row,i(row.id)}{#if row.chart}<path d={row.chart.path} stroke={colors[i%colors.length]}/>{/if}{/each}
           </svg>
         </PlotCursor>
       </ValueAxis>
