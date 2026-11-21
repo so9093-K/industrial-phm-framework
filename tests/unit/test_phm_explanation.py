@@ -246,7 +246,7 @@ def test_facts_state_meanings_the_model_must_not_reinterpret() -> None:
         )
     )
     assert "운영 합격 판정이 기록되어 있지 않습니다" in replayed
-    assert "기록 데이터 재생" in replayed
+    assert "저장 기록으로 계산한 결과" in replayed
 
     anomaly = "\n".join(
         explanation_facts(

@@ -405,9 +405,9 @@ def explanation_facts(
     so every meaning and comparison is stated here from the stored values.
     """
     facts = [
-        "기록 데이터 재생 결과입니다. 현재 현장에서 수신한 측정이 아닙니다."
+        "저장 기록으로 계산한 결과입니다. 현재 현장에서 수신한 측정이 아닙니다."
         if recorded_replay
-        else "재생으로 선언되지 않은 스트림의 결과입니다.",
+        else "저장 기록으로 선언되지 않은 스트림의 결과입니다.",
     ]
     validation = validation if isinstance(validation, dict) else {}
     acceptance = validation.get("acceptance")

@@ -33,7 +33,7 @@ export const NEEDS:Record<GuideId,string>={
   anomaly:"같은 신호의 시간 순서 기록 (모델 점수는 기준 기간을 골라 모델을 만들거나 연결)",
   "period-compare":"비교할 두 시기가 모두 담긴 기록",
   relation:"같은 시각에 함께 기록된 신호 2개 이상",
-  spectrum:"진동 원본 파형 기록 (지금은 XJTU-SY 실측 재생으로 준비)",
+  spectrum:"진동 원본 파형 기록 (지금은 XJTU-SY 저장 기록으로 준비)",
   electrical:"R·S·T 3상 전압·전류 열과 각 상의 역할 지정",
   forecast:"같은 신호의 기록 20개 이상 (예측할 기간의 2배 이상 길이)",
   "ai-question":"신호 추세 전망이나 모델 결과, 그리고 설정된 AI 서버",
@@ -105,7 +105,7 @@ export function fact(item:Capability,capabilities:Capabilities):string{
     case "stored-flow-count":return "기준까지 남은 여유 · 측정 횟수 기준";
     case "outlook-only":return "기준까지 남은 여유 · 기록이 짧아 예측 그래프는 없음";
     case "short-history":return "기록이 짧음 (예측 기간의 2배 이상 필요)";
-    case "connected":return "모델 분석 결과 있음"+(facts.recorded_replay===true?" · 기록 재생":"");
+    case "connected":return "모델 분석 결과 있음"+(facts.recorded_replay===true?" · 저장 기록":"");
     case "model-results":return "모델 결과마다 이전 측정과 비교해 해설";
     case "outlook":return "신호 추세 전망을 근거로 해설";
     case "compatible-model":return "입력이 맞는 모델 "+n("packages")+"개";

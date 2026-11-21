@@ -68,7 +68,7 @@
   const fraction = $derived(dataset && replays[dataset.key] !== undefined ? replays[dataset.key] : null);
   $effect(() => {
     const value = JSON.stringify(replays);
-    try { sessionStorage.setItem(STORE, value); } catch { /* 저장하지 못해도 재생은 된다. */ }
+    try { sessionStorage.setItem(STORE, value); } catch { /* 저장하지 못해도 모니터링은 된다. */ }
   });
 
   // 읽기: 고른 데이터셋의 설비만, 목록이 바뀌거나 수신 중인 출처의 관측 주기가 바뀔 때만 다시 읽는다.
@@ -246,12 +246,12 @@
     <DatasetSchematic kind={dataset.key} equipment={dataset.key === "aihub-239" && kinds.length === 1 ? kinds[0] : null}/>
     <div class="toolbar">
       {#if counts.stored}
-        <div class="transport" aria-label="저장 기록 재생">
+        <div class="transport" aria-label="저장 기록 모니터링">
           <button type="button" class="ui-button play" class:on={playing} onclick={() => playing ? playing = false : play()}>
-            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 재생" : "기록 재생"}</button>
-          <select bind:value={seconds} aria-label="재생 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
+            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 모니터링" : "모니터링 시작"}</button>
+          <select bind:value={seconds} aria-label="모니터링 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
           {#if fraction !== null}
-            <input type="range" aria-label="재생 위치" min="0.01" max="1" step="0.001" value={fraction} oninput={event => seek(Number(event.currentTarget.value))}/>
+            <input type="range" aria-label="모니터링 시점" min="0.01" max="1" step="0.001" value={fraction} oninput={event => seek(Number(event.currentTarget.value))}/>
             {#if clock !== null}<output>{position(legend, clock)}</output>{/if}
             <button type="button" class="ui-button quiet" onclick={stop}>전체 기록</button>
           {/if}

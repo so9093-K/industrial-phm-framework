@@ -24,7 +24,7 @@ export type FleetChange = {key: string; channel: string; label: string; from: nu
   before: number | null; after: number | null;
   /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 재생 판정의 변화에는 없다. */
   ref?: string};
-/** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 재생이 아니다). */
+/** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 모니터링이 아니다). */
 export type FleetRead = {group: FleetGroup | null; changes: FleetChange[]; live: boolean; href: string;
   /** 보는 신호 묶음 밖에서 찾은 변화(예: 상전류를 보는 동안 상전압의 변화). */
   others: FleetChange[]};

@@ -63,7 +63,7 @@
     const url=new URL(location.href);url.searchParams.set("monitor_source",next.sourceId);url.searchParams.set("monitor_point",next.pointId??"");history.replaceState(history.state,"",url);
   }
 </script>
-<!-- 보기 전환과 재생은 한 줄: 그래프보다 조작이 먼저 오지 않게 한다. -->
+<!-- 보기 전환과 모니터링 조작은 한 줄: 그래프보다 조작이 먼저 오지 않게 한다. -->
 <div class="entry-row">
 {#if streams.length}
   <div class="observation-entry"><div class="choices" role="group" aria-label="관측 보기">
@@ -74,7 +74,7 @@
   {/if}</div>
 {/if}
 {#if displayView==="record"&&!(dataState==="loading"&&!data)}
-  {#if data?.history&&data.vibration}<label class="kind-choice">재생할 기록<select value={replayKind??""} onchange={e=>{playing=false;scope=null;selectedKind=e.currentTarget.value as "history"|"vibration";}}><option value="" disabled>기록 종류 선택</option><option value="history">시간별 계측</option><option value="vibration">진동 측정</option></select></label>{/if}
+  {#if data?.history&&data.vibration}<label class="kind-choice">모니터링할 기록<select value={replayKind??""} onchange={e=>{playing=false;scope=null;selectedKind=e.currentTarget.value as "history"|"vibration";}}><option value="" disabled>기록 종류 선택</option><option value="history">시간별 계측</option><option value="vibration">진동 측정</option></select></label>{/if}
   {#if replayKind&&Number.isFinite(replayFrom)&&replayTo>replayFrom}<div class="record-transport"><RecordPlayback kind={replayKind} from={replayFrom} to={replayTo} bind:scope bind:playing busy={replayBusy} onRefresh={()=>archiveRevision++}/></div>{/if}
   {/if}
 </div>

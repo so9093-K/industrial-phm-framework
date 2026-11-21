@@ -26,15 +26,15 @@
   });
   onDestroy(() => { if (timer !== null) clearTimeout(timer); });
 </script>
-<div class="playback" aria-label="저장된 실측 기록 재생">
-  <div class="tools"><span class="kind">과거 실측 기록{scope ? " 재생" : ""}</span>
-    <button type="button" class="ui-button" onclick={() => playing ? pause() : play()} disabled={to <= from}>{playing ? "일시정지" : scope ? "이어서 재생" : "빠르게 재생"}</button>
-    <label>재생 속도<select bind:value={frames}><option value={60}>전체 약 1분</option><option value={20}>전체 약 20초</option><option value={120}>전체 약 2분</option></select></label>
+<div class="playback" aria-label="저장된 실측 기록 모니터링">
+  <div class="tools"><span class="kind">과거 실측 기록{scope ? " 모니터링" : ""}</span>
+    <button type="button" class="ui-button" onclick={() => playing ? pause() : play()} disabled={to <= from}>{playing ? "일시정지" : scope ? "이어서 모니터링" : "모니터링 시작"}</button>
+    <label>속도<select bind:value={frames}><option value={60}>전체 약 1분</option><option value={20}>전체 약 20초</option><option value={120}>전체 약 2분</option></select></label>
     {#if scope}<button type="button" class="ui-button" onclick={() => {pause(); scope = null;}}>전체 기록 보기</button>{/if}
     {#if onRefresh}<button type="button" class="ui-button" onclick={()=>{pause();onRefresh();}} disabled={busy}>다시 읽기</button>{/if}
     <output aria-busy={busy}>{scope ? label(at) : label(from) + " — " + label(to)}{busy ? " · 읽는 중" : ""}</output>
   </div>
-  {#if scope}<input type="range" aria-label="재생할 기록 위치" min={from + 1} max={to} step={kind === "history" ? 1000 : 1} value={at}
+  {#if scope}<input type="range" aria-label="모니터링 시점" min={from + 1} max={to} step={kind === "history" ? 1000 : 1} value={at}
     oninput={e => seek(Number(e.currentTarget.value))} onpointerdown={pause} onkeydown={pause}/>{/if}
 </div>
 <style>
