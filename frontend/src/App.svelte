@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { assetLabel, readMonitor, type Asset, type Snapshot } from "./monitor";
+  import { assetLabel, readMonitor, unreadNotice, type Asset, type Snapshot } from "./monitor";
   import {recentAsset} from "./observation";
   import type {Sources} from "./operations-status";
   import { readWriteSession } from "./session";
@@ -289,7 +289,7 @@
   {:else if snapshot}
     {#if monitoring && loadState !== "empty" && snapshot.assets.length}
       {#if snapshot.systemReadUncertain}
-        <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
+        <StatusNotice kind="uncertain" message={unreadNotice(snapshot.errorScopes)} actionLabel="다시 읽기" onAction={() => void refresh()} />
       {/if}
       {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
       {#if route.page==="monitor"&&!route.assetId}
@@ -315,7 +315,7 @@
         loading={false} onRefresh={() => void refresh()} />
       {#if route.page !== "monitor"}<p class="meta">목록 확인 시각 · {observed(snapshot.assessedAt)}</p>{/if}
       {#if snapshot.systemReadUncertain}
-        <StatusNotice kind="uncertain" message="일부 저장소나 수집 상태를 확인하지 못했습니다. 보이는 내용이 전부가 아닐 수 있습니다." />
+        <StatusNotice kind="uncertain" message={unreadNotice(snapshot.errorScopes)} actionLabel="다시 읽기" onAction={() => void refresh()} />
       {/if}
       {#if snapshot.truncated}
         <StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />
