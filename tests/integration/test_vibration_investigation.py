@@ -56,6 +56,15 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "각 측정의 특징 조합" in facts["facts"]["model_input_0"]
     assert "원인을 확정하지는 못합니다" in facts["facts"]["model_limits"]
     assert set(facts["actions"]) == {"compare", "model", "spectrum", "onset"}
+    # Each citable fact names what the screen draws for it: this change, another, or a band.
+    assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
+    assert facts["targets"]["spectrum_0"]["kind"] == "spectrum"
+    assert not any(key.startswith("model_") for key in facts["targets"])
+    together = [row["review_key"] for row in context["episode"]]
+    assert chosen["review_key"] in together
+    if len(together) > 1:
+        assert "order" in facts["facts"] and "episode_0" in facts["facts"]
+        assert facts["targets"]["episode_0"]["review_key"] in together
     question = "변화 구간의 시작과 지속 범위를 설명해 주세요."
     model = ScriptedModel(
         {
@@ -86,6 +95,8 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert record and record["status"] == "complete"
     assert record["answer"]["source"] == "model"
     assert "에너지 비중" in record["answer"]["next_step"]
+    # An answer that names no evidence still points at the selected change.
+    assert [row["review_key"] for row in record["answer"]["evidence"]] == [chosen["review_key"]]
     sent = json.loads(model.requests[0][1]["content"])
     assert sent["question"] == question
     assert sent["facts"] == {
@@ -172,3 +183,39 @@ def test_change_answer_retries_invented_numbers_and_uses_computed_fallback(
     answer = change_answer.generate_change_answer(context, ExplanationProvider())
     assert len(bad.requests) == 2 and answer["source"] == "computed"
     assert "999" not in answer["summary"] and "15회 중" in answer["summary"]
+
+
+def test_a_change_answer_may_write_dates_and_clock_times_as_people_do(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """'10월 4일 9시' in an answer is the stored '10월 4일 09:19', not an invented number."""
+    selected = {"kind": "change", "review_key": "a" * 64, "label": "R상전압"}
+    share = {"kind": "operation", "label": "운전 수준 비중", "detail": "높음 41% → 0%"}
+    model = ScriptedModel(
+        {
+            "summary": "10월 4일 9시 19분부터 높은 부하의 비중이 41%에서 0%로 줄었습니다.",
+            "next_step": "같은 시각의 다른 상전압을 비교하세요.",
+            "actions": ["signals"],
+            "evidence": ["operating_share", "subject", "feature_0", "unknown"],
+        }
+    )
+    monkeypatch.setattr(change_answer, "complete_json", model)
+    context = {
+        "question": "부하가 바뀌었나요?",
+        "investigation": {
+            "facts": {
+                "subject": "R상전압의 변화 구간은 2020년 10월 4일 09:19부터 10월 5일 07:31까지",
+                "feature_0": "R상전압 222 → 226 V",
+                "operating_share": "운전 수준별 측정 비중: 높음 41% → 0%.",
+            },
+            "actions": ["signals", "compare"],
+            "targets": {"subject": selected, "feature_0": selected, "operating_share": share},
+        },
+    }
+    answer = change_answer.generate_change_answer(context, ExplanationProvider())
+    assert answer["source"] == "model" and len(model.requests) == 1
+    # The same drawn thing is cited once, and only known facts are cited.
+    assert answer["evidence"] == [
+        {"fact": "operating_share", **share},
+        {"fact": "subject", **selected},
+    ]

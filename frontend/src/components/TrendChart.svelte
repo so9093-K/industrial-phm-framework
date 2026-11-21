@@ -12,12 +12,14 @@
    * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false.
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, picked = $bindable(null), cursor = $bindable(null), onPick}: {
+    colors = SERIES_COLORS, guide = null, dim = [], picked = $bindable(null), cursor = $bindable(null), onPick}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void;
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
-    guide?: number | null} = $props();
+    guide?: number | null;
+    /** 옅게 그릴 계열(그 변화 구간도 옅게): 다른 곳에서 가리킨 계열만 또렷하게 남긴다. */
+    dim?: string[]} = $props();
   const W = 1000;
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
@@ -55,22 +57,23 @@
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
           {#each shown as change (change.key + change.from)}
             {@const start = Math.max(0, x(change.from))}
-            <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
+            <rect class="change" class:faint={dim.includes(change.key)} x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
           {/each}
           {#if band}<rect class="band" x="0" width={Math.min(W, x(end))} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))}/>{/if}
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
           {#each series as row, index (row.key)}
-            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}/>
+            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}
+              class:faint={dim.includes(row.key)}/>
           {/each}
           <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
           {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
-          {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
+          {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" class:faint={dim.includes(change.key)} x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
       </PlotCursor>
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
       {#each last as item (item.row.key)}
-        <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
+        <span class="dot" class:live class:faint={dim.includes(item.row.key)} style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
           style:--dot={colors[item.index % colors.length]}></span>
       {/each}
     </div>
@@ -90,6 +93,8 @@
   path{fill:none;stroke-width:1.6;stroke-linejoin:round}
   line,path{vector-effect:non-scaling-stroke}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
+  .faint{opacity:.18}
+  path,rect,line,.dot{transition:opacity .15s}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
   .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}

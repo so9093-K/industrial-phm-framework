@@ -10,6 +10,8 @@ export type TimelinePoint = {x: number; value: number; join?: boolean};
 export type TimelineLane = {
   matched?:TimelinePoint[];
   key: string; label: string; condition: string | null; unit: string | null;
+  /** 이 줄이 그리는 변화의 검토 키(AI 답의 근거가 이 줄을 가리킬 때 쓴다). */
+  reviewKey?: string;
   points: TimelinePoint[]; detail: TimelinePoint[];
   usual: {low: number; high: number}; interval: Span; numbers: string; focus: boolean; up: boolean;
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
