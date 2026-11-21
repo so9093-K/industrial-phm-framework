@@ -1,6 +1,8 @@
 import {object} from "./writes.ts";
 export type SignalEvolution = {
   recentPoints:number;recentFrom:number|string;recentTo:number|string;recentMedian:number;baselineMedian:number|null;
+  /** 처음 범위: 처음 구간 중앙값 ± 변동폭×이탈 기준 배수. 이 밖의 값을 처음과 달라진 값으로 본다. */
+  baselineRange:{low:number;high:number}|null;
   changeRatio:number|null;rate:number;earlierRate:number|null;rateUnit:"acquisition"|"hour"|"day";
 };
 const finite=(v:unknown):v is number=>typeof v==="number"&&Number.isFinite(v);
@@ -14,8 +16,11 @@ export function parseSignalEvolution(raw:unknown):SignalEvolution|null {
   const coordinate=(v:unknown):v is number|string=>root.axis==="acquisition"
     ?finite(v)&&Number.isSafeInteger(v)&&v>=1:typeof v==="string"&&Number.isFinite(Date.parse(v));
   if(!coordinate(recent.from)||!coordinate(recent.to))return null;
-  const baseline=object(data.baseline);
+  const baseline=object(data.baseline),departure=object(data.departure);
+  const range=finite(baseline?.median)&&finite(baseline?.spread)&&finite(departure?.threshold)&&baseline.spread>0
+    ?{low:baseline.median-departure.threshold*baseline.spread,high:baseline.median+departure.threshold*baseline.spread}:null;
   return {recentPoints:recent.points,recentFrom:recent.from,recentTo:recent.to,recentMedian:recent.median,baselineMedian:finite(baseline?.median)?baseline.median:null,
+    baselineRange:range,
     changeRatio:data.change_ratio as number|null,rate:data.rate,earlierRate:data.earlier_rate as number|null,
     rateUnit:root.rate_unit as SignalEvolution["rateUnit"]};
 }

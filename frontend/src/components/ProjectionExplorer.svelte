@@ -21,14 +21,17 @@
   import XAxis from "./XAxis.svelte";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
-  import {reachText, reachCalendarText} from "../reach";
+  import {reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
+  import OutlookChart from "./OutlookChart.svelte";
+  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary} from "../outlook-view";
+  import {clockText} from "../asset-timeline";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
-    HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, outlookChart, spreadRows, suggestedHorizon,
+    HORIZON_LABEL, loadOptions, loadPaired, MeasurementVersionMismatch, ProjectionUnavailable, spreadRows, steadyRange, suggestedHorizon,
     type Conditions, type Direction, type Horizon, type Options, type Projection,
   } from "../projections";
   type Props = {assetId: string};
@@ -40,12 +43,10 @@
   let resultState: State = $state("empty");
   let options: Options | null = $state(null);
   let projection: Projection | null = $state(null);
-  let includeLimits = $state(false);
   let error = $state("");
   let horizonNotice = $state("");
   let selectionLoading = $state(false);
   let selectionReady = $state(false);
-  let now = $state(Date.now());
   const params = new URLSearchParams(location.search);
   let focus:SourceFocus|null=$state(focusFrom(params));
   let selectedRecord=$state(params.get("record_key")??"");
@@ -81,6 +82,16 @@
     if (!Number.isFinite(n)) throw new Error("관리·종료 기준은 유한한 숫자로 입력해야 합니다.");
     return n;
   }
+  // 처음 수준과 처음 범위: 관제·조사 화면의 회색 점선·띠와 같은 뜻으로 전망 그래프에도 그린다.
+  const baseline=$derived.by(()=>{const shown:Projection|null=projection,evolution=shown?.evolution;return evolution?{median:evolution.baselineMedian,low:evolution.baselineRange?.low??null,high:evolution.baselineRange?.high??null}:null;});
+  const suggestions=$derived.by(()=>{const shown:Projection|null=projection;
+    return shown?limitSuggestions(shown.unit??names.get(shown.channel)?.unit??null,baseline,signalName(names,shown.channel)):[];});
+  /** 예측 범위 폭은 표본 탓에 칸마다 들쭉날쭉하다. 그래프에는 고른 폭(steadyRange)으로 그린다. */
+  function steadyFuture(shown:Projection){
+    const steady=steadyRange(shown.future);
+    return shown.future.map((row,i)=>({x:Date.parse(row.at),estimate:row.estimate,lower:steady[i]?.lower??null,upper:steady[i]?.upper??null}));
+  }
+  function suggest(value:number,toward:Direction){direction=toward;management=String(value);save();void calculate();}
   const clock = (at: string): string =>
     new Date(at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul"});
   function label(id: string): string {
@@ -195,8 +206,7 @@
   }
   onMount(()=>{
     void loadSourceOptions();
-    const timer = setInterval(() => { now = Date.now(); }, 60_000);
-    return ()=>{clearInterval(timer);requestOptions?.abort();requestProjection?.abort();};
+    return ()=>{requestOptions?.abort();requestProjection?.abort();};
   });
 </script>
 
@@ -227,7 +237,7 @@
       </label>{/if}
       <label for="projection-horizon">예측 기간
         <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();}}>
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();void calculate();}}>
           {#each horizons as value (value)}
             <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
               {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
@@ -264,7 +274,8 @@
       <StatusNotice kind="uncertain" title="이 기간은 전망할 수 없습니다" message={error} />
     {:else if projection}
       {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
-      {@const chart=outlookChart(projection, includeLimits)}
+      {@const chart=projection.future.length>0}
+      {@const current=projection.scenarios.find(item=>item.id==="current")??projection.scenarios[0]}
       {@const worse=worseThanPersistence(projection.checks?.[0])}
       {@const told=outlookMessage({axis:"time",period:null,
         unit:projection.unit ?? names.get(projection.channel)?.unit ?? null,conditions:projection.conditions,
@@ -273,45 +284,19 @@
           horizon:clock(projection.future.at(-1)!.at),checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
-          <h3 id="projection-result-title">추세 전망</h3>
-          <span class="intro">마지막 실측 · {clock(projection.record.last)} · 예측 {HORIZON_LABEL[projection.horizon]}</span>
+          <h3 id="projection-result-title">{signalName(names, projection.channel)} 전망</h3>
+          <span class="intro">마지막 측정 {clockText(Date.parse(projection.record.last))} · 앞으로 {HORIZON_LABEL[projection.horizon]}</span>
         </div>
         {#if worse}
-          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
+          <p class="forecast-caution" role="status"><strong>이 예측은 마지막 값이 그대로 이어진다고 볼 때보다 과거 오차가 컸습니다.</strong> 측정값의 흐름과 기준선을 먼저 보세요.</p>
         {/if}
-        {#if told && !worse && !limited}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if chart}
-          {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
-          {#if projection.conditions.management!==null&&chart.management===null}<p class="intro">관리 기준 {measure(projection.conditions.management,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
-          {#if projection.conditions.end!==null&&chart.endLimit===null}<p class="intro">종료 기준 {measure(projection.conditions.end,projection.unit)} · 현재 그래프 범위 밖</p>{/if}
-          <figure class="chart" class:unreliable={worse}>
-            <p class="axis-note">최고 {measure(chart.high, (projection.unit ?? names.get(projection.channel)?.unit ?? null))} · 최저 {measure(chart.low, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</p>
-            <ValueAxis ticks={chart.ticks} height={chart.height} unit={(projection.unit ?? names.get(projection.channel)?.unit ?? null)}>
-            <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
-              aria-label={"저장된 측정과 앞으로 "+HORIZON_LABEL[projection.horizon]+" 예측. "+clock(chart.start)+"부터 "+clock(chart.end)+"까지."}>
-              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
-              {#if chart.band}<path d={chart.band} class="band" />{/if}
-              <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
-              {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
-              {#if chart.endLimit!==null}<line x1="0" x2={chart.width} y1={chart.endLimit} y2={chart.endLimit} class="end" />{/if}
-              {#if chart.fitted}<path d={chart.fitted} class="fitted" />{/if}
-              {#if chart.gap}<line x1={chart.gap.x} x2={chart.gap.x} y1={chart.gap.observed} y2={chart.gap.modeled} class="fit-gap" />{/if}
-              <path d={chart.history} class="history" />
-              <path d={chart.estimate} class="estimate" />
-              <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
-            </svg>
-            {#snippet footer()}<XAxis lo={Date.parse(chart.start)} hi={Math.max(Date.parse(chart.end), Date.parse(chart.start) + 1)} scale={{kind: "clock"}}
-              note={"세로선 · 마지막 기록 " + clock(chart.lastRecord)} />{/snippet}
-            </ValueAxis>
-            <figcaption class="legend">
-              <span><i class="key history"></i>측정값 (구간 평균)</span>
-              {#if chart.fitted}<span><i class="key fitted"></i>모델이 학습한 값</span>{/if}
-              <span><i class="key estimate"></i>추세 예측</span>
-              <span><i class="key band"></i>예측 범위</span>
-              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
-              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}</span>{/if}
-            </figcaption>
-          </figure>
+          <OutlookChart history={(projection.history??[]).map(row=>({x:Date.parse(row.at),value:row.value}))}
+            future={steadyFuture(projection)}
+            last={Date.parse(projection.record.last)} {baseline} change={investigatedChange(location.search,"history",projection.recordKey)}
+            limits={{management:projection.conditions.management,end:projection.conditions.end}} direction={projection.conditions.direction}
+            reach={{management:reachAt(current?.management,Date.parse(projection.record.last),"time"),end:reachAt(current?.end,Date.parse(projection.record.last),"time")}}
+            unit={projection.unit??names.get(projection.channel)?.unit??null} scale={{kind:"clock"}} place={clockText} unreliable={worse}/>
         {/if}
         {#if projection.evolution}<SignalEvolution data={projection.evolution} unit={projection.unit}/>{/if}
         <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
@@ -406,23 +391,27 @@
         {@const limited=projection.conditions.management!==null||projection.conditions.end!==null}
         {@const worse=worseThanPersistence(projection.checks?.[0])}
         {#if criteriaPending}<p class="criteria-pending" role="status">입력한 기준은 아직 적용하지 않았습니다.</p>{/if}
-        {#if limited && !worse}
+        {#if limited}
+          {@const lastAt=Date.parse(projection.record.last)}
+          {@const shown=(projection.history??[]).map(row=>({x:Date.parse(row.at),value:row.value}))}
           <div class="tiles">
-            {#if projection.conditions.management!==null}
-              <div><span>관리 기준 {measure(projection.conditions.management!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{reachText(current?.management,"time")}</strong>
-                <span>{reachCalendarText(current?.management, projection.record.last, now)}</span></div>
-            {/if}
-            {#if projection.conditions.end!==null}
-              <div><span>종료 기준 {measure(projection.conditions.end!, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"time")}</strong>
-                <span>{reachCalendarText(current?.end, projection.record.last, now)}</span>
-                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
-            {/if}
+            {#each [["management","관리 기준",projection.conditions.management,current?.management],["end","종료 기준",projection.conditions.end,current?.end]] as const as [key,name,value,reach] (key)}
+              {#if value!==null}{@const told=reachSummary(reach,"time",null,clockText,lastAt,reach?.state==="already"?crossedSince(shown,value,projection.conditions.direction):null)}
+                <div><span>{name} {measure(value, (projection.unit ?? names.get(projection.channel)?.unit ?? null))}{basis}</span><strong>{told.headline}</strong>
+                  {#if told.detail}<span>{told.detail}</span>{/if}
+                  {#if worse&&reach?.state!=="already"}<span class="caveat">예측 오차가 커서 참고로만 봅니다.</span>{/if}
+                  {#if key==="end"}<span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span>{/if}</div>
+              {/if}
+            {/each}
           </div>
         {/if}
       {/if}
 
+      {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
+        {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={projection?.conditions.management===item.value&&projection?.conditions.direction===item.direction}
+          onclick={()=>suggest(item.value,item.direction)}>{item.label}</button>{/each}</div>{/if}
       <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
-        <p>기준값 입력 (선택)</p>
+        <p>기준값 직접 입력</p>
       <div class="controls">      <label for="projection-direction">기준 방향
         <select id="projection-direction" value={direction}
           onchange={e=>{direction=e.currentTarget.value as Direction;save();}}>
@@ -451,35 +440,11 @@
   .forecast-controls>.controls{flex:1 1 500px;min-width:0;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-3)}
   .forecast-controls>.controls>label{flex:1 1 160px;min-width:0}.forecast-controls>.controls>label:first-child{flex:1.3 1 240px}.forecast-controls>.controls>button{flex:none}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
-  .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
 
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .controls>button{align-self:end;min-height:44px}
-  .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
-  .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
-  .key.fitted{border-color:#8366a5;border-top-style:dotted}
-  .axis-toggle{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
-  .axis-toggle input{width:auto;min-height:20px;margin:0;padding:0;flex:none}
   .projection { min-width: 0; }
-  .chart { margin: var(--space-4) 0; min-width: 0; }
-  .chart svg { display: block; width: 100%; height: 220px;  }
-  .chart path, .chart line { vector-effect: non-scaling-stroke; }
-  .chart .axis { fill: none; stroke: var(--color-border); stroke-width: 2; }
-  .chart .history { fill: none; stroke: var(--color-ink); stroke-width: 1.5; }
-  .chart .estimate { fill: none; stroke: var(--color-action); stroke-width: 2; stroke-dasharray: 6 4; }
-  .chart .band { fill: var(--color-action); opacity: 0.14; stroke: none; }
-  .chart .now { stroke: var(--color-border); stroke-width: 1; }
-  .chart .management { stroke: var(--color-caution-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
-  .chart .end { stroke: var(--color-failure-ink); stroke-width: 1.5; stroke-dasharray: 3 3; }
-  .axis-note, .legend { color: var(--color-ink-muted); font-size: var(--font-small); margin: 0; }
-  .legend { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-2); }
-  .key { display: inline-block; width: 16px; height: 0; border-top: 2px solid; vertical-align: middle; margin-inline-end: var(--space-1); }
-  .key.history { border-color: var(--color-ink); }
-  .key.estimate { border-color: var(--color-action); border-top-style: dashed; }
-  .key.band { height: 10px; border: 0; background: var(--color-action); opacity: 0.2; }
-  .key.management { border-color: var(--color-caution-ink); border-top-style: dashed; }
-  .key.end { border-color: var(--color-failure-ink); border-top-style: dashed; }
   .intro { color: var(--color-ink-muted); overflow-wrap: anywhere; }
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
   .controls { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr));
@@ -503,7 +468,6 @@
   dl { overflow-wrap: anywhere; }
   dt { font-weight: 700; }
   dd { margin: var(--space-1) 0 var(--space-3); }
-  .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 
   .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
   .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
@@ -513,5 +477,9 @@
   @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   .inspector-title{margin:0;font-size:var(--font-section)}
+  .tiles .caveat{color:var(--color-caution-ink)}
+  .suggest{display:flex;flex-wrap:wrap;gap:6px}.suggest p{flex-basis:100%;margin:0;font-size:var(--font-small);color:var(--color-ink-muted)}
+  .chip{font:inherit;font-size:var(--font-label);padding:4px 10px;border:1px solid var(--color-control-border);border-radius:999px;background:var(--color-surface);color:var(--color-action);cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:650}
   .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import {
   parseAcquisitionOptions,parseAcquisitionPair,AcquisitionVersionMismatch,
-  validateAcquisitionChoice,acquisitionChart,
+  validateAcquisitionChoice,
 } from "./acquisition-outlook.ts";
 const version="a".repeat(64),data="b".repeat(64);
 const features=[{key:"feature.rms",label:"RMS",valid_points:64,count_forecast:true,
@@ -113,23 +113,11 @@ test("invalid acquisition count, scope and future ordinates never render",()=>{
     AcquisitionVersionMismatch);
 });
 
-test("the stored values the forecast continues are drawn with it, and must lie in the computed record",()=>{
+test("the stored values the forecast continues must lie in the computed record",()=>{
   const result=paired({...forecast(),history:[[1,1.0],[2,1.1],[64,2.0]]});
   assert.deepEqual(result.history.map(item=>item.ordinal),[1,2,64]);
-  const chart=acquisitionChart(result);
-  assert.ok(chart);
-  assert.equal(chart.first,1);
-  assert.equal(chart.high,3.2);
-  assert.ok(chart.endLimit!==null&&chart.management!==null&&chart.endLimit<chart.management);
   assert.deepEqual(paired().history,[]);
   assert.throws(()=>paired({...forecast(),history:[[65,2.0]]}),/계산 범위/);
   assert.throws(()=>paired({...forecast(),history:[[2,1],[1,1]]}),/계산 범위/);
 });
 
-test("a far vibration criterion stays outside the default value scale",()=>{
-  const data=paired({...forecast(),history:[[1,1],[64,2]]});
-  const distant={...data,conditions:{...data.conditions,end:1000}};
-  assert.equal(acquisitionChart(distant)!.endLimit,null);
-  assert.ok(acquisitionChart(distant)!.high<10);
-  assert.equal(acquisitionChart(distant,true)!.high,1000);
-});

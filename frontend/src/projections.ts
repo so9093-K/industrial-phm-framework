@@ -3,7 +3,6 @@ import {recordContext,type RecordContext} from "./record-context.ts";
 import {focusGroups,focusParams,type SourceFocus} from "./signal-selection.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
-import {yTicks, type Tick} from "./chart-axis.ts";
 import {parseSignalEvolution,type SignalEvolution} from "./signal-evolution.ts";
 /** Read-only version-coupled history forecast and conditional outlook. */
 export type Horizon = "1h" | "24h" | "7d" | "30d";
@@ -185,13 +184,6 @@ export function suggestedHorizon(support: Record<Horizon, string | null>, record
   return fitting.at(-1) ?? allowed[0] ?? null;
 }
 
-export type OutlookChart = {
-  width: number; height: number; low: number; high: number;
-  start: string; lastRecord: string; end: string; lastX: number;
-  history: string; fitted:string; gap:{x:number;observed:number;modeled:number}|null; estimate: string; band: string;
-  management: number | null; endLimit: number | null;
-  ticks: Tick[];
-};
 
 /** The forecast range as drawn. Each point's range comes from a few hundred sampled futures, so
  * its width jitters from one point to the next by chance alone; neighbouring points estimate
@@ -211,48 +203,6 @@ export function steadyRange(future: Projection["future"]): {at: string; lower: n
 
 /** Recent stored values, the forecast with its range and the user's limits on one plot.
  * The window shows twice the forecast span of history so the forecast stays readable. */
-export function outlookChart(projection: Projection, includeLimits = false): OutlookChart | null {
-  const future = projection.future;
-  if (!future.length) return null;
-  const width = 800, height = 220, top = 8, bottom = 212;
-  const futureStart = Date.parse(future[0].at), futureEnd = Date.parse(future[future.length - 1].at);
-  const span = Math.max(futureEnd - futureStart, 1);
-  const shown = (projection.history ?? []).filter((item) => Date.parse(item.at) >= futureStart - 2 * span);
-  const fitted=(projection.fitted??[]).filter(item=>Date.parse(item.at)>=futureStart-2*span);
-  const start = Math.min(shown.length ? Date.parse(shown[0].at) : futureStart, futureStart);
-  const end = Math.max(futureEnd, start + 1);
-  const {management, end: endLimit} = projection.conditions;
-  const values = [
-    ...shown.map((item) => item.value), ...fitted.map(item=>item.value),
-    ...future.flatMap((item) => [item.estimate, item.lower ?? item.estimate, item.upper ?? item.estimate]),
-    ...(includeLimits ? [management, endLimit].filter((limit): limit is number => limit !== null) : []),
-  ];
-  const low = Math.min(...values), high = Math.max(...values);
-  const padding = low === high ? Math.max(Math.abs(low) * 0.05, 1) : (high - low) * 0.06;
-  const lo = low - padding, hi = high + padding;
-  const x = (at: string) => ((Date.parse(at) - start) / (end - start)) * width;
-  const y = (value: number) => bottom - ((value - lo) / (hi - lo)) * (bottom - top);
-  const line = (points: Array<[string, number]>) =>
-    points.map(([at, value], i) => (i ? "L" : "M") + x(at).toFixed(1) + " " + y(value).toFixed(1)).join(" ");
-  const ranged = steadyRange(future);
-  const band = ranged.length
-    ? line(ranged.map((item) => [item.at, item.upper]))
-      + " " + ranged.slice().reverse().map((item) => "L" + x(item.at).toFixed(1) + " " + y(item.lower).toFixed(1)).join(" ") + " Z"
-    : "";
-  return {
-    width, height, low, high,
-    start: new Date(start).toISOString(), lastRecord: projection.record.last, end: future[future.length - 1].at,
-    lastX: x(projection.record.last),
-    history: line(shown.map((item) => [item.at, item.value])),
-    fitted:line(fitted.map(item=>[item.at,item.value])),
-    gap:shown.length?{x:x(future[0].at),observed:y(shown.at(-1)!.value),modeled:y(future[0].estimate)}:null,
-    estimate: line(future.map((item) => [item.at, item.estimate])),
-    band,
-    management: management === null || management < lo || management > hi ? null : y(management),
-    endLimit: endLimit === null || endLimit < lo || endLimit > hi ? null : y(endLimit),
-    ticks: yTicks(lo, hi, top, bottom),
-  };
-}
 
 /** A few forecast rows spread over the whole horizon, always including its last one. */
 export function spreadRows<T>(rows: T[], count = 8): T[] {

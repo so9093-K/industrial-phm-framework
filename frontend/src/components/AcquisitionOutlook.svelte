@@ -18,14 +18,16 @@
   import XAxis from "./XAxis.svelte";
   import {elapsedText,measurementScale} from "../time-axis";
   import StatusNotice from "./StatusNotice.svelte";
-  import {reachDuration,reachText} from "../reach";
+  import {reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
+  import OutlookChart from "./OutlookChart.svelte";
+  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary} from "../outlook-view";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
-    loadAcquisitionOptions,loadAcquisitionPair,acquisitionChart,
+    loadAcquisitionOptions,loadAcquisitionPair,
     AcquisitionVersionMismatch,AcquisitionOutlookUnavailable,
     type AcquisitionOptions,type AcquisitionProjection,type AcquisitionFeature,
   } from "../acquisition-outlook";
@@ -37,7 +39,6 @@
   let resultState:State=$state("empty");
   let options:AcquisitionOptions|null=$state(null);
   let outlook:AcquisitionProjection|null=$state(null);
-  let includeLimits=$state(false);
   let message=$state("");
   const params=new URLSearchParams(location.search);
   let settings=$state(savedSettings(params));
@@ -132,6 +133,12 @@
     if(record.timeBasis==="assumed")return "가정한 측정 간격 "+elapsedText(record.effectivePeriod)+" (실제 측정 간격 아님)";
     return "측정 간격 정보 없음 — 측정 횟수로만 계산";
   }
+  /** '72번째 측정 · 1시간 11분'(기록된 간격이 있으면 경과 시간도). */
+  const place=(at:number,period:number|null)=>Math.round(at)+"번째 측정"+(period!==null?" · "+elapsedText((Math.round(at)-1)*period):"");
+  const baseline=$derived.by(()=>{const shown:AcquisitionProjection|null=outlook,evolution=shown?.evolution;return evolution?{median:evolution.baselineMedian,low:evolution.baselineRange?.low??null,high:evolution.baselineRange?.high??null}:null;});
+  const suggestions=$derived.by(()=>{const shown:AcquisitionProjection|null=outlook;
+    return shown?limitSuggestions(shown.unit,baseline,options?.features.find(item=>item.id===shown.featureId)?.label??""):[];});
+  function suggest(value:number,toward:Direction){direction=toward;managementText=String(value);remember();void calculate();}
   const formatOffset=(n:number)=>Number.isInteger(n)?String(n):n.toFixed(2);
   const scenarioLabel=(id:string)=>({current:"기본 설정",recent:"최근 구간 중심",responsive:"변화에 민감",linear:"최근 속도 유지"} as Record<string,string>)[id]??id;
   onMount(()=>{void loadOptions();return()=>{listAbort?.abort();resultAbort?.abort();};});
@@ -161,8 +168,8 @@
         </select>
       </label>
 
-      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
-      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
+      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();void calculate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+      {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();void calculate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
       {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
         <input type="number" min="1" max="2000" step="1" value={countText}
           oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
@@ -197,7 +204,8 @@
     {:else if outlook}
       {@const displayFeature=outlook.featureId}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
-      {@const chart=acquisitionChart(outlook,includeLimits)}
+      {@const chart=outlook.forecast.length>0}
+      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
       {@const worse=worseThanPersistence(outlook.checks?.[0])}
       {@const told=outlookMessage({axis:"acquisition",period,unit:outlook.unit,conditions:outlook.conditions,
@@ -206,46 +214,19 @@
           horizon:formatOffset(outlook.forecast.at(-1)!.ordinal)+"번째 측정",checks:outlook.checks??[]})}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
-          <h3 id="acq-result-title">추세 전망</h3>
-          <span class="context">마지막 실측 · {outlook.record.last}번째 측정 · {timeBasis(outlook)}</span>
+          <h3 id="acq-result-title">{options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature} 전망</h3>
+          <span class="context">마지막 측정 {place(outlook.record.last,period)} · {timeBasis(outlook)}</span>
         </div>
         {#if worse}
-          <p class="forecast-caution" role="status"><strong>이 모델의 예측으로 추세 판단을 보류하세요.</strong> <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 실제 측정의 변화부터 보기 →</a>{#if told && !limited}{" "}<span class="outlook-summary">{told.headline}</span>{/if}</p>
+          <p class="forecast-caution" role="status"><strong>이 예측은 마지막 값이 그대로 이어진다고 볼 때보다 과거 오차가 컸습니다.</strong> 측정값의 흐름과 기준선을 먼저 보세요. <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 측정의 변화 보기 →</a></p>
         {/if}
-        {#if told && !worse && !limited}<p class="result-statement outlook-summary">{told.headline}</p>{/if}
         {#if chart}
-          {@const axisNote=(period===null?"측정 회차":"기록 시작 후 경과 시간 · "+(outlook.timeBasis==="assumed"?"가정한":"기록된")+" 측정 간격 "+elapsedText(period))+" · 세로선은 마지막 "+chart.last+"번째 측정"}
-          {#if limited}<label class="axis-toggle"><input type="checkbox" bind:checked={includeLimits} /> 기준선까지 세로축에 포함</label>{/if}
-          {#if outlook.conditions.management!==null&&chart.management===null}<p class="context">관리 기준 {measure(outlook.conditions.management,outlook.unit)} · 현재 그래프 범위 밖</p>{/if}
-          {#if outlook.conditions.end!==null&&chart.endLimit===null}<p class="context">종료 기준 {measure(outlook.conditions.end,outlook.unit)} · 현재 그래프 범위 밖</p>{/if}
-          <figure class="chart" class:unreliable={worse}>
-            <p class="axis-note">최고 {measure(chart.high, outlook.unit)} · 최저 {measure(chart.low, outlook.unit)}</p>
-            <ValueAxis ticks={chart.ticks} height={chart.height} unit={outlook.unit}>
-            <svg viewBox={"0 0 "+chart.width+" "+chart.height} preserveAspectRatio="none" role="img"
-              aria-label={"저장된 "+chart.first+"~"+chart.last+"번째 측정과 "+formatOffset(chart.end)+"번째 측정까지의 예측"}>
-              {#each chart.ticks as tick (tick.value)}<line x1="0" x2={chart.width} y1={tick.y} y2={tick.y} class="grid" />{/each}
-              {#if chart.band}<path d={chart.band} class="band" />{/if}
-              <line x1={chart.lastX} x2={chart.lastX} y1="0" y2={chart.height} class="now" />
-              {#if chart.management!==null}<line x1="0" x2={chart.width} y1={chart.management} y2={chart.management} class="management" />{/if}
-              {#if chart.endLimit!==null}<line x1="0" x2={chart.width} y1={chart.endLimit} y2={chart.endLimit} class="end" />{/if}
-              {#if chart.fitted}<path d={chart.fitted} class="fitted" />{/if}
-              {#if chart.gap}<line x1={chart.gap.x} x2={chart.gap.x} y1={chart.gap.observed} y2={chart.gap.modeled} class="fit-gap" />{/if}
-              <path d={chart.history} class="history" />
-              <path d={chart.estimate} class="estimate" />
-              <path d={"M0 0 V"+chart.height+" H"+chart.width} class="axis" />
-            </svg>
-            {#snippet footer()}<XAxis lo={chart.first} hi={chart.end} scale={measurementScale(period)}
-              note={axisNote} />{/snippet}
-            </ValueAxis>
-            <figcaption class="legend">
-              <span><i class="key history"></i>저장된 측정</span>
-              {#if chart.fitted}<span><i class="key fitted"></i>모델이 학습한 값</span>{/if}
-              <span><i class="key estimate"></i>추세 예측</span>
-              <span><i class="key band"></i>예측 범위</span>
-              {#if chart.management!==null}<span><i class="key management"></i>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}</span>{/if}
-              {#if chart.endLimit!==null}<span><i class="key end"></i>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}</span>{/if}
-            </figcaption>
-          </figure>
+          <OutlookChart history={outlook.history.map(row=>({x:row.ordinal,value:row.value}))}
+            future={outlook.forecast.map(row=>({x:row.ordinal,estimate:row.estimate,lower:row.lower,upper:row.upper}))}
+            last={outlook.record.last} {baseline} change={investigatedChange(location.search,"vibration",outlook.featureId)}
+            limits={{management:outlook.conditions.management,end:outlook.conditions.end}} direction={outlook.conditions.direction}
+            reach={{management:reachAt(current?.management,outlook.record.last,"acquisition"),end:reachAt(current?.end,outlook.record.last,"acquisition")}}
+            unit={outlook.unit} scale={measurementScale(period)} place={at=>place(at,period)} unreliable={worse}/>
         {/if}
         {#if outlook.evolution}<SignalEvolution data={outlook.evolution} unit={outlook.unit}/>{/if}
         <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
@@ -334,23 +315,26 @@
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const worse=worseThanPersistence(outlook.checks?.[0])}
       {#if criteriaPending}<p class="criteria-pending" role="status">입력한 기준은 아직 적용하지 않았습니다.</p>{/if}
-        {#if limited && !worse}
+        {#if limited}
+          {@const shown=outlook.history.map(row=>({x:row.ordinal,value:row.value}))}
           <div class="tiles">
-            {#if outlook.conditions.management!==null}
-              <div><span>관리 기준 {measure(outlook.conditions.management!, outlook.unit)}{basis}</span><strong>{reachText(current?.management,"acquisition")}</strong>
-                {#if reachDuration(current?.management,period)}<span>{reachDuration(current?.management,period)}</span>{/if}</div>
-            {/if}
-            {#if outlook.conditions.end!==null}
-              <div><span>종료 기준 {measure(outlook.conditions.end!, outlook.unit)}까지 예상 여유{basis}</span><strong>{reachText(current?.end,"acquisition")}</strong>
-                {#if reachDuration(current?.end,period)}<span>{reachDuration(current?.end,period)}</span>{/if}
-                <span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span></div>
-            {/if}
+            {#each [["management","관리 기준",outlook.conditions.management,current?.management],["end","종료 기준",outlook.conditions.end,current?.end]] as const as [key,name,value,reach] (key)}
+              {#if value!==null}{@const told=reachSummary(reach,"acquisition",period,at=>place(at,period),outlook.record.last,reach?.state==="already"?crossedSince(shown,value,outlook.conditions.direction):null)}
+                <div><span>{name} {measure(value, outlook.unit)}{basis}</span><strong>{told.headline}</strong>
+                  {#if told.detail}<span>{told.detail}</span>{/if}
+                  {#if worse&&reach?.state!=="already"}<span class="caveat">예측 오차가 커서 참고로만 봅니다.</span>{/if}
+                  {#if key==="end"}<span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span>{/if}</div>
+              {/if}
+            {/each}
           </div>
         {/if}
     {/if}
 
+    {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
+      {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={outlook?.conditions.management===item.value&&outlook?.conditions.direction===item.direction}
+        onclick={()=>suggest(item.value,item.direction)}>{item.label}</button>{/each}</div>{/if}
     <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
-      <div class="criteria-title"><strong>기준값 입력</strong><span>선택 사항</span></div>
+      <div class="criteria-title"><strong>기준값 직접 입력</strong></div>
       <div class="inputs">      <label>기준 방향
         <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
           <option value="upper">값이 올라갈 때 (상한)</option><option value="lower">값이 내려갈 때 (하한)</option>
@@ -374,23 +358,16 @@
   .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
   .criteria{display:grid;gap:var(--space-2);padding:var(--space-3);background:var(--color-surface-selected);border-radius:var(--radius-control)}
   .criteria-title{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--font-small)}
-  .criteria-title span{font-size:var(--font-label);color:var(--color-ink-muted)}
   .criteria .inputs{grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2);margin:0}
   .criteria label{gap:4px;font-size:var(--font-label)}.criteria input,.criteria select{padding:var(--space-2)}
   @media(max-width:600px){.criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
   .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .forecast-controls>div{flex:1;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-2)}.forecast-controls .inputs label{flex:1;min-width:100px}.forecast-controls .inputs label:first-child{flex:1.4;min-width:140px}.forecast-controls .inputs button{flex:none;padding:var(--space-2);min-height:40px}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
-  .chart.unreliable .estimate{stroke:var(--color-ink-muted)}.chart.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
 
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .inputs>button{align-self:end;min-height:44px}
-  .chart .fitted{fill:none;stroke:#8366a5;stroke-width:1.5;stroke-dasharray:2 3}
-  .chart .fit-gap{stroke:var(--color-caution-ink);stroke-width:2;stroke-dasharray:3 3}
-  .key.fitted{border-color:#8366a5;border-top-style:dotted}
-  .axis-toggle{display:flex;align-items:center;gap:var(--space-2);margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
-  .axis-toggle input{width:auto;min-height:20px;margin:0;padding:0;flex:none}
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--space-4);margin-block:var(--space-5)}
@@ -403,30 +380,11 @@
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-top:var(--space-4)}
   .tiles div{border:1px solid var(--color-border);border-radius:var(--radius-control);padding:var(--space-4);display:grid;gap:var(--space-1)}
   .tiles span{color:var(--color-ink-muted);font-size:var(--font-small)}.tiles strong{font-size:var(--font-section)}
-  .chart{margin:var(--space-4) 0;min-width:0}
-  .chart svg{display:block;width:100%;height:220px;}
-  .chart path,.chart line{vector-effect:non-scaling-stroke}
-  .chart .axis{fill:none;stroke:var(--color-border);stroke-width:2}
-  .chart .history{fill:none;stroke:var(--color-ink);stroke-width:1.5}
-  .chart .estimate{fill:none;stroke:var(--color-action);stroke-width:2;stroke-dasharray:6 4}
-  .chart .band{fill:var(--color-action);opacity:.14;stroke:none}
-  .chart .now{stroke:var(--color-border);stroke-width:1}
-  .chart .management{stroke:var(--color-caution-ink);stroke-width:1.5;stroke-dasharray:3 3}
-  .chart .end{stroke:var(--color-failure-ink);stroke-width:1.5;stroke-dasharray:3 3}
-  .axis-note,.legend{color:var(--color-ink-muted);font-size:var(--font-small);margin:0}
-  .legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);margin-top:var(--space-2)}
-  .key{display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-inline-end:var(--space-1)}
-  .key.history{border-color:var(--color-ink)}
-  .key.estimate{border-color:var(--color-action);border-top-style:dashed}
-  .key.band{height:10px;border:0;background:var(--color-action);opacity:.2}
-  .key.management{border-color:var(--color-caution-ink);border-top-style:dashed}
-  .key.end{border-color:var(--color-failure-ink);border-top-style:dashed}
   summary{cursor:pointer;font-weight:650;color:var(--color-action);padding-block:var(--space-3)}
   dl{overflow-wrap:anywhere}dt{font-weight:700}dd{margin:var(--space-1) 0 var(--space-3)}
   .scroll{max-width:100%;overflow-x:auto}
   table{border-collapse:collapse;width:100%}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}dd{overflow-wrap:anywhere}
-  .grid{stroke:var(--color-border);stroke-width:1;opacity:.7;vector-effect:non-scaling-stroke}
 
   .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
   .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
@@ -437,5 +395,9 @@
   @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.forecast-inspector .criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   .inspector-title{margin:0;font-size:var(--font-section)}
+  .tiles .caveat{color:var(--color-caution-ink)}
+  .suggest{display:flex;flex-wrap:wrap;gap:6px}.suggest p{flex-basis:100%;margin:0;font-size:var(--font-small);color:var(--color-ink-muted)}
+  .chip{font:inherit;font-size:var(--font-label);padding:4px 10px;border:1px solid var(--color-control-border);border-radius:999px;background:var(--color-surface);color:var(--color-action);cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:650}
   .forecast-inspector .tiles{margin:0;gap:var(--space-3)}.forecast-inspector .tiles>div{border:0;border-bottom:1px solid var(--color-border);border-radius:0;padding:0 0 var(--space-3)}
 </style>

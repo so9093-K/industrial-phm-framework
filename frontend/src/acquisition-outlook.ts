@@ -3,7 +3,6 @@ import {parseForecastFit,type ForecastFit} from "./forecast-fit.ts";
 import {settingsQuery,verifySettings,backtests,type Backtest,type ForecastSettings} from "./forecast-settings.ts";
 /** Two server-owned acquisition projections, never an invented observation clock. */
 import {parseOutlookSettings,type Conditions,type OutlookSettings,type Horizon,type Reach,type Scenario} from "./projections.ts";
-import {yTicks,type Tick} from "./chart-axis.ts";
 import {parseSignalEvolution,type SignalEvolution} from "./signal-evolution.ts";
 
 export type TimeBasis="recorded"|"assumed"|"ordinal";
@@ -222,39 +221,6 @@ export function parseAcquisitionPair(
     unit:typeof forecast.unit==="string"&&forecast.unit.trim()?forecast.unit:null,evolution:parseSignalEvolution(outlookRaw)};
 }
 
-export type AcquisitionChart={width:number;height:number;low:number;high:number;first:number;last:number;end:number;
-  lastX:number;history:string;fitted:string;gap:{x:number;observed:number;modeled:number}|null;estimate:string;band:string;management:number|null;endLimit:number|null;ticks:Tick[]};
-/** Stored values and the forecast on one measurement axis, with the user's limits. */
-export function acquisitionChart(projection:AcquisitionProjection, includeLimits = false):AcquisitionChart|null{
-  const future=projection.forecast;
-  if(!future.length)return null;
-  const width=800,height=220,top=8,bottom=212;
-  const shown=projection.history;
-  const first=shown.length?shown[0].ordinal:future[0].ordinal,end=Math.max(future[future.length-1].ordinal,first+1);
-  const {management,end:endLimit}=projection.conditions;
-  const fitted=projection.fitted??[];
-  const values=[...shown.map(item=>item.value),...fitted.map(item=>item.value),
-    ...future.flatMap(item=>[item.estimate,item.lower??item.estimate,item.upper??item.estimate]),
-    ...(includeLimits?[management,endLimit].filter((limit):limit is number=>limit!==null):[])];
-  const low=Math.min(...values),high=Math.max(...values);
-  const padding=low===high?Math.max(Math.abs(low)*0.05,1):(high-low)*0.06;
-  const lo=low-padding,hi=high+padding;
-  const x=(at:number)=>((at-first)/(end-first))*width;
-  const y=(value:number)=>bottom-((value-lo)/(hi-lo))*(bottom-top);
-  const line=(points:Array<[number,number]>)=>points.map(([at,value],i)=>(i?"L":"M")+x(at).toFixed(1)+" "+y(value).toFixed(1)).join(" ");
-  const ranged=future.filter(item=>item.lower!==null&&item.upper!==null);
-  const band=ranged.length
-    ?line(ranged.map(item=>[item.ordinal,item.upper as number]))
-      +" "+ranged.slice().reverse().map(item=>"L"+x(item.ordinal).toFixed(1)+" "+y(item.lower as number).toFixed(1)).join(" ")+" Z"
-    :"";
-  return {width,height,low,high,first,last:projection.record.last,end,lastX:x(projection.record.last),
-    history:line(shown.map(item=>[item.ordinal,item.value])),
-    fitted:line(fitted.map(item=>[item.ordinal,item.value])),
-    gap:shown.length?{x:x(future[0].ordinal),observed:y(shown.at(-1)!.value),modeled:y(future[0].estimate)}:null,
-    estimate:line(future.map(item=>[item.ordinal,item.estimate])),band,
-    management:management===null||management<lo||management>hi?null:y(management),endLimit:endLimit===null||endLimit<lo||endLimit>hi?null:y(endLimit),
-    ticks:yTicks(lo,hi,top,bottom)};
-}
 async function json(url:string,signal:AbortSignal):Promise<unknown>{
   const response=await fetch(scopedUrl(url, currentPlayback()),{signal,cache:"no-store",credentials:"same-origin"});
   if(response.status===404||response.status===422){
