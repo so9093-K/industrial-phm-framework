@@ -1,8 +1,7 @@
 # Research Notebooks
 
 `notebooks/`는 실제 산업 데이터를 관찰하고 가설을 빠르게 검증하기 위한 **exploratory analysis** 공간입니다.
-프로덕션 pipeline의 두 번째 구현 경로나 새로운 Source of Truth를 만들기 위한 디렉터리가 아닙니다. 프로젝트
-공통 용어는 [`../docs/terminology.md`](../docs/terminology.md)를 따릅니다.
+프로덕션 pipeline의 두 번째 구현 경로나 새로운 Source of Truth를 만들기 위한 디렉터리가 아닙니다.
 
 ## 역할
 

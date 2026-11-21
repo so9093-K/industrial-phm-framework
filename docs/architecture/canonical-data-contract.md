@@ -268,7 +268,7 @@ Canonical contract 확장은 다음 조건을 우선합니다.
 2. 해당 의미를 adapter metadata에만 두면 공통 PHM 로직에서 반복 parsing/조건 분기가 발생한다.
 3. 추가 필드/타입이 특정 dataset 이름이나 directory convention이 아니라 domain-neutral 의미를 가진다.
 4. 기존 dataset adapter와 contract test를 함께 재검증할 수 있다.
-5. pre-1.0 public-contract 변경은 CHANGELOG와 필요한 ADR에 기록한다.
+5. pre-1.0 public-contract 변경은 필요한 ADR에 기록한다.
 
 Source interface 확장도 같은 원칙을 따릅니다. 한 field source가 API라는 이유만으로 generic connector framework를
 만들지 않고, prepared `Path` boundary로 해결할 수 없는 반복 요구가 확인될 때만 별도 source abstraction을 둡니다.

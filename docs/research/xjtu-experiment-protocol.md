@@ -4,8 +4,7 @@
 
 이 문서는 XJTU-SY를 이용한 첫 numerical PHM baseline이 어떤 질문을 검증하고, 어떤 데이터 분할과 leakage
 규칙을 따라야 하는지 고정합니다. 모델 성능을 본 뒤 split이나 label 정의를 바꾸는 일을 막기 위해 모델 구현보다
-먼저 version-controlled protocol을 둡니다. 프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를
-따릅니다.
+먼저 version-controlled protocol을 둡니다.
 
 ## 1. Dataset and ground-truth boundary
 

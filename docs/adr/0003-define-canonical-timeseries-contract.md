@@ -33,4 +33,4 @@ boundary를 둔다는 것**입니다. Pre-1.0 단계의 현재 field set 자체�
 
 - Adapter contract test로 새로운 도메인의 최소 호환성을 검증할 수 있습니다.
 - XJTU-SY convention을 canonical field로 승격하기 전에 IMS와 이후 실제 field source에서 contract를 반증합니다.
-- 초기 계약 변경은 pre-1.0 단계에서 가능하지만 CHANGELOG와 관련 ADR에 영향이 기록되어야 합니다.
+- 초기 계약 변경은 pre-1.0 단계에서 가능하지만 관련 ADR에 영향이 기록되어야 합니다.

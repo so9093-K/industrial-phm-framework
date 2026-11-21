@@ -16,8 +16,7 @@
 
 프로젝트 CLI는 기능이 실제로 생길 때만 command를 추가합니다. 정확한 현재 command surface의
 Source of Truth는 executable parser와 `industrial-phm --help`입니다. 이 architecture 문서는 command tree를
-복사하지 않습니다. 지원되는 workflow의 상태는 [현재 지원 상태](../status.md), 실행 절차는 해당 subsystem
-README를 참조합니다.
+복사하지 않습니다. 실행 절차는 해당 subsystem README를 참조합니다.
 
 Python package의 CLI entry point는 표준 `[project.scripts]`를 사용합니다.
 
@@ -59,7 +58,6 @@ Single Source of Truth는 모든 설정을 하나의 파일에 넣는다는 의�
 | 실험 parameter | version-controlled experiment config |
 | model artifact provenance | artifact manifest |
 | 프로젝트 목적, 안정적인 진입점과 문서 navigation | root `README.md` |
-| 현재 구현·지원 경계와 명시적 미지원 경계 | `docs/status.md` |
 | subsystem 실행 방법과 runtime 운영 규칙 | 해당 directory의 `README.md` |
 | 계획된 작업과 milestone | GitHub Issue/PR |
 | 검증된 dataset 관찰 사실 | dataset source profile |
@@ -67,7 +65,7 @@ Single Source of Truth는 모든 설정을 하나의 파일에 넣는다는 의�
 | secret/token/machine-specific path | environment/runtime configuration |
 | 장기 구조 결정 | ADR |
 | contract invariant | production code와 contract 문서 |
-| 변경 이력 | `CHANGELOG.md` |
+| 변경 이력 | git history와 PR |
 | 작업 과정과 일회성 비교 결과 | PR 본문 또는 generated artifact |
 
 README나 발표 자료에 version, URL, threshold 같은 값을 불필요하게 복사하지 않습니다.
@@ -222,8 +220,7 @@ CLI 역시 현재 단계의 주요 사용자 인터페이스입니다. 실패 �
 개발자용 pipeline transparency는 별도 orchestration framework를 추가하는 이유가 아닙니다. 기존
 `CanonicalTimeSeries`, feature vector, `PreprocessingState`, `ModelFitInput`, `AnomalyScores`,
 experiment result가 이미 소유한 사실을 사람이 단계별로 추적할 수 있게 보여주는 문제입니다. 표시를 위해 같은
-configuration/population/provenance를 두 번째 상태 저장소에 복제하지 않습니다. 구체적인 information
-architecture와 capability 표현은 [`../product/overview.md`](../product/overview.md)를 기준으로 합니다.
+configuration/population/provenance를 두 번째 상태 저장소에 복제하지 않습니다.
 
 ## 8. Validation Reuse
 

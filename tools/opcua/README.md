@@ -38,4 +38,4 @@ uv run --no-sync python -m tools.opcua.aihub_replay server \
 
 OPC UA DataChange는 값 또는 품질이 달라질 때만 관측됩니다. 재생 시각과 원본 측정 시각을 구별하고, 측정량 의미가 확인되지 않은 채널에 단위·물리 의미를 임의 부여하지 마세요.
 
-정상 사용자 CSV·OPC UA 연결은 [Operations 사용법](../../apps/README.md), 장비·수집 경계는 [아키텍처](../../docs/architecture/overview.md), 실제 지원 범위는 [현재 상태](../../docs/status.md)를 참고하세요.
+장비·수집 경계는 [아키텍처](../../docs/architecture/overview.md)를 참고하세요.

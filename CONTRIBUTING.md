@@ -38,10 +38,8 @@ npm run --prefix frontend build
 작업은 `main`이 아닌 브랜치에서 진행합니다. Conventional Commits 형태의 커밋과 변경 목적·설계 영향·검증 범위를 설명하는 단일 PR을 권장합니다. 작은 코드 변경에 별도 설계 문서나 ADR을 추가하지 않습니다.
 
 - `README.md`: 사용자 진입점 및 기능 소개
-- `docs/status.md`: 현재 지원 범위
 - `docs/architecture/` 및 `docs/adr/`: 지속되는 설계 계약과 결정
 - `docs/research/`: 원본 데이터 프로필·실험 방법·근거
-- `CHANGELOG.md`: 변경 이력
 - Issue/PR: 한 번의 작업 계획, 검토 내용 및 실행 결과
 
 새 의존성이 필요하면 `pyproject.toml`을 갱신하고 `uv lock`으로 잠금 파일을 같은 변경에 포함합니다.

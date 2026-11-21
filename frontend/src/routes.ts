@@ -1,5 +1,5 @@
 /** Browser location is selection context, never a source of measured or calculated facts.
- * Pages are user tasks (docs/product/overview.md); analysis methods live inside an asset. */
+ * Pages are user tasks; analysis methods live inside an asset. */
 export const PAGES = ["monitor", "assets", "investigations", "maintenance", "system"] as const;
 export type Page = (typeof PAGES)[number];
 /** Primary PHM tasks; records and human review remain available through exact deep links. */

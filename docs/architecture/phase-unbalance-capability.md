@@ -105,7 +105,7 @@ JSON 결과 파일 경로는 SQLite store가 열지 않고 거부하므로 새 `
 
 - 기준값·alarm·finding을 자동으로 만들지 않습니다. 사람이 Investigation에서 결과를 골라 review finding을
   만들면 `human-review-request-v1 / REVIEW_REQUIRED`로 기록되고 Maintenance Review로 이어집니다.
-- Operations Asset Detail에서 실행·조회합니다([apps/README](../../apps/README.md)).
+- Operations Asset Detail에서 실행·조회합니다.
 - OPC UA source: 등록 시 channel별 semantic binding을 두면 DataChange의 semantic snapshot이 spool, DuckLake
   raw evidence(`raw.opcua_data_change.semantic_binding_json`)까지 보존되고 FILE과 같은 eligibility로 분석
   입력이 됩니다. Binding이 없는 channel과 semantic column 도입 이전에 적재된 행은 `unconfirmed-semantics`입니다.
