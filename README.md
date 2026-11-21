@@ -45,7 +45,7 @@ macOS의 `make up`은 Linux 컨테이너를 사용하고, Linux의 기본 실행
 - **AI-Hub 239 설비 전력 기록:** 원천 JSON 하나가 설비 하나의 저장된 이력이 됩니다(공기압축기·보일러·압출기·펌프 등, 설비당 약 한 달). 원본 시각에 시간대가 없어 한국 표준시로 저장합니다.
 - **XJTU-SY 베어링 진동 기록:** 모델 학습에 쓰지 않은 베어링의 실측 파형을 넣고 Isolation Forest·LSTM 오토인코더를 연결합니다. 처음 가져올 때 두 모델을 학습용 베어링으로 한 번 준비합니다(몇 분).
 
-개발용 재생 명령(`industrial-phm demo xjtu`, `demo aihub-boiler`)은 [Operations 실행 안내](apps/README.md)에 있습니다.
+개발용으로 저장 기록을 Operations에 흘려 보내는 명령은 `industrial-phm demo xjtu`와 `industrial-phm demo aihub-boiler`입니다. 옵션은 `--help`로 확인합니다.
 
 IMS 및 MIMII DUE 등 공개 데이터는 별도의 연구용 어댑터·결과와 함께 유지합니다. 합성 데이터를 이용한 별도 제품 시연과 캡처 배포물은 제공하지 않습니다.
 
@@ -60,9 +60,6 @@ Python 3.14·DuckDB/DuckLake·SQLite·PyTorch·scikit-learn·Prophet·asyncua·S
 ## 문서
 
 - [데이터 준비 및 출처](data/README.md)
-- [실제 데이터로 시작](docs/product/data-first-start.md)
-- [Operations 실행 및 실기록 재생](apps/README.md)
-- [지원 범위와 제한](docs/status.md)
 - [아키텍처](docs/architecture/overview.md)
 - [연구 자료 및 결과](docs/research/README.md)
 - [기여 및 개발](CONTRIBUTING.md)

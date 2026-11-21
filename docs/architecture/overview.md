@@ -26,8 +26,7 @@ CanonicalTimeSeries의 finite rectangular 계약은 유지합니다.
 OPC UA collection, durable spool, DuckLake Asset History와 live/backfill의 ownership·restart contract는
 [`live-acquisition-ducklake-v1.md`](live-acquisition-ducklake-v1.md)와
 [`live-acquisition-reliability-v1.md`](live-acquisition-reliability-v1.md)에 있습니다. 이 문서는 component
-책임과 contract를 설명하며 지원 상태나 계획을 소유하지 않습니다. 구현 지원 범위는
-[현재 지원 상태](../status.md)를 기준으로 확인합니다.
+책임과 contract를 설명하며 지원 상태나 계획을 소유하지 않습니다.
 
 ## 1. 시스템 아키텍처
 
@@ -37,7 +36,6 @@ README와 이 문서는 같은 대표 구성도 PNG를 사용합니다. 현장 �
 DuckLake, 분석, Operations Web과 운영자 판단까지의 개념적 흐름을 보여줍니다.
 생성형 AI는 계산된 사실을 설명하는 선택적 연결이며 데이터 조회·분석의 필수 경로가 아닙니다.
 SQLite·DuckLake·spool·window coordinator의 세부 책임은 아래 상세 runtime에서 설명합니다.
-기능별 지원 조건은 [현재 지원 상태](../status.md)를 따릅니다.
 
 - **Data Sources**: OPC UA subscription과 FILE(prepared CSV, AI-Hub raw archive 등). 명시적 source/asset/
   measurement-point binding 없이 설비 identity를 추정하지 않습니다.
@@ -66,8 +64,7 @@ OPC UA / FILE / historian                    공개 데이터셋 · raw measurem
 운영 source에는 일반적으로 분석용 label이 함께 오지 않습니다. 모든 production capability는 label 없이 동작해야 합니다.
 AI-Hub의 기동패턴·SOH label 같은 provider annotation은 research 평가 비교에만 사용하며 production 입력,
 `AssetHealth`, `OperatingState`, `OperationalFinding`, maintenance decision이나 verified ground truth로
-승격하지 않습니다. 비교 대상의 종류는 [terminology](../terminology.md#7-observation-and-reference-vocabulary)의
-vocabulary로 구분합니다.
+승격하지 않습니다.
 
 첫 label-free 분석 capability는 [3상 불평형](phase-unbalance-capability.md)입니다.
 
@@ -142,8 +139,7 @@ ground truth가 정의된 경우에만 사용합니다.
 
 수집·분석·Web은 같은 작업공간의 근거를 읽고, Web의 변경 요청은 supervisor가 처리합니다.
 AI 해설은 저장된 분석 또는 현재 전망의 계산 근거를 사용합니다. 실제 정비 실행은 사용자의 후속 업무이며,
-구성도 자체는 모델 성능이나 현장 적용의 검증을 뜻하지 않습니다. 기능별 지원 범위는
-[현재 지원 상태](../status.md)를 따릅니다.
+구성도 자체는 모델 성능이나 현장 적용의 검증을 뜻하지 않습니다.
 
 현재 presentation loading 경계는 두 단계입니다. 모든 supported artifact는 schema-specific inspector를 통해
 `ExperimentInspection`으로 검증되고, `AnalysisSurface`는 이 inspection과 optional detailed `AnalysisView`를
@@ -408,8 +404,7 @@ format/version 같은 executable invariant도 해당 repository code가 Source o
 OPC UA의 one-shot read, bounded subscription, persistent acquisition은 connector/runtime 책임이 서로 다릅니다.
 Persistent acquisition은 session/reconnect, durable ingress, history writer와 observation-window coordination을
 분리하며 Operations는 desired state와 관측 evidence를 통해 이를 제어·검토합니다. 구체적으로 어떤 connector,
-security mode, UI control이 지원되는지는 [현재 지원 상태](../status.md), 로컬 실행 방법은
-[OPC UA stack 문서](../../tools/opcua/README.md)를 따릅니다.
+security mode가 쓰이는지와 로컬 실행 방법은 [OPC UA stack 문서](../../tools/opcua/README.md)를 따릅니다.
 
 Prepared FILE source 쪽에는 research artifact와 분리된 첫 operational application contract가 생겼습니다.
 

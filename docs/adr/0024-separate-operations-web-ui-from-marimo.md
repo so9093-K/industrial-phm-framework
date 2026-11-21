@@ -40,11 +40,8 @@ collection/analysis process와 SQLite/DuckLake history, source/review repositori
   reactive-cell graph에 종속시키지 않는다.
 - 연구 notebook과 `apps/analysis_explorer.py`의 marimo는 research dependency로
   남긴다. 연구용 결과 평가 및 재현성 흐름을 Operations 웹 UI에 이식하지 않는다.
-- 새 클라이언트는 기존 화면을 픽셀 단위로 복제하지 않는다. 제품의
-  [Operations observation loop](../product/overview.md#1-사용자-역할)와
-  [PHM Operations workflow contract](../product/overview.md#8-phm-operations-workflow-contract)를
-  우선한다. 화면 명칭과 한국어 copy는 product/terminology owner에서 검토하고
-  기술 식별자를 표시 문자열로 재사용하지 않는다.
+- 새 클라이언트는 기존 화면을 픽셀 단위로 복제하지 않는다. 기술 식별자를 표시 문자열로
+  재사용하지 않는다.
 - 프런트엔드 프레임워크·차트 라이브러리의 정확한 선택은 접근성, 대량 시계열 성능,
   local static packaging을 확인하는 첫 구현 PR에서 결정한다. 본 ADR은
   React 등의 구체적인 라이브러리 버전을 고정하지 않는다.
@@ -128,7 +125,7 @@ collection/analysis process와 SQLite/DuckLake history, source/review repositori
 
 - 한국어 `ko-KR`을 사용자 문장·레이블·행동·오류·빈 상태 설계의 기준으로
   검토하고 영어 `en-US`를 별도로 자연스럽게 작성한다. stable page/domain ID는
-  번역하지 않으며 `docs/terminology.md`가 기술 의미를 소유한다.
+  번역하지 않는다.
 - 데이터 수신, source 연결, 저장, runner 상태, 원본 data quality,
   분석 결과, 설비 condition은 별도 사실이다. UI는 미확인·수신 중단·품질 문제를
   고장/안전 판정, verified fault diagnosis, alarm, operational RUL로 격상하지 않는다.
@@ -181,5 +178,4 @@ packaging, browser security 및 별도의 JS/TS 검증을 운영해야 하는 �
 
 **이 ADR은 target architecture를 결정하며 현재 구현 상태의 변경을 선언하지 않는다.**
 현재 기본 Operations UI는 전환이 완료되기 전까지 여전히 marimo이다.
-현재 지원 범위는 `docs/status.md`가 소유하며, 순차 구현·일회성 acceptance
-evidence·migration 작업 목록은 GitHub Issue/PR이 소유한다.
+순차 구현·일회성 acceptance evidence·migration 작업 목록은 GitHub Issue/PR이 소유한다.

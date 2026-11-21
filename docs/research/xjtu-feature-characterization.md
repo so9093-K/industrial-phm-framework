@@ -4,7 +4,7 @@
 
 이 문서는 XJTU-SY의 acquisition-level vibration feature를 한 번 선정하고 고정하는 절차가 아니라,
 **feature가 bearing lifecycle과 operating condition에서 실제로 어떻게 동작하는지 관찰하고 다음 실험 결정을
-근거화하는 방법**을 정의합니다. 프로젝트 공통 용어는 [`../terminology.md`](../terminology.md)를 따릅니다.
+근거화하는 방법**을 정의합니다.
 
 이 단계에서 관찰한 feature trajectory를 곧바로 degradation indicator나 fault-onset evidence로 해석하지 않습니다.
 Feature characterization은 data understanding과 feature analysis에 해당하며, feature selection이나 reference-data

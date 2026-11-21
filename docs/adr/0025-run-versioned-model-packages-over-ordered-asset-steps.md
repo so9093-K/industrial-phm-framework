@@ -8,7 +8,7 @@ Status: Accepted
 동작하지만, 저장된 관측이 PHM 모델의 반복 추론으로 이어지지 않습니다.
 
 - Live window runner는 3상 불평형 capability 하나로 고정되어 있습니다. 결과는 window 하나만으로
-  계산되며, window 사이에 이어지는 분석 상태가 없습니다(`docs/status.md`의 carry-in 미제공).
+  계산되며, window 사이에 이어지는 분석 상태가 없습니다(carry-in 미제공).
 - 연구 모델(Isolation Forest, Ridge RUL, LSTM)은 실험 실행 중에만 메모리에 존재합니다. 학습된 모델과
   전처리 상태를 저장·재적재하는 형식이 없어서 운영 경로가 같은 모델을 다시 쓸 수 없습니다.
 - 이상 구간(연속된 점수의 연결), RUL 시퀀스 입력(과거 획득 버퍼), 추정 궤적은 모두 **설비별 상태가 단계를

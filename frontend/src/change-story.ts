@@ -1,5 +1,5 @@
 /** 주요 변화를 읽는 사람의 말로 옮긴다: 무엇이, 언제부터 얼마 동안, 무엇과 견줘 어땠는지.
- * 판정 이름을 붙이지 않고 관측한 사실만 말한다 (docs/terminology.md, Web 화면 용어 기준). */
+ * 판정 이름을 붙이지 않고 관측한 사실만 말한다. */
 
 const digits = (number: number) => number.toLocaleString("ko-KR", {maximumSignificantDigits: 3});
 const amount = (number: number, unit: string | null) => digits(number) + (unit ? " " + unit : "");
