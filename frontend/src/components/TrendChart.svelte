@@ -9,16 +9,22 @@
   import PlotCursor from "./PlotCursor.svelte";
   /** 추이 그래프의 공통 규칙: 같은 단위의 신호 묶음을 한 눈금에 겹치고, 찾은 변화는 옅은 구간과 시작선으로,
    * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(재생 중이면 재생 위치)이다.
-   * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false. */
-  let {group, series, lo, hi, changes, reference = null, live = false, height = 150, axis = true,
-    picked = $bindable(null), cursor = $bindable(null)}: {
+   * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false.
+   * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다. */
+  let {group, series, lo, hi, changes, reference = null, band = null, marks = [], live = false, height = 150, axis = true,
+    colors = SERIES_COLORS, guide = null, picked = $bindable(null), cursor = $bindable(null), onPick}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
-    live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null} = $props();
+    band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
+    live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void;
+    /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
+    guide?: number | null} = $props();
   const W = 1000;
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
-  const low = $derived(values.length ? Math.min(...values, reference ?? Infinity) : 0);
-  const high = $derived(values.length ? Math.max(...values, reference ?? -Infinity) : 1);
+  // 처음 범위와 같은 운전 수준의 값도 같은 눈금 안에 들어와야 한다.
+  const extra = $derived([...(reference === null ? [] : [reference]), ...(band ? [band.low, band.high] : []), ...marks.map(point => point.value)]);
+  const low = $derived(values.length ? Math.min(...values, ...extra) : 0);
+  const high = $derived(values.length ? Math.max(...values, ...extra) : 1);
   const pad = $derived(high > low ? (high - low) * 0.1 : Math.max(Math.abs(low) * 0.02, 0.5));
   const span = $derived(Math.max(hi - lo, group.axis === "time" ? 1000 : 1));
   const x = (n: number) => (n - lo) / span * W;
@@ -33,7 +39,7 @@
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     hover = nearestPosition(positions, lo + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span);
   }
-  const at = $derived(hover ?? picked);
+  const at = $derived(hover ?? guide ?? picked);
   const last = $derived(series.map((row, index) => ({row, index, point: row.points.at(-1)})).filter(item => item.point));
   // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
   const end = $derived(Math.max(...series.map(row => row.points.at(-1)?.x ?? lo)));
@@ -43,7 +49,7 @@
 {#if values.length}
   <ValueAxis {ticks} {height} unit={group.unit}>
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
-      <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => picked = value}>
+      <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => { picked = value; onPick?.(value); }}>
         <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
           aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 찾은 변화 " + shown.length + "곳" : "")}>
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
@@ -51,10 +57,13 @@
             {@const start = Math.max(0, x(change.from))}
             <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
           {/each}
+          {#if band}<rect class="band" x="0" width={Math.min(W, x(end))} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))}/>{/if}
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
           {#each series as row, index (row.key)}
-            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={SERIES_COLORS[index % SERIES_COLORS.length]}/>
+            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}/>
           {/each}
+          <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
+          {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
           {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
@@ -62,7 +71,7 @@
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
       {#each last as item (item.row.key)}
         <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
-          style:--dot={SERIES_COLORS[item.index % SERIES_COLORS.length]}></span>
+          style:--dot={colors[item.index % colors.length]}></span>
       {/each}
     </div>
     {#snippet footer()}{#if axis}<XAxis {lo} hi={lo + span} {scale}/>{/if}{/snippet}
@@ -76,6 +85,8 @@
   .change{fill:var(--color-change-fill)}
   .onset{stroke:var(--color-change-line);stroke-width:1.5}
   .reference{stroke:var(--color-reference-line);stroke-width:1;stroke-dasharray:5 4}
+  .band{fill:var(--color-reference-line);opacity:.1}
+  .marks{fill:none;stroke-width:6;stroke-linecap:round;opacity:.55}
   path{fill:none;stroke-width:1.6;stroke-linejoin:round}
   line,path{vector-effect:non-scaling-stroke}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}

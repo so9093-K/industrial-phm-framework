@@ -23,15 +23,14 @@
     return()=>request.abort();
   });
   const label = (row: typeof rows[number]) => row.label;
-  const width = (v: number, a: number, b: number) => Math.abs(v) / Math.max(Math.abs(a), Math.abs(b), 1e-12) * 100;
 </script>
 <aside class="context" aria-label="선택한 변화의 관련 관측">
   <h3>{focus.kind === "history" ? "같은 구간의 다른 신호" : "함께 달라진 진동 특징"}</h3>
   {#if condition}<p class="condition">{condition}인 측정끼리 비교</p>{/if}
-  {#if rows.length}<div class="legend"><span>비교 구간</span><span>변화 구간</span></div>
+  {#if rows.length}
+    <!-- 한 줄에 이름과 비교 구간 → 변화 구간. 그림은 왼쪽 그래프가 맡는다. -->
     <dl>{#each rows.slice(0, focus.kind==="vibration"?1:3) as row(label(row))}<div class="fact">
-      <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><strong>{measure(row.current,row.unit,3)}</strong></dd>
-      {#if row.reference >= 0 && row.current >= 0}<div class="bars" aria-hidden="true"><i style:width={width(row.reference,row.reference,row.current)+"%"}></i><i style:width={width(row.current,row.reference,row.current)+"%"}></i></div>{/if}
+      <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><i aria-hidden="true">→</i><strong>{measure(row.current,row.unit,3)}</strong></dd>
     </div>{/each}</dl>
   {:else}<p>함께 비교할 신호가 이 기록에 없습니다.</p>{/if}
   {#if operation && shares?.baseline && shares.interval && band != null}
@@ -50,5 +49,8 @@
   </div>{/if}
 </aside>
 <style>
-  .context{min-width:0;display:grid;align-content:start;gap:10px}h3{margin:0;font-size:var(--font-body)}p{margin:0;color:var(--color-ink-muted);font-size:var(--font-small);line-height:1.5}.condition{font-weight:600}.legend,dd,.values{display:flex;justify-content:space-between;gap:8px}.legend{font-size:var(--font-label);color:var(--color-ink-muted)}dl{display:grid;gap:14px;margin:0}.fact{display:grid;gap:5px}dt{font-size:var(--font-small)}dd,.values{margin:0;font-size:var(--font-body);font-variant-numeric:tabular-nums}dd>span,.values>span{color:var(--color-ink-muted)}.bars{display:grid;gap:3px}.bars i{display:block;height:5px;border-radius:2px;background:var(--color-ink-muted)}.bars i+i{background:var(--color-action)}.operation{display:grid;gap:8px;border-top:1px solid var(--color-border);padding-top:12px;margin-top:4px}.operation p{font-size:var(--font-label)}
+  .context{min-width:0;display:grid;align-content:start;gap:8px}h3{margin:0;font-size:var(--font-small)}p{margin:0;color:var(--color-ink-muted);font-size:var(--font-small);line-height:1.5}.condition{font-size:var(--font-label)}.values{display:flex;justify-content:space-between;gap:8px}
+  dl{display:grid;gap:6px;margin:0}.fact{display:flex;align-items:baseline;justify-content:space-between;gap:8px}dt{font-size:var(--font-small)}dd{display:flex;align-items:baseline;gap:6px;margin:0;font-size:var(--font-small);font-variant-numeric:tabular-nums;white-space:nowrap}dd>span,dd>i{color:var(--color-ink-muted);font-style:normal}
+  .values{margin:0;font-size:var(--font-body);font-variant-numeric:tabular-nums}.values>span{color:var(--color-ink-muted)}.bars{display:grid;gap:3px}.bars i{display:block;height:5px;border-radius:2px;background:var(--color-ink-muted)}.bars i+i{background:var(--color-series-1)}
+  .operation{display:grid;gap:6px;border-top:1px solid var(--color-border);padding-top:10px;margin-top:4px}.operation p{font-size:var(--font-label)}
 </style>

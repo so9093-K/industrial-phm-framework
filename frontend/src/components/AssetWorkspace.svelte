@@ -1,6 +1,6 @@
 <script lang="ts">
   import {untrack,tick} from "svelte";
-  import {assetLabel, type Asset} from "../monitor";
+  import type {Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
   import {
@@ -169,7 +169,8 @@
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">
-      <div class="selection-context"><strong class="analysis-asset"><AssetName label={assetLabel(assets,asset.assetId)}/></strong><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 모니터링</a>
+      <!-- 설비 이름은 바로 위 줄에 있다. 여기서는 조사 화면으로 돌아가는 길과 고른 변화만. -->
+      <div class="selection-context"><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 변화 조사</a><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span>
         {#key route.tab+":"+method+":"+kind}<InvestigationContext search={location.search}/>{/key}</div>
       <h2 id="analysis-view-title" class="visually-hidden">{analysisTitle}</h2>
       {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
@@ -261,7 +262,7 @@
 </div>
 
 <style>
-  .analysis-asset{font-size:var(--font-body)}.record-type{font-size:var(--font-label);color:var(--color-ink-muted)}
+  .record-type{font-size:var(--font-label);color:var(--color-ink-muted)}
   .analysis-view{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
   .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--space-3);
     padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}

@@ -482,6 +482,8 @@
   .monitor{min-width:0;display:grid;gap:var(--space-3)}
   .investigation-actions :global(.decision){border-left:1px solid var(--color-border);padding-left:var(--space-4)}
   .investigation-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-5);padding-block:var(--space-2);border-bottom:1px solid var(--color-border)}
+  /* 화면 이동과 창 열기를 같은 크기의 버튼으로: 모양은 주요 동작(채움)과 나머지(테두리) 두 가지뿐이다. */
+  .investigation-actions :global(.ui-button){min-height:0;padding:7px 14px;font-size:var(--font-small);font-weight:650}
   .facts-panel { min-width: 0; display: grid; gap: var(--space-2); align-content: start; padding:var(--space-4); }
 
 
