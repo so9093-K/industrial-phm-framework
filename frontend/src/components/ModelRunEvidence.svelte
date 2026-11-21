@@ -329,7 +329,7 @@
       </label>
       <AnalysisControls title="모델 설정">{#snippet children()}{#if binding}
       <p class="context">적용 모델 <strong>{names.get(binding.bindingId)}</strong> · 데이터 출처 {readableSourceId(binding.sourceId,bindings.map(each=>each.sourceId))}{binding.pointId?" · 측정 위치 "+binding.pointId:""}
-        · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 기록 재생 데이터":""}</p>
+        · {binding.stepKind==="acquisition-snapshot"?"진동 측정마다 계산":"시간 구간마다 계산"}{binding.recordedReplay?" · 저장 기록 데이터":""}</p>
       {#if builtModelNote(binding)}<p class="context">{builtModelNote(binding)}</p>{/if}
       {#if trace}
       <p class="context">{followLatest?"최신 결과를 3초마다 확인합니다. 측정을 고르거나 질문을 시작하면 그 결과에 고정합니다.":"고른 결과에 고정했습니다."}
@@ -406,7 +406,7 @@
           {#if result.state==="skipped"}<button type="button" class="ui-button input-details" onclick={()=>inputOpen=true}>원본·모델 상세</button>{/if}
           <TaskDialog bind:open={inputOpen} title="선택한 측정의 원본·모델 상세"><div class="selected-more">
           <div class="selected-meta"><p class="context">측정 시각 {result.eventStart?clock(result.eventStart):"기록 없음"}{result.eventEnd&&result.eventEnd!==result.eventStart?" ~ "+clock(result.eventEnd):""}
-            · 모델 처리 {clock(result.processedAt)}{result.replay?" · 기록 재생":""}</p>
+            · 모델 처리 {clock(result.processedAt)}{result.replay?" · 저장 기록":""}</p>
           {#if measurements&&binding.stepKind==="acquisition-snapshot"}
             {@const links=measurementLinks(assetId,result.position,{...measurements,bindingId:binding.bindingId},"model")}
             {#if links.length}<p class="continue">같은 측정으로 이어서 보기

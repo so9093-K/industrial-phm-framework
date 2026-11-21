@@ -52,7 +52,7 @@
       {/each}
     </dl>
     <span class="time">{#if cursor !== null}{short(cursor)}{#if picked !== null} <button type="button" aria-label="고른 시점 해제" onclick={() => picked = null}>×</button>{/if}
-      {:else if lastFocus}{replaying ? "재생 위치 " : "마지막 "}{short(group.axis === "time" ? Math.min(until ?? group.record.to, lastFocus.x + (group.bucketMs ?? 0)) : lastFocus.x)}
+      {:else if lastFocus}{replaying ? "모니터링 시점 " : "마지막 "}{short(group.axis === "time" ? Math.min(until ?? group.record.to, lastFocus.x + (group.bucketMs ?? 0)) : lastFocus.x)}
       {:else}기록 시작 전{/if}</span>
   </div>
   <div class="chart">

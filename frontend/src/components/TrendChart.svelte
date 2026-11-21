@@ -8,7 +8,7 @@
   import XAxis from "./XAxis.svelte";
   import PlotCursor from "./PlotCursor.svelte";
   /** 추이 그래프의 공통 규칙: 같은 단위의 신호 묶음을 한 눈금에 겹치고, 찾은 변화는 옅은 구간과 시작선으로,
-   * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(재생 중이면 재생 위치)이다.
+   * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(모니터링 중이면 모니터링 시점)이다.
    * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false.
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], live = false, height = 150, axis = true,
@@ -79,7 +79,7 @@
     </div>
     {#snippet footer()}{#if axis}<XAxis {lo} hi={lo + span} {scale}/>{/if}{/snippet}
   </ValueAxis>
-{:else}<div class="empty" style:height={height + "px"}>{live ? "재생 위치까지 끝난 측정 구간이 아직 없습니다" : "표시할 측정이 없습니다"}</div>{/if}
+{:else}<div class="empty" style:height={height + "px"}>{live ? "이 시점까지 끝난 측정 구간이 아직 없습니다" : "표시할 측정이 없습니다"}</div>{/if}
 
 <style>
   .plot{position:relative}
