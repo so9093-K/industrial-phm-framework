@@ -44,6 +44,7 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
                 "baseline": [0, 0.15, 0.44, 0.41],
                 "interval": [0, 0.44, 0.56, 0],
             },
+            "load": {"label": "전류평균", "unit": "A", "reference": 41.2, "current": 23.1},
             "related": [
                 {
                     "reference": 222,
@@ -76,12 +77,22 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     assert "within" not in facts["related_1"] and "비교 범위 안" in facts["related_1"]
     # Whether the load changed is the level mix of the two periods.
     assert facts["operating_share"] == (
-        "운전 수준별 측정 비중(비교 구간 → 변화 구간): 약 11 A 운전 15% → 44%, "
+        "운전 수준별 측정 비중(초기 → 특이사항 구간): 약 11 A 운전 15% → 44%, "
         "약 31 A 운전 44% → 56%, 약 62 A 운전 41% → 0%."
     )
     assert facts["order"].startswith(
-        "같은 시기 변화의 시작 순서: R상전압·S상전압(10월 4일 09:19) → T상전압(10월 5일 03:05)."
+        "같은 시기 특이사항의 시작 순서: R상전압·S상전압(10월 4일 09:19) → T상전압(10월 5일 03:05)."
     )
+    # How much, against what: the size of the change, the supply tolerance, the load at the time.
+    assert facts["feature_0"].endswith("초기보다 4 V(1.8%) 높습니다.")
+    assert "207~233 V" in facts["limit"] and facts["limit"].endswith("이 범위 안입니다.")
+    assert (
+        facts["load"]
+        == "같은 때 전류평균(모든 운전 수준을 합친 평균): 초기 41.2 A → 특이사항 구간 23.1 A."
+    )
+    # Only what is really missing is said to be missing; the load is not.
+    assert facts["conditions"].endswith("정비 기록은 이 자료에 없습니다.")
+    assert "부하" not in facts["conditions"]
     # A related phase that is itself a drawn change points at that change; current does not.
     assert targets["related_0"]["review_key"] == s["review_key"]
     assert targets["related_0"]["where"] == "10월 4일 09:19~17:19"
@@ -103,6 +114,8 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # What the investigation looked at, one '항목 · 결과' row each, the selected change first.
     assert [(row["label"], row["result"]) for row in out["steps"]] == [
         ("R상전압", "222 → 226 V"),
+        ("공급 허용 범위 207~233 V", "안"),
+        ("전류평균", "41.2 → 23.1 A"),
         ("약 11 A 운전 비중", "15% → 44%"),
         ("같은 운전 수준끼리 비교", "약 11 A 운전"),
         ("S상전압", "222 → 225 V"),

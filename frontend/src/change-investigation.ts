@@ -38,8 +38,9 @@ export function readEvidence(raw:unknown):Evidence[]{
 /** 조사가 확인한 항목 한 줄(항목 · 결과). 그래프에 그려진 것이면 target으로 그 자리를 가리킨다. */
 export type Step={label:string;result:string;target:Evidence|null};
 /** 첫 요청: 질문을 고르지 않아도 고른 특이사항 자체를 조사한다. 대화에는 사람이 하는 말(label)로 보인다. */
-export const INVESTIGATE={label:"원인을 조사해 주세요",text:"이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."};
-const EARLIER_INVESTIGATE=["이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."];
+export const INVESTIGATE={label:"원인을 조사해 주세요",text:"이 특이사항이 왜 생겼는지 기록으로 설명해 주세요. 무엇과 함께 일어났고 기준과 견주면 어디쯤인지 알려 주세요."};
+const EARLIER_INVESTIGATE=["이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요.",
+  "이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."];
 /** 대화에 보이는 사람의 말: 첫 요청은 짧은 말로, 그 밖에는 쓴 그대로. */
 export function spokenQuestion(text:string):string{
   return text===INVESTIGATE.text||EARLIER_INVESTIGATE.includes(text)?INVESTIGATE.label:text;
