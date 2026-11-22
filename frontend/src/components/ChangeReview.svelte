@@ -28,11 +28,11 @@
   }
   onMount(()=>{const req=new AbortController();void readPermission(req.signal).then(value=>{if(!req.signal.aborted)writable=value;}).catch(()=>{});void load();return()=>{req.abort();request?.abort();};});
 </script>
-{#if readState === "loading"}<StatusNotice message="이 변화의 저장된 검토를 확인하고 있습니다." />
+{#if readState === "loading"}<StatusNotice message="이 특이사항의 저장된 검토를 확인하고 있습니다." />
 {:else if readState === "failed"}<StatusNotice kind="failure" message={error} actionLabel="검토 다시 읽기" onAction={()=>void load()} />
 {:else}
   <ReviewActions id={capture?.id ?? finding.reviewKey!} status={capture?.review.status ?? "open"} events={capture?.review.events ?? []}
-    {writable} {draftNote} confirmLabel="판단 저장" closeQuestion="이 변화의 검토를 종료할까요? 종료하면 기록을 더 남길 수 없습니다." {reload}
+    {writable} {draftNote} confirmLabel="판단 저장" closeQuestion="이 특이사항의 검토를 종료할까요? 종료하면 기록을 더 남길 수 없습니다." {reload}
     submit={async(action,note,eventId,signal,decision)=>{
       if(!capture){const id=await captureChange(assetId,finding,signal);const page=await readChangeReviews(assetId,signal,{capture_id:id});capture=page.captures[0];}
       await reviewChange(assetId,capture,action,note,eventId,signal,decision);

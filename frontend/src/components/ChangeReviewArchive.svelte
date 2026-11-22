@@ -20,13 +20,13 @@
   onMount(()=>()=>request?.abort());
 </script>
 {#if error}<StatusNotice kind="failure" message={error} actionLabel="저장 검토 다시 읽기" onAction={()=>void load()} />{/if}
-{#if !busy&&!error&&!captures.length}<p>저장한 주요 변화 검토가 없습니다.</p>{/if}
+{#if !busy&&!error&&!captures.length}<p>저장한 특이사항 검토가 없습니다.</p>{/if}
 {#each captures as capture(capture.id)}
   {@const finding=capture.finding}
   <details ontoggle={event=>opened={...opened,[capture.id]:event.currentTarget.open}}><summary>{finding.label} · {changeCaptureCaption(capture)} · {capture.review.status==="closed"?"종료":capture.review.status==="acknowledged"?"확인함":"검토 대기"}</summary>
     {#if opened[capture.id]}<ChangeCaptureDetail {assetId} {capture} onUpdated={updated=>captures=captures.map(row=>row.id===updated.id&&updated.review.events.length>=row.review.events.length?updated:row)} />{/if}
   </details>
 {/each}
-{#if busy}<p role="status">저장한 변화 검토를 읽고 있습니다.</p>{/if}
+{#if busy}<p role="status">저장한 특이사항 검토를 읽고 있습니다.</p>{/if}
 {#if next}<button type="button" class="ui-button" disabled={busy} onclick={()=>void load(true)}>이전 검토 더 보기</button>{/if}
 <style>details{margin-block:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}summary,p{overflow-wrap:anywhere}</style>

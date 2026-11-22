@@ -24,7 +24,9 @@
   const electrical=$derived(focus.kind==="history"&&(focus.item.unit==="V"||focus.item.unit==="A"));
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
   // 첫 요청: 질문을 고르지 않아도 고른 변화 자체를 조사한다. 대화에는 이름(label)으로 보인다.
-  const investigate={label:"이 변화 조사",text:"이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."};
+  const investigate={label:"이 특이사항 조사",text:"이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."};
+  // 이름을 바꾸기 전에 보낸 같은 요청도 이름으로 보인다.
+  const earlierInvestigate="이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요.";
   const order={label:"변화 순서",text:"같은 시기에 달라진 항목들이 바뀐 순서와 그 순서로 알 수 있는 것을 설명해 주세요."};
   const steady={label:"변화 시작·지속",text:"변화가 언제 시작됐고 달라진 수준이 이어졌는지 값이 계속 변했는지 설명해 주세요."};
   const questions=$derived(focus.kind==="vibration"
@@ -57,7 +59,7 @@
   $effect(()=>{const key=hovered??pinned;if(key===null){point(null);return;}
     const [kind,id,index]=key.split("|"),row=records.find(item=>item.id===id);
     point((kind==="s"?row?.steps[Number(index)]?.target:row?.answer?.evidence?.[Number(index)])??null);});
-  const said=(text:string)=>text===investigate.text?investigate.label:text;
+  const said=(text:string)=>text===investigate.text||text===earlierInvestigate?investigate.label:text;
   const values=(row:{before:number|null;after:number|null;unit:string|null})=>row.before!==null&&row.after!==null?measure(row.before,row.unit,3)+" → "+measure(row.after,row.unit,3):"";
   // 답의 문장(서버의 유효 숫자 세 자리)과 같은 표기.
   const hz=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
@@ -158,7 +160,7 @@
 {/snippet}
 
 <section class="chat" aria-label="선택한 변화의 AI 조사">
-  <header><div><span class="what"><i class="swatch" style:background={colorOf(reviewKey)??"var(--color-ink-muted)"}></i><b>{labelOf(reviewKey)??label}</b> 변화</span><small>{span}</small></div>
+  <header><div><span class="what"><i class="swatch" style:background={colorOf(reviewKey)??"var(--color-ink-muted)"}></i><b>{labelOf(reviewKey)??label}</b> 특이사항</span><small>{span}</small></div>
     {#if onClose}<button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
@@ -166,7 +168,7 @@
     {:else if !thread.length&&!unsent}
       <div class="empty">
         <button type="button" class="start" disabled={!writable} onclick={()=>void ask(investigate.text)}>
-          <b>{investigate.label}</b><span>이 변화의 측정·비교 결과를 확인하고, 확인된 것과 아직 모르는 것을 나눠 답합니다.</span></button>
+          <b>{investigate.label}</b><span>이 특이사항의 측정·비교 결과를 확인하고, 확인된 것과 아직 모르는 것을 나눠 답합니다.</span></button>
         <div class="follow">{#each prompts as item(item.label)}<button type="button" disabled={!writable} title={item.text} onclick={()=>void ask(item.text)}>{item.label}</button>{/each}</div>
       </div>
     {/if}
@@ -189,11 +191,11 @@
                 {#if item.kind==="change"}
                   <span class="name"><i class="swatch" style:background={colorOf(item.review_key)??"var(--color-ink-muted)"}></i>{labelOf(item.review_key)??item.label}<b>{values(item)}</b></span><small>{item.where}</small>
                 {:else if item.kind==="signal"}
-                  <span class="name"><i class="swatch hollow"></i>{item.label}<b>{values(item)}</b></span><small>같은 비교 구간 · 그래프에 없는 신호</small>
+                  <span class="name"><i class="swatch hollow"></i>{item.label}<b>{values(item)}</b></span><small>같은 기간 · 그래프에 없는 신호</small>
                 {:else if item.kind==="operation"&&item.levels&&item.a&&item.b}
                   <span class="name"><i class="swatch level"></i>{item.label}</span>
                   <!-- 비교 구간과 변화 구간의 운전 수준 비중. 진하기는 그래프 아래 운전 수준 띠와 같다(진할수록 높은 전류, 빈 칸은 정지). -->
-                  {#each [["비교 구간",item.a],["변화 구간",item.b]] as [name,shares] (name)}
+                  {#each [["초기",item.a],["특이사항",item.b]] as [name,shares] (name)}
                     <span class="mix"><small>{name}</small><span class="stack" title={item.levels.map((level,i)=>level+" "+percent((shares as number[])[i])).join(", ")}>
                       {#each shares as number[] as share,i(i)}{#if share>0}<i class:stop={i===0} style:width={share*100+"%"} style:opacity={i===0?1:.18+.72*i/Math.max(1,item.levels.length-1)}>{share>=.15?percent(share):""}</i>{/if}{/each}
                     </span></span>
@@ -233,7 +235,7 @@
     {#if thread.length&&prompts.length}<div class="follow">{#each prompts as item(item.label)}<button type="button" disabled={!writable||waiting} onclick={()=>void ask(item.text)}>{item.label}</button>{/each}</div>{/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="질문" bind:value={question} oninput={()=>questionRevision++} onfocus={()=>onStart?.()} onkeydown={keydown}
-        disabled={!writable} placeholder={!writable?"보기 전용에서는 저장된 대화만 볼 수 있습니다":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":"이 변화에 대해 질문"}></textarea>
+        disabled={!writable} placeholder={!writable?"보기 전용에서는 저장된 대화만 볼 수 있습니다":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":"이 특이사항에 대해 질문"}></textarea>
       <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||loading||waiting||!question.trim()} onclick={()=>void ask(question)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
     </div>

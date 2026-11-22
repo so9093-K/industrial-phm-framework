@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {aiInvestigationHref, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
+import {aiInvestigationHref, judgmentsOf, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
 
 const hour = 3600_000;
 const phases = parseGroup({label: "상전압", unit: "V", axis: "time", focus: "r", bucket_seconds: 3600, period_seconds: null,
@@ -59,4 +59,15 @@ test("AI investigation opens the change where it was judged, and asks to start r
   const whole = new URL(aiInvestigationHref("compressor 1306", group, null, change), "http://local");
   assert.equal(whole.searchParams.get("record_until"), null);
   assert.equal(whole.searchParams.get("summary_change"), change.ref);
+});
+
+test("a 특이사항's judgment is its latest decision, last record time and latest memo", () => {
+  const event = (eventId: string, action: "acknowledge" | "note" | "close", note: string, at: string, decision: "inspect" | "observe" | null) =>
+    ({eventId, action, note, recordedAt: at, decision});
+  const capture = {id: "change-review-" + "a".repeat(64), assetId: "c", capturedAt: "2026-11-22T03:00:00Z", kind: "history",
+    finding: {reviewKey: "k".repeat(64)},
+    review: {status: "acknowledged", events: [event("1", "acknowledge", "부하가 줄 때 전압 상승", "2026-11-22T03:09:00Z", "inspect"),
+      event("2", "note", "", "2026-11-22T04:00:00Z", null)]}} as never;
+  assert.deepEqual(judgmentsOf([capture])["k".repeat(64)],
+    {decision: "inspect", closed: false, at: "2026-11-22T04:00:00Z", note: "부하가 줄 때 전압 상승"});
 });

@@ -10,7 +10,7 @@
   const finding=$derived(capture.finding);
   const links=$derived(capture.kind==="vibration"?vibrationLinks(assetId,capture.finding):findingLinks(assetId,capture.finding,capture.finding.baseline,capture.finding.bucketSeconds??null));
 </script>
-<h3>{finding.label} · 저장한 변화</h3>
+<h3>{finding.label} · 특이사항</h3>
 <p>{changeCaptureCaption(capture)}</p>
 <ChangeNumbers facts={finding} fallback="저장한 측정의 변화"/>
 {#if capture.kind==="vibration"}

@@ -139,9 +139,9 @@ export type PeriodOrigin = "signal" | "departure" | "previous" | "summary" | "ob
 export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
   observation: "관측에서 고정한 비교 기준을 기간 A로, 선택한 구간을 기간 B로 가져왔습니다.",
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
-  previous: "주요 변화 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
+  previous: "특이사항 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
   departure: "기록 변화 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
-  summary: "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 변화 구간입니다.",
+  summary: "모니터링 화면의 특이사항과 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 특이사항 구간입니다.",
 };
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");

@@ -22,9 +22,9 @@
     {#if archiveOpen}<ChangeReviewArchive {assetId} {revision} />{/if}
   </details>
 {/snippet}
-<div class="decision" aria-label="이 변화로 이어서 할 일">
+<div class="decision" aria-label="이 특이사항으로 이어서 할 일">
   <button type="button" class="ui-button" onclick={() => {onInvestigate?.();reviewOpen = true;}}>판단·메모 남기기</button>
-  <TaskDialog title="이 변화의 판단·메모" bind:open={reviewOpen}>{@render review()}</TaskDialog>
+  <TaskDialog title="이 특이사항의 판단·메모" bind:open={reviewOpen}>{@render review()}</TaskDialog>
 </div>
 
 <style>

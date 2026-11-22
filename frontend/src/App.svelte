@@ -9,7 +9,6 @@
   import AssetList from "./components/AssetList.svelte";
   import DatasetMonitor from "./components/DatasetMonitor.svelte";
   import MonitorAttention from "./components/MonitorAttention.svelte";
-  import ReviewEntry from "./components/ReviewEntry.svelte";
   import { readPublicDatasets } from "./public-datasets";
   import AssetWorkspace from "./components/AssetWorkspace.svelte";
   import PageHeading from "./components/PageHeading.svelte";
@@ -301,7 +300,6 @@
         {:else if route.assetId}<StatusNotice kind="uncertain" title="선택한 설비가 이번 목록에 없습니다" message="전체 설비로 돌아가 다른 기록을 선택하세요."/>{/if}
       {/if}
       <div class="monitor-footer">
-        <ReviewEntry compact/>
         <details id="operations" class="ui-panel monitor-operations"><summary>운영 확인 항목{snapshot.operationsAttention?.items.length?" · "+snapshot.operationsAttention.items.length+"건":" · 없음"}</summary>
           <MonitorAttention {snapshot} onTick={quietRefresh} onChecks={()=>{}} onSources={receiveSources} />
         </details>
@@ -357,7 +355,7 @@
 </main>
 
 <style>
-  .monitor-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:var(--space-2) var(--space-4);border-top:1px solid var(--color-border);margin-top:var(--space-4)}.monitor-footer:has(details[open]){display:grid}.monitor-footer :global(.review-entry){margin-block:var(--space-3)}
+  .monitor-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:start;gap:var(--space-2) var(--space-4);border-top:1px solid var(--color-border);margin-top:var(--space-4)}.monitor-footer:has(details[open]){display:grid}
   .start-guide>summary { cursor:pointer; padding-block:var(--space-3); color:var(--color-action); font-weight:650; }
   .monitor-operations { padding:0; border:0; border-radius:0; background:transparent; }
   .monitor-operations>summary {

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {filterReviewItems, selectReviewItem, type ReviewListItem} from "./review-selection.ts";
+import {filterReviewItems, firstGroup, reviewGroup, selectReviewItem, type ReviewListItem} from "./review-selection.ts";
 
 const entries: ReviewListItem[] = [
-  {key: "finding:one", assetId: "pump-a", kind: "analysis", status: "open"},
-  {key: "capture:two", assetId: "pump-b", kind: "outlook", status: "acknowledged"},
-  {key: "finding:three", assetId: "pump-b", kind: "analysis", status: "closed"},
+  {key: "finding:one", assetId: "pump-a", kind: "analysis", status: "open", group: "pending"},
+  {key: "capture:two", assetId: "pump-b", kind: "outlook", status: "acknowledged", group: "inspect"},
+  {key: "finding:three", assetId: "pump-b", kind: "analysis", status: "closed", group: "done"},
 ];
 
-test("review status and kind filters keep a consistent detail selection", () => {
-  const open = filterReviewItems(entries, "open", "all");
+test("review judgment and kind filters keep a consistent detail selection", () => {
+  const open = filterReviewItems(entries, "pending", "all");
   assert.deepEqual(open.map((item) => item.key), ["finding:one"]);
   assert.equal(selectReviewItem(open, null, "capture:two")?.key, "finding:one");
   const outlooks = filterReviewItems(entries, "all", "outlook");
@@ -27,3 +27,14 @@ test("after review is updated, explicit selection remains visible under all-stat
   assert.equal(selectReviewItem(all, null, "finding:three")?.key, "finding:three");
 });
 
+test("reviews are grouped by what the person decided, and open on the first group with work", () => {
+  assert.equal(reviewGroup("acknowledged", "inspect"), "inspect");
+  assert.equal(reviewGroup("acknowledged", "observe"), "observe");
+  assert.equal(reviewGroup("open", null), "pending");
+  assert.equal(reviewGroup("acknowledged", null), "pending");
+  assert.equal(reviewGroup("acknowledged", "no-action"), "done");
+  assert.equal(reviewGroup("closed", "inspect"), "done");
+  assert.equal(firstGroup({inspect: 0, observe: 2, pending: 1, done: 3}), "pending");
+  assert.equal(firstGroup({inspect: 1, observe: 0, pending: 1, done: 0}), "inspect");
+  assert.equal(firstGroup({inspect: 0, observe: 0, pending: 0, done: 4}), "all");
+});

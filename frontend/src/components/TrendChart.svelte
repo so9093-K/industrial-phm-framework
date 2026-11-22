@@ -63,7 +63,7 @@
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
       <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => { picked = value; onPick?.(value); }}>
         <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
-          aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 찾은 변화 " + shown.length + "곳" : "")}>
+          aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 특이사항 " + shown.length + "곳" : "")}>
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
           {#each shown as change (change.key + change.from)}
             {@const start = Math.max(0, x(change.from))}

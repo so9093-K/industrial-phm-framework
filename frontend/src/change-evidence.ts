@@ -16,7 +16,7 @@ const withUnit = (raw: number, unit: string | null) => value(raw) + (unit ? " " 
 /** 범위: 변화 구간의 값이 몇 회 중 몇 회 초기(기록 처음 30%) 값의 90%가 있던 범위 밖이었는지. */
 export function rangeEvidence(facts: {usable: number; outside: number | null; low: number | null; high: number | null;
   unit: string | null; condition: string | null; percent?: number | null},
-  names: {a: string; b: string} = {a: "초기", b: "변화 구간"}): string | null {
+  names: {a: string; b: string} = {a: "초기", b: "특이사항 구간"}): string | null {
   const {usable, outside, low, high, unit, condition, percent = null} = facts;
   if (!usable || outside === null || low === null || high === null) return null;
   const range = names.a + " 값의 90% 범위(" + value(low) + "~" + withUnit(high, unit) + ")";

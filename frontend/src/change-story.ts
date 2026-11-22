@@ -69,7 +69,7 @@ export function changeNumbers(facts: ChangeFacts, spanCaption: string | null = n
   if (facts.reference === null || facts.typical === null) return null;
   return {
     before: {caption: "초기 · 기록 처음 30%", value: amount(facts.reference, facts.unit), note: null},
-    after: {caption: spanCaption ? "변화 구간 · " + spanCaption : "변화 구간", value: amount(facts.typical, facts.unit),
+    after: {caption: spanCaption ? "특이사항 구간 · " + spanCaption : "특이사항 구간", value: amount(facts.typical, facts.unit),
       note: versusStart(facts.typical, facts.reference, facts.unit)},
   };
 }

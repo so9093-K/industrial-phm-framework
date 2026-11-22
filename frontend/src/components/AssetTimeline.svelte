@@ -111,10 +111,10 @@
     </div>
   </header>
   {#if !focused.values}<p class="numbers">{focused.numbers}</p>{/if}
-  <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={()=>zoomed=false}>기록 전체</button><button type="button" aria-pressed={zoomed} onclick={()=>zoomed=true}>변화 구간 확대</button></div>
+  <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={()=>zoomed=false}>기록 전체</button><button type="button" aria-pressed={zoomed} onclick={()=>zoomed=true}>특이사항 확대</button></div>
     {#if episodes.length>1}<div class="choices" role="group" aria-label="변화 시기">{#each episodes as item,i(i)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}</div>{/if}
     <ul class="legend" aria-label="그래프 읽는 법">
-      <li><i class="band-key"></i>처음 범위</li><li><i class="dash"></i>처음 수준</li><li><i class="change-key"></i>찾은 변화</li>
+      <li><i class="band-key"></i>초기 범위</li><li><i class="dash"></i>초기 수준</li><li><i class="change-key"></i>특이사항</li>
       {#if focused.condition && focused.matched?.length}<li><i class="dot" style:background={SERIES_COLORS[0]}></i>{focused.condition} 중의 값</li>{/if}
     </ul>
   </div>
@@ -149,9 +149,9 @@
     {/if}
     <div class="strip"><span></span><XAxis {lo} {hi} {scale}/></div>
   </div>{#if !chatting}<div class="related-context">
-      {#if focused.values}<div class="focus-values" aria-label="고른 신호의 비교 구간과 변화 구간">
+      {#if focused.values}<div class="focus-values" aria-label="고른 신호의 초기와 특이사항 구간">
         <span class="name">{focused.label}</span>
-        <div class="pair"><span><small>비교 구간</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>변화 구간</small><strong>{focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
+        <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>특이사항 구간</small><strong>{focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
       </div>{/if}
       {#if context}{@render context()}{/if}
     </div>{/if}</div>

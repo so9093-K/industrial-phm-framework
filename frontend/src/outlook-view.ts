@@ -72,9 +72,9 @@ export function limitSuggestions(unit: string | null, baseline: {median: number 
   if (unit === "V" && baseline?.median != null && baseline.median >= 200 && baseline.median <= 240 && /전압/.test(label) && !/선간/.test(label))
     out.push({label: "공급 전압 상한 233 V", value: 233, direction: "upper", source: "표준전압 220 V의 허용 범위 207~233 V(전기사업법 시행규칙 별표 3)"},
       {label: "공급 전압 하한 207 V", value: 207, direction: "lower", source: "표준전압 220 V의 허용 범위 207~233 V(전기사업법 시행규칙 별표 3)"});
-  if (baseline?.high != null) out.push({label: "처음 범위 상단 " + round3(baseline.high) + (unit ? " " + unit : ""), value: round3(baseline.high), direction: "upper",
+  if (baseline?.high != null) out.push({label: "초기 범위 상단 " + round3(baseline.high) + (unit ? " " + unit : ""), value: round3(baseline.high), direction: "upper",
     source: "이 기록 처음 30%의 값이 흔들린 범위의 위쪽 끝"});
-  if (baseline?.low != null && baseline.low > 0) out.push({label: "처음 범위 하단 " + round3(baseline.low) + (unit ? " " + unit : ""), value: round3(baseline.low), direction: "lower",
+  if (baseline?.low != null && baseline.low > 0) out.push({label: "초기 범위 하단 " + round3(baseline.low) + (unit ? " " + unit : ""), value: round3(baseline.low), direction: "lower",
     source: "이 기록 처음 30%의 값이 흔들린 범위의 아래쪽 끝"});
   return out;
 }

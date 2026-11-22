@@ -27,7 +27,7 @@
 <figure aria-label={"변화 전후의 구간별 평균과 변화 구간. 변화 시작 "+clock(finding.start)+", 종료 "+clock(finding.end)}>
   <ValueAxis {ticks} {height} unit={finding.unit}>
   <div class="plot">
-  <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label="구간별 평균 추이 · 측정 공백은 연결하지 않음 · 음영은 발견한 변화 구간">
+  <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label="구간별 평균 추이 · 측정 공백은 연결하지 않음 · 음영은 특이사항 구간">
     <rect width="600" height={height} rx="8" class="track" />
     {#each ticks as tick (tick.value)}<line x1="0" x2="600" y1={tick.y} y2={tick.y} class="grid" />{/each}
     <rect x="0" width="600" y={y(usual.high)} height={Math.max(1,y(usual.low)-y(usual.high))} class="usual" />
@@ -38,7 +38,7 @@
     {#each values as row,i (i)}<circle cx={x(row.at)} cy={y(row.value)} r="1.8" class="sample"><title>{clock(row.at)} · {measure(row.value,finding.unit)}</title></circle>{/each}
   </svg>
   <span class="tag usual-tag" style:top={(y(usual.low)/height*100)+"%"}>초기 범위</span>
-  <span class="tag interval-tag" style:left={(x(finding.start)/6)+"%"}>변화 구간</span>
+  <span class="tag interval-tag" style:left={(x(finding.start)/6)+"%"}>특이사항 구간</span>
   {#if reference!==null}<span class="tag ref-tag" style:top={(y(reference)/height*100)+"%"}>초기 중앙값 {measure(reference,finding.unit)}</span>{/if}
   </div>
   {#snippet footer()}
