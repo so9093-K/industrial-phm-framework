@@ -15,7 +15,7 @@ import sqlite3
 import sys
 import threading
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -272,12 +272,53 @@ def _cache_absent_pandas_import() -> Iterator[None]:
             del sys.modules["pandas"]
 
 
+class _CatalogTurn:
+    """First-come order for one catalog's lease among this process's threads.
+
+    The file lock only polls. A thread that releases and at once reconnects (a long
+    calculation's next batch) almost always wins again, so a short read from another screen
+    waits out its whole timeout. Threads here take turns in arrival order before the file lock.
+    """
+
+    def __init__(self) -> None:
+        self._condition = threading.Condition()
+        self._waiting: deque[object] = deque()
+        self._busy = False
+
+    def acquire(self, timeout: float) -> bool:
+        me = object()
+        with self._condition:
+            self._waiting.append(me)
+            if self._condition.wait_for(lambda: not self._busy and self._waiting[0] is me, timeout):
+                self._waiting.popleft()
+                self._busy = True
+                return True
+            self._waiting.remove(me)
+            self._condition.notify_all()
+            return False
+
+    def release(self) -> None:
+        with self._condition:
+            self._busy = False
+            self._condition.notify_all()
+
+
+_TURNS: dict[str, _CatalogTurn] = {}
+_TURNS_LOCK = threading.Lock()
+
+
+def _catalog_turn(catalog_path: Path) -> _CatalogTurn:
+    with _TURNS_LOCK:
+        return _TURNS.setdefault(str(catalog_path), _CatalogTurn())
+
+
 class _LockedConnection:
     """Keep the local catalog lease until all DuckLake handles are closed."""
 
-    def __init__(self, connection: Any, lock: Any) -> None:
+    def __init__(self, connection: Any, lock: Any, turn: _CatalogTurn) -> None:
         self._connection = connection
         self._lock = lock
+        self._turn = turn
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._connection, name)
@@ -286,7 +327,10 @@ class _LockedConnection:
         try:
             self._connection.close()
         finally:
-            self._lock.release()
+            try:
+                self._lock.release()
+            finally:
+                self._turn.release()
 
 
 class DuckLakeAssetHistory:
@@ -1972,8 +2016,10 @@ class DuckLakeAssetHistory:
     ) -> StreamAggregation:
         """Each signal identity of one source and point on its own grid.
 
-        Read complete channel populations in small batches on one catalog lease, bounding
-        the wide metadata joins without splitting conflicts, meanings or operating levels.
+        Read complete channel populations in small batches, bounding the wide metadata joins
+        without splitting conflicts, meanings or operating levels. Every batch reads the same
+        snapshot on its own short lease, so a month of 1-minute records does not keep the
+        catalog from other screens' reads for the whole calculation.
 
         Every channel and meaning gets ``bucket_count`` equal buckets from its first to one
         second past its last observation, so adding another meaning or channel cannot change
@@ -2040,122 +2086,128 @@ class DuckLakeAssetHistory:
         connection = self._connect()
         try:
             self._ensure_initialized(connection)
-            sql = f"""
-                WITH selected AS (
-                    SELECT *,
-                        count(DISTINCT value) OVER identity_window
-                        + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
-                        > 1 AS conflict
-                    FROM {_CATALOG_NAME}.history.measurement
-                    WHERE asset_id = ?
-                        AND channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND event_at >= ? AND event_at < ?
-                        AND source_id = ? AND measurement_point_id IS NOT DISTINCT FROM ?
-                    WINDOW identity_window AS (
-                        PARTITION BY source_id, measurement_point_id, channel_id, event_at
-                    )
-                ), raw_metadata AS (
-                    SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.file_measurement f
-                    INNER JOIN selected s
-                        ON f.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'file'
-                    WHERE f.asset_id = ?
-                        AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND f.source_timestamp >= ? AND f.source_timestamp < ?
-                    UNION ALL
-                    SELECT o.raw_evidence_id, 'opcua' AS source_type,
-                        CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
-                                = o.source_id
-                            AND json_extract_string(o.semantic_binding_json, '$.channel_id')
-                                = o.channel_id
-                        THEN json_object(
-                            'schema', 'opcua-semantic-snapshot',
-                            'semantics', json(o.semantic_binding_json)
-                        )::VARCHAR END AS source_metadata_json
-                    FROM {_CATALOG_NAME}.raw.opcua_data_change o
-                    INNER JOIN selected s
-                        ON o.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'opcua'
-                    WHERE o.asset_id = ?
-                        AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                        AND o.event_at >= ? AND o.event_at < ?
-                ), points AS MATERIALIZED (
-                    SELECT *, min(event_at) OVER identity AS first_at,
-                        max(event_at) OVER identity AS last_at
-                    FROM (
-                        SELECT m.raw_evidence_id, m.channel_id, m.source_type, m.event_at,
-                            m.value, m.conflict,
-                            json_object(
-                                'binding', json_extract(f.source_metadata_json, '$.binding'),
-                                'semantics', json_extract(f.source_metadata_json, '$.semantics')
-                            )::VARCHAR AS interpretation,
-                            m.source_type != 'file' AND NOT m.status_good AS non_good,
-                            m.value IS NOT NULL AND NOT m.conflict
-                                AND (m.source_type = 'file' OR m.status_good) AS usable
-                        FROM selected m LEFT JOIN raw_metadata f
-                            ON m.raw_evidence_id = f.raw_evidence_id
-                            AND m.source_type = f.source_type
-                    )
-                    WINDOW identity AS (PARTITION BY channel_id, interpretation)
-                ){levels}
-                SELECT channel_id, interpretation, first_at, last_at, bucket_index, source_type,
-                    band, {whole} AS whole,
-                    min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
-                    count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
-                    count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
-                    max(value) FILTER (WHERE usable),
-                    -- Summed in raw ID order, as the presentation buckets are.
-                    avg(value ORDER BY raw_evidence_id) FILTER (WHERE usable)
-                FROM (
-                    SELECT p.*,
-                        least(floor(epoch(p.event_at - p.first_at)
-                            / (epoch(p.last_at + INTERVAL 1 SECOND - p.first_at) / ?))::BIGINT,
-                            ?)
-                            AS bucket_index,
-                        {band} AS band
-                    FROM points p
-                    {"LEFT JOIN levels l ON p.event_at = l.event_at" if level else ""}
-                    WHERE p.channel_id IN (SELECT unnest(?::VARCHAR[]))
-                )
-                {grouping}
-                ORDER BY channel_id, first_at, interpretation, bucket_index, source_type, band
-            """
-            rows = []
-            for chunk in batched(channels, _STREAM_CHANNEL_BATCH, strict=False):
-                read = list(dict.fromkeys((*chunk, *((level[0],) if level else ()))))
-                rows.extend(
-                    connection.execute(
-                        sql,
-                        [
-                            asset_id,
-                            read,
-                            start_at,
-                            end_at,
-                            source_id,
-                            measurement_point_id,
-                            *(asset_id, read, start_at, end_at) * 2,
-                            *level_parameters,
-                            bucket_count,
-                            bucket_count - 1,
-                            *bands,
-                            list(chunk),
-                        ],
-                    ).fetchall()
-                )
-            rows.sort(
-                key=lambda row: (
-                    row[0],
-                    row[2],
-                    row[1],
-                    row[4],
-                    row[5],
-                    -1 if row[6] is None else row[6],
-                )
-            )
             snapshot = connection.execute(
                 f"SELECT max(snapshot_id) FROM ducklake_snapshots('{_CATALOG_NAME}')"
             ).fetchone()
         finally:
             connection.close()
+        at = f"AT (VERSION => {int(snapshot[0])})"
+        sql = f"""
+            WITH selected AS (
+                SELECT *,
+                    count(DISTINCT value) OVER identity_window
+                    + max(CASE WHEN value IS NULL THEN 1 ELSE 0 END) OVER identity_window
+                    > 1 AS conflict
+                FROM {_CATALOG_NAME}.history.measurement {at}
+                WHERE asset_id = ?
+                    AND channel_id IN (SELECT unnest(?::VARCHAR[]))
+                    AND event_at >= ? AND event_at < ?
+                    AND source_id = ? AND measurement_point_id IS NOT DISTINCT FROM ?
+                WINDOW identity_window AS (
+                    PARTITION BY source_id, measurement_point_id, channel_id, event_at
+                )
+            ), raw_metadata AS (
+                SELECT f.raw_evidence_id, 'file' AS source_type, f.source_metadata_json
+                FROM (SELECT * FROM {_CATALOG_NAME}.raw.file_measurement {at}) AS f
+                INNER JOIN selected s
+                    ON f.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'file'
+                WHERE f.asset_id = ?
+                    AND f.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                    AND f.source_timestamp >= ? AND f.source_timestamp < ?
+                UNION ALL
+                SELECT o.raw_evidence_id, 'opcua' AS source_type,
+                    CASE WHEN json_extract_string(o.semantic_binding_json, '$.source_id')
+                            = o.source_id
+                        AND json_extract_string(o.semantic_binding_json, '$.channel_id')
+                            = o.channel_id
+                    THEN json_object(
+                        'schema', 'opcua-semantic-snapshot',
+                        'semantics', json(o.semantic_binding_json)
+                    )::VARCHAR END AS source_metadata_json
+                FROM (SELECT * FROM {_CATALOG_NAME}.raw.opcua_data_change {at}) AS o
+                INNER JOIN selected s
+                    ON o.raw_evidence_id = s.raw_evidence_id AND s.source_type = 'opcua'
+                WHERE o.asset_id = ?
+                    AND o.channel_id IN (SELECT unnest(?::VARCHAR[]))
+                    AND o.event_at >= ? AND o.event_at < ?
+            ), points AS MATERIALIZED (
+                SELECT *, min(event_at) OVER identity AS first_at,
+                    max(event_at) OVER identity AS last_at
+                FROM (
+                    SELECT m.raw_evidence_id, m.channel_id, m.source_type, m.event_at,
+                        m.value, m.conflict,
+                        json_object(
+                            'binding', json_extract(f.source_metadata_json, '$.binding'),
+                            'semantics', json_extract(f.source_metadata_json, '$.semantics')
+                        )::VARCHAR AS interpretation,
+                        m.source_type != 'file' AND NOT m.status_good AS non_good,
+                        m.value IS NOT NULL AND NOT m.conflict
+                            AND (m.source_type = 'file' OR m.status_good) AS usable
+                    FROM selected m LEFT JOIN raw_metadata f
+                        ON m.raw_evidence_id = f.raw_evidence_id
+                        AND m.source_type = f.source_type
+                )
+                WINDOW identity AS (PARTITION BY channel_id, interpretation)
+            ){levels}
+            SELECT channel_id, interpretation, first_at, last_at, bucket_index, source_type,
+                band, {whole} AS whole,
+                min(event_at), max(event_at), count(*), count(*) FILTER (WHERE usable),
+                count(*) FILTER (WHERE value IS NULL), count(*) FILTER (WHERE non_good),
+                count(*) FILTER (WHERE conflict), min(value) FILTER (WHERE usable),
+                max(value) FILTER (WHERE usable),
+                -- Summed in raw ID order, as the presentation buckets are.
+                avg(value ORDER BY raw_evidence_id) FILTER (WHERE usable)
+            FROM (
+                SELECT p.*,
+                    least(floor(epoch(p.event_at - p.first_at)
+                        / (epoch(p.last_at + INTERVAL 1 SECOND - p.first_at) / ?))::BIGINT,
+                        ?)
+                        AS bucket_index,
+                    {band} AS band
+                FROM points p
+                {"LEFT JOIN levels l ON p.event_at = l.event_at" if level else ""}
+                WHERE p.channel_id IN (SELECT unnest(?::VARCHAR[]))
+            )
+            {grouping}
+            ORDER BY channel_id, first_at, interpretation, bucket_index, source_type, band
+        """
+        rows = []
+        for chunk in batched(channels, _STREAM_CHANNEL_BATCH, strict=False):
+            read = list(dict.fromkeys((*chunk, *((level[0],) if level else ()))))
+            # 묶음마다 잠금을 내놓아, 기다리던 다른 화면의 짧은 읽기가 차례로 들어온다.
+            connection = self._connect()
+            try:
+                self._ensure_initialized(connection)
+                found = connection.execute(
+                    sql,
+                    [
+                        asset_id,
+                        read,
+                        start_at,
+                        end_at,
+                        source_id,
+                        measurement_point_id,
+                        *(asset_id, read, start_at, end_at) * 2,
+                        *level_parameters,
+                        bucket_count,
+                        bucket_count - 1,
+                        *bands,
+                        list(chunk),
+                    ],
+                ).fetchall()
+            finally:
+                connection.close()
+            rows.extend(found)
+        rows.sort(
+            key=lambda row: (
+                row[0],
+                row[2],
+                row[1],
+                row[4],
+                row[5],
+                -1 if row[6] is None else row[6],
+            )
+        )
         plain = [row for row in rows if row[7] == 1]
         banded = [row for row in rows if row[7] == 0 and row[6] is not None]
 
@@ -3117,16 +3169,28 @@ class DuckLakeAssetHistory:
         except ModuleNotFoundError as error:
             raise DuckLakeRuntimeUnavailableError("install the complete 'history' extra") from error
         lock = filelock.FileLock(str(catalog_path) + ".phm.lock")
+        timeout = self._config.catalog_lock_timeout_seconds
+        started = time.monotonic()
+        turn = _catalog_turn(catalog_path)
+        if not turn.acquire(timeout):
+            raise TimeoutError(f"timed out waiting for local history catalog: {catalog_path}")
         try:
-            lock.acquire(timeout=self._config.catalog_lock_timeout_seconds)
+            lock.acquire(timeout=max(0.0, timeout - (time.monotonic() - started)))
         except filelock.Timeout as error:
+            turn.release()
             raise TimeoutError(
                 f"timed out waiting for local history catalog: {catalog_path}"
             ) from error
+        except BaseException:
+            turn.release()
+            raise
         try:
             connection = duckdb.connect()
         except BaseException:
-            lock.release()
+            try:
+                lock.release()
+            finally:
+                turn.release()
             raise
         try:
             connection.execute("INSTALL ducklake")
@@ -3143,9 +3207,12 @@ class DuckLakeAssetHistory:
             try:
                 connection.close()
             finally:
-                lock.release()
+                try:
+                    lock.release()
+                finally:
+                    turn.release()
             raise
-        return _LockedConnection(connection, lock)
+        return _LockedConnection(connection, lock, turn)
 
     def _ensure_initialized(self, connection: Any) -> None:
         connection.execute(f"CREATE SCHEMA IF NOT EXISTS {_CATALOG_NAME}.raw")
