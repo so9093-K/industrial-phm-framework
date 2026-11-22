@@ -2,8 +2,9 @@
  * Pages are user tasks; analysis methods live inside an asset. */
 export const PAGES = ["monitor", "assets", "investigations", "maintenance", "system"] as const;
 export type Page = (typeof PAGES)[number];
-/** Primary PHM tasks; records and human review remain available through exact deep links. */
-export const PRIMARY_PAGES = ["monitor", "system"] as const;
+/** Primary PHM tasks: watch for 특이사항, follow up the judgments left on them, run the system.
+ * Analysis records remain available through exact deep links. */
+export const PRIMARY_PAGES = ["monitor", "maintenance", "system"] as const;
 export const TABS = ["summary", "signals", "change", "anomaly", "outlook"] as const;
 export type Tab = (typeof TABS)[number];
 export const METHODS = {anomaly: ["model", "baseline"], change: ["compare", "relation", "spectrum", "electrical"]} as const;
@@ -12,10 +13,10 @@ export type DataKind = "history" | "vibration";
 export type Route = {page: Page; assetId: string; tab: Tab; method: Method | null; data: DataKind | null};
 
 export const PAGE_INFO: Record<Page, {label: string; description: string}> = {
-  monitor: {label: "모니터링", description: "설비별 주요 변화와 고른 설비의 변화 · 그래프 · 분석"},
+  monitor: {label: "모니터링", description: "설비별 특이사항과 고른 설비의 그래프 · 분석"},
   assets: {label: "설비·신호", description: "설비별 모니터링과 변화 분석 · 이상 징후 · 원본 신호 · 신호 추세 전망"},
   investigations: {label: "분석 기록", description: "분석 결과별 입력 · 모델 · 분석 시각"},
-  maintenance: {label: "정비 검토", description: "저장한 분석 결과와 전망의 판단 · 메모 기록"},
+  maintenance: {label: "정비 검토", description: "특이사항과 분석 결과, 전망에 남긴 판단 · 메모"},
   system: {label: "운영 관리", description: "로컬 서비스 실행 상태 · 데이터 연결 · 저장소 조회 상태"},
 };
 export const TAB_INFO: Record<Tab, string> = {

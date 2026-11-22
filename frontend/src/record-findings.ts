@@ -74,7 +74,7 @@ export type RecordFindings = {
   operation: Operation[];
 };
 
-function invalid(): never { throw new Error("기록에서 찾은 변화의 형식이 올바르지 않습니다."); }
+function invalid(): never { throw new Error("기록 특이사항의 형식이 올바르지 않습니다."); }
 const finite = (raw: unknown): number => typeof raw === "number" && Number.isFinite(raw) ? raw : invalid();
 const text = (raw: unknown): string => typeof raw === "string" && raw ? raw : invalid();
 const instant = (raw: unknown): string => Number.isFinite(Date.parse(text(raw))) ? raw as string : invalid();
@@ -228,7 +228,7 @@ export async function readRecordFindings(assetId: string, signal: AbortSignal, s
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error("기록에서 찾은 변화를 읽지 못했습니다.");
+    throw new Error("기록의 특이사항을 읽지 못했습니다.");
   }
   return parseRecordFindings(await response.json() as unknown, assetId);
 }

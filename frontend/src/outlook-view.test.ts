@@ -43,7 +43,7 @@ test("limits to pick from: the early range, and the supply tolerance for a 220 V
   const voltage = limitSuggestions("V", {median: 218.4, low: 211.2, high: 225.6}, "R상전압");
   assert.deepEqual(voltage.map(row => [row.label, row.value, row.direction]), [
     ["공급 전압 상한 233 V", 233, "upper"], ["공급 전압 하한 207 V", 207, "lower"],
-    ["처음 범위 상단 226 V", 226, "upper"], ["처음 범위 하단 211 V", 211, "lower"],
+    ["초기 범위 상단 226 V", 226, "upper"], ["초기 범위 하단 211 V", 211, "lower"],
   ]);
   assert.equal(limitSuggestions("V", {median: 380, low: 370, high: 390}, "R상선간전압").some(row => row.label.startsWith("공급")), false);
   assert.deepEqual(limitSuggestions("g", {median: .6, low: .55, high: .65}, "수직 진동 RMS").map(row => row.value), [.65, .55]);

@@ -137,7 +137,7 @@
   onMount(()=>{void loadSource();return()=>{listAbort?.abort();profileAbort?.abort();};});
   const label=(value:number|null)=>num(value);
   // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
-  const names=$derived(fromSummary?{a:"초기",b:"변화 구간"}:{a:"기간 A",b:"기간 B"});
+  const names=$derived(fromSummary?{a:"초기",b:"특이사항 구간"}:{a:"기간 A",b:"기간 B"});
   // 기간 A 값의 90% 범위(5~95%): 시간 추이에 띠로 그리고, 그 밖의 B 측정 수를 한 줄로 쓴다.
   const usual=$derived.by(()=>{
     const read:FeatureProfile|null=profile,q=read?.a.quantiles;

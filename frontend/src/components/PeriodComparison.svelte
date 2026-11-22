@@ -64,7 +64,7 @@
   const showTime = (iso: string): string =>
     new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 19).replace("T", " ");
   // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
-  const names = $derived(handedOver === "summary" ? {a: "초기", b: "변화 구간"} : {a: "기간 A", b: "기간 B"});
+  const names = $derived(handedOver === "summary" ? {a: "초기", b: "특이사항 구간"} : {a: "기간 A", b: "기간 B"});
   /** 한 출처의 두 기간: 크기 한 마디, 기간 A 값의 90% 범위 밖 측정 수, 전류가 낮았던 측정 비율이 크게 다를 때 그 차이. */
   function facts(row: ProfileSeries, unit: string | null) {
     const a = row.periods.a, b = row.periods.b, qa = a.quantiles;

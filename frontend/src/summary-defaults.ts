@@ -46,7 +46,7 @@ export function relationPair(found: RecordFindings, ids: string[]):
   const offered = (channel: string | undefined) => channel !== undefined && ids.includes(channel);
   const periods = first ? departurePeriods(first, found.baseline, found.bucketSeconds) : null;
   const label = (channel: string) => found.signals.find(row => row.channel === channel)?.label ?? channel;
-  const during = periods ? " 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다." : "";
+  const during = periods ? " 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 특이사항 구간입니다." : "";
   if (first && main && first.channel !== main.channel && offered(first.channel) && offered(main.channel)
     && sameRecordPlace(first.context, main.context)) {
     // The change and the current share a place, so its level is one of this current's levels.
@@ -68,7 +68,7 @@ export function relationPair(found: RecordFindings, ids: string[]):
     const other = found.signals.find(row => row.channel !== main.channel && offered(row.channel)
       && (row.state === "scored" || row.state === "level-change") && sameRecordPlace(row.context, main.context));
     if (other) return {x: main.channel, y: other.channel, focus: contextFocus(main.context), periods: null, band: null,
-      note: "상태 요약에서 찾은 변화가 없어 기준 전류와 같은 위치의 다른 신호를 봅니다. 가로축 " + label(main.channel) + ", 세로축 " + other.label + "."};
+      note: "특이사항이 없어 기준 전류와 같은 위치의 다른 신호를 봅니다. 가로축 " + label(main.channel) + ", 세로축 " + other.label + "."};
   }
   return null;
 }
@@ -105,7 +105,7 @@ export async function defaultChannel(assetId: string, ids: string[], signal: Abo
 }
 
 /** 진동 탭이 상태 요약의 대표 변화를 그대로 이어받았을 때 함께 보여 주는 문장. */
-export const VIBRATION_SUMMARY_NOTE = "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 변화 구간입니다.";
+export const VIBRATION_SUMMARY_NOTE = "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 특이사항 구간입니다.";
 
 /** 진동 탭을 바로 열었을 때의 기본값: 상태 요약이 앞세우는 진동 변화와 같은 특징과 기간(판단에 쓴
  * 기록 처음 30%를 A, 변화 구간을 B), 그리고 같은 측정에서 함께 달라진 특징 하나. 다른 모델 연결의

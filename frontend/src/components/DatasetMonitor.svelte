@@ -268,8 +268,8 @@
       {#if legend}
         <ul class="legend" aria-label="그래프 읽는 법">
           {#each legend.series as row, index (row.key)}<li><i class="swatch" style:background={SERIES_COLORS[index % SERIES_COLORS.length]}></i>{row.short}</li>{/each}
-          <li><i class="dash"></i>처음 수준</li>
-          <li><i class="band"></i>찾은 변화</li>
+          <li><i class="dash"></i>초기 수준</li>
+          <li><i class="band"></i>특이사항</li>
           {#if rows.length > 1}<li class="summary">{rows.length}대 중 변화 이어짐 {counts.ongoing}대</li>{/if}
         </ul>
       {/if}

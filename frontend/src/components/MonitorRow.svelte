@@ -3,6 +3,7 @@
   import {measure} from "../chart-axis";
   import {clockText, episodes} from "../asset-timeline";
   import {versusStart} from "../change-story";
+  import {DECISION_LABEL} from "../review-writes";
   import {elapsedText} from "../time-axis";
   import AssetName from "./AssetName.svelte";
   import TrendChart from "./TrendChart.svelte";
@@ -54,6 +55,15 @@
     const names = series.filter(row => episode.some(item => item.key === row.key)).map(row => row.short);
     return series.length > 1 && names.length ? together(names) + " " + group.label : change.label;
   };
+  // 남긴 판단: 같은 특이사항(기간·기준이 같은 것)에만 붙인다. 모니터링 중에는 기간이 잘려 다른 특이사항이 되므로
+  // 판단이 없다고 '판단 전'이라 말하지 않는다.
+  const judgmentOf = (change: FleetChange) => change.reviewKey ? read.judgments?.[change.reviewKey] ?? null : null;
+  const judged = $derived(lead ? judgmentOf(lead) : null);
+  const day = (at: string) => new Date(at).toLocaleDateString("ko-KR", {month: "long", day: "numeric"});
+  const verdict = (change: FleetChange) => {
+    const own = judgmentOf(change);
+    return own?.closed ? "검토 종료" : own?.decision ? DECISION_LABEL[own.decision] : own ? "확인함" : null;
+  };
   const watched = $derived(read.live ? "최근 관측 확인" : !replaying ? "기록 전체 확인" : analyzed === null ? "변화 판정 중" : "~" + short(analyzed) + "까지 확인");
 </script>
 
@@ -85,12 +95,15 @@
     <p class="watch"><span class="avatar" aria-hidden="true">AI</span><b>AI 관제</b><span>{watched}</span></p>
     {#if lead}
       {#key lead.key + lead.from}
-        <article class="notice" aria-label="AI 관제가 찾은 변화">
+        <article class="notice" class:settled={!!judged} aria-label="AI 관제가 찾은 특이사항">
+          {#if judged}<span class="verdict"><b>{verdict(lead)}</b> · {day(judged.at)}</span>
+          {:else if !replaying && !read.live}<span class="verdict pending">판단 전</span>{/if}
           <span class="when">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {still ? "마지막 측정까지 이어짐" : duration(lead)}</span>
           <strong class="what">{named(episode, lead)}</strong>
           <span class="size">{lead.before !== null && lead.after !== null ? versusStart(lead.after, lead.before, group.unit) : lead.up ? "높음" : "낮음"}</span>
           {#if lead.before !== null && lead.after !== null}<span class="numbers">{measure(lead.before, group.unit, 3)} → {measure(lead.after, group.unit, 3)}</span>{/if}
           {#if lead.load}<span class="load-fact">같은 때 {lead.load.label} {measure(lead.load.before, lead.load.unit, 2)} → {measure(lead.load.after, lead.load.unit, 2)}</span>{/if}
+          {#if judged?.note}<span class="memo" title={judged.note}>메모 · {judged.note}</span>{/if}
           <div class="act">
             {#if !read.live}<a class="ai-start" href={aiInvestigationHref(assetId, group, replaying ? analyzed : null, lead)} onclick={onPause} aria-label={name + " 변화 AI 조사"}>
               <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</a>{/if}
@@ -99,7 +112,7 @@
         </article>
       {/key}
       {#each earlier as change (change.key + change.from)}
-        <span class="earlier">{group.axis === "time" ? clockText(change.from) : change.from + "번째"} · {change.label} {change.up ? "높음" : "낮음"}</span>
+        <span class="earlier">{group.axis === "time" ? clockText(change.from) : change.from + "번째"} · {change.label} {change.up ? "높음" : "낮음"}{verdict(change) ? " · " + verdict(change) : ""}</span>
       {/each}
     {:else}
       <div class="head"><span class="calm">{replaying && analyzed === null ? "변화 판정 중" : read.live ? "앞선 관측과 달라진 구간 없음" : "기록 앞부분과 달라진 구간 없음"}</span>
@@ -144,6 +157,11 @@
   .numbers,.when,.load-fact{color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
   .when{font-size:12px}
   .load-fact{color:var(--color-ink)}
+  .verdict{align-self:flex-start;padding:1px 8px;border:1px solid var(--color-ink);border-radius:999px;font-size:12px;color:var(--color-ink-muted);margin-bottom:2px}
+  .verdict b{color:var(--color-ink);font-weight:650}
+  .verdict.pending{border:1px dashed var(--color-control-border);color:var(--color-ink-muted)}
+  .notice.settled{border-left-color:var(--color-ink-muted);background:var(--color-surface)}
+  .memo{font-size:12px;color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .act{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
   .ai-start{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border:1px solid var(--color-action);border-radius:999px;font-size:12px;font-weight:650;color:var(--color-action);text-decoration:none;background:var(--color-surface)}
   .ai-start:hover{background:var(--color-surface-selected)}

@@ -23,7 +23,7 @@
     {label:"추세·기준까지의 여유",href:links.outlook},
   ]);
 </script>
-<nav aria-label="이 변화의 분석">
+<nav aria-label="이 특이사항의 분석">
   {#each rows as row(row.label)}{#if row.href}<a class="ui-button" class:primary={row.primary} class:ui-button-primary={row.primary} href={row.href}
     onclick={event=>{onInvestigate?.();event.currentTarget.href=tabSelectionUrl(event.currentTarget.href,location.href);}}>{row.label}{row.primary?" →":""}</a>{/if}{/each}
 </nav>

@@ -44,7 +44,7 @@ test("the relation screen shows the summary's change against the load, over its 
   assert.deepEqual(pair.periods, {a: {from: record.from, to: "2020-10-03T15:00:00Z"},
     b: {from: "2020-10-04T00:00:00.000Z", to: "2020-10-04T22:00:00.000Z"}});
   assert.equal(pair.note, "상태 요약의 대표 변화와 같은 기준입니다. 가로축 전류평균, 세로축 R상전압 · 약 11 A 운전 중 변화."
-    + " 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 변화 구간입니다.");
+    + " 기간 A는 변화를 판단한 기록 처음 30%, 기간 B는 특이사항 구간입니다.");
   // 결론 문장은 요약이 판단한 운전 수준(1~26 A)의 범위에서 고른다.
   assert.deepEqual(pair.band, {low: 1, high: 26});
 });

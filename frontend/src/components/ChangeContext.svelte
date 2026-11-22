@@ -35,7 +35,7 @@
     {#if spectrum && changedBand}<p>{Math.round(changedBand.from).toLocaleString()}–{Math.round(changedBand.to).toLocaleString()} Hz 비중</p>
       <div class="values"><span>{(changedBand.a*100).toFixed(1)}%</span><strong>{(changedBand.b*100).toFixed(1)}%</strong></div>
       <div class="bars" aria-hidden="true"><i style:width={changedBand.a*100+"%"}></i><i style:width={changedBand.b*100+"%"}></i></div>
-      {#if spectrum.ratio!==null}<p>전체 진동 에너지 · 비교 구간의 <strong>{spectrum.ratio.toLocaleString("ko-KR",{maximumSignificantDigits:3})}배</strong></p>{/if}
+      {#if spectrum.ratio!==null}<p>전체 진동 에너지 · 초기의 <strong>{spectrum.ratio.toLocaleString("ko-KR",{maximumSignificantDigits:3})}배</strong></p>{/if}
     {:else}<p>{spectralState==="loading"?"같은 구간의 원본 파형을 비교하고 있습니다.":"이 구간의 원본 파형을 읽지 못했습니다."}</p>{/if}
   </div>{/if}
 </aside>

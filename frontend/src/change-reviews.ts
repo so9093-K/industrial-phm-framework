@@ -23,7 +23,7 @@ export function changeCaptureCaption(capture:ChangeCapture):string {
 export function parseChangePage(raw: unknown, assetId: string): ChangePage {
   const root = object(raw);
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId || !Array.isArray(root.captures) || root.captures.length > 20)
-    throw new Error("저장한 변화 검토 목록을 확인할 수 없습니다.");
+    throw new Error("저장한 특이사항 검토 목록을 확인할 수 없습니다.");
   const seen = new Set<string>();
   const captures = root.captures.map((raw:unknown): ChangeCapture => {
     const row = object(raw), snapshot = object(row?.snapshot), change = object(snapshot?.change), finding = object(change?.finding), identity = object(snapshot?.identity);
@@ -31,7 +31,7 @@ export function parseChangePage(raw: unknown, assetId: string): ChangePage {
       || typeof row.captured_at !== "string" || !Number.isFinite(Date.parse(row.captured_at))
       || change?.asset_id !== assetId || !finding || !identity || identity.asset_id !== assetId
       || identity.finding_id !== finding.review_key || typeof finding.review_key !== "string" || !/^[0-9a-f]{64}$/.test(finding.review_key))
-      throw new Error("저장한 변화의 대상이 맞지 않습니다.");
+      throw new Error("저장한 특이사항의 대상이 맞지 않습니다.");
     seen.add(row.capture_id);
     if(change.kind==="vibration") {
       if(typeof change.source_id!=="string"||!change.source_id||typeof change.binding_id!=="string"||!change.binding_id
@@ -54,7 +54,7 @@ export function parseChangePage(raw: unknown, assetId: string): ChangePage {
 }
 export async function readChangeReviews(assetId:string, signal:AbortSignal, selection:Record<string,string> = {}):Promise<ChangePage> {
   const response = await fetch(ROUTE + "?" + new URLSearchParams({asset_id:assetId,...selection}), {signal, cache:"no-store", credentials:"same-origin"});
-  if (!response.ok) {await response.body?.cancel().catch(()=>{}); throw new Error("저장한 변화 검토를 불러오지 못했습니다.");}
+  if (!response.ok) {await response.body?.cancel().catch(()=>{}); throw new Error("저장한 특이사항 검토를 불러오지 못했습니다.");}
   const page = parseChangePage(await response.json() as unknown,assetId);
   if (selection.finding_id && page.captures.some(row => row.finding.reviewKey !== selection.finding_id)) throw new Error("다른 변화의 검토가 반환됐습니다.");
   if (selection.capture_id && (page.captures.length !== 1 || page.captures[0].id !== selection.capture_id)) throw new Error("저장한 검토를 찾지 못했습니다.");

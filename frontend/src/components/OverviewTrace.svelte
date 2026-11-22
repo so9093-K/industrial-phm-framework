@@ -33,7 +33,7 @@
         {#each points as point,i(i)}<circle cx={x(point.x)} cy={y(point.value)} r="2"/>{/each}
       </svg>
       {#if usual}<span class="tag usual-tag" style:left="4px" style:top={(y(usual.high)/height*100)+"%"}>초기 범위</span>{/if}
-      {#if range}<span class="tag interval-tag" style:left={left(Math.max(first, range.from))+"%"}>변화 구간</span>{/if}
+      {#if range}<span class="tag interval-tag" style:left={left(Math.max(first, range.from))+"%"}>특이사항 구간</span>{/if}
     </div>
     {#snippet footer()}<XAxis lo={first} hi={last} scale={main.axis==="time"?{kind:"clock"}:main.periodSeconds?{kind:"elapsed",period:main.periodSeconds}:{kind:"order"}}/>{/snippet}
   </ValueAxis>

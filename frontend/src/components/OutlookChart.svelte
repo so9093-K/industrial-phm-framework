@@ -89,8 +89,8 @@
   </ValueAxis>
   <figcaption class="legend">
     <span><i class="key measured"></i>측정값</span>
-    {#if baseline?.median != null}<span><i class="key reference"></i>처음 수준</span>{/if}
-    {#if baseline?.low != null}<span><i class="key baseline"></i>처음 범위</span>{/if}
+    {#if baseline?.median != null}<span><i class="key reference"></i>초기 수준</span>{/if}
+    {#if baseline?.low != null}<span><i class="key baseline"></i>초기 범위</span>{/if}
     {#if change}<span><i class="key change"></i>조사한 변화</span>{/if}
     <span><i class="key estimate"></i>예측</span>
     {#if band}<span><i class="key band"></i>예측 범위</span>{/if}

@@ -23,7 +23,7 @@ export type VibrationFindings = {
   judged: number; features: number; intervals: VibrationChange[];
 };
 
-function invalid(): never { throw new Error("진동 측정에서 찾은 변화의 형식이 올바르지 않습니다."); }
+function invalid(): never { throw new Error("진동 측정 특이사항의 형식이 올바르지 않습니다."); }
 const finite = (raw: unknown): number => typeof raw === "number" && Number.isFinite(raw) ? raw : invalid();
 const whole = (raw: unknown): number => Number.isInteger(raw) && (raw as number) >= 0 ? raw as number : invalid();
 const text = (raw: unknown): string => typeof raw === "string" && raw ? raw : invalid();
@@ -71,7 +71,7 @@ export async function readVibrationFindings(assetId: string, signal: AbortSignal
     {signal, cache: "no-store", credentials: "same-origin"});
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error("진동 측정에서 찾은 변화를 읽지 못했습니다.");
+    throw new Error("진동 측정의 특이사항을 읽지 못했습니다.");
   }
   return parseVibrationFindings(await response.json() as unknown, assetId);
 }

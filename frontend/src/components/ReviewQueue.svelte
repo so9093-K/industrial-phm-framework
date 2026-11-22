@@ -7,7 +7,7 @@
   import {seriesName} from "../series-names";
   import {findingUrl, readFindingReview, readFindingReviews, type FindingReview} from "../finding-reviews";
   import {latestDecision, DECISION_LABEL} from "../review-writes";
-  import {filterReviewItems, selectReviewItem} from "../review-selection";
+  import {filterReviewItems, firstGroup, GROUP_LABEL, REVIEW_GROUPS, reviewGroup, selectReviewItem, type ReviewGroup} from "../review-selection";
   import {readReviewAssetIndex} from "../review-index";
   import StatusNotice from "./StatusNotice.svelte";
   import FindingReviewDetail from "./FindingReviewDetail.svelte";
@@ -26,9 +26,11 @@
     | {kind: "outlook"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string; capture: Capture}
     | {kind: "analysis"; key: string; assetId: string; status: Status; at: string; title: string; label: string; href: string;
       review: FindingReview; linked: Evidence[] | null};
-  const STATUS: Record<Status, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
-  // What the item was last judged to need, shown beside its status.
-  const judged = (item: Item) => latestDecision(item.kind === "outlook" ? item.capture.review.events : item.kind==="change"?item.change.review.events:item.review.events);
+  const eventsOf = (item: Item) => item.kind === "outlook" ? item.capture.review.events : item.kind === "change" ? item.change.review.events : item.review.events;
+  // 목록은 사람이 남긴 판단으로 나눈다. 줄마다 판단과 가장 최근 메모를 먼저 보인다.
+  const judged = (item: Item) => latestDecision(eventsOf(item));
+  const verdict = (item: Item) => item.status === "closed" ? "검토 종료" : judged(item) ? DECISION_LABEL[judged(item)!] : "판단 전";
+  const memoOf = (item: Item) => [...eventsOf(item)].reverse().find(event => event.note.trim())?.note.trim() ?? null;
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
   let captures: Capture[] = $state([]);
   let changes:ChangeCapture[]=$state([]),changeCursors:Record<string,string>=$state({});
@@ -63,8 +65,8 @@
   let assetIndexProblem = $state(false);
   let assetIndexChanged = $state(false);
   let assetIndexRevision: string | null = $state(null);
-  // A direct link opens with every status so its subject is visible; later links keep the filter.
-  let statusFilter: Status | "all" = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : "open");
+  // A direct link opens with every group so its subject is visible. Otherwise the first group with work opens.
+  let groupFilter: ReviewGroup | "all" | null = $state(untrack(() => focusCaptureId || focusFindingId) ? "all" : null);
   let typeFilter: "all" | "analysis" | "outlook" | "change" = $state("all");
   // The item someone just acted on stays open even when its new status leaves the filter.
   let keptKey: string | null = $state(null);
@@ -99,23 +101,22 @@
       status: capture.review.status, at: capture.capturedAt,
       title: assetLabel(snapshot?.assets ?? [], capture.outlook.assetId) + " · "
         + (seriesNames[capture.outlook.assetId + "\n" + capture.outlook.kind + "\n" + capture.outlook.series] ?? capture.outlook.series) + " 전망",
-      label: "저장한 전망",
+      label: "전망",
       href: captureUrl(capture.outlook.assetId, capture.id), capture,
     }));
     const changed:Item[]=changes.map(change=>({kind:"change",key:"capture:"+change.id,assetId:change.assetId,
       status:change.review.status,at:change.review.events.at(-1)?.recordedAt??change.capturedAt,
       title:assetLabel(snapshot?.assets??[],change.assetId)+" · "+change.finding.label,
-      label:"저장한 주요 변화",href:changeCaptureUrl(change.assetId,change.id),change}));
+      label:"특이사항",href:changeCaptureUrl(change.assetId,change.id),change}));
     return [...analysis, ...outlooks,...changed].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   });
-  const counts = $derived({
-    open: items.filter((item) => item.status === "open").length,
-    acknowledged: items.filter((item) => item.status === "acknowledged").length,
-  });
+  const grouped = $derived(items.map((item) => ({...item, group: reviewGroup(item.status, judged(item))})));
+  const counts = $derived(Object.fromEntries(REVIEW_GROUPS.map((group) => [group, grouped.filter((item) => item.group === group).length])) as Record<ReviewGroup, number>);
+  const activeFilter = $derived(groupFilter ?? firstGroup(counts));
   // Counts are of what was read; say so only when that is not everything.
   const partialCounts = $derived(partialAssetScope || hiddenFindings || moreAvailable || failedAssets.length > 0);
   const countText = (count: number) => String(count) + (partialCounts ? " (불러온 범위)" : "");
-  const shown = $derived(filterReviewItems(items, statusFilter, typeFilter));
+  const shown = $derived(filterReviewItems(grouped, activeFilter, typeFilter));
   const selected = $derived(selectReviewItem(
     shown,
     ignoreFocus || !focusAssetId ? null
@@ -124,15 +125,20 @@
     keptKey,
   ));
 
+  // 방금 판단을 바꾼 항목은 새 판단이 지금 칸을 벗어나도 보이게 둔다. 상세가 기록을 다시 읽기만 했으면
+  // (판단이 그대로면) 고른 칸을 그대로 둔다.
+  function keepVisible(group: ReviewGroup) {
+    if (activeFilter !== "all" && activeFilter !== group) groupFilter = "all";
+  }
   function replaceCapture(updated: Capture) {
     captures = captures.map((item) => item.id === updated.id ? updated : item);
     keptKey = "capture:" + updated.id;
-    statusFilter = "all";
+    keepVisible(reviewGroup(updated.review.status, latestDecision(updated.review.events)));
   }
   function replaceFinding(updated: FindingReview) {
     findings = findings.map((item) => item.findingId === updated.findingId ? updated : item);
     keptKey = "finding:" + updated.findingId;
-    statusFilter = "all";
+    keepVisible(reviewGroup(updated.status, latestDecision(updated.events)));
   }
   function openAssetScope(event: SubmitEvent) {
     event.preventDefault();
@@ -172,7 +178,7 @@
       changes=[...changes,...page.captures.filter(row=>!changes.some(old=>old.id===row.id))];
       const next={...changeCursors};if(page.next)next[asset]=page.next;else delete next[asset];changeCursors=next;
       moreAvailable=hiddenFindings||Object.keys(captureCursors).length>0||Object.keys(next).length>0;
-    }catch{if(!request.signal.aborted)historyProblem="이전 주요 변화 검토를 읽지 못했습니다.";}
+    }catch{if(!request.signal.aborted)historyProblem="이전 특이사항 검토를 읽지 못했습니다.";}
     finally{if(!request.signal.aborted)loadingMore=false;}
   }
 
@@ -322,15 +328,15 @@
         <button class="ui-button ui-button-primary" type="submit" disabled={!scopeAssetId.trim()}>이 설비의 검토 열기</button>
       </form>
     {/if}
-    <div class="filters" role="group" aria-label="검토 상태">
-      {#each [["open", "검토 대기 " + countText(counts.open)], ["acknowledged", "확인함 " + countText(counts.acknowledged)], ["closed", "검토 종료"], ["all", "전체"]] as [value, label] (value)}
-        <button type="button" class="chip" aria-pressed={statusFilter === value}
-          onclick={() => { statusFilter = value as Status | "all"; keptKey = null; ignoreFocus = true; }}>{label}</button>
+    <div class="filters" role="group" aria-label="판단">
+      {#each [...REVIEW_GROUPS.map((group) => [group, GROUP_LABEL[group] + " " + countText(counts[group])]), ["all", "전체"]] as [value, label] (value)}
+        <button type="button" class="chip" aria-pressed={activeFilter === value}
+          onclick={() => { groupFilter = value as ReviewGroup | "all"; keptKey = null; ignoreFocus = true; }}>{label}</button>
       {/each}
     </div>
     <label class="type">종류
       <select value={typeFilter} onchange={(event) => { typeFilter = event.currentTarget.value as typeof typeFilter; keptKey = null; ignoreFocus = true; }}>
-        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="change">주요 변화</option><option value="outlook">저장한 전망</option>
+        <option value="all">전체</option><option value="analysis">분석 결과</option><option value="change">특이사항</option><option value="outlook">전망</option>
       </select>
     </label>
     {#if loadState === "loading"}
@@ -343,7 +349,7 @@
       {#if partialCounts}
         <p class="context">{focusAssetId ? "선택한 설비 1곳" : "설비 " + loadedAssets + "곳"}의 검토 기록을 불러왔습니다.
           {#if partialAssetScope || hiddenFindings || moreAvailable}
-            전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망과 주요 변화는 한 번에 20건씩 읽습니다.
+            전체 검토 건수는 아닙니다. 설비당 분석 검토는 최근 최대 100건이며, 전망과 특이사항은 한 번에 20건씩 읽습니다.
           {:else} 일부 조회가 실패해 실제 건수보다 적을 수 있습니다.
           {/if}
         </p>
@@ -359,7 +365,8 @@
           {#each shown as item (item.key)}
             <li><a href={item.href} aria-current={selected?.key === item.key ? "true" : undefined}>
               <strong>{item.title}</strong>
-              <span>{item.label} · {STATUS[item.status]}{judged(item) ? " · " + DECISION_LABEL[judged(item)!] : ""} · {clock(item.at)}</span>
+              <span><b class:pending={verdict(item) === "판단 전"}>{verdict(item)}</b> · {item.label} · {clock(item.at)}</span>
+              {#if memoOf(item)}<span class="memo" title={memoOf(item)}>메모 · {memoOf(item)}</span>{/if}
             </a></li>
           {/each}
         </ul>
@@ -371,7 +378,7 @@
           {loadingMore ? "이전 전망 불러오는 중" : "이전 전망 더 보기"}
         </button>
       {/if}
-      {#if Object.keys(changeCursors).length}<button type="button" class="ui-button" disabled={loadingMore} onclick={()=>void loadOlderChanges()}>{loadingMore?"이전 주요 변화 불러오는 중":"이전 주요 변화 더 보기"}</button>{/if}
+      {#if Object.keys(changeCursors).length}<button type="button" class="ui-button" disabled={loadingMore} onclick={()=>void loadOlderChanges()}>{loadingMore?"이전 특이사항 불러오는 중":"이전 특이사항 더 보기"}</button>{/if}
       {#if historyProblem}<StatusNotice kind="uncertain" message={historyProblem} actionLabel="다시 불러오기" onAction={() => void(historyKind==="change"?loadOlderChanges():loadOlderCaptures())} />{/if}
     {/if}
   </section>
@@ -391,7 +398,7 @@
       <p class="context">목록에서 검토 항목을 고르세요.</p>
     {:else if selected.kind === "change"}
       {#key selected.change.id}<ChangeCaptureDetail assetId={selected.assetId} capture={selected.change}
-        onUpdated={updated=>{changes=changes.map(row=>row.id===updated.id?updated:row);keptKey="capture:"+updated.id;statusFilter="all";}}/>{/key}
+        onUpdated={updated=>{changes=changes.map(row=>row.id===updated.id?updated:row);keptKey="capture:"+updated.id;keepVisible(reviewGroup(updated.review.status,latestDecision(updated.review.events)));}}/>{/key}
     {:else if selected.kind === "outlook"}
       {#key selected.capture.id}
         <OutlookReviewDetail capture={selected.capture} {writable} onUpdated={replaceCapture} />
@@ -424,5 +431,8 @@
     border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; overflow-wrap: anywhere; }
   .items a[aria-current="true"] { border: 2px solid var(--color-action); background: var(--color-surface-selected); }
   .items span { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .items span b { color: var(--color-ink); font-weight: 650; }
+  .items span b.pending { color: var(--color-ink-muted); font-weight: 500; }
+  .items .memo { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .context { color: var(--color-ink-muted); overflow-wrap: anywhere; }
 </style>

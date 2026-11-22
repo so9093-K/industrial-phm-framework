@@ -429,7 +429,7 @@
   {:else if data?.history && findingState === "loading" && !quietMain}
     <p class="context">기록 전체를 기록 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.history && findingState === "failed"}
-    <p class="context">기록에서 찾은 변화를 불러오지 못했습니다.
+    <p class="context">기록의 특이사항을 불러오지 못했습니다.
       <a href={assetTabUrl(asset.assetId, "anomaly", "baseline")}>신호를 골라 변화 찾기 →</a></p>
   {:else if data?.history && findings && findings.judged}
     <section class="quiet-record" aria-label="변화가 없는 기록 살펴보기">
@@ -451,7 +451,7 @@
   {:else if data?.vibration && vibrationState === "loading" && !quietMain}
     <p class="context">진동 측정 전체를 처음 30%와 비교하고 있습니다.</p>
   {:else if data?.vibration && vibrationState === "failed"}
-    <p class="context">진동 측정에서 찾은 변화를 불러오지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
+    <p class="context">진동 측정의 특이사항을 불러오지 못했습니다. <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>
   {:else if data?.vibration && vibration}
     {#if quietMain}<h3>{quietMain.label}</h3><OverviewTrace main={quietMain} height={260}/>{/if}
     <p class="context">{vibration.judged?"초반 측정과 비교해 크게 달라진 구간이 없습니다.":"변화를 비교할 초기 측정이 아직 부족합니다."} <a href={assetTabUrl(asset.assetId, "signals", null, "vibration")}>진동 특징 추이 보기 →</a></p>

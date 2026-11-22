@@ -85,7 +85,7 @@
           <span class={"tag "+key} style:left={at(spans[key as "a"|"b"].from)+"%"}>{key==="a"?names.a:names.b}</span>
         {/each}
         {#if usual}<span class="tag usual-tag" style:top={plot.y(usual.high)/220*100+"%"}>{names.a} 값의 90% 범위</span>{/if}
-        {#if plot.onset}<span class="note" class:leftward={at(plot.onset.first)>60} style:left={at(plot.onset.first)+"%"}>{plot.onset.first}번째 측정{plot.onset.stayed?"부터 범위 밖":" 처음 범위 밖"}</span>{/if}
+        {#if plot.onset}<span class="note" class:leftward={at(plot.onset.first)>60} style:left={at(plot.onset.first)+"%"}>{plot.onset.first}번째 측정{plot.onset.stayed?"부터 범위 밖":" 초기 범위 밖"}</span>{/if}
         </div>
         {#snippet footer()}<XAxis lo={plot.first} hi={plot.last} scale={measurementScale(read.periodSeconds)}
           note={read.periodSeconds?"경과 시간 · 측정 간격 "+elapsedText(read.periodSeconds):"측정 회차"}/>{/snippet}
