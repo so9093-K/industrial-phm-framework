@@ -3,8 +3,8 @@
   import type {Asset} from "../monitor";
   import type {AssetData} from "../asset-data";
   import {sourceSummary,type Sources} from "../operations-status";
+  import {clockText} from "../asset-timeline";
   import {streamKey} from "../observation";
-  import RecordPlayback from "./RecordPlayback.svelte";
   import {playbackScope, scopeParams, type PlaybackScope} from "../record-playback";
   import AssetSummary from "./AssetSummary.svelte";
   import StatusNotice from "./StatusNotice.svelte";
@@ -17,10 +17,9 @@
   const sourcePrefix=params.get("observation_asset")===untrack(()=>asset.assetId)?"observation_":"monitor_";
   let chosen=$state(params.has(sourcePrefix+"source")?JSON.stringify([params.get(sourcePrefix+"source"),params.get(sourcePrefix+"point")||null]):"");
   const streams=$derived(data?.history?.streams??[]);
-  let archiveRevision=$state(0);
-  let scope:PlaybackScope|null=$state(playbackScope(location.search)), replayBusy=$state(false),playing=$state(false);
-  let selectedKind=$state<"history"|"vibration"|null>(untrack(()=>scope?.kind??null));
-  const replayKind=$derived(selectedKind??(data?.history&&!data.vibration?"history":!data?.history&&data?.vibration?"vibration":null));
+  // 관제 모니터링 중 들어오면 그 시점까지의 기록(scope)으로 조사한다. 재생 조작은 관제 화면에만 있다.
+  let scope:PlaybackScope|null=$state(playbackScope(location.search)), replayBusy=$state(false);
+  const replayKind=$derived(scope?.kind??(data?.history&&!data.vibration?"history":!data?.history&&data?.vibration?"vibration":null));
   const scopedData=$derived(scope&&data?{...data,...(scope.kind==="history"?{vibration:null}:{history:null})}:data);
   const replayFrom=$derived(replayKind==="history"?Math.min(...streams.map(s=>Date.parse(s.startAt))):data?.vibration?.first??0);
   const replayTo=$derived(replayKind==="history"?Math.max(...streams.map(s=>Date.parse(s.endAt)))+1000:data?.vibration?.last??0);
@@ -41,6 +40,9 @@
     untrack(()=>view=initial);
   });
   const displayView=$derived(view??(!params.has("summary_change")&&streams.some(row=>Date.parse(row.endAt)>=Date.now()-3600_000)?"recent":"record"));
+  // '최근 측정'은 지금 받고 있는 측정(최근 1시간)이 있을 때만 뜻이 있다. 저장된 과거 기록에서는 전환을 두지 않는다.
+  const receiving=$derived(streams.some(row=>Date.parse(row.endAt)>=Date.now()-3600_000));
+  const place=(n:number)=>replayKind==="history"?clockText(n):Math.floor(n)+"번째 측정";
   $effect(()=>{
     if(displayView!=="recent"||!stream||chosen)return;
     const current=stream;
@@ -63,9 +65,9 @@
     const url=new URL(location.href);url.searchParams.set("monitor_source",next.sourceId);url.searchParams.set("monitor_point",next.pointId??"");history.replaceState(history.state,"",url);
   }
 </script>
-<!-- 보기 전환과 모니터링 조작은 한 줄: 그래프보다 조작이 먼저 오지 않게 한다. -->
+<!-- 보기 전환과 기록 범위는 한 줄: 그래프보다 조작이 먼저 오지 않게 한다. -->
 <div class="entry-row">
-{#if streams.length}
+{#if streams.length&&(receiving||displayView==="recent")}
   <div class="observation-entry"><div class="choices" role="group" aria-label="관측 보기">
     <button type="button" aria-pressed={displayView==="recent"} onclick={()=>choose("recent")}>최근 측정</button>
     <button type="button" aria-pressed={displayView==="record"} onclick={()=>choose("record")}>기록 변화 조사</button>
@@ -73,23 +75,24 @@
   {#if displayView==="recent"&&(streams.length>1||!stream)}<label>측정 기록<select value={stream?streamKey(stream):""} onchange={e=>chooseStream(e.currentTarget.value)}>{#if !stream}<option value="" disabled>측정 기록 선택</option>{/if}{#each streams as row(streamKey(row))}<option value={streamKey(row)}>{sources?.items.find(s=>s.sourceId===row.sourceId&&s.assetId===asset.assetId)?.name??sourceSummary(row.sourceId,streams.map(item=>item.sourceId))}{row.pointId?" · "+row.pointId:""}</option>{/each}</select></label>
   {/if}</div>
 {/if}
-{#if displayView==="record"&&!(dataState==="loading"&&!data)}
-  {#if data?.history&&data.vibration}<label class="kind-choice">모니터링할 기록<select value={replayKind??""} onchange={e=>{playing=false;scope=null;selectedKind=e.currentTarget.value as "history"|"vibration";}}><option value="" disabled>기록 종류 선택</option><option value="history">시간별 계측</option><option value="vibration">진동 측정</option></select></label>{/if}
-  {#if replayKind&&Number.isFinite(replayFrom)&&replayTo>replayFrom}<div class="record-transport"><RecordPlayback kind={replayKind} from={replayFrom} to={replayTo} bind:scope bind:playing busy={replayBusy} onRefresh={()=>archiveRevision++}/></div>{/if}
-  {/if}
+{#if displayView==="record"&&!(dataState==="loading"&&!data)&&replayKind&&Number.isFinite(replayFrom)&&replayTo>replayFrom}
+  {#if scope}<p class="span" aria-busy={replayBusy}>모니터링 시점 <b>{place(scope.until)}</b>까지의 기록{replayBusy?" · 읽는 중":""}
+    <button type="button" class="whole" onclick={()=>scope=null}>전체 기록 보기</button></p>
+  {:else}<p class="span" aria-busy={replayBusy}>{place(replayFrom)} — {place(replayTo-(replayKind==="history"?1000:0))}{replayBusy?" · 읽는 중":""}</p>{/if}
+{/if}
 </div>
 {#if dataState==="loading"&&!data}<StatusNotice message="저장된 측정 목록을 읽고 있습니다."/>
 {:else if displayView==="recent"&&stream}
   {#key streamKey(stream)}<RecentObservation assetId={asset.assetId} {stream} {source} preferred={data?.history?.preferred??null} sourceReadable={sourceState==="ready"} {cycle} {observed}/>{/key}
 {:else if displayView==="recent"}<StatusNotice kind="uncertain" message={dataState==="failed"?"측정 기록을 불러오지 못했습니다.":"선택한 측정 기록을 찾지 못했습니다. 다른 기록을 선택하세요."}/>
 {:else}
-  <AssetSummary {asset} data={scopedData} {dataState} {observed} {scope} {playing} revision={archiveRevision} bind:selectedAt onBusy={(value)=>replayBusy=value} onInvestigate={()=>playing=false}/>
+  <AssetSummary {asset} data={scopedData} {dataState} {observed} {scope} bind:selectedAt onBusy={(value)=>replayBusy=value}/>
 {/if}
 <style>
   .entry-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-bottom:var(--space-3)}
-  .record-transport{flex:1;min-width:min(100%,520px);max-width:820px}
-  .record-transport :global(.ui-button){min-height:0;padding:6px 12px;font-size:var(--font-small)}
-  .record-transport :global(select){padding:5px 8px;font-size:var(--font-label)}
+  .span{margin:0 0 0 auto;font-size:var(--font-small);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  .span b{color:var(--color-ink);font-weight:650}
+  .whole{margin-left:8px;border:0;background:none;padding:0;font:inherit;color:var(--color-action);text-decoration:underline;cursor:pointer}
 
   .observation-entry{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}.choices button{border:0;background:var(--color-surface);color:var(--color-ink);padding:6px 12px;font:inherit;font-size:var(--font-small);cursor:pointer}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}label{display:flex;gap:8px;align-items:center;font-size:var(--font-small)}select{max-width:min(460px,65vw)}
 </style>

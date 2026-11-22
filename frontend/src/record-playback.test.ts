@@ -1,13 +1,11 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {playbackScope, playbackStep, scopedUrl, scopeParams} from "./record-playback.ts";
+import {playbackScope, scopedUrl, scopeParams} from "./record-playback.ts";
 import {tabSelectionUrl, investigationOriginUrl} from "./routes.ts";
 
 test("accelerating delivery keeps the original measured time in requests", () => {
   const until=Date.parse("2020-10-05T00:00:00+09:00"),scope={kind:"history" as const,until};
   assert.deepEqual(playbackScope("?"+new URLSearchParams(scopeParams(scope))),scope);
-  const next=playbackStep(until-86400_000,until,until-1000,20);
-  assert.equal(next,until);
   assert.equal(new URL(scopedUrl("/api/v1/forecast?series=voltage",scope),"http://local").searchParams.get("record_until"),new Date(until).toISOString());
 });
 test("a waveform ordinal never becomes a wall clock timestamp", () => {

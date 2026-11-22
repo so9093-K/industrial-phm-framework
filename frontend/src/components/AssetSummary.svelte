@@ -35,9 +35,9 @@
     dataState: "loading" | "ready" | "failed";
     observed: (at: string | null) => string;
     selectedAt?: number | null;
-    playing?:boolean;revision?:number;scope?:PlaybackScope|null;onBusy?:(busy:boolean)=>void;onInvestigate?:()=>void;
+    revision?:number;scope?:PlaybackScope|null;onBusy?:(busy:boolean)=>void;onInvestigate?:()=>void;
   };
-  let {asset, data, dataState, observed, selectedAt = $bindable(null),scope=null,revision=0,playing=false,onBusy,onInvestigate}: Props = $props();
+  let {asset, data, dataState, observed, selectedAt = $bindable(null),scope=null,revision=0,onBusy,onInvestigate}: Props = $props();
   const assetId=$derived(asset.assetId);
   const readRevision=$derived(assetId+":"+JSON.stringify(scope)+":"+revision);
   const stored = $derived.by(() => {
@@ -317,8 +317,11 @@
     if (shown?.kind === "vibration" && measured?.first != null && measured.last != null) return {from: measured.first, to: measured.last};
     return null;
   });
+  // 특이사항 시기를 고르는 칩: 날짜로 부르고, 같은 날의 시기가 여럿이면 시각까지 붙여 서로 구분한다.
+  const dayOf = (at: number) => clockText(at).replace(/ \d\d:\d\d$/, "");
   const episodeChoices = $derived(grouped.map(group => ({
-    label: focus?.kind === "history" ? clockText(group.from).replace(/ \d\d:\d\d$/, "") : group.from + "~" + group.to + "번째",
+    label: focus?.kind !== "history" ? group.from + "~" + group.to + "번째"
+      : grouped.filter(other => dayOf(other.from) === dayOf(group.from)).length > 1 ? clockText(group.from).replace(/\(.\)/, "") : dayOf(group.from),
     selected: group === current, onPick: () => selectChange(group.members[0].pick)})));
   $effect(() => {
     if (!data?.history) return;
@@ -400,7 +403,7 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-{#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} active={!playing}/>{/if}{/snippet}
+{#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus}/>{/if}{/snippet}
 
 {#snippet assistant({colorOf, labelOf, point, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
   point: (evidence: Evidence | null) => void; close: () => void})}
