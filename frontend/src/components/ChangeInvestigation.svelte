@@ -2,7 +2,7 @@
   import {onDestroy,tick,untrack} from "svelte";
   import {investigationOriginUrl} from "../routes";
   import {questionDraft,keepQuestionDraft} from "../question-drafts";
-  import {askChange,readChangeDiscussion,investigationLinks,type ChangeDiscussion,type Evidence,type Step} from "../change-investigation";
+  import {askChange,readChangeDiscussion,investigationLinks,INVESTIGATE,spokenQuestion,type ChangeDiscussion,type Evidence,type Step} from "../change-investigation";
   import {measure} from "../chart-axis";
   import {clockText,spanText} from "../asset-timeline";
   import type {EvidenceFocus} from "../change-evidence";
@@ -14,19 +14,15 @@
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. 답의 근거나 확인한 항목을 가리키면(point)
    * 왼쪽 그래프가 그 선·구간·운전 수준 띠만 남긴다. together는 같은 시기로 함께 그린 변화 수,
    * colorOf는 근거 변화가 그래프에서 쓰는 색. 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,onMemo,onStart,onClose,together=1,colorOf=()=>null,labelOf=()=>null,point=()=>{},active=true,autostart=false,onAutostart}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
+  let {assetId,focus,onMemo,onStart,onClose,together=1,colorOf=()=>null,labelOf=()=>null,point=()=>{},active=true}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
     onStart?:()=>void;onClose?:()=>void;together?:number;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
-    point?:(evidence:Evidence|null)=>void;active?:boolean;
-    /** 관제의 'AI 조사'로 들어왔으면 대화가 없을 때 '이 변화 조사'를 바로 보낸다(onAutostart로 한 번만). */
-    autostart?:boolean;onAutostart?:()=>void}=$props();
+    point?:(evidence:Evidence|null)=>void;active?:boolean}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const electrical=$derived(focus.kind==="history"&&(focus.item.unit==="V"||focus.item.unit==="A"));
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
   // 첫 요청: 질문을 고르지 않아도 고른 변화 자체를 조사한다. 대화에는 이름(label)으로 보인다.
-  const investigate={label:"이 특이사항 조사",text:"이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."};
-  // 이름을 바꾸기 전에 보낸 같은 요청도 이름으로 보인다.
-  const earlierInvestigate="이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요.";
+  const investigate=INVESTIGATE;
   const order={label:"변화 순서",text:"같은 시기에 달라진 항목들이 바뀐 순서와 그 순서로 알 수 있는 것을 설명해 주세요."};
   const steady={label:"변화 시작·지속",text:"변화가 언제 시작됐고 달라진 수준이 이어졌는지 값이 계속 변했는지 설명해 주세요."};
   const questions=$derived(focus.kind==="vibration"
@@ -59,7 +55,7 @@
   $effect(()=>{const key=hovered??pinned;if(key===null){point(null);return;}
     const [kind,id,index]=key.split("|"),row=records.find(item=>item.id===id);
     point((kind==="s"?row?.steps[Number(index)]?.target:row?.answer?.evidence?.[Number(index)])??null);});
-  const said=(text:string)=>text===investigate.text||text===earlierInvestigate?investigate.label:text;
+  const said=spokenQuestion;
   const values=(row:{before:number|null;after:number|null;unit:string|null})=>row.before!==null&&row.after!==null?measure(row.before,row.unit,3)+" → "+measure(row.after,row.unit,3):"";
   // 답의 문장(서버의 유효 숫자 세 자리)과 같은 표기.
   const hz=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
@@ -109,14 +105,6 @@
     }}
     finally{if(write===pending){write=null;busy=false;}}
   }
-  // 이미 조사한 변화면 그 대화를 그대로 보이고, 보기 전용이면 보내지 않는다.
-  let autoDone=false;
-  $effect(()=>{
-    if(!autostart||autoDone||loading)return;
-    if(thread.length||awaitingQuestion){autoDone=true;onAutostart?.();return;}
-    if(!writable)return;
-    autoDone=true;onAutostart?.();untrack(()=>void ask(investigate.text));
-  });
   function keydown(event:KeyboardEvent){
     // Enter로 보내고 Shift+Enter는 줄바꿈. 한글을 조합하는 중의 Enter는 글자를 확정할 뿐 보내지 않는다.
     if(event.key!=="Enter"||event.shiftKey||event.isComposing||event.keyCode===229)return;
