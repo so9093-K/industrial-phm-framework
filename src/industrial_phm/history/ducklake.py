@@ -13,7 +13,9 @@ import importlib.util
 import json
 import sqlite3
 import sys
+import threading
 import time
+from collections import OrderedDict
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -212,6 +214,16 @@ class DuckLakeRetentionResult:
     removed_file_count: int
     storage_before: DuckLakeStorageInspection
     storage_after: DuckLakeStorageInspection
+
+
+# 저장 시점(snapshot)에 고정한 신호 뜻은 같은 설비·출처·기간·시점이면 언제나 같다.
+# 화면을 열 때마다 묻고 한 달치 1분 기록에서 약 1초 걸리므로,
+# 같은 질문의 답을 프로세스 안에 최근 것부터 기억해 둔다.
+_SEMANTICS_CACHE: OrderedDict[tuple[object, ...], tuple[ChannelSemanticCandidate, ...]] = (
+    OrderedDict()
+)
+_SEMANTICS_CACHE_SIZE = 64
+_SEMANTICS_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -2773,6 +2785,33 @@ class DuckLakeAssetHistory:
         validate_asset_history_query(asset_id, start_at=start_at, end_at=end_at)
         _validate_identifier(source_id, "source_id")
         snapshot = _require_int(snapshot_id, "snapshot_id")
+        key = (
+            str(self._config.catalog_path.resolve()),
+            asset_id,
+            source_id,
+            start_at,
+            end_at,
+            snapshot,
+        )
+        with _SEMANTICS_LOCK:
+            if key in _SEMANTICS_CACHE:
+                _SEMANTICS_CACHE.move_to_end(key)
+                return _SEMANTICS_CACHE[key]
+        found = self._channel_semantics(asset_id, source_id, start_at, end_at, snapshot)
+        with _SEMANTICS_LOCK:
+            _SEMANTICS_CACHE[key] = found
+            while len(_SEMANTICS_CACHE) > _SEMANTICS_CACHE_SIZE:
+                _SEMANTICS_CACHE.popitem(last=False)
+        return found
+
+    def _channel_semantics(
+        self,
+        asset_id: str,
+        source_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        snapshot: int,
+    ) -> tuple[ChannelSemanticCandidate, ...]:
         at = f"AT (VERSION => {snapshot})"
         filters = [asset_id, source_id, start_at, end_at]
         connection = self._connect()
