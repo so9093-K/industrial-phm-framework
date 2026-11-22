@@ -113,6 +113,7 @@
   const initialSelection=new URLSearchParams(location.search);
   const seedContext=!["monitor_channel","vibration_feature","vibration_at","acquisition_feature","acq_forecast_feature"].some(key=>initialSelection.has(key));
   let pickedKey = $state(initialSelection.get("summary_change"));
+  let seeded=$state(false);
   const historyKey=(item:FoundInterval)=>JSON.stringify(["history",item.context?.key??item.channel,item.start,item.end]);
   const vibrationKey=(change:VibrationRecord["intervals"][number])=>JSON.stringify(["vibration",change.feature,change.from,change.to]);
   const focus = $derived.by((): Pick | null => {
@@ -176,7 +177,7 @@
     const current=focus;
     const ready=(!data?.history||findingState==="ready"||findingState==="failed")
       &&(!data?.vibration||vibrationState==="ready"||vibrationState==="failed");
-    if(current&&pickedKey===null&&ready&&seedContext)untrack(()=>selectChange(current,false));
+    if(current&&ready&&seedContext&&!seeded)untrack(()=>{seeded=true;selectChange(current,false);});
   });
   // 설비 시간축: 고른 변화와 시간이 겹치는 변화를 한 시기로 묶어 같은 가로축에 쌓는다.
   type Item = {key: string; pick: Pick; span: Span};

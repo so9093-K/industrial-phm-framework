@@ -170,7 +170,7 @@
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">
       <!-- 설비 이름은 바로 위 줄에 있다. 여기서는 조사 화면으로 돌아가는 길과 고른 변화만. -->
-      <div class="selection-context"><a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 변화 조사</a><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span>
+      <div class="selection-context"><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span>
         {#key route.tab+":"+method+":"+kind}<InvestigationContext search={location.search}/>{/key}</div>
       <h2 id="analysis-view-title" class="visually-hidden">{analysisTitle}</h2>
       {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
@@ -186,6 +186,7 @@
         </div>
       {/if}
     <nav class="analysis-tabs" aria-label="선택한 변화의 분석">
+      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 변화 조사</a>
       {#each analysisTabs as item(item.label)}
         <a href={at(item.tab,item.method,item.kind)} onclick={retainSelection}
           aria-current={route.tab===item.tab && (item.method===null||item.method===method)?"page":undefined}>{item.label}</a>
@@ -264,15 +265,14 @@
 <style>
   .record-type{font-size:var(--font-label);color:var(--color-ink-muted)}
   .analysis-view{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
-  .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px var(--space-3);
-    padding:var(--space-2) var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface)}
+  .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--space-3);padding:0;background:transparent}
   .analysis-view-head h2{margin:0;font-size:var(--font-section)}
   .analysis-view-head .choices{margin-left:auto}
-  .selection-context{flex-basis:100%;display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-3);min-width:0}
-  .back{font-size:var(--font-small);font-weight:650;text-decoration:none;padding:var(--space-2);color:var(--color-action)}
-  .back:hover{border-color:var(--color-action)}
+  .selection-context{order:1;flex-basis:100%;padding:2px 0 6px;font-size:12px;display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-3);min-width:0}
+  .analysis-tabs .back{color:var(--color-action);margin-right:12px;border-right:1px solid var(--color-border);padding-right:16px}
+  .analysis-tabs .back:hover{background:var(--color-surface-selected)}
   .analysis-view-body{min-width:0;display:grid;gap:var(--space-3)}
-  .analysis-tabs{order:0;display:flex;flex-wrap:wrap;gap:var(--space-1)}
+  .analysis-tabs{order:0;display:flex;flex-wrap:wrap;flex-basis:100%;gap:var(--space-1);border-bottom:1px solid var(--color-border)}
   .analysis-tabs a{padding:var(--space-2);font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted);text-decoration:none;border-bottom:3px solid transparent}
   .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}
   .workspace-asset { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }

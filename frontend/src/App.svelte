@@ -48,6 +48,8 @@
     route = parseRoute(location.search);
   });
   // An empty workspace offers the public datasets prepared in the data folder, when there are any.
+  let csvActive=$state(false);
+  $effect(()=>{if(route.page!=="system"||section!=="connections")csvActive=false;});
   let publicCount = $state(0);
   $effect(() => {
     if (loadState !== "empty") return;
@@ -264,9 +266,9 @@
       actionLabel="다시 시도" onAction={() => void quietRefresh()} />
   {/if}
   {#if route.page === "system"}
-    <PageHeading title={PAGE_INFO.system.label} description={PAGE_INFO.system.description}
+    <PageHeading title={csvActive?"CSV 데이터 등록":section==="connections"?"데이터 연결":PAGE_INFO.system.label} description={csvActive?"저장할 신호를 고르면 모니터링에서 실제 추이를 볼 수 있습니다.":section==="connections"?"측정 기록을 가져오거나 새로 들어오는 데이터를 연결합니다.":PAGE_INFO.system.description} compact={csvActive}
       loading={loadState === "loading"} onRefresh={() => void refresh()} />
-    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} onChanged={quietRefresh} />
+    <OperationsPage {snapshot} storeState={loadState} storeError={error} writable={writable === true} {section} onChanged={quietRefresh} onFileSelected={selected=>csvActive=selected} />
   {:else if loadState === "loading"}
     <StatusNotice message="설비 목록을 불러오고 있습니다." />
   {:else if loadState === "failed"}
