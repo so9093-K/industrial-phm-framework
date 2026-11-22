@@ -1,5 +1,4 @@
 <script lang="ts">
-  import {tick} from "svelte";
   import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
   import {clockText, episodes} from "../asset-timeline";
@@ -9,29 +8,39 @@
   import AssetName from "./AssetName.svelte";
   import TrendChart from "./TrendChart.svelte";
   import MonitorChat from "./MonitorChat.svelte";
+  import TaskDialog from "./TaskDialog.svelte";
   import {noticeSentences} from "../monitor-chat";
 
   /** 설비 카드의 실제 추이와 변화 요약. AI 질문은 선택한 변화에서만 연다. */
-  let {assetId, name, read, group, replaying, until, found, analyzed, lo, hi, height, playing, onPause, onSignal}: {
+  let {assetId, name, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
     assetId: string; name: string; read: FleetRead; group: FleetGroup;
     /** 재생 중이면 위치(시각 또는 측정 번호, 기록 시작 전이면 null)와 그 위치까지 판정한 변화. */
-    replaying: boolean; until: number | null; found: FleetChange[]; analyzed: number | null;
+    replaying: boolean; until: number | null; found: FleetChange[]; analyzed: number | null; analysisFailed: boolean;
     lo: number; hi: number; height: number; playing: boolean;
     onPause: () => void; onSignal: (channel: string) => void} = $props();
-  let chatOpen=$state(false),cardElement:HTMLLIElement;
-  async function toggleChat(){onPause();chatOpen=!chatOpen;if(chatOpen){await tick();cardElement?.scrollIntoView({block:"nearest",behavior:"smooth"});}}
-  let picked: number | null = $state(null), cursor: number | null = $state(null);
-  $effect(()=>{if(playing)picked=null;});
+  let chatOpen = $state(false);
+  let picked = $state<number | null>(null);
+  let loadPick = $state<number | null>(null);
+  let hovered = $state<number | null>(null);
+  const cursor = $derived(hovered ?? picked ?? loadPick);
+  $effect(() => {
+    if (playing) { picked = null; loadPick = null; chatOpen = false; }
+  });
 
   const series = $derived(!replaying ? group.series : until === null ? group.series.map(row => ({...row, points: []})) : visibleSeries(group, until));
   const changes = $derived((replaying ? found : read.changes).filter(row => until !== null && row.from <= until).map(row => ({...row, to: Math.min(row.to, until!)})));
   const episode = $derived(latestEpisode(changes));
   const lead = $derived(episode.find(row => row.key === group.focus) ?? episode[0]);
+  const changeName = $derived(lead ? plainLabel(lead.label, lead.channel) : null);
   const still = $derived(lead ? ongoing(group, changes, until ?? group.record.to) : false);
   const reach = $derived(group.axis === "time" ? (group.bucketMs ?? 60_000) : 1);
   const lastFocus = $derived(series.find(row => row.key === group.focus)?.points.at(-1));
   const other = $derived([...read.others].sort((a, b) => b.from - a.from)[0]);
-  const href = (change?: FleetChange) => read.live ? read.href : investigationHref(assetId, group, replaying ? until : null, change);
+  const href = (change?: FleetChange) => {
+    if (read.live) return read.href;
+    const position = replaying ? (change ? analyzed ?? until : until) : null;
+    return investigationHref(assetId, group, position, change);
+  };
 
   const short = (at: number) => group.axis === "time" ? new Date(at).toLocaleString("ko-KR",{year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false})
     : Math.floor(at) + "번째" + (group.periodSeconds ? " · " + elapsedText((Math.floor(at) - 1) * group.periodSeconds) : "");
@@ -78,13 +87,13 @@
   const watched = $derived(read.live ? "최근 관측 확인" : !replaying ? "기록 전체 확인" : analyzed === null ? "변화 판정 중" : "~" + short(analyzed) + "까지 확인");
 </script>
 
-<li class="row" class:expanded={chatOpen} bind:this={cardElement}>
+<li class="row">
   <header class="equipment-head">
     <div><a class="name" href={href(lead)} onclick={onPause}><AssetName label={name}/></a>
       <span class="kind">{read.live?"수신 중":group.axis==="acquisition"?"저장된 시험 기록":"과거 저장 기록"}{replaying?" · 기록 재생":""}</span></div>
-    <a class="investigate" href={href(lead)} onclick={onPause}>자세히 조사 →</a>
+    {#if !lead}<a class="investigate" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
   </header>
-  <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":"최근 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked!==null}<button type="button" class="clear-pick" onclick={()=>picked=null}>선택 해제</button>{/if}</div>
+  <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":"최근 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked !== null || loadPick !== null}<button type="button" class="clear-pick" onclick={() => { picked = null; loadPick = null; }}>선택 해제</button>{/if}</div>
   <dl class="values">
     {#each series as row,index(row.key)}
       {@const point=cursor!==null?nearest(row.points,cursor):row.points.at(-1)}
@@ -92,50 +101,99 @@
     {/each}
     {#if companion}<div class="load"><dt>{companion.label}</dt><dd>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
   </dl>
-  <div class="workspace">
-    <div class="plot-area">
-      <div class="plot-title"><h2>{plainLabel(group.label,group.focus)}{group.unit?" · "+group.unit:""}</h2><span><i class="reference"></i>초기 수준 <i class="change"></i>변화 구간</span></div>
-      <TrendChart {group} {series} {lo} {hi} {changes} reference={lead?.before??null} live={replaying&&playing} height={mainHeight} axis={!companion}
-        bind:picked={()=>picked,value=>{picked=value;if(value!==null)onPause();}} bind:cursor/>
-      {#if companion}<p class="load-label">{companion.label}</p>
-        <TrendChart group={companion} series={load} {lo} {hi} changes={changes.map(row=>({...row,key:"load:"+row.key}))} height={loadHeight} axis={true}
-          colors={["var(--color-ink-muted)"]} guide={cursor} bind:cursor/>
-      {/if}
+  {#if lead}
+    <section class="finding" aria-label="이 그래프의 변화">
+      <div class="change-copy">
+        <strong>{changeName} <span aria-hidden="true">·</span> {lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
+        <span class="change-values">
+          {#if lead.before !== null && lead.after !== null}
+            <b>{measure(lead.before, group.unit, 3)} → {measure(lead.after, group.unit, 3)}</b><small>구간 대표값</small>
+          {/if}
+          <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
+        </span>
+      </div>
+      <a class="ui-button ui-button-primary investigate" href={href(lead)} onclick={onPause}
+        aria-label={name + " 변화 구간 조사"}>변화 구간 조사 →</a>
+    </section>
+  {/if}
+  <div class="plot-area">
+    <div class="plot-title">
+      <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
+      {#if lead}<span><i class="reference"></i>초기 수준 <i class="change"></i>변화 구간</span>{/if}
     </div>
-    {#if chatOpen}<aside class="conversation" aria-label={name+" AI 질문"}>
-      <header><strong>이 변화에 질문</strong><button type="button" aria-label="AI 질문 닫기" onclick={()=>chatOpen=false}>닫기</button></header>
-      {#key lead?.reviewKey??lead?.key??"calm"}<MonitorChat {assetId} reviewKey={lead?.reviewKey??null} {scope} {watched} {notice} when={null} judged={spoken} earlier={past}
-        calm="선택한 기록에서 뚜렷하게 달라진 구간이 없습니다." checking={replaying&&analyzed===null} detailHref={href(lead)} canAsk={!read.live&&!!lead?.reviewKey} {onPause}/>{/key}
-    </aside>{/if}
+    <TrendChart {group} {series} {lo} {hi} {changes} reference={lead?.before ?? null} live={replaying && playing}
+      height={mainHeight} axis={!companion} guide={cursor} endLabel={true} onHover={at => hovered = at}
+      bind:picked={() => picked, value => { picked = value; loadPick = null; if (value !== null) onPause(); }}/>
+    {#if companion}
+      <p class="load-label">{companion.label}</p>
+      <TrendChart group={companion} series={load} {lo} {hi} changes={changes.map(row => ({...row, key: "load:" + row.key}))}
+        height={loadHeight} axis={true} colors={["var(--color-ink-muted)"]} endLabel={true} guide={cursor} onHover={at => hovered = at}
+        bind:picked={() => loadPick, value => { loadPick = value; picked = null; if (value !== null) onPause(); }}/>
+    {/if}
   </div>
-  <footer class="finding">
-    {#if lead}<div><span class="finding-label">{plainLabel(lead.label,lead.channel)} · {lead.up?"초기보다 높아짐":"초기보다 낮아짐"}</span>
-      <strong>{lead.before!==null?measure(lead.before,group.unit,3):"—"} <span>→</span> {lead.after!==null?measure(lead.after,group.unit,3):"—"}</strong>
-      <small>변화 구간 대표값 · {group.axis==="time"?clockText(lead.from):lead.from+"번째 측정"}부터 · {duration(lead)}</small></div>
-    {:else}<div class="calm">{replaying&&analyzed===null?"측정 추이를 읽으며 변화를 살피고 있습니다":"선택한 기록에서 뚜렷한 변화가 발견되지 않았습니다"}</div>{/if}
-    <div class="actions">{#if lead?.reviewKey&&!read.live}<button type="button" class="ui-button" aria-expanded={chatOpen} onclick={()=>void toggleChat()}>AI 질문</button>{/if}
-      {#if !replaying&&other}<button type="button" class="other" onclick={()=>onSignal(other.channel)}>다른 변화 {read.others.length}개</button>{/if}</div>
+  <footer class="row-footer">
+    {#if analysisFailed}<span role="status">이 재생 시점의 변화 구간을 읽지 못했습니다</span>
+    {:else if !lead}<span>{replaying && analyzed !== until ? "변화 구간을 찾고 있습니다" : "이 구간에서 뚜렷한 변화가 발견되지 않았습니다"}</span>{/if}
+    {#if lead?.reviewKey && !read.live}
+      <button type="button" class="secondary-action" aria-haspopup="dialog" onclick={() => { onPause(); chatOpen = true; }}>이 변화에 AI 질문</button>
+    {/if}
+    {#if !replaying && other}
+      <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 변화 {read.others.length}개</button>
+    {/if}
   </footer>
+  {#if chatOpen && lead?.reviewKey}
+    <TaskDialog bind:open={chatOpen} title={name + " · " + changeName}>
+      <div class="conversation">
+        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {watched} {notice} when={null} judged={spoken} earlier={past}
+          calm="이 구간에 발견된 변화가 없습니다." checking={replaying && analyzed === null} detailHref={href(lead)} canAsk={!read.live} {onPause}/>
+      </div>
+    </TaskDialog>
+  {/if}
 </li>
 
 <style>
-  .row{display:grid;gap:12px;min-width:0;list-style:none;padding:18px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;box-sizing:border-box}
-  .row.expanded{grid-column:1/-1}.equipment-head{display:flex;align-items:start;justify-content:space-between;gap:12px}.equipment-head>div{display:grid;gap:3px}
-  .name{font-size:1.1rem;font-weight:700;color:var(--color-ink);text-decoration:none}.name:hover{text-decoration:underline}
-  .kind,.reading{font-size:12px;color:var(--color-ink-muted)}.investigate{font-size:var(--font-label);font-weight:650;white-space:nowrap;text-decoration:none;color:var(--color-action)}
-  .clear-pick{font:inherit;font-size:12px;color:var(--color-action);border:0;background:none;padding:0;cursor:pointer}
-  .reading{display:flex;gap:10px;align-items:center}.reading time{font-variant-numeric:tabular-nums}
-  .values{display:flex;flex-wrap:wrap;gap:10px 24px;margin:0}.values>div{display:grid;gap:1px}.values dt{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-ink-muted)}
-  .values dt i{display:inline-block;width:12px;height:3px;border-radius:2px}.values dd{margin:0;font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums}.values .load dd{font-weight:500;color:var(--color-ink-muted)}
-  .workspace{display:grid;gap:20px;min-width:0}.expanded .workspace{grid-template-columns:minmax(0,1fr) 340px}.plot-area{min-width:0}
-  .plot-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}.plot-title h2{margin:0;font-size:12px;font-weight:600}.plot-title>span{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--color-ink-muted)}
-  .reference{width:14px;border-top:1px dashed var(--color-reference-line)}.change{width:12px;height:9px;background:var(--color-change-fill);margin-left:6px}
-  .load-label{margin:0 0 4px 52px;font-size:11px;color:var(--color-ink-muted)}
-  .finding{border-top:1px solid var(--color-border);padding-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}.finding>div:first-child{display:grid;gap:2px;min-width:0}
-  .finding-label{font-size:var(--font-label);font-weight:600}.finding strong{font-size:1.1rem;font-variant-numeric:tabular-nums}.finding strong span{color:var(--color-ink-muted);font-weight:400;margin-inline:4px}.finding small{font-size:11px;color:var(--color-ink-muted)}
-  .actions{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px}.actions button{white-space:nowrap;font-size:var(--font-label);padding:6px 10px;min-height:32px}
-  .other{border:0;background:none;color:var(--color-action);font:inherit;cursor:pointer}.calm{font-size:var(--font-small);color:var(--color-ink-muted)}
-  .conversation{min-width:0;min-height:300px;display:flex;flex-direction:column;border-left:1px solid var(--color-border);padding-left:20px}.conversation>header{display:flex;align-items:center;justify-content:space-between;font-size:var(--font-small);margin-bottom:8px}.conversation>header button{font:inherit;font-size:12px;border:0;background:none;color:var(--color-action);cursor:pointer}.conversation :global(.agent){flex:1;min-height:280px}
-  @media(max-width:800px){.expanded .workspace{grid-template-columns:minmax(0,1fr)}.conversation{border-left:0;border-top:1px solid var(--color-border);padding:16px 0 0}}
-  @media(max-width:500px){.row{padding:14px}.values{gap:8px 14px}.finding{align-items:start;flex-direction:column}.actions{justify-content:start}}
+  .row {
+    display:grid; gap:12px; min-width:0; list-style:none; padding:18px 20px;
+    background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
+  }
+  .equipment-head { display:flex; align-items:start; justify-content:space-between; gap:12px; }
+  .equipment-head > div { display:grid; gap:3px; }
+  .name { font-size:1.1rem; font-weight:700; color:var(--color-ink); text-decoration:none; }
+  .name:hover { text-decoration:underline; }
+  .kind,.reading { font-size:var(--font-label); color:var(--color-ink-muted); }
+  .reading { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; }
+  .reading time { font-variant-numeric:tabular-nums; }
+  .clear-pick,.secondary-action {
+    font:inherit; font-size:var(--font-label); color:var(--color-action); border:0; background:none;
+    padding:0; cursor:pointer;
+  }
+  .clear-pick:hover,.secondary-action:hover { text-decoration:underline; }
+  .values { display:flex; flex-wrap:wrap; gap:4px 14px; margin:0; }
+  .values > div,.values dt { display:flex; align-items:baseline; gap:5px; }
+  .values dt { font-size:var(--font-label); color:var(--color-ink-muted); }
+  .values dt i { align-self:center; width:10px; height:3px; border-radius:2px; }
+  .values dd { margin:0; font-size:var(--font-small); font-weight:650; font-variant-numeric:tabular-nums; }
+  .finding {
+    display:flex; align-items:center; justify-content:space-between; gap:8px 14px; flex-wrap:wrap;
+    padding:10px 12px; border-left:3px solid var(--color-change-mark);
+    background:var(--color-uncertain-surface); border-radius:0 6px 6px 0;
+  }
+  .change-copy { display:grid; gap:3px; min-width:0; font-size:var(--font-small); }
+  .change-values { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; }
+  .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }
+  .change-values small { color:var(--color-ink-muted); }
+  .investigate { white-space:nowrap; font-size:var(--font-label); font-weight:650; }
+  .investigate.ui-button { min-height:34px; padding:5px 10px; text-decoration:none; }
+  .plot-area { min-width:0; }
+  .plot-area :global(.plotted) { grid-template-columns:44px minmax(0,1fr); }
+  .plot-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 7px; }
+  .plot-title h2 { margin:0; font-size:var(--font-label); }
+  .plot-title > span { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--color-ink-muted); }
+  .reference { width:14px; border-top:1px dashed var(--color-reference-line); }
+  .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }
+  .load-label { margin:5px 0 4px 52px; font-size:var(--font-label); color:var(--color-ink-muted); }
+  .row-footer { display:flex; align-items:center; flex-wrap:wrap; min-height:24px; gap:6px 16px; font-size:var(--font-label); color:var(--color-ink-muted); }
+  .conversation { display:flex; min-height:min(400px,55dvh); height:min(550px,64dvh); }
+  .conversation :global(.agent) { flex:1; }
+  @media(max-width:500px) { .row { padding:14px; } }
 </style>

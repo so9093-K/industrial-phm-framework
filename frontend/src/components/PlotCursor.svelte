@@ -1,8 +1,9 @@
 <script lang="ts">
   import type {Snippet} from "svelte";
   import {nearestPosition,movePosition} from "../plot-selection";
-  let {positions,value,lo,hi,label,onSelect,children}:{positions:number[];value:number|null;lo:number;hi:number;
-    label:string;onSelect?:((at:number)=>void);children:Snippet}=$props();
+  let {positions,value,lo,hi,label,formatValue,onSelect,children}:{positions:number[];value:number|null;lo:number;hi:number;
+    label:string;formatValue?:(at:number)=>string;onSelect?:((at:number)=>void);children:Snippet}=$props();
+  const selected = $derived(nearestPosition(positions,value??hi));
   function pick(event:PointerEvent){
     const rect=(event.currentTarget as HTMLElement).getBoundingClientRect();
     const at=nearestPosition(positions,lo+Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width))*(hi-lo));
@@ -15,7 +16,7 @@
 </script>
 {#if onSelect && positions.length}
   <div class="cursor" role="slider" tabindex="0" aria-label={label} aria-valuemin={positions[0]}
-    aria-valuemax={positions.at(-1)} aria-valuenow={nearestPosition(positions,value??hi)??undefined}
+    aria-valuemax={positions.at(-1)} aria-valuenow={selected??undefined} aria-valuetext={selected!==null ? formatValue?.(selected) : undefined}
     onkeydown={keydown} onpointerdown={event=>{event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);pick(event);}}
     onpointermove={event=>{if(event.buttons===1)pick(event);}}>
     {@render children()}

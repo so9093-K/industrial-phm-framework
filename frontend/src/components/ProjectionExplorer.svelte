@@ -3,6 +3,7 @@
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
+  let criteriaOpen = $state(false);
   import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
   import {recordParams} from "../record-context";
@@ -73,6 +74,10 @@
     for(const [key,value] of Object.entries(record?recordParams(record):focus?focusParams(focus):{}))url.searchParams.set(key,value);
     return url.pathname+url.search;
   }
+  const appliedCriteria = $derived.by(() => {
+    const current: Projection | null = projection;
+    return current !== null && (current.conditions.management !== null || current.conditions.end !== null);
+  });
   const criteriaPending=$derived.by(()=>{const current:Projection|null=projection;return current!==null&&(current.conditions.direction!==direction
     ||current.conditions.management!==(management.trim()?Number(management):null)
     ||current.conditions.end!==(endLimit.trim()?Number(endLimit):null));});
@@ -222,7 +227,7 @@
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options!==null}
-    <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
+    <div class="analysis-workspace forecast-workspace" class:has-criteria={appliedCriteria}><div class="forecast-controls">
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
@@ -257,6 +262,7 @@
     <button type="button" class="ui-button ui-button-primary" disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
 
     {/if}{/snippet}</AnalysisControls>
+      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>기준 설정</button>
     </div>
     <div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
@@ -299,7 +305,7 @@
             unit={projection.unit??names.get(projection.channel)?.unit??null} scale={{kind:"clock"}} place={clockText} unreliable={worse}/>
         {/if}
         {#if projection.evolution}<SignalEvolution data={projection.evolution} unit={projection.unit}/>{/if}
-        <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
+        <button type="button" class="ui-button" onclick={() => validationOpen = true}>예측 설명</button>
         <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
           <SourceIdentity id={projection.sourceId} pointId={projection.pointId} among={options.records?.map(row=>row.sourceId)??[]}/>
         {#if told}<AnalysisMessage message={told} showHeadline={false}
@@ -382,7 +388,7 @@
       <p class="intro">신호와 예측 기간을 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
     </div>
-    <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
+    {#if appliedCriteria}<aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
       <h3 class="inspector-title">기준 도달·예상 여유</h3>
 
       {#if projection}
@@ -406,11 +412,12 @@
           </div>
         {/if}
       {/if}
-
+    </aside>{/if}
+    <TaskDialog bind:open={criteriaOpen} title="기준 설정">
       {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
         {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={projection?.conditions.management===item.value&&projection?.conditions.direction===item.direction}
-          onclick={()=>suggest(item.value,item.direction)}>{item.label}</button>{/each}</div>{/if}
-      <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+          onclick={() => { criteriaOpen = false; suggest(item.value, item.direction); }}>{item.label}</button>{/each}</div>{/if}
+      <form class="criteria" onsubmit={event=>{event.preventDefault(); criteriaOpen = false; void calculate();}}>
         <p>기준값 직접 입력</p>
       <div class="controls">      <label for="projection-direction">기준 방향
         <select id="projection-direction" value={direction}
@@ -427,19 +434,21 @@
           value={endLimit} oninput={e=>{endLimit=e.currentTarget.value;save();}}/>
       </label>
       </div>
-        <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={selectionLoading||!selectionReady||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button>
+        <button type="submit" class="ui-button ui-button-primary" aria-busy={resultState==="loading"} disabled={selectionLoading||!selectionReady||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button>
       </form>
-    </aside>
+    </TaskDialog>
     </div>
   {/if}
 </section>
 
 <style>
-  .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
+  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-5)}
+  .forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr) 260px}
   .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .forecast-controls>.controls{flex:1 1 500px;min-width:0;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-3)}
   .forecast-controls>.controls>label{flex:1 1 160px;min-width:0}.forecast-controls>.controls>label:first-child{flex:1.3 1 240px}.forecast-controls>.controls>button{flex:none}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
+  .criteria-button{min-height:40px}
 
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
@@ -474,7 +483,7 @@
   .criteria{display:grid;gap:var(--space-3)}.criteria p,.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
   .criteria .controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin:0}.criteria input,.criteria select{padding:var(--space-2)}
   .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}.criteria-pending{color:var(--color-caution-ink)}
-  @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:1000px){.forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   .inspector-title{margin:0;font-size:var(--font-section)}
   .tiles .caveat{color:var(--color-caution-ink)}

@@ -147,7 +147,7 @@ export function splitChanges(group: FleetGroup, found: FleetChange[]): {changes:
 export function investigationHref(assetId: string, group: FleetGroup | null, until: number | null, change?: FleetChange): string {
   const url = new URL(routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null}), "http://local");
   url.searchParams.set("observation_view", "record");
-  if (change?.ref && until === null) url.searchParams.set("summary_change", change.ref);
+  if (change?.ref) url.searchParams.set("summary_change", change.ref);
   if (group && until !== null)
     url.searchParams.set(group.axis === "time" ? "record_until" : "acquisition_until",
       group.axis === "time" ? new Date(until).toISOString() : String(Math.floor(until)));

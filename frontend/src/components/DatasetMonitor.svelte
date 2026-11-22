@@ -42,7 +42,7 @@
     history.replaceState(history.state, "", url);
   }
 
-  type Card = {read: FleetRead | null; error: boolean; busy: boolean; found: FleetChange[]; analyzed: number | null; analyzing: boolean;
+  type Card = {read: FleetRead | null; error: boolean; busy: boolean; found: FleetChange[]; analyzed: number | null; failedAt: number | null;
     /** 이 읽기에 요청한 신호 이름(null이면 설비 자신의 첫 변화 묶음). */
     like: string | null};
   /** 설비마다 처음 읽은 묶음(자신의 첫 변화). 데이터셋의 '보는 신호' 선택지가 된다. */
@@ -65,7 +65,7 @@
     history.replaceState(history.state, "", url);
   }
   let cards: Record<string, Card> = $state({});
-  const blank = (): Card => ({read: null, error: false, busy: true, found: [], analyzed: null, analyzing: false, like: null});
+  const blank = (): Card => ({read: null, error: false, busy: true, found: [], analyzed: null, failedAt: null, like: null});
 
   // 재생 위치(비율)는 데이터셋마다 따로, 조사 화면에 다녀와도 이어 보도록 탭에 남긴다.
   const STORE = "phm.monitor.replay";
@@ -124,7 +124,7 @@
       void readFleet(asset, request.signal, like).then(read => {
         if (request.signal.aborted || wanted.get(id) !== revision) return;
         // 묶음이 바뀌었을 수 있으니 재생 판정은 새 묶음으로 다시 한다.
-        cards[id] = {...cards[id], read, like, busy: false, error: false, found: [], analyzed: null};
+        cards[id] = {...cards[id], read, like, busy: false, error: false, found: [], analyzed: null, failedAt: null};
         requested.delete(id);
         if (like === null && read.group && !read.live) defaults[id] = {like: focusChannel(read.group), label: read.group.label};
         analyze();
@@ -161,33 +161,50 @@
 
   // 변화 판정: 설비마다 한 번에 하나, 끝나면 그때의 재생 위치로 다시. 가장 최근 판정만 표시한다.
   const judging = new Map<string, AbortController>(), requested = new Map<string, number>(), started = new Map<string, number>();
+  let analysisTimer: ReturnType<typeof setTimeout> | null = null;
+  function cancelAnalysisTimer() {
+    if (analysisTimer !== null) clearTimeout(analysisTimer);
+    analysisTimer = null;
+  }
   function analyze() {
+    cancelAnalysisTimer();
     if (fraction === null || disposed || !dataset) return;
+    let retryIn = Infinity;
     for (const id of dataset.assetIds) {
       const card = cards[id], group = card?.read?.group;
-      if (!card || !group || card.read?.live || judging.has(id) || Date.now() - (started.get(id) ?? 0) < 500) continue;
+      if (!card || !group || card.read?.live || judging.has(id)) continue;
       const until = untilOf(card);
       if (until === null || requested.get(id) === until) continue;
+      const wait = 500 - (Date.now() - (started.get(id) ?? 0));
+      if (wait > 0) {
+        retryIn = Math.min(retryIn, wait);
+        continue;
+      }
       requested.set(id, until); started.set(id, Date.now());
       const request = new AbortController();
       judging.set(id, request);
-      card.analyzing = true;
+      card.failedAt = null;
       void readFleetChanges(id, group, until, request.signal).then(found => {
         const now = cards[id] ? untilOf(cards[id]) : null;
-        if (request.signal.aborted || fraction === null || now === null || now < until) return;
+        if (request.signal.aborted || cards[id]?.read?.group !== group || fraction === null || now === null || now < until) return;
         cards[id].found = splitChanges(group, found).changes;
         cards[id].analyzed = until;
-      }).catch(() => { /* 다음 위치에서 다시 판정한다. */ }).finally(() => {
+      }).catch(() => {
+        if (!request.signal.aborted && cards[id]?.read?.group === group) cards[id].failedAt = until;
+      }).finally(() => {
+        if (judging.get(id) !== request) return;
         judging.delete(id);
-        if (cards[id]) cards[id].analyzing = false;
         analyze();
       });
     }
+    // A user can seek and pause during the cooldown. Always read that last requested position.
+    if (Number.isFinite(retryIn)) analysisTimer = setTimeout(analyze, retryIn);
   }
   function resetJudgement() {
+    cancelAnalysisTimer();
     for (const request of judging.values()) request.abort();
     judging.clear(); requested.clear(); started.clear();
-    for (const card of Object.values(cards)) { card.found = []; card.analyzed = null; card.analyzing = false; }
+    for (const card of Object.values(cards)) { card.found = []; card.analyzed = null; card.failedAt = null; }
   }
   function setFraction(value: number | null) {
     if (!dataset) return;
@@ -217,7 +234,7 @@
   }
   function stop() { playing = false; resetJudgement(); setFraction(null); }
   $effect(() => { dataset?.key; untrack(() => { resetJudgement(); analyze(); }); });
-  onDestroy(() => { disposed = true; for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
+  onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
   const chartHeight=$derived(rows.length===1?280:240);
   const legend = $derived(rows.find(row => row.card?.read?.group)?.card?.read?.group ?? null);
@@ -231,19 +248,22 @@
 
 <section class="monitor" aria-label="데이터셋 관제">
   <header class="bar">
-    <div><h1>설비 모니터링 <span>{assets.length}대</span></h1>
-      <nav class="datasets" aria-label="설비 종류">
-        {#each filters as row(row.key)}<button type="button" aria-pressed={row.key===dataset?.key} onclick={()=>choose(row.key)}>{filterLabel(row)} <span>{row.assetIds.length}</span></button>{/each}
-      </nav>
-    </div>
+    <h1>설비 모니터링 <span>{assets.length}대</span></h1>
     <div class="status"><span>목록 갱신 {checkedAt}</span><button type="button" class="ui-button quiet" onclick={onRefresh}>새로고침</button>
       <a class="ui-button" href={systemUrl("connections")}>데이터 추가</a></div>
   </header>
 
   {#if dataset}
     <div class="toolbar">
+      <nav class="datasets" aria-label="설비 종류">
+        {#each filters as row (row.key)}
+          <button type="button" aria-pressed={row.key === dataset.key} onclick={() => choose(row.key)}>
+            {filterLabel(row)} <span>{row.assetIds.length}</span>
+          </button>
+        {/each}
+      </nav>
       {#if counts.stored}
-        <div class="transport" aria-label="저장 기록 재생">
+        <div class="transport" class:with-progress={fraction !== null} aria-label="저장 기록 재생">
           <button type="button" class="ui-button play" class:on={playing} onclick={() => playing ? playing = false : play()}>
             <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 재생" : "저장 기록 재생"}</button>
           <select bind:value={seconds} aria-label="재생 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
@@ -271,7 +291,7 @@
         {@const switching = !!card?.busy && card.like !== (desired.get(asset.assetId) ?? null)}
         {#if card?.read?.group && !switching}
           <MonitorRow assetId={asset.assetId} {name} read={card.read} group={card.read.group}
-            replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed}
+            replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
             height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
@@ -296,17 +316,18 @@
 </section>
 
 <style>
-  .monitor{display:grid;gap:16px;min-width:0}
-  .bar{display:flex;justify-content:space-between;align-items:start;gap:16px}
-  h1{margin:0 0 12px;font-size:1.35rem;line-height:1.2}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
+  .monitor{display:grid;gap:12px;min-width:0}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  h1{margin:0;font-size:1.35rem;line-height:1.2}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
   .datasets{display:flex;flex-wrap:wrap;gap:4px}
   .datasets button{border:0;border-radius:6px;background:transparent;font:inherit;font-size:var(--font-small);color:var(--color-ink-muted);padding:6px 10px;cursor:pointer}
   .datasets button[aria-pressed="true"]{background:var(--color-sidebar);color:white;font-weight:650}.datasets button span{margin-left:4px;opacity:.75}
   .status{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px;font-size:12px;color:var(--color-ink-muted)}
-  .status>span{flex-basis:100%;text-align:right}.status a{text-decoration:none}
+  .status>span{text-align:right}.status a{text-decoration:none}
   .quiet{min-height:0;padding:6px 12px;font-size:var(--font-label)}
-  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-height:36px}
-  .transport{display:flex;align-items:center;gap:8px;flex:1;min-width:240px;max-width:850px}
+  .toolbar{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;min-height:36px}
+  .transport{display:flex;align-items:center;gap:8px;min-width:0}
+  .transport.with-progress{flex:1 1 480px;max-width:850px}
   .transport select{padding:6px 8px;font-size:var(--font-label)}
   .transport input{flex:1;min-width:90px;accent-color:var(--color-action)}
   .transport output{font-size:var(--font-label);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -321,5 +342,10 @@
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .data-guide{display:grid;gap:16px}.data-guide h2{margin:0;font-size:var(--font-body)}
   @media(max-width:1050px){.rows{grid-template-columns:minmax(0,1fr)}}
-  @media(max-width:650px){.bar{flex-direction:column}.status{justify-content:start}.status>span{flex-basis:auto}.transport{flex-wrap:wrap}.transport input{flex-basis:100%}}
+  @media(max-width:650px){
+    .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}
+    .status>span{order:1;flex-basis:100%;text-align:left}
+    .toolbar{gap:6px 8px}.datasets{flex-basis:100%}
+    .transport{flex-wrap:wrap}.transport input{flex-basis:100%}
+  }
 </style>

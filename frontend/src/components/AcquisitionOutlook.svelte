@@ -2,6 +2,7 @@
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   let validationOpen = $state(false);
+  let criteriaOpen = $state(false);
   import SignalEvolution from "./SignalEvolution.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
@@ -50,6 +51,10 @@
   let managementText=$state(params.get("acq_management")??"");
   let endText=$state(params.get("acq_end")??"");
   let direction:Direction=$state(params.get("acq_direction")==="lower"?"lower":"upper");
+  const appliedCriteria = $derived.by(() => {
+    const current: AcquisitionProjection | null = outlook;
+    return current !== null && (current.conditions.management !== null || current.conditions.end !== null);
+  });
   const criteriaPending=$derived.by(()=>{const current:AcquisitionProjection|null=outlook;return current!==null&&(current.conditions.direction!==direction
     ||current.conditions.management!==(managementText.trim()?Number(managementText):null)
     ||current.conditions.end!==(endText.trim()?Number(endText):null));});
@@ -156,7 +161,7 @@
       message="분석된 진동 측정이 20회 이상 있어야 합니다."
       actionLabel="진동 특징 비교 보기" actionHref={assetTabUrl(assetId, "change", "compare", "vibration")}/>
   {:else if options}
-    <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
+    <div class="analysis-workspace forecast-workspace" class:has-criteria={appliedCriteria}><div class="forecast-controls">
     <div class="inputs">
       <label>진동 신호
         <select value={featureId} onchange={e=>{featureId=e.currentTarget.value;managementText="";endText="";invalidate();void calculate();}}>
@@ -188,6 +193,7 @@
     <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
     <button type="button" class="ui-button ui-button-primary" disabled={available.length===0} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
     {/if}{/snippet}</AnalysisControls>
+      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>기준 설정</button>
     </div>
 
     <div class="analysis-body">
@@ -229,7 +235,7 @@
             unit={outlook.unit} scale={measurementScale(period)} place={at=>place(at,period)} unreliable={worse}/>
         {/if}
         {#if outlook.evolution}<SignalEvolution data={outlook.evolution} unit={outlook.unit}/>{/if}
-        <button type="button" class="ui-button" onclick={()=>validationOpen=true}>예측 시작값·과거 검증 보기</button>
+        <button type="button" class="ui-button" onclick={() => validationOpen = true}>예측 설명</button>
         <TaskDialog bind:open={validationOpen} title="전망 해석·과거 검증">
         {#if told}<AnalysisMessage message={told} showHeadline={false}
           subject={options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature}
@@ -305,7 +311,7 @@
       <p class="context">진동 특징과 예측 범위를 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
     </div>
-    <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
+    {#if appliedCriteria}<aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
       <h3 class="inspector-title">기준 도달·예상 여유</h3>
 
     {#if outlook}
@@ -329,11 +335,12 @@
           </div>
         {/if}
     {/if}
-
-    {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
+    </aside>{/if}
+    <TaskDialog bind:open={criteriaOpen} title="기준 설정">
+      {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
       {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={outlook?.conditions.management===item.value&&outlook?.conditions.direction===item.direction}
-        onclick={()=>suggest(item.value,item.direction)}>{item.label}</button>{/each}</div>{/if}
-    <form class="criteria" onsubmit={event=>{event.preventDefault();void calculate();}}>
+        onclick={() => { criteriaOpen = false; suggest(item.value, item.direction); }}>{item.label}</button>{/each}</div>{/if}
+    <form class="criteria" onsubmit={event=>{event.preventDefault(); criteriaOpen = false; void calculate();}}>
       <div class="criteria-title"><strong>기준값 직접 입력</strong></div>
       <div class="inputs">      <label>기준 방향
         <select value={direction} onchange={e=>{direction=e.currentTarget.value as Direction;remember();}}>
@@ -348,14 +355,13 @@
         <input type="number" step="any" value={endText}
           oninput={e=>{endText=e.currentTarget.value;remember();}}/>
       </label>
-      <button type="submit" class="ui-button" aria-busy={resultState==="loading"} disabled={available.length===0||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button></div>
+      <button type="submit" class="ui-button ui-button-primary" aria-busy={resultState==="loading"} disabled={available.length===0||resultState==="loading"}>{resultState==="loading"?"계산 중…":"기준 적용"}</button></div>
     </form>
-    </aside>
+    </TaskDialog>
     </div>
   {/if}
 </section>
 <style>
-  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
   .criteria{display:grid;gap:var(--space-2);padding:var(--space-3);background:var(--color-surface-selected);border-radius:var(--radius-control)}
   .criteria-title{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--font-small)}
   .criteria .inputs{grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2);margin:0}
@@ -364,6 +370,7 @@
   .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .forecast-controls>div{flex:1;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-2)}.forecast-controls .inputs label{flex:1;min-width:100px}.forecast-controls .inputs label:first-child{flex:1.4;min-width:140px}.forecast-controls .inputs button{flex:none;padding:var(--space-2);min-height:40px}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
+  .criteria-button{min-height:40px}
 
   .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
@@ -386,13 +393,13 @@
   table{border-collapse:collapse;width:100%}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}dd{overflow-wrap:anywhere}
 
-  .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
+  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-5)}
+  .forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr) 260px}
   .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
   .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
-  .forecast-inspector .criteria{padding:0;background:none}.forecast-inspector .criteria .inputs{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
   .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}
   .criteria-pending{font-size:var(--font-small);color:var(--color-caution-ink);margin:0}
-  @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.forecast-inspector .criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:1000px){.forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   .inspector-title{margin:0;font-size:var(--font-section)}
   .tiles .caveat{color:var(--color-caution-ink)}
