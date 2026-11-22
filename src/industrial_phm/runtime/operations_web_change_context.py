@@ -626,8 +626,7 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         )
     if operation and current:
         facts["operating_level"] = (
-            f"{current} 중인 측정끼리 비교했습니다. 같은 운전 수준에서도 차이가 남았으므로 "
-            "설비 자신의 부하(전류) 변화만으로 생긴 차이는 아닙니다."
+            f"{current} 구간으로 분류한 측정끼리 비교해도 선택한 신호의 차이가 남았습니다."
         )
         checked["operating_level"] = ("같은 운전 수준끼리 비교", current)
         targets["operating_level"] = {
@@ -692,22 +691,6 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         )
         checked["load"] = (load["label"], moved)
         targets["load"] = {"kind": "operation", "label": load["label"], "detail": moved}
-    # 220 V 계통 상전압이면 공급 허용 범위(표준전압 220 V ± 13 V)와 견준다.
-    # 문제인지 물으면 이것으로 지금 어디쯤인지 답한다.
-    label = change["label"]
-    if (
-        change["unit"] == "V"
-        and "전압" in label
-        and "선간" not in label
-        and after is not None
-        and 200 <= after <= 240
-    ):
-        inside = 207 <= after <= 233
-        facts["limit"] = (
-            "표준전압 220 V의 공급 허용 범위는 207~233 V입니다(전기사업법 시행규칙). "
-            f"특이사항 구간 중앙값 {after_text} V는 이 범위 {'안' if inside else '밖'}입니다."
-        )
-        checked["limit"] = ("공급 허용 범위 207~233 V", "안" if inside else "밖")
     actions = ["signals", "compare"]
     if any(
         all(f"{phase}상{quantity}" in context["channels"] for phase in "RST")
@@ -718,7 +701,5 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         "facts": facts,
         "actions": actions,
         "targets": targets,
-        "steps": _steps(
-            checked, ("feature_0", "limit", "load", "operating_share", "operating_level")
-        ),
+        "steps": _steps(checked, ("feature_0", "load", "operating_share", "operating_level")),
     }

@@ -83,9 +83,9 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     assert facts["order"].startswith(
         "같은 시기 특이사항의 시작 순서: R상전압·S상전압(10월 4일 09:19) → T상전압(10월 5일 03:05)."
     )
-    # How much, against what: the size of the change, the supply tolerance, the load at the time.
+    # Measured values do not declare the nominal supply or an applicable equipment limit.
     assert facts["feature_0"].endswith("초기보다 4 V(1.8%) 높습니다.")
-    assert "207~233 V" in facts["limit"] and facts["limit"].endswith("이 범위 안입니다.")
+    assert "limit" not in facts
     assert (
         facts["load"]
         == "같은 때 전류평균(모든 운전 수준을 합친 평균): 초기 41.2 A → 특이사항 구간 23.1 A."
@@ -114,7 +114,6 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # What the investigation looked at, one '항목 · 결과' row each, the selected change first.
     assert [(row["label"], row["result"]) for row in out["steps"]] == [
         ("R상전압", "222 → 226 V"),
-        ("공급 허용 범위 207~233 V", "안"),
         ("전류평균", "41.2 → 23.1 A"),
         ("약 11 A 운전 비중", "15% → 44%"),
         ("같은 운전 수준끼리 비교", "약 11 A 운전"),
@@ -166,3 +165,19 @@ def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> No
     )
     # Hour by hour the dominant level is not a checked row: it hides levels mixed within an hour.
     assert "operating_flow" not in [row["fact"] for row in out["steps"]]
+
+
+def test_voltage_magnitude_does_not_supply_an_equipment_rating() -> None:
+    for value in (190.0, 226.0, 239.0, 250.0):
+        changed = _change(
+            "a", "R상전압", "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z", 220, value
+        )
+        context = {
+            "history_change": changed,
+            "operation": [],
+            "channels": ["R상전압"],
+            "episode": [],
+        }
+        result = history_investigation(context)
+        assert "limit" not in result["facts"]
+        assert all("허용" not in row["label"] for row in result["steps"])

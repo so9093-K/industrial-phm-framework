@@ -214,6 +214,7 @@ def test_a_change_answer_may_write_dates_and_clock_times_as_people_do(
     monkeypatch.setattr(change_answer, "complete_json", model)
     context = {
         "question": "부하가 바뀌었나요?",
+        "history": [{"question": "무엇이 달라졌어?", "answer": "전압이 높아졌습니다."}],
         "investigation": {
             "facts": {
                 "subject": "R상전압의 변화 구간은 2020년 10월 4일 09:19부터 10월 5일 07:31까지",
@@ -226,6 +227,11 @@ def test_a_change_answer_may_write_dates_and_clock_times_as_people_do(
     }
     answer = change_answer.generate_change_answer(context, ExplanationProvider())
     assert answer["source"] == "model" and len(model.requests) == 1
+    assert model.requests[0][1:3] == [
+        {"role": "user", "content": "무엇이 달라졌어?"},
+        {"role": "assistant", "content": "전압이 높아졌습니다."},
+    ]
+    assert json.loads(model.requests[0][-1]["content"])["question"] == context["question"]
     # The same drawn thing is cited once, and only known facts are cited.
     assert answer["evidence"] == [
         {"fact": "operating_share", **share},
