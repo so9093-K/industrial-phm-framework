@@ -16,9 +16,6 @@ export function playbackScope(search: string): PlaybackScope | null {
   }
   return null;
 }
-export function playbackStep(from: number, to: number, until: number, frames: number): number {
-  return Math.min(to, until + Math.max(1, Math.ceil((to - from) / frames)));
-}
 export function scopedUrl(url: string, scope: PlaybackScope | null): string {
   const [path, search = ""] = url.split("?");
   const query = new URLSearchParams(search);

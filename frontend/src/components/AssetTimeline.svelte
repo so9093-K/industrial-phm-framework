@@ -85,13 +85,14 @@
   const readAt=$derived(inside(cursor)??inside(selected)??shownLast);
   const shade=(level:number,count:number)=>.18+.72*level/Math.max(1,count);
   // 보이는 구간(기록 전체·확대)이 바뀔 때마다 그 구간의 부하 추이를 다시 읽는다.
-  let loadPoints:LoadPoint[]|null=$state(null);
+  // 읽는 동안은 그 자리를 비워 둔다(운전 수준 띠가 잠깐 그려졌다 바뀌지 않게). 읽지 못했을 때만 띠로 대신한다.
+  let loadPoints:LoadPoint[]|null=$state(null),loadFailed=$state(false);
   $effect(()=>{
     const source=load,from=lo,to=hi;
-    loadPoints=null;
+    loadPoints=null;loadFailed=false;
     if(!source||axis!=="time")return;
     const request=new AbortController();
-    void source.read(from,to,request.signal).then(points=>{if(!request.signal.aborted)loadPoints=points;}).catch(()=>{});
+    void source.read(from,to,request.signal).then(points=>{if(!request.signal.aborted)loadPoints=points;}).catch(()=>{if(!request.signal.aborted)loadFailed=true;});
     return()=>request.abort();
   });
   // 부하 값 읽기도 자기 점 간격의 1.5배 안에서만(보이는 구간을 120칸으로 읽어 전압 칸과 간격이 다르다).
@@ -139,6 +140,9 @@
           changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
           guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
       </div>
+    {:else if load&&axis==="time"&&!loadFailed}
+      <div class="lane-heading"><strong>{load.label}</strong></div>
+      <div class="load-pending" aria-busy="true"></div>
     {:else if operation}
       <div class="lane-heading"><strong>운전 수준</strong><span class="levels">{#each operation.names.levels as _,i(i)}<span><i class="level-key" style:opacity={shade(i+1,operation.names.levels.length)}></i>{bandName(operation.names,i+1)}</span>{/each}<span><i class="level-key stop"></i>정지</span></span></div>
       <!-- 칸마다 가장 오래 운전한 수준 하나를 진하기로 칠한다(진할수록 높은 전류). 부하가 바뀐 때가 띠에서 바로 보인다. -->
@@ -185,6 +189,7 @@
   .readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}.readout span{display:inline-flex;align-items:center;gap:5px;color:var(--color-ink-muted)}.readout i{display:inline-block;width:12px;height:3px;border-radius:2px}.readout b{color:var(--color-ink);font-weight:650}.readout small{color:var(--color-ink-muted);font-size:var(--font-label)}
   .related-context{display:grid;gap:14px;align-content:start;border-left:1px solid var(--color-border);padding-left:20px;min-width:0}
   .strip.pointed svg{outline:2px solid var(--color-ink);outline-offset:1px}.strip.faint{opacity:.3}
+  .load-pending{height:84px;margin-left:64px;border-radius:4px;background:repeating-linear-gradient(0deg,transparent 0 20px,#eef2f4 20px 21px)}
   .load-chart.pointed :global(svg){outline:2px solid var(--color-ink);outline-offset:1px}.load-chart.faint{opacity:.3}
   .focus-values{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}.focus-values .name{font-size:var(--font-small);font-weight:650}
   .pair{display:flex;align-items:end;gap:14px;font-variant-numeric:tabular-nums}.pair span{display:grid;gap:2px;font-size:1.35rem;font-weight:650;color:var(--color-ink-muted)}.pair small{font-size:var(--font-label);font-weight:400}.pair strong{color:var(--color-ink)}.pair b{padding-bottom:4px;color:var(--color-ink-muted);font-weight:400}.actions{border-top:1px solid var(--color-border);padding-top:12px}
