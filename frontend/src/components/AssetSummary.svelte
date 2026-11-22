@@ -400,7 +400,7 @@
   <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
 {/snippet}
 
-{#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus}/>{/if}{/snippet}
+{#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} selected={selectedAt} onClear={() => selectedAt = null}/>{/if}{/snippet}
 
 {#snippet assistant({colorOf, labelOf, point, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
   point: (evidence: Evidence | null) => void; close: () => void})}

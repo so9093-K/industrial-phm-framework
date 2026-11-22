@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {yTicks} from "../chart-axis";
+  import {measure, yTicks} from "../chart-axis";
   import {tracePath} from "../asset-overview";
   import {SERIES_COLORS, type FleetChange, type FleetGroup, type FleetSeries} from "../fleet-observation";
   import {measurementScale} from "../time-axis";
@@ -13,15 +13,15 @@
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
    * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, dim = [], picked = $bindable(null), cursor = $bindable(null), onPick}: {
+    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
-    live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void;
+    live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void; onHover?: (at: number | null) => void;
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
     /** 옅게 그릴 계열(그 변화 구간도 옅게): 다른 곳에서 가리킨 계열만 또렷하게 남긴다. */
-    dim?: string[]} = $props();
+    dim?: string[]; endLabel?: boolean} = $props();
   const W = 1000;
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
@@ -50,7 +50,9 @@
     if (event.buttons) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
     hover = nearestPosition(positions, lo + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span);
+    onHover?.(hover);
   }
+  function leave() { hover = null; onHover?.(null); }
   const at = $derived(hover ?? guide ?? picked);
   const last = $derived(series.map((row, index) => ({row, index, point: row.points.at(-1)})).filter(item => item.point));
   // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
@@ -60,7 +62,7 @@
 
 {#if values.length}
   <ValueAxis {ticks} {height} unit={group.unit}>
-    <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
+    <div class="plot" role="presentation" onpointermove={move} onpointerleave={leave}>
       <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => { picked = value; onPick?.(value); }}>
         <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
           aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 특이사항 " + shown.length + "곳" : "")}>
@@ -86,6 +88,11 @@
       {#each last as item (item.row.key)}
         <span class="dot" class:live class:faint={dim.includes(item.row.key)} style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
           style:--dot={colors[item.index % colors.length]}></span>
+        {#if endLabel && !live && item.row.key === group.focus && !hover}
+          <span class="end-label" class:at-start={pct(item.point!.x) < 33}
+            style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
+            style:--dot={colors[item.index % colors.length]}>{measure(item.point!.value, group.unit, group.unit === "V" ? 4 : 3)}</span>
+        {/if}
       {/each}
     </div>
     {#snippet footer()}{#if axis}<XAxis {lo} hi={lo + span} {scale}/>{/if}{/snippet}
@@ -109,6 +116,8 @@
   path,rect,line,.dot{transition:opacity .15s}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
+  .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:11px;font-weight:650;pointer-events:none}
+  .end-label.at-start{transform:translate(8px,-100%)}
   .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}
   @keyframes pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.8);opacity:0}}
   @media (prefers-reduced-motion:reduce){.dot.live::after{animation:none}}

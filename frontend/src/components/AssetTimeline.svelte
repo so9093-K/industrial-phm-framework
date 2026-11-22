@@ -3,6 +3,7 @@
   /** 부하(전류) 한 칸: 평균과 그 시간의 최저~최고. */
   type LoadPoint={x:number;value:number;join:boolean;low:number;high:number};
   import XAxis from "./XAxis.svelte";
+  import RecordNavigator from "./RecordNavigator.svelte";
   import TrendChart from "./TrendChart.svelte";
   import {measure} from "../chart-axis";
   import {measurementScale} from "../time-axis";
@@ -23,6 +24,7 @@
     /** 오른쪽 칸의 AI 조사. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
     assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
+  let centeredAt = $state<number | null>(null);
   let rail=$state<"context"|"assistant">("context");
   const chatting=$derived(rail==="assistant"&&!!assistant);
   // 가리킨 근거: 찾은 변화는 그 줄, 운전 수준은 띠와 고른 신호의 같은 수준 값. 그래프 밖의 근거는 가리키지 않는다.
@@ -34,8 +36,23 @@
     return null;
   });
   const focused=$derived(lanes.find(lane=>lane.focus)??lanes[0]);
-  $effect(()=>{zoomed=startsZoomed(record,episode)||(axis==="time"&&(episode.to-episode.from)<(record.to-record.from)/4);});
-  const range=$derived(zoomed?focusWindow(record,episode):record);
+  $effect(() => {
+    zoomed = startsZoomed(record, episode) || (axis === "time" && episode.to - episode.from < (record.to - record.from) / 4);
+    centeredAt = null;
+  });
+  const window = $derived(focusWindow(record, episode));
+  const range = $derived.by(() => {
+    if (!zoomed) return record;
+    if (centeredAt === null) return window;
+    // A broad change can fill most of the record. The overview still lets the user navigate a shorter window.
+    const width = Math.min(window.to - window.from, (record.to - record.from) / 3);
+    const from = Math.max(record.from, Math.min(record.to - width, centeredAt - width / 2));
+    return {from, to: from + width};
+  });
+  function moveWindow(at: number) {
+    centeredAt = at;
+    zoomed = true;
+  }
   const lo=$derived(range.from),hi=$derived(Math.max(range.to,range.from+1));
   const place=(at:number)=>axis==="time"?clockText(at):at+"번째 측정";
   const span=(r:Span)=>axis==="time"?spanText(r.from,r.to):r.from+"–"+r.to+"번째 측정";
@@ -100,7 +117,7 @@
     series:[{key:"load",channel:"load",label:load.label,short:load.label,points:loadPoints}]});
 </script>
 {#if focused}
-<section class="timeline" class:chatting aria-label="선택한 변화"><div class="main">
+<section class="timeline" aria-label="선택한 변화">
   <header class="headline"><div><h2>{focused.label} · {focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
     <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
     <div class="head-tools">
@@ -110,14 +127,14 @@
     </div>
   </header>
   {#if !focused.values}<p class="numbers">{focused.numbers}</p>{/if}
-  <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={()=>zoomed=false}>기록 전체</button><button type="button" aria-pressed={zoomed} onclick={()=>zoomed=true}>특이사항 확대</button></div>
+  <div class="toolbar"><div class="choices" role="group" aria-label="보는 범위"><button type="button" aria-pressed={!zoomed} onclick={() => { zoomed = false; centeredAt = null; }}>기록 전체</button><button type="button" aria-pressed={zoomed && centeredAt === null} onclick={() => { zoomed = true; centeredAt = null; }}>변화 구간 확대</button></div>
     {#if episodes.length>1}<div class="choices" role="group" aria-label="변화 시기">{#each episodes as item,i(i)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}</div>{/if}
     <ul class="legend" aria-label="그래프 읽는 법">
-      <li><i class="band-key"></i>초기 범위</li><li><i class="dash"></i>초기 수준</li><li><i class="change-key"></i>특이사항</li>
+      <li><i class="band-key"></i>초기 범위</li><li><i class="dash"></i>초기 수준</li><li><i class="change-key"></i>변화 구간</li>
       {#if focused.condition && focused.matched?.length}<li><i class="dot" style:background={SERIES_COLORS[0]}></i>{focused.condition} 중의 값</li>{/if}
     </ul>
   </div>
-  <div class="reading-layout" class:solo={chatting}><div class="plots">
+  <div class="reading-layout"><div class="plots">
     {#each charts as chart,index(chart.group.focus)}
       <div class="lane-heading" class:main={index===0}>
         <strong>{chart.group.label}</strong>
@@ -127,7 +144,7 @@
         reference={chart.main===focused?focused.values?.before??null:null} band={chart.main===focused?focused.usual:null}
         marks={chart.main===focused?(focused.matched??[]):[]} height={index===0?(charts.length>2?190:240):76}
         dim={emphasis?chart.group.series.filter(row=>!emphasis.lanes.includes(row.key)).map(row=>row.key):[]}
-        guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
+        guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
     {/each}
     {#if load&&loadGroup}
       <div class="lane-heading"><strong>{load.label}</strong><span class="levels"><span><i class="mean-key"></i>평균</span><span><i class="spread-key"></i>최저~최고</span></span>
@@ -136,7 +153,7 @@
       <div class="load-chart" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}>
         <TrendChart group={loadGroup} series={loadGroup.series} spread={loadPoints??[]} {lo} {hi} axis={false} height={84} colors={["var(--color-ink-muted)"]}
           changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
-          guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} bind:cursor/>
+          guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
       </div>
     {:else if load&&axis==="time"&&!loadFailed}
       <div class="lane-heading"><strong>{load.label}</strong></div>
@@ -150,35 +167,39 @@
       </svg></div>
     {/if}
     <div class="strip"><span></span><XAxis {lo} {hi} {scale}/></div>
-  </div>{#if !chatting}<div class="related-context">
+    <RecordNavigator points={focused.points} {record} view={range} change={focused.interval} position={centeredAt} {scale} {place} onMove={moveWindow}/>
+  </div>
+  {#if chatting && assistant}
+    <aside class="dock" aria-label="AI 조사">
+      {@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}
+    </aside>
+  {:else}
+    <div class="related-context">
       {#if focused.values}<div class="focus-values" aria-label="고른 신호의 초기와 특이사항 구간">
         <span class="name">{focused.label}</span>
         <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>특이사항 구간</small><strong>{focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
       </div>{/if}
       {#if context}{@render context()}{/if}
-    </div>{/if}</div>
-  {#if actions}<div class="actions">{@render actions()}</div>{/if}
-  {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
+      {#if actions}<div class="actions">{@render actions()}</div>{/if}
+      {#if focused.decision}<p class="decision">남긴 판단 · {focused.decision}</p>{/if}
+    </div>
+  {/if}
   </div>
-  <!-- AI 대화창은 조사 영역의 오른쪽 전체 높이에 붙는다. 대화가 길어져도 대화창 안에서만 스크롤하고 그래프는 그대로 보인다. -->
-  {#if chatting&&assistant}<aside class="dock" aria-label="AI 조사"><div class="dock-inner">{@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}</div></aside>{/if}
 </section>
 {/if}
 <style>
-  .timeline{display:grid;min-width:0}.main{display:grid;gap:var(--space-3);min-width:0}
-  .timeline.chatting{grid-template-columns:minmax(0,1fr) 380px;column-gap:24px}
-  .dock{position:relative;min-height:560px}.dock-inner{position:absolute;inset:0}
+  .timeline{display:grid;gap:var(--space-3);min-width:0}
+  .dock{display:flex;min-width:0;height:540px}.dock :global(.chat){flex:1}
   .head-tools{display:flex;align-items:end;gap:8px}
   .ai-toggle{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);font-size:var(--font-small);font-weight:650}
   .ai-toggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
   .ai-toggle[aria-pressed="true"]{background:var(--color-action);border-color:var(--color-action);color:var(--color-action-ink)}
-  .reading-layout.solo{grid-template-columns:minmax(0,1fr)}
   .headline{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3)}h2{margin:0;font-size:1.3rem;line-height:1.4}.headline p{margin:4px 0 0;font-size:var(--font-small);color:var(--color-ink-muted)}
   .signal-choice{display:grid;gap:4px;font-size:var(--font-label);min-width:220px}.signal-choice select{padding:7px}.numbers{margin:0;font-size:var(--font-section);font-weight:650}
   .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-3)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}button{cursor:pointer;font:inherit}.choices button{padding:5px 10px;font-size:var(--font-label);border:0;background:var(--color-surface);color:var(--color-ink)}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0 0 0 auto;padding:0;list-style:none;font-size:var(--font-label);color:var(--color-ink-muted)}.legend li{display:flex;align-items:center;gap:6px}
   .band-key{display:inline-block;width:14px;height:10px;background:var(--color-reference-line);opacity:.2}.dash{display:inline-block;width:18px;border-top:1.5px dashed var(--color-reference-line)}.change-key{display:inline-block;width:14px;height:12px;background:var(--color-change-fill);border-left:1.5px solid var(--color-change-line)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;opacity:.6}
-  .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start}.plots{min-width:0;display:grid;gap:4px}
+  .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}.plots{min-width:0;display:grid;gap:4px}
   /* 그래프·운전 수준·가로축의 왼쪽 눈금 칸을 같은 폭으로 맞춘다. */
   .plots :global(.plotted){grid-template-columns:56px minmax(0,1fr)}.strip{display:grid;grid-template-columns:56px minmax(0,1fr);gap:var(--space-2)}.strip svg{display:block;width:100%;height:20px}.level{fill:var(--color-ink)}.level.stop{fill:none}
   .mean-key{display:inline-block;width:12px;height:2px;border-radius:1px;background:var(--color-ink-muted)}.spread-key{display:inline-block;width:12px;height:10px;background:var(--color-ink-muted);opacity:.25}
@@ -192,5 +213,5 @@
   .focus-values{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}.focus-values .name{font-size:var(--font-small);font-weight:650}
   .pair{display:flex;align-items:end;gap:14px;font-variant-numeric:tabular-nums}.pair span{display:grid;gap:2px;font-size:1.35rem;font-weight:650;color:var(--color-ink-muted)}.pair small{font-size:var(--font-label);font-weight:400}.pair strong{color:var(--color-ink)}.pair b{padding-bottom:4px;color:var(--color-ink-muted);font-weight:400}.actions{border-top:1px solid var(--color-border);padding-top:12px}
   .decision{margin:0;font-size:var(--font-small);color:var(--color-action)}
-  @media(max-width:1000px){.timeline.chatting{grid-template-columns:1fr}.reading-layout{grid-template-columns:1fr}.related-context{border-left:0;padding-left:0;border-top:1px solid var(--color-border);padding-top:12px}}
+  @media(max-width:1000px){.reading-layout{grid-template-columns:1fr}.related-context{border-left:0;padding-left:0;border-top:1px solid var(--color-border);padding-top:12px}}
 </style>

@@ -231,19 +231,22 @@
 
 <section class="monitor" aria-label="데이터셋 관제">
   <header class="bar">
-    <div><h1>설비 모니터링 <span>{assets.length}대</span></h1>
-      <nav class="datasets" aria-label="설비 종류">
-        {#each filters as row(row.key)}<button type="button" aria-pressed={row.key===dataset?.key} onclick={()=>choose(row.key)}>{filterLabel(row)} <span>{row.assetIds.length}</span></button>{/each}
-      </nav>
-    </div>
+    <h1>설비 모니터링 <span>{assets.length}대</span></h1>
     <div class="status"><span>목록 갱신 {checkedAt}</span><button type="button" class="ui-button quiet" onclick={onRefresh}>새로고침</button>
       <a class="ui-button" href={systemUrl("connections")}>데이터 추가</a></div>
   </header>
 
   {#if dataset}
     <div class="toolbar">
+      <nav class="datasets" aria-label="설비 종류">
+        {#each filters as row (row.key)}
+          <button type="button" aria-pressed={row.key === dataset.key} onclick={() => choose(row.key)}>
+            {filterLabel(row)} <span>{row.assetIds.length}</span>
+          </button>
+        {/each}
+      </nav>
       {#if counts.stored}
-        <div class="transport" aria-label="저장 기록 재생">
+        <div class="transport" class:with-progress={fraction !== null} aria-label="저장 기록 재생">
           <button type="button" class="ui-button play" class:on={playing} onclick={() => playing ? playing = false : play()}>
             <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 재생" : "저장 기록 재생"}</button>
           <select bind:value={seconds} aria-label="재생 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
@@ -296,17 +299,18 @@
 </section>
 
 <style>
-  .monitor{display:grid;gap:16px;min-width:0}
-  .bar{display:flex;justify-content:space-between;align-items:start;gap:16px}
-  h1{margin:0 0 12px;font-size:1.35rem;line-height:1.2}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
+  .monitor{display:grid;gap:12px;min-width:0}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  h1{margin:0;font-size:1.35rem;line-height:1.2}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
   .datasets{display:flex;flex-wrap:wrap;gap:4px}
   .datasets button{border:0;border-radius:6px;background:transparent;font:inherit;font-size:var(--font-small);color:var(--color-ink-muted);padding:6px 10px;cursor:pointer}
   .datasets button[aria-pressed="true"]{background:var(--color-sidebar);color:white;font-weight:650}.datasets button span{margin-left:4px;opacity:.75}
   .status{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px;font-size:12px;color:var(--color-ink-muted)}
-  .status>span{flex-basis:100%;text-align:right}.status a{text-decoration:none}
+  .status>span{text-align:right}.status a{text-decoration:none}
   .quiet{min-height:0;padding:6px 12px;font-size:var(--font-label)}
-  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;min-height:36px}
-  .transport{display:flex;align-items:center;gap:8px;flex:1;min-width:240px;max-width:850px}
+  .toolbar{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;min-height:36px}
+  .transport{display:flex;align-items:center;gap:8px;min-width:0}
+  .transport.with-progress{flex:1 1 480px;max-width:850px}
   .transport select{padding:6px 8px;font-size:var(--font-label)}
   .transport input{flex:1;min-width:90px;accent-color:var(--color-action)}
   .transport output{font-size:var(--font-label);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -321,5 +325,10 @@
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .data-guide{display:grid;gap:16px}.data-guide h2{margin:0;font-size:var(--font-body)}
   @media(max-width:1050px){.rows{grid-template-columns:minmax(0,1fr)}}
-  @media(max-width:650px){.bar{flex-direction:column}.status{justify-content:start}.status>span{flex-basis:auto}.transport{flex-wrap:wrap}.transport input{flex-basis:100%}}
+  @media(max-width:650px){
+    .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}
+    .status>span{order:1;flex-basis:100%;text-align:left}
+    .toolbar{gap:6px 8px}.datasets{flex-basis:100%}
+    .transport{flex-wrap:wrap}.transport input{flex-basis:100%}
+  }
 </style>

@@ -242,6 +242,8 @@
         {@const axes=bounds(pair)}
         {@const side=(group:PairedGroup|null)=>({pearson:group?.pearson??null,spearman:group?.spearman??null,pairs:group?.pairCount??0})}
         {@const ranges=sameXRanges(pair.a,pair.b)}
+        {@const common=ranges.reduce<typeof ranges[number] | null>((best, range) =>
+          !best || Math.min(range.a.pairs, range.b.pairs) > Math.min(best.a.pairs, best.b.pairs) ? range : best, null)}
         {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
         {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
         {@const moved=movedAtSameX(ranges,summaryBand)}
@@ -255,13 +257,27 @@
           {#if explained}
             {#if moved}<p class="primary-insight">{signalName(names,y)} · {short(moved.shown.a.median)} → {short(moved.shown.b.median)}{yUnit?" "+yUnit:""}</p>
               <p class="primary-context">{signalName(names,x)} {shortRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
+            {:else if common}
+              <p class="relationship-summary">두 기간 모두 측정이 충분한 {signalName(names,x)} {shortRange(common.low,common.high)}{xUnit?" "+xUnit:""} 범위를 그래프에 표시했습니다.</p>
             {:else}<p class="relationship-summary">{explained.headline}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
           {#if axes}<RelationPlot bounds={axes}
-            groups={[pair.a,pair.b].filter((group):group is PairedGroup=>group!==null).map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,label:asTime(point.at)}))}))}
-            xLabel={axisName(x,xUnit)} yLabel={axisName(y,yUnit)} band={moved?{low:moved.shown.low,high:moved.shown.high}:null}
+            groups={[pair.a,pair.b].filter((group):group is PairedGroup=>group!==null).map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,at:Date.parse(point.at),label:asTime(point.at)}))}))}
+            xLabel={axisName(x,xUnit)} yLabel={axisName(y,yUnit)} timeScale={{kind:"clock"}} band={moved?.shown??common}
             picked={chosen?.key===pair.key?{period:chosen.period,index:chosen.index}:null} onPick={(period,index)=>chosen={key:pair.key,period,index}}/>{/if}
+          {#if chosen?.key===pair.key}
+            {@const point=pair[chosen.period]?.points[chosen.index]}
+            {@const shown=pair[chosen.period]}
+            {#if point}
+              <div class="chosen" aria-live="polite">
+                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
+                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
+                <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
+                  <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
+              </div>
+            {/if}
+          {/if}
           <details class="coefficients"><summary>기간별 상관계수·측정 수</summary>
             {#each [pair.a,pair.b] as group,i(i)}{#if group}<dl><div><dt>기간 {group.period.toUpperCase()}</dt><dd>{group.pairCount.toLocaleString("ko-KR")}개 측정</dd></div>
               <div><dt>상관계수</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(2)}</dd></div></dl>
@@ -288,18 +304,6 @@
                 {/each}</tbody>
               </table></div>
             </details>
-          {/if}
-          {#if chosen?.key===pair.key}
-            {@const point=pair[chosen.period]?.points[chosen.index]}
-            {@const shown=pair[chosen.period]}
-            {#if point}
-              <div class="chosen" aria-live="polite">
-                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
-                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
-                <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
-                  <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
-              </div>
-            {/if}
           {/if}
           {#each [pair.a,pair.b] as group,i(i)}
             {#if group}

@@ -7,7 +7,7 @@
   import RelationPlot from "./RelationPlot.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
-  import {measurementLabel} from "../time-axis";
+  import {measurementLabel, measurementScale} from "../time-axis";
   import {onMount} from "svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -224,8 +224,8 @@
     {:else if relation}
       {#if message}<p class="relationship-summary">{message.headline}</p>{/if}
       <div class="relation-workspace"><div class="pair">
-      {#if axes}<RelationPlot bounds={axes}
-        groups={relation.groups.map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,label:place(point.ordinal)}))}))}
+      {#if axes}<RelationPlot bounds={axes} timeScale={measurementScale(period)}
+        groups={relation.groups.map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,at:point.ordinal,label:place(point.ordinal)}))}))}
         xLabel={featureLabel(x)+(relation.xUnit?" · "+relation.xUnit:"")} yLabel={featureLabel(y)+(relation.yUnit?" · "+relation.yUnit:"")}
         picked={chosen?{period:chosen.period,index:relation.groups.find(group=>group.period===chosen.period)?.points.findIndex(point=>point.ordinal===chosen.point.ordinal)??0}:null}
         onPick={(period,index)=>{const group=relation?.groups.find(group=>group.period===period);if(group)pickMeasurement(period,group.points[index].ordinal);}}/>{/if}

@@ -30,6 +30,7 @@
   const band = $derived(ranged.length > 1 ? "M" + ranged.map(p => x(p.x).toFixed(1) + " " + y(p.upper!).toFixed(1)).join(" L")
     + " L" + [...ranged].reverse().map(p => x(p.x).toFixed(1) + " " + y(p.lower!).toFixed(1)).join(" L") + " Z" : "");
   const tail = $derived(shown.at(-1));
+  const start = $derived(future[0]);
   // 기준선과 닿는 자리. 그래프 밖(세 배 넘게 먼 기준)은 그리지 않고 아래 범례에 값만 적는다.
   // 이미 넘은 기준은 '언제부터 이어서 넘었는지'를 측정에서 찾아 그 자리에 표시한다.
   const marked = (value: number, at: {x: number; sure: boolean; already?: boolean} | null) => {
@@ -73,6 +74,11 @@
         {#if hover !== null}<line class="cursor" x1={x(hover)} x2={x(hover)} y1="0" y2={height}/>{/if}
       </svg>
       {#if tail}<span class="dot" style:left={pct(tail.x) + "%"} style:top={y(tail.value) / height * 100 + "%"}></span>{/if}
+      {#if start}
+        <span class="dot forecast-dot" style:left={pct(start.x) + "%"} style:top={y(start.estimate) / height * 100 + "%"}></span>
+        <span class="start-label" class:left={pct(start.x) > 76} style:left={pct(start.x) + "%"}
+          style:top={y(start.estimate) / height * 100 + "%"}>첫 예측 {measure(start.estimate, unit, 4)}</span>
+      {/if}
       {#each lines as line (line.key)}
         <span class={"limit-label " + line.key} style:top={y(line.value) / height * 100 + "%"}>{line.name} {measure(line.value, unit)}</span>
         {#if line.reach}
@@ -121,6 +127,10 @@
   .limit{stroke-width:1.5;stroke-dasharray:3 3}.limit.management{stroke:var(--color-caution-ink)}.limit.end{stroke:var(--color-failure-ink)}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--color-series-1);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
+  .forecast-dot{background:var(--color-surface);border:2px solid var(--color-series-1);box-sizing:border-box}
+  .unreliable .forecast-dot{border-color:var(--color-ink-muted)}
+  .start-label{position:absolute;transform:translate(8px,6px);padding:1px 5px;border-radius:3px;background:var(--color-surface);color:var(--color-ink-muted);font-size:var(--font-label);font-weight:650;white-space:nowrap;pointer-events:none}
+  .start-label.left{transform:translate(calc(-100% - 8px),6px)}
   .limit-label{position:absolute;right:4px;transform:translateY(-120%);padding:0 4px;border-radius:3px;background:rgb(255 255 255 / .85);font-size:var(--font-label);font-weight:650;pointer-events:none;white-space:nowrap}
   .limit-label.management,.reach-label.management{color:var(--color-caution-ink)}.limit-label.end,.reach-label.end{color:var(--color-failure-ink)}
   .reach{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:currentColor;box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}

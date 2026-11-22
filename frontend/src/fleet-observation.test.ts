@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {judgmentsOf, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
+import {investigationHref, judgmentsOf, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
 
 const hour = 3600_000;
 const phases = parseGroup({label: "상전압", unit: "V", axis: "time", focus: "r", bucket_seconds: 3600, period_seconds: null,
@@ -21,6 +21,17 @@ test("the replay position is a share of each record; acquisitions stay whole num
     record: {from: 1, to: 123}, series: [{key: "v", label: "수직 진동 RMS", short: "수직", trace: [[1, 0.5]], trace_join: [false]}]})!;
   assert.equal(positionAt(bearing, 0.5), 62);
   assert.equal(positionAt(bearing, 0), 1);
+});
+
+test("investigating a replayed change keeps the change and the measured window", () => {
+  const from = Date.parse("2020-10-04T01:00:00Z"), to = Date.parse("2020-10-04T02:00:00Z");
+  const ref = JSON.stringify(["history", "r", from, to]);
+  const href = investigationHref("compressor", phases, to, {
+    key: "r", channel: "r", label: "R상전압", from, to, up: true, before: 220, after: 226, ref,
+  });
+  const params = new URL(href, "http://local").searchParams;
+  assert.equal(params.get("record_until"), new Date(to).toISOString());
+  assert.equal(params.get("summary_change"), ref);
 });
 
 test("the latest episode joins changes that overlap through a chain", () => {
