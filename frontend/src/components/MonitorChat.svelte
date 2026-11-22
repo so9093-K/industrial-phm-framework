@@ -1,9 +1,9 @@
 <script lang="ts">
   import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, readChangeDiscussion, INVESTIGATE, spokenQuestion, type ChangeDiscussion, type Evidence} from "../change-investigation";
-  import {measure} from "../chart-axis";
+  import {askChange, readChangeDiscussion, INVESTIGATE, spokenQuestion, type ChangeDiscussion} from "../change-investigation";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
+  import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {OutcomeUnknown} from "../writes";
 
   /** 관제 줄 오른쪽의 AI 관제 대화창. AI가 특이사항을 문장으로 알리고(notice), 사람이 남긴 판단은 내 말풍선으로,
@@ -17,7 +17,8 @@
     detailHref: string; canAsk: boolean; onPause: () => void;
   } = $props();
 
-  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(""), error = $state("");
+  const draftScope=untrack(()=>"change:"+assetId+":"+reviewKey);
+  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(questionDraft(draftScope)), error = $state("");
   let busy = $state(false), awaiting: string | null = $state(null), remaining = 240;
   let request: AbortController | null = null, write: AbortController | null = null, timer: ReturnType<typeof setTimeout> | null = null;
   let previous = new Set<string>();
@@ -33,7 +34,7 @@
   const typing = (text: string) => text + (elapsed !== null && elapsed >= 3 ? " · " + elapsed + "초" : "");
 
   function cancel() { request?.abort(); if (timer !== null) clearTimeout(timer); timer = null; }
-  onDestroy(() => { cancel(); write?.abort(); clearInterval(clock); });
+  onDestroy(() => { keepQuestionDraft(draftScope,question); cancel(); write?.abort(); clearInterval(clock); });
   async function refresh() {
     if (!reviewKey) return;
     cancel();
@@ -85,11 +86,6 @@
       else log.scrollTop = log.scrollHeight;
     } else if (stick) log.scrollTop = log.scrollHeight;
   }); });
-  const values = (row: {before: number | null; after: number | null; unit: string | null}) =>
-    row.before !== null && row.after !== null ? measure(row.before, row.unit, 3) + " → " + measure(row.after, row.unit, 3) : "";
-  const evidenceText = (item: Evidence) => item.kind === "change" || item.kind === "signal" ? item.label + " " + values(item)
-    : item.kind === "operation" ? item.label + " · " + item.detail
-    : item.label + " " + item.from_hz.toLocaleString("ko-KR", {maximumSignificantDigits: 3}) + "–" + item.to_hz.toLocaleString("ko-KR", {maximumSignificantDigits: 3}) + " Hz";
 </script>
 
 <section class="agent" aria-label="AI 관제 대화">
@@ -118,7 +114,6 @@
           {:else if row.status === "complete" && row.answer}
             <p>{row.answer.summary}</p>
             {#if row.answer.source === "computed"}<p class="note">AI 응답을 쓰지 못해 계산 결과 요약으로 답했습니다.</p>{/if}
-            {#if row.answer.evidence?.length}<ol class="evidence">{#each row.answer.evidence as item, index (index)}<li>{evidenceText(item)}</li>{/each}</ol>{/if}
             {#if row.answer.next_step}<p class="note">{row.answer.next_step}</p>{/if}
           {:else}<p class="note">설명을 만들지 못했습니다. 그래프는 계속 볼 수 있습니다.</p>{/if}
         </div>
@@ -161,7 +156,6 @@
   details summary{font-size:12px;color:var(--color-ink-muted);cursor:pointer}
   details ul{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:1px}
   details li{display:flex;justify-content:space-between;gap:8px;font-size:12px}details li b{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
-  .evidence{margin:0;padding-left:18px;font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
   .note{font-size:12px;color:var(--color-ink-muted)}
   .typing{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--color-ink-muted)}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}

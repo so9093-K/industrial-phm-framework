@@ -4,7 +4,7 @@
   import {plainLabel} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
-  import FeatureScatter from "./FeatureScatter.svelte";
+  import RelationPlot from "./RelationPlot.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
@@ -18,7 +18,7 @@
   import {featureCompareHref,measurementLinks} from "../measurement-links";
   import {loadFeatureSource,preferredFeature,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
-  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
+  import {readVibrationSummary,vibrationDefault} from "../summary-defaults";
   import {
     readAcquisitionRelation,AcquisitionRelationUnavailable,
     type AcquisitionRelation,
@@ -222,9 +222,14 @@
     {:else if resultState==="unavailable"}
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={error}/>
     {:else if relation}
-      {#if message}<p class="result-statement">{message.headline}</p>{/if}
-      {#if fromSummary}<p class="context">{VIBRATION_SUMMARY_NOTE}</p>{/if}
+      {#if message}<p class="relationship-summary">{message.headline}</p>{/if}
       <div class="relation-workspace"><div class="pair">
+      {#if axes}<RelationPlot bounds={axes}
+        groups={relation.groups.map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,label:place(point.ordinal)}))}))}
+        xLabel={featureLabel(x)+(relation.xUnit?" · "+relation.xUnit:"")} yLabel={featureLabel(y)+(relation.yUnit?" · "+relation.yUnit:"")}
+        picked={chosen?{period:chosen.period,index:relation.groups.find(group=>group.period===chosen.period)?.points.findIndex(point=>point.ordinal===chosen.point.ordinal)??0}:null}
+        onPick={(period,index)=>{const group=relation?.groups.find(group=>group.period===period);if(group)pickMeasurement(period,group.points[index].ordinal);}}/>{/if}
+      <details class="period-statistics"><summary>기간별 상관계수·측정 수</summary>
       {#each relation.groups as group(group.period)}
         <section class="group">
           <h3>기간 {group.period.toUpperCase()}</h3>
@@ -236,15 +241,6 @@
           {#if group.pairs<3||group.pearson===null||group.spearman===null}
             <StatusNotice kind="uncertain"
               message="짝이 부족하거나 값이 변하지 않아 관계를 계산할 수 없습니다."/>
-          {/if}
-          {#if group.points.length}
-            {#if axes}<FeatureScatter bounds={axes}
-              points={group.points.map(p=>({x:p.x,y:p.y,label:place(p.ordinal)}))}
-              xLabel={featureLabel(x)+(relation.xUnit?" ("+relation.xUnit+")":"")}
-              yLabel={featureLabel(y)+(relation.yUnit?" ("+relation.yUnit+")":"")}
-              caption={null} picked={chosen?.period===group.period?group.points.findIndex(point=>point.ordinal===chosen.point.ordinal):null}
-              onPick={index=>pickMeasurement(group.period,group.points[index].ordinal)}
-              description={"기간 "+group.period.toUpperCase()+" · 같은 측정 특징 짝 "+group.points.length+"개 산점도."}/>{/if}
           {/if}
           <details><summary>상관계수와 측정 수</summary>
           {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
@@ -270,7 +266,7 @@
           </details>
         </section>
       {/each}
-      </div>
+      </details></div>
       {#if chosen}<aside class="relation-inspector" aria-label="선택한 측정">
         <header><h3>{chosen.point.ordinal}번째 측정</h3><span>기간 {chosen.period.toUpperCase()}</span></header>
         <dl><div><dt>{featureLabel(x)}</dt><dd>{measure(chosen.point.x,relation.xUnit)}</dd></div>
@@ -279,9 +275,10 @@
           onclick={event=>event.currentTarget.href=investigationOriginUrl(event.currentTarget.href,location.href)}>{link.label} →</a>{/each}</nav>
       </aside>{/if}
       </div>
-      <p class="context plot-note">한 점은 같은 측정의 두 특징값이고, 두 기간은 같은 축 범위로 표시합니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.</p>
-      {#if message}<AnalysisMessage {message} showHeadline={false}/>{/if}
-      <CautionNote message="두 특징이 함께 움직여도 원인 관계나 고장을 뜻하지 않습니다. 경과 시간은 측정 간격으로 환산한 값이며 실제 측정 시각이 아닙니다."/>
+      <details class="interpretation"><summary>관계 해석과 이어서 분석</summary>
+        {#if message}<AnalysisMessage {message} showHeadline={false}/>{/if}
+        <CautionNote message="두 특징이 함께 변했다는 사실만으로 고장 원인을 정하지 않습니다."/>
+      </details>
     {:else}
       <p class="context">두 특징과 기간을 고르고 관계 계산하기를 누르면 결과를 표시합니다.</p>
     {/if}
@@ -294,13 +291,13 @@
   .conditions{padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .controls{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}
-  .pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--space-5);align-items:start}
+  .pair{min-width:0}.relationship-summary{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 16px;line-height:1.5}.period-statistics,.interpretation{margin-top:16px}
   label{display:grid;gap:var(--space-2);font-weight:650}
   select{min-width:0;width:100%;padding:var(--space-3);border:1px solid var(--color-border);
     color:var(--color-ink);background:var(--color-surface);border-radius:var(--radius-control)}
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}
   dd{margin:0;font-weight:650}.group{min-width:0;padding-block:var(--space-2)}.group h3{font-size:var(--font-body);margin:0;overflow-wrap:anywhere}
-  .span,.plot-note{font-size:var(--font-small);margin:0 0 var(--space-2)}
+  .span{font-size:var(--font-small);margin:0 0 var(--space-2)}
   .table-scroll{overflow-x:auto}
   table{width:100%;border-collapse:collapse}th,td{padding:var(--space-2);text-align:left;border-bottom:1px solid var(--color-border)}
   caption{text-align:left;color:var(--color-ink-muted)}

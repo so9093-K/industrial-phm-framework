@@ -376,15 +376,15 @@
   .gridline { stroke: var(--color-border); stroke-width: 1; opacity: 0.7; vector-effect: non-scaling-stroke; }
   .line { fill: none; stroke: var(--color-action); stroke-width: 1.5; }
   /* Three phases differ by line pattern as well as color, so they read without color too. */
-  .phase-R { stroke: #2a78d6; }
-  .phase-S { stroke: #eb6834; stroke-dasharray: 6 3; }
-  .phase-T { stroke: #1baf7a; stroke-dasharray: 2 3; }
+  .phase-R { stroke: var(--color-series-1); }
+  .phase-S { stroke: var(--color-series-2); stroke-dasharray: 6 3; }
+  .phase-T { stroke: var(--color-series-3); stroke-dasharray: 2 3; }
   .legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: 0; color: var(--color-ink-muted); font-size: var(--font-small); }
   .legend span { display: inline-flex; align-items: center; gap: var(--space-1); }
   .key { display: inline-block; width: 22px; height: 0; border-top: 2px solid; }
-  .key.phase-R { border-color: #2a78d6; }
-  .key.phase-S { border-color: #eb6834; border-top-style: dashed; }
-  .key.phase-T { border-color: #1baf7a; border-top-style: dotted; }
+  .key.phase-R { border-color: var(--color-series-1); }
+  .key.phase-S { border-color: var(--color-series-2); border-top-style: dashed; }
+  .key.phase-T { border-color: var(--color-series-3); border-top-style: dotted; }
   .toggle { display: inline-flex; gap: var(--space-1); align-items: center; font-weight: 400; white-space: nowrap; }
   .graph-controls { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-2) var(--space-3); }
   .shift { display: flex; gap: var(--space-2); margin: 0; }
