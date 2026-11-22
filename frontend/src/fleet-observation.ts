@@ -154,14 +154,6 @@ export function investigationHref(assetId: string, group: FleetGroup | null, unt
   return url.pathname + url.search;
 }
 
-/** AI 조사로 여는 주소: 그 변화를 판정한 위치의 기록으로 조사 화면을 열고, AI 조사를 바로 시작한다(ai=investigate). */
-export function aiInvestigationHref(assetId: string, group: FleetGroup, analyzed: number | null, change: FleetChange): string {
-  const url = new URL(investigationHref(assetId, group, analyzed), "http://local");
-  if (change.ref) url.searchParams.set("summary_change", change.ref);
-  url.searchParams.set("ai", "investigate");
-  return url.pathname + url.search;
-}
-
 /** 실제로 수신 중인 출처는 최근 1시간 관측(앞선 관측과 비교한 변화 포함), 그 밖에는 저장 기록 전체를 읽는다. */
 export async function readFleet(asset: Asset, signal: AbortSignal, like: string | null = null): Promise<FleetRead> {
   if (recentAsset(asset)) {

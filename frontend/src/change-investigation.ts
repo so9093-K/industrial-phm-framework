@@ -37,6 +37,13 @@ export function readEvidence(raw:unknown):Evidence[]{
 }
 /** 조사가 확인한 항목 한 줄(항목 · 결과). 그래프에 그려진 것이면 target으로 그 자리를 가리킨다. */
 export type Step={label:string;result:string;target:Evidence|null};
+/** 첫 요청: 질문을 고르지 않아도 고른 특이사항 자체를 조사한다. 대화에는 사람이 하는 말(label)로 보인다. */
+export const INVESTIGATE={label:"원인을 조사해 주세요",text:"이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."};
+const EARLIER_INVESTIGATE=["이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."];
+/** 대화에 보이는 사람의 말: 첫 요청은 짧은 말로, 그 밖에는 쓴 그대로. */
+export function spokenQuestion(text:string):string{
+  return text===INVESTIGATE.text||EARLIER_INVESTIGATE.includes(text)?INVESTIGATE.label:text;
+}
 export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;steps:Step[];followUp:boolean};
 /** 질문을 받을 때 서버가 계산해 둔 확인 항목. 이전 기록(항목 없음)은 빈 목록, 모양이 다른 줄은 건너뛴다. */
 export function readSteps(raw:unknown):Step[]{
