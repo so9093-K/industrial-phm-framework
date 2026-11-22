@@ -12,10 +12,10 @@
   import {noticeSentences} from "../monitor-chat";
 
   /** 설비 카드의 실제 추이와 변화 요약. AI 질문은 선택한 변화에서만 연다. */
-  let {assetId, name, read, group, replaying, until, found, analyzed, lo, hi, height, playing, onPause, onSignal}: {
+  let {assetId, name, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
     assetId: string; name: string; read: FleetRead; group: FleetGroup;
     /** 재생 중이면 위치(시각 또는 측정 번호, 기록 시작 전이면 null)와 그 위치까지 판정한 변화. */
-    replaying: boolean; until: number | null; found: FleetChange[]; analyzed: number | null;
+    replaying: boolean; until: number | null; found: FleetChange[]; analyzed: number | null; analysisFailed: boolean;
     lo: number; hi: number; height: number; playing: boolean;
     onPause: () => void; onSignal: (channel: string) => void} = $props();
   let chatOpen = $state(false);
@@ -132,7 +132,8 @@
     {/if}
   </div>
   <footer class="row-footer">
-    {#if !lead}<span>{replaying && analyzed === null ? "변화 구간을 찾고 있습니다" : "이 구간에서 뚜렷한 변화가 발견되지 않았습니다"}</span>{/if}
+    {#if analysisFailed}<span role="status">이 재생 시점의 변화 구간을 읽지 못했습니다</span>
+    {:else if !lead}<span>{replaying && analyzed !== until ? "변화 구간을 찾고 있습니다" : "이 구간에서 뚜렷한 변화가 발견되지 않았습니다"}</span>{/if}
     {#if lead?.reviewKey && !read.live}
       <button type="button" class="secondary-action" aria-haspopup="dialog" onclick={() => { onPause(); chatOpen = true; }}>이 변화에 AI 질문</button>
     {/if}

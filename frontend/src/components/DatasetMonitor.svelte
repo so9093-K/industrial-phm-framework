@@ -42,7 +42,7 @@
     history.replaceState(history.state, "", url);
   }
 
-  type Card = {read: FleetRead | null; error: boolean; busy: boolean; found: FleetChange[]; analyzed: number | null; analyzing: boolean;
+  type Card = {read: FleetRead | null; error: boolean; busy: boolean; found: FleetChange[]; analyzed: number | null; failedAt: number | null;
     /** 이 읽기에 요청한 신호 이름(null이면 설비 자신의 첫 변화 묶음). */
     like: string | null};
   /** 설비마다 처음 읽은 묶음(자신의 첫 변화). 데이터셋의 '보는 신호' 선택지가 된다. */
@@ -65,7 +65,7 @@
     history.replaceState(history.state, "", url);
   }
   let cards: Record<string, Card> = $state({});
-  const blank = (): Card => ({read: null, error: false, busy: true, found: [], analyzed: null, analyzing: false, like: null});
+  const blank = (): Card => ({read: null, error: false, busy: true, found: [], analyzed: null, failedAt: null, like: null});
 
   // 재생 위치(비율)는 데이터셋마다 따로, 조사 화면에 다녀와도 이어 보도록 탭에 남긴다.
   const STORE = "phm.monitor.replay";
@@ -124,7 +124,7 @@
       void readFleet(asset, request.signal, like).then(read => {
         if (request.signal.aborted || wanted.get(id) !== revision) return;
         // 묶음이 바뀌었을 수 있으니 재생 판정은 새 묶음으로 다시 한다.
-        cards[id] = {...cards[id], read, like, busy: false, error: false, found: [], analyzed: null};
+        cards[id] = {...cards[id], read, like, busy: false, error: false, found: [], analyzed: null, failedAt: null};
         requested.delete(id);
         if (like === null && read.group && !read.live) defaults[id] = {like: focusChannel(read.group), label: read.group.label};
         analyze();
@@ -161,33 +161,50 @@
 
   // 변화 판정: 설비마다 한 번에 하나, 끝나면 그때의 재생 위치로 다시. 가장 최근 판정만 표시한다.
   const judging = new Map<string, AbortController>(), requested = new Map<string, number>(), started = new Map<string, number>();
+  let analysisTimer: ReturnType<typeof setTimeout> | null = null;
+  function cancelAnalysisTimer() {
+    if (analysisTimer !== null) clearTimeout(analysisTimer);
+    analysisTimer = null;
+  }
   function analyze() {
+    cancelAnalysisTimer();
     if (fraction === null || disposed || !dataset) return;
+    let retryIn = Infinity;
     for (const id of dataset.assetIds) {
       const card = cards[id], group = card?.read?.group;
-      if (!card || !group || card.read?.live || judging.has(id) || Date.now() - (started.get(id) ?? 0) < 500) continue;
+      if (!card || !group || card.read?.live || judging.has(id)) continue;
       const until = untilOf(card);
       if (until === null || requested.get(id) === until) continue;
+      const wait = 500 - (Date.now() - (started.get(id) ?? 0));
+      if (wait > 0) {
+        retryIn = Math.min(retryIn, wait);
+        continue;
+      }
       requested.set(id, until); started.set(id, Date.now());
       const request = new AbortController();
       judging.set(id, request);
-      card.analyzing = true;
+      card.failedAt = null;
       void readFleetChanges(id, group, until, request.signal).then(found => {
         const now = cards[id] ? untilOf(cards[id]) : null;
-        if (request.signal.aborted || fraction === null || now === null || now < until) return;
+        if (request.signal.aborted || cards[id]?.read?.group !== group || fraction === null || now === null || now < until) return;
         cards[id].found = splitChanges(group, found).changes;
         cards[id].analyzed = until;
-      }).catch(() => { /* 다음 위치에서 다시 판정한다. */ }).finally(() => {
+      }).catch(() => {
+        if (!request.signal.aborted && cards[id]?.read?.group === group) cards[id].failedAt = until;
+      }).finally(() => {
+        if (judging.get(id) !== request) return;
         judging.delete(id);
-        if (cards[id]) cards[id].analyzing = false;
         analyze();
       });
     }
+    // A user can seek and pause during the cooldown. Always read that last requested position.
+    if (Number.isFinite(retryIn)) analysisTimer = setTimeout(analyze, retryIn);
   }
   function resetJudgement() {
+    cancelAnalysisTimer();
     for (const request of judging.values()) request.abort();
     judging.clear(); requested.clear(); started.clear();
-    for (const card of Object.values(cards)) { card.found = []; card.analyzed = null; card.analyzing = false; }
+    for (const card of Object.values(cards)) { card.found = []; card.analyzed = null; card.failedAt = null; }
   }
   function setFraction(value: number | null) {
     if (!dataset) return;
@@ -217,7 +234,7 @@
   }
   function stop() { playing = false; resetJudgement(); setFraction(null); }
   $effect(() => { dataset?.key; untrack(() => { resetJudgement(); analyze(); }); });
-  onDestroy(() => { disposed = true; for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
+  onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
   const chartHeight=$derived(rows.length===1?280:240);
   const legend = $derived(rows.find(row => row.card?.read?.group)?.card?.read?.group ?? null);
@@ -274,7 +291,7 @@
         {@const switching = !!card?.busy && card.like !== (desired.get(asset.assetId) ?? null)}
         {#if card?.read?.group && !switching}
           <MonitorRow assetId={asset.assetId} {name} read={card.read} group={card.read.group}
-            replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed}
+            replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
             height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
