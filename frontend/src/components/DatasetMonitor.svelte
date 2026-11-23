@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {equipmentRole} from "../equipment-roles";
   import {onDestroy, onMount, untrack} from "svelte";
   import {assetOptionLabel, type Asset} from "../monitor";
   import {attention, focusChannel, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
@@ -250,7 +251,7 @@
   <header class="bar">
     <h1>설비 모니터링 <span>{assets.length}대</span></h1>
     <div class="status"><span>목록 갱신 {checkedAt}</span><button type="button" class="ui-button quiet" onclick={onRefresh}>새로고침</button>
-      <a class="ui-button" href={systemUrl("connections")}>데이터 추가</a></div>
+      <a class="ui-button quiet" href={systemUrl("connections")}>데이터 추가</a></div>
   </header>
 
   {#if dataset}
@@ -263,9 +264,9 @@
         {/each}
       </nav>
       {#if counts.stored}
-        <div class="transport" class:with-progress={fraction !== null} aria-label="저장 기록 재생">
+        <div class="transport" class:with-progress={fraction !== null} aria-label="저장 기록 모니터링">
           <button type="button" class="ui-button play" class:on={playing} onclick={() => playing ? playing = false : play()}>
-            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 재생" : "저장 기록 재생"}</button>
+            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 모니터링" : "모니터링 시작"}</button>
           <select bind:value={seconds} aria-label="재생 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
           {#if fraction !== null}
             <input type="range" aria-label="재생 시점" min="0.01" max="1" step="0.001" value={fraction} oninput={event => seek(Number(event.currentTarget.value))}/>
@@ -288,14 +289,17 @@
     <ol class="rows" class:single={rows.length===1}>
       {#each rows as {asset, card} (asset.assetId)}
         {@const name = assetOptionLabel(assets, asset.assetId)}
+        {@const home = datasets.find(row => row.assetIds.includes(asset.assetId))}
         {@const switching = !!card?.busy && card.like !== (desired.get(asset.assetId) ?? null)}
         {#if card?.read?.group && !switching}
           <MonitorRow assetId={asset.assetId} {name} read={card.read} group={card.read.group}
             replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
+            role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
             height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
-          <li class="row" >
+          <!-- 읽는 동안에도 다 읽은 카드와 비슷한 높이로 두어, 옆 카드와 화면이 출렁이지 않게 한다. -->
+          <li class="row" style:min-height={chartHeight + 260 + "px"}>
             <div class="who"><span class="name"><AssetName label={name}/></span><span class="detail">{dataset.detail[asset.assetId] ?? ""}</span></div>
             <div class="chart pending" style:height={chartHeight + "px"}>
               {#if card?.error}<span>측정을 읽지 못했습니다</span><button type="button" class="ui-button quiet" onclick={() => reload(asset.assetId)}>다시 읽기</button>
@@ -324,14 +328,15 @@
   .datasets button[aria-pressed="true"]{background:var(--color-sidebar);color:white;font-weight:650}.datasets button span{margin-left:4px;opacity:.75}
   .status{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px;font-size:12px;color:var(--color-ink-muted)}
   .status>span{text-align:right}.status a{text-decoration:none}
-  .quiet{min-height:0;padding:6px 12px;font-size:var(--font-label)}
+  /* 맨 위 조작은 모두 같은 높이(34px): 새로고침·데이터 추가·모니터링·속도·전체 기록. */
+  .quiet{display:inline-flex;align-items:center;min-height:0;height:34px;box-sizing:border-box;padding:0 12px;font-size:var(--font-label)}
   .toolbar{display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;min-height:36px}
   .transport{display:flex;align-items:center;gap:8px;min-width:0}
   .transport.with-progress{flex:1 1 480px;max-width:850px}
-  .transport select{padding:6px 8px;font-size:var(--font-label)}
+  .transport select{height:34px;min-height:0;box-sizing:border-box;padding:0 8px;font-size:var(--font-label)}
   .transport input{flex:1;min-width:90px;accent-color:var(--color-action)}
   .transport output{font-size:var(--font-label);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .play{display:inline-flex;align-items:center;gap:8px;min-height:0;padding:6px 12px;font-size:var(--font-small)}.play span{font-size:.75em}
+  .play{display:inline-flex;align-items:center;gap:8px;min-height:0;height:34px;box-sizing:border-box;padding:0 12px;font-size:var(--font-small)}.play span{font-size:.75em}
   .play.on{color:var(--color-action);border-color:var(--color-action)}
   .signals{display:flex;gap:2px;flex-wrap:wrap}.signals button{border:0;background:none;padding:5px 10px;border-radius:6px;font:inherit;font-size:var(--font-label);color:var(--color-ink-muted);cursor:pointer}
   .signals button[aria-checked="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}

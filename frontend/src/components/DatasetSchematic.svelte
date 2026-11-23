@@ -1,23 +1,19 @@
 <script lang="ts">
   import {SERIES_COLORS} from "../fleet-observation";
+  import {equipmentRole} from "../equipment-roles";
   /** Equipment role, measured signals and the investigation they support.
    * These drawings explain the measurement setup; the plots below contain the actual data. */
   let {kind, equipment}: {kind: string; equipment: string | null} = $props();
   const [c1, c2, c3] = SERIES_COLORS;
-  const roles:Record<string,{role:string;purpose:string}>={
-    "공기압축기":{role:"공정에 필요한 압축공기를 공급합니다.",purpose:"전원과 운전 패턴의 변화를 살펴 점검 대상을 찾습니다."},
-    "펌프":{role:"액체를 이송해 공정에 공급합니다.",purpose:"전압·전류 변화를 살펴 운전 상태가 달라진 구간을 찾습니다."},
-    "보일러":{role:"공정이나 난방에 필요한 열을 공급합니다.",purpose:"전원과 소비 전류의 변화를 살펴 운전 패턴을 확인합니다."},
-  };
-  const equipmentRole=$derived(equipment?roles[equipment]:null);
+  const role=$derived(equipmentRole(kind,equipment));
 </script>
 
 {#if kind === "aihub-239"}
   <figure class="schematic">
     <div class="role">
       <strong>{equipment ?? "산업 설비"}</strong>
-      <p>{equipmentRole?.role??"설비에 공급되는 전압과 소비 전류를 관측합니다."}</p>
-      <p class="why">{equipmentRole?.purpose??"이전과 달라진 전원·운전 패턴을 찾아 점검에 활용합니다."}</p>
+      <p>{role?.role??"설비에 공급되는 전압과 소비 전류를 관측합니다."}</p>
+      <p class="why">{role?.purpose??"이전과 달라진 전원·운전 패턴을 찾아 점검에 활용합니다."}</p>
     </div>
     <div class="measurement"><p class="diagram-label">측정 구조 · 개념도</p>
     <svg viewBox="0 0 400 104" role="img" aria-label="설비 전원선 R·S·T상에서 전압·전류를 재어 약 1분 간격 시계열로 저장">
@@ -48,8 +44,8 @@
   <figure class="schematic">
     <div class="role">
       <strong>베어링</strong>
-      <p>모터·펌프·팬의 회전축을 지지하는 부품입니다.</p>
-      <p class="why">진동 크기와 충격 성분의 변화를 살펴 점검·교체 계획에 활용합니다.</p>
+      <p>{role?.role}</p>
+      <p class="why">{role?.purpose}</p>
     </div>
     <div class="measurement"><p class="diagram-label">측정 구조 · 개념도</p>
     <svg viewBox="0 0 400 104" role="img" aria-label="베어링 하우징의 수평·수직 가속도를 1분마다 1.28초씩 재어 특징으로 계산">
@@ -85,8 +81,10 @@
 {/if}
 
 <style>
-  .schematic{display:grid;grid-template-columns:minmax(210px,.9fr) minmax(300px,1.2fr) minmax(200px,.9fr);gap:20px;align-items:center;margin:0;padding:14px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;min-width:0}
-  .role{min-width:0;display:grid;gap:4px;padding-right:20px;border-right:1px solid var(--color-border)}
+  /* 안내 창 폭에 맞춰: 하는 일을 위에 한 줄로, 그 아래 측정 구조와 측정·분석 목록을 나란히. */
+  .schematic{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,1fr);gap:14px 24px;align-items:center;margin:0;padding:14px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;min-width:0}
+  .role{grid-column:1/-1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}
+  .role strong{grid-row:span 2}
   .role strong{font-size:var(--font-body);color:var(--color-ink)}
   .role p{margin:0;font-size:var(--font-small);line-height:1.5;color:var(--color-ink)}
   .role p.why{color:var(--color-ink-muted)}
@@ -107,15 +105,10 @@
   dl{display:grid;gap:8px;margin:0}
   dl div{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:baseline}
   dt{font-size:var(--font-label);font-weight:650;color:var(--color-ink-muted)}
-  dd{margin:0;font-size:var(--font-body);color:var(--color-ink)}
-  @media(max-width:1000px){
-    .schematic{grid-template-columns:minmax(0,1.2fr) minmax(180px,.8fr);gap:12px 20px}
-    .role{grid-column:1/-1;border-right:0;border-bottom:1px solid var(--color-border);padding:0 0 10px;grid-template-columns:100px minmax(0,1fr);gap:4px 12px}
-    .role .why{grid-column:2}
-  }
+  dd{margin:0;font-size:var(--font-small);line-height:1.5;color:var(--color-ink)}
   @media(max-width:600px){
     .schematic{grid-template-columns:minmax(0,1fr);padding:12px;gap:12px}
-    .role{display:grid;grid-template-columns:1fr}.role .why{grid-column:auto}.measurement{width:100%}
+    .role{grid-template-columns:1fr}.role strong{grid-row:auto}.measurement{width:100%}
     dl{gap:5px}
   }
 </style>

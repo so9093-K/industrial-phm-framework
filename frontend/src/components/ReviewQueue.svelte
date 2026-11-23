@@ -395,7 +395,8 @@
         message="이 설비의 조회에 실패했습니다. 기록이 없다고 판단하지 않습니다."
         actionLabel="다시 불러오기" onAction={() => location.reload()} />
     {:else if !selected}
-      <p class="context">목록에서 검토 항목을 고르세요.</p>
+      <!-- 아무것도 없을 때는 판단이 어디서 모이는지, 고른 칸만 비었을 때는 그 칸이 비었다는 것을 말한다. -->
+      <p class="context">{items.length ? "이 칸에는 검토 항목이 없습니다." : "아직 남긴 판단이 없습니다. 특이사항을 조사하고 판단을 남기면 여기에 모입니다."}</p>
     {:else if selected.kind === "change"}
       {#key selected.change.id}<ChangeCaptureDetail assetId={selected.assetId} capture={selected.change}
         onUpdated={updated=>{changes=changes.map(row=>row.id===updated.id?updated:row);keptKey="capture:"+updated.id;keepVisible(reviewGroup(updated.review.status,latestDecision(updated.review.events)));}}/>{/key}

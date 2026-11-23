@@ -56,7 +56,7 @@
     const reference = Math.max(...spectrum.a, ...spectrum.b);
     return [
       {label: "초기 평균", values: relativePower(spectrum.a, reference)},
-      {label: selected === null ? "변화 구간 평균" : selected + "번째 측정", values: relativePower(spectrum.b, reference), comparison: true},
+      {label: selected === null ? "특이사항 구간 평균" : selected + "번째 측정", values: relativePower(spectrum.b, reference), comparison: true},
     ];
   });
   const label = (row: typeof rows[number]) => row.label;
