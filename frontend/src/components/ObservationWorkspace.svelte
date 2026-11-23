@@ -9,9 +9,10 @@
   import AssetSummary from "./AssetSummary.svelte";
   import StatusNotice from "./StatusNotice.svelte";
   import RecentObservation from "./RecentObservation.svelte";
-  let {asset,data,dataState,observed,sources,sourceState,cycle,selectedAt=$bindable(null)}:{asset:Asset;data:AssetData|null;
+  import type {RunEnding} from "../public-datasets";
+  let {asset,data,dataState,observed,sources,sourceState,cycle,ending=null,selectedAt=$bindable(null)}:{asset:Asset;data:AssetData|null;
     dataState:"loading"|"ready"|"failed";observed:(at:string|null)=>string;sources:Sources|null;
-    sourceState:"loading"|"ready"|"failed";cycle:number;selectedAt?:number|null}=$props();
+    sourceState:"loading"|"ready"|"failed";cycle:number;ending?:RunEnding|null;selectedAt?:number|null}=$props();
   const params=new URLSearchParams(location.search);
   let view:"recent"|"record"|null=$state(params.get("observation_view")==="recent"?"recent":params.get("observation_view")==="record"?"record":null);
   const sourcePrefix=params.get("observation_asset")===untrack(()=>asset.assetId)?"observation_":"monitor_";
@@ -86,7 +87,7 @@
   {#key streamKey(stream)}<RecentObservation assetId={asset.assetId} {stream} {source} preferred={data?.history?.preferred??null} sourceReadable={sourceState==="ready"} {cycle} {observed}/>{/key}
 {:else if displayView==="recent"}<StatusNotice kind="uncertain" message={dataState==="failed"?"측정 기록을 불러오지 못했습니다.":"선택한 측정 기록을 찾지 못했습니다. 다른 기록을 선택하세요."}/>
 {:else}
-  <AssetSummary {asset} data={scopedData} {dataState} {observed} {scope} bind:selectedAt onBusy={(value)=>replayBusy=value}/>
+  <AssetSummary {asset} data={scopedData} {dataState} {observed} {scope} {ending} bind:selectedAt onBusy={(value)=>replayBusy=value}/>
 {/if}
 <style>
   .entry-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-bottom:var(--space-3)}

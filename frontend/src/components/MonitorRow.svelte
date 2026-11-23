@@ -9,11 +9,14 @@
   import TrendChart from "./TrendChart.svelte";
   import MonitorChat from "./MonitorChat.svelte";
   import {noticeSentences} from "../monitor-chat";
+  import type {RunEnding} from "../public-datasets";
 
   /** 설비 카드: 이름과 마지막 값, 특이사항 한 줄, 그 아래 실제 추이. 'AI 조사'는 그래프를 가리지 않게 카드 오른쪽에
    * 대화 칸을 연다(카드는 그동안 한 줄을 다 쓴다). */
-  let {assetId, name, role = null, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
+  let {assetId, name, role = null, ending = null, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
     assetId: string; name: string; read: FleetRead; group: FleetGroup;
+    /** 끝까지 잰 시험 기록의 결말. 모니터링이 그 측정에 닿아야 그래프에 보인다. */
+    ending?: RunEnding | null;
     /** 설비가 하는 일(한 줄): '압축공기 공급', '회전축 지지'. 모르면 null. */
     role?: string | null;
     /** 재생 중이면 위치(시각 또는 측정 번호, 기록 시작 전이면 null)와 그 위치까지 판정한 변화. */
@@ -37,6 +40,8 @@
   const still = $derived(lead ? ongoing(group, changes, until ?? group.record.to) : false);
   const reach = $derived(group.axis === "time" ? (group.bucketMs ?? 60_000) : 1);
   const lastFocus = $derived(series.find(row => row.key === group.focus)?.points.at(-1));
+  // 모니터링이 기록의 마지막 측정에 닿았을 때만 결말을 보인다.
+  const ended = $derived(ending && series.some(row => (row.points.at(-1)?.x ?? -Infinity) >= ending.at) ? ending : null);
   const other = $derived([...read.others].sort((a, b) => b.from - a.from)[0]);
   const href = (change?: FleetChange) => {
     if (read.live) return read.href;
@@ -126,10 +131,10 @@
     <div class="plot-area">
       <div class="plot-title">
         <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
-        {#if lead}<span><i class="reference"></i>초기 수준 <i class="change"></i>특이사항</span>{/if}
+        {#if lead || ended}<span>{#if lead}<i class="reference"></i>초기 수준 <i class="change"></i>특이사항{/if}{#if ended}<i class="ending"></i>{ended.label}{/if}</span>{/if}
       </div>
       <TrendChart {group} {series} {lo} {hi} {changes} reference={lead?.before ?? null} live={replaying && playing}
-        height={mainHeight} axis={!companion} guide={cursor} endLabel={true} onHover={at => hovered = at}
+        height={mainHeight} axis={!companion} guide={cursor} endLabel={true} {ending} onHover={at => hovered = at}
         bind:picked={() => picked, value => { picked = value; loadPick = null; if (value !== null) onPause(); }}/>
       {#if companion}
         <p class="load-label">{companion.label}</p>
@@ -205,6 +210,7 @@
   .plot-title > span { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--color-ink-muted); }
   .reference { width:14px; border-top:1px dashed var(--color-reference-line); }
   .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }
+  .ending { width:0; height:11px; border-left:1.5px solid var(--color-ink); margin-left:8px; }
   .load-label { margin:5px 0 4px 52px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .row-footer { display:flex; align-items:center; flex-wrap:wrap; min-height:20px; gap:6px 16px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .card-chat { position:relative; min-height:480px; border-left:1px solid var(--color-border); padding-left:16px; }

@@ -230,7 +230,7 @@ def _aihub_datasets(root: Path, index: Mapping[str, Any]) -> list[PublicDataset]
 
 
 def _xjtu_datasets(root: Path) -> list[PublicDataset]:
-    from industrial_phm.adapters import list_xjtu_acquisition_files
+    from industrial_phm.adapters import XJTU_SY_FAULT_ELEMENTS, list_xjtu_acquisition_files
     from industrial_phm.demo.xjtu_models import held_out_bearings
 
     source = root / XJTU_SOURCE
@@ -256,6 +256,8 @@ def _xjtu_datasets(root: Path) -> list[PublicDataset]:
                     "rotational_speed_hz": first.rotational_speed_hz,
                     "radial_load_kn": first.radial_load_kn,
                     "acquisitions": len(files),
+                    # 기록이 실제로 어떻게 끝났는지: 마지막 측정 뒤 확인한 손상 부위.
+                    "fault_element": XJTU_SY_FAULT_ELEMENTS.get(bearing),
                 },
             )
         )

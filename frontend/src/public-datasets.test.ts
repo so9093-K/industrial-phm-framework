@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {datasetFacts, datasetName, groupDatasets, jobText, parsePublicDatasets, unfinishedImports} from "./public-datasets.ts";
+import {datasetFacts, datasetName, groupDatasets, jobText, parsePublicDatasets, runEnding, unfinishedImports} from "./public-datasets.ts";
+import {monitorDatasets} from "./fleet-observation.ts";
 
 const MEANING = "public-datasets-found-in-the-datasets-folder-not-imported-evidence";
 const aihub = (device: string, split = "학습용", stored = false) => ({
@@ -9,7 +10,19 @@ const aihub = (device: string, split = "학습용", stored = false) => ({
   bytes: 219594348,
 });
 const xjtu = {dataset_id: "xjtu-sy:Bearing1_1", kind: "xjtu-sy", asset_id: "Bearing1_1", stored: false,
-  bearing: "Bearing1_1", rotational_speed_hz: 35, radial_load_kn: 12, acquisitions: 123};
+  bearing: "Bearing1_1", rotational_speed_hz: 35, radial_load_kn: 12, acquisitions: 123, fault_element: "외륜"};
+
+test("a run-to-failure bearing carries how its record ended, at its last measurement", () => {
+  const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
+    items: [aihub("1338"), xjtu, {...xjtu, dataset_id: "xjtu-sy:Bearing2_1", asset_id: "Bearing2_1", fault_element: null}], jobs: {}});
+  assert.deepEqual(runEnding(found.items[1]), {at: 123, label: "외륜 손상으로 시험 끝"});
+  // 전력 기록과 손상 부위를 모르는 베어링에는 결말을 만들지 않는다.
+  assert.equal(runEnding(found.items[0]), null);
+  assert.equal(runEnding(found.items[2]), null);
+  const assets = ["Bearing1_1", "공기압축기 1338"].map(assetId => ({assetId}) as Parameters<typeof monitorDatasets>[0][number]);
+  assert.deepEqual(monitorDatasets(assets, found).find(row => row.key === "xjtu-sy")?.ending,
+    {Bearing1_1: {at: 123, label: "외륜 손상으로 시험 끝"}});
+});
 
 test("the listing groups AI-Hub records by equipment and split before the XJTU-SY bearings", () => {
   const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
