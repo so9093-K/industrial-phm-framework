@@ -259,11 +259,10 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
     )[:3]
     profiles = acquisition_series(store, snapshots, binding, features, spans)
     facts = {
-        "subject": f"{change['label']}의 주요 변화로 고른 구간은 "
+        "subject": f"{change['label']}의 특이사항 구간은 "
         f"{change['from']}~{change['to']}번째 측정입니다. "
-        f"비교 기준은 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정이며 "
-        "정상 구간으로 판정한 것은 아닙니다.",
-        "scope": "저장된 과거 측정의 변화입니다. 이 기록 이후 실제 설비 상태는 알 수 없습니다.",
+        f"초기는 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정입니다.",
+        "scope": "저장된 과거 측정끼리의 비교입니다.",
         "conditions": "실제 부하·회전수의 시간별 변화나 정비 이력은 "
         "이 분석에 포함되어 있지 않습니다.",
     }
@@ -393,10 +392,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             if row["feature"].rsplit(".", 1)[-1] in _MEANING
         ]
         if meanings:
-            facts["meaning"] = (
-                "특징의 일반적인 뜻: " + ", ".join(meanings) + "를 나타냅니다. "
-                "이 설비에서 무엇이 원인인지는 이 뜻만으로 알 수 없습니다."
-            )
+            facts["meaning"] = "특징의 일반적인 뜻: " + ", ".join(meanings) + "를 나타냅니다."
     actions = ["compare", "model"]
     try:
         spectrum = acquisition_spectrum(snapshots, binding, spans)
@@ -530,17 +526,24 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     year = datetime.fromisoformat(change["start"]).astimezone(_KST).year
     facts = {
         "subject": (
-            f"{change['label']}의 변화 구간은 {year}년 {clock(change['start'])}부터 "
+            f"{change['label']}의 특이사항 구간은 {year}년 {clock(change['start'])}부터 "
             f"{clock(change['end'])}까지입니다(한국 시간)."
         ),
         "feature_0": (
-            f"{change['label']}의 비교 구간 중앙값 {before_text} {unit}, "
-            f"변화 구간 중앙값 {after_text} {unit}."
+            f"{change['label']}의 초기 중앙값 {before_text} {unit}, "
+            f"특이사항 구간 중앙값 {after_text} {unit}."
+            + (
+                f" 초기보다 {number(abs(after - before))} {unit}"
+                f"({abs(after - before) / abs(before) * 100:.1f}%) "
+                f"{'높습니다' if after > before else '낮습니다'}."
+                if before is not None and after is not None and before
+                else ""
+            )
         ),
-        "scope": "과거 실측 기록의 비교입니다. 그 이후 실제 설비 상태는 알 수 없습니다.",
+        "scope": "과거 실측 기록끼리의 비교입니다.",
+        # 모르는 것은 실제로 없는 것만: 부하(전류)는 아래 load·operating_*로 넘긴다.
         "conditions": (
-            "같은 출처·측정 위치·단위의 자료를 비교했습니다. "
-            "시간별 실제 부하나 정비 원인은 이 값만으로 확정할 수 없습니다."
+            "같은 출처·측정 위치·단위의 자료를 비교했습니다. 정비 기록은 이 자료에 없습니다."
         ),
     }
     selected = _change_target(change, before, after, _span(change["start"], change["end"]))
@@ -566,9 +569,16 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     # 관련 신호도 고른 신호와 같은 운전 수준의 측정끼리 비교한 값이다.
     among = f"{current} 중인 측정끼리, " if current else ""
     facts["feature_0"] = among + facts["feature_0"]
-    for index, related in enumerate(change.get("related", [])):
+    related_rows = [
+        row
+        for row in change.get("related", [])
+        # 운전 수준을 나눈 값과 같은 단위(전류)는 그 수준 안에서 견주면 거의 그대로다.
+        # 전류가 어떻게 바뀌었는지는 load가 말한다.
+        if not (current and operation and row["unit"] == operation.get("unit"))
+    ]
+    for index, related in enumerate(related_rows):
         facts[f"related_{index}"] = (
-            f"{among}같은 비교 구간에서 {related['label']}: {number(related['reference'])} → "
+            f"{among}같은 기간에 {related['label']}: {number(related['reference'])} → "
             f"{number(related['current'])} {related['unit'] or ''}. "
             f"{_STATE.get(related['state'], related['state'])}."
         )
@@ -598,10 +608,10 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     for index, member in enumerate(others):
         values = member.get("reference_value"), member.get("typical_value")
         facts[f"episode_{index}"] = (
-            f"같은 시기에 찾은 {member['label']} 변화: {clock(member['start'])}부터 "
+            f"같은 시기의 {member['label']} 특이사항: {clock(member['start'])}부터 "
             f"{clock(member['end'])}까지"
             + (
-                f", 비교 구간 중앙값 {number(values[0])} → 변화 구간 중앙값 "
+                f", 초기 중앙값 {number(values[0])} → 특이사항 구간 중앙값 "
                 f"{number(values[1])} {member.get('unit') or ''}."
                 if None not in values
                 else "."
@@ -613,15 +623,13 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     if others:
         checked["episode_0"] = ("같은 시기 변화", "·".join(row["label"] for row in others))
         facts["order"] = (
-            "같은 시기 변화의 시작 순서: "
+            "같은 시기 특이사항의 시작 순서: "
             + _order(episode, lambda row: clock(row["start"]))
             + ". 먼저 시작한 변화가 뒤의 변화를 일으켰다는 뜻은 아닙니다."
         )
     if operation and current:
         facts["operating_level"] = (
-            f"{current} 중인 "
-            "측정끼리 비교한 결과입니다. 운전 수준을 맞춰도 선택한 신호의 차이가 남는다는 "
-            "관측이며, 실제 부하 조건 전체가 같다는 뜻은 아닙니다."
+            f"{current} 구간으로 분류한 측정끼리 비교해도 선택한 신호의 차이가 남았습니다."
         )
         checked["operating_level"] = ("같은 운전 수준끼리 비교", current)
         targets["operating_level"] = {
@@ -639,7 +647,7 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
                 if round(a * 100) or round(b * 100)
             ]
             facts["operating_share"] = (
-                "운전 수준별 측정 비중(비교 구간 → 변화 구간): " + ", ".join(parts) + "."
+                "운전 수준별 측정 비중(초기 → 특이사항 구간): " + ", ".join(parts) + "."
             )
             # 확인한 항목에는 비교한 운전 수준의 비중만. 칸마다 한 수준만 고르는 흐름은
             # 한 시간 안에 두 수준을 오가는 설비에서 그래프의 평균 전류와 다르게 읽혀 넣지 않는다.
@@ -675,6 +683,17 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
                 "levels": names,
                 "runs": runs,
             }
+    # 같은 때의 부하: 모든 운전 수준을 합친 전류 평균(관제 알림과 같은 값).
+    load = change.get("load")
+    if load and load.get("reference") is not None and load.get("current") is not None:
+        load_unit = f" {load['unit']}" if load.get("unit") else ""
+        moved = f"{number(load['reference'])} → {number(load['current'])}{load_unit}"
+        facts["load"] = (
+            f"같은 때 {load['label']}(모든 운전 수준을 합친 평균): 초기 {number(load['reference'])}"
+            f"{load_unit} → 특이사항 구간 {number(load['current'])}{load_unit}."
+        )
+        checked["load"] = (load["label"], moved)
+        targets["load"] = {"kind": "operation", "label": load["label"], "detail": moved}
     actions = ["signals", "compare"]
     if any(
         all(f"{phase}상{quantity}" in context["channels"] for phase in "RST")
@@ -685,5 +704,5 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         "facts": facts,
         "actions": actions,
         "targets": targets,
-        "steps": _steps(checked, ("feature_0", "operating_share", "operating_level")),
+        "steps": _steps(checked, ("feature_0", "load", "operating_share", "operating_level")),
     }

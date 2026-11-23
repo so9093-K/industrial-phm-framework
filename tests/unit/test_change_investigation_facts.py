@@ -44,6 +44,7 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
                 "baseline": [0, 0.15, 0.44, 0.41],
                 "interval": [0, 0.44, 0.56, 0],
             },
+            "load": {"label": "전류평균", "unit": "A", "reference": 41.2, "current": 23.1},
             "related": [
                 {
                     "reference": 222,
@@ -72,26 +73,31 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # Korean time, as the chart reads: 00:19 UTC is 09:19, and 22:31 UTC is the next morning.
     assert "2020년 10월 4일 09:19부터 10월 5일 07:31까지" in facts["subject"]
     # Values compared at one operating level say so; English states do not reach the model.
-    assert facts["related_1"].startswith("약 11 A 운전 중인 측정끼리, ")
-    assert "within" not in facts["related_1"] and "비교 범위 안" in facts["related_1"]
+    assert facts["related_0"].startswith("약 11 A 운전 중인 측정끼리, ")
+    assert "higher" not in facts["related_0"] and "비교 범위보다 높음" in facts["related_0"]
+    # Current within a current-defined level says nothing new; the load says how current moved.
+    assert "related_1" not in facts and "R상전류" not in str(facts)
     # Whether the load changed is the level mix of the two periods.
     assert facts["operating_share"] == (
-        "운전 수준별 측정 비중(비교 구간 → 변화 구간): 약 11 A 운전 15% → 44%, "
+        "운전 수준별 측정 비중(초기 → 특이사항 구간): 약 11 A 운전 15% → 44%, "
         "약 31 A 운전 44% → 56%, 약 62 A 운전 41% → 0%."
     )
     assert facts["order"].startswith(
-        "같은 시기 변화의 시작 순서: R상전압·S상전압(10월 4일 09:19) → T상전압(10월 5일 03:05)."
+        "같은 시기 특이사항의 시작 순서: R상전압·S상전압(10월 4일 09:19) → T상전압(10월 5일 03:05)."
     )
-    # A related phase that is itself a drawn change points at that change; current does not.
+    # Measured values do not declare the nominal supply or an applicable equipment limit.
+    assert facts["feature_0"].endswith("초기보다 4 V(1.8%) 높습니다.")
+    assert "limit" not in facts
+    assert (
+        facts["load"]
+        == "같은 때 전류평균(모든 운전 수준을 합친 평균): 초기 41.2 A → 특이사항 구간 23.1 A."
+    )
+    # Only what is really missing is said to be missing; the load is not.
+    assert facts["conditions"].endswith("정비 기록은 이 자료에 없습니다.")
+    assert "부하" not in facts["conditions"]
+    # A related phase that is itself a drawn change points at that change.
     assert targets["related_0"]["review_key"] == s["review_key"]
     assert targets["related_0"]["where"] == "10월 4일 09:19~17:19"
-    assert targets["related_1"] == {
-        "kind": "signal",
-        "label": "R상전류",
-        "before": 10.7,
-        "after": 12.7,
-        "unit": "A",
-    }
     assert targets["episode_1"]["review_key"] == t["review_key"]
     assert targets["operating_share"]["levels"] == [
         "정지",
@@ -103,10 +109,10 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # What the investigation looked at, one '항목 · 결과' row each, the selected change first.
     assert [(row["label"], row["result"]) for row in out["steps"]] == [
         ("R상전압", "222 → 226 V"),
+        ("전류평균", "41.2 → 23.1 A"),
         ("약 11 A 운전 비중", "15% → 44%"),
         ("같은 운전 수준끼리 비교", "약 11 A 운전"),
         ("S상전압", "222 → 225 V"),
-        ("R상전류", "10.7 → 12.7 A"),
         ("같은 시기 변화", "S상전압·T상전압"),
     ]
     assert all(row["fact"] in facts for row in out["steps"])
@@ -153,3 +159,19 @@ def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> No
     )
     # Hour by hour the dominant level is not a checked row: it hides levels mixed within an hour.
     assert "operating_flow" not in [row["fact"] for row in out["steps"]]
+
+
+def test_voltage_magnitude_does_not_supply_an_equipment_rating() -> None:
+    for value in (190.0, 226.0, 239.0, 250.0):
+        changed = _change(
+            "a", "R상전압", "2026-11-01T00:00:00Z", "2026-11-02T00:00:00Z", 220, value
+        )
+        context = {
+            "history_change": changed,
+            "operation": [],
+            "channels": ["R상전압"],
+            "episode": [],
+        }
+        result = history_investigation(context)
+        assert "limit" not in result["facts"]
+        assert all("허용" not in row["label"] for row in result["steps"])
