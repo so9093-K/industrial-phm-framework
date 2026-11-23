@@ -1,14 +1,21 @@
 <script lang="ts">
   import {SERIES_COLORS} from "../fleet-observation";
-  /** 데이터셋이 무엇을 어디서 어떻게 잰 기록인지 보여 주는 도식. 선 색은 아래 그래프의 계열 색과 같아 범례를 겸한다.
-   * 공개 데이터셋은 출처 문서로 확인한 측정 방식만 적는다(AI-Hub 239: 설비 전원 3상 계측 35개 신호, 약 1분 간격.
-   * XJTU-SY: 하우징 수평·수직 가속도, 1분마다 1.28초를 25.6 kHz로, 고장까지 운전한 수명시험). */
+  import {equipmentRole} from "../equipment-roles";
+  /** Equipment role, measured signals and the investigation they support.
+   * These drawings explain the measurement setup; the plots below contain the actual data. */
   let {kind, equipment}: {kind: string; equipment: string | null} = $props();
   const [c1, c2, c3] = SERIES_COLORS;
+  const role=$derived(equipmentRole(kind,equipment));
 </script>
 
 {#if kind === "aihub-239"}
   <figure class="schematic">
+    <div class="role">
+      <strong>{equipment ?? "산업 설비"}</strong>
+      <p>{role?.role??"설비에 공급되는 전압과 소비 전류를 관측합니다."}</p>
+      <p class="why">{role?.purpose??"이전과 달라진 전원·운전 패턴을 찾아 점검에 활용합니다."}</p>
+    </div>
+    <div class="measurement"><p class="diagram-label">측정 구조 · 개념도</p>
     <svg viewBox="0 0 400 104" role="img" aria-label="설비 전원선 R·S·T상에서 전압·전류를 재어 약 1분 간격 시계열로 저장">
       {#each [["R", 30, c1], ["S", 52, c2], ["T", 74, c3]] as [phase, y, color] (phase)}
         <text x="6" y={Number(y) + 4} class="tag">{phase}</text>
@@ -27,7 +34,7 @@
           fill="none" stroke={String(color)} stroke-width="1.5"/>
       {/each}
       <text x="316" y="100" class="note" text-anchor="middle">1분 간격 시계열</text>
-    </svg>
+    </svg></div>
     <dl>
       <div><dt>측정</dt><dd>R·S·T 상전압·상전류 등 35개 · 1분 간격</dd></div>
       <div><dt>분석</dt><dd>상별 변화 · 3상 불평형</dd></div>
@@ -35,6 +42,12 @@
   </figure>
 {:else if kind === "xjtu-sy"}
   <figure class="schematic">
+    <div class="role">
+      <strong>베어링</strong>
+      <p>{role?.role}</p>
+      <p class="why">{role?.purpose}</p>
+    </div>
+    <div class="measurement"><p class="diagram-label">측정 구조 · 개념도</p>
     <svg viewBox="0 0 400 104" role="img" aria-label="베어링 하우징의 수평·수직 가속도를 1분마다 1.28초씩 재어 특징으로 계산">
       <rect x="20" y="14" width="84" height="76" rx="8" class="housing"/>
       <circle cx="62" cy="52" r="30" class="ring"/>
@@ -58,17 +71,25 @@
       <polyline points="312,74 324,73 336,72 348,70 358,64 368,52 378,40 388,26" fill="none" stroke={c1} stroke-width="1.5"/>
       <polyline points="312,76 324,76 336,75 348,74 358,70 368,62 378,54 388,44" fill="none" stroke={c2} stroke-width="1.5"/>
       <text x="350" y="100" class="note" text-anchor="middle">측정마다 RMS</text>
-    </svg>
+    </svg></div>
     <dl>
       <div><dt>측정</dt><dd>수평·수직 진동 · 1분마다 1.28초</dd></div>
-      <div><dt>분석</dt><dd>RMS 추이 · 주파수 성분</dd></div>
+      <div><dt>분석</dt><dd>진동 크기 추이 · 주파수 성분</dd></div>
+      <div><dt>기록</dt><dd>고장까지 운전한 가속 수명시험</dd></div>
     </dl>
   </figure>
 {/if}
 
 <style>
-  .schematic{display:grid;grid-template-columns:400px minmax(0,1fr);gap:28px;align-items:center;margin:0;padding:12px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px}
-  svg{display:block;width:400px;height:104px;overflow:visible}
+  /* 안내 창 폭에 맞춰: 하는 일을 위에 한 줄로, 그 아래 측정 구조와 측정·분석 목록을 나란히. */
+  .schematic{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,1fr);gap:14px 24px;align-items:center;margin:0;padding:14px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:8px;min-width:0}
+  .role{grid-column:1/-1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}
+  .role strong{grid-row:span 2}
+  .role strong{font-size:var(--font-body);color:var(--color-ink)}
+  .role p{margin:0;font-size:var(--font-small);line-height:1.5;color:var(--color-ink)}
+  .role p.why{color:var(--color-ink-muted)}
+  .measurement{min-width:0;max-width:400px}.diagram-label{margin:0 0 4px;font-size:var(--font-label);color:var(--color-ink-muted)}
+  svg{display:block;width:100%;height:auto;aspect-ratio:400/104;overflow:visible}
   .tag{font-size:12px;font-weight:650;fill:var(--color-ink)}
   .note{font-size:11px;fill:var(--color-ink-muted)}
   .meter{fill:none;stroke:var(--color-ink-muted);stroke-width:1;stroke-dasharray:3 3}
@@ -84,5 +105,10 @@
   dl{display:grid;gap:8px;margin:0}
   dl div{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:baseline}
   dt{font-size:var(--font-label);font-weight:650;color:var(--color-ink-muted)}
-  dd{margin:0;font-size:var(--font-body);color:var(--color-ink)}
+  dd{margin:0;font-size:var(--font-small);line-height:1.5;color:var(--color-ink)}
+  @media(max-width:600px){
+    .schematic{grid-template-columns:minmax(0,1fr);padding:12px;gap:12px}
+    .role{grid-template-columns:1fr}.role strong{grid-row:auto}.measurement{width:100%}
+    dl{gap:5px}
+  }
 </style>

@@ -14,23 +14,30 @@
       };
   });
   const rows = $derived(focus.kind==="history"?[
-    {label:focus.item.unit==="V"?"다른 상전압·전류 함께 보기":"같은 시각의 관련 신호",href:links.signal,primary:true},
+    {label:focus.item.unit==="V"?"다른 상전압·전류 함께 보기":"같은 시각의 관련 신호",href:links.signal},
     {label:"전후 값·분포 비교",href:links.compare},
     {label:"추세·기준까지의 여유",href:links.outlook},
   ]:[
-    {label:"변화한 주파수 대역 확인",href:links.spectrum,primary:true},
+    {label:"달라진 주파수 대역",href:links.spectrum},
     {label:"전후 진동 비교",href:links.compare},
     {label:"추세·기준까지의 여유",href:links.outlook},
   ]);
 </script>
+<!-- 다른 화면에서 이어 볼 분석: 같은 폭·같은 높이의 줄로. 판단은 이 아래 따로 둔다. -->
 <nav aria-label="이 특이사항의 분석">
-  {#each rows as row(row.label)}{#if row.href}<a class="ui-button" class:primary={row.primary} class:ui-button-primary={row.primary} href={row.href}
-    onclick={event=>{onInvestigate?.();event.currentTarget.href=tabSelectionUrl(event.currentTarget.href,location.href);}}>{row.label}{row.primary?" →":""}</a>{/if}{/each}
+  <h3>더 볼 분석</h3>
+  <ul>
+    {#each rows as row(row.label)}{#if row.href}<li><a href={row.href}
+      onclick={event=>{onInvestigate?.();event.currentTarget.href=tabSelectionUrl(event.currentTarget.href,location.href);}}><span>{row.label}</span><i aria-hidden="true">→</i></a></li>{/if}{/each}
+  </ul>
 </nav>
 <style>
-  nav{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4)}
-  /* 동작은 두 모양뿐: 주요 동작 하나(채움)와 나머지(테두리). 화면 이동과 창 열기를 모양으로 나누지 않는다. */
-  a{display:inline-flex;align-items:center;font-size:var(--font-small);font-weight:650;text-decoration:none}
-  a:not(.primary){color:var(--color-action)}
-  .primary{color:var(--color-action-ink)}
+  nav{display:grid;gap:6px}
+  h3{margin:0;font-size:var(--font-label);font-weight:650;color:var(--color-ink-muted)}
+  ul{display:grid;margin:0;padding:0;list-style:none;border:1px solid var(--color-border);border-radius:8px;overflow:hidden}
+  li+li{border-top:1px solid var(--color-border)}
+  a{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:38px;padding:0 12px;font-size:var(--font-small);font-weight:650;color:var(--color-action);text-decoration:none;background:var(--color-surface)}
+  a:hover{background:var(--color-surface-selected)}
+  a:focus-visible{outline:2px solid var(--color-action);outline-offset:-2px}
+  i{font-style:normal;color:var(--color-ink-muted)}
 </style>

@@ -11,9 +11,8 @@
   import {num} from "../format";
   import {measure, yTicks} from "../chart-axis";
   import {readSources} from "../operations-status";
-  import {assetTabUrl, routeUrl} from "../routes";
+  import {assetTabUrl} from "../routes";
   import {OutcomeUnknown} from "../writes";
-  import AnalysisOptions from "./AnalysisOptions.svelte";
   import PhaseRoles from "./PhaseRoles.svelte";
 
   /** One CSV file to stored measurements: see the file's own values, let the server check it
@@ -76,14 +75,6 @@
   let stored: {eventCount: number} | null = $state(null);
   let fileInput: HTMLInputElement | null = $state(null);
   let doneHeading: HTMLElement | null = $state(null);
-  let columnsDetail: HTMLDetailsElement | null = $state(null);
-  async function showColumns() {
-    if(!columnsDetail)return;
-    columnsDetail.open=true;
-    await tick();
-    columnsDetail.scrollIntoView({block:"center"});
-    columnsDetail.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:disabled)')?.focus({preventScroll:true});
-  }
 
   const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
@@ -100,8 +91,8 @@
   });
   const locked = $derived(progress !== null || saving);
   // What the person still has to do before the server check, said next to the disabled button.
-  const checkNeeds = $derived([
-    ...(!timeZoneReady ? ["위의 시간대 확인"] : []),
+  const saveNeeds = $derived([
+    ...(!timeZoneReady ? ["시간대 확인"] : []),
     ...(!assetId.trim() ? ["설비 이름·번호 입력"] : []),
   ]);
   const declared = $derived(declaredRoles(roles));
@@ -186,7 +177,7 @@
         }
       }
     } catch { /* Blocked browser storage does not prevent a new upload. */ }
-    fileMessage = (restored ? "이전 작업 입력 복원 · 같은 파일인지 SHA-256으로 확인했습니다. 서버에서 다시 점검하세요. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
+    fileMessage = (restored ? "이전에 입력한 내용을 불러왔습니다. · " : "") + chosen.name + " · " + (chosen.size / 1024).toFixed(1) + "KiB · 데이터 " + inspected.sampleCount + "행 · 열 " + inspected.header.length + "개";
   }
   function chooseTime(value: string) {
     timeZoneConfirmed = false;
@@ -198,6 +189,7 @@
   }
   function toggle(name: string, on: boolean) {
     channels = on ? [...channels, name].slice(0, MAX_CHANNELS) : channels.filter((item) => item !== name);
+    if(!channels.includes(operatingCurrent))operatingCurrent="";
     if (!channels.includes(chartChannel)) chartChannel = channels[0] ?? "";
     changed();
   }
@@ -327,7 +319,7 @@
 
 <section class="ui-panel csv-start" class:has-file={table!==null} aria-labelledby="csv-start-title">
   <div class="file-heading">
-  <h2 id="csv-start-title">CSV 데이터 등록</h2>
+  <h2 id="csv-start-title" class:visually-hidden={table!==null}>CSV 데이터 등록</h2>
   {#if !table}<p class="context">측정 시각과 값을 확인하고 설비 이름을 입력하면 저장할 수 있습니다.</p>{/if}
   {#if !table}<ol class="flow" aria-label="진행 순서">
     {#each ["파일 선택", "미리보기·설비 확인", "저장하고 분석"] as label, index (label)}
@@ -337,20 +329,26 @@
     {/each}
   </ol>{/if}
 
+  {#if table}<p class="context file-message" class:problem={fileProblem} role="status">{fileMessage}</p>{/if}
   <div class="field file-row">
-    <span id="csv-file-label">CSV 파일 (UTF-8 · 20MiB 이하)</span>
+    <span id="csv-file-label" class:visually-hidden={table!==null}>CSV 파일 (UTF-8 · 20MiB 이하)</span>
     <span class="file-pick">
-      <label class="ui-button" aria-disabled={locked}>파일 선택
+      <label class="ui-button" aria-disabled={locked}>{table?"파일 변경":"파일 선택"}
         <input type="file" class="visually-hidden" aria-labelledby="csv-file-label" accept=".csv,text/csv"
           bind:this={fileInput} disabled={locked} onchange={() => void choose()} /></label>
     </span>
   </div>
-  </div><p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>
+  </div>{#if !table}<p class="context" class:problem={fileProblem} role="status">{fileMessage}</p>{/if}
 
   {#if table}
-    <section aria-labelledby="csv-preview-title">
+    {#if !stored}<section aria-labelledby="csv-preview-title">
       <div class="preview-heading"><h3 id="csv-preview-title">파일 미리보기</h3>
-      <p class="tag">{stored ? "이 브라우저에서 읽은 값 · 아래와 같이 저장했습니다" : report?.status === "ready" ? "미리보기 · 저장 전 검증을 통과했습니다" : "미리보기 · 아직 저장하지 않았습니다"}</p></div>
+      <p class="tag">{report?.status === "ready"?"저장할 내용을 확인했습니다":"시간과 저장할 신호를 선택하세요"}</p><div class="save-action">
+        <button type="button" class="ui-button ui-button-primary csv-save" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem || !!currentProblem}
+          aria-describedby={saveNeeds.length?"csv-save-needs":undefined} onclick={() => void confirmAndSave()}>{checking?"내용 확인 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
+        {#if saveNeeds.length}<span id="csv-save-needs">{saveNeeds.join(" · ")}</span>{/if}</div></div>
+      {#if saveMessage&&saveFailed}<p class="message failure" role="alert">{saveMessage}</p>{/if}
+      {#if report&&report.status!=="ready"&&checkMessage}<p class="message failure" role="alert">{checkMessage}</p>{/if}
       <div class="preview-grid"><div class="preview-main">
       <div class="columns">
         <label class="field">시각 열
@@ -368,7 +366,7 @@
           <label class="choice">
             <input type="checkbox" checked={timeZoneConfirmed} disabled={locked}
               onchange={(event) => { timeZoneConfirmed = event.currentTarget.checked; changed(); }} />
-            이 CSV의 측정 시각이 선택한 시간대 기준임을 확인했습니다. 저장되는 측정 시각에 영향을 줍니다.
+            이 CSV의 측정 시각은 위 시간대 기준입니다.
           </label>
         {/if}
 
@@ -379,14 +377,6 @@
         </ul>
 
       {/if}
-      <div class="selection-summary" aria-label="저장 대상 측정값">
-        <strong>저장할 측정값 {channels.length}개 · 제외된 숫자 열 {excludedColumns.length}개</strong>
-        <p>저장 대상: {channels.length?channels.map(shown).join(", "):"선택한 열 없음"}</p>
-        {#if excludedColumns.length}<p class="selection-caution" role="status">저장에서 제외: {excludedColumns.map(choice=>choice.name).join(", ")}.
-          {#if numericColumns.length>MAX_CHANNELS}숫자 열 {numericColumns.length}개 중 최대 {MAX_CHANNELS}개를 저장할 수 있습니다.{/if}
-          필요한 측정 열이 포함됐는지 확인하세요.</p>{/if}
-        <button type="button" class="ui-button" disabled={locked} onclick={()=>void showColumns()}>저장 대상 확인·변경</button>
-      </div>
       {#if channels.length && points.length}
         <label class="field">미리보기 신호
           <select bind:value={chartChannel}>{#each channels as name (name)}<option value={name}>{shown(name)}</option>{/each}</select>
@@ -430,44 +420,31 @@
       </div>
     </section>
 
-      {#if channels.length}<fieldset class="names">
-          <legend>측정값 이름·단위 확인</legend>
-          <p class="context">원본의 단위를 확인해 입력하세요. 모르는 단위는 비워 둘 수 있으며, 결과에는 단위 미확인으로 표시합니다.</p>
-          {#if unfilledExamples.length && !locked}
-            <!-- Units are never read from a column suffix; the person adopts the examples, then corrects them. -->
-            <p class="context"><button type="button" class="ui-button" onclick={fillExampleUnits}>예시 단위로 채우기</button>
-              {unfilledExamples.map((name) => shown(name) + " " + unitExample(name)).join(" · ")} · 실제 계측 단위와 다르면 고치세요.</p>
-          {/if}
-          {#each channels as name (name)}
-            <div class="name-row">
-              <span class="column">{name}</span>
-              <input maxlength="60" placeholder="표시 이름 (비우면 열 이름)" aria-label={name + " 이름"} disabled={locked}
-                value={labels[name]?.label ?? ""} oninput={(event) => rename(name, "label", event.currentTarget.value)} />
-              <input maxlength="16" placeholder={unitExample(name) ? "단위 예: " + unitExample(name) : "단위"} aria-label={name + " 단위"} disabled={locked}
-                value={labels[name]?.unit ?? ""} oninput={(event) => rename(name, "unit", event.currentTarget.value)} />
-            </div>
-          {/each}
-        </fieldset>{/if}
+      <section class="signal-editor" aria-label="저장할 측정값과 단위">
+        <header><strong>저장할 신호 {channels.length} / {numericColumns.length}개</strong>
+          {#if unfilledExamples.length&&!locked}<button type="button" class="unit-examples" onclick={fillExampleUnits}>단위 예시 채우기</button>{/if}</header>
+        <p class="context">최대 {MAX_CHANNELS}개 · 신호를 고르고 계측 단위를 입력하세요. 모르면 비워 둘 수 있습니다.</p>
+        <div class="signal-table"><table><thead><tr><th scope="col">저장</th><th scope="col">측정값 이름</th><th scope="col">단위</th></tr></thead>
+          <tbody>{#each numericColumns as choice(choice.name)}<tr class:omitted={!channels.includes(choice.name)}>
+            <td><input type="checkbox" aria-label={choice.name+" 저장"} checked={channels.includes(choice.name)} disabled={locked||(!channels.includes(choice.name)&&channels.length>=MAX_CHANNELS)} onchange={e=>toggle(choice.name,e.currentTarget.checked)}/></td>
+            <td><input maxlength="60" aria-label={choice.name+" 이름"} title={"원본 열: "+choice.name} disabled={locked||!channels.includes(choice.name)} value={shown(choice.name)} oninput={e=>rename(choice.name,"label",e.currentTarget.value)}/></td>
+            <td><input maxlength="16" aria-label={choice.name+" 단위"} placeholder={unitExample(choice.name)??"—"} disabled={locked||!channels.includes(choice.name)} value={labels[choice.name]?.unit??""} oninput={e=>rename(choice.name,"unit",e.currentTarget.value)}/></td>
+          </tr>{/each}</tbody></table></div>
+        {#if excludedColumns.length}<p class="omitted-count">선택하지 않은 {excludedColumns.length}개 신호는 저장하지 않습니다.</p>{/if}
+      </section>
 
 
-    <section aria-labelledby="csv-save-title">
+    {#if progress||saveFailed}<section aria-labelledby="csv-save-title">
       <h3 id="csv-save-title" class="visually-hidden">확인하고 저장하기</h3>
       {#if saveFailed}<p class="context">입력은 남아 있습니다. 다시 시도하면 완료한 단계부터 이어집니다.</p>{/if}
 
-      {#if !stored}
-        <button type="button" class="ui-button ui-button-primary" disabled={!writable || !timeZoneReady || checking || saving || !assetId.trim() || problems.length>0 || !!roleProblem || !!currentProblem}
-          onclick={() => void confirmAndSave()}>{checking?"저장 전 검증 중":saving?"측정 기록 저장 중":saveFailed && progress ? "실패한 단계부터 다시 시도" : "확인하고 저장하기"}</button>
-      {/if}
       <details open={saveFailed}><summary>저장 처리 내역</summary><ol class="steps">
         {#each STEPS as item (item.id)}
           <li data-state={steps[item.id].state}><strong>{item.title}</strong><span>{item.text}</span>
             {#if progress || steps[item.id].state !== "pending"}<em>{STATE_TEXT[steps[item.id].state]}{steps[item.id].detail ? " · " + steps[item.id].detail : ""}</em>{/if}</li>
         {/each}
       </ol></details>
-      {#if saveMessage}
-        <p class="message" class:failure={saveFailed} role={saveFailed ? "alert" : "status"}>{saveMessage}</p>
-      {/if}
-    </section>
+    </section>{/if}
       </div></div>
       <div class="advanced-setup"><details>
         <summary>측정 위치·연결 상세 설정 (선택)</summary>
@@ -486,29 +463,9 @@
         <PhaseRoles {channels} bind:roles disabled={locked} onchange={changed} />
         {#if roleProblem}<p class="message failure" role="status">{roleProblem}</p>{/if}
       </details>
-      {#if !writable}
-        <p class="context">보기 전용이라 서버 점검과 저장을 할 수 없습니다. 미리보기는 볼 수 있습니다.</p>
-      {:else}
-        <details><summary>저장 전 점검만 실행 (선택)</summary><button type="button" class="ui-button" disabled={checking || locked || !assetId.trim() || problems.length > 0 || !timeZoneReady}
-          aria-describedby={checkNeeds.length ? "csv-check-needs" : undefined}
-          onclick={() => void check()}>등록 전 검증</button></details>
-        {#if checkNeeds.length && !locked}<p class="context" id="csv-check-needs">점검하려면 {checkNeeds.join(" · ")}이 필요합니다.</p>{/if}
-      {/if}
-      {#if checkMessage}
-        <p class="message" class:failure={report !== null && report.status !== "ready"} role="status">{checkMessage}{#if report?.status === "ready" && !checking}{stored ? " · 저장했습니다." : " · 아직 저장하지 않았습니다."}{/if}</p>
-      {/if}
+      {#if !writable}<p class="context">보기 전용에서는 미리보기만 볼 수 있습니다.</p>{/if}
       </div>
-      <details bind:this={columnsDetail}><summary>측정값 상세 설정·통계</summary><fieldset>
-          <legend>저장할 측정값 (숫자 열 · 최대 {MAX_CHANNELS}개)</legend>
-          {#each choices as choice (choice.name)}
-            <label class="choice">
-              <input type="checkbox" checked={channels.includes(choice.name)} disabled={locked || !choice.usable
-                || (!channels.includes(choice.name) && channels.length >= MAX_CHANNELS)}
-                onchange={(event) => toggle(choice.name, event.currentTarget.checked)} />
-              {choice.name}{choice.note ? " · " + choice.note : ""}
-            </label>
-          {/each}
-        </fieldset>{#if channels.length}<div class="scroll"><table>
+      <details><summary>측정값 통계</summary>{#if channels.length}<div class="scroll"><table>
           <caption>측정값 요약</caption>
           <thead><tr><th scope="col">측정값</th><th scope="col">값</th><th scope="col">빈 값</th><th scope="col">최소</th>
             <th scope="col">중앙값</th><th scope="col">최대</th><th scope="col">평균</th></tr></thead>
@@ -527,18 +484,18 @@
     </section>
 
 
+    {/if}
     {#if stored && progress}
       <section aria-labelledby="csv-done-title">
         <h3 id="csv-done-title" tabindex="-1" bind:this={doneHeading}>등록 완료</h3>
-        <p>{progress.setup.asset_id}의 측정 기록을 저장했습니다. 설비 요약에서 주요 변화와 마지막 측정 상태를 확인하세요.</p>
+        <p><strong>{progress.setup.asset_id}</strong>의 측정 기록을 저장했습니다. 모니터링에서 실제 추이를 바로 볼 수 있습니다.</p>
         <p class="links">
-          <a class="ui-button ui-button-primary" href={routeUrl({page: "assets", assetId: progress.setup.asset_id, tab: "summary", method: null, data: null})}>주요 변화와 측정 상태 보기 →</a>
+          <a class="ui-button ui-button-primary" href="/web/">모니터링에서 보기 →</a>
           <a href={assetTabUrl(progress.setup.asset_id, "signals")}>원본 신호 보기 →</a>
           {#if progress.setup.phase_channels?.length}
             <a href={assetTabUrl(progress.setup.asset_id, "change", "electrical")}>3상 전력·불평형 보기 →</a>
           {/if}
         </p>
-        <details><summary>사용 가능한 다른 분석</summary><AnalysisOptions assetId={progress.setup.asset_id} level={4} /></details>
         <button type="button" class="ui-button" onclick={() => void restart()}>다른 파일 등록</button>
       </section>
     {/if}
@@ -547,10 +504,10 @@
 
 <style>
   .file-heading{display:grid;gap:var(--space-3)}
+  .file-message{font-size:var(--font-small);margin:0;flex:1}
   .has-file .file-heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2)}
+  .save-action{margin-left:auto;display:grid;justify-items:end;gap:3px}.save-action span{font-size:12px;color:var(--color-ink-muted)}
   .preview-heading{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-3)}
-  .selection-summary{margin-block:var(--space-3);overflow-wrap:anywhere;font-size:var(--font-small)}
-  .selection-summary p{margin-block:var(--space-2)}.selection-caution{border-left:3px solid var(--color-caution-ink);padding:var(--space-2);background:var(--color-uncertain-surface)}
   .csv-start { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
   .csv-start > section { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
   h2, h3 { margin: 0; }
@@ -570,10 +527,9 @@
   input[type="file"] { max-width: 100%; }
   .columns { display: grid; gap: var(--space-3); grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); align-items: end; }
   .columns .choice { grid-column: 1 / -1; }
-  .names { display: grid; gap: var(--space-2); }
-  .names .context { margin: 0; }
-  fieldset.names { max-width: 760px; }
   /* 넓은 화면에서는 미리보기 그래프 옆에서 이름과 단위를 확인한다. */
+  .signal-editor{display:grid;gap:8px}.signal-editor header{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--font-small)}.signal-editor .context,.omitted-count{font-size:12px}.omitted-count{color:var(--color-ink-muted)}
+  .signal-table{max-height:250px;overflow:auto;border:1px solid var(--color-border);border-radius:6px}.signal-table thead{position:sticky;top:0;background:var(--color-surface-selected);z-index:1}.signal-table th,.signal-table td{padding:4px 6px;font-size:12px}.signal-table th:first-child{width:40px}.signal-table th:last-child{width:80px}.signal-table td input:not([type="checkbox"]){width:100%;height:30px;min-height:30px;box-sizing:border-box;line-height:1.2;padding:3px 6px;border-color:transparent;border-radius:4px;font-size:var(--font-label)}.signal-table td input:focus{border-color:var(--color-action)}.signal-table .omitted{color:var(--color-ink-muted)}.signal-table .omitted input{opacity:.6}.unit-examples{font:inherit;font-size:12px;padding:4px 6px;background:none;border:0;color:var(--color-action);cursor:pointer}
   .preview-grid { display: grid; gap: var(--space-4) var(--space-8); grid-template-columns: minmax(0, 1fr); align-items: start; }
   .preview-units > section {display:grid;gap:var(--space-2);min-width:0;}
   .preview-units h3{font-size:var(--font-body)}
@@ -583,11 +539,6 @@
   .preview-main, .preview-units { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
   @media (min-width: 1100px) { .preview-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
   .preview-main > .field, .grid > .field { max-width: 360px; }
-  .name-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(120px, 2fr) minmax(90px, 1fr); gap: var(--space-2); align-items: center; }
-  .name-row .column { overflow-wrap: anywhere; color: var(--color-ink-muted); font-size: var(--font-small); }
-  @media (max-width: 560px) { .name-row { grid-template-columns: 1fr 1fr; } .name-row .column { grid-column: 1 / -1; } }
-  fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: var(--space-3); margin: 0; min-width: 0; }
-  legend { font-weight: 650; padding-inline: var(--space-1); }
   .choice { display: flex; gap: var(--space-2); align-items: flex-start; padding-block: var(--space-1); overflow-wrap: anywhere; }
   .tag { font-size: var(--font-small); color: var(--color-ink-muted); }
   .problems { margin: 0; padding-inline-start: var(--space-5); color: var(--color-failure-ink); }

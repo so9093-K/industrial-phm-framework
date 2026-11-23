@@ -6,13 +6,13 @@
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import {defaultPeriods,readSources,validatePeriods,NoHistoryError,type Periods,type SourceHistory} from "../comparison";
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
-  import FeatureScatter from "./FeatureScatter.svelte";
+  import RelationPlot from "./RelationPlot.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {relationMessage,sameXText,short,shortRange} from "../analysis-messages";
   import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import {movedAtSameX,sameXRanges,strength} from "../relation";
+  import {movedAtSameX,sameXRanges} from "../relation";
   import {assetTabUrl} from "../routes";
   import {readSummary,relationPair} from "../summary-defaults";
   let {assetId}:{assetId:string}=$props();
@@ -242,6 +242,8 @@
         {@const axes=bounds(pair)}
         {@const side=(group:PairedGroup|null)=>({pearson:group?.pearson??null,spearman:group?.spearman??null,pairs:group?.pairCount??0})}
         {@const ranges=sameXRanges(pair.a,pair.b)}
+        {@const common=ranges.reduce<typeof ranges[number] | null>((best, range) =>
+          !best || Math.min(range.a.pairs, range.b.pairs) > Math.min(best.a.pairs, best.b.pairs) ? range : best, null)}
         {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
         {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
         {@const moved=movedAtSameX(ranges,summaryBand)}
@@ -251,52 +253,38 @@
         {@const explained=sameX&&moved?{...(message??{meaning:null,next:[]}),headline:sameX,
           certainty:"이 범위에서 비교한 측정 수는 기간 A "+moved.shown.a.pairs+"개 · 기간 B "+moved.shown.b.pairs+"개입니다."}:message}
         <section class="group">
-          <p class="record-label">{sourceLabel(sourceNames, pair.source, pairs.map((each) => each.source))}{#if pair.point}{" · " + pair.point}{/if}</p>
+          {#if pairs.length>1}<p class="record-label">{sourceLabel(sourceNames,pair.source,pairs.map(each=>each.source))}{#if pair.point}{" · "+pair.point}{/if}</p>{/if}
           {#if explained}
             {#if moved}<p class="primary-insight">{signalName(names,y)} · {short(moved.shown.a.median)} → {short(moved.shown.b.median)}{yUnit?" "+yUnit:""}</p>
               <p class="primary-context">{signalName(names,x)} {shortRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
-            {:else}<p class="primary-insight">{explained.headline}</p>{/if}
+            {:else if common}
+              <p class="relationship-summary">두 기간 모두 측정이 충분한 {signalName(names,x)} {shortRange(common.low,common.high)}{xUnit?" "+xUnit:""} 범위를 그래프에 표시했습니다.</p>
+            {:else}<p class="relationship-summary">{explained.headline}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
-          <div class="sides">
-            {#each ["a","b"] as name(name)}
-              {@const n=name as "a"|"b"}
-              {@const group=pair[n]}
-              <div class="side">
-                <h4>기간 {n.toUpperCase()}</h4>
-                {#if !group}
-                  <p class="context">이 기간에는 같은 시각 측정 짝이 없습니다.</p>
-                {:else}
-                  {#if group.sampled}
-                    <StatusNotice kind="uncertain" message="짝이 많아 일부만 골라 계산했습니다. 전체 분포로 단정하지 마세요."/>
-                  {/if}
-                  {#if group.pairCount<3||group.pearson===null||group.spearman===null}
-                    <StatusNotice kind="uncertain" message="측정이 적거나 값이 일정해 상관계수를 계산할 수 없습니다. 같은 입력 범위의 값 차이는 별도로 확인할 수 있습니다."/>
-                  {/if}
-                  {#if axes&&group.points.length}
-                    <FeatureScatter bounds={axes} points={group.points.map(p=>({x:p.x,y:p.y,label:asTime(p.at)}))}
-                      xLabel={axisName(x,group.xUnit)} yLabel={axisName(y,group.yUnit)}
-                      description={"기간 "+n.toUpperCase()+" · 같은 시각 측정 짝 "+group.points.length+"개 산점도."}
-                      caption={null} band={moved?{low:moved.shown.low,high:moved.shown.high}:null}
-                      picked={chosen?.key===pair.key&&chosen.period===n?chosen.index:null}
-                      onPick={(index)=>chosen={key:pair.key,period:n,index}}/>
-                  {/if}
-                  <details class="coefficients"><summary>기간 {n.toUpperCase()} · 상관계수와 측정 수</summary>
-                  {#if group.pearson!==null}<p class="headline">{strength(group.pearson)}</p>{/if}
-                  <dl>
-                    <div><dt>같은 시각 측정 짝</dt><dd>{group.pairCount}개</dd></div>
-                    <div><dt>상관계수 (값 그대로)</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(3)}</dd></div>
-                    <div><dt>상관계수 (순위로)</dt><dd>{group.spearman===null?"계산 안 됨":group.spearman.toFixed(3)}</dd></div>
-                  </dl>
-                  </details>
-                {/if}
+          {#if axes}<RelationPlot bounds={axes}
+            groups={[pair.a,pair.b].filter((group):group is PairedGroup=>group!==null).map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,at:Date.parse(point.at),label:asTime(point.at)}))}))}
+            xLabel={axisName(x,xUnit)} yLabel={axisName(y,yUnit)} timeScale={{kind:"clock"}} band={moved?.shown??common}
+            picked={chosen?.key===pair.key?{period:chosen.period,index:chosen.index}:null} onPick={(period,index)=>chosen={key:pair.key,period,index}}/>{/if}
+          {#if chosen?.key===pair.key}
+            {@const point=pair[chosen.period]?.points[chosen.index]}
+            {@const shown=pair[chosen.period]}
+            {#if point}
+              <div class="chosen" aria-live="polite">
+                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
+                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
+                <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
+                  <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
               </div>
-            {/each}
-          </div>
-          <p class="context plot-note">한 점은 같은 시각에 함께 기록된 두 측정값이고, 두 기간은 같은 축 범위로 그립니다. 점의 색은 측정 순서에 따라 옅은색에서 진한색으로 바뀝니다.{#if moved}{" "}음영은 두 기간을 비교한 {signalName(names,x)} 범위입니다.{/if}{" "}점을 누르면 그 시각을 봅니다.</p>
-          {#if explained}<AnalysisMessage message={explained} showHeadline={false}
-            boundary="같은 시각의 측정값에서 계산한 관계입니다. 한쪽이 다른 쪽의 원인이라는 뜻은 아닙니다." />
+            {/if}
           {/if}
+          <details class="coefficients"><summary>기간별 상관계수·측정 수</summary>
+            {#each [pair.a,pair.b] as group,i(i)}{#if group}<dl><div><dt>기간 {group.period.toUpperCase()}</dt><dd>{group.pairCount.toLocaleString("ko-KR")}개 측정</dd></div>
+              <div><dt>상관계수</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(2)}</dd></div></dl>
+              {#if group.sampled}<p class="context">그래프에는 기간 {group.period.toUpperCase()}의 측정 일부를 표시합니다.</p>{/if}{/if}{/each}
+          </details>
+          {#if explained}<details class="interpretation"><summary>관계 해석과 이어서 분석</summary><AnalysisMessage message={explained} showHeadline={false}
+            boundary="두 값이 함께 변했다는 사실만으로 원인을 정하지 않습니다." /></details>{/if}
           {#if sameX && message}<details class="coefficient-summary"><summary>상관계수로 본 동반 변화</summary><p>{message.headline}</p>{#if message.certainty}<p>{message.certainty}</p>{/if}</details>{/if}
           {#if ranges.length}
             {@const unit=(value:string,of:string|null)=>value+(of?" "+of:"")}
@@ -316,18 +304,6 @@
                 {/each}</tbody>
               </table></div>
             </details>
-          {/if}
-          {#if chosen?.key===pair.key}
-            {@const point=pair[chosen.period]?.points[chosen.index]}
-            {@const shown=pair[chosen.period]}
-            {#if point}
-              <div class="chosen" aria-live="polite">
-                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
-                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
-                <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
-                  <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
-              </div>
-            {/if}
           {/if}
           {#each [pair.a,pair.b] as group,i(i)}
             {#if group}
@@ -364,14 +340,11 @@
   label{display:grid;gap:var(--space-2);font-weight:650}
   select,input{min-width:0;width:100%;padding:var(--space-3);color:var(--color-ink);background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   fieldset{min-width:0;display:grid;gap:var(--space-2);border:1px solid var(--color-border);border-radius:var(--radius-panel)}
-  .group{border-top:1px solid var(--color-border);margin-top:var(--space-6);padding-top:var(--space-4)}
+  .group{min-width:0}.group+.group{border-top:1px solid var(--color-border);margin-top:24px;padding-top:20px}
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}dd{margin:0;font-weight:700}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--color-border);padding:var(--space-2)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .headline{font-size:var(--font-section);font-weight:700;margin:0}
-  .sides{display:grid;gap:var(--space-4) var(--space-6);grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
-  .plot-note{font-size:var(--font-small);margin:0 0 var(--space-3)}
-  .side{min-width:0}.side h4{margin:0 0 var(--space-2)}
+  .relationship-summary{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 16px;line-height:1.5}.interpretation{margin-block:12px}
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
   .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}

@@ -15,8 +15,9 @@
     snapshot: Snapshot | null; storeState: "loading" | "ready" | "empty" | "failed"; storeError: string;
     writable: boolean; section: SystemSection;
     onChanged?: () => Promise<void>;
+    onFileSelected?:(selected:boolean)=>void;
   };
-  let {snapshot, storeState, storeError, writable, section, onChanged}: Props = $props();
+  let {snapshot, storeState, storeError, writable, section, onChanged,onFileSelected}: Props = $props();
   let sources: Sources | null = $state(null);
   let sourceState: "loading" | "ready" | "failed" = $state("loading");
   // Analyses run here count at once; the monitor snapshot catches up on the next read.
@@ -29,11 +30,12 @@
   const WAYS: {id: Way; label: string; note: string; hash: string}[] = [
     {id: "csv", label: "CSV 파일", note: "내 컴퓨터의 측정 기록 파일", hash: ""},
     {id: "public", label: "공개 실측 데이터", note: "AI-Hub 전력 · XJTU-SY 진동", hash: "#public-datasets"},
-    {id: "other", label: "OPC UA · 작업공간 CSV", note: "실시간 수집, 3상 역할 등록", hash: "#other-connect"},
+    {id: "other", label: "자동으로 데이터 받기", note: "OPC UA · 서버의 CSV 파일", hash: "#other-connect"},
   ];
   const wayOf = (hash: string): Way => hash === "#public-datasets" ? "public" : hash === "#opcua-connect" || hash === "#other-connect" ? "other" : "csv";
   let csvSelected=$state(false);
   let way: Way = $state(wayOf(location.hash));
+  $effect(()=>onFileSelected?.(section==="connections"&&way==="csv"&&csvSelected));
   function choose(next: Way) {
     way = next;
     // 주소에 남겨 두면 새로 고침이나 공유한 주소도 같은 방법으로 열린다.
@@ -65,7 +67,7 @@
   });
 </script>
 
-<nav class="sections" aria-label="운영 관리">
+<nav class="sections" class:compact={way==="csv"&&csvSelected} aria-label="운영 관리">
   {#each SECTIONS as item (item.id)}
     <a href={systemUrl(item.id)} aria-current={section === item.id ? "page" : undefined}>{item.label}</a>
   {/each}
@@ -84,13 +86,14 @@
   <div hidden={way !== "csv"}><CsvStart {writable} onSaved={reload} onFileSelected={selected=>csvSelected=selected} /></div>
   <div hidden={way !== "public"}><PublicDatasets {writable} onImported={reload} /></div>
   <div hidden={way !== "other"}><ConnectionRegistration {writable} onRegistered={reload} /></div>
-  <ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
-    onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />
+  {#if way!=="csv"||!csvSelected}<ConnectionList {sources} loadState={sourceState} {writable} {analyzed} onReload={reload}
+    onAnalyzed={(sourceId) => analyzedHere = [...analyzedHere, sourceId]} />{/if}
 {:else}
   <SystemStatus {snapshot} {storeState} {storeError} />
 {/if}
 
 <style>
+  .sections.compact{margin-block:0 8px;padding:2px}.sections.compact a{padding:4px 10px;font-size:var(--font-label)}
   .sections { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); margin-block: var(--space-2) var(--space-4);
     padding: var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
   .sections a { padding: var(--space-2) var(--space-4); border-radius: var(--radius-control); color: var(--color-ink); text-decoration: none; font-weight: 650; }

@@ -3,20 +3,24 @@
   import {askChange, readChangeDiscussion, INVESTIGATE, spokenQuestion, type ChangeDiscussion} from "../change-investigation";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
+  import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {OutcomeUnknown} from "../writes";
 
   /** 관제 줄 오른쪽의 AI 관제 대화창. AI가 특이사항을 문장으로 알리고(notice), 사람이 남긴 판단은 내 말풍선으로,
    * 앞서 찾은 특이사항은 지난 메시지로 위에 둔다. '원인을 조사해 주세요'나 질문을 보내면 이 자리에서 AI가 확인한
    * 항목과 답을 보인다. 조사 화면의 AI 조사와 같은 대화라 어느 화면에서 이어도 같다. */
-  let {assetId, reviewKey, scope, watched, notice, when, judged, earlier, calm, checking, detailHref, canAsk, onPause}: {
+  let {assetId, reviewKey, scope, watched, notice, when, judged, earlier, calm, checking, detailHref, canAsk, onPause, heading = true}: {
     assetId: string; reviewKey: string | null; scope: PlaybackScope | null; watched: string;
     notice: string[] | null; when: string | null;
     judged: {verdict: string; day: string; note: string | null} | null | "pending";
     earlier: {key: string; when: string; text: string}[]; calm: string; checking: boolean;
     detailHref: string; canAsk: boolean; onPause: () => void;
+    /** 바깥이 이미 제목(AI 조사·확인 범위)을 보이면 false: 대화창 안의 머리줄을 생략한다. */
+    heading?: boolean;
   } = $props();
 
-  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(""), error = $state("");
+  const draftScope=untrack(()=>"change:"+assetId+":"+reviewKey);
+  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(questionDraft(draftScope)), error = $state("");
   let busy = $state(false), awaiting: string | null = $state(null), remaining = 240;
   let request: AbortController | null = null, write: AbortController | null = null, timer: ReturnType<typeof setTimeout> | null = null;
   let previous = new Set<string>();
@@ -32,7 +36,7 @@
   const typing = (text: string) => text + (elapsed !== null && elapsed >= 3 ? " · " + elapsed + "초" : "");
 
   function cancel() { request?.abort(); if (timer !== null) clearTimeout(timer); timer = null; }
-  onDestroy(() => { cancel(); write?.abort(); clearInterval(clock); });
+  onDestroy(() => { keepQuestionDraft(draftScope,question); cancel(); write?.abort(); clearInterval(clock); });
   async function refresh() {
     if (!reviewKey) return;
     cancel();
@@ -87,7 +91,7 @@
 </script>
 
 <section class="agent" aria-label="AI 관제 대화">
-  <p class="watch"><span class="avatar" aria-hidden="true">AI</span><b>AI 관제</b><span>{watched}</span></p>
+  {#if heading}<p class="watch"><span class="avatar" aria-hidden="true">AI</span><b>AI 관제</b><span>{watched}</span></p>{/if}
   <div class="log" bind:this={log} aria-live="polite">
     {#each earlier as row (row.key)}<p class="msg old"><time>{row.when}</time> {row.text}</p>{/each}
     {#if checking}<p class="msg typing"><i></i><i></i><i></i>변화 판정 중</p>
@@ -134,11 +138,11 @@
 </section>
 
 <style>
-  .agent{display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px;min-height:0;height:100%;font-size:var(--font-small)}
+  .agent{display:flex;flex-direction:column;gap:6px;min-height:0;height:100%;font-size:var(--font-small)}
   .watch{display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
   .watch b{color:var(--color-ink);font-weight:650}
   .avatar{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--color-action);color:#fff;font-size:9px;font-weight:700}
-  .log{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;padding-right:2px;overscroll-behavior:contain}
+  .log{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;padding-right:2px;overscroll-behavior:contain}
   p{margin:0;line-height:1.5;overflow-wrap:anywhere}
   .msg{align-self:flex-start;max-width:96%;padding:7px 10px;border-radius:4px 12px 12px 12px;background:#f2f5f7;color:var(--color-ink)}
   .msg.old{padding:4px 9px;font-size:12px;color:var(--color-ink-muted);background:none;border:1px solid var(--color-border)}

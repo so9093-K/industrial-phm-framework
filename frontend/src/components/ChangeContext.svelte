@@ -1,23 +1,63 @@
 <script lang="ts">
   import type {EvidenceFocus} from "../change-evidence";
-  import {readSpectrum,type SpectrumChannel} from "../spectrum";
+  import {readSpectrum, type Acquisition, type Spectrum, type Spans} from "../spectrum";
+  import {aroundBand, comparisonBand, relativePower} from "../frequency-view";
   import {measure} from "../chart-axis";
-  let {focus,assetId,active=true}: {focus: EvidenceFocus;assetId:string;active?:boolean} = $props();
+  import FrequencyPlot from "./FrequencyPlot.svelte";
+
+  let {focus, assetId, selected = null, onClear}: {focus: EvidenceFocus; assetId: string; selected?: number | null; onClear?: () => void} = $props();
   const rows = $derived(focus.kind === "history" ? focus.item.related : focus.change.related);
   const condition = $derived(focus.kind === "history" ? focus.condition : null);
-  let spectrum:SpectrumChannel|null=$state(null),spectralState=$state("idle");
-  const changedBand=$derived.by(()=>{const current:SpectrumChannel|null=spectrum;return current?[...current.shares].sort((a,b)=>Math.abs(b.b-b.a)-Math.abs(a.b-a.a))[0]??null:null;});
-  $effect(()=>{
-    const current=focus;
-    spectrum=null;
-    if(!active||current.kind!=="vibration"||!current.record.sourceId||!current.record.bindingId)return;
-    const request=new AbortController();spectralState="loading";
-    const change=current.change,channel=change.feature.slice(8,change.feature.lastIndexOf("."));
-    void readSpectrum(assetId,{source:current.record.sourceId,binding:current.record.bindingId,first:current.record.first??1,last:current.record.last??change.to,count:(current.record.last??change.to)-(current.record.first??1)+1},
-      {a:change.baseline,b:{from:change.from,to:change.to}},request.signal).then(read=>{
-        if(!request.signal.aborted){spectrum=read.channels.find(row=>row.id===channel)??null;spectralState="ready";}
-      }).catch(()=>{if(!request.signal.aborted)spectralState="failed";});
-    return()=>request.abort();
+  const input = $derived.by((): {source: Acquisition; spans: Spans; channel: string; asset: string} | null => {
+    if (focus.kind !== "vibration" || !focus.record.sourceId || !focus.record.bindingId) return null;
+    const first = focus.record.first ?? 1, last = focus.record.last ?? focus.change.to;
+    return {
+      asset: assetId,
+      source: {source: focus.record.sourceId, binding: focus.record.bindingId, first, last, count: last - first + 1},
+      spans: {a: focus.change.baseline, b: {from: focus.change.from, to: focus.change.to}},
+      channel: focus.change.feature.slice(8, focus.change.feature.lastIndexOf(".")),
+    };
+  });
+  let average = $state<Spectrum | null>(null);
+  let measurement = $state<Spectrum | null>(null);
+  let averageFailed = $state(false);
+  let measurementFailed = $state(false);
+  $effect(() => {
+    const current = input;
+    average = null;
+    averageFailed = false;
+    if (!current) return;
+    const request = new AbortController();
+    void readSpectrum(current.asset, current.source, current.spans, request.signal)
+      .then(result => { if (!request.signal.aborted) average = result; })
+      .catch(() => { if (!request.signal.aborted) averageFailed = true; });
+    return () => request.abort();
+  });
+  $effect(() => {
+    const current = input, ordinal = selected;
+    measurement = null;
+    measurementFailed = false;
+    if (!current || ordinal === null || ordinal < current.source.first || ordinal > current.source.last) return;
+    const request = new AbortController();
+    const timer = setTimeout(() => {
+      void readSpectrum(current.asset, current.source, {a: current.spans.a, b: {from: ordinal, to: ordinal}}, request.signal)
+        .then(result => { if (!request.signal.aborted) measurement = result; })
+        .catch(() => { if (!request.signal.aborted) measurementFailed = true; });
+    }, 160);
+    return () => { clearTimeout(timer); request.abort(); };
+  });
+  const averageChannel = $derived(average?.channels.find(row => row.id === input?.channel));
+  const changedBand = $derived(averageChannel ? comparisonBand(averageChannel) : null);
+  const shown = $derived(selected === null ? average : measurement);
+  const spectrum = $derived(shown?.channels.find(row => row.id === input?.channel));
+  const domain = $derived(shown ? changedBand ? aroundBand(changedBand, shown.samplingRate / 2) : {from: 0, to: shown.samplingRate / 2} : null);
+  const series = $derived.by(() => {
+    if (!spectrum) return [];
+    const reference = Math.max(...spectrum.a, ...spectrum.b);
+    return [
+      {label: "초기 평균", values: relativePower(spectrum.a, reference)},
+      {label: selected === null ? "특이사항 구간 평균" : selected + "번째 측정", values: relativePower(spectrum.b, reference), comparison: true},
+    ];
   });
   const label = (row: typeof rows[number]) => row.label;
 </script>
@@ -30,18 +70,47 @@
       <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><i aria-hidden="true">→</i><strong>{measure(row.current,row.unit,3)}</strong></dd>
     </div>{/each}</dl>
   {:else}<p>함께 비교할 신호가 이 기록에 없습니다.</p>{/if}
-  {#if focus.kind==="vibration" && active}<div class="operation">
-    <h3>주파수에서 달라진 성분</h3>
-    {#if spectrum && changedBand}<p>{Math.round(changedBand.from).toLocaleString()}–{Math.round(changedBand.to).toLocaleString()} Hz 비중</p>
-      <div class="values"><span>{(changedBand.a*100).toFixed(1)}%</span><strong>{(changedBand.b*100).toFixed(1)}%</strong></div>
-      <div class="bars" aria-hidden="true"><i style:width={changedBand.a*100+"%"}></i><i style:width={changedBand.b*100+"%"}></i></div>
-      {#if spectrum.ratio!==null}<p>전체 진동 에너지 · 초기의 <strong>{spectrum.ratio.toLocaleString("ko-KR",{maximumSignificantDigits:3})}배</strong></p>{/if}
-    {:else}<p>{spectralState==="loading"?"같은 구간의 원본 파형을 비교하고 있습니다.":"이 구간의 원본 파형을 읽지 못했습니다."}</p>{/if}
-  </div>{/if}
+  {#if focus.kind === "vibration" && input}
+    <section class="spectrum-preview" aria-label="선택한 진동의 주파수">
+      <header>
+        <h3>{selected === null ? "초기와 달라진 주파수" : selected + "번째 측정의 주파수"}</h3>
+        {#if selected !== null && onClear}<button type="button" onclick={onClear}>구간 평균 보기</button>{/if}
+      </header>
+      {#if shown && domain && series.length}
+        <FrequencyPlot frequencies={shown.frequencies} {series} {domain} band={changedBand} height={110}
+          label={"초기 평균과 " + series[1].label + "의 주파수 비교"}/>
+        {#if selected === null && changedBand}
+          <p class="band-share">강조 대역의 에너지 비중 <strong>{measure(changedBand.a * 100, "%", 3)} → {measure(changedBand.b * 100, "%", 3)}</strong></p>
+        {/if}
+        <p class="spectrum-key"><span><i></i>{series[0].label}</span><span><i class="comparison"></i>{series[1].label}</span></p>
+      {:else}
+        <div class="spectrum-status" role="status" aria-busy={!(selected === null ? averageFailed || !!average : measurementFailed || !!measurement)}>
+          {selected === null
+            ? averageFailed || average ? "이 구간의 주파수를 표시할 수 없습니다." : "두 구간의 주파수를 비교하고 있습니다."
+            : measurementFailed || measurement ? "선택한 측정의 주파수를 표시할 수 없습니다." : "선택한 측정의 주파수를 불러오고 있습니다."}
+        </div>
+      {/if}
+    </section>
+  {/if}
 </aside>
 <style>
-  .context{min-width:0;display:grid;align-content:start;gap:8px}h3{margin:0;font-size:var(--font-small)}p{margin:0;color:var(--color-ink-muted);font-size:var(--font-small);line-height:1.5}.condition{font-size:var(--font-label)}.values{display:flex;justify-content:space-between;gap:8px}
-  dl{display:grid;gap:6px;margin:0}.fact{display:flex;align-items:baseline;justify-content:space-between;gap:8px}dt{font-size:var(--font-small)}dd{display:flex;align-items:baseline;gap:6px;margin:0;font-size:var(--font-small);font-variant-numeric:tabular-nums;white-space:nowrap}dd>span,dd>i{color:var(--color-ink-muted);font-style:normal}
-  .values{margin:0;font-size:var(--font-body);font-variant-numeric:tabular-nums}.values>span{color:var(--color-ink-muted)}.bars{display:grid;gap:3px}.bars i{display:block;height:5px;border-radius:2px;background:var(--color-ink-muted)}.bars i+i{background:var(--color-series-1)}
-  .operation{display:grid;gap:6px;border-top:1px solid var(--color-border);padding-top:10px;margin-top:4px}.operation p{font-size:var(--font-label)}
+  .context { min-width:0; display:grid; align-content:start; gap:8px; }
+  h3 { margin:0; font-size:var(--font-small); }
+  p { margin:0; color:var(--color-ink-muted); font-size:var(--font-small); }
+  .condition { font-size:var(--font-label); }
+  dl { display:grid; gap:6px; margin:0; }
+  .fact { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  dt { font-size:var(--font-small); }
+  dd { display:flex; align-items:baseline; gap:6px; margin:0; font-size:var(--font-small); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  dd > span,dd > i { color:var(--color-ink-muted); font-style:normal; }
+  .spectrum-preview { display:grid; gap:7px; border-top:1px solid var(--color-border); padding-top:10px; --frequency-gutter:28px; }
+  .spectrum-preview header { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:4px 8px; }
+  .spectrum-preview button { border:0; background:none; padding:0; font:inherit; font-size:var(--font-label); color:var(--color-action); cursor:pointer; }
+  .spectrum-preview button:hover { text-decoration:underline; }
+  .band-share { font-size:var(--font-label); }
+  .spectrum-key { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:var(--font-label); }
+  .spectrum-key span { display:inline-flex; align-items:center; gap:5px; }
+  .spectrum-key i { width:12px; border-top:2px solid var(--color-ink-muted); }
+  .spectrum-key i.comparison { border-top:2px dashed var(--color-action); }
+  .spectrum-status { display:grid; place-items:center; min-height:155px; color:var(--color-ink-muted); font-size:var(--font-label); }
 </style>
