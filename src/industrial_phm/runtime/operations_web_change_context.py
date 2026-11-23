@@ -259,11 +259,10 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
     )[:3]
     profiles = acquisition_series(store, snapshots, binding, features, spans)
     facts = {
-        "subject": f"{change['label']}의 주요 변화로 고른 구간은 "
+        "subject": f"{change['label']}의 특이사항 구간은 "
         f"{change['from']}~{change['to']}번째 측정입니다. "
-        f"비교 기준은 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정이며 "
-        "정상 구간으로 판정한 것은 아닙니다.",
-        "scope": "저장된 과거 측정의 변화입니다. 이 기록 이후 실제 설비 상태는 알 수 없습니다.",
+        f"초기는 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정입니다.",
+        "scope": "저장된 과거 측정끼리의 비교입니다.",
         "conditions": "실제 부하·회전수의 시간별 변화나 정비 이력은 "
         "이 분석에 포함되어 있지 않습니다.",
     }
@@ -393,10 +392,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             if row["feature"].rsplit(".", 1)[-1] in _MEANING
         ]
         if meanings:
-            facts["meaning"] = (
-                "특징의 일반적인 뜻: " + ", ".join(meanings) + "를 나타냅니다. "
-                "이 설비에서 무엇이 원인인지는 이 뜻만으로 알 수 없습니다."
-            )
+            facts["meaning"] = "특징의 일반적인 뜻: " + ", ".join(meanings) + "를 나타냅니다."
     actions = ["compare", "model"]
     try:
         spectrum = acquisition_spectrum(snapshots, binding, spans)
@@ -544,7 +540,7 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
                 else ""
             )
         ),
-        "scope": "과거 실측 기록의 비교입니다. 그 이후 실제 설비 상태는 알 수 없습니다.",
+        "scope": "과거 실측 기록끼리의 비교입니다.",
         # 모르는 것은 실제로 없는 것만: 부하(전류)는 아래 load·operating_*로 넘긴다.
         "conditions": (
             "같은 출처·측정 위치·단위의 자료를 비교했습니다. 정비 기록은 이 자료에 없습니다."
@@ -573,7 +569,14 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     # 관련 신호도 고른 신호와 같은 운전 수준의 측정끼리 비교한 값이다.
     among = f"{current} 중인 측정끼리, " if current else ""
     facts["feature_0"] = among + facts["feature_0"]
-    for index, related in enumerate(change.get("related", [])):
+    related_rows = [
+        row
+        for row in change.get("related", [])
+        # 운전 수준을 나눈 값과 같은 단위(전류)는 그 수준 안에서 견주면 거의 그대로다.
+        # 전류가 어떻게 바뀌었는지는 load가 말한다.
+        if not (current and operation and row["unit"] == operation.get("unit"))
+    ]
+    for index, related in enumerate(related_rows):
         facts[f"related_{index}"] = (
             f"{among}같은 기간에 {related['label']}: {number(related['reference'])} → "
             f"{number(related['current'])} {related['unit'] or ''}. "

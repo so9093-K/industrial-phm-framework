@@ -73,8 +73,10 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # Korean time, as the chart reads: 00:19 UTC is 09:19, and 22:31 UTC is the next morning.
     assert "2020년 10월 4일 09:19부터 10월 5일 07:31까지" in facts["subject"]
     # Values compared at one operating level say so; English states do not reach the model.
-    assert facts["related_1"].startswith("약 11 A 운전 중인 측정끼리, ")
-    assert "within" not in facts["related_1"] and "비교 범위 안" in facts["related_1"]
+    assert facts["related_0"].startswith("약 11 A 운전 중인 측정끼리, ")
+    assert "higher" not in facts["related_0"] and "비교 범위보다 높음" in facts["related_0"]
+    # Current within a current-defined level says nothing new; the load says how current moved.
+    assert "related_1" not in facts and "R상전류" not in str(facts)
     # Whether the load changed is the level mix of the two periods.
     assert facts["operating_share"] == (
         "운전 수준별 측정 비중(초기 → 특이사항 구간): 약 11 A 운전 15% → 44%, "
@@ -93,16 +95,9 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
     # Only what is really missing is said to be missing; the load is not.
     assert facts["conditions"].endswith("정비 기록은 이 자료에 없습니다.")
     assert "부하" not in facts["conditions"]
-    # A related phase that is itself a drawn change points at that change; current does not.
+    # A related phase that is itself a drawn change points at that change.
     assert targets["related_0"]["review_key"] == s["review_key"]
     assert targets["related_0"]["where"] == "10월 4일 09:19~17:19"
-    assert targets["related_1"] == {
-        "kind": "signal",
-        "label": "R상전류",
-        "before": 10.7,
-        "after": 12.7,
-        "unit": "A",
-    }
     assert targets["episode_1"]["review_key"] == t["review_key"]
     assert targets["operating_share"]["levels"] == [
         "정지",
@@ -118,7 +113,6 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
         ("약 11 A 운전 비중", "15% → 44%"),
         ("같은 운전 수준끼리 비교", "약 11 A 운전"),
         ("S상전압", "222 → 225 V"),
-        ("R상전류", "10.7 → 12.7 A"),
         ("같은 시기 변화", "S상전압·T상전압"),
     ]
     assert all(row["fact"] in facts for row in out["steps"])
