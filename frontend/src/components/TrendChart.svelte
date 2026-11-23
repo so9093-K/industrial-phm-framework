@@ -11,9 +11,11 @@
    * 처음 수준은 회색 점선으로 표시한다. 오른쪽 끝은 마지막 측정(모니터링 중이면 모니터링 시점)이다.
    * 포인터를 올린 자리(cursor)는 부모가 값 줄에 읽어 쓴다. 공유 가로축을 위에 따로 그릴 때는 axis=false.
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
-   * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
+   * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다.
+   * ending은 끝까지 잰 시험 기록의 결말: 그 측정까지 그려졌을 때만 검은 세로선을 긋는다(이름은 부모의 범례에).
+   * 글자를 그래프 안에 두면 끝 직전의 추이(특이사항이 시작되는 곳)를 가린다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
+    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, ending = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
@@ -21,7 +23,7 @@
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
     /** 옅게 그릴 계열(그 변화 구간도 옅게): 다른 곳에서 가리킨 계열만 또렷하게 남긴다. */
-    dim?: string[]; endLabel?: boolean} = $props();
+    dim?: string[]; endLabel?: boolean; ending?: {at: number; label: string} | null} = $props();
   const W = 1000;
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
@@ -58,6 +60,7 @@
   // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
   const end = $derived(Math.max(...series.map(row => row.points.at(-1)?.x ?? lo)));
   const pct = (n: number) => Math.max(0, Math.min(100, x(n) / W * 100));
+  const ended = $derived(ending && end >= ending.at && ending.at >= lo && ending.at <= lo + span ? ending : null);
 </script>
 
 {#if values.length}
@@ -65,7 +68,7 @@
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={leave}>
       <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => { picked = value; onPick?.(value); }}>
         <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
-          aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 특이사항 " + shown.length + "곳" : "")}>
+          aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 특이사항 " + shown.length + "곳" : "") + (ended ? " · " + ended.label : "")}>
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
           {#each shown as change (change.key + change.from)}
             {@const start = Math.max(0, x(change.from))}
@@ -81,6 +84,7 @@
           <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
           {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
           {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" class:faint={dim.includes(change.key)} x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
+          {#if ended}<line class="ending" x1={Math.min(W - 1, x(ended.at))} x2={Math.min(W - 1, x(ended.at))} y1="0" y2={height}/>{/if}
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
       </PlotCursor>
@@ -118,6 +122,7 @@
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
   .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:11px;font-weight:650;pointer-events:none}
   .end-label.at-start{transform:translate(8px,-100%)}
+  .ending{stroke:var(--color-ink);stroke-width:1.5}
   .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}
   @keyframes pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.8);opacity:0}}
   @media (prefers-reduced-motion:reduce){.dot.live::after{animation:none}}

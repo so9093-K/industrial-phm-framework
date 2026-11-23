@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_change_context import (
@@ -144,3 +146,23 @@ def test_bearing_future_does_not_enter_changes_or_forecast_training(tmp_path: Pa
         )
         == training
     )
+
+
+def test_a_sampled_bearing_record_ends_its_changes_at_the_last_measurement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A long record is read sampled; a change running to the end still ends at the last one."""
+    from industrial_phm.runtime import operations_web_vibration
+
+    monkeypatch.setattr(operations_web_vibration, "_POINTS", 20)  # 39 measurements: 1, 3, …, 39
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 40):
+        deliver(
+            workspace, tmp_path / "waves", ordinal, 0.5 if ordinal < 25 else 2.0, amplitude_unit="g"
+        )
+    analyze(workspace)
+    found = acquisition_findings(workspace, "bearing-a")
+    assert found["last"] == 39 and found["intervals"]
+    assert max(row["to"] for row in found["intervals"]) == 39
+    # Sampled every 2nd measurement, the trace is still one line, not 20 separate dots.
+    assert all(all(row["trace_join"][1:]) for row in found["intervals"])

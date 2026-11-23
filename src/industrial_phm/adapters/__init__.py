@@ -30,6 +30,7 @@ from industrial_phm.adapters.mimii import (
 )
 from industrial_phm.adapters.xjtu import (
     XJTU_SY_CHANNELS,
+    XJTU_SY_FAULT_ELEMENTS,
     XjtuAcquisitionFile,
     XjtuSyAdapter,
     XjtuSySourceError,
@@ -43,6 +44,7 @@ __all__ = [
     "MIMII_DUE_CHANNELS",
     "MIMII_EVALUATION_TEST_SECTIONS",
     "XJTU_SY_CHANNELS",
+    "XJTU_SY_FAULT_ELEMENTS",
     "CsvSensorAdapter",
     "CsvSensorLayout",
     "CsvSensorSourceError",

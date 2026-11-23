@@ -15,8 +15,10 @@
   /** 고른 변화를 관제 화면과 같은 그래프 규칙으로 크게 본다. 같은 시기에 함께 변한 신호 중 단위가 같은 것은
    * 한 그래프에 겹치고(R·S·T상은 관제 화면과 같은 색), 단위가 다른 것은 같은 시간축의 작은 그래프로 아래에 둔다.
    * 처음 범위(변화로 판단하지 않는 범위)·처음 수준·같은 운전 수준의 값은 고른 신호에만 그린다. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,ending=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
+    /** 끝까지 잰 시험 기록의 결말: 첫 그래프의 마지막 측정에 세로선과 이름. */
+    ending?:{at:number;label:string}|null;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
     load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<LoadPoint[]>}|null;
@@ -132,6 +134,7 @@
     <ul class="legend" aria-label="그래프 읽는 법">
       <li><i class="band-key"></i>초기 범위</li><li><i class="dash"></i>초기 수준</li><li><i class="change-key"></i>특이사항</li>
       {#if focused.condition && focused.matched?.length}<li><i class="dot" style:background={SERIES_COLORS[0]}></i>{focused.condition} 중의 값</li>{/if}
+      {#if ending && record.to >= ending.at && range.to >= ending.at}<li><i class="ending-key"></i>{ending.label}</li>{/if}
     </ul>
   </div>
   <div class="reading-layout"><div class="plots">
@@ -142,7 +145,7 @@
       </div>
       <TrendChart group={chart.group} series={chart.group.series} {lo} {hi} changes={chart.changes} axis={false}
         reference={chart.main===focused?focused.values?.before??null:null} band={chart.main===focused?focused.usual:null}
-        marks={chart.main===focused?(focused.matched??[]):[]} height={index===0?(charts.length>2?190:240):76}
+        marks={chart.main===focused?(focused.matched??[]):[]} height={index===0?(charts.length>2?190:240):76} ending={index===0?ending:null}
         dim={emphasis?chart.group.series.filter(row=>!emphasis.lanes.includes(row.key)).map(row=>row.key):[]}
         guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
     {/each}
@@ -198,7 +201,7 @@
   .signal-choice{display:grid;gap:4px;font-size:var(--font-label);min-width:220px}.signal-choice select{padding:7px}.numbers{margin:0;font-size:var(--font-section);font-weight:650}
   .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-3)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}button{cursor:pointer;font:inherit}.choices button{padding:5px 10px;font-size:var(--font-label);border:0;background:var(--color-surface);color:var(--color-ink)}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0 0 0 auto;padding:0;list-style:none;font-size:var(--font-label);color:var(--color-ink-muted)}.legend li{display:flex;align-items:center;gap:6px}
-  .band-key{display:inline-block;width:14px;height:10px;background:var(--color-reference-line);opacity:.2}.dash{display:inline-block;width:18px;border-top:1.5px dashed var(--color-reference-line)}.change-key{display:inline-block;width:14px;height:12px;background:var(--color-change-fill);border-left:1.5px solid var(--color-change-line)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;opacity:.6}
+  .band-key{display:inline-block;width:14px;height:10px;background:var(--color-reference-line);opacity:.2}.dash{display:inline-block;width:18px;border-top:1.5px dashed var(--color-reference-line)}.change-key{display:inline-block;width:14px;height:12px;background:var(--color-change-fill);border-left:1.5px solid var(--color-change-line)}.ending-key{display:inline-block;width:0;height:12px;border-left:1.5px solid var(--color-ink)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;opacity:.6}
   .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}.plots{min-width:0;display:grid;gap:4px}
   /* 그래프·운전 수준·가로축의 왼쪽 눈금 칸을 같은 폭으로 맞춘다. */
   .plots :global(.plotted){grid-template-columns:56px minmax(0,1fr)}.strip{display:grid;grid-template-columns:56px minmax(0,1fr);gap:var(--space-2)}.strip svg{display:block;width:100%;height:20px}.level{fill:var(--color-ink)}.level.stop{fill:none}

@@ -24,7 +24,7 @@
   import ElectricalCondition from "./ElectricalCondition.svelte";
   import ProjectionExplorer from "./ProjectionExplorer.svelte";
   import AcquisitionOutlook from "./AcquisitionOutlook.svelte";
-  import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
+  import {readPublicDatasets, runEnding, unfinishedImports, type RunEnding, type UnfinishedImport} from "../public-datasets";
   import {systemUrl} from "../routes";
 
   type Props = {
@@ -41,11 +41,18 @@
   let capabilityState: "loading" | "ready" | "failed" = $state("loading");
   // Every analysis of an asset whose import has not finished reads only what was stored so far.
   let unfinished: UnfinishedImport | null = $state(null);
+  // 끝까지 잰 시험 기록이면 그 결말(마지막 측정과 확인된 손상).
+  let ending: RunEnding | null = $state(null);
   $effect(() => {
     const id = asset.assetId, request = new AbortController();
     unfinished = null;
+    ending = null;
     void readPublicDatasets(request.signal)
-      .then((datasets) => { if (id === asset.assetId) unfinished = unfinishedImports(datasets).get(id) ?? null; })
+      .then((datasets) => {
+        if (id !== asset.assetId) return;
+        unfinished = unfinishedImports(datasets).get(id) ?? null;
+        ending = runEnding(datasets.items.find(item => item.kind === "xjtu-sy" && item.assetId === id));
+      })
       .catch(() => {});
     return () => request.abort();
   });
@@ -165,7 +172,7 @@
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
   {#if !analysisOpen}
-    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} bind:selectedAt />
+    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} {ending} bind:selectedAt />
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">

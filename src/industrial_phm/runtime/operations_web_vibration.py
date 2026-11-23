@@ -76,17 +76,19 @@ def acquisition_findings(
     binding = acquisition_binding(store, asset_id)
     if binding is None:
         return body
-    results, _ = store.analyzed_between(
+    results, count = store.analyzed_between(
         binding.binding_id, 0, until if until is not None else 2**62, max_points=_POINTS
     )
+    # 긴 기록은 이 간격으로 솎아 읽는다: 간격 안에서 떨어진 두 점은 끊긴 측정이 아니다.
+    sampled = max(1, -(-count // _POINTS))
     if not results:
         return body
     period = acquisition_period(workspace, asset_id, binding.source_id)
     step = period if period and period > 0 else 1.0
     positions = [result.position for result in results]
     # A sampled record keeps every acquisition between two kept ones with the earlier.
+    # The last kept result is always the record's last acquisition, so it stands for itself.
     following = dict(pairwise(positions))
-    stride = min((b - a for a, b in pairwise(positions)), default=1)
 
     def at(position: float) -> datetime:
         return _ORIGIN + timedelta(seconds=(position - 1) * step)
@@ -101,7 +103,7 @@ def acquisition_findings(
         for result in results:
             value = (result.features or {}).get(name)
             if isinstance(value, (int, float)) and math.isfinite(float(value)):
-                end = following.get(result.position, result.position + stride)
+                end = following.get(result.position, result.position + 1)
                 points.append((at(result.position), at(end), float(value)))
         if points:
             series[name] = points
@@ -189,7 +191,7 @@ def acquisition_findings(
                 "trace_join": [
                     index > 0
                     and all(
-                        number(values[j][0]) == number(values[j - 1][0]) + 1
+                        number(values[j][0]) - number(values[j - 1][0]) <= sampled
                         for j in range(indices[index - 1] + 1, kept + 1)
                     )
                     for index, kept in enumerate(indices)

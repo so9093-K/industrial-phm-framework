@@ -91,3 +91,13 @@ def test_xjtu_source_profile_exposes_one_acquisition_count_source_of_truth() -> 
 
     with pytest.raises(XjtuSySourceError, match="unknown XJTU-SY bearing run"):
         get_xjtu_expected_acquisition_count("Bearing4_1")
+
+
+def test_every_documented_run_says_which_part_failed() -> None:
+    """The screen marks how each run ended; the table must cover every run the adapter accepts."""
+    from industrial_phm.adapters import XJTU_SY_FAULT_ELEMENTS
+    from industrial_phm.adapters.xjtu import _EXPECTED_RUN_ACQUISITIONS
+
+    assert sorted(XJTU_SY_FAULT_ELEMENTS) == sorted(name for _, name in _EXPECTED_RUN_ACQUISITIONS)
+    assert XJTU_SY_FAULT_ELEMENTS["Bearing1_1"] == "외륜"
+    assert XJTU_SY_FAULT_ELEMENTS["Bearing2_1"] == "내륜"
