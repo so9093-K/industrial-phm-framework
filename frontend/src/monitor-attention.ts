@@ -236,7 +236,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
     const change=item.kind==="level-change"?"일정하던 값이 달라짐":item.direction==="down"?"기준 범위보다 낮아짐":item.direction==="up"?"기준 범위보다 높아짐":"기준 범위 밖의 값";
     add(item.assetId,{id:"departure:"+item.channel,kind:"departure",label:(item.label??item.channel)+" · "+change,
       detail:range+" · 변화 시작 "+since,departure:item,
-      href:departureSignalHref(item),action:item.lastAt&&Date.parse(item.lastAt)-Date.parse(item.since)>MAX_SPAN_MS?"변화 시작 구간 조사하기":"변화 구간 조사하기"});
+      href:departureSignalHref(item),action:item.lastAt&&Date.parse(item.lastAt)-Date.parse(item.since)>MAX_SPAN_MS?"특이사항 시작 조사하기":"특이사항 조사하기"});
   }
   for(const source of sources??[]){
     // A collection someone asked to run that has not received recently; paused or stopped is expected.
@@ -277,7 +277,7 @@ export async function readDepartureStatus(signal:AbortSignal,assetId?:string):Pr
   const response=await fetch("/api/v1/explore/attention"+query,{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){
     await response.body?.cancel().catch(()=>{});
-    throw new Error("변화 구간을 확인하지 못했습니다.");
+    throw new Error("특이사항 구간을 확인하지 못했습니다.");
   }
   const raw = await response.json() as unknown;
   const items = parseDepartures(raw), root = object(raw)!;

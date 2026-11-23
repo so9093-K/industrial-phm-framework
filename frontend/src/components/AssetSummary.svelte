@@ -397,7 +397,7 @@
     {#each cumulative as row (row.context?.key ?? row.channel)}<li><strong>{row.label}</strong> ·
       {row.first == null ? "처음 값 미확인" : changeValue(row.first, null)} → {row.last == null ? "마지막 값 미확인" : changeValue(row.last, row.unit)}</li>{/each}
   </ul>
-  <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 기준 기간 대비 변화 구간에서는 제외합니다.</p></details>
+  <details class="context small"><summary>누적 기록의 분석 방식</summary><p>누적값은 처음 값과 마지막 값을 표시하며, 초기와 견주는 특이사항 판단에서는 제외합니다.</p></details>
 {/snippet}
 
 {#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} selected={selectedAt} onClear={() => selectedAt = null}/>{/if}{/snippet}
@@ -515,10 +515,9 @@
 
 <style>
   .monitor{min-width:0;display:grid;gap:var(--space-3)}
-  .investigation-actions :global(.decision){border-left:1px solid var(--color-border);padding-left:var(--space-4)}
-  .investigation-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-5);padding-block:var(--space-2);border-bottom:1px solid var(--color-border)}
-  /* 화면 이동과 창 열기를 같은 크기의 버튼으로: 모양은 주요 동작(채움)과 나머지(테두리) 두 가지뿐이다. */
-  .investigation-actions :global(.ui-button){min-height:0;padding:7px 14px;font-size:var(--font-small);font-weight:650}
+  /* 오른쪽 칸 아래: 더 볼 분석(같은 모양의 줄) 다음에 판단(폭을 채운 주요 동작 하나). */
+  .investigation-actions{display:grid;gap:var(--space-3)}
+  .investigation-actions :global(.ui-button){min-height:40px;padding:8px 14px;font-size:var(--font-small);font-weight:650}
   .facts-panel { min-width: 0; display: grid; gap: var(--space-2); align-content: start; padding:var(--space-4); }
 
 

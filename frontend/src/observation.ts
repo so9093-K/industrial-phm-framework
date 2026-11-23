@@ -31,9 +31,9 @@ export function parseObservation(raw:unknown,assetId:string,stream:HistoryStream
       ||typeof row.interpretation_id!=="string"||typeof row.state!=="string"||!Array.isArray(row.intervals))throw Error("비교 기준의 측정이 일치하지 않습니다.");
     return {interpretationId:row.interpretation_id,unit:typeof row.unit==="string"?row.unit:null,state:row.state,
       median:row.median===null?null:finite(row.median),intervals:row.intervals.map((raw:unknown)=>{
-        const interval=object(raw);if(!interval||(interval.direction!=="up"&&interval.direction!=="down"))throw Error("변화 구간을 확인하지 못했습니다.");
+        const interval=object(raw);if(!interval||(interval.direction!=="up"&&interval.direction!=="down"))throw Error("특이사항 구간을 확인하지 못했습니다.");
         const from=Date.parse(instant(interval.from)),to=Date.parse(instant(interval.to));
-        if(from>=to||from<Date.parse(period.to)||from<Date.parse(trend.startAt)||to>Date.parse(trend.endAt))throw Error("관측 밖의 변화 구간입니다.");
+        if(from>=to||from<Date.parse(period.to)||from<Date.parse(trend.startAt)||to>Date.parse(trend.endAt))throw Error("관측 밖의 특이사항 구간입니다.");
         return {from,to,value:finite(interval.value),up:interval.direction==="up"};
       })};
   })}};

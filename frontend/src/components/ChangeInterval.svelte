@@ -24,7 +24,7 @@
   const path=$derived(values.map((row,i)=>(joins(i)?"L":"M")+x(row.at).toFixed(2)+","+y(row.value).toFixed(2)).join(" "));
   const clock=(at:string)=>new Date(at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
 </script>
-<figure aria-label={"변화 전후의 구간별 평균과 변화 구간. 변화 시작 "+clock(finding.start)+", 종료 "+clock(finding.end)}>
+<figure aria-label={"특이사항 전후의 구간별 평균과 특이사항 구간. 시작 "+clock(finding.start)+", 종료 "+clock(finding.end)}>
   <ValueAxis {ticks} {height} unit={finding.unit}>
   <div class="plot">
   <svg viewBox={"0 0 600 "+height} style:height={height+"px"} preserveAspectRatio="none" role="img" aria-label="구간별 평균 추이 · 측정 공백은 연결하지 않음 · 음영은 특이사항 구간">

@@ -23,11 +23,13 @@
   </details>
 {/snippet}
 <div class="decision" aria-label="이 특이사항으로 이어서 할 일">
-  <button type="button" class="ui-button" onclick={() => {onInvestigate?.();reviewOpen = true;}}>판단·메모 남기기</button>
+  <button type="button" class="ui-button ui-button-primary" onclick={() => {onInvestigate?.();reviewOpen = true;}}>판단·메모 남기기</button>
   <TaskDialog title="이 특이사항의 판단·메모" bind:open={reviewOpen}>{@render review()}</TaskDialog>
 </div>
 
 <style>
-  .decision { display: flex; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+  /* 이 화면에서 마지막에 할 일: 폭을 채운 주요 동작 하나. */
+  .decision { display: grid; min-width: 0; }
+  .decision > .ui-button { width: 100%; justify-content: center; }
   .archive summary { cursor: pointer; font-weight: 650; color: var(--color-action); }
 </style>
