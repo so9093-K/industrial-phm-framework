@@ -24,7 +24,7 @@
   import ElectricalCondition from "./ElectricalCondition.svelte";
   import ProjectionExplorer from "./ProjectionExplorer.svelte";
   import AcquisitionOutlook from "./AcquisitionOutlook.svelte";
-  import {readPublicDatasets, runEnding, unfinishedImports, type RunEnding, type UnfinishedImport} from "../public-datasets";
+  import {readPublicDatasets, unfinishedImports, type UnfinishedImport} from "../public-datasets";
   import {systemUrl} from "../routes";
 
   type Props = {
@@ -41,18 +41,11 @@
   let capabilityState: "loading" | "ready" | "failed" = $state("loading");
   // Every analysis of an asset whose import has not finished reads only what was stored so far.
   let unfinished: UnfinishedImport | null = $state(null);
-  // 끝까지 잰 시험 기록이면 그 결말(마지막 측정과 확인된 손상).
-  let ending: RunEnding | null = $state(null);
   $effect(() => {
     const id = asset.assetId, request = new AbortController();
     unfinished = null;
-    ending = null;
     void readPublicDatasets(request.signal)
-      .then((datasets) => {
-        if (id !== asset.assetId) return;
-        unfinished = unfinishedImports(datasets).get(id) ?? null;
-        ending = runEnding(datasets.items.find(item => item.kind === "xjtu-sy" && item.assetId === id));
-      })
+      .then((datasets) => { if (id === asset.assetId) unfinished = unfinishedImports(datasets).get(id) ?? null; })
       .catch(() => {});
     return () => request.abort();
   });
@@ -172,12 +165,12 @@
     <a href={systemUrl("connections")}>{unfinished.running ? "진행 상황 보기" : "다시 가져오기"} →</a></p>{/if}
 
   {#if !analysisOpen}
-    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} {ending} bind:selectedAt />
+    <ObservationWorkspace {asset} {data} {dataState} {observed} {sources} {sourceState} {cycle} bind:selectedAt />
   {:else}
   <section class="analysis-view" aria-labelledby="analysis-view-title" tabindex="-1" bind:this={analysisView}>
     <header class="analysis-view-head">
       <!-- 설비 이름은 바로 위 줄에 있다. 여기서는 조사 화면으로 돌아가는 길과 고른 변화만. -->
-      <div class="selection-context"><span class="record-type">{asset.flow==="stored-history"?"과거 저장 기록":"최근 측정"}</span>
+      <div class="selection-context">
         {#key route.tab+":"+method+":"+kind}<InvestigationContext search={location.search}/>{/key}</div>
       <h2 id="analysis-view-title" class="visually-hidden">{analysisTitle}</h2>
       {#if dataState === "ready" && kind && kindsOf(data).length>1 && (!needsCapability || capabilityState === "ready") && !chooseKind}
@@ -270,7 +263,6 @@
 </div>
 
 <style>
-  .record-type{font-size:var(--font-label);color:var(--color-ink-muted)}
   .analysis-view{min-width:0;display:grid;gap:var(--space-3);align-content:start;outline:none}
   .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--space-3);padding:0;background:transparent}
   .analysis-view-head h2{margin:0;font-size:var(--font-section)}
