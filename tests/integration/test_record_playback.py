@@ -190,3 +190,17 @@ def test_only_a_clear_change_in_vibration_level_is_raised(tmp_path: Path) -> Non
     related = [row["feature"].rsplit(".", 1)[-1] for row in changes[0]["related"]]
     assert "absolute_peak" in related
     assert not {"mean", "skewness"} & set(related)
+
+
+def test_a_change_that_speeds_up_rises_more_in_its_second_half(tmp_path: Path) -> None:
+    """The halves are read from the measurements themselves, so a quickening rise shows as one."""
+    workspace = phm_workspace(tmp_path / "ws")
+    for ordinal in range(1, 41):
+        step = max(0, ordinal - 20)
+        deliver(workspace, tmp_path / "waves", ordinal, 0.5 + 0.01 * step**2, amplitude_unit="g")
+    analyze(workspace)
+    change = acquisition_findings(workspace, "bearing-a")["intervals"][0]
+    first, second = change["halves"]
+    assert first["from"] == change["from"] and second["to"] == change["to"] == 40
+    assert first["to"] == second["from"]
+    assert 0 < first["change"] < second["change"]

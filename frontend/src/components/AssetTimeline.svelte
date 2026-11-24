@@ -39,7 +39,8 @@
   // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다(관제 카드와 같은 값).
   const now=$derived(axis==="acquisition"&&ongoing&&focused?.values?.latest&&focused.values.before!==null?focused.values.latest.value:null);
   $effect(() => {
-    zoomed = startsZoomed(record, episode) || (axis === "time" && episode.to - episode.from < (record.to - record.from) / 4);
+    // 특이사항이 기록의 1/4보다 짧으면 확대해서 연다(진동 측정도 시간 기록과 같다). 전체 보기에서는 커지는 모양이 읽히지 않는다.
+    zoomed = startsZoomed(record, episode) || episode.to - episode.from < (record.to - record.from) / 4;
     centeredAt = null;
   });
   const window = $derived(focusWindow(record, episode));
@@ -133,6 +134,7 @@
     {#if episodes.length>1}<div class="choices" role="group" aria-label="변화 시기">{#each episodes as item,i(i)}<button type="button" aria-pressed={item.selected} onclick={item.onPick}>{item.label}</button>{/each}</div>{/if}
     <ul class="legend" aria-label="그래프 읽는 법">
       <li><i class="band-key"></i>초기 범위</li><li><i class="dash"></i>초기 수준</li><li><i class="change-key"></i>특이사항</li>
+      {#if focused.halves}<li><i class="half-key"></i>특이사항 앞·뒤 절반에 움직인 값</li>{/if}
       {#if focused.condition && focused.matched?.length}<li><i class="dot" style:background={SERIES_COLORS[0]}></i>{focused.condition} 중의 값</li>{/if}
     </ul>
   </div>
@@ -145,6 +147,7 @@
       <TrendChart group={chart.group} series={chart.group.series} {lo} {hi} changes={chart.changes} axis={false}
         reference={chart.main===focused?focused.values?.before??null:null} band={chart.main===focused?focused.usual:null}
         marks={chart.main===focused?(focused.matched??[]):[]} height={index===0?(charts.length>2?190:240):76}
+        halves={index===0&&chart.main===focused?focused.halves??null:null}
         dim={emphasis?chart.group.series.filter(row=>!emphasis.lanes.includes(row.key)).map(row=>row.key):[]}
         guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
     {/each}
@@ -200,7 +203,7 @@
   .signal-choice{display:grid;gap:4px;font-size:var(--font-label);min-width:220px}.signal-choice select{padding:7px}.numbers{margin:0;font-size:var(--font-section);font-weight:650}
   .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-3)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}button{cursor:pointer;font:inherit}.choices button{padding:5px 10px;font-size:var(--font-label);border:0;background:var(--color-surface);color:var(--color-ink)}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0 0 0 auto;padding:0;list-style:none;font-size:var(--font-label);color:var(--color-ink-muted)}.legend li{display:flex;align-items:center;gap:6px}
-  .band-key{display:inline-block;width:14px;height:10px;background:var(--color-reference-line);opacity:.2}.dash{display:inline-block;width:18px;border-top:1.5px dashed var(--color-reference-line)}.change-key{display:inline-block;width:14px;height:12px;background:var(--color-change-fill);border-left:1.5px solid var(--color-change-line)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;opacity:.6}
+  .band-key{display:inline-block;width:14px;height:10px;background:var(--color-reference-line);opacity:.2}.dash{display:inline-block;width:18px;border-top:1.5px dashed var(--color-reference-line)}.change-key{display:inline-block;width:14px;height:12px;background:var(--color-change-fill);border-left:1.5px solid var(--color-change-line)}.half-key{display:inline-block;width:0;height:12px;border-left:1.5px dotted var(--color-change-line)}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;opacity:.6}
   .reading-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start}.plots{min-width:0;display:grid;gap:4px}
   /* 그래프·운전 수준·가로축의 왼쪽 눈금 칸을 같은 폭으로 맞춘다. */
   .plots :global(.plotted){grid-template-columns:56px minmax(0,1fr)}.strip{display:grid;grid-template-columns:56px minmax(0,1fr);gap:var(--space-2)}.strip svg{display:block;width:100%;height:20px}.level{fill:var(--color-ink)}.level.stop{fill:none}

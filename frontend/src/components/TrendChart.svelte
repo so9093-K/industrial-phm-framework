@@ -13,7 +13,7 @@
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
    * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
+    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
@@ -21,7 +21,9 @@
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
     /** 옅게 그릴 계열(그 변화 구간도 옅게): 다른 곳에서 가리킨 계열만 또렷하게 남긴다. */
-    dim?: string[]; endLabel?: boolean} = $props();
+    dim?: string[]; endLabel?: boolean;
+    /** 변화 구간 앞 절반·뒤 절반에 움직인 양. 가운데 점선과 각 절반 위의 값으로 빨라지는지 보인다. */
+    halves?: {from: number; to: number; change: number}[] | null} = $props();
   const W = 1000;
   let hover: number | null = $state(null);
   const values = $derived(series.flatMap(row => row.points.map(point => point.value)));
@@ -58,6 +60,8 @@
   // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
   const end = $derived(Math.max(...series.map(row => row.points.at(-1)?.x ?? lo)));
   const pct = (n: number) => Math.max(0, Math.min(100, x(n) / W * 100));
+  // 두 절반이 모두 그래프 폭의 6% 넘게 보일 때만 적는다. 좁으면 값이 서로 겹쳐 읽히지 않는다.
+  const paced = $derived(halves && halves.every(half => pct(half.to) - pct(half.from) >= 6) ? halves : null);
 </script>
 
 {#if values.length}
@@ -81,10 +85,15 @@
           <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
           {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
           {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" class:faint={dim.includes(change.key)} x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
+          {#if paced}<line class="half" x1={x(paced[1].from)} x2={x(paced[1].from)} y1="0" y2={height}/>{/if}
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
       </PlotCursor>
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
+      <!-- 커지는 변화는 앞 절반 값을 위에, 뒤 절반 값을 아래에 적는다(앞에서 낮고 뒤에서 높은 선을 가리지 않게). 작아지는 변화는 반대. -->
+      {#if paced}{#each paced as half, i (half.from)}
+        <span class="half-label" class:low={(i === 1) !== (paced[0].change + paced[1].change < 0)} style:left={(pct(half.from) + pct(half.to)) / 2 + "%"}>
+          {(half.change > 0 ? "+" : "") + measure(half.change, group.unit, 3)}</span>{/each}{/if}
       {#each last as item (item.row.key)}
         <span class="dot" class:live class:faint={dim.includes(item.row.key)} style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
           style:--dot={colors[item.index % colors.length]}></span>
@@ -112,6 +121,9 @@
   path{fill:none;stroke-width:1.6;stroke-linejoin:round}
   line,path{vector-effect:non-scaling-stroke}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
+  .half{stroke:var(--color-change-line);stroke-dasharray:2 3;stroke-width:1.5}
+  .half-label{position:absolute;top:6px;transform:translateX(-50%);padding:1px 5px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+  .half-label.low{top:auto;bottom:6px}
   .faint{opacity:.18}
   path,rect,line,.dot{transition:opacity .15s}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}

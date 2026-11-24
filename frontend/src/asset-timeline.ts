@@ -17,6 +17,8 @@ export type TimelineLane = {
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
   values?: {before:number|null;after:number|null;latest:{value:number;at:number}|null};
+  /** 진동 변화 구간의 앞 절반·뒤 절반에 움직인 양: 빨라지는지 느려지는지 그래프에 그대로 적는다. */
+  halves?: {from:number;to:number;change:number}[] | null;
 };
 export type TimelineOperation = {names: LevelNames; columns: (Span & {shares: number[]})[]};
 /** 시간이 겹치는 변화를 한 시기로 묶는다. 시기는 시작 순서이고, 시기 안의 변화도 시작 순서다. */
