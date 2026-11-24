@@ -16,7 +16,10 @@ export type VibrationChange = {
   usual: {low: number; high: number}; trace: {at: number; value: number; join?: boolean}[];
   /** Other features that moved over the same acquisitions. */
   related: {feature: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower"}[];
+  /** 변화 구간 앞 절반과 뒤 절반에 측정값이 각각 움직인 양(측정이 6회 미만이면 없음). */
+  halves?: Half[] | null;
 };
+export type Half = {from: number; to: number; change: number};
 export type VibrationFindings = {
   sourceId:string|null; bindingId:string|null;
   assetId: string; first: number | null; last: number | null; periodSeconds: number | null;
@@ -63,7 +66,12 @@ export function parseVibrationChange(entry: unknown): VibrationChange {
       if (!other || (other.state !== "higher" && other.state !== "lower")) invalid();
       return {feature: text(other.feature), label: text(other.label), unit: typeof other.unit === "string" && other.unit ? other.unit : null,
         reference: finite(other.reference), current: finite(other.current), state: other.state};
-    })};
+    }),
+    halves: Array.isArray(row.halves) && row.halves.length === 2 ? row.halves.map((entry: unknown) => {
+      const half = object(entry);
+      if (!half) invalid();
+      return {from: whole(half.from), to: whole(half.to), change: finite(half.change)};
+    }) : null};
 }
 
 export async function readVibrationFindings(assetId: string, signal: AbortSignal, scope: PlaybackScope | null = null): Promise<VibrationFindings> {

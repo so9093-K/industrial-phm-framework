@@ -245,6 +245,7 @@
     return {key: vibrationKey(change), reviewKey: change.reviewKey, label: plainLabel(change.label, change.feature), unit: change.unit, condition: null,
       points, detail: [], usual: change.usual, interval: {from: change.from, to: change.to},
       values:{before:change.reference,after:change.typical,latest:last&&last.x===measured.last?{value:last.value,at:last.x}:null},
+      halves: change.halves ?? null,
       numbers: magnitude(change.reference, change.typical, change.unit) + latest, focus: focused, up: change.direction === "up"};
   }
   // 시간축 줄마다 마지막으로 남긴 판단: 다음에 와도 무엇을 결정했는지 그 변화 옆에 보인다.

@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from typing import Any
@@ -217,6 +218,9 @@ def acquisition_findings(
                 "related": related,
             }
         )
+    # 변화 구간의 앞 절반과 뒤 절반에 측정값이 각각 얼마나 움직였는지. 빨라지는지 느려지는지를
+    # 예측 없이 측정값 그대로 보인다. 변화의 식별(review_key)에는 넣지 않는다.
+    halves = [_halves(series[item["channel"]], item, number) for item in found["intervals"]]
     for change in body["intervals"]:
         identity = {
             "asset_id": asset_id,
@@ -227,4 +231,23 @@ def acquisition_findings(
         change["review_key"] = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
         ).hexdigest()
+    for change, pace in zip(body["intervals"], halves, strict=True):
+        change["halves"] = pace
     return body
+
+
+def _halves(
+    points: list[tuple[datetime, datetime, float]],
+    item: dict[str, Any],
+    number: Callable[[datetime], int],
+) -> list[dict[str, float]] | None:
+    inside = [
+        (number(start), value) for start, _, value in points if item["start"] <= start < item["end"]
+    ]
+    if len(inside) < 6:
+        return None
+    middle = inside[len(inside) // 2]
+    return [
+        {"from": inside[0][0], "to": middle[0], "change": middle[1] - inside[0][1]},
+        {"from": middle[0], "to": inside[-1][0], "change": inside[-1][1] - middle[1]},
+    ]
