@@ -1,141 +1,39 @@
-"""A selected measured change, its simultaneous signals and useful existing comparisons."""
+"""A selected measured change and what the person sees of it on screen, for the AI to read."""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
+import math
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
-from industrial_phm.application.phm_range import range_analysis
-from industrial_phm.application.signal_exploration import acquisition_series, acquisition_spectrum
-from industrial_phm.genai.phm_answer import model_name, trend_word
 from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
-
-def number(value: float) -> str:
-    return f"{float(f'{value:.3g}'):,.12f}".rstrip("0").rstrip(".")
-
-
 # 화면의 시각 표기(asset-timeline의 clockText)와 같은 한국 시간이다.
-# 답에 나온 시각이 그래프의 시각과 맞아야 한다.
 _KST = ZoneInfo("Asia/Seoul")
-_STATE = {"higher": "비교 범위보다 높음", "lower": "비교 범위보다 낮음", "within": "비교 범위 안"}
-# 진동 특징의 일반적인 뜻. 특징이 바뀐 순서를 해석할 때 쓰며, 이 설비의 고장 원인을 뜻하지 않는다.
-_MEANING = {
-    "rms": "전체 진동 에너지의 크기",
-    "std": "평균을 중심으로 흔들리는 폭",
-    "mean": "파형 값의 평균",
-    "excess_kurtosis": "파형에 드물게 큰 충격 성분이 섞인 정도",
-    "skewness": "파형 값이 한쪽으로 치우친 정도",
-    "peak_to_peak": "순간 최대값과 최소값의 차이",
-    "absolute_peak": "가장 큰 순간 진폭",
-    "crest_factor": "RMS에 비해 순간 최대값이 큰 정도",
-}
-
-
-def about(value: float) -> str:
-    """Two significant digits, as the screen names an operating level ('약 11 A 운전')."""
-    return f"{float(f'{value:.2g}'):,.12f}".rstrip("0").rstrip(".")
-
-
-def clock(at: str) -> str:
-    """'10월 4일 09:19' (한국 시간)."""
-    moment = datetime.fromisoformat(at).astimezone(_KST)
-    return f"{moment.month}월 {moment.day}일 {moment:%H:%M}"
-
-
-def _episode(
-    intervals: list[dict[str, Any]],
-    key: str,
-    span: Callable[[dict[str, Any]], tuple[float, float]],
-) -> list[dict[str, Any]]:
-    """Changes chained by overlapping time with the selected one, in start order (as on screen)."""
-    group: list[dict[str, Any]] = []
-    end = 0.0
-    for row in sorted(intervals, key=span):
-        start, stop = span(row)
-        if group and start <= end:
-            group.append(row)
-            end = max(end, stop)
-            continue
-        if any(member["review_key"] == key for member in group):
-            break
-        group, end = [row], stop
-    return group if any(member["review_key"] == key for member in group) else []
-
-
-def _change_target(
-    row: dict[str, Any], before: float | None, after: float | None, where: str
-) -> dict[str, Any]:
-    """A fact about one found change: the screen draws it as that change's line and band."""
-    return {
-        "kind": "change",
-        "review_key": row["review_key"],
-        "label": row["label"],
-        "before": before,
-        "after": after,
-        "unit": row.get("unit"),
-        "where": where,
-    }
-
-
-def _ordered(facts: dict[str, str], first: tuple[str, ...]) -> dict[str, str]:
-    """The facts with ``first`` leading: the model writes from the facts it reads first."""
-    return {key: facts[key] for key in first if key in facts} | {
-        key: value for key, value in facts.items() if key not in first
-    }
-
-
-def _order(members: list[dict[str, Any]], start: Callable[[dict[str, Any]], str]) -> str:
-    """'A·B(10월 4일 09:19) → C(10월 5일 03:05)': changes that began together share one step."""
-    steps: list[tuple[str, list[str]]] = []
-    for row in members:  # already in start order
-        if steps and steps[-1][0] == start(row):
-            steps[-1][1].append(row["label"])
-        else:
-            steps.append((start(row), [row["label"]]))
-    return " → ".join("·".join(names) + f"({when})" for when, names in steps)
-
-
-def _model_input(workspace: OperationsWorkspace, package_id: str) -> str | None:
-    """Describe the actual input contract, or None when the package cannot be read."""
-    try:
-        if "/" in package_id or package_id.startswith("."):
-            raise ValueError("invalid package")
-        package = json.loads((workspace.models_path / package_id / "package.json").read_text())
-        inputs = package["input"]
-        sequence = inputs.get("sequence_length", 1)
-        features = inputs["feature_names"]
-        if (
-            not isinstance(sequence, int)
-            or isinstance(sequence, bool)
-            or sequence < 1
-            or not isinstance(features, list)
-            or not features
-        ):
-            raise ValueError("unknown model input")
-        scope = f"연속 {sequence}회 측정의 특징 흐름" if sequence > 1 else "각 측정의 특징 조합"
-        method = {
-            "lstm-autoencoder-v1": "을 재구성한 오차를 자체 기준값과 비교합니다.",
-            "isolation-forest-refit-v1": (
-                "이 학습 분포에서 얼마나 드문지를 자체 기준값과 비교합니다."
-            ),
-        }.get(package.get("estimator_kind"), "을 자체 모델 기준으로 분석합니다.")
-        return f"측정마다 {len(features)}개 특징을 사용하며, {scope}{method}"
-    except OSError, ValueError, KeyError, TypeError, AttributeError:
-        return None
+# 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
+_POINTS = 12
 
 
 def selected_change(
     workspace: OperationsWorkspace, asset: str, key: str, scope: dict[str, str] | None = None
 ) -> dict[str, Any]:
-    from datetime import datetime
+    """The change a conversation is about, read as the screen read it (to a replay position).
 
+    Args:
+        workspace: The operations workspace.
+        asset: The asset.
+        key: The change's review key.
+        scope: The replay position (``record_until`` or ``acquisition_until``), if any.
+
+    Returns:
+        The change and the stored analysis it belongs to; ``until`` is the replay position.
+
+    Raises:
+        ValueError: The change is no longer among the record's changes.
+    """
     from industrial_phm.runtime.operations_web_explore import record_findings, record_selection
 
     scope = record_selection(scope or {})
@@ -149,13 +47,10 @@ def selected_change(
         record = {"intervals": []}
     change = next((row for row in record["intervals"] if row["review_key"] == key), None)
     if change is None:
-        record = record_findings(
-            workspace,
-            asset,
-            until=datetime.fromisoformat(scope["record_until"])
-            if "record_until" in scope
-            else None,
-        )
+        if "acquisition_until" in scope:
+            raise ValueError("선택한 변화가 달라졌습니다. 기록을 다시 불러오세요.")
+        until = datetime.fromisoformat(scope["record_until"]) if "record_until" in scope else None
+        record = record_findings(workspace, asset, until=until)
         change = next((row for row in record["intervals"] if row["review_key"] == key), None)
         if change is None:
             raise ValueError("선택한 변화가 달라졌습니다. 기록을 다시 불러오세요.")
@@ -168,33 +63,8 @@ def selected_change(
             "source_id": change["source_id"],
             "change_id": key,
             "history_change": change,
-            "operation": record["operation"],
+            "until": scope.get("record_until"),
             "signal_comparison": {"previous_position": change["baseline"]["to"]},
-            "episode": [
-                {
-                    name: row.get(name)
-                    for name in (
-                        "review_key",
-                        "label",
-                        "key",
-                        "channel",
-                        "unit",
-                        "direction",
-                        "start",
-                        "end",
-                        "reference_value",
-                        "typical_value",
-                    )
-                }
-                for row in _episode(
-                    record["intervals"],
-                    key,
-                    lambda row: (
-                        datetime.fromisoformat(row["start"]).timestamp(),
-                        datetime.fromisoformat(row["end"]).timestamp(),
-                    ),
-                )
-            ],
         }
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     binding = next(row for row in store.list_bindings() if row.binding_id == record["binding_id"])
@@ -212,436 +82,170 @@ def selected_change(
         "source_id": binding.source_id,
         "change_id": key,
         "vibration_change": change,
-        "period_seconds": record["period_seconds"],
+        "until": int(scope["acquisition_until"]) if "acquisition_until" in scope else None,
         "signal_comparison": {"previous_position": change["baseline"]["to"]},
-        "episode": [
-            {
-                name: row.get(name)
-                for name in (
-                    "review_key",
-                    "label",
-                    "feature",
-                    "unit",
-                    "direction",
-                    "from",
-                    "to",
-                    "reference_value",
-                    "typical_value",
-                )
-            }
-            for row in _episode(record["intervals"], key, lambda row: (row["from"], row["to"]))
-        ],
     }
 
 
-def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, Any]:
-    """Reuse the same A/B computations as the screens; do not rank model score scales."""
-    if "history_change" in context:
-        return history_investigation(context)
-    change = context["vibration_change"]
-    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
-    binding = next(row for row in store.list_bindings() if row.binding_id == context["binding_id"])
-    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
-    baseline = change["baseline"]
-    spans = [("a", baseline["from"], baseline["to"]), ("b", change["from"], change["to"])]
-    features = list(
-        dict.fromkeys(
-            [
-                change["feature"],
-                *[row["feature"] for row in change["related"] if row["feature"].endswith(".rms")],
-            ]
-        )
-    )[:3]
-    profiles = acquisition_series(store, snapshots, binding, features, spans)
-    facts = {
-        "subject": f"{change['label']}의 특이사항 구간은 "
-        f"{change['from']}~{change['to']}번째 측정입니다. "
-        f"초기는 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정입니다.",
-    }
-    where = f"{change['from']}~{change['to']}번째 측정"
-    selected = _change_target(
-        change, change.get("reference_value"), change.get("typical_value"), where
-    )
-    targets: dict[str, dict[str, Any]] = {"subject": selected}
-    episode = context.get("episode", [])
-    others = [row for row in episode if row["review_key"] != change["review_key"]]
-    for index, row in enumerate(profiles):
-        a, b = row["periods"]["a"], row["periods"]["b"]
-        if a.get("quantiles") is None or b.get("quantiles") is None:
-            continue
-        unit = row["unit"] or "(단위 미확인)"
-        # 고른 변화 밖의 축은 같은 때 함께 바뀐 다른 신호다(전력 기록의 관련 신호와 같은 표시).
-        facts[f"feature_{index}"] = (
-            ("같은 때 " if index else "")
-            + f"{row['label']}의 기준 구간 중앙값 {number(a['quantiles'][2])} {unit}, "
-            f"변화 구간 중앙값 {number(b['quantiles'][2])} {unit}."
-        )
-        member = (
-            change if index == 0 else next((m for m in others if m["feature"] == row["key"]), None)
-        )
-        medians = a["quantiles"][2], b["quantiles"][2]
-        targets[f"feature_{index}"] = (
-            _change_target(member, *medians, f"{member['from']}~{member['to']}번째 측정")
-            if member
-            else {
-                "kind": "signal",
-                "label": row["label"],
-                "before": medians[0],
-                "after": medians[1],
-                "unit": row["unit"],
-            }
-        )
-        if row["key"].endswith(".rms") and a["quantiles"][2] > 0 and b["quantiles"][2] > 0:
-            facts[f"feature_{index}"] += (
-                " 변화 구간 중앙값은 기준의 약 "
-                f"{number(b['quantiles'][2] / a['quantiles'][2])}배입니다."
-            )
-        if index == 0:
-            outside = row["comparison"].get("b_outside_a_band")
-            # The profile explicitly names how many computed values were outside A's 5-95% range.
-            if outside is not None:
-                facts["persistence"] = (
-                    f"변화 구간에서 계산한 {b['usable_count']}회 중 {outside}회가 기준 구간의 "
-                    f"비교 범위({number(a['quantiles'][0])}~{number(a['quantiles'][4])} "
-                    f"{unit}) 밖입니다."
-                )
-    try:
-        flow = range_analysis(
-            store,
-            binding.binding_id,
-            binding.step_kind,
-            change["from"],
-            change["to"],
-            [change["feature"]],
-        )
-        shape = flow["features"].get(change["feature"])
-        if shape:
-            facts["flow"] = f"변화 구간 안의 {change['label']} 흐름은 {trend_word(shape)}입니다."
-    except ValueError, LookupError:
-        pass  # 흐름을 셀 만큼 기록이 없으면 흐름을 말하지 않는다.
-    # 지금 얼마나 커졌고 얼마나 빨리 커지는지.
-    # 화면의 '지금 초기의 약 N배'·앞뒤 절반 값과 같은 수치다.
-    suffix = f" {change['unit']}" if change.get("unit") else ""
-    reference = change.get("reference_value")
-    trace = change.get("trace") or []
-    if trace and change["to"] >= trace[-1][0] and reference:
-        at, value = trace[-1]
-        facts["now"] = (
-            f"마지막 측정({at}번째)의 {change['label']}는 {number(value)}{suffix}로, "
-            f"초기 중앙값 {number(reference)}{suffix}의 약 {number(value / reference)}배입니다."
-        )
-    if change.get("halves"):
-        first, second = change["halves"]
-
-        def moved(half: dict[str, float]) -> str:
-            return ("+" if half["change"] > 0 else "") + number(half["change"]) + suffix
-
-        facts["pace"] = (
-            f"{change['label']}는 변화 구간 앞 절반({first['from']}~{first['to']}번째 측정) 동안 "
-            f"{moved(first)}, 뒤 절반({second['from']}~{second['to']}번째 측정) 동안 "
-            f"{moved(second)} 움직였습니다."
-        )
-    for name in ("persistence", "flow", "now", "pace"):
-        if name in facts:
-            targets[name] = selected
-    # 화면이 같은 시기로 묶어 함께 그리는 변화: 시작 순서를 물으면 이것으로 답한다.
-    for index, member in enumerate(others):
-        unit = f" {member['unit']}" if member.get("unit") else ""
-        before, after = member.get("reference_value"), member.get("typical_value")
-        facts[f"episode_{index}"] = (
-            f"같은 시기에 찾은 {member['label']} 변화: {member['from']}~{member['to']}번째 측정"
-            + (
-                f", 기준 구간 중앙값 {number(before)}{unit} → "
-                f"변화 구간 중앙값 {number(after)}{unit}."
-                if before is not None and after is not None
-                else "."
-            )
-        )
-        targets[f"episode_{index}"] = _change_target(
-            member, before, after, f"{member['from']}~{member['to']}번째 측정"
-        )
-    if others:
-        facts["order"] = (
-            "같은 시기 변화의 시작 순서: " + _order(episode, lambda row: f"{row['from']}번째") + "."
-        )
-        meanings = [
-            f"{row['label']}는 {_MEANING[row['feature'].rsplit('.', 1)[-1]]}"
-            for row in episode
-            if row["feature"].rsplit(".", 1)[-1] in _MEANING
-        ]
-        if meanings:
-            facts["meaning"] = "특징의 일반적인 뜻: " + ", ".join(meanings) + "를 나타냅니다."
-    try:
-        spectrum = acquisition_spectrum(snapshots, binding, spans)
-    except ValueError, LookupError, OSError:
-        pass  # 원본 파형이 없으면 주파수는 말하지 않는다.
-    else:
-        for index, channel in enumerate(spectrum["channels"]):
-            bands = channel["band_shares"]
-            if not bands or channel["power_ratio"] is None:
-                continue
-            band = max(bands, key=lambda item: abs(item["b"] - item["a"]))
-            facts[f"spectrum_{index}"] = (
-                f"{channel['label']}의 변화 구간 전체 에너지는 기준 구간의 "
-                f"{number(channel['power_ratio'])}배. "
-                f"{number(band['from_hz'])}~{number(band['to_hz'])} Hz 대역의 에너지 비중은 "
-                f"{number(band['a'] * 100)}%에서 {number(band['b'] * 100)}%로 바뀌었습니다."
-            )
-            targets[f"spectrum_{index}"] = {
-                "kind": "spectrum",
-                "label": channel["label"],
-                "from_hz": band["from_hz"],
-                "to_hz": band["to_hz"],
-                "a": band["a"],
-                "b": band["b"],
-                "ratio": channel["power_ratio"],
-            }
-    for index, model in enumerate(store.list_bindings()):
-        if (model.asset_id, model.source_id, model.measurement_point_id, model.step_kind) != (
-            binding.asset_id,
-            binding.source_id,
-            binding.measurement_point_id,
-            binding.step_kind,
-        ):
-            continue
-        results, _ = store.analyzed_between(
-            model.binding_id, change["from"], change["to"], max_points=1000
-        )
-        exceeded = sum(row.output.get("exceeds_threshold") is True for row in results)
-        name = model_name(
-            model.package_id,
-            results[-1].output.get("task") if results else None,
-            model.step_kind.value,
-        )
-        facts[f"model_{index}"] = (
-            f"{name}의 변화 구간 분석 {len(results)}회 중 기준 초과 {exceeded}회."
-        )
-        model_input = _model_input(workspace, model.package_id)
-        if model_input is not None:
-            facts[f"model_input_{index}"] = name + ": " + model_input
-    return {
-        "facts": _ordered(facts, ("subject", "feature_0", "now", "pace", "persistence", "flow")),
-        "targets": targets,
-    }
+def _value(number: float) -> float:
+    return float(f"{number:.4g}")
 
 
-def _span(start: str, end: str) -> str:
-    """'10월 4일 09:19~17:19', or both days when the change crosses midnight."""
-    first, last = clock(start), clock(end)
-    same_day = first.rsplit(" ", 1)[0] == last.rsplit(" ", 1)[0]
-    return f"{first}~{last.rsplit(' ', 1)[1]}" if same_day else f"{first}~{last}"
+def _compact_trace(points: list[list[Any]]) -> list[list[Any]]:
+    """Keep both endpoints and sample in order without inventing intermediate values."""
+    if len(points) <= _POINTS:
+        return [point[:2] for point in points]
+    return [
+        points[round(index * (len(points) - 1) / (_POINTS - 1))][:2] for index in range(_POINTS)
+    ]
 
 
-def _level_flow(
-    operation: dict[str, Any], names: list[str], start: str, end: str
-) -> list[dict[str, Any]] | None:
-    """When the dominant level changed around a change: '10월 3일 15:34~22:40 약 62 A 운전, ...'.
-
-    The window is the change plus twice its length on each side, as the screen's zoomed view.
-    """
-    timeline = operation.get("timeline") or []
-    bucket = float(operation.get("bucket_seconds") or 0)
-    if not timeline or bucket <= 0:
-        return None
-    first, last = datetime.fromisoformat(start), datetime.fromisoformat(end)
-    length = max(last - first, timedelta(seconds=bucket))
-    low, high = first - 2 * length, last + 2 * length
-    runs: list[list[Any]] = []  # [level, first at, last at, columns]
-    for at, counts in timeline:
-        moment = datetime.fromisoformat(at)
-        if not low <= moment <= high or not sum(counts):
-            continue
-        level = max(range(len(counts)), key=lambda index: counts[index])
-        if runs and runs[-1][0] == level:
-            runs[-1][2] = moment
-            runs[-1][3] += 1
-        else:
-            runs.append([level, moment, moment, 1])
-    # 한 칸짜리 흔들림은 앞 흐름에 붙인다(띠에서도 눈에 띄지 않는다).
-    merged: list[list[Any]] = []
-    for run in runs:
-        if merged and (run[3] == 1 or merged[-1][0] == run[0]):
-            merged[-1][2], merged[-1][3] = run[2], merged[-1][3] + run[3]
-        else:
-            merged.append(run)
-    if not merged or len(merged) > 8 or len(names) <= max(run[0] for run in merged):
-        return None
+def _history_signals(record: dict[str, Any], change: dict[str, Any]) -> list[dict[str, Any]]:
+    # Other same-period comparisons already carry their values alongside the graph.
+    keys = [change["key"]]
+    operation = (change.get("operation") or {}).get("key")
+    if operation:
+        keys.append(operation)
+    signals = {row["key"]: row for row in record["signals"]}
     return [
         {
-            "from": run[1].isoformat(),
-            "to": (run[2] + timedelta(seconds=bucket)).isoformat(),
-            "level": run[0],
+            "label": signal["label"],
+            "unit": signal["unit"],
+            "latest": [signal["latest"]["at"], signal["latest"]["value"]]
+            if signal.get("latest")
+            else None,
+            "trace": signal.get("preview", []),
         }
-        for run in merged
+        for key in dict.fromkeys(keys)
+        if (signal := signals.get(key)) is not None
     ]
 
 
-def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
-    """Facts already computed over the selected source, operating level and A/B periods."""
-    change = context["history_change"]
-    unit = change["unit"] or "(단위 미확인)"
-    before, after = change["reference_value"], change["typical_value"]
-    before_text = number(before) if before is not None else "미확인"
-    after_text = number(after) if after is not None else "미확인"
-    year = datetime.fromisoformat(change["start"]).astimezone(_KST).year
-    facts = {
-        "subject": (
-            f"{change['label']}의 특이사항 구간은 {year}년 {clock(change['start'])}부터 "
-            f"{clock(change['end'])}까지입니다(한국 시간)."
-        ),
-        "feature_0": (
-            f"{change['label']}의 초기 중앙값 {before_text} {unit}, "
-            f"특이사항 구간 중앙값 {after_text} {unit}."
-            + (
-                f" 초기보다 {number(abs(after - before))} {unit}"
-                f"({abs(after - before) / abs(before) * 100:.1f}%) "
-                f"{'높습니다' if after > before else '낮습니다'}."
-                if before is not None and after is not None and before
-                else ""
-            )
-        ),
-    }
-    selected = _change_target(change, before, after, _span(change["start"], change["end"]))
-    targets: dict[str, dict[str, Any]] = {"subject": selected, "feature_0": selected}
-    # 지금: 특이사항이 기록 끝까지 이어지는지, 끝났다면 언제였는지. '문제 있어?'는 지금을 묻는다.
-    # 이 사실이 없으면 답이 지난 변화의 설명만 되풀이했다. 마지막 값은 넣지 않는다: 관제 카드는
-    # 다른 폭의 구간 평균을 보여 주어(214.8 V와 213.9 V) 답과 화면의 숫자가 달라진다.
-    record_end = (change.get("record") or {}).get("to")
-    if record_end:
-        bucket = timedelta(seconds=float(change.get("bucket_seconds") or 0))
-        ongoing = datetime.fromisoformat(change["end"]) + bucket >= datetime.fromisoformat(
-            record_end
-        )
-        facts["now"] = (
-            f"특이사항은 기록 끝({clock(record_end)})까지 이어집니다."
-            if ongoing
-            else f"특이사항은 {clock(change['end'])}에 끝났습니다. "
-            f"기록은 {clock(record_end)}까지입니다."
-        )
-        targets["now"] = selected
-    episode = context.get("episode", [])
-    others = [row for row in episode if row["review_key"] != change["review_key"]]
-    operation = (
-        next(
-            (row for row in context["operation"] if row["key"] == change["operation"]["key"]),
-            None,
-        )
-        if change.get("band") is not None and change.get("operation")
-        else None
+def _vibration_signals(
+    workspace: OperationsWorkspace, context: dict[str, Any], change: dict[str, Any]
+) -> list[dict[str, Any]]:
+    from industrial_phm.runtime.operations_web_overview import _vibration_group
+
+    group = _vibration_group(
+        workspace,
+        SqlitePhmAnalysisStore(workspace.phm_analysis_path),
+        context["asset_id"],
+        context["binding_id"],
+        context["source_id"],
+        change["feature"],
+        until=context["until"],
     )
-    level = operation["levels"][change["band"] - 1] if operation else None
-    # 운전 수준의 이름은 화면(record-findings의 bandName)과 같게: '약 11 A 운전'.
-    unit = f" {operation['unit']}" if operation and operation.get("unit") else ""
-    current = f"약 {about(level['typical'])}{unit} 운전" if operation and level else None
-    # 관련 신호도 고른 신호와 같은 운전 수준의 측정끼리 비교한 값이다.
-    among = f"{current} 중인 측정끼리, " if current else ""
-    facts["feature_0"] = among + facts["feature_0"]
-    related_rows = [
-        row
-        for row in change.get("related", [])
-        # 운전 수준을 나눈 값과 같은 단위(전류)는 그 수준 안에서 견주면 거의 그대로다.
-        # 전류가 어떻게 바뀌었는지는 load가 말한다.
-        if not (current and operation and row["unit"] == operation.get("unit"))
-    ]
-    for index, related in enumerate(related_rows):
-        facts[f"related_{index}"] = (
-            f"{among}같은 기간에 {related['label']}: {number(related['reference'])} → "
-            f"{number(related['current'])} {related['unit'] or ''}. "
-            f"{_STATE.get(related['state'], related['state'])}."
-        )
-        member = next((row for row in others if row["key"] == related.get("key")), None)
-        targets[f"related_{index}"] = (
-            _change_target(
-                member,
-                related["reference"],
-                related["current"],
-                _span(member["start"], member["end"]),
-            )
-            if member
-            else {
-                "kind": "signal",
-                "label": related["label"],
-                "before": related["reference"],
-                "after": related["current"],
-                "unit": related["unit"],
-            }
-        )
-    # 화면이 같은 시기로 묶어 함께 그리는 변화: 언제 무엇이 먼저 바뀌었는지 물으면 이것으로 답한다.
-    for index, member in enumerate(others):
-        values = member.get("reference_value"), member.get("typical_value")
-        facts[f"episode_{index}"] = (
-            f"같은 시기의 {member['label']} 특이사항: {clock(member['start'])}부터 "
-            f"{clock(member['end'])}까지"
-            + (
-                f", 초기 중앙값 {number(values[0])} → 특이사항 구간 중앙값 "
-                f"{number(values[1])} {member.get('unit') or ''}."
-                if None not in values
-                else "."
-            )
-        )
-        targets[f"episode_{index}"] = _change_target(
-            member, *values, _span(member["start"], member["end"])
-        )
-    if others:
-        facts["order"] = (
-            "같은 시기 특이사항의 시작 순서: "
-            + _order(episode, lambda row: clock(row["start"]))
-            + "."
-        )
-    if operation and current:
-        facts["operating_level"] = (
-            f"{current} 구간으로 분류한 측정끼리 비교해도 선택한 신호의 차이가 남았습니다."
-        )
-        targets["operating_level"] = {
-            "kind": "operation",
-            "label": "운전 수준",
-            "detail": f"{current} 중인 측정끼리 비교",
+    return [
+        {
+            "label": row["label"],
+            "unit": group["unit"],
+            "latest": row["trace"][-1] if row["trace"] else None,
+            "trace": row["trace"],
         }
-        # 부하가 바뀌었는지 물으면 이 비중으로 답한다(화면의 운전 수준 띠와 같은 자료).
-        shares = change["operation"]
-        names = ["정지"] + [f"약 {about(row['typical'])}{unit} 운전" for row in operation["levels"]]
-        if shares.get("baseline") and shares.get("interval"):
-            parts = [
-                f"{name} {round(a * 100)}% → {round(b * 100)}%"
-                for name, a, b in zip(names, shares["baseline"], shares["interval"], strict=False)
-                if round(a * 100) or round(b * 100)
-            ]
-            facts["operating_share"] = (
-                "운전 수준별 측정 비중(초기 → 특이사항 구간): " + ", ".join(parts) + "."
-            )
-            # 화면은 이 비중을 두 막대(비교 구간·변화 구간)로 그린다. 0번은 정지다.
-            targets["operating_share"] = {
-                "kind": "operation",
-                "label": "운전 수준 비중",
-                "detail": ", ".join(parts),
-                "levels": names,
-                "a": list(shares["baseline"]),
-                "b": list(shares["interval"]),
-            }
-        runs = _level_flow(operation, names, change["start"], change["end"])
-        if runs:
-            flow = ", ".join(
-                f"{clock(run['from'])}~{clock(run['to'])} {names[run['level']]}" for run in runs
-            )
-            facts["operating_flow"] = "변화 구간 앞뒤의 운전 수준 흐름: " + flow + "."
-            # 화면은 이 흐름을 작은 띠로 그리고, 가리키면 그래프 아래 운전 수준 띠를 강조한다.
-            targets["operating_flow"] = {
-                "kind": "operation",
-                "label": "운전 수준 흐름",
-                "detail": flow,
-                "levels": names,
-                "runs": runs,
-            }
-    # 같은 때의 부하: 모든 운전 수준을 합친 전류 평균(관제 알림과 같은 값).
-    load = change.get("load")
-    if load and load.get("reference") is not None and load.get("current") is not None:
-        load_unit = f" {load['unit']}" if load.get("unit") else ""
-        moved = f"{number(load['reference'])} → {number(load['current'])}{load_unit}"
-        facts["load"] = (
-            f"같은 때 {load['label']}(모든 운전 수준을 합친 평균): 초기 {number(load['reference'])}"
-            f"{load_unit} → 특이사항 구간 {number(load['current'])}{load_unit}."
+        for row in sorted(group["series"], key=lambda row: row["key"] != change["feature"])
+    ]
+
+
+def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, Any]:
+    """Give the model the selected change and a small view of the same stored signals."""
+    history = "history_change" in context
+    change = context["history_change"] if history else context["vibration_change"]
+    until = context["until"]
+
+    def at(value: str | int) -> str | int:
+        return (
+            datetime.fromisoformat(str(value)).astimezone(_KST).strftime("%Y-%m-%d %H:%M")
+            if history
+            else value
         )
-        targets["load"] = {"kind": "operation", "label": load["label"], "detail": moved}
-    # 원인을 물을 때 같은 때의 부하(전류)가 관련 신호 목록 뒤에 묻히지 않게 앞에 둔다.
-    first = ("subject", "feature_0", "now", "load", "operating_share", "operating_level")
-    return {"facts": _ordered(facts, first), "targets": targets}
+
+    operation = None
+    if history:
+        from industrial_phm.runtime.operations_web_explore import record_findings
+
+        record = record_findings(
+            workspace,
+            context["asset_id"],
+            until=datetime.fromisoformat(until) if until is not None else None,
+        )
+        signals = _history_signals(record, change)
+        operation_key = (change.get("operation") or {}).get("key")
+        operation = next((row for row in record["operation"] if row["key"] == operation_key), None)
+    else:
+        signals = _vibration_signals(workspace, context, change)
+    start, end = (change["start"], change["end"]) if history else (change["from"], change["to"])
+    card = {
+        "신호": change["label"],
+        "단위": change.get("unit"),
+        "변화 시작": at(start),
+        "변화 끝": at(end),
+        "초기 중앙값": _value(change["reference_value"])
+        if change["reference_value"] is not None
+        else None,
+        "변화 구간 중앙값": _value(change["typical_value"])
+        if change["typical_value"] is not None
+        else None,
+    }
+    latest = signals[0]["latest"] if signals else None
+    if latest is not None:
+        if history:
+            width = timedelta(seconds=float(change.get("bucket_seconds") or 0))
+            ongoing = datetime.fromisoformat(end) + width >= datetime.fromisoformat(latest[0])
+        else:
+            ongoing = end >= latest[0]
+        card["변화가 기록 끝까지 이어짐"] = ongoing
+    band = change.get("band")
+    if operation and band is not None and 0 < band <= len(operation["levels"]):
+        level = operation["levels"][band - 1]
+        card["초기와 변화 구간에 공통으로 적용한 운전 조건"] = {
+            "신호": operation["label"],
+            "단위": operation["unit"],
+            "이 수준의 대표값": _value(level["typical"]),
+            "이상": _value(level["low"]),
+            "미만": _value(level["high"]) if level["high"] is not None else None,
+        }
+    if load := change.get("load"):
+        card["같은 기간의 평균 전류(모든 운전 수준)"] = {
+            "신호": load["label"],
+            "단위": load["unit"],
+            "초기": _value(load["reference"]),
+            "변화 구간": _value(load["current"]),
+        }
+    if halves := change.get("halves"):
+        card["변화 구간 앞·뒤 절반의 관측 변화량"] = [
+            {**half, "change": _value(half["change"])} for half in halves
+        ]
+
+    return {
+        "설비": context["asset_id"],
+        "기록": "선택 시점까지 재생한 저장 기록" if until is not None else "과거 저장 기록",
+        "가로축": "한국 시각" if history else "측정 순서",
+        "선택한 변화": card,
+        "화면의 특이사항": "이 기록에서 초기와 달라진 구간. 고장·교체 판정은 화면 데이터에 없음.",
+        "함께 비교한 신호": [
+            {
+                "신호": row["label"],
+                "단위": row["unit"],
+                "초기 중앙값": _value(row["reference"]),
+                "변화 구간 중앙값": _value(row["current"]),
+            }
+            for row in change.get("related", [])
+        ],
+        "신호별 마지막 값과 추이": [
+            {
+                "신호": signal["label"],
+                "단위": signal["unit"],
+                "마지막 측정": (
+                    [at(latest[0]), _value(latest[1])]
+                    if (latest := signal["latest"]) and math.isfinite(latest[1])
+                    else None
+                ),
+                "추이": [
+                    [at(x), _value(value)]
+                    for x, value in _compact_trace(signal["trace"])
+                    if math.isfinite(value)
+                ],
+            }
+            for signal in signals
+        ],
+    }

@@ -1,27 +1,26 @@
 <script lang="ts">
   import {onDestroy,tick,untrack} from "svelte";
   import {questionDraft,keepQuestionDraft} from "../question-drafts";
-  import {askChange,readChangeDiscussion,STARTERS,type ChangeDiscussion,type Evidence} from "../change-investigation";
-  import {measure} from "../chart-axis";
-  import {clockText,spanText} from "../asset-timeline";
+  import {askChange,readChangeDiscussion,STARTERS,type ChangeDiscussion} from "../change-investigation";
+  import {spanText} from "../asset-timeline";
   import type {EvidenceFocus} from "../change-evidence";
   import {currentPlayback} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
-  /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 그 변화의 측정·비교 결과로 짧게 답한다.
-   * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. 답의 근거를 가리키면(point)
-   * 왼쪽 그래프가 그 선·구간·운전 수준 띠만 남긴다. colorOf는 근거 변화가 그래프에서 쓰는 색.
+  /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
+   * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
+   * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
    * 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,point=()=>{},active=true}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
+  let {assetId,focus,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,active=true}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
     onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
-    point?:(evidence:Evidence|null)=>void;active?:boolean}=$props();
+    active?:boolean}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
   const draftScope=untrack(()=>"change:"+assetId+":"+change.reviewKey);
   const reviewKey=$derived(change.reviewKey!);
   let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
-  onDestroy(()=>{keepQuestionDraft(draftScope,question);cancel();write?.abort();point(null);clearInterval(clock);});
+  onDestroy(()=>{keepQuestionDraft(draftScope,question);cancel();write?.abort();clearInterval(clock);});
   let questionRevision=0;
   let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
   let awaitingQuestion:string|null=$state(null);
@@ -39,15 +38,6 @@
   const clock=setInterval(()=>{if(waiting)now=Date.now();},1000);
   $effect(()=>{if(waiting&&since===null)untrack(()=>{since=Date.now();now=since;});if(!waiting)since=null;});
   const elapsed=$derived(since!==null?Math.max(0,Math.round((now-since)/1000)):null);
-  // 가리키는 근거: 올린 줄이 먼저, 없으면 눌러 고정한 줄. 키는 '답 id|번호'.
-  let hovered:string|null=$state(null),pinned:string|null=$state(null);
-  $effect(()=>{const key=hovered??pinned;if(key===null){point(null);return;}
-    const [id,index]=key.split("|");
-    point(records.find(item=>item.id===id)?.answer?.evidence[Number(index)]??null);});
-  const values=(row:{before:number|null;after:number|null;unit:string|null})=>row.before!==null&&row.after!==null?measure(row.before,row.unit,3)+" → "+measure(row.after,row.unit,3):"";
-  // 답의 문장(서버의 유효 숫자 세 자리)과 같은 표기.
-  const hz=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
-  const percent=(share:number)=>(share*100).toLocaleString("ko-KR",{maximumFractionDigits:1})+"%";
   const memoOf=(row:ChangeDiscussion)=>row.answer?label+" · "+span+"\n"+row.answer.summary:"";
   let copied:string|null=$state(null);
   async function copy(row:ChangeDiscussion){
@@ -84,7 +74,7 @@
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,submitted,latest?.status==="complete"?latest.id:null,pending.signal,currentPlayback());
+      await askChange(assetId,reviewKey,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,currentPlayback());
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){
@@ -130,42 +120,8 @@
       {#if row.status==="pending"}
         <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing("답 정리 중")}</div></div>
       {:else if row.status==="complete"&&row.answer}
-        {@const evidence=row.answer.evidence}
         <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
           <p class="answer">{row.answer.summary}</p>
-          {#if evidence.length}<ol class="evidence" aria-label="답의 근거">
-            {#each evidence as item,index(index)}{@const key=row.id+"|"+index}
-              <li><button type="button" aria-pressed={pinned===key} onpointerenter={()=>hovered=key} onpointerleave={()=>hovered=null}
-                onfocus={()=>hovered=key} onblur={()=>hovered=null} onclick={()=>pinned=pinned===key?null:key}>
-                <span class="number">{index+1}</span>
-                {#if item.kind==="change"}
-                  <span class="name"><i class="swatch" style:background={colorOf(item.review_key)??"var(--color-ink-muted)"}></i>{labelOf(item.review_key)??item.label}<b>{values(item)}</b></span><small>{item.where}</small>
-                {:else if item.kind==="signal"}
-                  <span class="name"><i class="swatch hollow"></i>{item.label}<b>{values(item)}</b></span><small>같은 기간 · 그래프에 없는 신호</small>
-                {:else if item.kind==="operation"&&item.levels&&item.a&&item.b}
-                  <span class="name"><i class="swatch level"></i>{item.label}</span>
-                  <!-- 비교 구간과 변화 구간의 운전 수준 비중. 진하기는 그래프 아래 운전 수준 띠와 같다(진할수록 높은 전류, 빈 칸은 정지). -->
-                  {#each [["초기",item.a],["특이사항",item.b]] as [name,shares] (name)}
-                    <span class="mix"><small>{name}</small><span class="stack" title={item.levels.map((level,i)=>level+" "+percent((shares as number[])[i])).join(", ")}>
-                      {#each shares as number[] as share,i(i)}{#if share>0}<i class:stop={i===0} style:width={share*100+"%"} style:opacity={i===0?1:.18+.72*i/Math.max(1,item.levels.length-1)}>{share>=.15?percent(share):""}</i>{/if}{/each}
-                    </span></span>
-                  {/each}
-                {:else if item.kind==="operation"&&item.levels&&item.runs}
-                  {@const runs=item.runs}{@const levels=item.levels}{@const start=Date.parse(runs[0].from)}{@const total=Date.parse(runs.at(-1)!.to)-start}
-                  <span class="name"><i class="swatch level"></i>{item.label}</span>
-                  <!-- 변화 앞뒤의 운전 수준: 그래프 아래 띠와 같은 진하기. 경계 시각은 포인터를 올리면 보인다. -->
-                  <span class="flow" title={item.detail}>{#each runs as run,i(i)}<i class:stop={run.level===0} style:width={(Date.parse(run.to)-Date.parse(run.from))/total*100+"%"}
-                    style:opacity={run.level===0?1:.18+.72*run.level/Math.max(1,levels.length-1)}></i>{/each}</span>
-                  <small class="ends"><span>{clockText(start).replace(/\(.\)/,"")}</span><span>{clockText(Date.parse(runs.at(-1)!.to)).replace(/\(.\)/,"")}</span></small>
-                {:else if item.kind==="operation"}
-                  <span class="name"><i class="swatch level"></i>{item.label}</span><small>{item.detail}</small>
-                {:else}
-                  <span class="name"><i class="swatch hollow"></i>{item.label} {hz(item.from_hz)}–{hz(item.to_hz)} Hz<b>{percent(item.a)} → {percent(item.b)}</b></span>
-                  <span class="bars" aria-hidden="true"><i style:width={item.a*100+"%"}></i><i style:width={item.b*100+"%"}></i></span>
-                {/if}
-              </button></li>
-            {/each}
-          </ol>{/if}
           <div class="tools">
             <button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>
             <button type="button" onclick={()=>void copy(row)}>{copied===row.id?"복사됨":"복사"}</button>
@@ -197,9 +153,6 @@
   .close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:none;color:var(--color-ink-muted);cursor:pointer}
   .close:hover{background:var(--color-surface-selected);color:var(--color-ink)}
   .close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
-  .flow{display:flex;height:12px;border-radius:2px;overflow:hidden}
-  .flow i{display:block;height:100%;background:var(--color-ink)}.flow i.stop{background:none;box-shadow:inset 0 0 0 1px var(--color-border)}
-  .ends{display:flex;justify-content:space-between}
   .what{display:flex;align-items:center;gap:7px;font-size:var(--font-small)}
   header small{padding-left:19px;font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
   .log{overflow-y:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
@@ -210,29 +163,13 @@
   .ai{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start}
   .avatar{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--color-action);color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em}
   .body{display:grid;gap:8px;min-width:0;padding-top:2px}
-  .answer{line-height:1.7;color:var(--color-ink)}
+  .answer{line-height:1.7;white-space:pre-wrap;color:var(--color-ink)}
   .typing{display:flex;align-items:center;gap:4px;color:var(--color-ink-muted);font-size:var(--font-label);min-height:24px}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}.typing span{margin-left:6px}
   @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
   @media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
-  .evidence{display:grid;gap:2px;margin:0;padding:0;list-style:none}
-  .evidence{border-left:2px solid var(--color-border);padding-left:6px}
-  .evidence button{display:grid;grid-template-columns:18px minmax(0,1fr);column-gap:6px;row-gap:3px;width:100%;padding:6px 8px 6px 4px;border:0;border-radius:6px;background:none;text-align:left;font:inherit;color:var(--color-ink);cursor:pointer}
-  .evidence button:hover,.evidence button:focus-visible,.evidence button[aria-pressed="true"]{background:var(--color-surface-selected)}
-  .evidence button>*:not(.number){grid-column:2}
-  .number{grid-row:1;display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--color-border);font-size:10px;font-weight:700;color:var(--color-ink)}
-  .name{display:flex;align-items:center;gap:6px;font-size:var(--font-small);min-width:0}
-  .name b{margin-left:auto;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .evidence small{font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
   .swatch{flex:none;display:inline-block;width:12px;height:3px;border-radius:2px}
-  .swatch.hollow{height:8px;width:8px;margin:0 2px;border-radius:50%;border:1.5px solid var(--color-ink-muted);box-sizing:border-box}
-  .swatch.level{height:10px;background:var(--color-ink);opacity:.6}
-  .bars{display:grid;gap:2px}.bars i{display:block;height:4px;border-radius:2px;background:var(--color-ink-muted)}.bars i+i{background:var(--color-series-1)}
-  .mix{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:6px}
-  .stack{display:flex;height:14px;border-radius:2px;overflow:hidden;background:var(--color-surface)}
-  .stack i{display:block;height:100%;background:var(--color-ink);color:#fff;font-size:10px;font-style:normal;line-height:14px;text-align:center;overflow:hidden;white-space:nowrap}
-  .stack i.stop{background:none;box-shadow:inset 0 0 0 1px var(--color-border);color:var(--color-ink-muted)}
   .tools{display:flex;gap:4px}
   .tools button{border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);padding:3px 8px;font:inherit;font-size:var(--font-label);color:var(--color-ink-muted);cursor:pointer}
   .tools button:hover{color:var(--color-action);border-color:var(--color-action)}

@@ -19,16 +19,13 @@ from industrial_phm.application.phm_range import focus_point
 from industrial_phm.genai.change_answer import generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
-from industrial_phm.runtime.operations_web_change_context import (
-    investigation_facts,
-    selected_change,
-)
+from industrial_phm.runtime.operations_web_change_context import screen_view, selected_change
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MANAGERS: dict[Path, ExplanationManager] = {}
 _LOCK = Lock()
 # 특이사항 대화에서 모델에 함께 넘기는 앞선 문답 수.
-_TURNS = 4
+_TURNS = 6
 
 
 def configured_provider() -> ExplanationProvider:
@@ -92,38 +89,29 @@ class ExplanationManager:
         provider = configured_provider()
         return self._enqueue(context, provider)
 
-    def request_change(
-        self,
-        asset: str,
-        change_id: str,
-        question: str,
-        parent_id: str | None,
-        scope: dict[str, str] | None = None,
-        opening: str | None = None,
-    ) -> dict[str, object]:
-        context = selected_change(self.workspace, asset, change_id, scope)
-        context["question"] = question
-        if parent_id is not None:
-            context["parent_id"] = parent_id
-            context["history"], opening = self._thread(parent_id, context)
-        # 대화창 맨 위에 보인 알림: 모델이 이미 보인 숫자를 되풀이하지 않게 함께 넘긴다.
-        if opening:
-            context["opening"] = opening
-        context["investigation"] = investigation_facts(self.workspace, context)
-        return self._enqueue(context, configured_provider())
+    def request_change(self, context: dict[str, Any], screen: dict[str, Any]) -> dict[str, object]:
+        if parent := context.get("parent_id"):
+            context["history"] = self._thread(parent, context)
+        return self._enqueue(context, configured_provider(), screen=screen)
 
-    def _enqueue(self, context: dict[str, Any], provider: ExplanationProvider) -> dict[str, object]:
+    def _enqueue(
+        self,
+        context: dict[str, Any],
+        provider: ExplanationProvider,
+        *,
+        screen: dict[str, Any] | None = None,
+    ) -> dict[str, object]:
         identifier = self.store.request(context, model=provider.model, owner=self.owner)
 
         def generate() -> None:
             try:
-                answer = (
-                    generate_change_answer if context.get("change_id") else generate_grounded_answer
-                )(context, provider)
+                if screen is None:
+                    answer = generate_grounded_answer(context, provider)
+                else:
+                    answer = generate_change_answer(context | {"screen": screen}, provider)
             except AnalysisExplanationError:
                 self.store.finish(identifier, owner=self.owner, error="AI explanation unavailable")
             else:
-                # Every reference in the answer was checked against the stored comparison.
                 text = (answer["summary"] + " " + answer.get("next_step", "")).strip()
                 self.store.finish(identifier, owner=self.owner, text=text, answer=answer)
 
@@ -159,23 +147,19 @@ class ExplanationManager:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
         return [{"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}]
 
-    def _thread(
-        self, parent_id: str, context: dict[str, Any]
-    ) -> tuple[list[dict[str, str]], str | None]:
-        """The conversation a change question continues, oldest first, and its opening notice.
+    def _thread(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
+        """The conversation a change question continues, oldest first.
 
-        A conversation needs what was already said: the notice the screen showed first and the
-        last turns. Each answer is short, so the last ``_TURNS`` turns stay a small request.
+        A conversation needs what was already said. Each answer is a few sentences, so the
+        last ``_TURNS`` turns stay a small request.
         """
         turns: list[dict[str, str]] = []
-        opening: str | None = None
         current: str | None = parent_id
         while current is not None and len(turns) < _TURNS:
             turns.insert(0, self._history(current, context)[0])
             record = self.store.get(current)
-            opening = record["context"].get("opening") if record else None
             current = record["context"].get("parent_id") if record else None
-        return turns, opening
+        return turns
 
 
 def initialize_explanation_manager(root: Path) -> ExplanationManager:
@@ -187,51 +171,68 @@ def initialize_explanation_manager(root: Path) -> ExplanationManager:
         return manager
 
 
+def prepare_web_explanation(
+    workspace: OperationsWorkspace, payload: dict[str, object]
+) -> dict[str, object]:
+    """Read the change in the Web process, where the monitoring view is already prepared."""
+    if "_change" in payload or "screen" in payload:
+        raise ValueError("unexpected explanation fields")
+    if "change_id" not in payload:
+        return payload
+    if (
+        not {"asset_id", "change_id", "question"}
+        <= set(payload)
+        <= {
+            "asset_id",
+            "change_id",
+            "question",
+            "parent_id",
+            "record_until",
+            "acquisition_until",
+        }
+    ):
+        raise ValueError("unexpected change explanation fields")
+    if not all(isinstance(value, str) for value in payload.values()):
+        raise ValueError("invalid change question")
+    asset, key, change_question = (
+        str(payload["asset_id"]),
+        str(payload["change_id"]),
+        str(payload["question"]).strip(),
+    )
+    if (
+        not asset
+        or len(asset) > 512
+        or len(key) != 64
+        or any(c not in "0123456789abcdef" for c in key)
+        or not 1 <= len(change_question) <= 600
+    ):
+        raise ValueError("invalid selected change or question")
+    parent = payload.get("parent_id")
+    if parent is not None and len(str(parent)) > 128:
+        raise ValueError("invalid follow-up")
+    scope: dict[str, str] = {
+        k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload
+    }
+    context = selected_change(workspace, asset, key, scope)
+    screen = screen_view(workspace, context)
+    context.pop("history_change", None)
+    context.pop("vibration_change", None)
+    context["question"] = change_question
+    if parent:
+        context["parent_id"] = parent
+    return {"_change": context, "screen": screen}
+
+
 def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str, object]:
     if "change_id" in payload:
-        if (
-            not {"asset_id", "change_id", "question"}
-            <= set(payload)
-            <= {
-                "asset_id",
-                "change_id",
-                "question",
-                "parent_id",
-                "opening",
-                "record_until",
-                "acquisition_until",
-            }
-        ):
-            raise ValueError("unexpected change explanation fields")
-        if not all(isinstance(value, str) for value in payload.values()):
-            raise ValueError("invalid change question")
-        asset, key, change_question = (
-            str(payload["asset_id"]),
-            str(payload["change_id"]),
-            str(payload["question"]).strip(),
-        )
-        if (
-            not asset
-            or len(asset) > 512
-            or len(key) != 64
-            or any(c not in "0123456789abcdef" for c in key)
-            or not 1 <= len(change_question) <= 600
-        ):
-            raise ValueError("invalid selected change or question")
-        parent = payload.get("parent_id")
-        if parent is not None and len(str(parent)) > 128:
-            raise ValueError("invalid follow-up")
-        opening = str(payload.get("opening", "")).strip()
-        if len(opening) > 600:
-            raise ValueError("invalid opening notice")
-        return initialize_explanation_manager(root).request_change(
-            asset,
-            key,
-            change_question,
-            str(parent) if parent else None,
-            {k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload},
-            opening or None,
-        )
+        payload = prepare_web_explanation(OperationsWorkspace(root), payload)
+    if set(payload) == {"_change", "screen"}:
+        # Only the authenticated Web child constructs this command. The HTTP handler rejects
+        # those fields in browser requests before forwarding a command to the supervisor.
+        context, screen = payload["_change"], payload["screen"]
+        if not isinstance(context, dict) or not isinstance(screen, dict):
+            raise ValueError("invalid prepared change")
+        return initialize_explanation_manager(root).request_change(context, screen)
     if not {"binding_id", "position"} <= set(payload) or set(payload) - {
         "binding_id",
         "position",

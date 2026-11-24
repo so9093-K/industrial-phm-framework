@@ -16,7 +16,6 @@
   import {DECISION_LABEL} from "../review-writes";
   import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
   import type {EvidenceFocus} from "../change-evidence";
-  import type {Evidence} from "../change-investigation";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount,untrack} from "svelte";
   import {flowLabel, type Asset} from "../monitor";
@@ -405,10 +404,10 @@
 
 {#snippet context()}{#if evidenceFocus}<ChangeContext assetId={asset.assetId} focus={evidenceFocus} selected={selectedAt} onClear={() => selectedAt = null}/>{/if}{/snippet}
 
-{#snippet assistant({colorOf, labelOf, point, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
-  point: (evidence: Evidence | null) => void; close: () => void})}
+{#snippet assistant({colorOf, labelOf, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
+  close: () => void})}
   {#if evidenceFocus && decision}{#key decision.reviewKey}
-    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {colorOf} {labelOf} {point} onStart={onInvestigate} onClose={close}
+    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {colorOf} {labelOf} onStart={onInvestigate} onClose={close}
       onMemo={text => memo = {reviewKey: decision!.reviewKey, sequence: (memo?.sequence ?? 0) + 1, text}}/>
   {/key}{/if}
 {/snippet}

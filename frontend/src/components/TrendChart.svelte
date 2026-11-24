@@ -13,15 +13,14 @@
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
    * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, dim = [], endLabel = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
+    colors = SERIES_COLORS, guide = null, endLabel = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
     live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void; onHover?: (at: number | null) => void;
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
-    /** 옅게 그릴 계열(그 변화 구간도 옅게): 다른 곳에서 가리킨 계열만 또렷하게 남긴다. */
-    dim?: string[]; endLabel?: boolean;
+    endLabel?: boolean;
     /** 변화 구간 앞 절반·뒤 절반에 움직인 양. 가운데 점선과 각 절반 위의 값으로 빨라지는지 보인다. */
     halves?: {from: number; to: number; change: number}[] | null} = $props();
   const W = 1000;
@@ -73,18 +72,17 @@
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
           {#each shown as change (change.key + change.from)}
             {@const start = Math.max(0, x(change.from))}
-            <rect class="change" class:faint={dim.includes(change.key)} x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
+            <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
           {/each}
           {#if band}<rect class="band" x="0" width={Math.min(W, x(end))} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))}/>{/if}
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
           {#if spread.length}<path class="spread" d={spreadPath} style:fill={colors[0]}/>{/if}
           {#each series as row, index (row.key)}
-            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}
-              class:faint={dim.includes(row.key)}/>
+            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}/>
           {/each}
           <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
           {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
-          {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" class:faint={dim.includes(change.key)} x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
+          {#each shown as change (change.key + change.from)}{#if change.from >= lo}<line class="onset" x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}{/each}
           {#if paced}<line class="half" x1={x(paced[1].from)} x2={x(paced[1].from)} y1="0" y2={height}/>{/if}
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
@@ -95,7 +93,7 @@
         <span class="half-label" class:low={(i === 1) !== (paced[0].change + paced[1].change < 0)} style:left={(pct(half.from) + pct(half.to)) / 2 + "%"}>
           {(half.change > 0 ? "+" : "") + measure(half.change, group.unit, 3)}</span>{/each}{/if}
       {#each last as item (item.row.key)}
-        <span class="dot" class:live class:faint={dim.includes(item.row.key)} style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
+        <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
           style:--dot={colors[item.index % colors.length]}></span>
         {#if endLabel && !live && item.row.key === group.focus && !hover}
           <span class="end-label" class:at-start={pct(item.point!.x) < 33}
@@ -124,8 +122,6 @@
   .half{stroke:var(--color-change-line);stroke-dasharray:2 3;stroke-width:1.5}
   .half-label{position:absolute;top:6px;transform:translateX(-50%);padding:1px 5px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
   .half-label.low{top:auto;bottom:6px}
-  .faint{opacity:.18}
-  path,rect,line,.dot{transition:opacity .15s}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
   .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:11px;font-weight:650;pointer-events:none}

@@ -70,20 +70,35 @@ class WebCommandClient:
         self._token = token
 
     def execute(
-        self, route: str, payload: dict[str, object], *, request_id: str | None = None
+        self,
+        route: str,
+        payload: dict[str, object],
+        *,
+        request_id: str | None = None,
+        prepared_payload: dict[str, object] | None = None,
     ) -> dict[str, object]:
         if route not in WEB_SOURCE_ACTION_ROUTES:
             raise WebCommandRejected("invalid_source_action")
         identifier = secrets.token_hex(16) if request_id is None else request_id
-        message = {
-            "version": 1,
-            "token": self._token,
-            "request_id": identifier,
-            "route": route,
-            "payload": payload,
-        }
+
+        def encode(body: dict[str, object]) -> bytes:
+            message = {
+                "version": 1,
+                "token": self._token,
+                "request_id": identifier,
+                "route": route,
+                "payload": body,
+            }
+            return (
+                json.dumps(message, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+                + "\n"
+            ).encode()
+
         try:
-            encoded = (json.dumps(message, separators=(",", ":"), allow_nan=False) + "\n").encode()
+            encoded = encode(prepared_payload if prepared_payload is not None else payload)
+            if prepared_payload is not None and len(encoded) > _MAX_MESSAGE_BYTES:
+                # The supervisor can prepare a snapshot that exceeds the wire limit itself.
+                encoded = encode(payload)
             if len(encoded) > _MAX_MESSAGE_BYTES:
                 raise WebCommandRejected("invalid_source_action")
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:

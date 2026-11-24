@@ -376,6 +376,8 @@ def _vibration_group(
     binding_id: str,
     source_id: str,
     focus: str,
+    *,
+    until: int | None = None,
 ) -> dict[str, Any]:
     """The focus feature and the same statistic of the other vibration axes, per acquisition.
 
@@ -386,11 +388,14 @@ def _vibration_group(
         binding_id: The binding whose analyzed acquisitions are read.
         source_id: The binding's source, for units.
         focus: The feature the asset is monitored by.
+        until: The latest acquisition visible in a replay, if any.
 
     Returns:
         The group's name, unit and acquisition range, and one trace per member.
     """
-    results, total = store.analyzed_between(binding_id, 0, 2**62, max_points=_GROUP_POINTS)
+    results, total = store.analyzed_between(
+        binding_id, 0, until if until is not None else 2**62, max_points=_GROUP_POINTS
+    )
     statistic = focus.rpartition(".")[2]
     names = sorted(
         {

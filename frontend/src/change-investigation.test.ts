@@ -9,10 +9,10 @@ test("a conversation stays on its selected change, and an older answer still rea
   globalThis.fetch=async()=>new Response(JSON.stringify(body),{headers:{"content-type":"application/json"}});
   try{
     const signal=new AbortController().signal;
-    assert.deepEqual((await readChangeDiscussion("bearing",key,signal))[0].answer,{summary:"지금도 커지고 있습니다.",evidence:[]});
-    // 예전 답(다음에 볼 것·후속 분석·계산 요약)도 문장만 읽는다.
-    body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,answer:{summary:"높은 상태가 이어집니다.",next_step:"주파수를 견주면 알 수 있습니다.",actions:["spectrum"],source:"computed"}}]};
-    assert.deepEqual((await readChangeDiscussion("bearing",key,signal))[0].answer,{summary:"높은 상태가 이어집니다.",evidence:[]});
+    assert.deepEqual((await readChangeDiscussion("bearing",key,signal))[0].answer,{summary:"지금도 커지고 있습니다."});
+    // 예전 답(다음에 볼 것·후속 분석·근거·계산 요약)도 문장만 읽는다.
+    body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,answer:{summary:"높은 상태가 이어집니다.",next_step:"주파수를 견주면 알 수 있습니다.",actions:["spectrum"],evidence:[{fact:"x"}],source:"computed"}}]};
+    assert.deepEqual((await readChangeDiscussion("bearing",key,signal))[0].answer,{summary:"높은 상태가 이어집니다."});
     body={schema_version:1,asset_id:"bearing",change_id:key,explanations:[{...record,context:{...record.context,change_id:"b".repeat(64)}}]};
     await assert.rejects(readChangeDiscussion("bearing",key,signal),/대상/);
     body={schema_version:1,asset_id:"other",change_id:key,explanations:[record]};
@@ -20,7 +20,7 @@ test("a conversation stays on its selected change, and an older answer still rea
   }finally{globalThis.fetch=original;}
 });
 
-test("the first question carries the notice the screen showed, and a follow-up continues the thread instead",async()=>{
+test("a question is just what the person asked, and a follow-up names the answer it continues",async()=>{
   const original=globalThis.fetch,key="a".repeat(64),sent:Record<string,unknown>[]=[];
   const json=(value:unknown)=>new Response(JSON.stringify(value),{headers:{"content-type":"application/json"}});
   globalThis.fetch=async(url,init)=>{
@@ -30,10 +30,9 @@ test("the first question carries the notice the screen showed, and a follow-up c
   };
   try{
     const signal=new AbortController().signal;
-    await askChange("bearing",key,"문제 있어?",null,signal,null,"수직 진동 RMS가 초기의 약 9.3배입니다.");
-    await askChange("bearing",key,"왜 그래?","x",signal,null,"수직 진동 RMS가 초기의 약 9.3배입니다.");
-    assert.equal(sent[0].opening,"수직 진동 RMS가 초기의 약 9.3배입니다.");
-    assert.equal(sent[1].parent_id,"x");
-    assert.equal(sent[1].opening,undefined);
+    await askChange("bearing",key,"문제 있어?",null,signal);
+    await askChange("bearing",key,"왜 그래?","x",signal);
+    assert.deepEqual(sent[0],{asset_id:"bearing",change_id:key,question:"문제 있어?"});
+    assert.deepEqual(sent[1],{asset_id:"bearing",change_id:key,question:"왜 그래?",parent_id:"x"});
   }finally{globalThis.fetch=original;}
 });
