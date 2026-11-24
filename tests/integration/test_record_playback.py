@@ -78,8 +78,10 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     assert comparison_query is not None
     screen = screen_view(workspace, context)
     card = screen["선택한 변화"]
-    assert card["초기 중앙값"] == pytest.approx(220, abs=0.02)
-    assert card["변화 구간 중앙값"] == pytest.approx(230, abs=0.02)
+    # 한 운전 수준끼리 견준 값은 그 조건을 값 옆에 달고 간다.
+    assert card["초기 중앙값"]["값"] == pytest.approx(220, abs=0.02)
+    assert card["변화 구간 중앙값"]["값"] == pytest.approx(230, abs=0.02)
+    assert card["초기 중앙값"]["조건"].endswith("운전 중인 측정끼리")
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
     assert card["변화 시작"] == start.strftime("%Y-%m-%d %H:%M")
     training = history_points(workspace, "compressor", "voltage", scope)

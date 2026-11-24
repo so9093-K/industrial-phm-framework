@@ -46,13 +46,16 @@ def generate_change_answer(
 ) -> dict[str, str]:
     """Pass the measured record and the conversation to the model once."""
     data = {"screen": context["screen"]}
-    guidance = "저장된 설비 기록을 보고 질문에 짧고 자연스럽게 답한다."
+    # 역할과 말투만 말한다. '저장된 기록'이라는 틀이나 '확정할 수 없다' 같은 말을 넣으면 모델은
+    # 그 말을 답으로 옮기고 질문에는 답하지 않았다.
+    guidance = (
+        "너는 설비 모니터링을 돕는 AI다. screen은 사용자가 지금 화면에서 보고 있는 이 설비의 "
+        "데이터다. 사용자의 질문에 한국어로 바로, 사람에게 말하듯 2~4문장으로 답해라. "
+        "데이터에 없는 수치는 지어내지 마라."
+    )
     if (comparison := context.get("load_comparison_result")) is not None:
         data["같은 전류 범위의 실제 비교"] = comparison
-        guidance += (
-            " 계산 결과가 있으면 같은 전류 범위에서 확인한 차이부터 설명한다."
-            " 원인은 이 비교로 확정할 수 없다."
-        )
+        guidance += " 같은 전류 범위의 실제 비교가 있으면 그 결과부터 말해라."
     screen = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     messages = [
         {

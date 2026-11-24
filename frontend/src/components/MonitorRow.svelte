@@ -87,7 +87,7 @@
     <div class="summary">
       <header class="equipment-head">
         <div class="title"><a class="name" href={href(lead)} onclick={onPause}><AssetName label={name}/></a>
-          <span class="kind">{[role, read.live ? "수신 중" : "저장 기록"].filter(Boolean).join(" · ")}</span></div>
+          {#if role || read.live}<span class="kind">{[role, read.live ? "수신 중" : null].filter(Boolean).join(" · ")}</span>{/if}</div>
         <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":"최근 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked !== null || loadPick !== null}<button type="button" class="clear-pick" onclick={() => { picked = null; loadPick = null; }}>선택 해제</button>{/if}</div>
       </header>
       <dl class="values">
@@ -112,7 +112,7 @@
           <div class="finding-actions">
             {#if lead.reviewKey && !read.live}
               <button type="button" class="ui-button ai" aria-pressed={chatting} onclick={() => { onPause(); onChat(chatting ? null : chatPanel); }}>
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI에 질문</button>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
             {/if}
             <a class="ui-button ui-button-primary investigate" href={href(lead)} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>
           </div>

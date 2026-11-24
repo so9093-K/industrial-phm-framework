@@ -39,3 +39,18 @@ test("a question is just what the person asked, and a follow-up names the answer
     assert.deepEqual(sent[1],{asset_id:"bearing",change_id:key,conversation_id:conversation,question:"왜 그래?",parent_id:"x"});
   }finally{globalThis.fetch=original;}
 });
+
+test("a bearing answer leads to the comparison of the change it talked about, not a model verdict",async()=>{
+  const {changeFollowup}=await import("./change-evidence.ts");
+  const change={feature:"vertical.rms",label:"수직 진동 RMS",unit:"g",direction:"up" as const,reason:"record-end" as const,kind:"departure" as const,
+    from:72,to:123,baseline:{from:1,to:37},reference:0.623,typical:2.3,value:5.78,usual:{low:0.57,high:0.65},trace:[],related:[]};
+  const record={sourceId:"bearing-file",bindingId:"binding-1",assetId:"Bearing1_1",first:1,last:123,periodSeconds:60,judged:1,features:1,intervals:[change]};
+  for(const replaying of [false,true]){
+    const link=changeFollowup("Bearing1_1",{kind:"vibration",change,record},replaying)!;
+    const q=new URL(link.href,"http://local").searchParams;
+    // 대화가 말한 변화(초기 1–37번째 대 72–123번째)를 그대로 비교한다. 이상 점수 화면이 아니다.
+    assert.equal(q.get("feature_a_from"),"1");assert.equal(q.get("feature_b_to"),"123");
+    assert.equal(q.get("model_binding"),null);
+    assert.equal(link.label,replaying?"이 시점까지의 진동 비교":"초기와 변화 구간의 진동 비교");
+  }
+});

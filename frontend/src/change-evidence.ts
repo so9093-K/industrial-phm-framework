@@ -2,7 +2,6 @@
 import {countShare} from "./analysis-messages.ts";
 import {findingLinks, type FoundInterval, type RecordFindings} from "./record-findings.ts";
 import {vibrationLinks, type VibrationChange, type VibrationFindings} from "./vibration-findings.ts";
-import {assetTabUrl} from "./routes.ts";
 
 /** 근거를 찾을 변화: 시계열 기록의 한 구간, 또는 진동 기록의 한 변화. */
 export type EvidenceFocus =
@@ -20,11 +19,10 @@ export function changeFollowup(asset: string, focus: EvidenceFocus, replaying = 
     return href ? {label: "변화 전후 값 비교", href} : null;
   }
   if (!focus.record.bindingId) return null;
-  if (replaying) return {label: "이 시점까지의 진동 비교", href: vibrationLinks(asset, focus.change).compare};
-  const url = new URL(assetTabUrl(asset, "anomaly", "model"), "http://local");
-  url.searchParams.set("model_binding", focus.record.bindingId);
-  url.searchParams.set("model_position", String(focus.change.from));
-  return {label: "변화가 시작된 측정의 이상 점수", href: url.pathname + url.search};
+  // 대화가 말한 변화를 그대로 보여 주는 비교로 잇는다. 변화가 시작된 측정의 이상 점수는 '기준 이하'로
+  // 나올 수 있어(베어링 1-1의 72번째: 0.568 < 0.754), 대화와 반대로 읽혔다.
+  return {label: replaying ? "이 시점까지의 진동 비교" : "초기와 변화 구간의 진동 비교",
+    href: vibrationLinks(asset, focus.change).compare};
 }
 
 const count = (value: number) => value.toLocaleString("ko-KR");

@@ -64,7 +64,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     context = selected_change(workspace, "bearing-a", chosen["review_key"])
     screen = screen_view(workspace, context)
     assert screen["선택한 변화"]["신호"] == chosen["label"]
-    assert screen["선택한 변화"]["변화가 기록 끝까지 이어짐"] is True
+    assert screen["선택한 변화"]["지금도 이어지는지"] == "기록 끝까지 이어짐"
+    # 출처나 '판정이 없다'는 말은 모델에 주지 않는다: 그 말을 답으로 옮겼다.
+    assert "기록" not in screen and "화면의 특이사항" not in screen
     signal = screen["신호별 마지막 값과 추이"][0]
     assert signal["신호"] == chosen["label"]
     assert signal["마지막 측정"][0] == 30 and signal["단위"] == "g"
