@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -138,14 +139,8 @@ def _answer_object(text: str, schema: dict[str, object]) -> object:
     return next((value for value in values if value != schema), values[0])
 
 
-def complete_json(
-    provider: ExplanationProvider,
-    messages: list[dict[str, str]],
-    schema: dict[str, object],
-    *,
-    max_tokens: int = 1200,
-) -> object:
-    """One schema-constrained completion; Chat Completions first, Responses as fallback."""
+def _poster(provider: ExplanationProvider) -> Callable[[str, dict[str, object]], object]:
+    """POST one JSON request to the configured model server and read its JSON reply."""
     headers = {"Content-Type": "application/json"}
     if provider.api_key:
         headers["Authorization"] = "Bearer " + provider.api_key
@@ -163,6 +158,56 @@ def complete_json(
         if len(data) > 2_000_000:
             raise AnalysisExplanationError("explanation response exceeds limit")
         return json.loads(data)
+
+    return post
+
+
+def complete_text(
+    provider: ExplanationProvider, messages: list[dict[str, str]], *, max_tokens: int = 400
+) -> str:
+    """One plain chat reply, as a conversation answers: no schema to fill.
+
+    Raises:
+        AnalysisExplanationError: The model server was unavailable or replied with no text.
+    """
+    try:
+        data = _poster(provider)(
+            "/chat/completions",
+            {
+                "model": provider.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.2,
+            },
+        )
+        if not isinstance(data, dict):
+            raise AnalysisExplanationError("invalid chat explanation response")
+        text = data["choices"][0]["message"]["content"]
+    except (
+        HTTPError,
+        URLError,
+        TimeoutError,
+        OSError,
+        KeyError,
+        IndexError,
+        TypeError,
+        ValueError,
+    ) as error:
+        raise AnalysisExplanationError("configured explanation provider unavailable") from error
+    if not isinstance(text, str) or not text.strip():
+        raise AnalysisExplanationError("empty explanation response")
+    return text.strip()
+
+
+def complete_json(
+    provider: ExplanationProvider,
+    messages: list[dict[str, str]],
+    schema: dict[str, object],
+    *,
+    max_tokens: int = 1200,
+) -> object:
+    """One schema-constrained completion; Chat Completions first, Responses as fallback."""
+    post = _poster(provider)
 
     named = {"name": "phm_answer", "schema": schema, "strict": True}
     try:

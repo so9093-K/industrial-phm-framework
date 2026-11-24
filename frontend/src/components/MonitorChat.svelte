@@ -1,14 +1,14 @@
 <script lang="ts">
   import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, readChangeDiscussion, INVESTIGATE, spokenQuestion, type ChangeDiscussion} from "../change-investigation";
+  import {askChange, readChangeDiscussion, STARTERS, type ChangeDiscussion} from "../change-investigation";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {OutcomeUnknown} from "../writes";
 
-  /** 관제 줄 오른쪽의 AI 관제 대화창. AI가 특이사항을 문장으로 알리고(notice), 사람이 남긴 판단은 내 말풍선으로,
-   * 앞서 찾은 특이사항은 지난 메시지로 위에 둔다. '원인을 조사해 주세요'나 질문을 보내면 이 자리에서 AI가 확인한
-   * 항목과 답을 보인다. 조사 화면의 AI 조사와 같은 대화라 어느 화면에서 이어도 같다. */
+  /** 관제 목록 오른쪽의 AI 대화창. AI가 특이사항을 문장으로 알리고(notice), 사람이 남긴 판단은 내 말풍선으로,
+   * 앞서 찾은 특이사항은 지난 메시지로 위에 둔다. 질문하면 AI가 짧게 답한다. 알림은 첫 질문과 함께 보내
+   * AI가 이미 보인 숫자를 되풀이하지 않게 한다. 조사 화면의 AI 조사와 같은 대화라 어느 화면에서 이어도 같다. */
   let {assetId, reviewKey, scope, watched, notice, when, judged, earlier, calm, checking, detailHref, canAsk, onPause, heading = true}: {
     assetId: string; reviewKey: string | null; scope: PlaybackScope | null; watched: string;
     notice: string[] | null; when: string | null;
@@ -57,7 +57,7 @@
     if (question.trim() === submitted) question = "";
     cancel(); const pending = new AbortController(); write = pending; busy = true; error = ""; remaining = 240;
     try {
-      await askChange(assetId, reviewKey, submitted, latest?.status === "complete" ? latest.id : null, pending.signal, scope);
+      await askChange(assetId, reviewKey, submitted, latest?.status === "complete" ? latest.id : null, pending.signal, scope, notice?.join(" ") ?? null);
       if (!pending.signal.aborted) { busy = false; await refresh(); }
     } catch (cause) {
       if (pending.signal.aborted) return;
@@ -106,28 +106,21 @@
       {#if judged === "pending"}<p class="status">판단 전</p>
       {:else if judged}<p class="me judged"><b>{judged.verdict}</b>{judged.note ? " · " + judged.note : ""}<small>{judged.day}</small></p>{/if}
       {#each thread as row (row.id)}
-        <p class="me">{spokenQuestion(row.question)}</p>
+        <p class="me">{row.question}</p>
         <div class="msg answer">
-          {#if row.steps.length}
-            <details open={row.status === "pending"}><summary>확인한 항목 {row.steps.length}개</summary>
-              <ul>{#each row.steps as step, index (index)}<li><span>{step.label}</span><b>{step.result}</b></li>{/each}</ul></details>
-          {/if}
           {#if row.status === "pending"}<p class="typing"><i></i><i></i><i></i>{typing("답 정리 중")}</p>
-          {:else if row.status === "complete" && row.answer}
-            <p>{row.answer.summary}</p>
-            {#if row.answer.source === "computed"}<p class="note">AI 응답을 쓰지 못해 계산 결과 요약으로 답했습니다.</p>{/if}
-            {#if row.answer.next_step}<p class="note">{row.answer.next_step}</p>{/if}
-          {:else}<p class="note">설명을 만들지 못했습니다. 그래프는 계속 볼 수 있습니다.</p>{/if}
+          {:else if row.status === "complete" && row.answer}<p>{row.answer.summary}</p>
+          {:else}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
         </div>
       {/each}
-      {#if unsent}<p class="me">{spokenQuestion(unsent)}</p><p class="msg typing"><i></i><i></i><i></i>{typing("측정 기록 확인 중")}</p>{/if}
+      {#if unsent}<p class="me">{unsent}</p><p class="msg typing"><i></i><i></i><i></i>{typing("측정 기록 확인 중")}</p>{/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
     {:else}
       <p class="msg">{calm} <a class="more" href={detailHref} onclick={onPause}>보기 →</a></p>
     {/if}
   </div>
   {#if canAsk && notice && reviewKey}
-    {#if !thread.length && !unsent}<div class="replies"><button type="button" disabled={!writable} onclick={() => void ask(INVESTIGATE.text)}>{INVESTIGATE.label}</button></div>{/if}
+    {#if !thread.length && !unsent}<div class="replies">{#each STARTERS as text (text)}<button type="button" disabled={!writable} onclick={() => void ask(text)}>{text}</button>{/each}</div>{/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="AI 관제에 질문" bind:value={question} onkeydown={keydown} onfocus={onPause} disabled={!writable}
         placeholder={!writable ? "보기 전용에서는 대화를 볼 수만 있습니다" : waiting ? "답을 기다리는 동안 다음 질문을 쓸 수 있습니다" : "이 특이사항에 대해 질문"}></textarea>
@@ -155,9 +148,6 @@
   .me.judged{display:grid;gap:1px;font-size:12px}.me.judged b{font-size:var(--font-small)}.me small{font-size:11px;color:var(--color-ink-muted)}
   .status{align-self:flex-end;font-size:12px;color:var(--color-ink-muted)}
   .answer{display:grid;gap:5px}
-  details summary{font-size:12px;color:var(--color-ink-muted);cursor:pointer}
-  details ul{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:1px}
-  details li{display:flex;justify-content:space-between;gap:8px;font-size:12px}details li b{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
   .note{font-size:12px;color:var(--color-ink-muted)}
   .typing{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--color-ink-muted)}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}

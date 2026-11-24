@@ -66,7 +66,6 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
                 "levels": [{"typical": 10.6}, {"typical": 31.4}, {"typical": 61.9}],
             }
         ],
-        "channels": ["R상전압", "S상전압", "T상전압"],
         "episode": [r, s, t],
     }
     out = history_investigation(context)
@@ -114,17 +113,8 @@ def test_a_power_change_carries_its_level_mix_and_the_changes_drawn_beside_it() 
         "약 62 A 운전",
     ]
     assert targets["operating_share"]["b"] == [0, 0.44, 0.56, 0]
-    # What the investigation looked at, one '항목 · 결과' row each, the selected change first.
-    assert [(row["label"], row["result"]) for row in out["steps"]] == [
-        ("R상전압", "222 → 226 V"),
-        ("지금", "10월 5일 07:31에 끝남"),
-        ("전류평균", "41.2 → 23.1 A"),
-        ("약 11 A 운전 비중", "15% → 44%"),
-        ("같은 운전 수준끼리 비교", "약 11 A 운전"),
-        ("S상전압", "222 → 225 V"),
-        ("같은 시기 변화", "S상전압·T상전압"),
-    ]
-    assert all(row["fact"] in facts for row in out["steps"])
+    # The conversation is the answer: no checked-list rows or follow-up actions to render.
+    assert set(out) == {"facts", "targets"}
 
 
 def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> None:
@@ -157,7 +147,6 @@ def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> No
                 ],
             }
         ],
-        "channels": ["R상전압"],
         "episode": [change],
     }
     out = history_investigation(context)
@@ -166,8 +155,6 @@ def test_when_the_load_changed_is_read_from_the_same_strip_as_the_screen() -> No
     assert facts["operating_flow"].endswith(
         "10월 3일 17:00~10월 3일 19:00 약 62 A 운전, 10월 3일 19:00~10월 4일 09:00 약 31 A 운전."
     )
-    # Hour by hour the dominant level is not a checked row: it hides levels mixed within an hour.
-    assert "operating_flow" not in [row["fact"] for row in out["steps"]]
 
 
 def test_voltage_magnitude_does_not_supply_an_equipment_rating() -> None:
@@ -178,9 +165,8 @@ def test_voltage_magnitude_does_not_supply_an_equipment_rating() -> None:
         context = {
             "history_change": changed,
             "operation": [],
-            "channels": ["R상전압"],
             "episode": [],
         }
         result = history_investigation(context)
         assert "limit" not in result["facts"]
-        assert all("허용" not in row["label"] for row in result["steps"])
+        assert not any("허용" in text for text in result["facts"].values())

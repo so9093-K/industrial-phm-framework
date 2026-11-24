@@ -1,18 +1,13 @@
 import {scopeParams, type PlaybackScope} from "./record-playback.ts";
-import {findingLinks, relatedSignalHref} from "./record-findings.ts";
-import type {EvidenceFocus} from "./change-evidence.ts";
 import {object,postWrite} from "./writes.ts";
-import {assetTabUrl} from "./routes.ts";
-import {featureCompareHref} from "./measurement-links.ts";
-export const CHANGE_ACTIONS=["compare","spectrum","onset","model","signals","electrical"] as const;
-export type ChangeAction=typeof CHANGE_ACTIONS[number];
 /** 답이 근거로 쓴 사실을 화면이 가리킬 수 있는 것으로: 찾은 변화(그래프의 선·구간), 그래프 밖 신호, 운전 수준 띠, 주파수 대역. */
 export type Evidence=
   |{fact:string;kind:"change";review_key:string;label:string;before:number|null;after:number|null;unit:string|null;where:string}
   |{fact:string;kind:"signal";label:string;before:number|null;after:number|null;unit:string|null}
   |{fact:string;kind:"operation";label:string;detail:string;levels?:string[];a?:number[];b?:number[];runs?:{from:string;to:string;level:number}[]}
   |{fact:string;kind:"spectrum";label:string;from_hz:number;to_hz:number;a:number;b:number;ratio:number|null};
-export type ChangeAnswer={summary:string;next_step?:string;actions:ChangeAction[];evidence?:Evidence[];source:"model"|"computed"};
+/** AI의 답: 짧은 문장과, 그 문장이 쓴 사실 중 그래프가 가리킬 수 있는 것. */
+export type ChangeAnswer={summary:string;evidence:Evidence[]};
 const num=(v:unknown)=>typeof v==="number"&&Number.isFinite(v);
 const maybe=(v:unknown)=>v===null||num(v);
 const runs=(list:unknown,count:number)=>Array.isArray(list)&&list.length<=8&&list.every(item=>{const run=object(item);
@@ -35,45 +30,9 @@ export function readEvidence(raw:unknown):Evidence[]{
     return {...row,unit:typeof row!.unit==="string"?row!.unit:null} as Evidence;
   });
 }
-/** 조사가 확인한 항목 한 줄(항목 · 결과). 그래프에 그려진 것이면 target으로 그 자리를 가리킨다. */
-export type Step={label:string;result:string;target:Evidence|null};
-/** 첫 요청: 질문을 고르지 않아도 고른 특이사항 자체를 조사한다. 대화에는 사람이 하는 말(label)로 보인다. */
-export const INVESTIGATE={label:"원인을 조사해 주세요",text:"이 특이사항이 왜 생겼는지 기록으로 설명해 주세요. 무엇과 함께 일어났고 기준과 견주면 어디쯤인지 알려 주세요."};
-const EARLIER_INVESTIGATE=["이 특이사항을 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요.",
-  "이 변화를 조사해 기록으로 확인한 것과 아직 모르는 것을 나눠 설명해 주세요."];
-/** 대화에 보이는 사람의 말: 첫 요청은 짧은 말로, 그 밖에는 쓴 그대로. */
-export function spokenQuestion(text:string):string{
-  return text===INVESTIGATE.text||EARLIER_INVESTIGATE.includes(text)?INVESTIGATE.label:text;
-}
-export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;steps:Step[];followUp:boolean};
-/** 질문을 받을 때 서버가 계산해 둔 확인 항목. 이전 기록(항목 없음)은 빈 목록, 모양이 다른 줄은 건너뛴다. */
-export function readSteps(raw:unknown):Step[]{
-  const investigation=object(raw),targets=object(investigation?.targets),steps=investigation?.steps;
-  if(!Array.isArray(steps))return [];
-  return steps.slice(0,12).flatMap(item=>{
-    const row=object(item);
-    if(!row||typeof row.fact!=="string"||typeof row.label!=="string"||typeof row.result!=="string")return [];
-    const drawn=object(targets?.[row.fact]);
-    let target:Evidence|null=null;
-    if(drawn)try{target=readEvidence([{...drawn,fact:row.fact}])[0];}catch{target=null;}
-    return [{label:row.label,result:row.result,target}];
-  });
-}
-/** An AI suggestion opens an existing analysis of this exact change, never a new default. */
-export function changeActionLinks(asset:string, change:{feature:string;from:number;to:number;baseline:{from:number;to:number}}, binding:string|null, actions:readonly ChangeAction[]) {
-  const spans={a:change.baseline,b:{from:change.from,to:change.to}};
-  return actions.flatMap<{key:ChangeAction;label:string;href:string}>(action=>{
-    if(action==="compare")return [{key:action,label:"같은 구간의 특징 비교",href:featureCompareHref(asset,change.feature,spans)}];
-    const url=new URL(assetTabUrl(asset,action==="spectrum"?"change":"anomaly",action==="spectrum"?"spectrum":"model"),"http://local");
-    if(action==="spectrum")for(const name of ["a","b"] as const)for(const edge of ["from","to"] as const)url.searchParams.set("spectrum_"+name+"_"+edge,String(spans[name][edge]));
-    else {
-      if(!binding)return [];
-      url.searchParams.set("model_binding",binding);url.searchParams.set("model_position",String(change.from));
-      if(action==="onset")url.hash="selected-model-input";
-    }
-    return [{key:action,label:action==="spectrum"?"이 구간의 주파수 비교":action==="onset"?"변화 시작 측정의 원본 확인":"변화 시작 측정의 모델 결과",href:url.pathname+url.search+url.hash}];
-  });
-}
+/** 대화를 여는 짧은 질문: 사람이 실제로 묻는 말 그대로 보내고 그대로 보인다. */
+export const STARTERS=["문제 있어?","왜 그래?","더 커지고 있어?"];
+export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null};
 export async function readChangeDiscussion(asset:string,key:string,signal:AbortSignal,scope:PlaybackScope|null=null):Promise<ChangeDiscussion[]> {
   const response=await fetch("/api/v1/phm/change-explanations?"+new URLSearchParams({asset_id:asset,change_id:key,...scopeParams(scope)}),{signal,cache:"no-store",credentials:"same-origin"});
   if(!response.ok){await response.body?.cancel().catch(()=>{});throw new Error("선택한 변화의 조사 내용을 불러오지 못했습니다.");}
@@ -84,31 +43,13 @@ export async function readChangeDiscussion(asset:string,key:string,signal:AbortS
     const row=object(raw),context=object(row?.context),answer=object(row?.answer);
     if(!row||context?.asset_id!==asset||context.change_id!==key||typeof row.id!=="string"||typeof context.question!=="string"
       ||!["pending","complete","failed"].includes(String(row.status)))throw new Error("조사 내용의 대상을 확인하지 못했습니다.");
-    if(answer&&(typeof answer.summary!=="string"||(answer.next_step!==undefined&&(typeof answer.next_step!=="string"||!answer.next_step.trim()||answer.next_step.length>200))||!Array.isArray(answer.actions)||answer.actions.some(a=>!CHANGE_ACTIONS.includes(a as ChangeAction))||!["model","computed"].includes(String(answer.source))))
-      throw new Error("조사 설명의 다음 분석을 확인하지 못했습니다.");
+    if(answer&&typeof answer.summary!=="string")throw new Error("답을 읽지 못했습니다.");
     return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],
-      answer:answer?{...answer,evidence:readEvidence(answer.evidence)} as ChangeAnswer:null,
-      steps:readSteps(context.investigation),followUp:typeof context.parent_id==="string"};
+      answer:answer?{summary:answer.summary as string,evidence:readEvidence(answer.evidence)}:null};
   });
 }
-export async function askChange(asset:string,key:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null):Promise<void> {
-  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,question,...scopeParams(scope),...(parent?{parent_id:parent}:{})},signal);
+/** 질문 하나를 보낸다. opening은 대화창 맨 위에 보인 알림(첫 질문에만): AI가 이미 보인 내용을 되풀이하지 않게 한다. */
+export async function askChange(asset:string,key:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null,opening:string|null=null):Promise<void> {
+  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,question,...scopeParams(scope),...(parent?{parent_id:parent}:opening?{opening}:{})},signal);
   if(typeof reply.explanation_id!=="string"||reply.status!=="pending"||reply.change_id!==key)throw new Error("질문 접수 결과를 확인하지 못했습니다. 다시 불러오세요.");
-}
-
-export function investigationLinks(asset:string,focus:EvidenceFocus,actions:readonly ChangeAction[]){
-  if(focus.kind==="vibration")return changeActionLinks(asset,focus.change,focus.record.bindingId,actions);
-  const links=findingLinks(asset,focus.item,focus.record.baseline,focus.record.bucketSeconds,focus.record.record);
-  return actions.flatMap<{key:ChangeAction;label:string;href:string}>(action=>{
-    if(action==="compare"&&links.compare)return [{key:action,label:"같은 기간의 값 비교",href:links.compare}];
-    if(action==="signals"&&links.signal)return [{key:action,label:"같은 시각의 관련 신호",href:relatedSignalHref(links.signal,focus.item,focus.record.signals)}];
-    if(action==="electrical"&&links.signal){
-      const url=new URL(links.signal,"http://local");
-      url.searchParams.set("tab","change");url.searchParams.set("method","electrical");
-      const reference=links.compare?new URL(links.compare,"http://local").searchParams.get("compare_a"):null;
-      if(reference)url.searchParams.set("compare_a",reference);
-      return [{key:action,label:"3상 전압·전류 비교",href:url.pathname+url.search}];
-    }
-    return [];
-  });
 }

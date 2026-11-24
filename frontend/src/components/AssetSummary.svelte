@@ -408,7 +408,7 @@
 {#snippet assistant({colorOf, labelOf, point, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
   point: (evidence: Evidence | null) => void; close: () => void})}
   {#if evidenceFocus && decision}{#key decision.reviewKey}
-    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} together={lanes.length} {colorOf} {labelOf} {point} onStart={onInvestigate} onClose={close}
+    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {colorOf} {labelOf} {point} onStart={onInvestigate} onClose={close}
       onMemo={text => memo = {reviewKey: decision!.reviewKey, sequence: (memo?.sequence ?? 0) + 1, text}}/>
   {/key}{/if}
 {/snippet}
