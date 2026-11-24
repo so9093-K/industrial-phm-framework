@@ -51,6 +51,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert f"{chosen['from']}~{chosen['to']}" in facts["facts"]["subject"]
     assert "중앙값" in facts["facts"]["feature_0"] and "g" in facts["facts"]["feature_0"]
     assert "회 중" in facts["facts"]["persistence"]
+    # 화면과 같은 '지금'과 앞·뒤 절반 값을 답의 근거로 받는다.
+    assert "마지막 측정(30번째)" in facts["facts"]["now"] and "배" in facts["facts"]["now"]
+    assert "앞 절반" in facts["facts"]["pace"] and "뒤 절반" in facts["facts"]["pace"]
     assert "flow" in facts["facts"] and "spectrum_0" in facts["facts"]
     assert "16개 특징" in facts["facts"]["model_input_0"]
     assert "각 측정의 특징 조합" in facts["facts"]["model_input_0"]
@@ -60,10 +63,11 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
     assert facts["targets"]["spectrum_0"]["kind"] == "spectrum"
     assert not any(key.startswith("model_") for key in facts["targets"])
-    # 확인한 항목: the selected change first, then whether it stayed outside and how it moved.
+    # 확인한 항목: the selected change first, where it stands now and how fast it moved,
+    # then whether it stayed outside and how it moved.
     steps = facts["steps"]
     assert steps[0]["fact"] == "feature_0" and " → " in steps[0]["result"]
-    assert [row["fact"] for row in steps[1:3]] == ["persistence", "flow"]
+    assert [row["fact"] for row in steps[1:5]] == ["now", "pace", "persistence", "flow"]
     assert all(row["fact"] in facts["facts"] for row in steps)
     assert any(row["fact"].startswith("model_") for row in steps)
     together = [row["review_key"] for row in context["episode"]]
