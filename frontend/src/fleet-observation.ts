@@ -11,6 +11,9 @@ import type {Asset} from "./monitor.ts";
 import type {PublicDatasets} from "./public-datasets.ts";
 import {routeUrl} from "./routes.ts";
 import {object} from "./writes.ts";
+import {changeFollowup, type ChangeFollowup} from "./change-evidence.ts";
+import {parseRecordFindings} from "./record-findings.ts";
+import {parseVibrationFindings} from "./vibration-findings.ts";
 
 export type FleetPoint = {x: number; value: number; join: boolean};
 /** `channel`은 같은 데이터셋의 다른 설비에서 같은 신호를 찾는 이름이다(전력: 채널 이름, 진동: 특징 이름). */
@@ -29,7 +32,8 @@ export type FleetChange = {key: string; channel: string; label: string; from: nu
   /** 같은 때의 부하(전류): 비교 기준 구간과 변화 구간의 평균. */
   load?: {label: string; unit: string | null; before: number; after: number} | null;
   /** 판단·메모가 이 특이사항을 가리키는 열쇠(기간·기준이 같아야 같다). */
-  reviewKey?: string};
+  reviewKey?: string;
+  followup?: ChangeFollowup | null};
 /** 사람이 남긴 판단: 가장 최근 판단, 마지막 기록 시각, 가장 최근 메모. */
 export type Judgment = {decision: ReviewDecision | null; closed: boolean; at: string; note: string | null};
 /** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 모니터링이 아니다). */
@@ -109,32 +113,27 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
   if (group.axis === "time") {
     if (until !== null) query.set("record_until", new Date(until).toISOString());
     const body = await json("/api/v1/explore/findings?" + query, signal);
-    return (Array.isArray(body.intervals) ? body.intervals : []).flatMap((raw: unknown) => {
-      const row = object(raw);
-      if (!row) return [];
+    const record = parseRecordFindings(body, assetId);
+    const original = body.intervals as Record<string, unknown>[];
+    return record.intervals.map((item, index) => {
+      const row = original[index];
+      const key = item.context?.key ?? String(row.key);
       const load = object(row.load);
-      return [{key: String(row.key), channel: String(row.channel), label: text(row.label) ?? String(row.channel), up: row.direction !== "down",
-        ref: JSON.stringify(["history", String(row.key), row.start, row.end]),
-        reviewKey: typeof row.review_key === "string" ? row.review_key : undefined,
+      return {key, channel: item.channel, label: item.label, up: item.direction === "up",
+        ref: JSON.stringify(["history", key, item.start, item.end]), reviewKey: item.reviewKey,
+        followup: changeFollowup(assetId, {kind: "history", item, record, condition: null}),
         load: load && typeof load.reference === "number" && typeof load.current === "number"
           ? {label: text(load.label) ?? "부하", unit: text(load.unit), before: load.reference, after: load.current} : null,
-        from: Date.parse(String(row.start)), to: Date.parse(String(row.end)),
-        before: typeof row.reference_value === "number" ? row.reference_value : null,
-        after: typeof row.typical_value === "number" ? row.typical_value : null}];
-    }).filter(row => Number.isFinite(row.from) && Number.isFinite(row.to));
+        from: Date.parse(item.start), to: Date.parse(item.end), before: item.reference ?? null, after: item.typical ?? null};
+    });
   }
   if (until !== null) query.set("acquisition_until", String(Math.floor(until)));
   const body = await json("/api/v1/explore/vibration?" + query, signal);
-  return (Array.isArray(body.intervals) ? body.intervals : []).flatMap((raw: unknown) => {
-    const row = object(raw);
-    if (!row) return [];
-    return [{key: String(row.feature), channel: String(row.feature), label: text(row.label) ?? String(row.feature), up: row.direction !== "down",
-      ref: JSON.stringify(["vibration", String(row.feature), row.from, row.to]),
-      reviewKey: typeof row.review_key === "string" ? row.review_key : undefined,
-      from: finite(row.from), to: finite(row.to),
-      before: typeof row.reference_value === "number" ? row.reference_value : null,
-      after: typeof row.typical_value === "number" ? row.typical_value : null}];
-  });
+  const record = parseVibrationFindings(body, assetId);
+  return record.intervals.map(change => ({key: change.feature, channel: change.feature, label: change.label, up: change.direction === "up",
+    ref: JSON.stringify(["vibration", change.feature, change.from, change.to]), reviewKey: change.reviewKey,
+    followup: changeFollowup(assetId, {kind: "vibration", change, record}),
+    from: change.from, to: change.to, before: change.reference, after: change.typical}));
 }
 
 /** 보는 묶음 안의 변화와 밖의 변화. */
@@ -147,7 +146,11 @@ export function splitChanges(group: FleetGroup, found: FleetChange[]): {changes:
 export function investigationHref(assetId: string, group: FleetGroup | null, until: number | null, change?: FleetChange): string {
   const url = new URL(routeUrl({page: "monitor", assetId, tab: "summary", method: null, data: null}), "http://local");
   url.searchParams.set("observation_view", "record");
-  if (change?.ref) url.searchParams.set("summary_change", change.ref);
+  if (change?.ref) {
+    url.searchParams.set("summary_change", change.ref);
+    url.searchParams.set("summary_label", change.label);
+    if (group) url.searchParams.set("summary_kind", group.axis === "time" ? "history" : "vibration");
+  }
   if (group && until !== null)
     url.searchParams.set(group.axis === "time" ? "record_until" : "acquisition_until",
       group.axis === "time" ? new Date(until).toISOString() : String(Math.floor(until)));

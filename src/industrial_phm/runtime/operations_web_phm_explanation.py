@@ -101,7 +101,8 @@ class ExplanationManager:
         *,
         screen: dict[str, Any] | None = None,
     ) -> dict[str, object]:
-        identifier = self.store.request(context, model=provider.model, owner=self.owner)
+        stored = context if screen is None else {k: v for k, v in context.items() if k != "history"}
+        identifier = self.store.request(stored, model=provider.model, owner=self.owner)
 
         def generate() -> None:
             try:
@@ -137,11 +138,15 @@ class ExplanationManager:
             parent["position"],
             parent["context"]["signal_comparison"]["previous_position"],
             parent["context"].get("change_id"),
+            parent["context"].get("conversation_id"),
+            parent["context"].get("until"),
         ) == (
             context["binding_id"],
             context["position"],
             context["signal_comparison"]["previous_position"],
             context.get("change_id"),
+            context.get("conversation_id"),
+            context.get("until"),
         )
         if parent is None or not same or parent["status"] != "complete" or not parent["answer"]:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
@@ -171,6 +176,12 @@ def initialize_explanation_manager(root: Path) -> ExplanationManager:
         return manager
 
 
+def change_conversation_id(value: str) -> str:
+    if len(value) != 32 or any(c not in "0123456789abcdef" for c in value):
+        raise ValueError("invalid change conversation")
+    return value
+
+
 def prepare_web_explanation(
     workspace: OperationsWorkspace, payload: dict[str, object]
 ) -> dict[str, object]:
@@ -180,12 +191,13 @@ def prepare_web_explanation(
     if "change_id" not in payload:
         return payload
     if (
-        not {"asset_id", "change_id", "question"}
+        not {"asset_id", "change_id", "question", "conversation_id"}
         <= set(payload)
         <= {
             "asset_id",
             "change_id",
             "question",
+            "conversation_id",
             "parent_id",
             "record_until",
             "acquisition_until",
@@ -194,6 +206,7 @@ def prepare_web_explanation(
         raise ValueError("unexpected change explanation fields")
     if not all(isinstance(value, str) for value in payload.values()):
         raise ValueError("invalid change question")
+    conversation = change_conversation_id(str(payload["conversation_id"]))
     asset, key, change_question = (
         str(payload["asset_id"]),
         str(payload["change_id"]),
@@ -218,6 +231,7 @@ def prepare_web_explanation(
     context.pop("history_change", None)
     context.pop("vibration_change", None)
     context["question"] = change_question
+    context["conversation_id"] = conversation
     if parent:
         context["parent_id"] = parent
     return {"_change": context, "screen": screen}

@@ -72,13 +72,14 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     model = Replies("기준보다 높은 진동이 구간 안에서 이어집니다.")
     monkeypatch.setattr(change_answer, "complete_text", model)
     monkeypatch.setattr(runtime, "_MANAGERS", {})
-    query = urlencode({"asset_id": "bearing-a", "change_id": chosen["review_key"]})
-    status, body = handle_phm_read(workspace, "/api/v1/phm/change-explanations", query)
+    address = {"asset_id": "bearing-a", "change_id": chosen["review_key"]}
+    conversation = uuid4().hex
+    request = {**address, "conversation_id": conversation}
+    path = "/api/v1/phm/change-explanations"
+    status, body = handle_phm_read(workspace, path, urlencode(request))
     assert status == 200 and body["explanations"] == [] and not model.requests
-    prepared = runtime.prepare_web_explanation(
-        workspace,
-        {"asset_id": "bearing-a", "change_id": chosen["review_key"], "question": question},
-    )
+    assert handle_phm_read(workspace, path, urlencode(address))[0] == 400
+    prepared = runtime.prepare_web_explanation(workspace, request | {"question": question})
     with pytest.raises(ValueError, match="unexpected explanation fields"):
         runtime.prepare_web_explanation(workspace, prepared)
     job = runtime.request_phm_explanation(workspace.root, prepared)
@@ -101,14 +102,11 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert turns == [{"role": "user", "content": question}]
     follow = runtime.request_phm_explanation(
         workspace.root,
-        {
-            "asset_id": "bearing-a",
-            "change_id": chosen["review_key"],
-            "question": "왜 그래?",
-            "parent_id": record["id"],
-        },
+        request | {"question": "왜 그래?", "parent_id": record["id"]},
     )
-    assert finished(follow["explanation_id"])["status"] == "complete"
+    next_record = finished(follow["explanation_id"])
+    assert next_record["status"] == "complete"
+    assert "history" not in next_record["context"]
     system, *turns = model.requests[1]
     assert json.loads(system["content"].rsplit("\n\n", 1)[1]) == {"screen": screen}
     assert turns == [
@@ -117,19 +115,18 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         {"role": "user", "content": "왜 그래?"},
     ]
     assert store.list_for(context["binding_id"], context["position"]) == []
-    assert (
-        len(
-            store.list_for(
-                context["binding_id"], context["position"], change_id=chosen["review_key"]
-            )
-        )
-        == 2
-    )
-    another = dict(context, change_id="f" * 64)
-    manager = runtime.initialize_explanation_manager(workspace.root)
+    assert [
+        row["id"] for row in handle_phm_read(workspace, path, urlencode(request))[1]["explanations"]
+    ] == [next_record["id"], record["id"]]
+    another = request | {"conversation_id": uuid4().hex}
+    assert handle_phm_read(workspace, path, urlencode(another))[1]["explanations"] == []
     with pytest.raises(ValueError, match="same comparison"):
-        manager._history(record["id"], another)
-    assert manager._history(record["id"], context)[0]["question"] == question
+        runtime.request_phm_explanation(
+            workspace.root, another | {"question": "왜 그래?", "parent_id": record["id"]}
+        )
+    fresh = runtime.request_phm_explanation(workspace.root, another | {"question": question})
+    assert finished(fresh["explanation_id"])["status"] == "complete"
+    assert model.requests[2][1:] == [{"role": "user", "content": question}]
 
     selection = {"asset_id": "bearing-a", "finding_id": chosen["review_key"]}
     capture = capture_change(workspace.root, selection)

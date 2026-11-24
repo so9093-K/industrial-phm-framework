@@ -94,8 +94,10 @@ def handle_phm_read(
             return HTTPStatus.OK, project_phm_models(workspace, _required_id(params, "asset_id"))
         if path == "/api/v1/phm/change-explanations":
             from industrial_phm.runtime.operations_web_change_context import selected_change
+            from industrial_phm.runtime.operations_web_phm_explanation import change_conversation_id
 
             asset, key = _required_id(params, "asset_id"), _required_id(params, "change_id")
+            conversation = change_conversation_id(_required_id(params, "conversation_id"))
             selected = selected_change(
                 workspace,
                 asset,
@@ -107,12 +109,16 @@ def handle_phm_read(
                 },
             )
             records = PhmExplanationStore(workspace.phm_explanation_path).list_for(
-                selected["binding_id"], selected["position"], change_id=key
+                selected["binding_id"],
+                selected["position"],
+                change_id=key,
+                conversation_id=conversation,
             )
             return HTTPStatus.OK, {
                 "schema_version": 1,
                 "asset_id": asset,
                 "change_id": key,
+                "conversation_id": conversation,
                 "explanations": records,
             }
         binding_id = _required_id(params, "binding_id")

@@ -1,12 +1,30 @@
 /** 선택한 변화의 맥락과 두 기간 비교의 범위 이탈 요약. */
 import {countShare} from "./analysis-messages.ts";
-import type {FoundInterval, RecordFindings} from "./record-findings.ts";
+import {findingLinks, type FoundInterval, type RecordFindings} from "./record-findings.ts";
 import type {VibrationChange, VibrationFindings} from "./vibration-findings.ts";
+import {assetTabUrl} from "./routes.ts";
 
 /** 근거를 찾을 변화: 시계열 기록의 한 구간, 또는 진동 기록의 한 변화. */
 export type EvidenceFocus =
   | {kind: "history"; item: FoundInterval; record: RecordFindings; condition: string | null}
   | {kind: "vibration"; change: VibrationChange; record: VibrationFindings};
+
+export type ChangeFollowup = {label: string; href: string};
+
+export function changeFollowup(asset: string, focus: EvidenceFocus): ChangeFollowup | null {
+  if (focus.kind === "history") {
+    const {item, record} = focus;
+    const {relation, compare, previous} = findingLinks(asset, item, record.baseline, record.bucketSeconds, record.record);
+    if (relation) return relation;
+    const href = compare ?? previous;
+    return href ? {label: "변화 전후 값 비교", href} : null;
+  }
+  if (!focus.record.bindingId) return null;
+  const url = new URL(assetTabUrl(asset, "anomaly", "model"), "http://local");
+  url.searchParams.set("model_binding", focus.record.bindingId);
+  url.searchParams.set("model_position", String(focus.change.from));
+  return {label: "변화가 시작된 측정의 이상 점수", href: url.pathname + url.search};
+}
 
 const count = (value: number) => value.toLocaleString("ko-KR");
 /** 문장 안의 값: 유효 숫자 세 자리. */

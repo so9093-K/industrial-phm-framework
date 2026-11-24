@@ -364,7 +364,7 @@
       {:else if trace}
         <!-- 이상 탐지의 중심 그림: 점수 추이와 임계선(모델 기준), 넘은 구간. 시간축 옆에 열려도 보인다. -->
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
+          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
       {/if}
       </div>

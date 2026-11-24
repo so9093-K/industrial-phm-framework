@@ -125,7 +125,12 @@ class PhmExplanationStore:
         return data
 
     def list_for(
-        self, binding_id: str, position: int, *, change_id: str | None = None
+        self,
+        binding_id: str,
+        position: int,
+        *,
+        change_id: str | None = None,
+        conversation_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
@@ -133,8 +138,9 @@ class PhmExplanationStore:
             ids = connection.execute(
                 "SELECT id FROM explanation WHERE binding_id=? AND position=? "
                 "AND json_extract(context, '$.change_id') IS ? "
+                "AND json_extract(context, '$.conversation_id') IS ? "
                 "ORDER BY requested_at DESC LIMIT 10",
-                (binding_id, position, change_id),
+                (binding_id, position, change_id, conversation_id),
             ).fetchall()
         return [data for (identifier,) in ids if (data := self.get(identifier)) is not None]
 
