@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {onDestroy, type Snippet} from "svelte";
   import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
   import {clockText, episodes} from "../asset-timeline";
@@ -11,23 +12,30 @@
   import {noticeSentences} from "../monitor-chat";
 
   /** 설비 한 줄: 왼쪽에 이름·지금 값·특이사항, 오른쪽에 화면 폭을 쓰는 실제 추이(폭이 곧 시간을 보는 해상도다).
-   * 'AI 조사'는 그래프를 가리지 않게 줄 오른쪽에 대화 칸을 연다. */
-  let {assetId, name, role = null, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
+   * 'AI 조사' 대화 칸은 이 줄이 만들고, 관제 목록 오른쪽 칸(onChat)에 띄운다. 줄 안에 열면 줄 높이가 대화 칸만큼
+   * 늘어 그래프 아래가 비고 다음 설비가 밀려났다. */
+  let {assetId, name, role = null, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, chatting = false, onChat, onPause, onSignal}: {
     assetId: string; name: string; read: FleetRead; group: FleetGroup;
     /** 설비가 하는 일(한 줄): '압축공기 공급', '회전축 지지'. 모르면 null. */
     role?: string | null;
     /** 재생 중이면 위치(시각 또는 측정 번호, 기록 시작 전이면 null)와 그 위치까지 판정한 변화. */
     replaying: boolean; until: number | null; found: FleetChange[]; analyzed: number | null; analysisFailed: boolean;
     lo: number; hi: number; height: number; playing: boolean;
+    /** 이 줄의 대화 칸이 열려 있는지, 대화 칸을 열고(내용) 닫는(null) 곳. */
+    chatting?: boolean; onChat: (panel: Snippet | null) => void;
     onPause: () => void; onSignal: (channel: string) => void} = $props();
-  let chatOpen = $state(false);
   let picked = $state<number | null>(null);
   let loadPick = $state<number | null>(null);
   let hovered = $state<number | null>(null);
   const cursor = $derived(hovered ?? picked ?? loadPick);
   $effect(() => {
-    if (playing) { picked = null; loadPick = null; chatOpen = false; }
+    if (playing) { picked = null; loadPick = null; }
   });
+  // 재생을 시작하거나 물을 특이사항이 없어지면(재생 위치를 옮김) 대화 칸을 닫는다. 줄이 사라질 때도.
+  $effect(() => {
+    if (chatting && (playing || !lead?.reviewKey)) onChat(null);
+  });
+  onDestroy(() => { if (chatting) onChat(null); });
 
   const series = $derived(!replaying ? group.series : until === null ? group.series.map(row => ({...row, points: []})) : visibleSeries(group, until));
   const changes = $derived((replaying ? found : read.changes).filter(row => until !== null && row.from <= until).map(row => ({...row, to: Math.min(row.to, until!)})));
@@ -93,7 +101,7 @@
   const watched = $derived(read.live ? "최근 관측 확인" : !replaying ? "기록 전체 확인" : analyzed === null ? "변화 판정 중" : "~" + short(analyzed) + "까지 확인");
 </script>
 
-<li class="row" class:chatting={chatOpen && !!lead?.reviewKey}>
+<li class="row" class:chatting>
   <div class="card-main">
     <div class="summary">
       <header class="equipment-head">
@@ -121,7 +129,7 @@
           </div>
           <div class="finding-actions">
             {#if lead.reviewKey && !read.live}
-              <button type="button" class="ui-button ai" aria-pressed={chatOpen} onclick={() => { onPause(); chatOpen = !chatOpen; }}>
+              <button type="button" class="ui-button ai" aria-pressed={chatting} onclick={() => { onPause(); onChat(chatting ? null : chatPanel); }}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
             {/if}
             <a class="ui-button ui-button-primary investigate" href={href(lead)} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>
@@ -153,25 +161,26 @@
       {/if}
     </div>
   </div>
-  {#if chatOpen && lead?.reviewKey}
-    <aside class="card-chat" aria-label="AI 조사">
-      <div class="chat-inner">
-        <div class="chat-head"><div><strong>AI 조사</strong><span>{changeName} · {watched}</span></div>
-          <button type="button" class="close" aria-label="AI 조사 닫기" onclick={() => chatOpen = false}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
-        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {watched} {notice} when={null} judged={spoken} earlier={past} heading={false}
-          calm="이 기록에는 특이사항이 없습니다." checking={replaying && analyzed === null} detailHref={href(lead)} canAsk={!read.live} {onPause}/>
-      </div>
-    </aside>
-  {/if}
 </li>
+
+{#snippet chatPanel()}
+  {#if lead?.reviewKey}
+    <section class="card-chat" aria-label="AI 조사">
+      <div class="chat-head"><div><strong>AI 조사 · <AssetName label={name}/></strong><span>{changeName} · {watched}</span></div>
+        <button type="button" class="close" aria-label="AI 조사 닫기" onclick={() => onChat(null)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
+      <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {watched} {notice} when={null} judged={spoken} earlier={past} heading={false}
+        calm="이 기록에는 특이사항이 없습니다." checking={replaying && analyzed === null} detailHref={href(lead)} canAsk={!read.live} {onPause}/>
+    </section>
+  {/if}
+{/snippet}
 
 <style>
   .row {
     display:grid; gap:20px; min-width:0; list-style:none; padding:18px 20px;
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
   }
-  /* AI 조사를 열면 줄 오른쪽에 대화 칸: 그래프를 보면서 묻는다. */
-  .row.chatting { grid-template-columns:minmax(0,1fr) 380px; }
+  /* 대화 칸이 열린 줄: 오른쪽 칸이 어느 설비의 이야기인지 테두리로 잇는다. */
+  .row.chatting { border-color:var(--color-action); box-shadow:0 0 0 1px var(--color-action); }
   .card-main { display:grid; grid-template-columns:300px minmax(0,1fr); gap:12px 28px; min-width:0; align-items:start; }
   .summary { display:grid; gap:12px; min-width:0; align-content:start; }
   .equipment-head { display:grid; gap:3px; }
@@ -214,9 +223,13 @@
   .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }
   .load-label { margin:5px 0 4px 52px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .row-footer { display:flex; align-items:center; flex-wrap:wrap; min-height:20px; gap:6px 16px; font-size:var(--font-label); color:var(--color-ink-muted); }
-  .card-chat { position:relative; min-height:480px; border-left:1px solid var(--color-border); padding-left:16px; }
-  .chat-inner { position:absolute; inset:0 0 0 16px; display:grid; grid-template-rows:auto minmax(0,1fr); gap:8px; }
-  .chat-inner :global(.agent) { min-height:0; }
+  /* 오른쪽 칸: 목록 높이만큼, 길면 화면 안에서 따라온다(입력란이 화면 밖으로 나가지 않게). */
+  .card-chat {
+    position:sticky; top:16px; box-sizing:border-box; height:min(100%, calc(100vh - 200px)); min-height:420px;
+    display:grid; grid-template-rows:auto minmax(0,1fr); gap:8px; padding:16px;
+    background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
+  }
+  .card-chat :global(.agent) { min-height:0; }
   .chat-head { display:flex; align-items:start; justify-content:space-between; gap:8px; }
   .chat-head div { display:grid; gap:1px; min-width:0; }
   .chat-head strong { font-size:var(--font-small); }
@@ -224,6 +237,6 @@
   .close { display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:6px; background:none; color:var(--color-ink-muted); cursor:pointer; }
   .close:hover { background:var(--color-surface-selected); color:var(--color-ink); }
   .close svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; }
-  @media(max-width:1000px) { .row.chatting,.card-main { grid-template-columns:minmax(0,1fr); } .card-chat { border-left:0; padding-left:0; } .chat-inner { inset:0; } }
+  @media(max-width:1000px) { .card-main { grid-template-columns:minmax(0,1fr); } .card-chat { position:static; height:480px; } }
   @media(max-width:500px) { .row { padding:14px; } }
 </style>
