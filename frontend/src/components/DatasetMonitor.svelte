@@ -1,6 +1,6 @@
 <script lang="ts">
   import {equipmentRole} from "../equipment-roles";
-  import {onDestroy, onMount, untrack} from "svelte";
+  import {onDestroy, onMount, untrack, type Snippet} from "svelte";
   import {assetOptionLabel, type Asset} from "../monitor";
   import {attention, focusChannel, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
     type FleetChange, type FleetGroup, type FleetRead, type MonitorDataset} from "../fleet-observation";
@@ -29,6 +29,8 @@
   const filters=$derived([all,...datasets]);
   const filterLabel=(row:MonitorDataset)=>({all:"전체 설비","aihub-239":"전력·운전","xjtu-sy":"베어링 진동",connected:"연결한 설비"}[row.key]??row.title);
   let guideOpen=$state(false);
+  // 열린 AI 조사 대화 칸(한 번에 하나): 내용은 그 설비 줄이 만들고, 목록 오른쪽 칸에 띄운다.
+  let chat=$state<{assetId:string;panel:Snippet}|null>(null);
   // 조사 화면에 다녀오면 보던 데이터셋으로 돌아온다(주소에 없으면 이 탭에서 마지막으로 본 것).
   const LAST = "phm.monitor.view.v2";
   function lastDataset():string|null {try{return sessionStorage.getItem(LAST);}catch{return null;}}
@@ -287,6 +289,7 @@
       <button type="button" class="guide" onclick={()=>guideOpen=true}>설비·데이터 안내</button>
     </div>
 
+    <div class="board" class:with-chat={chat !== null}>
     <ol class="rows">
       {#each rows as {asset, card} (asset.assetId)}
         {@const name = assetOptionLabel(assets, asset.assetId)}
@@ -297,7 +300,9 @@
             replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
-            height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
+            height={chartHeight} {playing} chatting={chat?.assetId === asset.assetId}
+            onChat={panel => chat = panel ? {assetId: asset.assetId, panel} : null}
+            onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
           <!-- 읽는 동안에도 다 읽은 줄과 비슷한 높이로 두어, 아래 줄이 출렁이지 않게 한다. -->
           <li class="row" style:min-height={chartHeight + 80 + "px"}>
@@ -312,6 +317,8 @@
         {/if}
       {/each}
     </ol>
+    {#if chat}<div class="chat-rail">{@render chat.panel()}</div>{/if}
+    </div>
   {/if}
   <TaskDialog title="설비와 측정 데이터" bind:open={guideOpen}>
     <div class="data-guide">{#each datasets.filter(row=>dataset?.key==="all"||row.key===dataset?.key) as row(row.key)}
@@ -342,11 +349,15 @@
   .signals{display:flex;gap:2px;flex-wrap:wrap}.signals button{border:0;background:none;padding:5px 10px;border-radius:6px;font:inherit;font-size:var(--font-label);color:var(--color-ink-muted);cursor:pointer}
   .signals button[aria-checked="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .guide{margin-left:auto;border:0;background:none;color:var(--color-action);font:inherit;font-size:var(--font-label);cursor:pointer;padding:6px}
-  .rows{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0;padding:0;list-style:none;min-width:0}
+  .board{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}.board.with-chat{grid-template-columns:minmax(0,1fr) 400px}
+  .rows{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0;padding:0;list-style:none;min-width:0;align-content:start}
+  /* 대화 내용은 목록 높이를 늘리지 않는다(길면 칸 안에서 스크롤). 설비가 하나면 칸이 들어갈 만큼만 띄운다. */
+  .board.with-chat{min-height:440px}.chat-rail{min-width:0;contain:size}
   .row{list-style:none;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;min-width:0}
   .who{display:flex;justify-content:space-between;gap:8px}.name{font-weight:650}.detail{font-size:var(--font-label);color:var(--color-ink-muted)}
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .data-guide{display:grid;gap:16px}.data-guide h2{margin:0;font-size:var(--font-body)}
+  @media(max-width:1000px){.board.with-chat{grid-template-columns:minmax(0,1fr)}.chat-rail{contain:none}}
   @media(max-width:650px){
     .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}
     .status>span{order:1;flex-basis:100%;text-align:left}
