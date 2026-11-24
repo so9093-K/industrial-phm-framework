@@ -1,6 +1,6 @@
 <script lang="ts">
   import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, newChangeConversation, readChangeDiscussion, STARTERS, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
+  import {askChange, newChangeConversation, readChangeDiscussion, withConversation, STARTERS, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
@@ -8,8 +8,8 @@
   import type {ChangeFollowup} from "../change-evidence";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
 
-  let {assetId, reviewKey, scope, followup, analyses = {}, pointed = null, onUnpoint, savedJudgment, onPause, compareLoad = false}: {
-    assetId: string; reviewKey: string; scope: PlaybackScope | null;
+  let {assetId, origin, reviewKey, scope, followup, analyses = {}, pointed = null, onUnpoint, savedJudgment, onPause, compareLoad = false}: {
+    assetId: string; origin: string; reviewKey: string; scope: PlaybackScope | null;
     followup: ChangeFollowup | null;
     /** AI가 답과 함께 고를 수 있는 분석 화면(분석 이름 → 링크). */
     analyses?: Record<string, ChangeFollowup>;
@@ -94,9 +94,9 @@
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="msg answer" class:charted={row.comparison?.status === "ready"}>
         {#if row.status === "complete" && row.answer}<p>{row.answer.summary}</p>{/if}
-        {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
+        {#if row.comparison}<ChangeLoadComparison {assetId} {origin} {conversation} result={row.comparison}/>{/if}
         {#if row.status === "complete" && row.analysis && analyses[row.analysis]}
-          <a class="opened" href={analyses[row.analysis].href} onclick={onPause}>{analyses[row.analysis].label} →</a>{/if}
+          <a class="opened" href={withConversation(analyses[row.analysis].href, conversation)} onclick={onPause}>{analyses[row.analysis].label} →</a>{/if}
         {#if row.status === "pending"}<p class="typing"><i></i><i></i><i></i>{typing("답 정리 중")}</p>
         {:else if row.status === "failed"}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
       </div>
@@ -112,7 +112,7 @@
     <div class="replies">{#if compareLoad}<button type="button" onclick={() => void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
       {#each STARTERS as text (text)}<button type="button" onclick={() => void ask(text)}>{text}</button>{/each}</div>
   {:else if latest?.status === "complete" && latest.comparison?.status !== "ready" && !latest.analysis && followup && !waiting}
-    <a class="followup" href={followup.href} onclick={onPause}>{followup.label} →</a>
+    <a class="followup" href={withConversation(followup.href, conversation)} onclick={onPause}>{followup.label} →</a>
   {/if}
   {#if pointed && writable}
     <p class="pointed">그래프에서 짚은 곳 · <b>{pointed.label}</b>

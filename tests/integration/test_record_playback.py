@@ -15,6 +15,7 @@ from industrial_phm.runtime import operations_web_phm_explanation as explanation
 from industrial_phm.runtime.operations_web_change_context import (
     screen_view,
     selected_change,
+    view_facts,
 )
 from industrial_phm.runtime.operations_web_change_review import capture_change
 from industrial_phm.runtime.operations_web_explore import record_findings
@@ -86,6 +87,9 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     # 재생 시점 뒤의 값은 그래프에도 지금 값에도 없다.
     drawn = screen["그래프(시각, 값)"].values()
     assert all(value < 1000 for points in drawn for _, value in points)
+    # 재생 중 다음 분석을 제안할 때에도 같은 운전 수준의 기간을 비교한다.
+    viewed = view_facts(workspace, context, "compare")
+    assert viewed[chosen["label"]].startswith("초기 220 → 특이사항 구간 230 V")
     training = history_points(workspace, "compressor", "voltage", scope)
 
     write(40, 90, True)
@@ -141,6 +145,7 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
         )
         == screen
     )
+    assert view_facts(workspace, context, "compare") == viewed
     assert max(history_points(workspace, "compressor", "voltage")[1]) > 1000
     saved = capture_change(
         workspace.root, {"asset_id": "compressor", "finding_id": chosen["review_key"], **scope}

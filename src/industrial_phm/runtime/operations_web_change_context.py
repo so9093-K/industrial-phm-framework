@@ -138,6 +138,25 @@ def analysis_descriptions(names: list[str], *, vibration: bool) -> dict[str, str
     return {name: known[name] for name in names if name in known}
 
 
+# 분석 화면(대화를 연 곳)의 이름. 그 화면에서 물으면 화면이 보여 주는 수치를 함께 읽는다.
+VIEWS = {
+    "compare": "기간 비교",
+    "relation": "신호 관계",
+    "spectrum": "주파수",
+    "electrical": "3상 전력",
+    "signals": "실측 신호",
+    "anomaly": "이상 점수",
+}
+# 대화에서 AI가 함께 여는 분석과 그 분석 화면.
+OPENS = {
+    "open_compare": "compare",
+    "open_relation": "relation",
+    "open_spectrum": "spectrum",
+    "open_phase_balance": "electrical",
+    "open_signals": "signals",
+}
+
+
 def _value(number: float) -> float:
     return float(f"{number:.4g}")
 
@@ -357,3 +376,132 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             if row["trace"]
         },
     }
+
+
+def _spans(change: dict[str, Any]) -> list[tuple[str, int, int]]:
+    baseline = change["baseline"]
+    return [("a", baseline["from"], baseline["to"]), ("b", change["from"], change["to"])]
+
+
+def _median_comparison(row: dict[str, Any]) -> str | None:
+    a, b = row["periods"]["a"], row["periods"]["b"]
+    if not a["quantiles"] or not b["quantiles"]:
+        return None
+    before = _text(a["quantiles"][2], None)
+    after = _text(b["quantiles"][2], row["unit"])
+    text = f"초기 {before} → 특이사항 구간 {after}"
+    if (outside := row["comparison"].get("b_outside_a_band")) is not None:
+        text += f", 특이사항 구간 {b['usable_count']:,}회 중 {outside:,}회가 초기 범위 밖"
+    return text
+
+
+def _vibration_compare(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, str]:
+    """Read the selected vibration feature's median in the two periods."""
+    from industrial_phm.application.acquisition_snapshot import (
+        SqliteAcquisitionSnapshotRepository,
+    )
+    from industrial_phm.application.signal_exploration import acquisition_series
+
+    change = context["vibration_change"]
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    binding = next(
+        (row for row in store.list_bindings() if row.binding_id == context["binding_id"]), None
+    )
+    if binding is None:
+        return {}
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    rows = acquisition_series(store, snapshots, binding, [change["feature"]], _spans(change))
+    return {row["label"]: compared for row in rows if (compared := _median_comparison(row))}
+
+
+def _history_compare(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, str]:
+    """What '기간 비교' shows for a power change: the medians at the change's operating level."""
+    from http import HTTPStatus
+    from urllib.parse import urlencode
+
+    from industrial_phm.runtime.operations_web_explore import handle_explore_read
+
+    change = context["history_change"]
+    baseline, until = change["baseline"], context["until"]
+    start, end = (datetime.fromisoformat(change[name]) for name in ("start", "end"))
+    end = max(end, start + timedelta(seconds=max(change.get("bucket_seconds") or 0, 1)))
+    if until is not None:
+        end = min(end, datetime.fromisoformat(until))
+    query = {
+        "asset_id": context["asset_id"],
+        "kind": "history",
+        "series": change["channel"],
+        "a_from": baseline["from"],
+        "a_to": baseline["to"],
+        "b_from": start.isoformat(),
+        "b_to": end.isoformat(),
+        **({"record_until": until} if until is not None else {}),
+    }
+    if change.get("band") is not None:
+        query |= {
+            "level": str(change["band"]),
+            "level_source": change["source_id"],
+            "level_point": change["measurement_point_id"] or "",
+        }
+    status, body = handle_explore_read(workspace, "/api/v1/explore/profile", urlencode(query))
+    if status != HTTPStatus.OK:
+        return {}
+    out: dict[str, str] = {}
+    for row in body["series"]:
+        if (row["source_id"], row["measurement_point_id"], row["interpretation_id"]) != (
+            change["source_id"],
+            change["measurement_point_id"],
+            change["interpretation_id"],
+        ):
+            continue
+        if compared := _median_comparison(row):
+            out[row["label"]] = compared
+    return out
+
+
+def _vibration_spectrum(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, str]:
+    """What '주파수' shows: each axis's whole energy and the band whose share moved most."""
+    from industrial_phm.application.acquisition_snapshot import (
+        SqliteAcquisitionSnapshotRepository,
+    )
+    from industrial_phm.application.signal_exploration import acquisition_spectrum
+
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    binding = next(
+        (row for row in store.list_bindings() if row.binding_id == context["binding_id"]), None
+    )
+    if binding is None:
+        return {}
+    snapshots = SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path)
+    try:
+        spectrum = acquisition_spectrum(snapshots, binding, _spans(context["vibration_change"]))
+    except ValueError, LookupError, OSError:
+        return {}
+    out: dict[str, str] = {}
+    for channel in spectrum["channels"]:
+        bands = channel["band_shares"]
+        if not bands or channel["power_ratio"] is None:
+            continue
+        band = max(bands, key=lambda item: abs(item["b"] - item["a"]))
+        out[channel["label"]] = (
+            f"전체 에너지 초기의 약 {channel['power_ratio']:.3g}배, "
+            f"{band['from_hz']:,.0f}~{band['to_hz']:,.0f} Hz 비중 "
+            f"{band['a'] * 100:.3g}% → {band['b'] * 100:.3g}%"
+        )
+    return out
+
+
+def view_facts(
+    workspace: OperationsWorkspace, context: dict[str, Any], view: str
+) -> dict[str, str]:
+    """Read the initial chart for period or spectrum links suggested from monitoring."""
+    history = "history_change" in context
+    if view == "compare":
+        return (
+            _history_compare(workspace, context)
+            if history
+            else _vibration_compare(workspace, context)
+        )
+    if view == "spectrum" and not history:
+        return _vibration_spectrum(workspace, context)
+    return {}

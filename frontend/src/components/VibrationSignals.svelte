@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import {onMount,untrack} from "svelte";
   import {preferredFeature} from "../acquisition-profile";
   import {measure} from "../chart-axis";
@@ -79,6 +80,16 @@
       void load();
     }).catch(() => { if (!pending.signal.aborted) listState = "failed"; });
     return () => { pending.abort(); request?.abort(); };
+  });
+
+  exposeAnalysis(() => {
+    if (trendState !== "ready" || !trend?.points.length) return null;
+    const point = chosenPoint ?? latest;
+    return {
+      "진동 특징 추이": trend.label,
+      "표시 측정 범위": `${trend.points[0].ordinal}–${trend.points.at(-1)?.ordinal}번째 측정`,
+      ...(point ? {[chosenPoint ? "선택한 진동 측정" : "마지막 진동 측정"]: measurementLabel(point.ordinal, trend.periodSeconds) + " · " + measure(point.value, trend.unit)} : {}),
+    };
   });
 </script>
 

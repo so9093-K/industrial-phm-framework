@@ -1,4 +1,5 @@
 import {scopeParams, type PlaybackScope} from "./record-playback.ts";
+import type {AnalysisReadout} from "./analysis-readout.svelte.ts";
 import {object,postWrite} from "./writes.ts";
 import {parseProfile,type Periods,type ProfileSeries} from "./comparison.ts";
 /** AI의 답: 사람에게 말하듯 쓴 몇 문장. */
@@ -52,8 +53,28 @@ export async function readChangeDiscussion(asset:string,key:string,conversation:
 /** 질문 하나를 보낸다. parent는 이어 묻는 앞 답: AI는 그 대화를 이어 읽는다. */
 /** 그래프에서 짚은 곳: 전력은 시각(ms), 진동은 측정 번호. 서버에는 시각을 ISO로, 측정 번호를 정수로 보낸다. */
 export type Pointed={at:number;axis:"time"|"acquisition";label:string};
-export async function askChange(asset:string,key:string,conversation:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null,compareLoad=false,pointed:Pointed|null=null):Promise<void> {
+/** 대화가 이어지는 분석 화면 링크: 그 화면에서도 같은 대화를 잇는다(주소의 chat). */
+export function withConversation(href:string,conversation:string):string{
+  const url=new URL(href,"http://local");url.searchParams.set("chat",conversation);
+  return url.pathname+url.search+url.hash;
+}
+/** 주소에 실린 대화(분석 화면으로 이어 온 것). 없으면 새 대화를 연다. */
+export function carriedConversation(search:string):string|null{
+  const value=new URLSearchParams(search).get("chat");
+  return value&&/^[0-9a-f]{32}$/.test(value)?value:null;
+}
+function compactReadout(readout:AnalysisReadout):string {
+  const bounded:AnalysisReadout={};
+  const encoder=new TextEncoder();
+  for(const [label,value] of Object.entries(readout).slice(0,8)){
+    const key=label.slice(0,100);
+    bounded[key]=value.slice(0,180);
+    if(encoder.encode(JSON.stringify(bounded)).length>1550){delete bounded[key];break;}
+  }
+  return JSON.stringify(bounded);
+}
+export async function askChange(asset:string,key:string,conversation:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null,compareLoad=false,pointed:Pointed|null=null,view:string|null=null,readout:AnalysisReadout|null=null):Promise<void> {
   const at=pointed?(pointed.axis==="time"?new Date(pointed.at).toISOString():String(Math.round(pointed.at))):null;
-  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,conversation_id:conversation,question,...scopeParams(scope),...(parent?{parent_id:parent}:{}),...(compareLoad?{analysis:"same_load"}:{}),...(at?{at}:{})},signal);
+  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,conversation_id:conversation,question,...scopeParams(scope),...(parent?{parent_id:parent}:{}),...(compareLoad?{analysis:"same_load"}:{}),...(at?{at}:{}),...(view?{view}:{}),...(view&&readout?{view_snapshot:compactReadout(readout)}:{})},signal);
   if(typeof reply.explanation_id!=="string"||reply.status!=="pending"||reply.change_id!==key)throw new Error("질문 접수 결과를 확인하지 못했습니다. 다시 불러오세요.");
 }

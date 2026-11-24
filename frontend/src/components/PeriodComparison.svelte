@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import {observationSnapshot} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
@@ -11,7 +12,7 @@
   import {focusFrom, focusParams} from "../signal-selection";
   import {comparisonDefault, defaultChannel, readSummary} from "../summary-defaults";
   import {onMount} from "svelte";
-  import {readSourceNames} from "../operations-status";
+  import {readSourceNames, sourceLabel} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -221,6 +222,24 @@
   onMount(() => {
     void loadSources();
     return () => {sourceAbort?.abort(); profileAbort?.abort();};
+  });
+
+  exposeAnalysis(() => {
+    if (compareState !== "ready" || !result?.series.length) return null;
+    const compared = result;
+    return {
+      "비교 신호": signalName(names_, compared.channel),
+      [names.a]: showTime(compared.periods.a.from) + " ~ " + showTime(compared.periods.a.to) + " KST",
+      [names.b]: showTime(compared.periods.b.from) + " ~ " + showTime(compared.periods.b.to) + " KST",
+      ...Object.fromEntries(compared.series.slice(0, 2).map((row, index) => {
+        const unit = row.unit ?? names_.get(row.channel)?.unit ?? null;
+        const {a, b} = row.periods;
+        const {condition} = facts(row, unit);
+        const source = sourceLabel(sources_, row.source, compared.series.map((series) => series.source));
+        const number = (value: number | null) => value === null ? "측정 없음" : num(value) + (unit ? " " + unit : "");
+        return [`측정 중앙값 ${index + 1}`, `${source}${row.point ? " · " + row.point : ""} · ${number(a.median)} → ${number(b.median)} (유효 측정 ${a.usable} · ${b.usable}개)${condition ? " · " + condition : ""}`];
+      })),
+    };
   });
 </script>
 

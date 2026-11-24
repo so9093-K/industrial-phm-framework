@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {onMount} from "svelte";
@@ -168,6 +169,24 @@
     }
   }
   onMount(()=>{void sourceList();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
+
+  exposeAnalysis(() => {
+    const pair = pairs.find((item) => item.key === chosen?.key) ?? pairs[0];
+    if (resultState !== "ready" || !pair || !periods) return null;
+    const xUnit = pair.a?.xUnit ?? pair.b?.xUnit ?? null, yUnit = pair.a?.yUnit ?? pair.b?.yUnit ?? null;
+    const xName = signalName(names, x), yName = signalName(names, y);
+    const moved = movedAtSameX(sameXRanges(pair.a, pair.b), summaryBand);
+    const point = chosen ? pair[chosen.period]?.points[chosen.index] : null;
+    const stats = (group: PairedGroup | null) => group ? `${group.pairCount}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}` : "측정 짝 없음";
+    return {
+      "비교 신호": xName + " × " + yName,
+      "비교한 기록": sourceLabel(sourceNames, pair.source, pairs.map((item) => item.source)) + (pair.point ? " · " + pair.point : ""),
+      "기간 A": periodText("a") + " · " + stats(pair.a),
+      "기간 B": periodText("b") + " · " + stats(pair.b),
+      "같은 범위에서 비교": moved ? sameXText(moved, {name:xName, unit:xUnit}, {name:yName, unit:yUnit}) : "같은 범위의 중앙값 차이가 표시되지 않음",
+      ...(point ? {"선택한 측정": `${asTime(point.at)} · ${axisName(x,xUnit)} ${short(point.x)} · ${axisName(y,yUnit)} ${short(point.y)}`} : {}),
+    };
+  });
 </script>
 {#snippet conditions(close:()=>void)}
   {#if available&&periods}

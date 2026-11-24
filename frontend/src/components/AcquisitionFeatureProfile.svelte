@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import AcquisitionRange from "./AcquisitionRange.svelte";
@@ -151,6 +152,17 @@
     const outside=rangeEvidence({usable:read.b.usable,outside:read.outsideCount,low:usual?.low??null,high:usual?.high??null,
       unit:read.unit??null},names);
     return {versus,outside};
+  });
+
+  exposeAnalysis(() => {
+    if (profileState !== "ready" || !profile) return null;
+    const shown = profile;
+    const number = (value: number | null) => value === null ? "측정 없음" : label(value) + (shown.unit ? " " + shown.unit : "");
+    return {
+      "비교한 진동 특징": shown.label,
+      [names.a]: `${shown.spans.a.from}–${shown.spans.a.to}번째 측정 · 중앙값 ${number(shown.a.median)} · 유효 ${shown.a.usable}회`,
+      [names.b]: `${shown.spans.b.from}–${shown.spans.b.to}번째 측정 · 중앙값 ${number(shown.b.median)} · 유효 ${shown.b.usable}회`,
+    };
   });
 </script>
 
