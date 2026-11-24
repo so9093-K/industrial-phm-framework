@@ -16,10 +16,15 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.change_answer import generate_change_answer, wants_load_comparison
+from industrial_phm.genai.change_answer import choose_analysis, generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
-from industrial_phm.runtime.operations_web_change_context import screen_view, selected_change
+from industrial_phm.runtime.operations_web_change_context import (
+    analysis_descriptions,
+    change_analyses,
+    screen_view,
+    selected_change,
+)
 from industrial_phm.runtime.operations_web_load_comparison import (
     load_comparison_for_answer,
     load_comparison_query,
@@ -115,24 +120,38 @@ class ExplanationManager:
             else {
                 key: value
                 for key, value in context.items()
-                if key not in {"history", "load_profile", "compare_load", "load_comparison_result"}
+                if key
+                not in {
+                    "history",
+                    "load_profile",
+                    "compare_load",
+                    "load_comparison_result",
+                    "analyses",
+                }
             }
         )
         identifier = self.store.request(stored, model=provider.model, owner=self.owner)
 
         def generate() -> None:
             comparison: dict[str, Any] | None = None
+            opened: str | None = None
             try:
                 if screen is None:
                     answer = generate_grounded_answer(context, provider)
                 else:
-                    if (
-                        (plan := context.get("load_profile"))
-                        and "load_comparison_result" not in context
-                        and (
-                            context.get("compare_load") or wants_load_comparison(context, provider)
-                        )
-                    ):
+                    analyses = analysis_descriptions(
+                        list(context.get("analyses") or []),
+                        vibration=not str(context["binding_id"]).startswith("history:"),
+                    )
+                    if "load_comparison_result" in context:
+                        # 이 대화에서 이미 본 비교는 다시 실행하지 않는다.
+                        analyses.pop("compare_same_load", None)
+                    chosen = (
+                        "compare_same_load"
+                        if context.get("compare_load")
+                        else choose_analysis(context | {"analyses": analyses}, provider)
+                    )
+                    if chosen == "compare_same_load" and (plan := context.get("load_profile")):
                         comparison = read_load_comparison(
                             self.workspace, plan["query"], plan["interpretation"]
                         )
@@ -140,6 +159,10 @@ class ExplanationManager:
                             identifier, owner=self.owner, result=comparison
                         )
                         context["load_comparison_result"] = load_comparison_for_answer(comparison)
+                    elif chosen is not None and chosen != "compare_same_load":
+                        # 고른 분석 화면은 답 아래 링크로 열린다. 링크 이름이 그 화면을 말하므로
+                        # 답에 소개 문장을 시키지 않는다(시켰더니 매번 같은 문장이 붙었다).
+                        opened = chosen
                     answer = generate_change_answer(context | {"screen": screen}, provider)
             except AnalysisExplanationError:
                 self.store.finish(
@@ -152,6 +175,8 @@ class ExplanationManager:
                 text = (answer["summary"] + " " + answer.get("next_step", "")).strip()
                 if comparison is not None:
                     answer = answer | {"load_comparison": comparison}
+                if opened is not None:
+                    answer = answer | {"analysis": opened}
                 self.store.finish(identifier, owner=self.owner, text=text, answer=answer)
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
@@ -243,6 +268,7 @@ def prepare_web_explanation(
             "record_until",
             "acquisition_until",
             "analysis",
+            "at",
         }
     ):
         raise ValueError("unexpected change explanation fields")
@@ -281,7 +307,22 @@ def prepare_web_explanation(
         }
     if payload.get("analysis") == "same_load":
         context["compare_load"] = True
+    context["analyses"] = change_analyses(context, same_load=query is not None)
+    if (at := payload.get("at")) is not None:
+        # 그래프에서 짚은 곳: 전력은 시각(시간대 포함), 진동은 측정 번호.
+        text = str(at)
+        if len(text) > 64:
+            raise ValueError("invalid pointed place")
+        if "history_change" in context:
+            if datetime.fromisoformat(text).utcoffset() is None:
+                raise ValueError("invalid pointed place")
+        elif not text.isdigit():
+            raise ValueError("invalid pointed place")
+        context["at"] = text
     screen = screen_view(workspace, context)
+    if "그래프에서 짚은 곳" in screen:
+        # 대화에 '어디를 짚고 물었는지'를 함께 보인다.
+        context["pointed"] = screen["그래프에서 짚은 곳"]["때"]
     context.pop("history_change", None)
     context.pop("vibration_change", None)
     context["question"] = change_question

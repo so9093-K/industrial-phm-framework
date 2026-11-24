@@ -79,6 +79,14 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     question = "문제 있어?"
     model = Replies("기준보다 높은 진동이 구간 안에서 이어집니다.")
     monkeypatch.setattr(change_answer, "complete_text", model)
+    # 함께 보여 줄 분석을 고르는 모델: 첫 질문은 바로 답하고, '왜 그래?'에는 주파수 화면을 연다.
+    offered: list[set[str]] = []
+
+    def choose(_provider: object, messages: list[dict[str, str]], tools: dict[str, str]) -> str:
+        offered.append(set(tools))
+        return "open_spectrum" if messages[-1]["content"] == "왜 그래?" else "reply"
+
+    monkeypatch.setattr(change_answer, "select_tool", choose)
     monkeypatch.setattr(runtime, "_MANAGERS", {})
     address = {"asset_id": "bearing-a", "change_id": chosen["review_key"]}
     conversation = uuid4().hex
@@ -115,8 +123,14 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     next_record = finished(follow["explanation_id"])
     assert next_record["status"] == "complete"
     assert "history" not in next_record["context"]
+    # 진동 변화에서 고를 수 있는 분석은 이미 있는 화면들이다. 고른 화면은 답에 실리고,
+    # 답은 그 화면을 소개하라는 데이터를 받는다.
+    assert offered[0] == {"reply", "open_compare", "open_spectrum", "open_signals"}
+    assert next_record["answer"]["analysis"] == "open_spectrum"
     system, *turns = model.requests[1]
-    assert json.loads(system["content"].rsplit("\n\n", 1)[1]) == {"screen": screen}
+    data = json.loads(system["content"].rsplit("\n\n", 1)[1])
+    # 고른 화면은 답 아래 링크로만 열린다: 답에 그 화면을 소개하라고 시키지 않는다.
+    assert data == {"screen": screen}
     assert turns == [
         {"role": "user", "content": question},
         {"role": "assistant", "content": "기준보다 높은 진동이 구간 안에서 이어집니다."},
@@ -132,9 +146,18 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         runtime.request_phm_explanation(
             workspace.root, another | {"question": "왜 그래?", "parent_id": record["id"]}
         )
-    fresh = runtime.request_phm_explanation(workspace.root, another | {"question": question})
-    assert finished(fresh["explanation_id"])["status"] == "complete"
-    assert model.requests[2][1:] == [{"role": "user", "content": question}]
+    # 그래프에서 짚고 물으면 그 측정의 값과 특이사항 구간 안인지가 화면 데이터 맨 앞에 온다.
+    pointed = another | {"question": "여기는 어때?", "at": str(chosen["from"])}
+    fresh = runtime.request_phm_explanation(workspace.root, pointed)
+    done = finished(fresh["explanation_id"])
+    assert done["status"] == "complete"
+    assert done["context"]["pointed"] == f"{chosen['from']}번째 측정"
+    sent = json.loads(model.requests[2][0]["content"].rsplit("\n\n", 1)[1])["screen"]
+    assert next(iter(sent)) == "설비" and list(sent)[1] == "그래프에서 짚은 곳"
+    assert sent["그래프에서 짚은 곳"]["특이사항 구간"] == "안"
+    assert model.requests[2][1:] == [{"role": "user", "content": "여기는 어때?"}]
+    with pytest.raises(ValueError, match="pointed"):
+        runtime.prepare_web_explanation(workspace, another | {"question": "?", "at": "어제"})
 
     selection = {"asset_id": "bearing-a", "finding_id": chosen["review_key"]}
     capture = capture_change(workspace.root, selection)

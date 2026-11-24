@@ -15,6 +15,7 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 _KST = ZoneInfo("Asia/Seoul")
 # 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
 _POINTS = 30
+_PHASES = ("R상", "S상", "T상")
 
 
 def selected_change(
@@ -87,6 +88,56 @@ def selected_change(
     }
 
 
+# AI가 대화에서 고를 수 있는 분석. 'compare_same_load'는 대화 안에서 실행해 차트로 보이고,
+# 나머지는 이미 있는 분석 화면으로 잇는다(화면이 그 링크를 만든다). 설명은 모델이 고를 때 읽는다.
+_HISTORY_ANALYSES = {
+    "compare_same_load": "'같은 전류 범위 비교': 같은 전류 범위의 측정끼리 전압을 견주어 부하 "
+    "차이 때문인지 가려 본다. 대화 안에 차트로 보인다.",
+    "open_compare": "'기간 비교' 화면: 초기와 특이사항 구간의 값과 분포를 자세히 견준다.",
+    "open_relation": "'신호 관계' 화면: 이 신호와 함께 달라진 다른 신호를 같은 시각끼리 견준다.",
+    "open_phase_balance": "'3상 전력' 화면: R·S·T 세 상의 전압·전류와 불평형을 함께 본다.",
+    "open_signals": "'실측 신호' 화면: 같은 시각의 실측 신호들을 그래프로 펼쳐 본다.",
+}
+_VIBRATION_ANALYSES = {
+    "open_compare": "'기간 비교' 화면: 초기와 특이사항 구간의 진동 특징을 자세히 견준다.",
+    "open_spectrum": "'주파수' 화면: 주파수 대역별 진동 에너지가 어떻게 달라졌는지 본다.",
+    "open_signals": "'실측 신호' 화면: 측정마다 진동 값과 원본 파형을 본다.",
+}
+
+
+def change_analyses(context: dict[str, Any], *, same_load: bool) -> list[str]:
+    """The analyses the AI may pick for this change: only those this change can open.
+
+    Args:
+        context: The selected change from ``selected_change``.
+        same_load: Whether the same-current comparison can run for this change.
+
+    Returns:
+        Analysis names; ``analysis_descriptions`` says what each shows.
+    """
+    if "vibration_change" in context:
+        return list(_VIBRATION_ANALYSES)
+    change = context["history_change"]
+    available = list(_HISTORY_ANALYSES)
+    if not same_load:
+        available.remove("compare_same_load")
+    if not change.get("related"):
+        available.remove("open_relation")
+    if not change["channel"].startswith(_PHASES):
+        available.remove("open_phase_balance")
+    return available
+
+
+def analysis_descriptions(names: list[str], *, vibration: bool) -> dict[str, str]:
+    """What each named analysis shows, as the model reads it when choosing one.
+
+    The names travel with a question; the descriptions are added here, so the message from
+    the Web process to the supervisor stays under its size limit.
+    """
+    known = _VIBRATION_ANALYSES if vibration else _HISTORY_ANALYSES
+    return {name: known[name] for name in names if name in known}
+
+
 def _value(number: float) -> float:
     return float(f"{number:.4g}")
 
@@ -112,9 +163,6 @@ def _span(seconds: float) -> str:
     parts = [f"{days}일"] * bool(days) + [f"{hours}시간"] * bool(hours)
     parts += [f"{rest}분"] * bool(rest and not days)
     return " ".join(parts) or "1분 미만"
-
-
-_PHASES = ("R상", "S상", "T상")
 
 
 def _history_chart(record: dict[str, Any], change: dict[str, Any]) -> list[dict[str, Any]]:
@@ -261,9 +309,41 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
         for row in change.get("related", [])
     ]
+    pointed: dict[str, Any] = {}
+    if (at := context.get("at")) is not None:
+        # 사람이 그래프에서 짚고 물은 곳: 그때 각 신호의 값과, 특이사항 구간 안인지 밖인지.
+        if history:
+            moment = datetime.fromisoformat(at)
+
+            def distance(x: Any) -> float:
+                return abs((datetime.fromisoformat(x) - moment).total_seconds())
+
+            inside = datetime.fromisoformat(start) <= moment <= datetime.fromisoformat(end)
+        else:
+            position = int(at)
+
+            def distance(x: Any) -> float:
+                return abs(int(x) - position)
+
+            inside = start <= position <= end
+        pointed = {
+            "그래프에서 짚은 곳": {
+                "때": when(at),
+                "특이사항 구간": "안" if inside else "밖",
+                "값": {
+                    row["label"]: _text(
+                        min(row["trace"], key=lambda point: distance(point[0]))[1], row["unit"]
+                    )
+                    for row in chart
+                    if row["trace"]
+                },
+            }
+        }
     return {
         # 출처('저장 기록')나 '판정이 없다' 같은 말은 넣지 않는다: 모델이 그 말을 답으로 옮겼다.
         "설비": context["asset_id"],
+        # 짚고 물은 곳이 이 질문의 대상이다: 카드보다 앞에 둔다.
+        **pointed,
         "특이사항": card,
         **({"같은 기간 다른 신호": related} if related else {}),
         "지금 값(마지막 측정)": {

@@ -80,6 +80,12 @@
     ...lead.followup,
     href: investigationOriginUrl(lead.followup.href, new URL(href(lead), location.origin).href),
   } : null);
+  // AI가 답과 함께 여는 분석 화면: 돌아오는 길(조사 화면)을 달아 둔다.
+  const analyses = $derived(lead?.analyses ? Object.fromEntries(Object.entries(lead.analyses).map(([name, link]) =>
+    [name, {...link, href: investigationOriginUrl(link.href, new URL(href(lead), location.origin).href)}])) : {});
+  // 그래프에서 짚은 측정·구간: 대화에 '여기는?'으로 함께 보낸다.
+  const pointed = $derived(picked !== null ? {at: picked, axis: group.axis,
+    label: group.axis === "time" ? clockText(picked) : Math.floor(picked) + "번째 측정"} : null);
 </script>
 
 <li class="row" class:chatting>
@@ -151,7 +157,8 @@
       <div class="chat-head"><div><strong>AI 조사 · <AssetName label={name}/></strong><span>{changeName} · {group.axis === "time" ? clockText(lead.from) + "부터" : lead.from + "번째 측정부터"} · {duration(lead)}</span></div>
         <button type="button" class="close" aria-label="AI 조사 닫기" onclick={() => onChat(null)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
       {#key [lead.reviewKey, scope?.until].join(":")}
-        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {followup} {savedJudgment} {onPause} compareLoad={lead.compareLoad}/>
+        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {followup} {analyses} {pointed} onUnpoint={() => picked = null}
+          {savedJudgment} {onPause} compareLoad={lead.compareLoad}/>
       {/key}
     </section>
   {/if}

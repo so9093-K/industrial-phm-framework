@@ -408,6 +408,9 @@
   close: () => void})}
   {#if evidenceFocus && decision}{#key [decision.reviewKey, scope?.until].join(":")}
     <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {scope} {colorOf} {labelOf} onStart={onInvestigate} onClose={close}
+      pointed={selectedAt !== null ? {at: selectedAt, axis: evidenceFocus.kind === "history" ? "time" : "acquisition",
+        label: evidenceFocus.kind === "history" ? clockText(selectedAt) : selectedAt + "번째 측정"} : null}
+      onUnpoint={() => selectedAt = null}
       onMemo={async text => {
         const reviewKey = decision!.reviewKey;
         close();

@@ -10,7 +10,9 @@ export type LoadComparison={status:"unavailable"|"failed"}|{
   status:"ready"; series:ProfileSeries; periods:Periods; current:{low:number;high:number|null};
   level:number; snapshot:number; until:string|null;
 };
-export type ChangeDiscussion={id:string;question:string;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;comparison:LoadComparison|null};
+/** 한 문답: 물은 말, 그래프에서 짚고 물은 곳(pointed), 답, 대화 안에서 실행한 비교, AI가 함께 연 분석 화면(analysis). */
+export type ChangeDiscussion={id:string;question:string;pointed:string|null;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;
+  comparison:LoadComparison|null;analysis:string|null};
 
 function loadComparison(raw:unknown,asset:string):LoadComparison|null {
   if(raw==null)return null;
@@ -42,12 +44,16 @@ export async function readChangeDiscussion(asset:string,key:string,conversation:
     if(!row||context?.asset_id!==asset||context.change_id!==key||context.conversation_id!==conversation||typeof row.id!=="string"||typeof context.question!=="string"
       ||!["pending","complete","failed"].includes(String(row.status)))throw new Error("조사 내용의 대상을 확인하지 못했습니다.");
     if(row.status==="complete"&&typeof answer?.summary!=="string")throw new Error("답을 읽지 못했습니다.");
-    return {id:row.id,question:context.question,status:row.status as ChangeDiscussion["status"],
-      answer:typeof answer?.summary==="string"?{summary:answer.summary}:null,comparison:loadComparison(answer?.load_comparison,asset)};
+    return {id:row.id,question:context.question,pointed:typeof context.pointed==="string"?context.pointed:null,status:row.status as ChangeDiscussion["status"],
+      answer:typeof answer?.summary==="string"?{summary:answer.summary}:null,comparison:loadComparison(answer?.load_comparison,asset),
+      analysis:typeof answer?.analysis==="string"?answer.analysis:null};
   });
 }
 /** 질문 하나를 보낸다. parent는 이어 묻는 앞 답: AI는 그 대화를 이어 읽는다. */
-export async function askChange(asset:string,key:string,conversation:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null,compareLoad=false):Promise<void> {
-  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,conversation_id:conversation,question,...scopeParams(scope),...(parent?{parent_id:parent}:{}),...(compareLoad?{analysis:"same_load"}:{})},signal);
+/** 그래프에서 짚은 곳: 전력은 시각(ms), 진동은 측정 번호. 서버에는 시각을 ISO로, 측정 번호를 정수로 보낸다. */
+export type Pointed={at:number;axis:"time"|"acquisition";label:string};
+export async function askChange(asset:string,key:string,conversation:string,question:string,parent:string|null,signal:AbortSignal,scope:PlaybackScope|null=null,compareLoad=false,pointed:Pointed|null=null):Promise<void> {
+  const at=pointed?(pointed.axis==="time"?new Date(pointed.at).toISOString():String(Math.round(pointed.at))):null;
+  const reply=await postWrite("/api/v1/phm/explanations/request",{asset_id:asset,change_id:key,conversation_id:conversation,question,...scopeParams(scope),...(parent?{parent_id:parent}:{}),...(compareLoad?{analysis:"same_load"}:{}),...(at?{at}:{})},signal);
   if(typeof reply.explanation_id!=="string"||reply.status!=="pending"||reply.change_id!==key)throw new Error("질문 접수 결과를 확인하지 못했습니다. 다시 불러오세요.");
 }
