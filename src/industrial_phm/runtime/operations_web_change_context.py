@@ -101,8 +101,8 @@ def _order(members: list[dict[str, Any]], start: Callable[[dict[str, Any]], str]
     return " → ".join("·".join(names) + f"({when})" for when, names in steps)
 
 
-def _model_input(workspace: OperationsWorkspace, package_id: str) -> str:
-    """Describe the actual input contract, without treating it as a cause of disagreement."""
+def _model_input(workspace: OperationsWorkspace, package_id: str) -> str | None:
+    """Describe the actual input contract, or None when the package cannot be read."""
     try:
         if "/" in package_id or package_id.startswith("."):
             raise ValueError("invalid package")
@@ -127,7 +127,7 @@ def _model_input(workspace: OperationsWorkspace, package_id: str) -> str:
         }.get(package.get("estimator_kind"), "을 자체 모델 기준으로 분석합니다.")
         return f"측정마다 {len(features)}개 특징을 사용하며, {scope}{method}"
     except OSError, ValueError, KeyError, TypeError, AttributeError:
-        return "모델의 입력 구성을 읽지 못해 어떤 입력 차이가 있는지 확인하지 못했습니다."
+        return None
 
 
 def selected_change(
@@ -262,9 +262,6 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
         "subject": f"{change['label']}의 특이사항 구간은 "
         f"{change['from']}~{change['to']}번째 측정입니다. "
         f"초기는 기록 처음 30%인 {baseline['from']}~{baseline['to']}번째 측정입니다.",
-        "scope": "저장된 과거 측정끼리의 비교입니다.",
-        "conditions": "실제 부하·회전수의 시간별 변화나 정비 이력은 "
-        "이 분석에 포함되어 있지 않습니다.",
     }
     where = f"{change['from']}~{change['to']}번째 측정"
     selected = _change_target(
@@ -321,20 +318,12 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
                 facts["persistence"] = (
                     f"변화 구간에서 계산한 {b['usable_count']}회 중 {outside}회가 기준 구간의 "
                     f"비교 범위({number(a['quantiles'][0])}~{number(a['quantiles'][4])} "
-                    f"{unit}) 밖입니다. "
-                    + (
-                        "계산한 값이 모두 벗어나 있습니다."
-                        if outside == b["usable_count"]
-                        else "범위 안으로 돌아온 값도 있어, "
-                        "이 구간 전체가 계속 벗어났다고 말할 수 없습니다."
-                    )
+                    f"{unit}) 밖입니다."
                 )
                 checked["persistence"] = (
                     "기준 범위 밖 측정",
                     f"{b['usable_count']}회 중 {outside}회",
                 )
-            if a["sampled"] or b["sampled"]:
-                facts["sampling"] = "측정이 많아 특징 비교는 각 구간에서 고른 표본에 기반합니다."
     try:
         flow = range_analysis(
             store,
@@ -346,20 +335,10 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
         )
         shape = flow["features"].get(change["feature"])
         if shape:
-            facts["flow"] = (
-                f"변화 구간 안의 {change['label']} 흐름은 {trend_word(shape)}입니다. "
-                + (
-                    "구간 안의 표본으로 읽은 근사 흐름입니다."
-                    if flow.get("sampled")
-                    else "구간 안에 저장된 분석 결과의 흐름입니다."
-                )
-            )
+            facts["flow"] = f"변화 구간 안의 {change['label']} 흐름은 {trend_word(shape)}입니다."
             checked["flow"] = ("구간 안 흐름", trend_word(shape))
     except ValueError, LookupError:
-        facts["flow"] = (
-            "구간 내 흐름을 계산할 기록이 부족해, 계속 증가한 것인지는 확인하지 못했습니다."
-        )
-        checked["flow"] = ("구간 안 흐름", "계산할 기록 부족")
+        pass  # 흐름을 셀 만큼 기록이 없으면 흐름을 말하지 않는다.
     # 지금 얼마나 커졌고 얼마나 빨리 커지는지.
     # 화면의 '지금 초기의 약 N배'·앞뒤 절반 값과 같은 수치다.
     suffix = f" {change['unit']}" if change.get("unit") else ""
@@ -409,9 +388,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
     if others:
         checked["episode_0"] = ("같은 시기 변화", "·".join(row["label"] for row in others))
         facts["order"] = (
-            "같은 시기 변화의 시작 순서: "
-            + _order(episode, lambda row: f"{row['from']}번째")
-            + ". 먼저 시작한 변화가 뒤의 변화를 일으켰다는 뜻은 아닙니다."
+            "같은 시기 변화의 시작 순서: " + _order(episode, lambda row: f"{row['from']}번째") + "."
         )
         meanings = [
             f"{row['label']}는 {_MEANING[row['feature'].rsplit('.', 1)[-1]]}"
@@ -424,8 +401,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
     try:
         spectrum = acquisition_spectrum(snapshots, binding, spans)
     except ValueError, LookupError, OSError:
-        facts["spectrum"] = "원본 파형을 읽지 못해 주파수 변화를 확인하지 못했습니다."
-        checked["spectrum"] = ("주파수", "원본 파형을 읽지 못함")
+        pass  # 원본 파형이 없으면 주파수는 말하지 않는다.
     else:
         actions.extend(["spectrum", "onset"])
         for index, channel in enumerate(spectrum["channels"]):
@@ -437,9 +413,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
                 f"{channel['label']}의 변화 구간 전체 에너지는 기준 구간의 "
                 f"{number(channel['power_ratio'])}배. "
                 f"{number(band['from_hz'])}~{number(band['to_hz'])} Hz 대역의 에너지 비중은 "
-                f"{number(band['a'] * 100)}%에서 {number(band['b'] * 100)}%로 바뀌었습니다. "
-                f"각 구간에서 고르게 고른 {len(spectrum['acquisitions']['a'])}회·"
-                f"{len(spectrum['acquisitions']['b'])}회 파형의 평균입니다."
+                f"{number(band['a'] * 100)}%에서 {number(band['b'] * 100)}%로 바뀌었습니다."
             )
             checked[f"spectrum_{index}"] = (
                 f"{channel['label']} 주파수",
@@ -463,7 +437,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             binding.step_kind,
         ):
             continue
-        results, total = store.analyzed_between(
+        results, _ = store.analyzed_between(
             model.binding_id, change["from"], change["to"], max_points=1000
         )
         exceeded = sum(row.output.get("exceeds_threshold") is True for row in results)
@@ -473,22 +447,22 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             model.step_kind.value,
         )
         facts[f"model_{index}"] = (
-            f"{name}의 변화 구간 분석 {len(results)}회 중 기준 초과 {exceeded}회. "
-            + ("전체가 아닌 표본입니다. " if len(results) < total else "")
-            + "다른 모델과 척도·입력 범위가 다를 수 있어 이 횟수를 고장 확률로 해석하지 않습니다."
+            f"{name}의 변화 구간 분석 {len(results)}회 중 기준 초과 {exceeded}회."
         )
-        facts[f"model_input_{index}"] = name + ": " + _model_input(workspace, model.package_id)
+        model_input = _model_input(workspace, model.package_id)
+        if model_input is not None:
+            facts[f"model_input_{index}"] = name + ": " + model_input
         checked[f"model_{index}"] = (name, f"기준 초과 {len(results)}회 중 {exceeded}회")
-    facts["model_limits"] = (
-        "입력 구성과 기준 초과 횟수의 차이는 확인된 사실입니다. "
-        "그러나 이 정보만으로 이번 판단 차이를 유발한 특징이나 원인을 확정하지는 못합니다. "
-        "기준 초과 횟수가 적은 모델이 있다고 측정값의 변화를 없었던 것으로 해석하지 않습니다."
-    )
+    # 모델은 앞에 놓인 사실부터 쓴다. 화면의 '확인한 항목'과 같은 순서로 넘긴다.
+    first = ("subject", "feature_0", "now", "pace", "persistence", "flow")
+    facts = {key: facts[key] for key in first if key in facts} | {
+        key: value for key, value in facts.items() if key not in first
+    }
     return {
         "facts": facts,
         "actions": actions,
         "targets": targets,
-        "steps": _steps(checked, ("feature_0", "now", "pace", "persistence", "flow")),
+        "steps": _steps(checked, first[1:]),
     }
 
 
@@ -567,11 +541,6 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
                 else ""
             )
         ),
-        "scope": "과거 실측 기록끼리의 비교입니다.",
-        # 모르는 것은 실제로 없는 것만: 부하(전류)는 아래 load·operating_*로 넘긴다.
-        "conditions": (
-            "같은 출처·측정 위치·단위의 자료를 비교했습니다. 정비 기록은 이 자료에 없습니다."
-        ),
     }
     selected = _change_target(change, before, after, _span(change["start"], change["end"]))
     targets: dict[str, dict[str, Any]] = {"subject": selected, "feature_0": selected}
@@ -579,6 +548,23 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
     checked: dict[str, tuple[str, str]] = {
         "feature_0": (change["label"], f"{before_text} → {after_text}{suffix}")
     }
+    # 지금: 특이사항이 기록 끝까지 이어지는지, 끝났다면 언제였는지. '문제 있어?'는 지금을 묻는다.
+    # 이 사실이 없으면 답이 지난 변화의 설명만 되풀이했다. 마지막 값은 넣지 않는다: 관제 카드는
+    # 다른 폭의 구간 평균을 보여 주어(214.8 V와 213.9 V) 답과 화면의 숫자가 달라진다.
+    record_end = (change.get("record") or {}).get("to")
+    if record_end:
+        bucket = timedelta(seconds=float(change.get("bucket_seconds") or 0))
+        ongoing = datetime.fromisoformat(change["end"]) + bucket >= datetime.fromisoformat(
+            record_end
+        )
+        facts["now"] = (
+            f"특이사항은 기록 끝({clock(record_end)})까지 이어집니다."
+            if ongoing
+            else f"특이사항은 {clock(change['end'])}에 끝났습니다. "
+            f"기록은 {clock(record_end)}까지입니다."
+        )
+        checked["now"] = ("지금", "이어지는 중" if ongoing else f"{clock(change['end'])}에 끝남")
+        targets["now"] = selected
     episode = context.get("episode", [])
     others = [row for row in episode if row["review_key"] != change["review_key"]]
     operation = (
@@ -652,7 +638,7 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         facts["order"] = (
             "같은 시기 특이사항의 시작 순서: "
             + _order(episode, lambda row: clock(row["start"]))
-            + ". 먼저 시작한 변화가 뒤의 변화를 일으켰다는 뜻은 아닙니다."
+            + "."
         )
     if operation and current:
         facts["operating_level"] = (
@@ -698,10 +684,7 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
             flow = ", ".join(
                 f"{clock(run['from'])}~{clock(run['to'])} {names[run['level']]}" for run in runs
             )
-            facts["operating_flow"] = (
-                "변화 구간 앞뒤의 운전 수준 흐름(화면의 운전 수준 띠와 같이 칸마다 가장 오래 "
-                "운전한 수준): " + flow + "."
-            )
+            facts["operating_flow"] = "변화 구간 앞뒤의 운전 수준 흐름: " + flow + "."
             # 화면은 이 흐름을 작은 띠로 그리고, 가리키면 그래프 아래 운전 수준 띠를 강조한다.
             targets["operating_flow"] = {
                 "kind": "operation",
@@ -727,9 +710,15 @@ def history_investigation(context: dict[str, Any]) -> dict[str, Any]:
         for quantity in ("전압", "전류")
     ):
         actions.append("electrical")
+    # 모델은 앞에 놓인 사실부터 쓴다. 화면의 '확인한 항목'과 같은 순서로 넘겨, 원인을 물을 때
+    # 같은 때의 부하(전류)가 관련 신호 목록 뒤에 묻히지 않게 한다.
+    first = ("subject", "feature_0", "now", "load", "operating_share", "operating_level")
+    facts = {key: facts[key] for key in first if key in facts} | {
+        key: value for key, value in facts.items() if key not in first
+    }
     return {
         "facts": facts,
         "actions": actions,
         "targets": targets,
-        "steps": _steps(checked, ("feature_0", "load", "operating_share", "operating_level")),
+        "steps": _steps(checked, first[1:]),
     }

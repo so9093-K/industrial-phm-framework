@@ -57,7 +57,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "flow" in facts["facts"] and "spectrum_0" in facts["facts"]
     assert "16개 특징" in facts["facts"]["model_input_0"]
     assert "각 측정의 특징 조합" in facts["facts"]["model_input_0"]
-    assert "원인을 확정하지는 못합니다" in facts["facts"]["model_limits"]
+    assert list(facts["facts"])[:4] == ["subject", "feature_0", "now", "pace"]
+    # Facts are what was measured; no caveats about what the analysis does not hold.
+    assert not {"scope", "conditions", "model_limits", "sampling"} & set(facts["facts"])
     assert set(facts["actions"]) == {"compare", "model", "spectrum", "onset"}
     # Each citable fact names what the screen draws for it: this change, another, or a band.
     assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
@@ -161,16 +163,14 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert len(saved["review"]["events"]) == 2
     assert handle_review_asset_index(workspace, "")[1]["asset_ids"] == ["bearing-a"]
 
-    # A missing raw file is an analysis limit, not fabricated frequency findings/actions.
+    # Without the raw files frequency is left out: no fabricated findings or actions, and no
+    # 'could not read' fact for the answer to repeat.
     for path in (tmp_path / "waves").glob("*.csv"):
         path.unlink()
     missing = investigation_facts(workspace, context)
     assert set(missing["actions"]) == {"compare", "model"}
-    assert "spectrum_0" not in missing["facts"]
-    assert "원본 파형" in missing["facts"]["spectrum"]
-    assert {"fact": "spectrum", "label": "주파수", "result": "원본 파형을 읽지 못함"} in missing[
-        "steps"
-    ]
+    assert not any(key.startswith("spectrum") for key in missing["facts"])
+    assert not any(row["fact"].startswith("spectrum") for row in missing["steps"])
 
 
 @pytest.mark.parametrize("invented_field", ["summary", "next_step"])
