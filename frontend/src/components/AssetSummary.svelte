@@ -407,7 +407,7 @@
 {#snippet assistant({colorOf, labelOf, close}: {colorOf: (reviewKey: string) => string | null; labelOf: (reviewKey: string) => string | null;
   close: () => void})}
   {#if evidenceFocus && decision}{#key [decision.reviewKey, scope?.until].join(":")}
-    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {colorOf} {labelOf} onStart={onInvestigate} onClose={close}
+    <ChangeInvestigation assetId={asset.assetId} focus={evidenceFocus} {scope} {colorOf} {labelOf} onStart={onInvestigate} onClose={close}
       onMemo={async text => {
         const reviewKey = decision!.reviewKey;
         close();

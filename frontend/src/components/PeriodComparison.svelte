@@ -2,6 +2,7 @@
   import {observationSnapshot} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
   import SourceIdentity from "./SourceIdentity.svelte";
+  import ComparisonValues from "./ComparisonValues.svelte";
   import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
   import {countShare} from "../analysis-messages";
@@ -10,7 +11,7 @@
   import {focusFrom, focusParams} from "../signal-selection";
   import {comparisonDefault, defaultChannel, readSummary} from "../summary-defaults";
   import {onMount} from "svelte";
-  import {readSourceNames, sourceLabel} from "../operations-status";
+  import {readSourceNames} from "../operations-status";
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -71,12 +72,12 @@
     const versus = a.median !== null && b.median !== null ? versusStart(b.median, a.median, unit, names.a) : null;
     const condition = level !== null && operation ? bandName(operation.names, level) : null;
     const outside = rangeEvidence({usable: b.usable, outside: row.outsideCount, low: qa?.[0] ?? null, high: qa?.[4] ?? null,
-      unit, condition, percent: row.outsidePercent}, names);
+      unit, percent: row.outsidePercent}, names);
     // 측정 수 기준 비율이다. 두 기간에서 10%p 넘게 다르면 값 차이에 운전 여부 차이가 섞였을 수 있다.
     const low = a.lowCurrent !== null && b.lowCurrent !== null && a.usable && b.usable
       && Math.abs(a.lowCurrent / a.usable - b.lowCurrent / b.usable) >= 0.1
       ? "전류 1 A 미만 측정 · " + names.a + " " + countShare(a.lowCurrent, a.usable) + " · " + names.b + " " + countShare(b.lowCurrent, b.usable) : null;
-    return {versus, outside, low};
+    return {versus, condition, outside, low};
   }
 
   function loadPeriodUrl(fallback: Periods): Periods {
@@ -331,16 +332,17 @@
         {@const unit = row.unit ?? names_.get(row.channel)?.unit ?? null}
         {@const told = facts(row, unit)}
         <section class="series" aria-label={"데이터 출처 " + row.source}>
-          <SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>
+          {#if result.series.length > 1}<SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>{/if}
           {#if row.periods.a.median !== null && row.periods.b.median !== null}
-            <p class="primary-insight">{num(row.periods.a.median)} → {num(row.periods.b.median)}{unit?" "+unit:""}<small>중앙값{told.versus ? " · " + told.versus : ""}</small></p>
+            <ComparisonValues caption={told.condition ? told.condition+" 중 측정의 중앙값" : "측정 중앙값"} {names}
+              a={num(row.periods.a.median)+(unit?" "+unit:"")} b={num(row.periods.b.median)+(unit?" "+unit:"")} note={told.versus}/>
             {#if told.outside}<p class="fact">{told.outside}</p>{/if}
             {#if told.low}<p class="fact">{told.low}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 계산할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}
           <RangeCompare a={row.periods.a.quantiles} b={row.periods.b.quantiles} histogram={row.histogram} {unit} label={signalName(names_, row.channel)} names={names} />
           <details class="statistics">
             <summary>기간별 수치와 데이터 품질</summary>
-          <p class="context">데이터 출처 {sourceLabel(sources_, row.source, result.series.map((each) => each.source))}{row.point ? " · 측정 위치 " + row.point : ""}{unit ? " · 단위 " + unit : ""}</p>
+          {#if result.series.length === 1}<SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation}/>{/if}
           <div class="table-wrap">
             <table>
               <caption>이 출처·측정 위치의 기간별 통계 (개별 측정값 아님)</caption>
@@ -389,10 +391,8 @@
 
 <style>
   .fact{margin:0;line-height:1.6}
-  .primary-insight small{display:inline-block;margin-left:var(--space-3);font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
   .period-summary{font-size:var(--font-small)}.period-summary p{margin:0}.period-summary span{display:block}
   .compare { min-width: 0; }
-  .primary-insight { font-size:var(--font-result); font-weight:700; line-height:1.6; overflow-wrap:anywhere; }
   .period-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:var(--space-3); margin-block:var(--space-3); }
   .period-summary p { display:grid; gap:var(--space-1); margin:0; overflow-wrap:anywhere; }
   .period-summary span { color:var(--color-ink-muted); font-size:var(--font-small); }

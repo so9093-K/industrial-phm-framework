@@ -4,21 +4,21 @@
   import {spanText} from "../asset-timeline";
   import {changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";
-  import {currentPlayback} from "../record-playback";
+  import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
   /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
    * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
    * 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
+  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo:(text:string)=>void;
     onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
   const conversation=newChangeConversation();
   const reviewKey=$derived(change.reviewKey!);
-  const followup=$derived(changeFollowup(assetId,focus));
+  const followup=$derived(changeFollowup(assetId,focus,scope!==null));
   let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>{cancel();write?.abort();clearInterval(clock);});
   let questionRevision=0;
@@ -54,7 +54,7 @@
   async function refresh(){
     cancel();const pending=new AbortController();request=pending;
     try {
-      const read=await readChangeDiscussion(assetId,reviewKey,conversation,pending.signal,currentPlayback());
+      const read=await readChangeDiscussion(assetId,reviewKey,conversation,pending.signal,scope);
       if(pending.signal.aborted)return;records=read;
       if(awaitingQuestion&&read.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id)))awaitingQuestion=null;
       error="";
@@ -71,7 +71,7 @@
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,currentPlayback());
+      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope);
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){

@@ -132,7 +132,7 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
   const record = parseVibrationFindings(body, assetId);
   return record.intervals.map(change => ({key: change.feature, channel: change.feature, label: change.label, up: change.direction === "up",
     ref: JSON.stringify(["vibration", change.feature, change.from, change.to]), reviewKey: change.reviewKey,
-    followup: changeFollowup(assetId, {kind: "vibration", change, record}),
+    followup: changeFollowup(assetId, {kind: "vibration", change, record}, until !== null),
     from: change.from, to: change.to, before: change.reference, after: change.typical}));
 }
 

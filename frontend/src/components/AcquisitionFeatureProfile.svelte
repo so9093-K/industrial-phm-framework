@@ -14,6 +14,7 @@
   import {readVibrationSummary,vibrationDefault} from "../summary-defaults";
   import {plainLabel,versusStart} from "../change-story";
   import {rangeEvidence} from "../change-evidence";
+  import ComparisonValues from "./ComparisonValues.svelte";
   import {
     FeatureEvidenceUnavailable,loadFeatureSource,loadFeatureProfile,preferredFeature,
     type FeatureSource,type FeatureProfile,
@@ -148,7 +149,7 @@
     if(!read)return null;
     const versus=read.a.median!==null&&read.b.median!==null?versusStart(read.b.median,read.a.median,read.unit??null,names.a):null;
     const outside=rangeEvidence({usable:read.b.usable,outside:read.outsideCount,low:usual?.low??null,high:usual?.high??null,
-      unit:read.unit??null,condition:null},names);
+      unit:read.unit??null},names);
     return {versus,outside};
   });
 </script>
@@ -198,7 +199,10 @@
       <StatusNotice kind="uncertain" title="고른 측정에 분석된 특징이 없습니다" message={message} />
     {:else if profile}
       <section class="evidence">
-        <p class="comparison-value">{label(profile.a.median)} <span>→</span> {label(profile.b.median)}{profile.unit?" "+profile.unit:""}<small>중앙값{facts?.versus?" · "+facts.versus:""}</small></p>
+        {#if profile.a.median !== null && profile.b.median !== null}
+          <ComparisonValues caption="측정 중앙값" {names} a={label(profile.a.median)+(profile.unit?" "+profile.unit:"")}
+            b={label(profile.b.median)+(profile.unit?" "+profile.unit:"")} note={facts?.versus}/>
+        {/if}
         {#if facts?.outside}<p class="comparison-fact">{facts.outside}</p>{/if}
         <div class="comparison-plots"><div>
         <AcquisitionPeriodTrend {source} feature={profile.featureId} spans={profile.spans} {names} {usual}/>
@@ -244,8 +248,7 @@
 <style>
   .comparison-plots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);align-items:start;margin-block:var(--space-3)}
   .comparison-plots>div{min-width:0}
-  .comparison-value{font-size:var(--font-result);font-weight:700;margin:var(--space-3) 0 var(--space-1);font-variant-numeric:tabular-nums}.comparison-value span{color:var(--color-ink-muted);font-weight:400}.comparison-value small{display:inline-block;margin-left:var(--space-3);font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
-  .comparison-fact{margin:0;line-height:1.6}
+  .comparison-fact{margin:var(--space-2) 0 0;line-height:1.6}
   @media(max-width:1000px){.comparison-plots{grid-template-columns:minmax(0,1fr)}}
   .acquisition{min-width:0}.context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .ranges{display:grid;gap:var(--space-3);grid-template-columns:minmax(0,1fr);margin-block:var(--space-3)}

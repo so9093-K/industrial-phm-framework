@@ -262,7 +262,7 @@
     <button type="button" class="ui-button ui-button-primary" disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
 
     {/if}{/snippet}</AnalysisControls>
-      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>기준 설정</button>
+      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>도달 기준 설정</button>
     </div>
     <div class="analysis-body">
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
@@ -290,8 +290,8 @@
           horizon:clock(projection.future.at(-1)!.at),checks:projection.checks??[]})}
       <section class="result" aria-labelledby="projection-result-title">
         <div class="result-head">
-          <h3 id="projection-result-title">{signalName(names, projection.channel)} 전망</h3>
-          <span class="intro">마지막 측정 {clockText(Date.parse(projection.record.last))} · 앞으로 {HORIZON_LABEL[projection.horizon]}</span>
+          <h3 id="projection-result-title">{signalName(names, projection.channel)} · 앞으로 {HORIZON_LABEL[projection.horizon]} 전망</h3>
+          <span class="intro">마지막 측정 {clockText(Date.parse(projection.record.last))}</span>
         </div>
         {#if worse}
           <p class="forecast-caution" role="status"><strong>이 예측은 마지막 값이 그대로 이어진다고 볼 때보다 과거 오차가 컸습니다.</strong> 측정값의 흐름과 기준선을 먼저 보세요.</p>
@@ -413,7 +413,7 @@
         {/if}
       {/if}
     </aside>{/if}
-    <TaskDialog bind:open={criteriaOpen} title="기준 설정">
+    <TaskDialog bind:open={criteriaOpen} title="도달 기준 설정">
       {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
         {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={projection?.conditions.management===item.value&&projection?.conditions.direction===item.direction}
           onclick={() => { criteriaOpen = false; suggest(item.value, item.direction); }}>{item.label}</button>{/each}</div>{/if}
