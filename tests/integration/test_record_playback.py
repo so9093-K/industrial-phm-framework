@@ -77,21 +77,24 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     comparison_query = load_comparison_query(context)
     assert comparison_query is not None
     screen = screen_view(workspace, context)
-    card = screen["선택한 변화"]
-    # 한 운전 수준끼리 견준 값은 그 조건을 값 옆에 달고 간다.
-    assert card["초기 중앙값"]["값"] == pytest.approx(220, abs=0.02)
-    assert card["변화 구간 중앙값"]["값"] == pytest.approx(230, abs=0.02)
-    assert card["초기 중앙값"]["조건"].endswith("운전 중인 측정끼리")
+    card = screen["특이사항"]
+    # 한 운전 수준끼리 견준 값은 그 조건을 이름에 달고 간다(화면 제목 '약 11 A 운전일 때'처럼).
+    compared = next(key for key in card if key.startswith("초기 → 특이사항 구간"))
+    assert compared.endswith("운전 중인 측정끼리)") and card[compared] == "220 → 230 V"
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
-    assert card["변화 시작"] == start.strftime("%Y-%m-%d %H:%M")
+    assert card["언제"].startswith(f"{start.month}월 {start.day}일 {start:%H:%M}부터")
+    # 재생 시점 뒤의 값은 그래프에도 지금 값에도 없다.
+    drawn = screen["그래프(시각, 값)"].values()
+    assert all(value < 1000 for points in drawn for _, value in points)
     training = history_points(workspace, "compressor", "voltage", scope)
 
     write(40, 90, True)
     comparison = read_load_comparison(workspace, comparison_query, chosen["interpretation_id"])
     assert comparison["status"] == "ready"
     facts = load_comparison_for_answer(comparison)
-    assert facts["초기 중앙값"] == pytest.approx(220, abs=0.02)
-    assert facts["변화 구간 중앙값"] == pytest.approx(230, abs=0.02)
+    # 대화의 차트처럼 화면의 말로: 견준 전류 범위와 두 중앙값, 그 차이.
+    assert facts["초기 → 특이사항 구간 중앙값"].startswith("220 → 230 V (10 V 높음")
+    assert facts["견준 범위"].startswith("전류 ")
     model_started = Event()
     finish_answer = Event()
 
@@ -186,7 +189,7 @@ def test_bearing_future_does_not_enter_changes_or_forecast_training(tmp_path: Pa
     key = before["intervals"][0]["review_key"]
     context = selected_change(workspace, "bearing-a", key, {"acquisition_until": "24"})
     screen = screen_view(workspace, context)
-    assert screen["신호별 마지막 값과 추이"][0]["마지막 측정"][0] == 24
+    assert all(points[-1][0] == 24 for points in screen["그래프(측정 번호, 값)"].values())
     for ordinal in range(25, 31):
         deliver(workspace, tmp_path / "waves", ordinal, 100.0, amplitude_unit="g")
     analyze(workspace)

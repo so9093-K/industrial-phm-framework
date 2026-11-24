@@ -63,13 +63,19 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert acquisition_findings(workspace, "bearing-a")["intervals"] == changes
     context = selected_change(workspace, "bearing-a", chosen["review_key"])
     screen = screen_view(workspace, context)
-    assert screen["선택한 변화"]["신호"] == chosen["label"]
-    assert screen["선택한 변화"]["지금도 이어지는지"] == "기록 끝까지 이어짐"
+    # 모델은 관제 화면에 보이는 그대로를 받는다: 카드, 지금 값, 그래프.
+    card = screen["특이사항"]
+    assert list(card)[:2] == ["신호", "지금도 이어지는지"]
+    assert card["신호"] == chosen["label"]
+    assert card["지금도 이어지는지"] == "기록 끝까지 이어짐"
+    count = chosen["to"] - chosen["from"] + 1
+    assert card["언제"] == f"{chosen['from']}번째 측정부터 {count}회 측정"
+    assert card["지금"].endswith("배)")
+    assert screen["지금 값(마지막 측정)"][chosen["label"]].endswith("g (30번째 측정)")
+    chart = screen["그래프(측정 번호, 값)"]
+    assert next(iter(chart)) == chosen["label"] and chart[chosen["label"]][-1][0] == 30
     # 출처나 '판정이 없다'는 말은 모델에 주지 않는다: 그 말을 답으로 옮겼다.
     assert "기록" not in screen and "화면의 특이사항" not in screen
-    signal = screen["신호별 마지막 값과 추이"][0]
-    assert signal["신호"] == chosen["label"]
-    assert signal["마지막 측정"][0] == 30 and signal["단위"] == "g"
     question = "문제 있어?"
     model = Replies("기준보다 높은 진동이 구간 안에서 이어집니다.")
     monkeypatch.setattr(change_answer, "complete_text", model)

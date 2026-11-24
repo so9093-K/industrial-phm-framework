@@ -64,18 +64,28 @@ def read_load_comparison(
 
 
 def load_comparison_for_answer(result: dict[str, Any]) -> dict[str, Any]:
+    """The comparison as the chart in the conversation shows it, in the screen's words.
+
+    Numbers alone ('초기 중앙값': 221.94) were read past; the model answered from the card
+    instead. Written as the chart reads ('221.9 → 226.2 V'), the answer starts from it.
+    """
     if result["status"] != "ready":
-        return {"상태": "같은 전류 범위에서 두 구간을 비교할 결과 없음"}
+        return {"상태": "같은 전류 범위에서 두 구간을 비교할 측정이 부족함"}
     profile = result["profile"]
     row = profile["series"][0]
     level = profile["operation"]["levels"][profile["level"] - 1]
     a, b = (row["periods"][name] for name in ("a", "b"))
+    unit = f" {row['unit']}" if row["unit"] else ""
+    current = f"전류 {level['low']:.4g} A 이상" + (
+        f" {level['high']:.4g} A 미만" if level["high"] is not None else ""
+    )
+    change = row["comparison"]["median_change"]
     return {
         "신호": row["label"],
-        "단위": row["unit"],
-        "전류 범위(A)": {"이상": level["low"], "미만": level["high"]},
-        "초기 중앙값": a["quantiles"][2],
-        "변화 구간 중앙값": b["quantiles"][2],
-        "초기·변화 구간 측정 수": [a["usable_count"], b["usable_count"]],
-        "중앙값 차이": row["comparison"]["median_change"],
+        "견준 범위": current,
+        "초기 → 특이사항 구간 중앙값": (
+            f"{a['quantiles'][2]:.4g} → {b['quantiles'][2]:.4g}{unit}"
+            f" ({abs(change):.3g}{unit} {'높음' if change > 0 else '낮음'})"
+        ),
+        "측정 수": f"초기 {a['usable_count']:,}회, 특이사항 구간 {b['usable_count']:,}회",
     }

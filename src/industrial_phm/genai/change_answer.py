@@ -45,7 +45,7 @@ def generate_change_answer(
     context: dict[str, Any], provider: ExplanationProvider
 ) -> dict[str, str]:
     """Pass the measured record and the conversation to the model once."""
-    data = {"screen": context["screen"]}
+    data: dict[str, Any] = {"screen": context["screen"]}
     # 역할과 말투만 말한다. '저장된 기록'이라는 틀이나 '확정할 수 없다' 같은 말을 넣으면 모델은
     # 그 말을 답으로 옮기고 질문에는 답하지 않았다.
     guidance = (
@@ -54,7 +54,8 @@ def generate_change_answer(
         "데이터에 없는 수치는 지어내지 마라."
     )
     if (comparison := context.get("load_comparison_result")) is not None:
-        data["같은 전류 범위의 실제 비교"] = comparison
+        # 방금 실행한 비교가 이 질문의 답이다: 화면 데이터보다 앞에 둔다.
+        data = {"같은 전류 범위의 실제 비교": comparison} | data
         guidance += " 같은 전류 범위의 실제 비교가 있으면 그 결과부터 말해라."
     screen = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     messages = [

@@ -14,7 +14,7 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 # 화면의 시각 표기(asset-timeline의 clockText)와 같은 한국 시간이다.
 _KST = ZoneInfo("Asia/Seoul")
 # 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
-_POINTS = 12
+_POINTS = 30
 
 
 def selected_change(
@@ -91,6 +91,11 @@ def _value(number: float) -> float:
     return float(f"{number:.4g}")
 
 
+def _text(number: float, unit: str | None) -> str:
+    """A value as the screen writes it: four significant digits and its unit."""
+    return f"{_value(number):g}" + (f" {unit}" if unit else "")
+
+
 def _compact_trace(points: list[list[Any]]) -> list[list[Any]]:
     """Keep both endpoints and sample in order without inventing intermediate values."""
     if len(points) <= _POINTS:
@@ -100,30 +105,50 @@ def _compact_trace(points: list[list[Any]]) -> list[list[Any]]:
     ]
 
 
-def _history_signals(record: dict[str, Any], change: dict[str, Any]) -> list[dict[str, Any]]:
-    # Other same-period comparisons already carry their values alongside the graph.
-    keys = [change["key"]]
-    operation = (change.get("operation") or {}).get("key")
-    if operation:
-        keys.append(operation)
-    signals = {row["key"]: row for row in record["signals"]}
+def _span(seconds: float) -> str:
+    """'22시간 12분', '2일 3시간': how long a change lasted, as the monitor card says it."""
+    minutes = round(seconds / 60)
+    days, hours, rest = minutes // 1440, minutes % 1440 // 60, minutes % 60
+    parts = [f"{days}일"] * bool(days) + [f"{hours}시간"] * bool(hours)
+    parts += [f"{rest}분"] * bool(rest and not days)
+    return " ".join(parts) or "1분 미만"
+
+
+_PHASES = ("R상", "S상", "T상")
+
+
+def _history_chart(record: dict[str, Any], change: dict[str, Any]) -> list[dict[str, Any]]:
+    """The signals the monitor draws for a power change: its phases, then the load current."""
+    phased = change["channel"].startswith(_PHASES) and change.get("observed_property")
+
+    def member(row: dict[str, Any]) -> bool:
+        same = (row["source_id"], row["measurement_point_id"], row["unit"]) == (
+            change["source_id"],
+            change["measurement_point_id"],
+            change["unit"],
+        )
+        return same and (
+            row["key"] == change["key"]
+            or (
+                bool(phased)
+                and row["channel"].startswith(_PHASES)
+                and row.get("observed_property") == change.get("observed_property")
+            )
+        )
+
+    rows = sorted(filter(member, record["signals"]), key=lambda row: row["channel"])
+    load = (change.get("operation") or {}).get("key")
+    rows += [row for row in record["signals"] if load and row["key"] == load]
     return [
-        {
-            "label": signal["label"],
-            "unit": signal["unit"],
-            "latest": [signal["latest"]["at"], signal["latest"]["value"]]
-            if signal.get("latest")
-            else None,
-            "trace": signal.get("preview", []),
-        }
-        for key in dict.fromkeys(keys)
-        if (signal := signals.get(key)) is not None
+        {"label": row["label"], "unit": row["unit"], "trace": row.get("preview", [])}
+        for row in rows
     ]
 
 
-def _vibration_signals(
+def _vibration_chart(
     workspace: OperationsWorkspace, context: dict[str, Any], change: dict[str, Any]
 ) -> list[dict[str, Any]]:
+    """The axes the monitor draws for a vibration change, to the replay position."""
     from industrial_phm.runtime.operations_web_overview import _vibration_group
 
     group = _vibration_group(
@@ -136,32 +161,42 @@ def _vibration_signals(
         until=context["until"],
     )
     return [
-        {
-            "label": row["label"],
-            "unit": group["unit"],
-            "latest": row["trace"][-1] if row["trace"] else None,
-            "trace": row["trace"],
-        }
+        {"label": row["label"], "unit": group["unit"], "trace": row["trace"]}
         for row in sorted(group["series"], key=lambda row: row["key"] != change["feature"])
     ]
 
 
 def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict[str, Any]:
-    """Give the model the selected change and a small view of the same stored signals."""
+    """What the person sees on the monitor for the selected change, in the screen's words.
+
+    The card (the change, how long, whether it still goes on, the values it compared and the
+    load at the same time), the values at the last measurement and the chart's signals. The
+    AI answers from this; it is given no sentences about what the data lacks.
+
+    Args:
+        workspace: The operations workspace.
+        context: The selected change from ``selected_change``.
+
+    Returns:
+        A small JSON view of the screen, read to the replay position when there is one.
+    """
     history = "history_change" in context
     change = context["history_change"] if history else context["vibration_change"]
     until = context["until"]
+    unit = change.get("unit")
 
-    def at(value: str | int) -> str | int:
-        return (
-            datetime.fromisoformat(str(value)).astimezone(_KST).strftime("%Y-%m-%d %H:%M")
-            if history
-            else value
-        )
+    def when(value: str | int) -> str:
+        # 화면의 말: 전력은 한국 시각, 진동은 몇 번째 측정.
+        if not history:
+            return f"{value}번째 측정"
+        moment = datetime.fromisoformat(str(value)).astimezone(_KST)
+        return f"{moment.month}월 {moment.day}일 {moment:%H:%M}"
 
-    def told(value: str | int) -> str:
-        # 끝난 때를 말로: 진동은 몇 번째 측정, 전력은 한국 시각.
-        return f"{at(value)}" if history else f"{value}번째 측정"
+    def tick(value: str | int) -> str | int:
+        # 그래프의 가로축은 짧게(메시지 크기 제한 8KB 안에서 점을 더 보낸다).
+        if not history:
+            return value
+        return datetime.fromisoformat(str(value)).astimezone(_KST).strftime("%m-%d %H:%M")
 
     operation = None
     if history:
@@ -172,90 +207,73 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             context["asset_id"],
             until=datetime.fromisoformat(until) if until is not None else None,
         )
-        signals = _history_signals(record, change)
+        chart = _history_chart(record, change)
         operation_key = (change.get("operation") or {}).get("key")
         operation = next((row for row in record["operation"] if row["key"] == operation_key), None)
     else:
-        signals = _vibration_signals(workspace, context, change)
+        chart = _vibration_chart(workspace, context, change)
+    chart = [
+        row | {"trace": [point for point in row["trace"] if math.isfinite(point[1])]}
+        for row in chart
+    ]
     start, end = (change["start"], change["end"]) if history else (change["from"], change["to"])
-    card = {
-        "신호": change["label"],
-        "단위": change.get("unit"),
-        "변화 시작": at(start),
-        "변화 끝": at(end),
-        "초기 중앙값": _value(change["reference_value"])
-        if change["reference_value"] is not None
-        else None,
-        "변화 구간 중앙값": _value(change["typical_value"])
-        if change["typical_value"] is not None
-        else None,
-    }
-    latest = signals[0]["latest"] if signals else None
-    if latest is not None:
+    card: dict[str, Any] = {"신호": change["label"]}
+    own = next((row["trace"] for row in chart if row["label"] == change["label"]), None)
+    last = own[-1] if own else None
+    ongoing = False
+    if last is not None:
         if history:
             width = timedelta(seconds=float(change.get("bucket_seconds") or 0))
-            ongoing = datetime.fromisoformat(end) + width >= datetime.fromisoformat(latest[0])
+            ongoing = datetime.fromisoformat(end) + width >= datetime.fromisoformat(last[0])
         else:
-            ongoing = end >= latest[0]
-        # 참/거짓 값보다 화면의 말로 줄 때 모델이 '지금 어떤지'에 쓴다.
-        card["지금도 이어지는지"] = "기록 끝까지 이어짐" if ongoing else f"{told(end)}에 끝남"
-    band = change.get("band")
-    if operation and band is not None and 0 < band <= len(operation["levels"]):
-        # 두 중앙값은 한 운전 수준의 측정끼리 견준 값이다. 화면 제목('약 11 A 운전일 때')처럼
-        # 값 옆에 붙인다. 따로 두었더니 모델이 다른 부하로 돈 마지막 값과 견주어 '전압 저하'라고
-        # 읽었다.
-        level = operation["levels"][band - 1]
-        unit = f" {operation['unit']}" if operation.get("unit") else ""
-        running = f"약 {_value(level['typical']):g}{unit} 운전 중인 측정끼리"
-        card["초기 중앙값"] = {"값": card["초기 중앙값"], "조건": running}
-        card["변화 구간 중앙값"] = {"값": card["변화 구간 중앙값"], "조건": running}
+            ongoing = end >= last[0]
+        # '문제 있어?'는 지금을 묻는다: 이어지는지 끝났는지를 말로, 신호 바로 다음에 둔다.
+        card["지금도 이어지는지"] = "기록 끝까지 이어짐" if ongoing else f"{when(end)}에 끝남"
+    lasted = (
+        _span((datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds())
+        if history
+        else f"{end - start + 1}회 측정"
+    )
+    card["언제"] = f"{when(start)}부터 {lasted}"
+    before, after = change["reference_value"], change["typical_value"]
+    if before is not None and after is not None:
+        compared = "초기 → 특이사항 구간"
+        band = change.get("band")
+        if operation and band is not None and 0 < band <= len(operation["levels"]):
+            # 한 운전 수준의 측정끼리 견준 값이다. 화면 제목('약 11 A 운전일 때')처럼 값 옆에
+            # 붙인다. 따로 두었더니 모델이 다른 부하로 돈 마지막 값과 견주었다.
+            level = operation["levels"][band - 1]
+            compared += f" (약 {_text(level['typical'], operation.get('unit'))} 운전 중인 측정끼리)"
+        card[compared] = f"{_text(before, None)} → {_text(after, unit)}"
+        if not history and ongoing and last is not None and before:
+            # 계속 커지는 진동은 관제 카드처럼 지금 값으로 말한다('지금 초기의 약 9.3배').
+            card["지금"] = f"{_text(last[1], unit)} (초기의 약 {last[1] / before:.1f}배)"
     if load := change.get("load"):
-        card["같은 기간의 평균 전류(모든 운전 수준)"] = {
-            "신호": load["label"],
-            "단위": load["unit"],
-            "초기": _value(load["reference"]),
-            "변화 구간": _value(load["current"]),
-        }
+        card[f"같은 기간 {load['label']}"] = (
+            f"{_text(load['reference'], None)} → {_text(load['current'], load['unit'])}"
+        )
     if halves := change.get("halves"):
-        card["변화 구간 앞·뒤 절반의 관측 변화량"] = [
-            {**half, "change": _value(half["change"])} for half in halves
-        ]
-
-    # 지금 어떤지가 '문제 있어?'의 답이다: 신호 다음에 둔다(모델은 앞에 놓인 것부터 쓴다).
-    first = ("신호", "지금도 이어지는지")
-    card = {key: card[key] for key in first if key in card} | {
-        key: value for key, value in card.items() if key not in first
-    }
+        first, second = (f"{half['change']:+.3g}" for half in halves)
+        card["특이사항 구간 앞 절반 → 뒤 절반에 움직인 양"] = (
+            f"{first} → {second} {unit or ''}".strip()
+        )
+    related = [
+        f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
+        for row in change.get("related", [])
+    ]
     return {
-        # 데이터의 출처나 '판정이 없다' 같은 말은 넣지 않는다: 모델이 그 말을 답으로 옮겼다
-        # ("고장이나 교체 판정 결과는 기록되어 있지 않습니다").
+        # 출처('저장 기록')나 '판정이 없다' 같은 말은 넣지 않는다: 모델이 그 말을 답으로 옮겼다.
         "설비": context["asset_id"],
-        "가로축": "한국 시각" if history else "측정 순서",
-        "선택한 변화": card,
-        "함께 비교한 신호": [
-            {
-                "신호": row["label"],
-                "단위": row["unit"],
-                "초기 중앙값": _value(row["reference"]),
-                "변화 구간 중앙값": _value(row["current"]),
-            }
-            for row in change.get("related", [])
-        ],
-        "신호별 마지막 값과 추이": [
-            {
-                "신호": signal["label"],
-                "단위": signal["unit"],
-                "마지막 측정": (
-                    [at(latest[0]), _value(latest[1])]
-                    if (latest := signal["latest"]) and math.isfinite(latest[1])
-                    else None
-                ),
-                "추이": [
-                    [at(x), _value(value)]
-                    for x, value in _compact_trace(signal["trace"])
-                    if math.isfinite(value)
-                ],
-            }
-            for signal in signals
-        ],
+        "특이사항": card,
+        **({"같은 기간 다른 신호": related} if related else {}),
+        "지금 값(마지막 측정)": {
+            row["label"]: f"{_text(row['trace'][-1][1], row['unit'])} ({when(row['trace'][-1][0])})"
+            for row in chart
+            if row["trace"]
+        },
+        "그래프(시각, 값)" if history else "그래프(측정 번호, 값)": {
+            row["label"]: [[tick(x), _value(value)] for x, value in _compact_trace(row["trace"])]
+            for row in chart
+            if row["trace"]
+        },
     }
