@@ -10,8 +10,8 @@
   import MonitorChat from "./MonitorChat.svelte";
   import {noticeSentences} from "../monitor-chat";
 
-  /** 설비 카드: 이름과 마지막 값, 특이사항 한 줄, 그 아래 실제 추이. 'AI 조사'는 그래프를 가리지 않게 카드 오른쪽에
-   * 대화 칸을 연다(카드는 그동안 한 줄을 다 쓴다). */
+  /** 설비 한 줄: 왼쪽에 이름·지금 값·특이사항, 오른쪽에 화면 폭을 쓰는 실제 추이(폭이 곧 시간을 보는 해상도다).
+   * 'AI 조사'는 그래프를 가리지 않게 줄 오른쪽에 대화 칸을 연다. */
   let {assetId, name, role = null, read, group, replaying, until, found, analyzed, analysisFailed, lo, hi, height, playing, onPause, onSignal}: {
     assetId: string; name: string; read: FleetRead; group: FleetGroup;
     /** 설비가 하는 일(한 줄): '압축공기 공급', '회전축 지지'. 모르면 null. */
@@ -95,38 +95,48 @@
 
 <li class="row" class:chatting={chatOpen && !!lead?.reviewKey}>
   <div class="card-main">
-    <header class="equipment-head">
-      <div class="title"><a class="name" href={href(lead)} onclick={onPause}><AssetName label={name}/></a>
-        {#if role || read.live}<span class="kind">{[role, read.live ? "수신 중" : null].filter(Boolean).join(" · ")}</span>{/if}</div>
-      <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":"최근 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked !== null || loadPick !== null}<button type="button" class="clear-pick" onclick={() => { picked = null; loadPick = null; }}>선택 해제</button>{/if}</div>
-    </header>
-    <dl class="values">
-      {#each series as row,index(row.key)}
-        {@const point=cursor!==null?nearest(row.points,cursor):row.points.at(-1)}
-        <div><dt><i style:background={SERIES_COLORS[index%SERIES_COLORS.length]}></i>{series.length>1?row.short:group.label}</dt><dd>{point?measure(point.value,group.unit,group.unit==="V"?4:3):"—"}</dd></div>
-      {/each}
-      {#if companion}<div class="load"><dt>{companion.label}</dt><dd>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
-    </dl>
-    {#if lead}
-      <section class="finding" aria-label="이 그래프의 특이사항">
-        <div class="change-copy">
-          <strong>{changeName} <span aria-hidden="true">·</span> {now !== null && lead.before !== null ? "지금 " + versusStart(now, lead.before, group.unit) : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
-          <span class="change-values">
-            {#if lead.before !== null && shownAfter !== null}
-              <b>{measure(lead.before, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
+    <div class="summary">
+      <header class="equipment-head">
+        <div class="title"><a class="name" href={href(lead)} onclick={onPause}><AssetName label={name}/></a>
+          {#if role || read.live}<span class="kind">{[role, read.live ? "수신 중" : null].filter(Boolean).join(" · ")}</span>{/if}</div>
+        <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":"최근 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked !== null || loadPick !== null}<button type="button" class="clear-pick" onclick={() => { picked = null; loadPick = null; }}>선택 해제</button>{/if}</div>
+      </header>
+      <dl class="values">
+        {#each series as row,index(row.key)}
+          {@const point=cursor!==null?nearest(row.points,cursor):row.points.at(-1)}
+          <div><dt><i style:background={SERIES_COLORS[index%SERIES_COLORS.length]}></i>{series.length>1?row.short:group.label}</dt><dd>{point?measure(point.value,group.unit,group.unit==="V"?4:3):"—"}</dd></div>
+        {/each}
+        {#if companion}<div class="load"><dt>{companion.label}</dt><dd>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
+      </dl>
+      {#if lead}
+        <section class="finding" aria-label="이 그래프의 특이사항">
+          <div class="change-copy">
+            <strong>{changeName} <span aria-hidden="true">·</span> {now !== null && lead.before !== null ? "지금 " + versusStart(now, lead.before, group.unit) : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
+            <span class="change-values">
+              {#if lead.before !== null && shownAfter !== null}
+                <b>{measure(lead.before, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
+              {/if}
+              <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
+            </span>
+          </div>
+          <div class="finding-actions">
+            {#if lead.reviewKey && !read.live}
+              <button type="button" class="ui-button ai" aria-pressed={chatOpen} onclick={() => { onPause(); chatOpen = !chatOpen; }}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
             {/if}
-            <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
-          </span>
-        </div>
-        <div class="finding-actions">
-          {#if lead.reviewKey && !read.live}
-            <button type="button" class="ui-button ai" aria-pressed={chatOpen} onclick={() => { onPause(); chatOpen = !chatOpen; }}>
-              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
-          {/if}
-          <a class="ui-button ui-button-primary investigate" href={href(lead)} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>
-        </div>
-      </section>
-    {/if}
+            <a class="ui-button ui-button-primary investigate" href={href(lead)} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>
+          </div>
+        </section>
+      {/if}
+      <footer class="row-footer">
+        {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
+        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
+          <a class="secondary-action" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
+        {#if !replaying && other}
+          <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>
+        {/if}
+      </footer>
+    </div>
     <div class="plot-area">
       <div class="plot-title">
         <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
@@ -142,14 +152,6 @@
           bind:picked={() => loadPick, value => { loadPick = value; picked = null; if (value !== null) onPause(); }}/>
       {/if}
     </div>
-    <footer class="row-footer">
-      {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
-      {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
-        <a class="secondary-action" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
-      {#if !replaying && other}
-        <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>
-      {/if}
-    </footer>
   </div>
   {#if chatOpen && lead?.reviewKey}
     <aside class="card-chat" aria-label="AI 조사">
@@ -168,10 +170,11 @@
     display:grid; gap:20px; min-width:0; list-style:none; padding:18px 20px;
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
   }
-  /* AI 조사를 열면 카드가 한 줄을 다 쓰고 오른쪽에 대화 칸: 그래프를 보면서 묻는다. */
-  .row.chatting { grid-column:1 / -1; grid-template-columns:minmax(0,1fr) 380px; }
-  .card-main { display:grid; gap:10px; min-width:0; align-content:start; }
-  .equipment-head { display:flex; align-items:baseline; justify-content:space-between; gap:6px 12px; flex-wrap:wrap; }
+  /* AI 조사를 열면 줄 오른쪽에 대화 칸: 그래프를 보면서 묻는다. */
+  .row.chatting { grid-template-columns:minmax(0,1fr) 380px; }
+  .card-main { display:grid; grid-template-columns:300px minmax(0,1fr); gap:12px 28px; min-width:0; align-items:start; }
+  .summary { display:grid; gap:12px; min-width:0; align-content:start; }
+  .equipment-head { display:grid; gap:3px; }
   .title { display:flex; align-items:baseline; gap:8px; min-width:0; }
   .name { font-size:1.1rem; font-weight:700; color:var(--color-ink); text-decoration:none; }
   .name:hover { text-decoration:underline; }
@@ -189,15 +192,15 @@
   .values dt i { align-self:center; width:10px; height:3px; border-radius:2px; }
   .values dd { margin:0; font-size:var(--font-small); font-weight:650; font-variant-numeric:tabular-nums; }
   .finding {
-    display:flex; align-items:center; justify-content:space-between; gap:8px 14px; flex-wrap:wrap;
-    padding:8px 10px 8px 12px; border-left:3px solid var(--color-change-mark);
+    display:grid; gap:10px;
+    padding:10px 12px; border-left:3px solid var(--color-change-mark);
     background:var(--color-uncertain-surface); border-radius:0 6px 6px 0;
   }
   .change-copy { display:grid; gap:2px; min-width:0; font-size:var(--font-small); }
   .change-values { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; }
   .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }
   .change-values small { color:var(--color-ink-muted); }
-  .finding-actions { display:flex; align-items:center; gap:6px; }
+  .finding-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
   .finding-actions .ui-button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:5px 12px; font-size:var(--font-label); font-weight:650; white-space:nowrap; text-decoration:none; }
   .ai { color:var(--color-action); }
   .ai[aria-pressed="true"] { background:var(--color-surface-selected); border-color:var(--color-action); }
@@ -221,6 +224,6 @@
   .close { display:grid; place-items:center; width:28px; height:28px; border:0; border-radius:6px; background:none; color:var(--color-ink-muted); cursor:pointer; }
   .close:hover { background:var(--color-surface-selected); color:var(--color-ink); }
   .close svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; }
-  @media(max-width:1000px) { .row.chatting { grid-template-columns:minmax(0,1fr); } .card-chat { border-left:0; padding-left:0; } .chat-inner { inset:0; } }
+  @media(max-width:1000px) { .row.chatting,.card-main { grid-template-columns:minmax(0,1fr); } .card-chat { border-left:0; padding-left:0; } .chat-inner { inset:0; } }
   @media(max-width:500px) { .row { padding:14px; } }
 </style>
