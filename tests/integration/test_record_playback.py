@@ -166,3 +166,27 @@ def test_a_sampled_bearing_record_ends_its_changes_at_the_last_measurement(
     assert max(row["to"] for row in found["intervals"]) == 39
     # Sampled every 2nd measurement, the trace is still one line, not 20 separate dots.
     assert all(all(row["trace_join"][1:]) for row in found["intervals"])
+
+
+def test_only_a_clear_change_in_vibration_level_is_raised(tmp_path: Path) -> None:
+    """A level 1.2 times the start is ordinary drift; 1.6 times is a change, told by its RMS."""
+    found = {}
+    for rise in (1.2, 1.6):
+        workspace = phm_workspace(tmp_path / str(rise))
+        for ordinal in range(1, 31):
+            deliver(
+                workspace,
+                tmp_path / f"waves-{rise}",
+                ordinal,
+                0.5 if ordinal < 16 else 0.5 * rise,
+                amplitude_unit="g",
+            )
+        analyze(workspace)
+        found[rise] = acquisition_findings(workspace, "bearing-a")
+    assert found[1.2]["judged"] and found[1.2]["intervals"] == []
+    changes = found[1.6]["intervals"]
+    assert changes and all(row["feature"].endswith(".rms") for row in changes)
+    # The peak rose with it; the signal's mean and skewness never stand for the bearing's state.
+    related = [row["feature"].rsplit(".", 1)[-1] for row in changes[0]["related"]]
+    assert "absolute_peak" in related
+    assert not {"mean", "skewness"} & set(related)
