@@ -1,20 +1,29 @@
 """One asset as a row of the comparison overview: how it ran, its main signal, its first change.
 
 The first change is the one the asset's summary leads with, read from the same computation, so
-the overview and the summary never name different changes for one record.
+the overview and the summary never name different changes for one record. A recorded asset's
+row is kept while its record is unchanged, and ``OverviewPreparation`` computes the rows before
+anyone opens the monitor.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
+import threading
 from datetime import datetime, timedelta
 from typing import Any
 
+from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.history import DuckLakeAssetHistory
-from industrial_phm.runtime.operations_web_explore import _history, record_findings
+from industrial_phm.runtime.operations_web_explore import (
+    MAX_ATTENTION_ASSETS,
+    _history,
+    record_findings,
+)
 from industrial_phm.runtime.operations_web_forecast import feature_unit
 from industrial_phm.runtime.operations_web_vibration import acquisition_findings, feature_rank
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -23,6 +32,10 @@ _TRACE = 48
 # 관제 화면 한 칸의 너비에서 선이 끊겨 보이지 않을 만큼, 그러나 설비마다 가볍게.
 _GROUP_POINTS = 320
 _PHASES = ("R상", "S상", "T상")
+# 기록 기반 설비의 관제 카드: 그 설비의 기록이 같으면 다시 읽지 않는다. 한 달 기록이면
+# 특이사항 계산에 십수 초, 그래프의 묶음 값을 읽는 데만 1초 넘게 걸린다.
+_overview_cache: dict[tuple[str, str, str | None], tuple[HistoryAssetSummary, dict[str, Any]]] = {}
+_LOGGER = logging.getLogger(__name__)
 
 
 def asset_overview(
@@ -58,7 +71,16 @@ def asset_overview(
         "copied": 0,
     }
     history = _history(workspace)
-    if history is not None and any(a.asset_id == asset_id for a in history.list_history_assets()):
+    summary = (
+        next((a for a in history.list_history_assets() if a.asset_id == asset_id), None)
+        if history is not None
+        else None
+    )
+    if history is not None and summary is not None:
+        key = (str(workspace.root), asset_id, like)
+        held = _overview_cache.get(key)
+        if held is not None and held[0] == summary:
+            return held[1]
         found = record_findings(workspace, asset_id)
         body["kind"] = "history"
         body["judged"] = found["judged"]
@@ -122,6 +144,9 @@ def asset_overview(
             )
             if load is not None:
                 body["companion"] = _history_group(history, asset_id, found, load)
+        if len(_overview_cache) > 4 * MAX_ATTENTION_ASSETS:
+            _overview_cache.clear()
+        _overview_cache[key] = (summary, body)
         return body
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
     if not store.path.exists():
@@ -188,6 +213,74 @@ def asset_overview(
             workspace, store, asset_id, binding.binding_id, binding.source_id, focus
         ) | {"period_seconds": found["period_seconds"]}
     return body
+
+
+class OverviewPreparation:
+    """Keeps each recorded asset's monitor row computed before anyone opens the monitor.
+
+    Without it, a restarted server computes every recorded asset on the first visit; a month
+    of 35 signals takes over ten seconds. The first pass computes every asset. Later passes
+    compute an asset whose record changed once it held still for one pass, so a record still
+    being written (a live source, an import in progress) is left to the screen that asks.
+    """
+
+    def __init__(self, workspace: OperationsWorkspace) -> None:
+        """Prepare the rows of one workspace.
+
+        Args:
+            workspace: The workspace the Web server reads, with the same root path.
+        """
+        self._workspace = workspace
+        self._seen: dict[str, HistoryAssetSummary] | None = None
+        self._failed: dict[str, HistoryAssetSummary] = {}
+
+    def run_once(self) -> list[str]:
+        """Compute the rows that are missing or out of date.
+
+        Returns:
+            The assets whose rows were computed in this pass.
+        """
+        history = _history(self._workspace)
+        if history is None:
+            return []
+        first, seen = self._seen is None, dict(self._seen or {})
+        computed: list[str] = []
+        for summary in history.list_history_assets()[:MAX_ATTENTION_ASSETS]:
+            asset_id = summary.asset_id
+            held = _overview_cache.get((str(self._workspace.root), asset_id, None))
+            steady = first or seen.get(asset_id) == summary
+            seen[asset_id] = summary
+            if (
+                (held is not None and held[0] == summary)
+                or not steady
+                or self._failed.get(asset_id) == summary
+            ):
+                continue
+            try:
+                asset_overview(self._workspace, asset_id)
+            except Exception:
+                # 같은 기록으로는 다시 시도하지 않는다. 화면이 물으면 그때 직접 계산한다.
+                _LOGGER.exception("monitor row of %s could not be prepared", asset_id)
+                self._failed[asset_id] = summary
+                continue
+            computed.append(asset_id)
+        self._seen = seen
+        return computed
+
+    def run(self, stop: threading.Event, *, interval_seconds: float = 30.0) -> None:
+        """Prepare rows once every ``interval_seconds`` until ``stop`` is set.
+
+        Args:
+            stop: Set to end the loop.
+            interval_seconds: The wait between passes.
+        """
+        while not stop.is_set():
+            try:
+                self.run_once()
+            except Exception:
+                # 저장소를 잠시 읽지 못해도 다음 주기에 다시 본다.
+                _LOGGER.exception("monitor rows could not be prepared")
+            stop.wait(interval_seconds)
 
 
 def _history_group(

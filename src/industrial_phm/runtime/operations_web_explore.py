@@ -28,6 +28,7 @@ from industrial_phm.application.exploratory_anomaly import (
     latest_departure,
     record_changes,
 )
+from industrial_phm.application.measurement_history import HistoryAssetSummary
 from industrial_phm.application.phm_analysis import PhmAnalysisError, SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_unit, stream_amplitude_unit
 from industrial_phm.application.signal_exploration import (
@@ -91,7 +92,9 @@ _ATTENTION_REUSE_SECONDS = 30.0
 # What a record held: all stored signals, read in the same buckets as the departure screen.
 # Show distinct sustained, end-of-record and large changes, with simultaneous comparisons.
 _FINDINGS_SHOWN = 3
-_findings_cache: dict[tuple[str, str, datetime | None], tuple[int, dict[str, Any]]] = {}
+_findings_cache: dict[
+    tuple[str, str, datetime | None], tuple[HistoryAssetSummary, dict[str, Any]]
+] = {}
 _findings_locks: dict[tuple[str, str], threading.Lock] = {}
 _findings_guard = threading.Lock()
 # (root, asset) → (record end, record count, computed at, result)
@@ -981,9 +984,10 @@ def _record_findings(
     if summary is None:
         return body
     key = (str(workspace.root), asset_id, until)
-    snapshot = history.current_snapshot_id()
+    # 이 설비의 기록(처음·마지막 측정, 측정 수)이 같으면 다시 계산하지 않는다. 저장소 전체의
+    # 스냅숏은 다른 설비의 쓰기나 파일 정리에도 바뀌어, 그때마다 한 달 기록을 다시 읽었다.
     held = _findings_cache.get(key)
-    if held is not None and held[0] == snapshot:
+    if held is not None and held[0] == summary:
         return held[1]
     channels = list(history.list_history_channels(asset_id))
     checked = channels
@@ -1349,7 +1353,7 @@ def _record_findings(
         for previous in tuple(_findings_cache):
             if previous[:2] == key[:2] and previous[2] is not None and previous != key:
                 _findings_cache.pop(previous, None)
-    _findings_cache[key] = (snapshot, body)
+    _findings_cache[key] = (summary, body)
     return body
 
 
