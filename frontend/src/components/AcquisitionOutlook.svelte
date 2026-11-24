@@ -193,7 +193,7 @@
     <ForecastSettings value={settings} expanded={customSettings} onChange={value=>{settings=value;customSettings=true;invalidate();}}/>
     <button type="button" class="ui-button ui-button-primary" disabled={available.length===0} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
     {/if}{/snippet}</AnalysisControls>
-      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>기준 설정</button>
+      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>도달 기준 설정</button>
     </div>
 
     <div class="analysis-body">
@@ -220,7 +220,7 @@
           horizon:formatOffset(outlook.forecast.at(-1)!.ordinal)+"번째 측정",checks:outlook.checks??[]})}
       <section class="result" aria-labelledby="acq-result-title">
         <div class="result-head">
-          <h3 id="acq-result-title">{options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature} 전망</h3>
+          <h3 id="acq-result-title">{options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature} · 앞으로 {timeHorizon === null ? num(outlook.horizonCount)+"회" : HORIZON_LABEL[timeHorizon]} 전망</h3>
           <span class="context">마지막 측정 {place(outlook.record.last,period)} · {timeBasis(outlook)}</span>
         </div>
         {#if worse}
@@ -336,7 +336,7 @@
         {/if}
     {/if}
     </aside>{/if}
-    <TaskDialog bind:open={criteriaOpen} title="기준 설정">
+    <TaskDialog bind:open={criteriaOpen} title="도달 기준 설정">
       {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
       {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={outlook?.conditions.management===item.value&&outlook?.conditions.direction===item.direction}
         onclick={() => { criteriaOpen = false; suggest(item.value, item.direction); }}>{item.label}</button>{/each}</div>{/if}

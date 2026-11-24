@@ -13,8 +13,8 @@
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
     onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void;
-    period?: number | null};
-  let {binding, selected, place, onSelect, onLoaded, period = null}: Props = $props();
+    period?: number | null; pinned?: boolean};
+  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let focus: Interval | null = $state(null);
@@ -119,7 +119,12 @@
   {:else if !scored.length}
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
-    {#if first && told}
+    {#if pinned && selected !== null}
+      <div class="onset" aria-label="선택한 측정의 모델 결과">
+        <p class="result-statement">{place(selected)}{chosen?.exceeds == null ? "" : chosen.exceeds ? " · 기준 초과" : " · 기준 이하"}</p>
+        {#if chosen}<p class="context">점수 {num(chosen.score)} · 모델 기준 {num(chosen.threshold)}</p>{/if}
+      </div>
+    {:else if first && told}
       <div class="onset" aria-label="기준 초과 상태">
         <p class="result-statement">{told.headline}</p>
         <div class="onset-actions">
@@ -184,7 +189,7 @@
         onpointermove={event=>hovered=pointAt(event)} onpointerleave={()=>hovered=null}
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
     </svg></div>
-    {#if inspected}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)} · {inspected.exceeds ? "기준 초과" : "기준 이하"}</p>{/if}
+    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>

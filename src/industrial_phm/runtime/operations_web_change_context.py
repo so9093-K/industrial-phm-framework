@@ -159,6 +159,10 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             else value
         )
 
+    def told(value: str | int) -> str:
+        # 끝난 때를 말로: 진동은 몇 번째 측정, 전력은 한국 시각.
+        return f"{at(value)}" if history else f"{value}번째 측정"
+
     operation = None
     if history:
         from industrial_phm.runtime.operations_web_explore import record_findings
@@ -193,17 +197,18 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             ongoing = datetime.fromisoformat(end) + width >= datetime.fromisoformat(latest[0])
         else:
             ongoing = end >= latest[0]
-        card["변화가 기록 끝까지 이어짐"] = ongoing
+        # 참/거짓 값보다 화면의 말로 줄 때 모델이 '지금 어떤지'에 쓴다.
+        card["지금도 이어지는지"] = "기록 끝까지 이어짐" if ongoing else f"{told(end)}에 끝남"
     band = change.get("band")
     if operation and band is not None and 0 < band <= len(operation["levels"]):
+        # 두 중앙값은 한 운전 수준의 측정끼리 견준 값이다. 화면 제목('약 11 A 운전일 때')처럼
+        # 값 옆에 붙인다. 따로 두었더니 모델이 다른 부하로 돈 마지막 값과 견주어 '전압 저하'라고
+        # 읽었다.
         level = operation["levels"][band - 1]
-        card["초기와 변화 구간에 공통으로 적용한 운전 조건"] = {
-            "신호": operation["label"],
-            "단위": operation["unit"],
-            "이 수준의 대표값": _value(level["typical"]),
-            "이상": _value(level["low"]),
-            "미만": _value(level["high"]) if level["high"] is not None else None,
-        }
+        unit = f" {operation['unit']}" if operation.get("unit") else ""
+        running = f"약 {_value(level['typical']):g}{unit} 운전 중인 측정끼리"
+        card["초기 중앙값"] = {"값": card["초기 중앙값"], "조건": running}
+        card["변화 구간 중앙값"] = {"값": card["변화 구간 중앙값"], "조건": running}
     if load := change.get("load"):
         card["같은 기간의 평균 전류(모든 운전 수준)"] = {
             "신호": load["label"],
@@ -216,12 +221,17 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             {**half, "change": _value(half["change"])} for half in halves
         ]
 
+    # 지금 어떤지가 '문제 있어?'의 답이다: 신호 다음에 둔다(모델은 앞에 놓인 것부터 쓴다).
+    first = ("신호", "지금도 이어지는지")
+    card = {key: card[key] for key in first if key in card} | {
+        key: value for key, value in card.items() if key not in first
+    }
     return {
+        # 데이터의 출처나 '판정이 없다' 같은 말은 넣지 않는다: 모델이 그 말을 답으로 옮겼다
+        # ("고장이나 교체 판정 결과는 기록되어 있지 않습니다").
         "설비": context["asset_id"],
-        "기록": "선택 시점까지 재생한 저장 기록" if until is not None else "과거 저장 기록",
         "가로축": "한국 시각" if history else "측정 순서",
         "선택한 변화": card,
-        "화면의 특이사항": "이 기록에서 초기와 달라진 구간. 고장·교체 판정은 화면 데이터에 없음.",
         "함께 비교한 신호": [
             {
                 "신호": row["label"],

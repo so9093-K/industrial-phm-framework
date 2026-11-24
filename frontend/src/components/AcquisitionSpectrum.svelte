@@ -148,8 +148,11 @@
     {#if viewMode==="compare"||resultState!=="ready"}<div class="spectrum-heading">
       {#if result&&channel}
       <div class="spectrum-facts" aria-label={channel.label+" 기간 비교 결과"}>
-        <div><span>진동 에너지 · 기간 A 대비</span><strong class="energy-ratio">{channel.ratio===null?"비교 불가":measure(channel.ratio,null)+"×"}</strong></div>
-        {#if band}<div class="band-share"><span>{frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz 비중</span>
+        <div><span>{channel.label} 전체 에너지</span>
+          <div class="energy-value"><strong class="energy-ratio">{channel.ratio===null?"비교 불가":measure(channel.ratio,null)+"배"}</strong>
+            {#if channel.ratio!==null}<small>기간 B / 기간 A</small>{/if}</div>
+        </div>
+        {#if band}<div class="band-share"><span>{frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz가 차지하는 비중</span>
           {#each PERIODS as name(name)}<div class={"share-row "+name}>
             <b>{name.toUpperCase()}</b><span class="track"><i style:width={band[name]*100+"%"}></i></span><strong>{measure(band[name]*100,null)}%</strong>
           </div>{/each}
@@ -250,6 +253,7 @@
   .period-controls :global(.analysis-controls>button){padding:var(--space-2) var(--space-3);font-size:var(--font-small)}
   .spectrum-facts>div>span{display:block;color:var(--color-ink-muted);font-size:var(--font-small);margin-bottom:var(--space-1)}
   .energy-ratio{display:block;font-size:var(--font-result);line-height:1.25;font-variant-numeric:tabular-nums}
+  .energy-value{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}.energy-value small{font-size:var(--font-label);color:var(--color-ink-muted)}
   .share-row{display:grid;grid-template-columns:1rem minmax(0,1fr) 3.8rem;align-items:center;gap:var(--space-2);font-size:var(--font-small);margin-top:var(--space-1)}
   .share-row strong{text-align:right;font-variant-numeric:tabular-nums}.track{height:8px;background:var(--color-surface-selected)}
   .track i{display:block;height:100%;background:var(--color-ink-muted)}.b .track i{background:var(--color-action)}

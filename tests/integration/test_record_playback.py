@@ -1,13 +1,17 @@
 """A replay position must not know measurements that arrived later in the record."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Event
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from industrial_phm.application.backfill import FileBackfillEvent
+from industrial_phm.genai import change_answer
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
+from industrial_phm.runtime import operations_web_phm_explanation as explanations
 from industrial_phm.runtime.operations_web_change_context import (
     screen_view,
     selected_change,
@@ -15,6 +19,11 @@ from industrial_phm.runtime.operations_web_change_context import (
 from industrial_phm.runtime.operations_web_change_review import capture_change
 from industrial_phm.runtime.operations_web_explore import record_findings
 from industrial_phm.runtime.operations_web_forecast import acquisition_points, history_points
+from industrial_phm.runtime.operations_web_load_comparison import (
+    load_comparison_for_answer,
+    load_comparison_query,
+    read_load_comparison,
+)
 from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 from tests.integration.test_operations_web_explore import _serve
 from tests.support.phm import analyze, deliver, phm_workspace
@@ -22,7 +31,9 @@ from tests.support.phm import analyze, deliver, phm_workspace
 BASE = datetime(2026, 10, 1, tzinfo=UTC)
 
 
-def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path: Path) -> None:
+def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     workspace = phm_workspace(tmp_path / "ws", bind=False)
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
@@ -63,15 +74,59 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path
     chosen = next(row for row in before["intervals"] if row["channel"] == "voltage")
     scope = {"record_until": until.isoformat()}
     context = selected_change(workspace, "compressor", chosen["review_key"], scope)
+    comparison_query = load_comparison_query(context)
+    assert comparison_query is not None
     screen = screen_view(workspace, context)
     card = screen["선택한 변화"]
-    assert card["초기 중앙값"] == pytest.approx(220, abs=0.02)
-    assert card["변화 구간 중앙값"] == pytest.approx(230, abs=0.02)
+    # 한 운전 수준끼리 견준 값은 그 조건을 값 옆에 달고 간다.
+    assert card["초기 중앙값"]["값"] == pytest.approx(220, abs=0.02)
+    assert card["변화 구간 중앙값"]["값"] == pytest.approx(230, abs=0.02)
+    assert card["초기 중앙값"]["조건"].endswith("운전 중인 측정끼리")
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
     assert card["변화 시작"] == start.strftime("%Y-%m-%d %H:%M")
     training = history_points(workspace, "compressor", "voltage", scope)
 
     write(40, 90, True)
+    comparison = read_load_comparison(workspace, comparison_query, chosen["interpretation_id"])
+    assert comparison["status"] == "ready"
+    facts = load_comparison_for_answer(comparison)
+    assert facts["초기 중앙값"] == pytest.approx(220, abs=0.02)
+    assert facts["변화 구간 중앙값"] == pytest.approx(230, abs=0.02)
+    model_started = Event()
+    finish_answer = Event()
+
+    def explain(_provider, messages, *, max_tokens):
+        data = json.loads(messages[0]["content"].split("\n\n", 1)[1])
+        assert data["같은 전류 범위의 실제 비교"] == facts
+        model_started.set()
+        assert finish_answer.wait(8)
+        return "같은 전류 범위에서도 전압이 높았습니다."
+
+    monkeypatch.setattr(change_answer, "complete_text", explain)
+    monkeypatch.setattr(explanations, "_MANAGERS", {})
+    job = explanations.request_phm_explanation(
+        workspace.root,
+        {
+            "asset_id": "compressor",
+            "change_id": chosen["review_key"],
+            "conversation_id": "a" * 32,
+            "question": "같은 부하에서도 전압이 달라졌어?",
+            "analysis": "same_load",
+            **scope,
+        },
+    )
+    try:
+        assert model_started.wait(8)
+        store = explanations.initialize_explanation_manager(workspace.root).store
+        pending = store.get(str(job["explanation_id"]))
+        assert pending and pending["status"] == "pending"
+        published = pending["answer"]["load_comparison"]
+        assert published["status"] == "ready"
+        assert published["until"] == until.isoformat()
+        assert published["profile"]["series"][0]["histogram"]["a"]
+        assert load_comparison_for_answer(published) == facts
+    finally:
+        finish_answer.set()
     after = record_findings(workspace, "compressor", until=until)
     assert after == before
     assert record_findings(workspace, "compressor")["record"]["to"] > after["record"]["to"]

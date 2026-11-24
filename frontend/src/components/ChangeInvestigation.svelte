@@ -1,28 +1,30 @@
 <script lang="ts">
   import {onDestroy,tick,untrack} from "svelte";
-  import {questionDraft,keepQuestionDraft} from "../question-drafts";
-  import {askChange,readChangeDiscussion,STARTERS,type ChangeDiscussion} from "../change-investigation";
+  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,LOAD_QUESTION,type ChangeDiscussion} from "../change-investigation";
   import {spanText} from "../asset-timeline";
-  import type {EvidenceFocus} from "../change-evidence";
-  import {currentPlayback} from "../record-playback";
+  import {changeFollowup, type EvidenceFocus} from "../change-evidence";
+  import {investigationOriginUrl} from "../routes";
+  import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
+  import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
   /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
    * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
    * 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,active=true}:{assetId:string;focus:EvidenceFocus;onMemo:(text:string)=>void;
-    onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
-    active?:boolean}=$props();
+  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo:(text:string)=>void;
+    onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
-  const draftScope=untrack(()=>"change:"+assetId+":"+change.reviewKey);
+  const conversation=newChangeConversation();
   const reviewKey=$derived(change.reviewKey!);
-  let question=$state(questionDraft(draftScope)),records:ChangeDiscussion[]=$state([]),error=$state("");
-  onDestroy(()=>{keepQuestionDraft(draftScope,question);cancel();write?.abort();clearInterval(clock);});
+  const followup=$derived(changeFollowup(assetId,focus,scope!==null));
+  const compareLoad=$derived(focus.kind==="history"&&focus.item.unit==="V"&&focus.item.band!=null);
+  let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
+  onDestroy(()=>{cancel();write?.abort();clearInterval(clock);});
   let questionRevision=0;
-  let writable=$state(false),busy=$state(false),loading=$state(true),remaining=240;
+  let writable=$state(false),busy=$state(false),remaining=240;
   let awaitingQuestion:string|null=$state(null);
   let previousIds=new Set<string>();
   let request:AbortController|null=null,write:AbortController|null=null,timer:ReturnType<typeof setTimeout>|null=null;
@@ -31,8 +33,6 @@
   // 대화는 오래된 것부터. 접수 확인 전의 질문도 보낸 말풍선으로 바로 보인다.
   const thread=$derived([...records].reverse());
   const unsent=$derived(awaitingQuestion!==null&&!records.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id))?awaitingQuestion:null);
-  const asked=$derived(new Set(records.map(row=>row.question)));
-  const prompts=$derived(STARTERS.filter(text=>!asked.has(text)));
   // 기다린 시간: 첫 답은 모델이 쉬고 있었다면 1분 가까이 걸린다. 멈춘 것과 구분되게 초를 센다.
   let since:number|null=$state(null),now=$state(Date.now());
   const clock=setInterval(()=>{if(waiting)now=Date.now();},1000);
@@ -47,34 +47,33 @@
   // 사용자가 위의 답을 읽고 있으면(바닥에서 떨어져 있으면) 그대로 둔다.
   let log:HTMLElement|undefined=$state(),stick=true;
   const atBottom=()=>!log||log.scrollTop+log.clientHeight>=log.scrollHeight-48;
-  $effect(()=>{thread.length;unsent;waiting;latest?.status;void tick().then(()=>{
+  $effect(()=>{thread.length;unsent;waiting;latest?.status;latest?.comparison?.status;void tick().then(()=>{
     if(!stick||!log)return;
     const last=[...log.querySelectorAll<HTMLElement>(".me")].at(-1);
     log.scrollTop=last?log.scrollTop+last.getBoundingClientRect().top-log.getBoundingClientRect().top-12:log.scrollHeight;
   });});
   function cancel(){request?.abort();if(timer!==null)clearTimeout(timer);timer=null;}
   async function refresh(){
-    if(!active)return;
     cancel();const pending=new AbortController();request=pending;
     try {
-      const read=await readChangeDiscussion(assetId,reviewKey,pending.signal,currentPlayback());
-      if(pending.signal.aborted)return;records=read;loading=false;
+      const read=await readChangeDiscussion(assetId,reviewKey,conversation,pending.signal,scope);
+      if(pending.signal.aborted)return;records=read;
       if(awaitingQuestion&&read.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id)))awaitingQuestion=null;
-      error=awaitingQuestion?"질문 접수 여부를 다시 확인하고 있습니다.":"";
+      error="";
       if(awaitingQuestion||read[0]?.status==="pending"){
         if(remaining-->0)timer=setTimeout(()=>void refresh(),1500);
         else {awaitingQuestion=null;error="접수·생성 상태를 확인하지 못했습니다. 다시 읽어 확인하세요.";}
       }
-    }catch(cause){if(!pending.signal.aborted){loading=false;error=cause instanceof Error?cause.message:"조사 조회 실패";}}
+    }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";}
   }
-  async function ask(text:string){
-    if(!writable||loading||waiting||!text.trim())return;
+  async function ask(text:string,runComparison=false){
+    if(!writable||waiting||!text.trim())return;
     const revision=questionRevision;const submitted=text.trim();
     onStart?.();stick=true;previousIds=new Set(records.map(row=>row.id));awaitingQuestion=submitted;
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,currentPlayback());
+      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison);
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){
@@ -89,11 +88,8 @@
     event.preventDefault();void ask(question);
   }
   $effect(()=>{
-    // Hiding stops reads, but must not cancel a question before the server accepts it.
-    if(!active){cancel();return;}
     const permission=new AbortController();
     void readPermission(permission.signal).then(value=>{if(!permission.signal.aborted)writable=value;}).catch(()=>{});
-    remaining=240;untrack(()=>void refresh());
     return()=>{permission.abort();cancel();};
   });
 </script>
@@ -111,36 +107,34 @@
     {#if onClose}<button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
-    {#if loading}<p class="note">대화를 불러오는 중</p>
-    {:else if !thread.length&&!unsent}
-      <div class="empty follow">{#each prompts as text(text)}<button type="button" disabled={!writable} onclick={()=>void ask(text)}>{text}</button>{/each}</div>
-    {/if}
     {#each thread as row(row.id)}
       <p class="me">{row.question}</p>
-      {#if row.status==="pending"}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing("답 정리 중")}</div></div>
-      {:else if row.status==="complete"&&row.answer}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
-          <p class="answer">{row.answer.summary}</p>
+      <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
+        {#if row.status==="complete"&&row.answer}<p class="answer">{row.answer.summary}</p>{/if}
+        {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
+        {#if row.status==="complete"&&row.answer}
           <div class="tools">
             <button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>
             <button type="button" onclick={()=>void copy(row)}>{copied===row.id?"복사됨":"복사"}</button>
           </div>
-        </div></div>
-      {:else}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body"><p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p></div></div>
-      {/if}
+        {:else if row.status==="pending"}{@render typing("답 정리 중")}
+        {:else}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
+      </div></div>
     {/each}
     {#if unsent}<p class="me">{unsent}</p>{@render waitingBubble()}{/if}
-    {#if error}<p class="error" role="alert">{error} <button type="button" onclick={()=>void refresh()}>다시 읽기</button></p>{/if}
+    {#if error}<p class="error" role="alert">{error} {#if awaitingQuestion || latest?.status === "pending"}<button type="button" onclick={()=>{remaining=240;void refresh();}}>다시 확인</button>{/if}</p>{/if}
   </div>
 
   <footer>
-    {#if thread.length&&prompts.length}<div class="follow">{#each prompts as text(text)}<button type="button" disabled={!writable||waiting} onclick={()=>void ask(text)}>{text}</button>{/each}</div>{/if}
+    {#if !thread.length&&!unsent&&writable}<div class="follow">{#if compareLoad}<button type="button" onclick={()=>void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
+      {#each STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
+    {:else if latest?.status==="complete"&&latest.comparison?.status!=="ready"&&followup&&!waiting}
+      <a class="followup" href={investigationOriginUrl(followup.href,location.href)} onclick={onStart}>{followup.label} →</a>
+    {/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="질문" bind:value={question} oninput={()=>questionRevision++} onfocus={()=>onStart?.()} onkeydown={keydown}
-        disabled={!writable} placeholder={!writable?"보기 전용에서는 저장된 대화만 볼 수 있습니다":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":"이 특이사항에 대해 질문"}></textarea>
-      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||loading||waiting||!question.trim()} onclick={()=>void ask(question)}>
+        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":"이 특이사항에 대해 질문"}></textarea>
+      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
     </div>
   </footer>
@@ -158,7 +152,6 @@
   .log{overflow-y:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
   p{margin:0;font-size:var(--font-small);overflow-wrap:anywhere}
   .note{color:var(--color-ink-muted);font-size:var(--font-label);line-height:1.5}
-  .empty{margin-top:auto}
   .me{align-self:flex-end;max-width:85%;padding:8px 12px;border-radius:14px 14px 4px 14px;background:var(--color-surface-selected);line-height:1.5}
   .ai{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start}
   .avatar{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--color-action);color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em}
@@ -177,6 +170,7 @@
   .error button{border:0;background:none;padding:0;font:inherit;color:var(--color-action);text-decoration:underline;cursor:pointer}
   footer{display:grid;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--color-border)}
   .follow{display:flex;flex-wrap:wrap;gap:6px}
+  .followup{justify-self:start;padding-block:4px;color:var(--color-action);font-size:var(--font-small);font-weight:650}
   .follow button{font:inherit;font-size:var(--font-label);padding:4px 10px;border:1px solid var(--color-control-border);border-radius:999px;background:var(--color-surface);color:var(--color-action);cursor:pointer}
   .follow button:disabled{cursor:default;opacity:.55}
   .composer{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:end;gap:6px;padding:6px 6px 6px 12px;border:1px solid var(--color-control-border);border-radius:12px;background:var(--color-surface)}

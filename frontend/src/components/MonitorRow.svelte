@@ -2,14 +2,14 @@
   import {onDestroy, type Snippet} from "svelte";
   import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
-  import {clockText, episodes} from "../asset-timeline";
+  import {clockText} from "../asset-timeline";
   import {versusStart,plainLabel} from "../change-story";
   import {DECISION_LABEL} from "../review-writes";
   import {elapsedText} from "../time-axis";
   import AssetName from "./AssetName.svelte";
   import TrendChart from "./TrendChart.svelte";
   import MonitorChat from "./MonitorChat.svelte";
-  import {noticeSentences} from "../monitor-chat";
+  import {investigationOriginUrl} from "../routes";
 
   /** 설비 한 줄: 왼쪽에 이름·지금 값·특이사항, 오른쪽에 화면 폭을 쓰는 실제 추이(폭이 곧 시간을 보는 해상도다).
    * 'AI 조사' 대화 칸은 이 줄이 만들고, 관제 목록 오른쪽 칸(onChat)에 띄운다. 줄 안에 열면 줄 높이가 대화 칸만큼
@@ -70,35 +70,16 @@
   const mainHeight = $derived(companion ? Math.round(height * .68) : height);
   const loadHeight = $derived(companion ? Math.max(48, height - mainHeight - 20) : 0);
   const loadPoint = $derived(load[0] ? (cursor !== null ? nearest(load[0].points, cursor) : load[0].points.at(-1)) : null);
-  // 앞서 찾은 변화(가장 최근 시기 앞의 시기들): 최근 것부터 두 개까지.
-  const earlier = $derived(episodes(changes, change => change).slice(0, -1).reverse().slice(0, 2)
-    .map(span => span.members.find(row => row.key === group.focus) ?? span.members[0]));
-  // 남긴 판단: 같은 특이사항(기간·기준이 같은 것)에만 붙인다. 모니터링 중에는 기간이 잘려 다른 특이사항이 되므로
-  // 판단이 없다고 '판단 전'이라 말하지 않는다.
-  const judgmentOf = (change: FleetChange) => change.reviewKey ? read.judgments?.[change.reviewKey] ?? null : null;
-  const judged = $derived(lead ? judgmentOf(lead) : null);
-  const day = (at: string) => new Date(at).toLocaleDateString("ko-KR", {month: "long", day: "numeric"});
-  const verdict = (change: FleetChange) => {
-    const own = judgmentOf(change);
-    return own?.closed ? "검토 종료" : own?.decision ? DECISION_LABEL[own.decision] : own ? "확인함" : null;
-  };
-  // AI 관제가 하는 말: 가장 최근 특이사항, 앞의 특이사항(오래된 것부터), 남긴 판단.
-  const notice = $derived(lead ? noticeSentences({
-    what: lead.label,
-    size: (lead.before !== null && shownAfter !== null ? versusStart(shownAfter, lead.before, group.unit) : null) ?? (lead.up ? "높음" : "낮음"),
-    before: lead.before !== null && shownAfter !== null ? measure(lead.before, group.unit, 3) : null,
-    after: lead.before !== null && shownAfter !== null ? measure(shownAfter, group.unit, 3) : null,
-    when: group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정",
-    still, duration: duration(lead),
-    load: lead.load ? {label: lead.load.label, before: measure(lead.load.before, lead.load.unit, 2), after: measure(lead.load.after, lead.load.unit, 2),
-      ratio: lead.load.before ? lead.load.after / lead.load.before : 1} : null,
-  }) : null);
-  const past = $derived([...earlier].reverse().map(change => ({key: change.key + change.from,
-    when: group.axis === "time" ? clockText(change.from) : change.from + "번째",
-    text: change.label + " " + (change.up ? "높음" : "낮음") + (verdict(change) ? " · " + verdict(change) : "")})));
-  const spoken = $derived(judged && lead ? {verdict: verdict(lead)!, day: day(judged.at), note: judged.note} : lead && !replaying && !read.live ? "pending" as const : null);
+  const judged = $derived(lead?.reviewKey ? read.judgments?.[lead.reviewKey] ?? null : null);
+  const savedJudgment = $derived(judged ? {
+    label: judged.closed ? "검토 종료" : judged.decision ? DECISION_LABEL[judged.decision] : "확인함",
+    note: judged.note,
+  } : null);
   const scope = $derived(replaying && analyzed !== null ? {kind: group.axis === "time" ? "history" as const : "vibration" as const, until: analyzed} : null);
-  const watched = $derived(read.live ? "최근 관측 확인" : !replaying ? "기록 전체 확인" : analyzed === null ? "변화 판정 중" : "~" + short(analyzed) + "까지 확인");
+  const followup = $derived(lead?.followup ? {
+    ...lead.followup,
+    href: investigationOriginUrl(lead.followup.href, new URL(href(lead), location.origin).href),
+  } : null);
 </script>
 
 <li class="row" class:chatting>
@@ -126,6 +107,7 @@
               {/if}
               <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
             </span>
+            {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
           </div>
           <div class="finding-actions">
             {#if lead.reviewKey && !read.live}
@@ -166,10 +148,11 @@
 {#snippet chatPanel()}
   {#if lead?.reviewKey}
     <section class="card-chat" aria-label="AI 조사">
-      <div class="chat-head"><div><strong>AI 조사 · <AssetName label={name}/></strong><span>{changeName} · {watched}</span></div>
+      <div class="chat-head"><div><strong>AI 조사 · <AssetName label={name}/></strong><span>{changeName} · {group.axis === "time" ? clockText(lead.from) + "부터" : lead.from + "번째 측정부터"} · {duration(lead)}</span></div>
         <button type="button" class="close" aria-label="AI 조사 닫기" onclick={() => onChat(null)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
-      <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {watched} {notice} when={null} judged={spoken} earlier={past} heading={false}
-        calm="이 기록에는 특이사항이 없습니다." checking={replaying && analyzed === null} detailHref={href(lead)} canAsk={!read.live} {onPause}/>
+      {#key [lead.reviewKey, scope?.until].join(":")}
+        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {followup} {savedJudgment} {onPause} compareLoad={lead.compareLoad}/>
+      {/key}
     </section>
   {/if}
 {/snippet}

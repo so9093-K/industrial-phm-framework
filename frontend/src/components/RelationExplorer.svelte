@@ -9,6 +9,7 @@
   import RelationPlot from "./RelationPlot.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {relationMessage,sameXText,short,shortRange} from "../analysis-messages";
+  import ComparisonValues from "./ComparisonValues.svelte";
   import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
@@ -255,8 +256,10 @@
         <section class="group">
           {#if pairs.length>1}<p class="record-label">{sourceLabel(sourceNames,pair.source,pairs.map(each=>each.source))}{#if pair.point}{" · "+pair.point}{/if}</p>{/if}
           {#if explained}
-            {#if moved}<p class="primary-insight">{signalName(names,y)} · {short(moved.shown.a.median)} → {short(moved.shown.b.median)}{yUnit?" "+yUnit:""}</p>
-              <p class="primary-context">{signalName(names,x)} {shortRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교한 중앙값입니다.</p>
+            {#if moved}<ComparisonValues
+              caption={signalName(names,x)+" "+shortRange(moved.shown.low,moved.shown.high)+(xUnit?" "+xUnit:"")+"일 때의 "+signalName(names,y)+" 중앙값"}
+              names={{a:handedOver==="previous"?"직전 구간":handedOver==="summary"?"초기":"기간 A",b:handedOver==="previous"||handedOver==="summary"?"특이사항 구간":"기간 B"}}
+              a={short(moved.shown.a.median)+(yUnit?" "+yUnit:"")} b={short(moved.shown.b.median)+(yUnit?" "+yUnit:"")}/>
             {:else if common}
               <p class="relationship-summary">두 기간 모두 측정이 충분한 {signalName(names,x)} {shortRange(common.low,common.high)}{xUnit?" "+xUnit:""} 범위를 그래프에 표시했습니다.</p>
             {:else}<p class="relationship-summary">{explained.headline}</p>{/if}
@@ -330,7 +333,6 @@
 <style>
   .period-summary{font-size:var(--font-small)}.period-summary p{margin:0}.period-summary span{display:block}
   .record-label{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 var(--space-2)}
-  .primary-insight{font-size:var(--font-result);font-weight:700;line-height:1.6;overflow-wrap:anywhere}.primary-context{color:var(--color-ink-muted);overflow-wrap:anywhere}
   .conditions{margin-block:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-control)}
   .coefficients summary{cursor:pointer;font-weight:650;overflow-wrap:anywhere}
   .period-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr));gap:var(--space-3);margin-block:var(--space-3)}
