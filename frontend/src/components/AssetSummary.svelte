@@ -29,7 +29,6 @@
   import {changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
   import {CHANGE_WHY, plainLabel, versusStart, changeEnded} from "../change-story";
   import {measure} from "../chart-axis";
-  import type {RunEnding} from "../public-datasets";
   type Props = {
     asset: Asset;
     data: AssetData | null;
@@ -37,10 +36,8 @@
     observed: (at: string | null) => string;
     selectedAt?: number | null;
     revision?:number;scope?:PlaybackScope|null;onBusy?:(busy:boolean)=>void;onInvestigate?:()=>void;
-    /** 끝까지 잰 시험 기록의 결말: 그래프가 그 측정까지 닿으면 표시한다. */
-    ending?:RunEnding|null;
   };
-  let {asset, data, dataState, observed, selectedAt = $bindable(null),scope=null,revision=0,ending=null,onBusy,onInvestigate}: Props = $props();
+  let {asset, data, dataState, observed, selectedAt = $bindable(null),scope=null,revision=0,onBusy,onInvestigate}: Props = $props();
   const assetId=$derived(asset.assetId);
   const readRevision=$derived(assetId+":"+JSON.stringify(scope)+":"+revision);
   const stored = $derived.by(() => {
@@ -427,7 +424,7 @@
   {#if current && recordSpan && lanes.length}
     <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
       episodes={episodeChoices} {actions} {lanes} operation={timelineOperation} load={timelineLoad}
-      periodSeconds={vibration?.periodSeconds ?? null} ending={focus?.kind === "vibration" ? ending : null}
+      periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}
       onFocus={key => { const item = items.find(row => row.key === key); if (item) selectChange(item.pick); }} />
   {:else if data?.history && findingState === "loading" && !quietMain}

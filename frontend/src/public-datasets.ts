@@ -10,11 +10,7 @@ export type PublicDataset = {
   equipment: string | null; split: string | null; deviceId: string | null; bytes: number | null;
   /** XJTU-SY: operating condition and how many acquisitions the run holds. */
   speedHz: number | null; loadKn: number | null; acquisitions: number | null;
-  /** XJTU-SY: 시험이 끝난 뒤 확인한 손상 부위('외륜'). 데이터셋 문서의 사실이다. */
-  fault: string | null;
 };
-/** 기록이 실제로 어떻게 끝났는지: 마지막 측정 번호와 그때 확인한 손상. */
-export type RunEnding = {at: number; label: string};
 export type DatasetJob = {
   state: "running" | "succeeded" | "failed" | "interrupted"; step: string; done: number;
   assetId: string; failure: string | null;
@@ -41,7 +37,7 @@ export function parsePublicDatasets(raw: unknown): PublicDatasets {
       stored: row.stored === true, partial: row.partial === true, sourceChanged: row.source_changed === true,
       equipment: text(row.equipment), split: text(row.split), deviceId: text(row.device_id),
       bytes: count(row.bytes), speedHz: count(row.rotational_speed_hz), loadKn: count(row.radial_load_kn),
-      acquisitions: count(row.acquisitions), fault: text(row.fault_element)};
+      acquisitions: count(row.acquisitions)};
   });
   const states: readonly DatasetJob["state"][] = ["running", "succeeded", "failed", "interrupted"];
   const jobs: Record<string, DatasetJob> = {};
@@ -80,12 +76,6 @@ export function groupDatasets(items: PublicDataset[]): DatasetGroup[] {
     groups.set(key, group);
   }
   return [...groups.values()];
-}
-
-/** 끝까지 잰 시험 기록의 결말. 손상 부위를 모르면 null. */
-export function runEnding(item: PublicDataset | undefined): RunEnding | null {
-  return item?.kind === "xjtu-sy" && item.fault && item.acquisitions
-    ? {at: item.acquisitions, label: item.fault + " 손상으로 시험 끝"} : null;
 }
 
 export function datasetName(item: PublicDataset): string {

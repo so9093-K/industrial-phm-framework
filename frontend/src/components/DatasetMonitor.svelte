@@ -25,7 +25,7 @@
     return () => request.abort();
   });
   const datasets = $derived(publicRead ? monitorDatasets(assets, publicData) : []);
-  const all = $derived({key:"all",title:"전체 설비",assetIds:assets.map(asset=>asset.assetId),detail:Object.assign({},...datasets.map(row=>row.detail)),ending:Object.assign({},...datasets.map(row=>row.ending))} satisfies MonitorDataset);
+  const all = $derived({key:"all",title:"전체 설비",assetIds:assets.map(asset=>asset.assetId),detail:Object.assign({},...datasets.map(row=>row.detail))} satisfies MonitorDataset);
   const filters=$derived([all,...datasets]);
   const filterLabel=(row:MonitorDataset)=>({all:"전체 설비","aihub-239":"전력·운전","xjtu-sy":"베어링 진동",connected:"연결한 설비"}[row.key]??row.title);
   let guideOpen=$state(false);
@@ -296,7 +296,6 @@
             replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
-            ending={home?.ending[asset.assetId] ?? null}
             height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
           <!-- 읽는 동안에도 다 읽은 카드와 비슷한 높이로 두어, 옆 카드와 화면이 출렁이지 않게 한다. -->

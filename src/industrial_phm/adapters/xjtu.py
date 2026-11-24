@@ -37,25 +37,6 @@ _EXPECTED_RUN_ACQUISITIONS = {
     ("40Hz10kN", "Bearing3_4"): 1_515,
     ("40Hz10kN", "Bearing3_5"): 114,
 }
-# 시험이 끝났을 때 손상된 부위(데이터셋 소개 문서 Introduction_to_XJTU-SY_Bearing_Dataset.pdf의
-# 'Fault element'). 측정이 끝난 뒤 확인한 결과라서 측정값으로 추정한 것이 아니다.
-XJTU_SY_FAULT_ELEMENTS = {
-    "Bearing1_1": "외륜",
-    "Bearing1_2": "외륜",
-    "Bearing1_3": "외륜",
-    "Bearing1_4": "케이지",
-    "Bearing1_5": "내륜·외륜",
-    "Bearing2_1": "내륜",
-    "Bearing2_2": "외륜",
-    "Bearing2_3": "케이지",
-    "Bearing2_4": "외륜",
-    "Bearing2_5": "외륜",
-    "Bearing3_1": "외륜",
-    "Bearing3_2": "내륜·볼·케이지·외륜",
-    "Bearing3_3": "내륜",
-    "Bearing3_4": "내륜",
-    "Bearing3_5": "외륜",
-}
 
 
 class XjtuSySourceError(ValueError):

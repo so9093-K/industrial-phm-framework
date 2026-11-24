@@ -8,7 +8,7 @@ import {episodes} from "./asset-timeline.ts";
 import {groupHistory} from "./history.ts";
 import {readObservation, recentAsset} from "./observation.ts";
 import type {Asset} from "./monitor.ts";
-import {runEnding, type PublicDatasets, type RunEnding} from "./public-datasets.ts";
+import type {PublicDatasets} from "./public-datasets.ts";
 import {routeUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 
@@ -212,9 +212,7 @@ export async function readJudgments(assetId: string, signal: AbortSignal): Promi
 export const SERIES_COLORS = ["var(--color-series-1)", "var(--color-series-2)", "var(--color-series-3)", "var(--color-series-4)"];
 
 /** 관제 화면의 데이터셋: 같은 출처에서 온 설비들. 공개 데이터는 데이터셋 종류로, 나머지는 '연결한 데이터'로 묶는다. */
-export type MonitorDataset = {key: string; title: string; assetIds: string[]; detail: Record<string, string>;
-  /** 끝까지 잰 시험 기록의 결말(마지막 측정과 그때 확인한 손상). */
-  ending: Record<string, RunEnding>};
+export type MonitorDataset = {key: string; title: string; assetIds: string[]; detail: Record<string, string>};
 const DATASET_TITLE: Record<string, string> = {"aihub-239": "AI-Hub 239 전력 기록", "xjtu-sy": "XJTU-SY 베어링 진동 기록", connected: "연결한 데이터"};
 export function monitorDatasets(assets: Asset[], data: PublicDatasets | null): MonitorDataset[] {
   const imported = new Map(Object.entries(data?.jobs ?? {}).map(([id, job]) => [job.assetId, id]));
@@ -223,9 +221,7 @@ export function monitorDatasets(assets: Asset[], data: PublicDatasets | null): M
     const job = imported.get(asset.assetId);
     const item = data?.items.find(row => row.datasetId === job) ?? data?.items.find(row => row.assetId === asset.assetId);
     const key = item?.kind ?? (job?.startsWith("xjtu-sy:") ? "xjtu-sy" : job?.startsWith("aihub239:") ? "aihub-239" : "connected");
-    const dataset = out.get(key) ?? {key, title: DATASET_TITLE[key], assetIds: [], detail: {}, ending: {}};
-    const ending = runEnding(item);
-    if (ending) dataset.ending[asset.assetId] = ending;
+    const dataset = out.get(key) ?? {key, title: DATASET_TITLE[key], assetIds: [], detail: {}};
     dataset.assetIds.push(asset.assetId);
     if (item?.kind === "xjtu-sy" && item.speedHz !== null && item.loadKn !== null) dataset.detail[asset.assetId] = item.speedHz + " Hz · " + item.loadKn + " kN";
     else if (item?.equipment) dataset.detail[asset.assetId] = item.equipment;
