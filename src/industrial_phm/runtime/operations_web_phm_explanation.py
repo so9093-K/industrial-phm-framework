@@ -16,7 +16,7 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.change_answer import asks_about_models, generate_change_answer
+from industrial_phm.genai.change_answer import generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_web_change_context import (
@@ -27,6 +27,8 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MANAGERS: dict[Path, ExplanationManager] = {}
 _LOCK = Lock()
+# 특이사항 대화에서 모델에 함께 넘기는 앞선 문답 수.
+_TURNS = 4
 
 
 def configured_provider() -> ExplanationProvider:
@@ -97,19 +99,17 @@ class ExplanationManager:
         question: str,
         parent_id: str | None,
         scope: dict[str, str] | None = None,
+        opening: str | None = None,
     ) -> dict[str, object]:
         context = selected_change(self.workspace, asset, change_id, scope)
         context["question"] = question
         if parent_id is not None:
             context["parent_id"] = parent_id
-            context["history"] = self._history(parent_id, context)
-        investigation = investigation_facts(self.workspace, context)
-        # 확인한 항목은 이 질문의 답에 실제로 넘기는 것만: 모델을 묻지 않으면 모델 결과는 뺀다.
-        if not asks_about_models(question):
-            investigation["steps"] = [
-                row for row in investigation["steps"] if not row["fact"].startswith("model_")
-            ]
-        context["investigation"] = investigation
+            context["history"], opening = self._thread(parent_id, context)
+        # 대화창 맨 위에 보인 알림: 모델이 이미 보인 숫자를 되풀이하지 않게 함께 넘긴다.
+        if opening:
+            context["opening"] = opening
+        context["investigation"] = investigation_facts(self.workspace, context)
         return self._enqueue(context, configured_provider())
 
     def _enqueue(self, context: dict[str, Any], provider: ExplanationProvider) -> dict[str, object]:
@@ -159,6 +159,24 @@ class ExplanationManager:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
         return [{"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}]
 
+    def _thread(
+        self, parent_id: str, context: dict[str, Any]
+    ) -> tuple[list[dict[str, str]], str | None]:
+        """The conversation a change question continues, oldest first, and its opening notice.
+
+        A conversation needs what was already said: the notice the screen showed first and the
+        last turns. Each answer is short, so the last ``_TURNS`` turns stay a small request.
+        """
+        turns: list[dict[str, str]] = []
+        opening: str | None = None
+        current: str | None = parent_id
+        while current is not None and len(turns) < _TURNS:
+            turns.insert(0, self._history(current, context)[0])
+            record = self.store.get(current)
+            opening = record["context"].get("opening") if record else None
+            current = record["context"].get("parent_id") if record else None
+        return turns, opening
+
 
 def initialize_explanation_manager(root: Path) -> ExplanationManager:
     with _LOCK:
@@ -179,6 +197,7 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
                 "change_id",
                 "question",
                 "parent_id",
+                "opening",
                 "record_until",
                 "acquisition_until",
             }
@@ -202,12 +221,16 @@ def request_phm_explanation(root: Path, payload: dict[str, object]) -> dict[str,
         parent = payload.get("parent_id")
         if parent is not None and len(str(parent)) > 128:
             raise ValueError("invalid follow-up")
+        opening = str(payload.get("opening", "")).strip()
+        if len(opening) > 600:
+            raise ValueError("invalid opening notice")
         return initialize_explanation_manager(root).request_change(
             asset,
             key,
             change_question,
             str(parent) if parent else None,
             {k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload},
+            opening or None,
         )
     if not {"binding_id", "position"} <= set(payload) or set(payload) - {
         "binding_id",

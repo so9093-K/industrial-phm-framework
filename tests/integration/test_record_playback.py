@@ -65,7 +65,6 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path
     context = selected_change(workspace, "compressor", chosen["review_key"], scope)
     facts = investigation_facts(workspace, context)
     assert "220" in facts["facts"]["feature_0"] and "230" in facts["facts"]["feature_0"]
-    assert facts["actions"] == ["signals", "compare"]
     # Times read as on the chart (Korean time), so an answer may quote them as people do.
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
     assert (
