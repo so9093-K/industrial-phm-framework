@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis, type AnalysisReadout} from "../analysis-readout.svelte";
   import {onMount,untrack} from "svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import AcquisitionRange from "./AcquisitionRange.svelte";
@@ -137,6 +138,30 @@
     }
   }
   onMount(()=>{void readSource();return()=>{sourceRequest?.abort();spectrumRequest?.abort();mapRequest?.abort();};});
+
+  exposeAnalysis((): AnalysisReadout | null => {
+    if (viewMode === "measurement") {
+      if (selected === null || !waterfall || !individual || !mapChannel || mapState !== "ready") return null;
+      let peak = -1;
+      for (const [index, hz] of waterfall.frequencies.entries()) {
+        if (hz > 0 && hz >= domain.from && hz <= domain.to && (peak === -1 || individual[index] > individual[peak]))
+          peak = index;
+      }
+      return {
+        "선택한 파형": mapChannel.label + " · " + place(selected),
+        "표시 대역": frequencyLabel(domain.from) + "–" + frequencyLabel(domain.to) + " Hz",
+        "표시 대역 최대 성분": peak < 0 ? "측정 없음" : frequencyLabel(waterfall.frequencies[peak]) + " Hz",
+      };
+    }
+    if (resultState !== "ready" || !result || !spans || !channel) return null;
+    return {
+      "비교한 방향": channel.label,
+      "비교 기간": `A ${spans.a.from}–${spans.a.to}번째, B ${spans.b.from}–${spans.b.to}번째 측정`,
+      "파형 수": `A ${result.used.a.length}회, B ${result.used.b.length}회 평균`,
+      "전체 에너지": channel.ratio === null ? "배율을 계산할 수 없음" : "B가 A의 " + measure(channel.ratio, "배"),
+      ...(band ? {"선택 대역 비중": `${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz · A ${measure(band.a * 100, "%")} → B ${measure(band.b * 100, "%")}`} : {}),
+    };
+  });
 </script>
 
 <section class="ui-panel spectra" aria-labelledby="spectra-title">

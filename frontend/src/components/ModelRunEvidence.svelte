@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis, type AnalysisReadout} from "../analysis-readout.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   import {readableSourceId} from "../operations-status";
@@ -298,6 +299,18 @@
       clearInterval(timer);pollRequest?.abort();
       permission.abort();listRequest?.abort();traceRequest?.abort();resultRequest?.abort();
     };
+  });
+
+  exposeAnalysis((): AnalysisReadout | null => {
+    if (detailState !== "ready" || !result || !binding) return null;
+    const model = names.get(binding.bindingId) ?? binding.bindingId;
+    const measurement = place(result.position);
+    if (result.state === "skipped") return {"선택한 모델": model, "선택한 측정": measurement,
+      "모델 결과": result.reason ?? "이 측정은 모델 분석에서 제외됨"};
+    const {score, threshold, exceeds} = scoreSummary(result.output);
+    return {"선택한 모델": model, "선택한 측정": measurement,
+      "모델 점수": num(score, "기록 없음"), "모델 기준": num(threshold, "기록 없음"),
+      "기준 대비": exceeds === null ? "판단 정보 없음" : exceeds ? "기준 초과" : "기준 이하"};
   });
 </script>
 

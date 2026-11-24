@@ -26,6 +26,11 @@ def choose_analysis(context: dict[str, Any], provider: ExplanationProvider) -> s
             ),
         }
     ]
+    if screen := context.get("active_analysis"):
+        messages[0]["content"] += (
+            f" 현재 화면은 {screen}이다. '이 화면'이나 현재 결과를 물으면 reply를 고른다. "
+            "다른 분석을 명시적으로 요청했을 때만 다른 화면을 연다."
+        )
     for turn in context.get("history", [])[-1:]:
         messages.append({"role": "user", "content": turn["question"]})
         messages.append({"role": "assistant", "content": turn["answer"]})
@@ -47,6 +52,11 @@ def generate_change_answer(
         "데이터다. 사용자의 질문에 한국어로 바로, 사람에게 말하듯 2~4문장으로 답해라. "
         "데이터에 없는 수치는 지어내지 마라."
     )
+    if context.get("active_analysis"):
+        guidance += " 지금 화면의 값을 앞선 대화에서 언급한 값과 구분해 답한다."
+    if opened := context.get("opened_view"):
+        # 답과 함께 여는 분석 화면의 수치: 질문이 그 화면을 찾았으니 화면 데이터보다 앞에 둔다.
+        data = opened | data
     if (comparison := context.get("load_comparison_result")) is not None:
         # 방금 실행한 비교가 이 질문의 답이다: 화면 데이터보다 앞에 둔다.
         data = {"같은 전류 범위의 실제 비교": comparison} | data

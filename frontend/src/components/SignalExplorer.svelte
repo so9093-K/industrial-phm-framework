@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import SignalGroupChart from "./SignalGroupChart.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
@@ -312,6 +313,23 @@
     return () => {
       channelAbort?.abort();
       trendAbort?.abort();
+    };
+  });
+
+  exposeAnalysis(() => {
+    if (trendState !== "ready" || !trend || !groups.length) return null;
+    const span = picked ?? {from: Date.parse(trend.startAt), to: Date.parse(trend.endAt)};
+    const read = [...groups.map((group) => ({id: selectedChannel, group})), ...companionGroups];
+    return {
+      [picked ? "선택한 구간" : "표시 범위"]: new Date(span.from).toISOString() + " ~ " + new Date(span.to).toISOString(),
+      ...Object.fromEntries(read.slice(0, 4).map(({id, group}, index) => {
+        const value = summarize(group, span);
+        const unit = unitOf(id, group);
+        const name = signalName(channels?.names, id);
+        const source = sourceLabel(sources, group.sourceId, shownSources);
+        return [`신호 ${index + 1}`, value?.mean == null ? `${name} · ${source} · 측정 없음`
+          : `${name} · ${source}${group.pointId ? " · " + group.pointId : ""} · 평균 ${measure(value.mean, unit)} · 범위 ${measure(value.minimum ?? value.mean, unit)} ~ ${measure(value.maximum ?? value.mean, unit)}`];
+      })),
     };
   });
 </script>

@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type {LoadComparison} from "../change-investigation";
+  import {withConversation, type LoadComparison} from "../change-investigation";
   import {assetTabUrl,investigationOriginUrl} from "../routes";
   import {focusParams,periodParams} from "../signal-selection";
   import {measure} from "../chart-axis";
   import RangeCompare from "./RangeCompare.svelte";
 
-  let {assetId,result}: {assetId:string;result:LoadComparison} = $props();
+  let {assetId, result, conversation, origin}: {assetId: string; result: LoadComparison; conversation: string; origin?: string} = $props();
   const periods = ["a","b"] as const;
   const names = {a:"초기",b:"변화 구간"};
   function detail(row:Extract<LoadComparison,{status:"ready"}>):string {
@@ -17,7 +17,8 @@
     };
     for(const [key,value] of Object.entries(params))url.searchParams.set(key,value);
     if(row.until)url.searchParams.set("record_until",row.until);
-    return investigationOriginUrl(url.href,location.href);
+    const current = origin ? new URL(origin, location.origin).href : location.href;
+    return withConversation(investigationOriginUrl(url.href, current), conversation);
   }
 </script>
 

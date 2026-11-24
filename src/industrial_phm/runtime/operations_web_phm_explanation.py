@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -20,10 +21,13 @@ from industrial_phm.genai.change_answer import choose_analysis, generate_change_
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_web_change_context import (
+    OPENS,
+    VIEWS,
     analysis_descriptions,
     change_analyses,
     screen_view,
     selected_change,
+    view_facts,
 )
 from industrial_phm.runtime.operations_web_load_comparison import (
     load_comparison_for_answer,
@@ -127,6 +131,7 @@ class ExplanationManager:
                     "compare_load",
                     "load_comparison_result",
                     "analyses",
+                    "active_analysis",
                 }
             }
         )
@@ -163,6 +168,12 @@ class ExplanationManager:
                         # 고른 분석 화면은 답 아래 링크로 열린다. 링크 이름이 그 화면을 말하므로
                         # 답에 소개 문장을 시키지 않는다(시켰더니 매번 같은 문장이 붙었다).
                         opened = chosen
+                        # 그 화면의 수치를 읽을 수 있으면 답이 그 수치로 말한다. 없으면 모델은
+                        # '주파수 데이터가 없다'고 답하고 링크만 붙었다.
+                        if not context.get("active_analysis") and (
+                            numbers := self._opened_numbers(context, OPENS[chosen])
+                        ):
+                            context["opened_view"] = {f"{VIEWS[OPENS[chosen]]} 화면": numbers}
                     answer = generate_change_answer(context | {"screen": screen}, provider)
             except AnalysisExplanationError:
                 self.store.finish(
@@ -188,6 +199,24 @@ class ExplanationManager:
             "position": context["position"],
             **({"change_id": context["change_id"]} if context.get("change_id") else {}),
         }
+
+    def _opened_numbers(self, context: dict[str, Any], view: str) -> dict[str, str]:
+        """What the analysis the AI opens shows for this change, read as the screen reads it."""
+        until = context.get("until")
+        vibration = not str(context["binding_id"]).startswith("history:")
+        scope = (
+            {"acquisition_until" if vibration else "record_until": str(until)}
+            if until is not None
+            else None
+        )
+        try:
+            change = selected_change(
+                self.workspace, context["asset_id"], context["change_id"], scope
+            )
+            return view_facts(self.workspace, change, view)
+        except ValueError, LookupError, OSError:
+            # 그 사이 기록이 달라졌으면 수치 없이 답하고 링크만 연다.
+            return {}
 
     def _parent(self, parent_id: str, context: dict[str, Any]) -> dict[str, Any]:
         """Read one completed turn from the same selected comparison and conversation."""
@@ -225,9 +254,11 @@ class ExplanationManager:
                 0,
                 {"question": record["context"]["question"], "answer": record["answer"]["summary"]},
             )
-            if (comparison := record["answer"].get("load_comparison")) and comparison[
-                "status"
-            ] == "ready":
+            if (
+                not context.get("active_analysis")
+                and (comparison := record["answer"].get("load_comparison"))
+                and comparison["status"] == "ready"
+            ):
                 context.setdefault("load_comparison_result", load_comparison_for_answer(comparison))
             current = record["context"].get("parent_id")
         return turns
@@ -269,6 +300,8 @@ def prepare_web_explanation(
             "acquisition_until",
             "analysis",
             "at",
+            "view",
+            "view_snapshot",
         }
     ):
         raise ValueError("unexpected change explanation fields")
@@ -307,7 +340,7 @@ def prepare_web_explanation(
         }
     if payload.get("analysis") == "same_load":
         context["compare_load"] = True
-    context["analyses"] = change_analyses(context, same_load=query is not None)
+    analyses = change_analyses(context, same_load=query is not None)
     if (at := payload.get("at")) is not None:
         # 그래프에서 짚은 곳: 전력은 시각(시간대 포함), 진동은 측정 번호.
         text = str(at)
@@ -319,10 +352,38 @@ def prepare_web_explanation(
         elif not text.isdigit():
             raise ValueError("invalid pointed place")
         context["at"] = text
-    screen = screen_view(workspace, context)
-    if "그래프에서 짚은 곳" in screen:
-        # 대화에 '어디를 짚고 물었는지'를 함께 보인다.
-        context["pointed"] = screen["그래프에서 짚은 곳"]["때"]
+    screen: dict[str, Any]
+    view = payload.get("view")
+    snapshot = payload.get("view_snapshot")
+    if view is not None:
+        if view not in VIEWS or not isinstance(snapshot, str) or len(snapshot.encode()) > 1800:
+            raise ValueError("invalid analysis view")
+        values = json.loads(snapshot)
+        if (
+            not isinstance(values, dict)
+            or not 1 <= len(values) <= 8
+            or not all(
+                isinstance(value, str) and value and 0 < len(key) <= 100 and len(value) <= 220
+                for key, value in values.items()
+            )
+        ):
+            raise ValueError("invalid analysis view results")
+        name = VIEWS[str(view)]
+        context["active_analysis"] = name
+        context.pop("compare_load", None)
+        screen = {"설비": asset, f"지금 보고 있는 {name} 화면": values}
+    else:
+        if snapshot is not None:
+            raise ValueError("analysis view is required for results")
+        screen = screen_view(workspace, context)
+        if "그래프에서 짚은 곳" in screen:
+            # 대화에 '어디를 짚고 물었는지'를 함께 보인다.
+            context["pointed"] = screen["그래프에서 짚은 곳"]["때"]
+    context["analyses"] = (
+        [name for name in analyses if OPENS.get(name) != view and name != "compare_same_load"]
+        if view is not None
+        else list(analyses)
+    )
     context.pop("history_change", None)
     context.pop("vibration_change", None)
     context["question"] = change_question

@@ -1,6 +1,7 @@
 <script lang="ts">
   import {onDestroy,tick,untrack} from "svelte";
-  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,LOAD_QUESTION,type ChangeDiscussion,type Pointed} from "../change-investigation";
+  import type {AnalysisReadout} from "../analysis-readout.svelte";
+  import {askChange,newChangeConversation,readChangeDiscussion,withConversation,STARTERS,LOAD_QUESTION,type ChangeDiscussion,type Pointed} from "../change-investigation";
   import {spanText} from "../asset-timeline";
   import {changeAnalyses, changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";
@@ -12,14 +13,19 @@
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
    * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
    * 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,pointed=null,onUnpoint}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo:(text:string)=>void;
+  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,pointed=null,onUnpoint,carried=null,view=null,viewTitle=null,readout=null}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo?:(text:string)=>void;
     onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
     /** 그래프에서 짚은 측정·시각: 질문과 함께 보낸다. */
-    pointed?:Pointed|null;onUnpoint?:()=>void}=$props();
+    pointed?:Pointed|null;onUnpoint?:()=>void;
+    /** 분석 화면으로 이어 온 대화(주소의 chat)와, 지금 물은 분석 화면(compare·spectrum…). */
+    carried?:string|null;view?:string|null;viewTitle?:string|null;readout?:AnalysisReadout|null}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
-  const conversation=newChangeConversation();
+  const incoming=untrack(()=>carried);
+  const conversation=incoming??newChangeConversation();
+  let restoring=$state(incoming!==null);
+  const ready=$derived(!restoring&&(!view||readout!==null));
   const reviewKey=$derived(change.reviewKey!);
   const followup=$derived(changeFollowup(assetId,focus,scope!==null));
   // AI가 답과 함께 여는 분석 화면(분석 이름 → 이 변화의 신호·기간으로 연 링크).
@@ -61,7 +67,7 @@
     cancel();const pending=new AbortController();request=pending;
     try {
       const read=await readChangeDiscussion(assetId,reviewKey,conversation,pending.signal,scope);
-      if(pending.signal.aborted)return;records=read;
+      if(pending.signal.aborted)return;records=read;restoring=false;
       if(awaitingQuestion&&read.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id)))awaitingQuestion=null;
       error="";
       if(awaitingQuestion||read[0]?.status==="pending"){
@@ -71,13 +77,13 @@
     }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";}
   }
   async function ask(text:string,runComparison=false){
-    if(!writable||waiting||!text.trim())return;
+    if(!writable||waiting||!ready||!text.trim())return;
     const revision=questionRevision;const submitted=text.trim();
     onStart?.();stick=true;previousIds=new Set(records.map(row=>row.id));awaitingQuestion=submitted;
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison,pointed);
+      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison,pointed,view,readout);
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){
@@ -86,6 +92,8 @@
     }}
     finally{if(write===pending){write=null;busy=false;}}
   }
+  // 분석 화면으로 이어 온 대화는 지난 질문과 답부터 보인다.
+  if(incoming)void refresh();
   function keydown(event:KeyboardEvent){
     // Enter로 보내고 Shift+Enter는 줄바꿈. 한글을 조합하는 중의 Enter는 글자를 확정할 뿐 보내지 않는다.
     if(event.key!=="Enter"||event.shiftKey||event.isComposing||event.keyCode===229)return;
@@ -107,7 +115,10 @@
 {/snippet}
 
 <section class="chat" aria-label="선택한 변화의 AI 조사">
-  <header><div><span class="what"><i class="swatch" style:background={colorOf(reviewKey)??"var(--color-ink-muted)"}></i><b>{labelOf(reviewKey)??label}</b> 특이사항</span><small>{span}</small></div>
+  <header><div>
+    {#if viewTitle}<span class="what"><b>AI 조사</b></span><small class="view-title">{viewTitle}</small>
+    {:else}<span class="what"><i class="swatch" style:background={colorOf(reviewKey)??"var(--color-ink-muted)"}></i><b>{labelOf(reviewKey)??label}</b> 특이사항</span><small>{span}</small>{/if}
+    </div>
     {#if onClose}<button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
@@ -115,12 +126,12 @@
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
         {#if row.status==="complete"&&row.answer}<p class="answer">{row.answer.summary}</p>{/if}
-        {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
+        {#if row.comparison}<ChangeLoadComparison {assetId} {conversation} result={row.comparison}/>{/if}
         {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]}
-          <a class="followup" href={investigationOriginUrl(analyses[row.analysis].href,location.href)} onclick={onStart}>{analyses[row.analysis].label} →</a>{/if}
+          <a class="followup" href={withConversation(investigationOriginUrl(analyses[row.analysis].href,location.href),conversation)} onclick={onStart}>{analyses[row.analysis].label} →</a>{/if}
         {#if row.status==="complete"&&row.answer}
           <div class="tools">
-            <button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>
+            {#if onMemo}<button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>{/if}
             <button type="button" onclick={()=>void copy(row)}>{copied===row.id?"복사됨":"복사"}</button>
           </div>
         {:else if row.status==="pending"}{@render typing("답 정리 중")}
@@ -128,21 +139,21 @@
       </div></div>
     {/each}
     {#if unsent}<p class="me">{unsent}</p>{@render waitingBubble()}{/if}
-    {#if error}<p class="error" role="alert">{error} {#if awaitingQuestion || latest?.status === "pending"}<button type="button" onclick={()=>{remaining=240;void refresh();}}>다시 확인</button>{/if}</p>{/if}
+    {#if error}<p class="error" role="alert">{error} {#if restoring || awaitingQuestion || latest?.status === "pending"}<button type="button" onclick={()=>{remaining=240;void refresh();}}>다시 확인</button>{/if}</p>{/if}
   </div>
 
   <footer>
-    {#if !thread.length&&!unsent&&writable}<div class="follow">{#if compareLoad}<button type="button" onclick={()=>void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
-      {#each STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
-    {:else if latest?.status==="complete"&&latest.comparison?.status!=="ready"&&!latest.analysis&&followup&&!waiting}
-      <a class="followup" href={investigationOriginUrl(followup.href,location.href)} onclick={onStart}>{followup.label} →</a>
+    {#if !thread.length&&!unsent&&writable&&ready}<div class="follow">{#if compareLoad&&!view}<button type="button" onclick={()=>void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
+      {#each view ? ["이 화면에서 무엇이 달라졌나요?"] : STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
+    {:else if !view&&latest?.status==="complete"&&latest.comparison?.status!=="ready"&&!latest.analysis&&followup&&!waiting}
+      <a class="followup" href={withConversation(investigationOriginUrl(followup.href,location.href),conversation)} onclick={onStart}>{followup.label} →</a>
     {/if}
     {#if pointed&&writable}<p class="pointed">그래프에서 짚은 곳 · <b>{pointed.label}</b>
       {#if onUnpoint}<button type="button" aria-label="짚은 곳 지우기" onclick={onUnpoint}>×</button>{/if}</p>{/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="질문" bind:value={question} oninput={()=>questionRevision++} onfocus={()=>onStart?.()} onkeydown={keydown}
-        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":pointed?"짚은 곳에 대해 질문":"이 특이사항에 대해 질문"}></textarea>
-      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>
+        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":restoring?"대화를 불러오는 중":!ready?"표시할 분석 결과가 준비되면 질문할 수 있습니다":view?"이 화면의 결과에 대해 질문":pointed?"짚은 곳에 대해 질문":"이 특이사항에 대해 질문"}></textarea>
+      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!ready||!question.trim()} onclick={()=>void ask(question)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
     </div>
   </footer>
@@ -157,6 +168,7 @@
   .close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
   .what{display:flex;align-items:center;gap:7px;font-size:var(--font-small)}
   header small{padding-left:19px;font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  header .view-title{padding-left:0}
   .log{overflow-y:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
   p{margin:0;font-size:var(--font-small);overflow-wrap:anywhere}
   .note{color:var(--color-ink-muted);font-size:var(--font-label);line-height:1.5}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import {investigationOriginUrl} from "../routes";
   import {measure} from "../chart-axis";
   import {plainLabel} from "../change-story";
@@ -170,6 +171,20 @@
       label:featureLabel(id)+" 두 기간 비교",href:featureCompareHref(assetId,id,read.spans)})));
   });
   onMount(()=>{void load();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
+
+  exposeAnalysis(() => {
+    if (resultState !== "ready" || !relation) return null;
+    const {a, b} = relation.spans;
+    return {
+      "비교한 진동 특징": featureLabel(relation.x) + " × " + featureLabel(relation.y),
+      "비교 기간": `A ${a.from}–${a.to}번째, B ${b.from}–${b.to}번째 측정`,
+      ...Object.fromEntries(relation.groups.map((group) => [
+        "기간 " + group.period.toUpperCase(), `${group.pairs}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}`,
+      ])),
+      ...(message ? {"관계 요약": message.headline} : {}),
+      ...(chosen ? {"선택한 측정": `${place(chosen.point.ordinal)} · ${measure(chosen.point.x, relation.xUnit)} · ${measure(chosen.point.y, relation.yUnit)}`} : {}),
+    };
+  });
 </script>
 
 <section class="ui-panel" aria-labelledby="acq-relation-title">

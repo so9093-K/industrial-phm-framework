@@ -1,5 +1,6 @@
 <script lang="ts">
-  import {untrack,tick} from "svelte";
+  import {setContext,untrack,tick} from "svelte";
+  import {SvelteMap} from "svelte/reactivity";
   import type {Asset} from "../monitor";
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
@@ -12,6 +13,10 @@
   import type {Sources} from "../operations-status";
   import AssetName from "./AssetName.svelte";
   import InvestigationContext from "./InvestigationContext.svelte";
+  import AnalysisChat from "./AnalysisChat.svelte";
+  import {analysisView as viewOf, changeRef} from "../analysis-chat";
+  import {carriedConversation} from "../change-investigation";
+  import {ANALYSIS_READOUT,type AnalysisReadout,type PublishAnalysis} from "../analysis-readout.svelte";
   import SignalExplorer from "./SignalExplorer.svelte";
   import VibrationSignals from "./VibrationSignals.svelte";
   import DepartureExplorer from "./DepartureExplorer.svelte";
@@ -96,6 +101,22 @@
     link.href = tabSelectionUrl(link.href, location.href);
   }
   const analysisOpen = $derived(route.tab !== "summary");
+  // 분석 화면의 AI 조사: 조사 화면에서 넘어온 특이사항이 있을 때만. 대화에서 링크로 왔으면 열어 둔다.
+  // 주소가 바뀌면(route) 다시 본다.
+  const chatView = $derived(viewOf(route.tab, method));
+  const chatAvailable = $derived(chatView !== null && changeRef(location.search) !== null);
+  const readouts = new SvelteMap<symbol,AnalysisReadout>();
+  setContext<PublishAnalysis>(ANALYSIS_READOUT,(panel,values)=>{
+    if(values)readouts.set(panel,values);else readouts.delete(panel);
+  });
+  const readout = $derived(readouts.size ? Object.assign({},...readouts.values()) as AnalysisReadout : null);
+  let chatOpen = $state(untrack(() => carriedConversation(location.search) !== null));
+  function closeChat(){
+    chatOpen=false;
+    const url=new URL(location.href);
+    url.searchParams.delete("chat");
+    history.replaceState(history.state,"",url);
+  }
   const analysisTitle = $derived(route.tab === "change" || route.tab === "anomaly"
     ? (method ? METHOD_INFO[method] : TAB_INFO[route.tab]) : TAB_INFO[route.tab]);
   const analysisTabs=$derived.by(()=>{
@@ -191,9 +212,14 @@
         <a href={at(item.tab,item.method,item.kind)} onclick={retainSelection}
           aria-current={route.tab===item.tab && (item.method===null||item.method===method)?"page":undefined}>{item.label}</a>
       {/each}
+      {#if chatAvailable}
+        <button type="button" class="ui-button ai-toggle" aria-pressed={chatOpen} onclick={() => {if(chatOpen)closeChat();else chatOpen=true;}}>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
+      {/if}
     </nav>
     </header>
-    <div class="analysis-view-body">
+    <div class="analysis-view-body" class:with-chat={chatAvailable && chatOpen}>
+    <div class="analysis-main">
   {#if dataState === "failed"}
     <StatusNotice kind="uncertain" title="설비의 데이터 종류를 확인하지 못했습니다"
       message="다시 불러오거나 다른 설비를 선택하세요."
@@ -257,6 +283,12 @@
     {/key}
   {/if}
     </div>
+    {#if chatAvailable && chatOpen}
+      <aside class="analysis-chat" aria-label="AI 조사">
+        <AnalysisChat assetId={asset.assetId} view={chatView} viewTitle={analysisTitle} {readout} onClose={closeChat}/>
+      </aside>
+    {/if}
+    </div>
   </section>
   {/if}
   <details><summary>설비·기록 상세</summary><p>{facts}</p><p>설비 ID: {asset.assetId}</p></details>
@@ -271,6 +303,14 @@
   .analysis-tabs .back{color:var(--color-action);margin-right:12px;border-right:1px solid var(--color-border);padding-right:16px}
   .analysis-tabs .back:hover{background:var(--color-surface-selected)}
   .analysis-view-body{min-width:0;display:grid;gap:var(--space-3)}
+  /* AI 조사를 열면 분석 오른쪽에 대화 칸: 화면을 보면서 묻는다. 대화 칸은 화면 안에 따라온다. */
+  .analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr) 380px;align-items:start}
+  .analysis-main{min-width:0;display:grid;gap:var(--space-3)}
+  .analysis-chat{position:sticky;top:16px;height:clamp(380px,calc(100dvh - 240px),680px);min-width:0}
+  .ai-toggle{margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:6px;min-height:0;height:32px;padding:0 12px;font-size:var(--font-label);font-weight:650;color:var(--color-action)}
+  .ai-toggle[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action)}
+  .ai-toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
+  @media(max-width:1100px){.analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr)}.analysis-chat{position:static;height:560px}}
   .analysis-tabs{order:0;display:flex;flex-wrap:wrap;flex-basis:100%;gap:var(--space-1);border-bottom:1px solid var(--color-border)}
   .analysis-tabs a{padding:var(--space-2);font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted);text-decoration:none;border-bottom:3px solid transparent}
   .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}

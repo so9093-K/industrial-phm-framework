@@ -72,7 +72,7 @@ const OBSERVATION_PARAMS = ["record_until","acquisition_until","observation_asse
   "feature_a_from","feature_a_to","feature_b_from","feature_b_to","acq_a_from","acq_a_to","acq_b_from","acq_b_to",
   "spectrum_a_from","spectrum_a_to","spectrum_b_from","spectrum_b_to","spectrum_hz_from","spectrum_hz_to","spectrum_hz","spectrum_channel",
   "spectrum_band","spectrum_measurement","spectrum_view","spectrum_scale","acquisition_binding","acquisition_source",
-  "model_binding","model_position","model_compare"];
+  "model_binding","model_position","model_compare","chat"];
 
 /** Remember a summary choice in the address without navigating or carrying a prior change's filters. */
 export function summarySelectionUrl(currentHref: string, selectionHref: string, key: string, kind: DataKind): string {
@@ -167,7 +167,7 @@ export function investigationOriginUrl(href: string, currentHref: string): strin
   const current = new URL(currentHref), next = new URL(href, current);
   if (current.origin !== next.origin) return next.href;
   if (parseRoute(current.search).assetId === parseRoute(next.search).assetId)
-    for (const key of ["summary_change", "summary_kind", "summary_label", "record_until", "acquisition_until"])
+    for (const key of ["summary_change", "summary_kind", "summary_label", "record_until", "acquisition_until", "chat"])
       if (current.searchParams.has(key)) next.searchParams.set(key, current.searchParams.get(key)!);
   return next.pathname + next.search + next.hash;
 }

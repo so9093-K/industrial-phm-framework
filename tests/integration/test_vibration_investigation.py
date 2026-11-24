@@ -129,8 +129,10 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert next_record["answer"]["analysis"] == "open_spectrum"
     system, *turns = model.requests[1]
     data = json.loads(system["content"].rsplit("\n\n", 1)[1])
-    # 고른 화면은 답 아래 링크로만 열린다: 답에 그 화면을 소개하라고 시키지 않는다.
-    assert data == {"screen": screen}
+    # 고른 화면은 답 아래 링크로 열리고, 답은 그 화면의 수치(축마다 에너지와 비중이 바뀐 대역)를
+    # 화면 데이터보다 먼저 읽는다. 그 화면을 소개하라고 시키지는 않는다.
+    assert list(data) == ["주파수 화면", "screen"] and data["screen"] == screen
+    assert all("Hz 비중" in line for line in data["주파수 화면"].values())
     assert turns == [
         {"role": "user", "content": question},
         {"role": "assistant", "content": "기준보다 높은 진동이 구간 안에서 이어집니다."},
@@ -158,6 +160,37 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert model.requests[2][1:] == [{"role": "user", "content": "여기는 어때?"}]
     with pytest.raises(ValueError, match="pointed"):
         runtime.prepare_web_explanation(workspace, another | {"question": "?", "at": "어제"})
+    # 화면에서 고른 다른 기간과 방향을 읽고, 모니터링 대표 변화는 다시 계산하지 않는다.
+    views = (
+        (
+            "spectrum",
+            "주파수",
+            {"비교한 방향": "수평 진동", "선택 대역 비중": "800~1,594 Hz · 18% → 63%"},
+        ),
+        (
+            "compare",
+            "기간 비교",
+            {"기간 A": "7~12번째 측정", "기간 B": "14~20번째 측정", "중앙값": "1.1 → 2.3 g"},
+        ),
+    )
+    for view, name, values in views:
+        asked = runtime.prepare_web_explanation(
+            workspace,
+            another
+            | {
+                "question": "이 화면에서 뭐가 달라졌어?",
+                "view": view,
+                "view_snapshot": json.dumps(values, ensure_ascii=False),
+            },
+        )
+        assert asked["screen"] == {"설비": "bearing-a", f"지금 보고 있는 {name} 화면": values}
+        assert f"open_{view}" not in asked["_change"]["analyses"]
+    with pytest.raises(ValueError, match="analysis view"):
+        runtime.prepare_web_explanation(workspace, another | {"question": "?", "view": "signals"})
+    with pytest.raises(ValueError, match="analysis view results"):
+        runtime.prepare_web_explanation(
+            workspace, another | {"question": "?", "view": "signals", "view_snapshot": "[]"}
+        )
 
     selection = {"asset_id": "bearing-a", "finding_id": chosen["review_key"]}
     capture = capture_change(workspace.root, selection)

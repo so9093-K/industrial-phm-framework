@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {exposeAnalysis} from "../analysis-readout.svelte";
   import {subject} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
@@ -151,6 +152,18 @@
     return parts.length ? parts.join(" · ") : "없음";
   }
   onMount(() => { void analyze(); return () => request?.abort(); });
+
+  exposeAnalysis(() => {
+    if (loadState !== "ready" || !analyzed) return null;
+    const signal = METRICS[metric];
+    return {
+      "분석 기간": kstTime(analyzed.targetStart) + " ~ " + kstTime(analyzed.targetEnd),
+      "비교 기준": kstTime(analyzed.referenceStart) + " ~ " + kstTime(analyzed.referenceEnd),
+      "표시 신호": phased ? "R·S·T 상별 전류" : signal.label,
+      ...(selected ? {"선택한 측정": kstTime(selected.at) + " · " + signal.label + " " + measured(selected[metric], signal.unit)} : {}),
+      ...Object.fromEntries(insights(analyzed).slice(0, 3).map((line, index) => [`비교 결과 ${index + 1}`, line])),
+    };
+  });
 </script>
 
 {#snippet card(title: string, target: number | null, reference: number | null, unit: string)}
