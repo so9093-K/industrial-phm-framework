@@ -2,7 +2,9 @@
 
 Each acquisition is one measurement with features such as RMS and kurtosis per axis. The
 features are judged like stored signals: against the first 30% of the acquisitions, choosing
-long, record-end and large changes. Acquisitions are placed on a time axis by their recorded
+long, record-end and large changes. Only the vibration level (RMS) stands for a change, and only
+once it reaches 1.5 times its reference or falls to two thirds of it; the other features are
+reported as what moved with it. Acquisitions are placed on a time axis by their recorded
 interval only to reuse that judgement; every position is reported back as an acquisition number.
 """
 
@@ -35,11 +37,23 @@ _RELATED = 3
 # Energy first, then impulsiveness: RMS shows how hard the machine vibrates, kurtosis and
 # crest factor whether sharp impacts appear, as bearing faults first do.
 _RANK = {"rms": 0, "excess_kurtosis": 1, "crest_factor": 2, "absolute_peak": 3, "peak_to_peak": 3}
+# 대표 변화는 진동 크기(RMS)에서만 고른다. RMS는 설비를 보는 사람이 읽는 전체 진동 수준이다.
+# 첨도·파고율·피크는 정상 운전 중에도 크게 오르내려 대표로 두면 경고가 떴다 사라지기를 되풀이한다.
+# 이들은 같은 구간에 함께 달라진 특징으로 보인다.
+_LEAD = "rms"
+# 초기 수준의 1.5배~2/3 안쪽 변화는 정상 운전 중의 흔들림과 구별되지 않는다.
+_MIN_RATIO = 1.5
+# 진동 신호의 평균(센서 0점)과 왜도는 설비 상태로 읽히지 않아 함께 달라진 특징에서도 뺀다.
+_UNREAD = frozenset({"mean", "skewness"})
+
+
+def _measure(feature: str) -> str:
+    return feature.rsplit(".", 1)[-1]
 
 
 def feature_rank(feature: str) -> int:
     """Order in which a feature's changes are looked at, lower first."""
-    return _RANK.get(feature.rsplit(".", 1)[-1], 4)
+    return _RANK.get(_measure(feature), 4)
 
 
 def acquisition_findings(
@@ -126,8 +140,12 @@ def acquisition_findings(
     if not series:
         return body
     try:
+        leads = {name: points for name, points in series.items() if _measure(name) == _LEAD}
         found = record_changes(
-            series, limit=_SHOWN, priority={name: feature_rank(name) for name in series}
+            leads,
+            limit=_SHOWN,
+            priority={name: feature_rank(name) for name in leads},
+            min_ratio=_MIN_RATIO,
         )
     except LookupError, ValueError:
         return body
@@ -149,7 +167,7 @@ def acquisition_findings(
         # Other features that moved over the same acquisitions, energy and impacts first.
         moved = []
         for other, points in series.items():
-            if other == name:
+            if other == name or _measure(other) in _UNREAD:
                 continue
             row = interval_comparison(points, reference, (item["start"], item["end"]))
             if row is not None and row["state"] != "within":

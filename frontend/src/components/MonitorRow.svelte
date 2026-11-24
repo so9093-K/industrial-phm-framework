@@ -140,7 +140,7 @@
     </div>
     <footer class="row-footer">
       {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
-      {:else if !lead}<span>{replaying && analyzed !== until ? "특이사항을 찾고 있습니다" : "이 기록에는 특이사항이 없습니다"}</span>
+      {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
         <a class="secondary-action" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
       {#if !replaying && other}
         <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>

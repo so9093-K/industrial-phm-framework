@@ -346,6 +346,7 @@ def record_changes(
     limit: int = 3,
     streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str, str]] | None = None,
     priority: Mapping[str, int] | None = None,
+    min_ratio: float | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
@@ -361,6 +362,9 @@ def record_changes(
         priority: Rank per signal, lower first. Each kind of change is taken from the
             best-ranked signals that have one, so a measured load change outranks a longer
             change in a derived item. Unranked signals come last.
+        min_ratio: For levels read as multiples of their reference (vibration amplitude),
+            keep only changes whose typical value is at least this multiple of the reference
+            or at most its inverse.
 
     Returns:
         Per-signal baseline states, the threshold, the selected intervals and their count.
@@ -392,6 +396,13 @@ def record_changes(
         )
         is not None
         and compared["state"] != "within"
+        and (
+            min_ratio is None
+            or (
+                compared["reference"] > 0
+                and not 1 / min_ratio < compared["current"] / compared["reference"] < min_ratio
+            )
+        )
     ]
     selected: list[dict[str, Any]] = []
 
