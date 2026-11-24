@@ -360,7 +360,34 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
             "구간 내 흐름을 계산할 기록이 부족해, 계속 증가한 것인지는 확인하지 못했습니다."
         )
         checked["flow"] = ("구간 안 흐름", "계산할 기록 부족")
-    for name in ("persistence", "flow"):
+    # 지금 얼마나 커졌고 얼마나 빨리 커지는지.
+    # 화면의 '지금 초기의 약 N배'·앞뒤 절반 값과 같은 수치다.
+    suffix = f" {change['unit']}" if change.get("unit") else ""
+    reference = change.get("reference_value")
+    trace = change.get("trace") or []
+    if trace and change["to"] >= trace[-1][0] and reference:
+        at, value = trace[-1]
+        facts["now"] = (
+            f"마지막 측정({at}번째)의 {change['label']}는 {number(value)}{suffix}로, "
+            f"초기 중앙값 {number(reference)}{suffix}의 약 {number(value / reference)}배입니다."
+        )
+        checked["now"] = (
+            "지금",
+            f"{number(value)}{suffix} · 초기의 약 {number(value / reference)}배",
+        )
+    if change.get("halves"):
+        first, second = change["halves"]
+
+        def moved(half: dict[str, float]) -> str:
+            return ("+" if half["change"] > 0 else "") + number(half["change"]) + suffix
+
+        facts["pace"] = (
+            f"{change['label']}는 변화 구간 앞 절반({first['from']}~{first['to']}번째 측정) 동안 "
+            f"{moved(first)}, 뒤 절반({second['from']}~{second['to']}번째 측정) 동안 "
+            f"{moved(second)} 움직였습니다."
+        )
+        checked["pace"] = ("앞·뒤 절반", f"{moved(first)} → {moved(second)}")
+    for name in ("persistence", "flow", "now", "pace"):
         if name in facts:
             targets[name] = selected
     # 화면이 같은 시기로 묶어 함께 그리는 변화: 시작 순서를 물으면 이것으로 답한다.
@@ -461,7 +488,7 @@ def investigation_facts(workspace: OperationsWorkspace, context: dict[str, Any])
         "facts": facts,
         "actions": actions,
         "targets": targets,
-        "steps": _steps(checked, ("feature_0", "persistence", "flow")),
+        "steps": _steps(checked, ("feature_0", "now", "pace", "persistence", "flow")),
     }
 
 
