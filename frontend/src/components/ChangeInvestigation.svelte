@@ -1,8 +1,8 @@
 <script lang="ts">
   import {onDestroy,tick,untrack} from "svelte";
-  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,LOAD_QUESTION,type ChangeDiscussion} from "../change-investigation";
+  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,LOAD_QUESTION,type ChangeDiscussion,type Pointed} from "../change-investigation";
   import {spanText} from "../asset-timeline";
-  import {changeFollowup, type EvidenceFocus} from "../change-evidence";
+  import {changeAnalyses, changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
@@ -12,14 +12,18 @@
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
    * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
    * 질문을 시작하면 재생을 멈춘다(onStart). */
-  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo:(text:string)=>void;
-    onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null}=$props();
+  let {assetId,focus,scope,onMemo,onStart,onClose,colorOf=()=>null,labelOf=()=>null,pointed=null,onUnpoint}:{assetId:string;focus:EvidenceFocus;scope:PlaybackScope|null;onMemo:(text:string)=>void;
+    onStart?:()=>void;onClose?:()=>void;colorOf?:(reviewKey:string)=>string|null;labelOf?:(reviewKey:string)=>string|null;
+    /** 그래프에서 짚은 측정·시각: 질문과 함께 보낸다. */
+    pointed?:Pointed|null;onUnpoint?:()=>void}=$props();
   const change=$derived(focus.kind==="vibration"?focus.change:focus.item);
   const label=$derived(change.label);
   const span=$derived(focus.kind==="vibration"?focus.change.from+"–"+focus.change.to+"번째 측정":spanText(Date.parse(focus.item.start),Date.parse(focus.item.end)));
   const conversation=newChangeConversation();
   const reviewKey=$derived(change.reviewKey!);
   const followup=$derived(changeFollowup(assetId,focus,scope!==null));
+  // AI가 답과 함께 여는 분석 화면(분석 이름 → 이 변화의 신호·기간으로 연 링크).
+  const analyses=$derived(changeAnalyses(assetId,focus));
   const compareLoad=$derived(focus.kind==="history"&&focus.item.unit==="V"&&focus.item.band!=null);
   let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>{cancel();write?.abort();clearInterval(clock);});
@@ -73,7 +77,7 @@
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison);
+      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison,pointed);
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){
@@ -108,10 +112,12 @@
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
     {#each thread as row(row.id)}
-      <p class="me">{row.question}</p>
+      <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
         {#if row.status==="complete"&&row.answer}<p class="answer">{row.answer.summary}</p>{/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
+        {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]}
+          <a class="followup" href={investigationOriginUrl(analyses[row.analysis].href,location.href)} onclick={onStart}>{analyses[row.analysis].label} →</a>{/if}
         {#if row.status==="complete"&&row.answer}
           <div class="tools">
             <button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>
@@ -128,12 +134,14 @@
   <footer>
     {#if !thread.length&&!unsent&&writable}<div class="follow">{#if compareLoad}<button type="button" onclick={()=>void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
       {#each STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
-    {:else if latest?.status==="complete"&&latest.comparison?.status!=="ready"&&followup&&!waiting}
+    {:else if latest?.status==="complete"&&latest.comparison?.status!=="ready"&&!latest.analysis&&followup&&!waiting}
       <a class="followup" href={investigationOriginUrl(followup.href,location.href)} onclick={onStart}>{followup.label} →</a>
     {/if}
+    {#if pointed&&writable}<p class="pointed">그래프에서 짚은 곳 · <b>{pointed.label}</b>
+      {#if onUnpoint}<button type="button" aria-label="짚은 곳 지우기" onclick={onUnpoint}>×</button>{/if}</p>{/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="질문" bind:value={question} oninput={()=>questionRevision++} onfocus={()=>onStart?.()} onkeydown={keydown}
-        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":"이 특이사항에 대해 질문"}></textarea>
+        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":pointed?"짚은 곳에 대해 질문":"이 특이사항에 대해 질문"}></textarea>
       <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
     </div>
@@ -171,6 +179,9 @@
   footer{display:grid;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--color-border)}
   .follow{display:flex;flex-wrap:wrap;gap:6px}
   .followup{justify-self:start;padding-block:4px;color:var(--color-action);font-size:var(--font-small);font-weight:650}
+  .me small{display:block;margin-top:2px;font-size:var(--font-label);color:var(--color-ink-muted)}
+  .pointed{display:flex;align-items:center;gap:4px;margin:0;font-size:var(--font-label);color:var(--color-ink-muted)}.pointed b{color:var(--color-ink)}
+  .pointed button{border:0;background:none;padding:0 4px;font:inherit;font-size:14px;line-height:1;color:var(--color-ink-muted);cursor:pointer}
   .follow button{font:inherit;font-size:var(--font-label);padding:4px 10px;border:1px solid var(--color-control-border);border-radius:999px;background:var(--color-surface);color:var(--color-action);cursor:pointer}
   .follow button:disabled{cursor:default;opacity:.55}
   .composer{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:end;gap:6px;padding:6px 6px 6px 12px;border:1px solid var(--color-control-border);border-radius:12px;background:var(--color-surface)}

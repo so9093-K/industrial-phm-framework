@@ -11,7 +11,7 @@ import type {Asset} from "./monitor.ts";
 import type {PublicDatasets} from "./public-datasets.ts";
 import {routeUrl} from "./routes.ts";
 import {object} from "./writes.ts";
-import {changeFollowup, type ChangeFollowup} from "./change-evidence.ts";
+import {changeAnalyses, changeFollowup, type ChangeFollowup} from "./change-evidence.ts";
 import {parseRecordFindings} from "./record-findings.ts";
 import {parseVibrationFindings} from "./vibration-findings.ts";
 
@@ -34,7 +34,9 @@ export type FleetChange = {key: string; channel: string; label: string; from: nu
   /** 판단·메모가 이 특이사항을 가리키는 열쇠(기간·기준이 같아야 같다). */
   reviewKey?: string;
   compareLoad?: boolean;
-  followup?: ChangeFollowup | null};
+  followup?: ChangeFollowup | null;
+  /** AI가 대화에서 고를 수 있는 분석 화면(분석 이름 → 링크). */
+  analyses?: Record<string, ChangeFollowup>};
 /** 사람이 남긴 판단: 가장 최근 판단, 마지막 기록 시각, 가장 최근 메모. */
 export type Judgment = {decision: ReviewDecision | null; closed: boolean; at: string; note: string | null};
 /** 한 설비 칸이 읽은 것. `live`는 실제로 수신 중인 출처의 최근 관측이다(저장 기록 모니터링이 아니다). */
@@ -124,6 +126,7 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
         ref: JSON.stringify(["history", key, item.start, item.end]), reviewKey: item.reviewKey,
         compareLoad: item.unit === "V" && item.band != null,
         followup: changeFollowup(assetId, {kind: "history", item, record, condition: null}),
+        analyses: changeAnalyses(assetId, {kind: "history", item, record, condition: null}),
         load: load && typeof load.reference === "number" && typeof load.current === "number"
           ? {label: text(load.label) ?? "부하", unit: text(load.unit), before: load.reference, after: load.current} : null,
         from: Date.parse(item.start), to: Date.parse(item.end), before: item.reference ?? null, after: item.typical ?? null};
@@ -135,6 +138,7 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
   return record.intervals.map(change => ({key: change.feature, channel: change.feature, label: change.label, up: change.direction === "up",
     ref: JSON.stringify(["vibration", change.feature, change.from, change.to]), reviewKey: change.reviewKey,
     followup: changeFollowup(assetId, {kind: "vibration", change, record}, until !== null),
+    analyses: changeAnalyses(assetId, {kind: "vibration", change, record}),
     from: change.from, to: change.to, before: change.reference, after: change.typical}));
 }
 
