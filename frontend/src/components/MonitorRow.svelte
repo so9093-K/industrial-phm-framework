@@ -151,7 +151,7 @@
       <div class="chat-head"><div><strong>AI 조사 · <AssetName label={name}/></strong><span>{changeName} · {group.axis === "time" ? clockText(lead.from) + "부터" : lead.from + "번째 측정부터"} · {duration(lead)}</span></div>
         <button type="button" class="close" aria-label="AI 조사 닫기" onclick={() => onChat(null)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
       {#key [lead.reviewKey, scope?.until].join(":")}
-        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {followup} {savedJudgment} {onPause}/>
+        <MonitorChat {assetId} reviewKey={lead.reviewKey} {scope} {followup} {savedJudgment} {onPause} compareLoad={lead.compareLoad}/>
       {/key}
     </section>
   {/if}

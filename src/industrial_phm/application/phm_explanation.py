@@ -97,6 +97,13 @@ class PhmExplanationStore:
                 ),
             )
 
+    def publish_comparison(self, identifier: str, *, owner: str, result: dict[str, Any]) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE explanation SET answer=? WHERE id=? AND owner=? AND status='pending'",
+                (json.dumps({"load_comparison": result}, ensure_ascii=False), identifier, owner),
+            )
+
     def recover(self, owner: str) -> None:
         if not self.path.exists():
             return

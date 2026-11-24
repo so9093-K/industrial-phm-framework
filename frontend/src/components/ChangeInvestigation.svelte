@@ -1,12 +1,13 @@
 <script lang="ts">
   import {onDestroy,tick,untrack} from "svelte";
-  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,type ChangeDiscussion} from "../change-investigation";
+  import {askChange,newChangeConversation,readChangeDiscussion,STARTERS,LOAD_QUESTION,type ChangeDiscussion} from "../change-investigation";
   import {spanText} from "../asset-timeline";
   import {changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
+  import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
   /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
    * 머리줄에 이 특이사항을 그래프와 같은 색·이름으로 보이는 데 쓴다.
@@ -19,6 +20,7 @@
   const conversation=newChangeConversation();
   const reviewKey=$derived(change.reviewKey!);
   const followup=$derived(changeFollowup(assetId,focus,scope!==null));
+  const compareLoad=$derived(focus.kind==="history"&&focus.item.unit==="V"&&focus.item.band!=null);
   let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
   onDestroy(()=>{cancel();write?.abort();clearInterval(clock);});
   let questionRevision=0;
@@ -45,7 +47,7 @@
   // 사용자가 위의 답을 읽고 있으면(바닥에서 떨어져 있으면) 그대로 둔다.
   let log:HTMLElement|undefined=$state(),stick=true;
   const atBottom=()=>!log||log.scrollTop+log.clientHeight>=log.scrollHeight-48;
-  $effect(()=>{thread.length;unsent;waiting;latest?.status;void tick().then(()=>{
+  $effect(()=>{thread.length;unsent;waiting;latest?.status;latest?.comparison?.status;void tick().then(()=>{
     if(!stick||!log)return;
     const last=[...log.querySelectorAll<HTMLElement>(".me")].at(-1);
     log.scrollTop=last?log.scrollTop+last.getBoundingClientRect().top-log.getBoundingClientRect().top-12:log.scrollHeight;
@@ -64,14 +66,14 @@
       }
     }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";}
   }
-  async function ask(text:string){
+  async function ask(text:string,runComparison=false){
     if(!writable||waiting||!text.trim())return;
     const revision=questionRevision;const submitted=text.trim();
     onStart?.();stick=true;previousIds=new Set(records.map(row=>row.id));awaitingQuestion=submitted;
     if(question.trim()===submitted)question="";
     cancel();const pending=new AbortController();write=pending;busy=true;error="";remaining=240;
     try{
-      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope);
+      await askChange(assetId,reviewKey,conversation,submitted,records.find(row => row.status === "complete" && row.answer)?.id ?? null,pending.signal,scope,runComparison);
       if(pending.signal.aborted)return;
       busy=false;await refresh();
     }catch(cause){if(!pending.signal.aborted){
@@ -107,27 +109,26 @@
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
     {#each thread as row(row.id)}
       <p class="me">{row.question}</p>
-      {#if row.status==="pending"}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing("답 정리 중")}</div></div>
-      {:else if row.status==="complete"&&row.answer}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
-          <p class="answer">{row.answer.summary}</p>
+      <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
+        {#if row.status==="complete"&&row.answer}<p class="answer">{row.answer.summary}</p>{/if}
+        {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
+        {#if row.status==="complete"&&row.answer}
           <div class="tools">
             <button type="button" onclick={()=>onMemo(memoOf(row))}>판단 메모로</button>
             <button type="button" onclick={()=>void copy(row)}>{copied===row.id?"복사됨":"복사"}</button>
           </div>
-        </div></div>
-      {:else}
-        <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body"><p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p></div></div>
-      {/if}
+        {:else if row.status==="pending"}{@render typing("답 정리 중")}
+        {:else}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
+      </div></div>
     {/each}
     {#if unsent}<p class="me">{unsent}</p>{@render waitingBubble()}{/if}
     {#if error}<p class="error" role="alert">{error} {#if awaitingQuestion || latest?.status === "pending"}<button type="button" onclick={()=>{remaining=240;void refresh();}}>다시 확인</button>{/if}</p>{/if}
   </div>
 
   <footer>
-    {#if !thread.length&&!unsent&&writable}<div class="follow">{#each STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
-    {:else if latest?.status==="complete"&&followup&&!waiting}
+    {#if !thread.length&&!unsent&&writable}<div class="follow">{#if compareLoad}<button type="button" onclick={()=>void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
+      {#each STARTERS as text(text)}<button type="button" onclick={()=>void ask(text)}>{text}</button>{/each}</div>
+    {:else if latest?.status==="complete"&&latest.comparison?.status!=="ready"&&followup&&!waiting}
       <a class="followup" href={investigationOriginUrl(followup.href,location.href)} onclick={onStart}>{followup.label} →</a>
     {/if}
     <div class="composer" class:disabled={!writable}>

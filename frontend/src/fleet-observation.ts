@@ -33,6 +33,7 @@ export type FleetChange = {key: string; channel: string; label: string; from: nu
   load?: {label: string; unit: string | null; before: number; after: number} | null;
   /** 판단·메모가 이 특이사항을 가리키는 열쇠(기간·기준이 같아야 같다). */
   reviewKey?: string;
+  compareLoad?: boolean;
   followup?: ChangeFollowup | null};
 /** 사람이 남긴 판단: 가장 최근 판단, 마지막 기록 시각, 가장 최근 메모. */
 export type Judgment = {decision: ReviewDecision | null; closed: boolean; at: string; note: string | null};
@@ -121,6 +122,7 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
       const load = object(row.load);
       return {key, channel: item.channel, label: item.label, up: item.direction === "up",
         ref: JSON.stringify(["history", key, item.start, item.end]), reviewKey: item.reviewKey,
+        compareLoad: item.unit === "V" && item.band != null,
         followup: changeFollowup(assetId, {kind: "history", item, record, condition: null}),
         load: load && typeof load.reference === "number" && typeof load.current === "number"
           ? {label: text(load.label) ?? "부하", unit: text(load.unit), before: load.reference, after: load.current} : null,

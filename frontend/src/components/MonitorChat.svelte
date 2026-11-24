@@ -1,17 +1,19 @@
 <script lang="ts">
   import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, newChangeConversation, readChangeDiscussion, STARTERS, type ChangeDiscussion} from "../change-investigation";
+  import {askChange, newChangeConversation, readChangeDiscussion, STARTERS, LOAD_QUESTION, type ChangeDiscussion} from "../change-investigation";
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
 
   import type {ChangeFollowup} from "../change-evidence";
+  import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
 
-  let {assetId, reviewKey, scope, followup, savedJudgment, onPause}: {
+  let {assetId, reviewKey, scope, followup, savedJudgment, onPause, compareLoad = false}: {
     assetId: string; reviewKey: string; scope: PlaybackScope | null;
     followup: ChangeFollowup | null;
     savedJudgment: {label: string; note: string | null} | null;
     onPause: () => void;
+    compareLoad?: boolean;
   } = $props();
 
   const conversation = newChangeConversation();
@@ -47,14 +49,14 @@
       }
     } catch (cause) { if (!pending.signal.aborted) error = cause instanceof Error ? cause.message : "대화를 불러오지 못했습니다."; }
   }
-  async function ask(text: string) {
+  async function ask(text: string, runComparison = false) {
     if (!writable || waiting || !text.trim()) return;
     const submitted = text.trim();
     onPause(); previous = new Set(records.map(row => row.id)); awaiting = submitted; stick = true;
     if (question.trim() === submitted) question = "";
     cancel(); const pending = new AbortController(); write = pending; busy = true; error = ""; remaining = 240;
     try {
-      await askChange(assetId, reviewKey, conversation, submitted, records.find(row => row.status === "complete" && row.answer)?.id ?? null, pending.signal, scope);
+      await askChange(assetId, reviewKey, conversation, submitted, records.find(row => row.status === "complete" && row.answer)?.id ?? null, pending.signal, scope, runComparison);
       if (!pending.signal.aborted) { busy = false; await refresh(); }
     } catch (cause) {
       if (pending.signal.aborted) return;
@@ -74,7 +76,7 @@
   }
   let log: HTMLElement | undefined = $state(), stick = true;
   $effect(() => {
-    thread.length; unsent; latest?.status;
+    thread.length; unsent; latest?.status; latest?.comparison?.status;
     if (stick) void tick().then(() => { if (log) log.scrollTop = log.scrollHeight; });
   });
 </script>
@@ -86,10 +88,11 @@
   <div class="log" bind:this={log} onscroll={() => { if (log) stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 48; }} aria-live="polite">
     {#each thread as row (row.id)}
       <p class="me">{row.question}</p>
-      <div class="msg answer">
+      <div class="msg answer" class:charted={row.comparison?.status === "ready"}>
+        {#if row.status === "complete" && row.answer}<p>{row.answer.summary}</p>{/if}
+        {#if row.comparison}<ChangeLoadComparison {assetId} result={row.comparison}/>{/if}
         {#if row.status === "pending"}<p class="typing"><i></i><i></i><i></i>{typing("답 정리 중")}</p>
-        {:else if row.status === "complete" && row.answer}<p>{row.answer.summary}</p>
-        {:else}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
+        {:else if row.status === "failed"}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
       </div>
     {/each}
     {#if unsent}<p class="me">{unsent}</p><p class="msg typing"><i></i><i></i><i></i>{typing("측정 기록 확인 중")}</p>{/if}
@@ -100,8 +103,9 @@
     {/if}
   </div>
   {#if !thread.length && !unsent && writable}
-    <div class="replies">{#each STARTERS as text (text)}<button type="button" onclick={() => void ask(text)}>{text}</button>{/each}</div>
-  {:else if latest?.status === "complete" && followup && !waiting}
+    <div class="replies">{#if compareLoad}<button type="button" onclick={() => void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
+      {#each STARTERS as text (text)}<button type="button" onclick={() => void ask(text)}>{text}</button>{/each}</div>
+  {:else if latest?.status === "complete" && latest.comparison?.status !== "ready" && followup && !waiting}
     <a class="followup" href={followup.href} onclick={onPause}>{followup.label} →</a>
   {/if}
   <div class="composer" class:disabled={!writable}>
@@ -119,6 +123,7 @@
   .msg{align-self:flex-start;max-width:96%;padding:7px 10px;border-radius:4px 12px 12px 12px;background:#f2f5f7;color:var(--color-ink)}
   .me{align-self:flex-end;max-width:88%;padding:6px 10px;border-radius:12px 4px 12px 12px;background:var(--color-surface-selected)}
   .answer{display:grid;gap:5px;white-space:pre-wrap}
+  .answer.charted{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
   .note{font-size:12px;color:var(--color-ink-muted)}
   .typing{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--color-ink-muted)}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}

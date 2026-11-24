@@ -199,6 +199,48 @@ def complete_text(
     return text.strip()
 
 
+def select_tool(
+    provider: ExplanationProvider, messages: list[dict[str, str]], tools: dict[str, str]
+) -> str | None:
+    """Ask for one named operation. All arguments are bound by the caller."""
+    try:
+        data = _poster(provider)(
+            "/chat/completions",
+            {
+                "model": provider.model,
+                "messages": messages,
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": description,
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": False,
+                            },
+                        },
+                    }
+                    for name, description in tools.items()
+                ],
+                "tool_choice": "required",
+                "max_tokens": 100,
+                "temperature": 0,
+            },
+        )
+        if not isinstance(data, dict):
+            return None
+        calls = data["choices"][0]["message"]["tool_calls"]
+        if not isinstance(calls, list) or len(calls) != 1 or calls[0]["type"] != "function":
+            return None
+        function = calls[0]["function"]
+        name = function["name"]
+        return name if name in tools and json.loads(function["arguments"]) == {} else None
+    except AnalysisExplanationError, OSError, KeyError, IndexError, TypeError, ValueError:
+        return None
+
+
 def complete_json(
     provider: ExplanationProvider,
     messages: list[dict[str, str]],

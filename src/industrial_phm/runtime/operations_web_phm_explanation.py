@@ -16,10 +16,15 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.change_answer import generate_change_answer
+from industrial_phm.genai.change_answer import generate_change_answer, wants_load_comparison
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_web_change_context import screen_view, selected_change
+from industrial_phm.runtime.operations_web_load_comparison import (
+    load_comparison_for_answer,
+    load_comparison_query,
+    read_load_comparison,
+)
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 _MANAGERS: dict[Path, ExplanationManager] = {}
@@ -70,7 +75,10 @@ class ExplanationManager:
         )
         if parent_id is not None:
             context["parent_id"] = parent_id
-            context["history"] = self._history(parent_id, context)
+            record = self._parent(parent_id, context)
+            context["history"] = [
+                {"question": record["context"]["question"], "answer": record["answer"]["summary"]}
+            ]
         if focus_position is not None:
             span = context["signal_comparison"].get("range")
             if not span:
@@ -101,19 +109,49 @@ class ExplanationManager:
         *,
         screen: dict[str, Any] | None = None,
     ) -> dict[str, object]:
-        stored = context if screen is None else {k: v for k, v in context.items() if k != "history"}
+        stored = (
+            context
+            if screen is None
+            else {
+                key: value
+                for key, value in context.items()
+                if key not in {"history", "load_profile", "compare_load", "load_comparison_result"}
+            }
+        )
         identifier = self.store.request(stored, model=provider.model, owner=self.owner)
 
         def generate() -> None:
+            comparison: dict[str, Any] | None = None
             try:
                 if screen is None:
                     answer = generate_grounded_answer(context, provider)
                 else:
+                    if (
+                        (plan := context.get("load_profile"))
+                        and "load_comparison_result" not in context
+                        and (
+                            context.get("compare_load") or wants_load_comparison(context, provider)
+                        )
+                    ):
+                        comparison = read_load_comparison(
+                            self.workspace, plan["query"], plan["interpretation"]
+                        )
+                        self.store.publish_comparison(
+                            identifier, owner=self.owner, result=comparison
+                        )
+                        context["load_comparison_result"] = load_comparison_for_answer(comparison)
                     answer = generate_change_answer(context | {"screen": screen}, provider)
             except AnalysisExplanationError:
-                self.store.finish(identifier, owner=self.owner, error="AI explanation unavailable")
+                self.store.finish(
+                    identifier,
+                    owner=self.owner,
+                    error="AI explanation unavailable",
+                    answer={"load_comparison": comparison} if comparison is not None else None,
+                )
             else:
                 text = (answer["summary"] + " " + answer.get("next_step", "")).strip()
+                if comparison is not None:
+                    answer = answer | {"load_comparison": comparison}
                 self.store.finish(identifier, owner=self.owner, text=text, answer=answer)
 
         Thread(target=generate, name="phm-explanation", daemon=True).start()
@@ -126,12 +164,8 @@ class ExplanationManager:
             **({"change_id": context["change_id"]} if context.get("change_id") else {}),
         }
 
-    def _history(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
-        """The question and answer this follow-up continues: only that one turn.
-
-        A follow-up such as '그럼 ...' needs the turn it continues, not the whole thread. Longer
-        threads made the local model slower and made it copy the answer format instead of answering.
-        """
+    def _parent(self, parent_id: str, context: dict[str, Any]) -> dict[str, Any]:
+        """Read one completed turn from the same selected comparison and conversation."""
         parent = self.store.get(parent_id)
         same = parent is not None and (
             parent["binding_id"],
@@ -150,7 +184,7 @@ class ExplanationManager:
         )
         if parent is None or not same or parent["status"] != "complete" or not parent["answer"]:
             raise ValueError("follow-up must continue a completed answer of the same comparison")
-        return [{"question": parent["context"]["question"], "answer": parent["answer"]["summary"]}]
+        return parent
 
     def _thread(self, parent_id: str, context: dict[str, Any]) -> list[dict[str, str]]:
         """The conversation a change question continues, oldest first.
@@ -161,9 +195,16 @@ class ExplanationManager:
         turns: list[dict[str, str]] = []
         current: str | None = parent_id
         while current is not None and len(turns) < _TURNS:
-            turns.insert(0, self._history(current, context)[0])
-            record = self.store.get(current)
-            current = record["context"].get("parent_id") if record else None
+            record = self._parent(current, context)
+            turns.insert(
+                0,
+                {"question": record["context"]["question"], "answer": record["answer"]["summary"]},
+            )
+            if (comparison := record["answer"].get("load_comparison")) and comparison[
+                "status"
+            ] == "ready":
+                context.setdefault("load_comparison_result", load_comparison_for_answer(comparison))
+            current = record["context"].get("parent_id")
         return turns
 
 
@@ -201,6 +242,7 @@ def prepare_web_explanation(
             "parent_id",
             "record_until",
             "acquisition_until",
+            "analysis",
         }
     ):
         raise ValueError("unexpected change explanation fields")
@@ -227,6 +269,18 @@ def prepare_web_explanation(
         k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload
     }
     context = selected_change(workspace, asset, key, scope)
+    query = load_comparison_query(context)
+    if payload.get("analysis") is not None and (
+        payload["analysis"] != "same_load" or query is None
+    ):
+        raise ValueError("unavailable change analysis")
+    if query is not None:
+        context["load_profile"] = {
+            "query": query,
+            "interpretation": context["history_change"]["interpretation_id"],
+        }
+    if payload.get("analysis") == "same_load":
+        context["compare_load"] = True
     screen = screen_view(workspace, context)
     context.pop("history_change", None)
     context.pop("vibration_change", None)

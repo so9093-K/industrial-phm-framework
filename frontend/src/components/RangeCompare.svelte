@@ -10,11 +10,11 @@
    * median as a mark. Counts and quantiles are the stored ones; nothing is estimated here.
    * names: 모니터링에서 열면 '초기'·'변화 구간', 직접 고른 기간이면 '기간 A'·'기간 B'. */
   type Props = {a: number[] | null; b: number[] | null; histogram?: Histogram | null; unit: string | null; label: string;
-    names?: {a: string; b: string}};
-  let {a, b, histogram = null, unit, label, names = {a: "기간 A", b: "기간 B"}}: Props = $props();
+    names?: {a: string; b: string}; compact?: boolean};
+  let {a, b, histogram = null, unit, label, names = {a: "기간 A", b: "기간 B"}, compact = false}: Props = $props();
   const rows = $derived([{name: names.a, q: a, kind: "a"}, {name: names.b, q: b, kind: "b"}]
     .filter((row): row is {name: string; q: number[]; kind: string} => row.q !== null && row.q.length === 5));
-  const HEIGHT = 120;
+  const HEIGHT = $derived(compact ? 88 : 120);
   const shares = $derived.by(() => {
     if (!histogram) return [];
     return ([["a", histogram.a], ["b", histogram.b]] as const).flatMap(([kind, counts]) => {
@@ -22,6 +22,7 @@
       return counts && total ? [{kind, values: counts.map((count) => count / total)}] : [];
     });
   });
+  const boxes = $derived(rows.length > 0 && (!compact || !shares.length));
   const scale = $derived.by(() => {
     const values = [...rows.flatMap((row) => [row.q[0], row.q[4]]), ...(shares.length && histogram ? [histogram.low, histogram.high] : [])];
     const low = Math.min(...values), high = Math.max(...values);
@@ -97,7 +98,7 @@
       {#if fresh}<span class="fresh-tag" class:leftward={scale.x(fresh.low) / 8 > 55} style:left={(scale.x(fresh.low) / 8 > 55 ? scale.x(fresh.high) : scale.x(fresh.low)) / 8 + "%"}>{names.a}에 거의 없던 값 · {names.b} {fresh.total}회 중 {fresh.count}회</span>{/if}
       </div>
     {/if}
-    {#if rows.length}
+    {#if boxes}
       <div class="row-labels" aria-hidden="true">{#each rows as row (row.kind)}<span>{row.name}</span>{/each}</div>
       <svg class="boxes" viewBox={"0 0 800 " + rows.length * 40} style={"height:" + rows.length * 44 + "px"} preserveAspectRatio="none" role="img"
         aria-label={label + " · 기간별 값의 90%가 있던 범위와 가운데 절반, 중앙값. " + rows.map((row) => row.name + " 중앙값 " + num(row.q[2]) + suffix).join(", ")}>
@@ -111,7 +112,7 @@
     {/if}
     <span></span>
     <XAxis lo={scale.low} hi={scale.high} scale={{kind:"value"}} note={"가로축 · " + label + (unit ? " · " + unit : "")} />
-    {#if rows.length}<figcaption>상자는 가운데 절반, 선은 90% 범위, 세로선은 중앙값</figcaption>{/if}
+    {#if boxes&&!compact}<figcaption>상자는 가운데 절반, 선은 90% 범위, 세로선은 중앙값</figcaption>{/if}
   </figure>
 {/if}
 
