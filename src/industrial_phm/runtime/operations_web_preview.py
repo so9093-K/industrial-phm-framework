@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import os
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm.runtime.operations_web_command import WebCommandClient
 from industrial_phm.runtime.operations_web_http import create_operations_web_read_server
+from industrial_phm.runtime.operations_web_overview import OverviewPreparation
+from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -33,11 +36,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     mode = "operations" if client else "view-only (operations not running)"
     print(f"Operations Web ({mode}): http://127.0.0.1:{server.server_port}/web/", flush=True)
+    # 관제 카드는 누가 열기 전에 계산해 둔다. 서버와 같은 경로여야 같은 카드로 찾는다.
+    stop = threading.Event()
+    preparation = OverviewPreparation(OperationsWorkspace(args.workspace.resolve()))
+    threading.Thread(target=preparation.run, args=(stop,), name="monitor-rows", daemon=True).start()
     try:
         server.serve_forever(poll_interval=0.3)
     except KeyboardInterrupt:
         pass
     finally:
+        stop.set()
         server.server_close()
     return 0
 

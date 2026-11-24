@@ -1299,6 +1299,69 @@ def test_screens_asking_for_one_summary_together_compute_it_once(
     assert len(results) == 2 and results[0] is results[1]
 
 
+def test_a_monitor_row_is_ready_before_anyone_opens_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("duckdb")
+    from industrial_phm.runtime import operations_web_explore as explore
+    from industrial_phm.runtime import operations_web_overview as overview
+
+    workspace = phm_workspace(tmp_path / "ws")
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    voltage = json.dumps(
+        {"semantics": {"definition": {"observed_property": "phase voltage", "unit": "V"}}}
+    )
+
+    def append(asset_id: str, first: int, count: int) -> None:
+        history.append_file_batch(
+            tuple(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:{asset_id}:{'d' * 64}:{offset}:{index}",
+                    source_id=asset_id + "-file",
+                    asset_id=asset_id,
+                    channel_id=channel,
+                    source_file=asset_id + ".csv",
+                    source_sha256="d" * 64,
+                    source_size_bytes=10,
+                    sample_index=offset * 1000 + index,
+                    event_at=BASE + timedelta(minutes=index),
+                    value=(226.0 if index >= 150 else 220.0) + (index % 4) * 0.1,
+                    source_metadata_json=voltage,
+                )
+                for offset, channel in enumerate(("R상전압", "S상전압", "T상전압"))
+                for index in range(first, first + count)
+            ),
+            batch_id=f"{asset_id}-{first}",
+        )
+
+    append("press-01", 0, 200)
+    computed: list[str] = []
+    original = explore.stream_records
+
+    def counted(*args: Any, **kwargs: Any) -> Any:
+        computed.append(args[1])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(explore, "stream_records", counted)
+    preparation = overview.OverviewPreparation(workspace)
+    assert preparation.run_once() == ["press-01"]
+    row = overview.asset_overview(workspace, "press-01")
+    assert row["kind"] == "history" and row["group"] is not None
+    # The screen reads the prepared row; another asset's write leaves this record as it was.
+    append("pump-01", 0, 200)
+    assert overview.asset_overview(workspace, "press-01") is row
+    assert explore.record_findings(workspace, "press-01")["intervals"]
+    assert computed == ["press-01"]
+    # A record still being written is left to the screen until it holds still for one pass.
+    append("press-01", 200, 20)
+    assert preparation.run_once() == []
+    assert preparation.run_once() == ["press-01", "pump-01"]
+    assert overview.asset_overview(workspace, "press-01") is not row
+    assert computed == ["press-01", "press-01", "pump-01"]
+
+
 def test_selected_observation_keeps_signal_comparison_and_relation_at_its_snapshot(
     tmp_path: Path,
 ) -> None:
