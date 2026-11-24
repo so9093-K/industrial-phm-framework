@@ -129,6 +129,28 @@ def test_invalid_route_and_oversized_request_never_reach_dispatch(
         assert calls == []
 
 
+def test_large_prepared_screen_uses_original_request_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def execute(_root: Path, _route: str, payload: dict[str, object]) -> dict[str, object]:
+        calls.append(payload)
+        return {"status": "pending"}
+
+    monkeypatch.setattr(command, "execute_web_source_action", execute)
+    body: dict[str, object] = {"question": "문제 있어?"}
+    with command.open_supervisor_web_command_broker(tmp_path) as broker:
+        broker.bind_child(os.getpid())
+        client = command.WebCommandClient(broker.socket_path, broker.token)
+        assert client.execute(
+            "/api/v1/phm/explanations/request",
+            body,
+            prepared_payload={"screen": "측정" * 2_000},
+        ) == {"status": "pending"}
+    assert calls == [body]
+
+
 def test_failing_facade_returns_bounded_code_without_exception_details(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

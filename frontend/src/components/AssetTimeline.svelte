@@ -10,7 +10,6 @@
   import {bandName} from "../record-findings";
   import {versusStart} from "../change-story";
   import {SERIES_COLORS, type FleetChange, type FleetGroup} from "../fleet-observation";
-  import type {Evidence} from "../change-investigation";
   import {clockText,focusWindow,spanText,startsZoomed,valueAt,visiblePoints,type Span,type TimelineLane,type TimelineOperation} from "../asset-timeline";
   /** 고른 변화를 관제 화면과 같은 그래프 규칙으로 크게 본다. 같은 시기에 함께 변한 신호 중 단위가 같은 것은
    * 한 그래프에 겹치고(R·S·T상은 관제 화면과 같은 색), 단위가 다른 것은 같은 시간축의 작은 그래프로 아래에 둔다.
@@ -21,20 +20,12 @@
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
     load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<LoadPoint[]>}|null;
     actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
-    /** 오른쪽 칸의 AI 조사. 답의 근거를 가리키면(point) 그래프가 그 선·구간·운전 수준 띠만 또렷하게 남긴다. */
-    assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;point:(evidence:Evidence|null)=>void;close:()=>void}]>}=$props();
+    /** 오른쪽 칸의 AI 조사. colorOf·labelOf로 고른 특이사항을 그래프와 같은 색·이름으로 보인다. */
+    assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;close:()=>void}]>}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
   let centeredAt = $state<number | null>(null);
   let rail=$state<"context"|"assistant">("context");
   const chatting=$derived(rail==="assistant"&&!!assistant);
-  // 가리킨 근거: 찾은 변화는 그 줄, 운전 수준은 띠와 고른 신호의 같은 수준 값. 그래프 밖의 근거는 가리키지 않는다.
-  let pointed:Evidence|null=$state(null);
-  const emphasis=$derived.by(()=>{
-    const target=pointed;
-    if(target?.kind==="change"){const lane=lanes.find(row=>row.reviewKey===target.review_key);return lane?{lanes:[lane.key],operation:false}:null;}
-    if(target?.kind==="operation"&&operation)return {lanes:[focused.key],operation:true};
-    return null;
-  });
   const focused=$derived(lanes.find(lane=>lane.focus)??lanes[0]);
   // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다(관제 카드와 같은 값).
   const now=$derived(axis==="acquisition"&&ongoing&&focused?.values?.latest&&focused.values.before!==null?focused.values.latest.value:null);
@@ -88,8 +79,6 @@
   }
   /** 근거 줄의 이름: 그 변화가 그래프에서 쓰는 이름. */
   const labelOf=(reviewKey:string)=>lanes.find(row=>row.reviewKey===reviewKey)?.label??null;
-  const point=(evidence:Evidence|null)=>pointed=evidence;
-  $effect(()=>{if(rail!=="assistant")pointed=null;});
   // 값 읽기는 가장 가까운 점이 점 간격의 1.5배 안에 있을 때만(공백의 다른 측정으로 대신하지 않는다).
   const reach=$derived.by(()=>{
     const points=charts[0]?.group.series[0]?.points??[];
@@ -148,14 +137,13 @@
         reference={chart.main===focused?focused.values?.before??null:null} band={chart.main===focused?focused.usual:null}
         marks={chart.main===focused?(focused.matched??[]):[]} height={index===0?(charts.length>2?190:240):76}
         halves={index===0&&chart.main===focused?focused.halves??null:null}
-        dim={emphasis?chart.group.series.filter(row=>!emphasis.lanes.includes(row.key)).map(row=>row.key):[]}
         guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
     {/each}
     {#if load&&loadGroup}
       <div class="lane-heading"><strong>{load.label}</strong><span class="levels"><span><i class="mean-key"></i>평균</span><span><i class="spread-key"></i>최저~최고</span></span>
         {#if readAt!==null}{@const point=valueAt(loadPoints??[],readAt,loadReach)}<span class="readout"><span><i style:background="var(--color-ink-muted)"></i><b>{point?measure(point.value,load.unit,3):"—"}</b>{#if point&&point.high>point.low}<small>{measure(point.low,load.unit,3)}~{measure(point.high,load.unit,3)}</small>{/if}</span></span>{/if}</div>
       <!-- 운전 수준 띠 대신 실제 전류 추이: 전압이 오른 동안 부하가 어땠는지 같은 시간축에서 읽힌다. -->
-      <div class="load-chart" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}>
+      <div class="load-chart">
         <TrendChart group={loadGroup} series={loadGroup.series} spread={loadPoints??[]} {lo} {hi} axis={false} height={84} colors={["var(--color-ink-muted)"]}
           changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
           guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
@@ -166,7 +154,7 @@
     {:else if operation}
       <div class="lane-heading"><strong>운전 수준</strong><span class="levels">{#each operation.names.levels as _,i(i)}<span><i class="level-key" style:opacity={shade(i+1,operation.names.levels.length)}></i>{bandName(operation.names,i+1)}</span>{/each}<span><i class="level-key stop"></i>정지</span></span></div>
       <!-- 칸마다 가장 오래 운전한 수준 하나를 진하기로 칠한다(진할수록 높은 전류). 부하가 바뀐 때가 띠에서 바로 보인다. -->
-      <div class="strip" class:pointed={emphasis?.operation} class:faint={emphasis&&!emphasis.operation}><span></span><svg viewBox="0 0 1000 20" preserveAspectRatio="none" role="img" aria-label="같은 시각에 가장 오래 운전한 수준">
+      <div class="strip"><span></span><svg viewBox="0 0 1000 20" preserveAspectRatio="none" role="img" aria-label="같은 시각에 가장 오래 운전한 수준">
         {#each operation.columns.filter(c=>c.to>=lo&&c.from<=hi) as col(col.from)}{@const x0=Math.max(0,(col.from-lo)/(hi-lo)*1000)}{@const width=Math.max(1,Math.min(1000,(col.to-lo)/(hi-lo)*1000)-x0)}{@const top=col.shares.indexOf(Math.max(...col.shares))}
           <rect x={x0} {width} height="20" class="level" class:stop={top===0} style:opacity={top===0?1:shade(top,operation.names.levels.length)}/>{/each}
       </svg></div>
@@ -176,7 +164,7 @@
   </div>
   {#if chatting && assistant}
     <aside class="dock" aria-label="AI 조사">
-      {@render assistant({colorOf,labelOf,point,close:()=>rail="context"})}
+      {@render assistant({colorOf,labelOf,close:()=>rail="context"})}
     </aside>
   {:else}
     <div class="related-context">
@@ -212,9 +200,7 @@
   .lane-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin-top:8px;padding-left:64px;font-size:var(--font-small)}.lane-heading.main{margin-top:0}.lane-heading .levels{color:var(--color-ink-muted);font-size:var(--font-label)}
   .readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}.readout span{display:inline-flex;align-items:center;gap:5px;color:var(--color-ink-muted)}.readout i{display:inline-block;width:12px;height:3px;border-radius:2px}.readout b{color:var(--color-ink);font-weight:650}.readout small{color:var(--color-ink-muted);font-size:var(--font-label)}
   .related-context{display:grid;gap:14px;align-content:start;border-left:1px solid var(--color-border);padding-left:20px;min-width:0}
-  .strip.pointed svg{outline:2px solid var(--color-ink);outline-offset:1px}.strip.faint{opacity:.3}
   .load-pending{height:84px;margin-left:64px;border-radius:4px;background:repeating-linear-gradient(0deg,transparent 0 20px,#eef2f4 20px 21px)}
-  .load-chart.pointed :global(svg){outline:2px solid var(--color-ink);outline-offset:1px}.load-chart.faint{opacity:.3}
   .focus-values{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}.focus-values .name{font-size:var(--font-small);font-weight:650}
   .pair{display:flex;align-items:end;gap:14px;font-variant-numeric:tabular-nums}.pair span{display:grid;gap:2px;font-size:1.35rem;font-weight:650;color:var(--color-ink-muted)}.pair small{font-size:var(--font-label);font-weight:400}.pair strong{color:var(--color-ink)}.pair b{padding-bottom:4px;color:var(--color-ink-muted);font-weight:400}.actions{border-top:1px solid var(--color-border);padding-top:12px}
   .decision{margin:0;font-size:var(--font-small);color:var(--color-action)}

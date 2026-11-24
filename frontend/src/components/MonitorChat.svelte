@@ -7,8 +7,8 @@
   import {OutcomeUnknown} from "../writes";
 
   /** 관제 목록 오른쪽의 AI 대화창. AI가 특이사항을 문장으로 알리고(notice), 사람이 남긴 판단은 내 말풍선으로,
-   * 앞서 찾은 특이사항은 지난 메시지로 위에 둔다. 질문하면 AI가 짧게 답한다. 알림은 첫 질문과 함께 보내
-   * AI가 이미 보인 숫자를 되풀이하지 않게 한다. 조사 화면의 AI 조사와 같은 대화라 어느 화면에서 이어도 같다. */
+   * 앞서 찾은 특이사항은 지난 메시지로 위에 둔다. 질문하면 AI가 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
+   * 조사 화면의 AI 조사와 같은 대화라 어느 화면에서 이어도 같다. */
   let {assetId, reviewKey, scope, watched, notice, when, judged, earlier, calm, checking, detailHref, canAsk, onPause, heading = true}: {
     assetId: string; reviewKey: string | null; scope: PlaybackScope | null; watched: string;
     notice: string[] | null; when: string | null;
@@ -57,7 +57,7 @@
     if (question.trim() === submitted) question = "";
     cancel(); const pending = new AbortController(); write = pending; busy = true; error = ""; remaining = 240;
     try {
-      await askChange(assetId, reviewKey, submitted, latest?.status === "complete" ? latest.id : null, pending.signal, scope, notice?.join(" ") ?? null);
+      await askChange(assetId, reviewKey, submitted, records.find(row => row.status === "complete" && row.answer)?.id ?? null, pending.signal, scope);
       if (!pending.signal.aborted) { busy = false; await refresh(); }
     } catch (cause) {
       if (pending.signal.aborted) return;
@@ -147,7 +147,7 @@
   .me{align-self:flex-end;max-width:88%;padding:6px 10px;border-radius:12px 4px 12px 12px;background:var(--color-surface-selected)}
   .me.judged{display:grid;gap:1px;font-size:12px}.me.judged b{font-size:var(--font-small)}.me small{font-size:11px;color:var(--color-ink-muted)}
   .status{align-self:flex-end;font-size:12px;color:var(--color-ink-muted)}
-  .answer{display:grid;gap:5px}
+  .answer{display:grid;gap:5px;white-space:pre-wrap}
   .note{font-size:12px;color:var(--color-ink-muted)}
   .typing{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--color-ink-muted)}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}

@@ -9,7 +9,7 @@ import pytest
 from industrial_phm.application.backfill import FileBackfillEvent
 from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
 from industrial_phm.runtime.operations_web_change_context import (
-    investigation_facts,
+    screen_view,
     selected_change,
 )
 from industrial_phm.runtime.operations_web_change_review import capture_change
@@ -63,15 +63,12 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path
     chosen = next(row for row in before["intervals"] if row["channel"] == "voltage")
     scope = {"record_until": until.isoformat()}
     context = selected_change(workspace, "compressor", chosen["review_key"], scope)
-    facts = investigation_facts(workspace, context)
-    assert "220" in facts["facts"]["feature_0"] and "230" in facts["facts"]["feature_0"]
-    # Times read as on the chart (Korean time), so an answer may quote them as people do.
+    screen = screen_view(workspace, context)
+    card = screen["선택한 변화"]
+    assert card["초기 중앙값"] == pytest.approx(220, abs=0.02)
+    assert card["변화 구간 중앙값"] == pytest.approx(230, abs=0.02)
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
-    assert (
-        f"{start.year}년 {start.month}월 {start.day}일 {start:%H:%M}부터"
-        in facts["facts"]["subject"]
-    )
-    assert facts["targets"]["subject"]["review_key"] == chosen["review_key"]
+    assert card["변화 시작"] == start.strftime("%Y-%m-%d %H:%M")
     training = history_points(workspace, "compressor", "voltage", scope)
 
     write(40, 90, True)
@@ -81,10 +78,10 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(tmp_path
     assert record_findings(workspace, "compressor", until=until) == before
     assert history_points(workspace, "compressor", "voltage", scope) == training
     assert (
-        investigation_facts(
+        screen_view(
             workspace, selected_change(workspace, "compressor", chosen["review_key"], scope)
         )
-        == facts
+        == screen
     )
     assert max(history_points(workspace, "compressor", "voltage")[1]) > 1000
     saved = capture_change(
@@ -131,10 +128,15 @@ def test_bearing_future_does_not_enter_changes_or_forecast_training(tmp_path: Pa
         selection={"acquisition_until": "24"},
     )
     assert before["last"] == 24 and before["intervals"]
+    key = before["intervals"][0]["review_key"]
+    context = selected_change(workspace, "bearing-a", key, {"acquisition_until": "24"})
+    screen = screen_view(workspace, context)
+    assert screen["신호별 마지막 값과 추이"][0]["마지막 측정"][0] == 24
     for ordinal in range(25, 31):
         deliver(workspace, tmp_path / "waves", ordinal, 100.0, amplitude_unit="g")
     analyze(workspace)
     assert acquisition_findings(workspace, "bearing-a", until=24) == before
+    assert screen_view(workspace, context) == screen
     assert (
         acquisition_points(
             workspace,

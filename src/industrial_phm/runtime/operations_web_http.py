@@ -641,6 +641,13 @@ def create_operations_web_read_server(
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict) or any(not isinstance(key, str) for key in body):
                     raise ValueError("invalid JSON shape")
+                prepared_body = None
+                if self.path == "/api/v1/phm/explanations/request":
+                    from industrial_phm.runtime.operations_web_phm_explanation import (
+                        prepare_web_explanation,
+                    )
+
+                    prepared_body = prepare_web_explanation(OperationsWorkspace(root), body)
                 with mutation_lock:
                     if self.path in _UPLOAD_REQUEST_ROUTES:
                         assert command_client is not None
@@ -679,6 +686,10 @@ def create_operations_web_read_server(
                     elif command_client is None:
                         with web_workspace_writer(root):
                             result = execute_web_source_action(root, self.path, body)
+                    elif prepared_body is not None:
+                        result = command_client.execute(
+                            self.path, body, prepared_payload=prepared_body
+                        )
                     else:
                         result = command_client.execute(self.path, body)
             except WorkspaceWriterBusy:
