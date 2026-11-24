@@ -165,7 +165,7 @@ def test_voltage_magnitude_does_not_supply_an_equipment_rating() -> None:
         context = {
             "history_change": changed,
             "operation": [],
-                "episode": [],
+            "episode": [],
         }
         result = history_investigation(context)
         assert "limit" not in result["facts"]
