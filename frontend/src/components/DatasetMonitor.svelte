@@ -237,7 +237,8 @@
   $effect(() => { dataset?.key; untrack(() => { resetJudgement(); analyze(); }); });
   onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
-  const chartHeight=$derived(rows.length===1?280:240);
+  // 한 줄에 설비 하나: 넓은 그래프 덕에 높이를 줄여 1440×900에 두 설비가 함께 보인다.
+  const chartHeight=$derived(rows.length===1?280:210);
   const legend = $derived(rows.find(row => row.card?.read?.group)?.card?.read?.group ?? null);
   const counts = $derived({
     stored: rows.filter(row => row.card?.read && !row.card.read.live).length,
@@ -286,7 +287,7 @@
       <button type="button" class="guide" onclick={()=>guideOpen=true}>설비·데이터 안내</button>
     </div>
 
-    <ol class="rows" class:single={rows.length===1}>
+    <ol class="rows">
       {#each rows as {asset, card} (asset.assetId)}
         {@const name = assetOptionLabel(assets, asset.assetId)}
         {@const home = datasets.find(row => row.assetIds.includes(asset.assetId))}
@@ -298,8 +299,8 @@
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
             height={chartHeight} {playing} onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
-          <!-- 읽는 동안에도 다 읽은 카드와 비슷한 높이로 두어, 옆 카드와 화면이 출렁이지 않게 한다. -->
-          <li class="row" style:min-height={chartHeight + 260 + "px"}>
+          <!-- 읽는 동안에도 다 읽은 줄과 비슷한 높이로 두어, 아래 줄이 출렁이지 않게 한다. -->
+          <li class="row" style:min-height={chartHeight + 80 + "px"}>
             <div class="who"><span class="name"><AssetName label={name}/></span><span class="detail">{dataset.detail[asset.assetId] ?? ""}</span></div>
             <div class="chart pending" style:height={chartHeight + "px"}>
               {#if card?.error}<span>측정을 읽지 못했습니다</span><button type="button" class="ui-button quiet" onclick={() => reload(asset.assetId)}>다시 읽기</button>
@@ -341,12 +342,11 @@
   .signals{display:flex;gap:2px;flex-wrap:wrap}.signals button{border:0;background:none;padding:5px 10px;border-radius:6px;font:inherit;font-size:var(--font-label);color:var(--color-ink-muted);cursor:pointer}
   .signals button[aria-checked="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .guide{margin-left:auto;border:0;background:none;color:var(--color-action);font:inherit;font-size:var(--font-label);cursor:pointer;padding:6px}
-  .rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:0;padding:0;list-style:none;align-items:start;min-width:0}.rows.single{grid-template-columns:minmax(0,1fr)}
+  .rows{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0;padding:0;list-style:none;min-width:0}
   .row{list-style:none;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;min-width:0}
   .who{display:flex;justify-content:space-between;gap:8px}.name{font-weight:650}.detail{font-size:var(--font-label);color:var(--color-ink-muted)}
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .data-guide{display:grid;gap:16px}.data-guide h2{margin:0;font-size:var(--font-body)}
-  @media(max-width:1050px){.rows{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:650px){
     .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}
     .status>span{order:1;flex-basis:100%;text-align:left}
