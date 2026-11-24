@@ -35,6 +35,10 @@
   const lead = $derived(episode.find(row => row.key === group.focus) ?? episode[0]);
   const changeName = $derived(lead ? plainLabel(lead.label, lead.channel) : null);
   const still = $derived(lead ? ongoing(group, changes, until ?? group.record.to) : false);
+  // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다. 구간 대표값은 이미 지난 수준까지 섞여
+  // 계속 커지는 진동을 실제보다 작게 보인다. 조사 화면도 같은 값을 쓴다.
+  const now = $derived(lead && still && group.axis === "acquisition" ? series.find(row => row.key === lead.key)?.points.at(-1)?.value ?? null : null);
+  const shownAfter = $derived(lead ? now ?? lead.after : null);
   const reach = $derived(group.axis === "time" ? (group.bucketMs ?? 60_000) : 1);
   const lastFocus = $derived(series.find(row => row.key === group.focus)?.points.at(-1));
   const other = $derived([...read.others].sort((a, b) => b.from - a.from)[0]);
@@ -73,9 +77,9 @@
   // AI 관제가 하는 말: 가장 최근 특이사항, 앞의 특이사항(오래된 것부터), 남긴 판단.
   const notice = $derived(lead ? noticeSentences({
     what: lead.label,
-    size: (lead.before !== null && lead.after !== null ? versusStart(lead.after, lead.before, group.unit) : null) ?? (lead.up ? "높음" : "낮음"),
-    before: lead.before !== null && lead.after !== null ? measure(lead.before, group.unit, 3) : null,
-    after: lead.before !== null && lead.after !== null ? measure(lead.after, group.unit, 3) : null,
+    size: (lead.before !== null && shownAfter !== null ? versusStart(shownAfter, lead.before, group.unit) : null) ?? (lead.up ? "높음" : "낮음"),
+    before: lead.before !== null && shownAfter !== null ? measure(lead.before, group.unit, 3) : null,
+    after: lead.before !== null && shownAfter !== null ? measure(shownAfter, group.unit, 3) : null,
     when: group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정",
     still, duration: duration(lead),
     load: lead.load ? {label: lead.load.label, before: measure(lead.load.before, lead.load.unit, 2), after: measure(lead.load.after, lead.load.unit, 2),
@@ -106,10 +110,10 @@
     {#if lead}
       <section class="finding" aria-label="이 그래프의 특이사항">
         <div class="change-copy">
-          <strong>{changeName} <span aria-hidden="true">·</span> {lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
+          <strong>{changeName} <span aria-hidden="true">·</span> {now !== null && lead.before !== null ? "지금 " + versusStart(now, lead.before, group.unit) : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
           <span class="change-values">
-            {#if lead.before !== null && lead.after !== null}
-              <b>{measure(lead.before, group.unit, 3)} → {measure(lead.after, group.unit, 3)}</b>
+            {#if lead.before !== null && shownAfter !== null}
+              <b>{measure(lead.before, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
             {/if}
             <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
           </span>

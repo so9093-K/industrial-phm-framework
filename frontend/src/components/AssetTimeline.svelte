@@ -36,6 +36,8 @@
     return null;
   });
   const focused=$derived(lanes.find(lane=>lane.focus)??lanes[0]);
+  // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다(관제 카드와 같은 값).
+  const now=$derived(axis==="acquisition"&&ongoing&&focused?.values?.latest&&focused.values.before!==null?focused.values.latest.value:null);
   $effect(() => {
     zoomed = startsZoomed(record, episode) || (axis === "time" && episode.to - episode.from < (record.to - record.from) / 4);
     centeredAt = null;
@@ -118,7 +120,7 @@
 </script>
 {#if focused}
 <section class="timeline" aria-label="선택한 변화">
-  <header class="headline"><div><h2>{focused.label} · {focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
+  <header class="headline"><div><h2>{focused.label} · {now!==null?"지금 "+versusStart(now,focused.values?.before??null,focused.unit):focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
     <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
@@ -175,9 +177,9 @@
     </aside>
   {:else}
     <div class="related-context">
-      {#if focused.values}<div class="focus-values" aria-label="고른 신호의 초기와 특이사항 구간">
+      {#if focused.values}<div class="focus-values" aria-label={"고른 신호의 초기와 "+(now!==null?"지금":"특이사항 구간")}>
         <span class="name">{focused.label}</span>
-        <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>특이사항 구간</small><strong>{focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
+        <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>{now!==null?"지금":"특이사항 구간"}</small><strong>{now!==null?measure(now,focused.unit):focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
       </div>{/if}
       {#if context}{@render context()}{/if}
       {#if actions}<div class="actions">{@render actions()}</div>{/if}
