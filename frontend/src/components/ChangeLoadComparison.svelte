@@ -7,7 +7,7 @@
 
   let {assetId, result, conversation, origin}: {assetId: string; result: LoadComparison; conversation: string; origin?: string} = $props();
   const periods = ["a","b"] as const;
-  const names = {a:"초기",b:"변화 구간"};
+  const names = {a:"초기",b:"특이사항 구간"};
   function detail(row:Extract<LoadComparison,{status:"ready"}>):string {
     const url = new URL(assetTabUrl(assetId,"change","compare","history",row.series.channel),location.origin);
     const params = {
@@ -25,7 +25,7 @@
 {#if result.status === "ready"}
   <section class="comparison" aria-label="같은 전류 범위의 전압 비교">
     <header>
-      <p>전류 {measure(result.current.low,"A",4)} 이상{result.current.high === null ? "" : ", "+measure(result.current.high,"A",4)+" 미만"}</p>
+      <p>{result.condition} 중인 측정끼리</p>
       <h4>{result.series.channel} 중앙값</h4>
     </header>
     <dl>

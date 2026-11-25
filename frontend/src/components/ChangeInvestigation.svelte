@@ -42,7 +42,10 @@
   const waiting=$derived(busy||awaitingQuestion!==null||latest?.status==="pending");
   // 대화는 오래된 것부터. 접수 확인 전의 질문도 보낸 말풍선으로 바로 보인다.
   const thread=$derived([...records].reverse());
-  const unsent=$derived(awaitingQuestion!==null&&!records.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id))?awaitingQuestion:null);
+  // 화면 결과가 준비되기 전(이어 온 대화를 읽거나 분석을 그리는 중)에 보낸 질문은 들고 있다가 준비되면 보낸다.
+  // 전에는 그동안 누른 Enter가 아무 일도 하지 않아, 질문이 입력칸에 남은 채 묻혔다.
+  let held:string|null=$state(null);
+  const unsent=$derived(held??(awaitingQuestion!==null&&!records.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id))?awaitingQuestion:null));
   // 기다린 시간: 첫 답은 모델이 쉬고 있었다면 1분 가까이 걸린다. 멈춘 것과 구분되게 초를 센다.
   let since:number|null=$state(null),now=$state(Date.now());
   const clock=setInterval(()=>{if(waiting)now=Date.now();},1000);
@@ -77,7 +80,8 @@
     }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";}
   }
   async function ask(text:string,runComparison=false){
-    if(!writable||waiting||!ready||!text.trim())return;
+    if(!writable||waiting||!text.trim())return;
+    if(!ready){held=text.trim();if(question.trim()===held)question="";stick=true;return;}
     const revision=questionRevision;const submitted=text.trim();
     onStart?.();stick=true;previousIds=new Set(records.map(row=>row.id));awaitingQuestion=submitted;
     if(question.trim()===submitted)question="";
@@ -92,6 +96,7 @@
     }}
     finally{if(write===pending){write=null;busy=false;}}
   }
+  $effect(()=>{if(ready&&held!==null&&!waiting)untrack(()=>{const text=held!;held=null;void ask(text);});});
   // 분석 화면으로 이어 온 대화는 지난 질문과 답부터 보인다.
   if(incoming)void refresh();
   function keydown(event:KeyboardEvent){
@@ -110,8 +115,8 @@
   <p class="typing" role="status"><i></i><i></i><i></i><span>{text}{elapsed!==null&&elapsed>=3?" · "+elapsed+"초":""}</span></p>
 {/snippet}
 
-{#snippet waitingBubble()}
-  <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing("측정 기록 확인 중")}</div></div>
+{#snippet waitingBubble(text:string)}
+  <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing(text)}</div></div>
 {/snippet}
 
 <section class="chat" aria-label="선택한 변화의 AI 조사">
@@ -138,7 +143,7 @@
         {:else}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
       </div></div>
     {/each}
-    {#if unsent}<p class="me">{unsent}</p>{@render waitingBubble()}{/if}
+    {#if unsent}<p class="me">{unsent}</p>{@render waitingBubble(held!==null?"화면 결과를 읽는 중":"측정 기록 확인 중")}{/if}
     {#if error}<p class="error" role="alert">{error} {#if restoring || awaitingQuestion || latest?.status === "pending"}<button type="button" onclick={()=>{remaining=240;void refresh();}}>다시 확인</button>{/if}</p>{/if}
   </div>
 
@@ -152,8 +157,8 @@
       {#if onUnpoint}<button type="button" aria-label="짚은 곳 지우기" onclick={onUnpoint}>×</button>{/if}</p>{/if}
     <div class="composer" class:disabled={!writable}>
       <textarea rows="1" maxlength="600" aria-label="질문" bind:value={question} oninput={()=>questionRevision++} onfocus={()=>onStart?.()} onkeydown={keydown}
-        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":restoring?"대화를 불러오는 중":!ready?"표시할 분석 결과가 준비되면 질문할 수 있습니다":view?"이 화면의 결과에 대해 질문":pointed?"짚은 곳에 대해 질문":"이 특이사항에 대해 질문"}></textarea>
-      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!ready||!question.trim()} onclick={()=>void ask(question)}>
+        disabled={!writable} placeholder={!writable?"보기 전용":waiting?"답변을 기다리는 동안 다음 질문을 쓸 수 있습니다":restoring?"대화를 불러오는 중":view?"이 화면의 결과에 대해 질문":pointed?"짚은 곳에 대해 질문":"이 특이사항에 대해 질문"}></textarea>
+      <button type="button" class="send" aria-label="질문 보내기" disabled={!writable||waiting||!question.trim()} onclick={()=>void ask(question)}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
     </div>
   </footer>

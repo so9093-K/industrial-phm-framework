@@ -158,8 +158,10 @@
       "비교한 방향": channel.label,
       "비교 기간": `A ${spans.a.from}–${spans.a.to}번째, B ${spans.b.from}–${spans.b.to}번째 측정`,
       "파형 수": `A ${result.used.a.length}회, B ${result.used.b.length}회 평균`,
-      "전체 에너지": channel.ratio === null ? "배율을 계산할 수 없음" : "B가 A의 " + measure(channel.ratio, "배"),
-      ...(band ? {"선택 대역 비중": `${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz · A ${measure(band.a * 100, "%")} → B ${measure(band.b * 100, "%")}`} : {}),
+      // 에너지 배율과 대역 비중을 한 이름 아래 두면 AI가 둘을 섞어 '그 대역 에너지가 20배'라고 했다.
+      // 화면의 제목 그대로, 무엇의 값인지를 이름에 단다.
+      [channel.label + " 전체 에너지(모든 주파수 합)"]: channel.ratio === null ? "배율을 계산할 수 없음" : "B가 A의 " + measure(channel.ratio, "배"),
+      ...(band ? {[`${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz가 차지하는 비중`]: `A ${measure(band.a * 100, "%")} → B ${measure(band.b * 100, "%")}`} : {}),
     };
   });
 </script>

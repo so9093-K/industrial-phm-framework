@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -161,9 +162,39 @@ def _value(number: float) -> float:
     return float(f"{number:.4g}")
 
 
-def _text(number: float, unit: str | None) -> str:
-    """A value as the screen writes it: four significant digits and its unit."""
-    return f"{_value(number):g}" + (f" {unit}" if unit else "")
+def _text(number: float, unit: str | None, digits: int = 3) -> str:
+    """A value as the monitor card writes it: three significant digits ('5.78 g', '226 V').
+
+    The model repeats the digits it is given; four ('5.784g', '0.6231g') read unlike the card.
+    """
+    value = float(f"{number:.{digits}g}")
+    text = f"{value:,.0f}" if abs(value) >= 1000 else f"{value:g}"
+    return text + (f" {unit}" if unit else "")
+
+
+def _reading(number: float, unit: str | None) -> str:
+    """A current reading as the card's value list writes it: voltages keep a decimal (214.8 V)."""
+    return _text(number, unit, 4 if unit == "V" else 3)
+
+
+def _about(number: float) -> str:
+    """'약 11 A 운전'의 11: 화면(record-findings의 bandName)처럼 두 자리로 어림한다."""
+    value = float(f"{number:.2g}")
+    return f"{value:,.0f}" if abs(value) >= 10 else f"{value:g}"
+
+
+def asset_label(workspace: OperationsWorkspace, asset_id: str) -> str:
+    """The equipment's name as the monitor shows it: a declared name, '베어링 1-1', or its ID."""
+    from industrial_phm.application import JsonSourceRepository
+    from industrial_phm.application.asset_display import resolve_asset_display_names
+
+    if workspace.source_registry_path.is_file():
+        sources = JsonSourceRepository(workspace.source_registry_path).list_sources()
+        if declared := resolve_asset_display_names(sources).name(asset_id):
+            return declared
+    if bearing := re.fullmatch(r"Bearing(\d+)_(\d+)", asset_id):
+        return f"베어링 {bearing[1]}-{bearing[2]}"
+    return asset_id
 
 
 def _compact_trace(points: list[list[Any]]) -> list[list[Any]]:
@@ -310,7 +341,8 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             # 한 운전 수준의 측정끼리 견준 값이다. 화면 제목('약 11 A 운전일 때')처럼 값 옆에
             # 붙인다. 따로 두었더니 모델이 다른 부하로 돈 마지막 값과 견주었다.
             level = operation["levels"][band - 1]
-            compared += f" (약 {_text(level['typical'], operation.get('unit'))} 운전 중인 측정끼리)"
+            unit_name = f" {operation['unit']}" if operation.get("unit") else ""
+            compared += f" (약 {_about(level['typical'])}{unit_name} 운전 중인 측정끼리)"
         card[compared] = f"{_text(before, None)} → {_text(after, unit)}"
         if not history and ongoing and last is not None and before:
             # 계속 커지는 진동은 관제 카드처럼 지금 값으로 말한다('지금 초기의 약 9.3배').
@@ -328,6 +360,24 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
         for row in change.get("related", [])
     ]
+    now: dict[str, str] = {}
+    if history:
+        # '지금은 괜찮아?'는 지금을 묻는다. 지금까지 이어지는 특이사항이 어느 신호인지와
+        # 살펴본 신호 수를 준다. 이 수가 없을 때 모델은 '정상 범위 안에서 운전 중'이라고 지어냈다.
+        record_end = datetime.fromisoformat(record["record"]["to"])
+        width = timedelta(seconds=float(record.get("bucket_seconds") or 0))
+        still = sorted(
+            {
+                row["label"]
+                for row in record["intervals"]
+                if datetime.fromisoformat(row["end"]) + width >= record_end
+            }
+        )
+        now["초기 범위를 벗어나 지금까지 이어지는 신호"] = (
+            f"{len(still)}개"
+            + (f"({', '.join(still[:5])})" if still else "")
+            + f", 살펴본 신호 {record['judged']}개 중"
+        )
     pointed: dict[str, Any] = {}
     if (at := context.get("at")) is not None:
         # 사람이 그래프에서 짚고 물은 곳: 그때 각 신호의 값과, 특이사항 구간 안인지 밖인지.
@@ -350,7 +400,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
                 "때": when(at),
                 "특이사항 구간": "안" if inside else "밖",
                 "값": {
-                    row["label"]: _text(
+                    row["label"]: _reading(
                         min(row["trace"], key=lambda point: distance(point[0]))[1], row["unit"]
                     )
                     for row in chart
@@ -360,16 +410,19 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         }
     return {
         # 출처('저장 기록')나 '판정이 없다' 같은 말은 넣지 않는다: 모델이 그 말을 답으로 옮겼다.
-        "설비": context["asset_id"],
+        "설비": asset_label(workspace, context["asset_id"]),
         # 짚고 물은 곳이 이 질문의 대상이다: 카드보다 앞에 둔다.
         **pointed,
         "특이사항": card,
         **({"같은 기간 다른 신호": related} if related else {}),
         "지금 값(마지막 측정)": {
-            row["label"]: f"{_text(row['trace'][-1][1], row['unit'])} ({when(row['trace'][-1][0])})"
+            row[
+                "label"
+            ]: f"{_reading(row['trace'][-1][1], row['unit'])} ({when(row['trace'][-1][0])})"
             for row in chart
             if row["trace"]
         },
+        **now,
         "그래프(시각, 값)" if history else "그래프(측정 번호, 값)": {
             row["label"]: [[tick(x), _value(value)] for x, value in _compact_trace(row["trace"])]
             for row in chart

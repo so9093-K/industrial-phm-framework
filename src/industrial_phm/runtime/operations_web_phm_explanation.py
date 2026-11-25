@@ -24,6 +24,7 @@ from industrial_phm.runtime.operations_web_change_context import (
     OPENS,
     VIEWS,
     analysis_descriptions,
+    asset_label,
     change_analyses,
     screen_view,
     selected_change,
@@ -371,7 +372,7 @@ def prepare_web_explanation(
         name = VIEWS[str(view)]
         context["active_analysis"] = name
         context.pop("compare_load", None)
-        screen = {"설비": asset, f"지금 보고 있는 {name} 화면": values}
+        screen = {"설비": asset_label(workspace, asset), f"지금 보고 있는 {name} 화면": values}
     else:
         if snapshot is not None:
             raise ValueError("analysis view is required for results")

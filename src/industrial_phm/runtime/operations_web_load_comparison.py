@@ -76,14 +76,15 @@ def load_comparison_for_answer(result: dict[str, Any]) -> dict[str, Any]:
     level = profile["operation"]["levels"][profile["level"] - 1]
     a, b = (row["periods"][name] for name in ("a", "b"))
     unit = f" {row['unit']}" if row["unit"] else ""
-    current = f"전류 {level['low']:.4g} A 이상" + (
-        f" {level['high']:.4g} A 미만" if level["high"] is not None else ""
-    )
+    # 대화의 차트, 기간 비교 화면, 관제 카드와 같은 말('약 11 A 운전')로, 카드처럼 값의 이름에 단다.
+    # 경계값('1 A 이상 26.08 A 미만')을 따로 주었더니 카드의 대표 전류와 섞어 '10.61 A에서 26.08 A
+    # 미만'이라 했고, 운전 수준만 따로 주었더니 그 11 A를 지금 전류 64 A와 견주었다.
+    typical = float(f"{level['typical']:.2g}")
+    condition = f"약 {typical:,.0f} A 운전" if typical >= 10 else f"약 {typical:g} A 운전"
     change = row["comparison"]["median_change"]
     return {
         "신호": row["label"],
-        "견준 범위": current,
-        "초기 → 특이사항 구간 중앙값": (
+        f"초기 → 특이사항 구간 중앙값 ({condition} 중인 측정끼리)": (
             f"{a['quantiles'][2]:.4g} → {b['quantiles'][2]:.4g}{unit}"
             f" ({abs(change):.3g}{unit} {'높음' if change > 0 else '낮음'})"
         ),
