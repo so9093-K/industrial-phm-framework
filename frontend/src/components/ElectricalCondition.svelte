@@ -153,15 +153,22 @@
   }
   onMount(() => { void analyze(); return () => request?.abort(); });
 
+  const phaseText = (values: number[], unit: string) => PHASES.map((phase, index) => phase + "상 " + measured(values[index] ?? null, unit)).join(" · ");
   exposeAnalysis(() => {
     if (loadState !== "ready" || !analyzed) return null;
     const signal = METRICS[metric];
     return {
-      "분석 기간": kstTime(analyzed.targetStart) + " ~ " + kstTime(analyzed.targetEnd),
-      "비교 기준": kstTime(analyzed.referenceStart) + " ~ " + kstTime(analyzed.referenceEnd),
+      // 서버가 받는 화면 값은 8개까지다: 두 기간을 한 줄로 둔다.
+      "분석 기간 (비교 기준)": kstTime(analyzed.targetStart) + " ~ " + kstTime(analyzed.targetEnd)
+        + " (" + kstTime(analyzed.referenceStart) + " ~ " + kstTime(analyzed.referenceEnd) + ")",
       "표시 신호": phased ? "R·S·T 상별 전류" : signal.label,
       ...(selected ? {"선택한 측정": kstTime(selected.at) + " · " + signal.label + " " + measured(selected[metric], signal.unit)} : {}),
-      ...Object.fromEntries(insights(analyzed).slice(0, 3).map((line, index) => [`비교 결과 ${index + 1}`, line])),
+      // 상끼리의 차이는 이 화면의 카드와 선택 시점의 상별 값이 보여 준다. 그 값을 같은 말로 넘긴다.
+      "전압 불평형 · 최고": measured(analyzed.target.voltageUnbalanceMax, "%") + " (기준 기간 " + measured(analyzed.reference.voltageUnbalanceMax, "%") + ")",
+      "전류 불평형 · 높은 쪽 5% 시작값": measured(analyzed.target.currentUnbalanceP95, "%") + " (기준 기간 " + measured(analyzed.reference.currentUnbalanceP95, "%") + ")",
+      ...(selected?.voltage ? {"선택 시점의 상별 전압": phaseText(selected.voltage, " V")} : {}),
+      ...(selected?.current ? {"선택 시점의 상별 전류": phaseText(selected.current, " A")} : {}),
+      ...Object.fromEntries(insights(analyzed).slice(0, selected ? 1 : 2).map((line, index) => [`비교 결과 ${index + 1}`, line])),
     };
   });
 </script>

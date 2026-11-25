@@ -42,7 +42,9 @@
   const episode = $derived(latestEpisode(changes));
   const lead = $derived(episode.find(row => row.key === group.focus) ?? episode[0]);
   const changeName = $derived(lead ? plainLabel(lead.label, lead.channel) : null);
-  const still = $derived(lead ? ongoing(group, changes, until ?? group.record.to) : false);
+  // 재생 중 판정은 화면 위치보다 한두 측정 늦게 도착한다. 이어지는지는 판정한 위치까지로 본다. 화면 위치로 보면
+  // 판정이 따라잡을 때마다 '지금 값'과 구간 대표값이 번갈아 나와, 오르는 진동의 숫자가 오르내렸다.
+  const still = $derived(lead ? ongoing(group, changes, replaying && analyzed !== null ? analyzed : until ?? group.record.to) : false);
   // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다. 구간 대표값은 이미 지난 수준까지 섞여
   // 계속 커지는 진동을 실제보다 작게 보인다. 조사 화면도 같은 값을 쓴다.
   const now = $derived(lead && still && group.axis === "acquisition" ? series.find(row => row.key === lead.key)?.points.at(-1)?.value ?? null : null);

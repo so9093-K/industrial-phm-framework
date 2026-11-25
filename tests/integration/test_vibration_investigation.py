@@ -16,6 +16,7 @@ from industrial_phm.genai import change_answer
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.runtime import operations_web_phm_explanation as runtime
 from industrial_phm.runtime.operations_web_change_context import (
+    asset_label,
     screen_view,
     selected_change,
 )
@@ -63,7 +64,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert acquisition_findings(workspace, "bearing-a")["intervals"] == changes
     context = selected_change(workspace, "bearing-a", chosen["review_key"])
     screen = screen_view(workspace, context)
-    # 모델은 관제 화면에 보이는 그대로를 받는다: 카드, 지금 값, 그래프.
+    # 모델은 관제 화면에 보이는 그대로를 받는다: 설비 이름, 카드, 지금 값, 그래프.
+    assert screen["설비"] == "bearing-a"
+    assert asset_label(workspace, "Bearing1_1") == "베어링 1-1"
     card = screen["특이사항"]
     assert list(card)[:2] == ["신호", "지금도 이어지는지"]
     assert card["신호"] == chosen["label"]
@@ -165,7 +168,10 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         (
             "spectrum",
             "주파수",
-            {"비교한 방향": "수평 진동", "선택 대역 비중": "800~1,594 Hz · 18% → 63%"},
+            {
+                "수평 진동 전체 에너지(모든 주파수 합)": "B가 A의 27.3배",
+                "800~1,594 Hz가 차지하는 비중": "A 18% → B 63%",
+            },
         ),
         (
             "compare",

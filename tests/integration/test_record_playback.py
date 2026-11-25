@@ -84,6 +84,10 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     assert compared.endswith("운전 중인 측정끼리)") and card[compared] == "220 → 230 V"
     start = datetime.fromisoformat(chosen["start"]).astimezone(ZoneInfo("Asia/Seoul"))
     assert card["언제"].startswith(f"{start.month}월 {start.day}일 {start:%H:%M}부터")
+    # '지금은 괜찮아?'에 답할 사실: 지금까지 이어지는 특이사항이 어느 신호인지와 살펴본 신호 수.
+    assert screen["초기 범위를 벗어나 지금까지 이어지는 신호"] == (
+        f"1개({chosen['label']}), 살펴본 신호 {before['judged']}개 중"
+    )
     # 재생 시점 뒤의 값은 그래프에도 지금 값에도 없다.
     drawn = screen["그래프(시각, 값)"].values()
     assert all(value < 1000 for points in drawn for _, value in points)
@@ -96,9 +100,11 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     comparison = read_load_comparison(workspace, comparison_query, chosen["interpretation_id"])
     assert comparison["status"] == "ready"
     facts = load_comparison_for_answer(comparison)
-    # 대화의 차트처럼 화면의 말로: 견준 전류 범위와 두 중앙값, 그 차이.
-    assert facts["초기 → 특이사항 구간 중앙값"].startswith("220 → 230 V (10 V 높음")
-    assert facts["견준 범위"].startswith("전류 ")
+    # 대화의 차트처럼 화면의 말로: 두 중앙값과 그 차이. 견준 운전 수준은 카드처럼 값의 이름에 단다
+    # (따로 두었더니 모델이 그 전류를 지금 전류와 견주었다).
+    compared_load = next(key for key in facts if key.startswith("초기 → 특이사항 구간 중앙값 (약 "))
+    assert compared_load.endswith(" A 운전 중인 측정끼리)")
+    assert facts[compared_load].startswith("220 → 230 V (10 V 높음")
     model_started = Event()
     finish_answer = Event()
 

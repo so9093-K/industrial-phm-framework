@@ -2,13 +2,15 @@ import {scopeParams, type PlaybackScope} from "./record-playback.ts";
 import type {AnalysisReadout} from "./analysis-readout.svelte.ts";
 import {object,postWrite} from "./writes.ts";
 import {parseProfile,type Periods,type ProfileSeries} from "./comparison.ts";
+import {bandName} from "./record-findings.ts";
 /** AI의 답: 사람에게 말하듯 쓴 몇 문장. */
 export type ChangeAnswer={summary:string};
 /** 대화를 여는 짧은 질문: 사람이 실제로 묻는 말 그대로 보내고 그대로 보인다. */
 export const STARTERS=["문제 있어?","무엇이 함께 달라졌어?"];
 export const LOAD_QUESTION="같은 부하에서도 전압이 달라졌어?";
 export type LoadComparison={status:"unavailable"|"failed"}|{
-  status:"ready"; series:ProfileSeries; periods:Periods; current:{low:number;high:number|null};
+  /** 견준 운전 수준을 기간 비교 화면·관제 카드와 같은 말로('약 11 A 운전'). */
+  status:"ready"; series:ProfileSeries; periods:Periods; condition:string;
   level:number; snapshot:number; until:string|null;
 };
 /** 한 문답: 물은 말, 그래프에서 짚고 물은 곳(pointed), 답, 대화 안에서 실행한 비교, AI가 함께 연 분석 화면(analysis). */
@@ -26,10 +28,10 @@ function loadComparison(raw:unknown,asset:string):LoadComparison|null {
     ||!(row.until===null||typeof row.until==="string"))throw new Error("전압 비교 결과를 읽지 못했습니다.");
   const result=parseProfile(profile,asset,row.channel,{a:{from:a.from,to:a.to},b:{from:b.from,to:b.to}});
   const series=result.series[0], level=result.level;
-  const current=level===null?null:result.operation?.names.levels[level-1];
-  if(!current||level===null||result.series.length!==1||!series.periods.a.quantiles||!series.periods.b.quantiles)
+  const names=result.operation?.names;
+  if(!names||level===null||level<1||level>names.levels.length||result.series.length!==1||!series.periods.a.quantiles||!series.periods.b.quantiles)
     throw new Error("같은 전류 범위의 비교 결과를 읽지 못했습니다.");
-  return {status:"ready",series,periods:result.periods,current,level,snapshot,until:row.until};
+  return {status:"ready",series,periods:result.periods,condition:bandName(names,level),level,snapshot,until:row.until};
 }
 export function newChangeConversation():string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2,"0")).join("");
