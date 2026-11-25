@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from industrial_phm import __version__
-from industrial_phm.commands.analysis import _run_analysis_report
 from industrial_phm.commands.data import (
     _run_data_fetch,
     _run_data_inspect,
@@ -29,7 +28,6 @@ from industrial_phm.commands.experiment import (
     _run_experiment_cross_test,
     _run_experiment_holdout,
     _run_experiment_inspect,
-    _run_experiment_lstm_development,
     _run_experiment_mimii_development,
     _run_experiment_mimii_external_evaluate,
     _run_experiment_mimii_external_score,
@@ -60,34 +58,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subcommands.add_parser("doctor", help="show runtime and data-root information")
     doctor.set_defaults(handler=_run_doctor)
-
-    analysis = subcommands.add_parser(
-        "analysis",
-        help="render and export validated user-facing analysis evidence",
-    )
-    analysis_commands = analysis.add_subparsers(dest="analysis_command", required=True)
-    analysis_report = analysis_commands.add_parser(
-        "report",
-        help="write a deterministic Markdown report from validated analysis artifacts",
-    )
-    analysis_report.add_argument(
-        "--anomaly",
-        type=Path,
-        required=True,
-        help="validated XJTU LSTM anomaly evidence artifact",
-    )
-    analysis_report.add_argument(
-        "--asset",
-        required=True,
-        help="asset identity to render",
-    )
-    analysis_report.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="destination Markdown report path",
-    )
-    analysis_report.set_defaults(handler=_run_analysis_report)
 
     data = subcommands.add_parser("data", help="inspect, validate, and acquire registered datasets")
     data_commands = data.add_subparsers(dest="data_command", required=True)
@@ -253,10 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo_xjtu = demo_commands.add_parser(
         "xjtu",
-        help=(
-            "score one recorded XJTU-SY bearing with the Isolation Forest and LSTM autoencoder "
-            "and open Operations"
-        ),
+        help=("score one recorded XJTU-SY bearing with the Isolation Forest and open Operations"),
     )
     demo_xjtu.add_argument(
         "--source",
@@ -486,30 +453,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     experiment_cross_fold.set_defaults(handler=_run_experiment_cross_fold)
 
-    experiment_lstm_development = experiment_commands.add_parser(
-        "lstm-development",
-        help="run the frozen XJTU LSTM retrospective development evaluation",
-    )
-    experiment_lstm_development.add_argument("dataset_id")
-    experiment_lstm_development.add_argument(
-        "--source",
-        type=Path,
-        required=True,
-        help="prepared local XJTU-SY source consumed by the Domain Adapter",
-    )
-    experiment_lstm_development.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="destination for the generated LSTM development result JSON",
-    )
-    experiment_lstm_development.add_argument(
-        "--code-revision",
-        required=True,
-        help="full Git commit SHA for the exact execution code",
-    )
-    experiment_lstm_development.set_defaults(handler=_run_experiment_lstm_development)
-
     experiment_mimii_development = experiment_commands.add_parser(
         "mimii-development",
         help="run the frozen MIMII DUE sections 00-02 development evaluation",
@@ -627,7 +570,6 @@ def _run_doctor(args: argparse.Namespace) -> int:
         and Path("src/industrial_phm/cli.py").is_file()
     )
     research_ui_installed = importlib.util.find_spec("marimo") is not None
-    deep_learning_installed = importlib.util.find_spec("torch") is not None
 
     print(f"industrial-phm {__version__}")
     print(f"python: {python_version} ({'supported' if python_supported else 'unsupported'})")
@@ -635,7 +577,6 @@ def _run_doctor(args: argparse.Namespace) -> int:
     print(f"data root: {data_root} ({'present' if data_root.exists() else 'not created'})")
     print(f"registered datasets: {len(list_datasets())}")
     print(f"research UI runtime: {'installed' if research_ui_installed else 'not installed'}")
-    print(f"deep-learning runtime: {'installed' if deep_learning_installed else 'not installed'}")
     print("operations host: " + ("Linux" if sys.platform.startswith("linux") else "unsupported"))
     print("next:")
     if checkout_detected:

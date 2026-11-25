@@ -1,6 +1,6 @@
 # ADR-0006: CPU reference deep-learning runtime으로 PyTorch 사용
 
-- Status: Accepted
+- Status: Superseded by [ADR-0033](0033-retire-lstm-autoencoder-and-pytorch-runtime.md) (2026-11-25)
 - Date: 2026-09-18
 
 ## Context

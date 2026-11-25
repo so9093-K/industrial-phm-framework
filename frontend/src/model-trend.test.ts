@@ -5,7 +5,7 @@ import {drawTrend,exceedanceLane,priorityIntervals,beforeInterval,exceedanceStor
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
-  analysis_run_id:"run-"+position,change_seq:position,reason:state==="skipped"?"warm-up":null,
+  analysis_run_id:"run-"+position,change_seq:position,reason:state==="skipped"?"missing channel":null,
   event_start:null,output:state==="analyzed"?{score,threshold:2,exceeds_threshold:(score??0)>2}:{}});
 
 test("stored scores merge by input order; a skipped step has no score",()=>{

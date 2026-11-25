@@ -22,10 +22,6 @@ UNSUPPORTED_CAPABILITIES = (
     "fault-diagnostics",
     "prognostics-rul",
 )
-LSTM_AVAILABLE_CAPABILITIES = (
-    *AVAILABLE_CAPABILITIES,
-    "reconstruction-residual-evidence",
-)
 
 
 def validated_capability_scope(

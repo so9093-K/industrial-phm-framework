@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -147,3 +148,24 @@ def test_a_usual_range_needs_enough_earlier_results_and_skips_missing_values() -
     assert usual[rms]["low"] == pytest.approx(0.5195)
     assert usual[rms]["high"] == pytest.approx(0.8705)
     assert usual_ranges(earlier[:19], [rms]) == {}  # type: ignore[arg-type]
+
+
+def test_a_model_that_cannot_run_is_not_a_related_model(tmp_path: Path) -> None:
+    """A retired or unloadable package keeps its stored results, but the AI does not read them."""
+    workspace = phm_workspace(tmp_path / "ws")
+    for i, scale in enumerate((0.5, 0.6, 3.0), 1):
+        deliver(workspace, tmp_path / "waves", i, scale)
+    analyze(workspace)
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    store.set_binding_health(
+        "anomaly-b", healthy=False, reason="retired estimator", at=datetime.now(UTC)
+    )
+    context = explanation_context(
+        store,
+        workspace.models_path,
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+        "anomaly-a",
+        3,
+    )
+    assert context["related_models"] == []
+    assert store.list_results("anomaly-b")

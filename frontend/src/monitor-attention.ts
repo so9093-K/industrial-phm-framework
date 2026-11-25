@@ -12,7 +12,7 @@ import {object} from "./writes.ts";
 import {measurementLabel} from "./time-axis.ts";
 import {MAX_SPAN_MS, windowParams, zoomWindow} from "./signal-selection.ts";
 
-export type ModelState="processed"|"pending"|"warmup"|"rejected"|"waiting"|"unavailable";
+export type ModelState="processed"|"pending"|"rejected"|"waiting"|"unavailable";
 export type MonitoredModel={
   bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window"|"history-window";recipeId:string|null;
   sourceId:string|null;pointId:string|null;
@@ -26,7 +26,7 @@ export type MonitoredModel={
   reference?:string;
 };
 export type PhmMonitor={assessedAt:string|null;models:MonitoredModel[];truncated:boolean};
-export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending"|"warmup";
+export type NoteKind="threshold"|"crossing"|"departure"|"refusal"|"unavailable"|"receipt"|"pending";
 /** A stored signal whose latest values are still far from the first 30% of its own record. */
 export type Departure={assetId:string;channel:string;label:string|null;unit:string|null;
   context?:RecordContext|null; lastAt?:string|null; kind?:string; distance:number|null;direction:"up"|"down"|null;since:string;
@@ -48,8 +48,8 @@ export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<t
     && departuresComplete;
 }
 
-const STATES:readonly ModelState[]=["processed","pending","warmup","rejected","waiting","unavailable"];
-const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3,warmup:3};
+const STATES:readonly ModelState[]=["processed","pending","rejected","waiting","unavailable"];
+const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3};
 /** Unclassified checks share waiting's count-based sorting tier; no severity is inferred. */
 export function notePriority(note:Note|undefined):number {
   return note ? PRIORITY[note.kind] : PRIORITY.pending;
@@ -175,7 +175,6 @@ export function noteFact(note:Note):string|null{
   switch(note.kind){
     case "refusal":return "모델 · "+note.label;
     case "unavailable":return "모델 · 실행할 수 없음";
-    case "warmup":return "모델 · 입력을 모으는 중";
     case "pending":return "모델 · 새 입력 분석 대기";
     case "receipt":return "수신 · "+note.label;
     case "departure":return "기록 끝 · "+note.label;
@@ -223,8 +222,6 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
     const down=list.filter(model=>model.state==="unavailable");
     if(down.length)add(assetId,{id:"unavailable",kind:"unavailable",label:"모델을 실행할 수 없음",detail:down.length+"개 모델 · 모델 패키지와 분석 서비스 상태를 확인하세요",
       href:at(down[0],null),action:"모델 확인"});
-    const warmups=list.filter(model=>model.state==="warmup");
-    if(warmups.length)add(assetId,{id:"warmup",kind:"warmup",label:"모델 입력을 모으는 중",detail:warmups.length+"개 모델 · "+(warmups[0].reason??"준비할 입력이 더 필요합니다"),href:at(warmups[0],warmups[0].processed),action:"입력 준비 상태 보기"});
     const waiting=list.filter(model=>model.state==="pending");
     if(waiting.length)add(assetId,{id:"pending",kind:"pending",label:"새 입력 분석 대기",detail:waiting.length+"개 모델이 아직 처리하지 않았습니다",
       href:at(waiting[0],null),action:"분석 진행 보기"});

@@ -32,7 +32,7 @@ function referenceOf(summary:Record<string,unknown>|null):string|undefined{
   return referenceLabel(scope.reference_start,scope.reference_end,channels.length);
 }
 const METHOD:Record<string,string>={
-  "lstm-autoencoder-v1":"LSTM 오토인코더","isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
+  "isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
 };
 /** A connected model as people name it: its method, else its recipe, else its package without
  * the content hash. The recipe, package and binding identifiers stay under 기술 상세. */

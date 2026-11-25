@@ -83,10 +83,7 @@ def project_phm_monitor(
         elif pending:
             state, reason = "pending", "latest delivered input has not been processed"
         elif processed and processed.state is StepState.SKIPPED:
-            state = (
-                "warmup" if (processed.reason or "").startswith("sequence warm-up") else "rejected"
-            )
-            reason = processed.reason
+            state, reason = "rejected", processed.reason
         elif analyzed:
             state, reason = "processed", None
         else:

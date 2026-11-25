@@ -16,7 +16,7 @@ make container-down
 ```
 
 Open <http://127.0.0.1:2718/web/>. The first build downloads the pinned Python/Node tools and locked
-Operations dependencies, including CPU PyTorch. Later unchanged builds use Docker's cache. Startup
+Operations dependencies. Later unchanged builds use Docker's cache. Startup
 waits for the packaged Web to respond; it does not install dependencies into the running container.
 `make container-up` also builds changed sources before starting the node. No host uv, Python or Node is
 required. The build context excludes host environments, data, artifacts and `.env` files.

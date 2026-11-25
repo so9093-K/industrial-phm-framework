@@ -67,12 +67,12 @@ test("window evidence requires exactly matching source, point and digest",()=>{
 });
 test("skipped steps remain explicit and cannot be interpreted as scored runs",()=>{
   const model=parseModelBindings(bindings(),"bearing-a")[0];
-  const skipped={...step(),state:"skipped",reason:"sequence warm-up",
+  const skipped={...step(),state:"skipped",reason:"missing channel",
     features:null,output:{}};
   const pointer=parseModelTrace({...pointers(),steps:[skipped]},model).steps[0];
   const result=parseModelRun({schema_version:1,binding_id:"bind-a",step:skipped},model,pointer);
   assert.equal(result.state,"skipped");
-  assert.equal(result.reason,"sequence warm-up");
+  assert.equal(result.reason,"missing channel");
   assert.deepEqual(result.output,{});
   assert.throws(()=>parseModelRun({schema_version:1,binding_id:"bind-a",step:{
     ...skipped,features:{"feature.rms":0.7}

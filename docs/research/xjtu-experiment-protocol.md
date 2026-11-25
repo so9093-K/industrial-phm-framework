@@ -628,7 +628,7 @@ Split manifest validation은 다음을 fail-fast로 확인합니다.
 - condition마다 `train 3 / validation 1 / test 1`
 - 각 bearing의 전체 protocol 등장 횟수 `train 3 / validation 1 / test 1`
 
-이 규칙은 모델 종류와 무관합니다. Isolation Forest, LSTM Autoencoder 및 이후 모델은 같은 reference split을
+이 규칙은 모델 종류와 무관합니다. Isolation Forest 및 이후 모델은 같은 reference split을
 사용해야 비교가 의미를 가집니다.
 
 Development fold 선택은 split manifest의 bearing assignment를 변경하지 않습니다. 현재 baseline에서는 이 문서가

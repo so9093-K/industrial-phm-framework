@@ -544,18 +544,16 @@ def _import_xjtu(
     from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
     from industrial_phm.demo.xjtu_models import (
         IFOREST_RECIPE,
-        LSTM_RECIPE,
         XJTU_DEMO_SOURCE_ID,
         XjtuModelDemoConfig,
         existing_packages,
-        fit_xjtu_packages,
+        fit_xjtu_package,
     )
     from industrial_phm.demo.xjtu_snapshot_replay import replay_xjtu_bearing
     from industrial_phm.runtime.operations_web_phm_models import create_phm_binding
 
-    packages = existing_packages(workspace.models_path)
-    missing = [recipe for recipe in (IFOREST_RECIPE, LSTM_RECIPE) if recipe not in packages]
-    if missing:
+    package = existing_packages(workspace.models_path).get(IFOREST_RECIPE)
+    if package is None:
         step("models")
         revision = _code_revision()
         evidence = Path(os.environ.get("INDUSTRIAL_PHM_EVIDENCE_DIR", "docs/research/results"))
@@ -569,18 +567,17 @@ def _import_xjtu(
             code_revision=revision,
         )
         try:
-            packages.update(fit_xjtu_packages(preset, workspace, missing, revision, lambda _: None))
+            package = fit_xjtu_package(preset, workspace, revision, lambda _: None)
         except ValueError as error:
             raise DatasetImportError("source-incomplete") from error
     source_id = item.source_id or XJTU_DEMO_SOURCE_ID
-    for recipe in (IFOREST_RECIPE, LSTM_RECIPE):
-        create_phm_binding(
-            workspace,
-            package_id=packages[recipe],
-            source_id=source_id,
-            asset_id=item.asset_id,
-            recorded_replay=True,
-        )
+    create_phm_binding(
+        workspace,
+        package_id=package,
+        source_id=source_id,
+        asset_id=item.asset_id,
+        recorded_replay=True,
+    )
     step("replay")
     delivered = 0
 

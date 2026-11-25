@@ -28,7 +28,6 @@ Canonical evidence를 사람이 빠르게 검토하기 위한 representation입�
 예:
 
 - `industrial-phm experiment inspect`
-- `industrial-phm analysis report`
 - PR description의 bounded metric table
 - deterministic Markdown/text summary
 
@@ -131,8 +130,9 @@ Raw/manual dataset은 이 repository에 재배포하지 않습니다. Evidence a
 
 ## 9. Current application of this policy
 
-현재 대형 canonical evidence 예시는 XJTU LSTM development result와 MIMII external score result입니다.
-이들은 prediction/score-level identity를 보존하기 때문에 canonical payload를
+현재 대형 canonical evidence 예시는 MIMII external score result입니다.
+이 결과는 prediction/score-level identity를 보존하기 때문에 canonical payload를
 유지하되, 일상 리뷰는 inspection/report와 PR summary를 사용합니다.
 
 RUL 모델 연구와 해당 결과는 [ADR-0026](../adr/0026-retire-remaining-life-estimation.md)에 따라 폐기했습니다.
+XJTU LSTM 오토인코더 연구와 결과는 [ADR-0033](../adr/0033-retire-lstm-autoencoder-and-pytorch-runtime.md)에 따라 폐기했습니다.

@@ -682,8 +682,6 @@ def model_label(package_id: str) -> str:
     """The algorithm name the screen shows for an anomaly model."""
     lowered = package_id.lower()
     for marker, name in (
-        ("lstm", "LSTM"),
-        ("autoencoder", "LSTM"),
         ("pca", "PCA"),
         ("iforest", "Isolation Forest"),
     ):

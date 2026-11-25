@@ -1,11 +1,11 @@
-"""Two anomaly models scoring one recorded XJTU-SY bearing they were not trained on.
+"""An Isolation Forest scoring one recorded XJTU-SY bearing it was not trained on.
 
 ``industrial-phm demo xjtu`` prepares a dedicated workspace: it fits the fold-1 Isolation Forest
-and LSTM autoencoder on the train bearings (or reuses the packages already there), connects both
-to the replay stream and delivers the chosen held-out bearing's acquisitions (all of them, or the
-first ``until`` so the bearing is mid-run and its outlook still looks ahead). Operations then
-scores them, and the anomaly screen opens with both models, the raw waveforms, AI questions and
-review on recorded data; the condition outlook forecasts the same features toward the user's limits.
+on the train bearings (or reuses the package already there), connects it to the replay stream and
+delivers the chosen held-out bearing's acquisitions (all of them, or the first ``until`` so the
+bearing is mid-run and its outlook still looks ahead). Operations then scores them, and the
+anomaly screen opens with the model, the raw waveforms, AI questions and review on recorded data;
+the condition outlook forecasts the same features toward the user's limits.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ from industrial_phm.runtime.operations_config import write_operations_runtime_co
 XJTU_DEMO_SOURCE_ID = "xjtu-sy-replay"
 XJTU_DEMO_DEFAULT_SOURCE = Path("data/interim/xjtu-sy/XJTU-SY_Bearing_Datasets")
 IFOREST_RECIPE = "xjtu-sy-iforest-fold-1-finalized-v1"
-LSTM_RECIPE = "xjtu-lstm-autoencoder-fold-1-development-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +46,7 @@ class XjtuModelDemoConfig:
 class XjtuModelDemoPreparation:
     workspace: OperationsWorkspace
     config: OperationsRuntimeConfig
-    packages: tuple[str, ...]
+    package: str
     replay: XjtuReplayProgress
 
 
@@ -80,7 +79,7 @@ def prepare_xjtu_model_demo(
     code_revision: Callable[[], str | None] = lambda: None,
     report: Callable[[str], None] = print,
 ) -> XjtuModelDemoPreparation:
-    """Create or reopen the demo workspace with both models connected and the bearing delivered."""
+    """Create or reopen the demo workspace with the model connected and the bearing delivered."""
     from industrial_phm.runtime.operations_web_phm_models import create_phm_binding
 
     if preset.until is not None and preset.until < 20:
@@ -101,18 +100,16 @@ def prepare_xjtu_model_demo(
     config = replace(initialization.config, ui=OperationsUiConfig(port=preset.ui_port))
     write_operations_runtime_config(workspace.config_path, config)
 
-    packages = existing_packages(workspace.models_path)
-    missing = [recipe for recipe in (IFOREST_RECIPE, LSTM_RECIPE) if recipe not in packages]
-    if missing:
-        packages.update(fit_xjtu_packages(preset, workspace, missing, code_revision(), report))
-    for recipe in (IFOREST_RECIPE, LSTM_RECIPE):
-        create_phm_binding(
-            workspace,
-            package_id=packages[recipe],
-            source_id=XJTU_DEMO_SOURCE_ID,
-            asset_id=preset.bearing,
-            recorded_replay=True,
-        )
+    package = existing_packages(workspace.models_path).get(IFOREST_RECIPE) or fit_xjtu_package(
+        preset, workspace, code_revision(), report
+    )
+    create_phm_binding(
+        workspace,
+        package_id=package,
+        source_id=XJTU_DEMO_SOURCE_ID,
+        asset_id=preset.bearing,
+        recorded_replay=True,
+    )
     replay = replay_xjtu_bearing(
         SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
         preset.source,
@@ -121,25 +118,18 @@ def prepare_xjtu_model_demo(
         interval_seconds=0.0,
         count=preset.until,
     )
-    return XjtuModelDemoPreparation(
-        workspace, config, (packages[IFOREST_RECIPE], packages[LSTM_RECIPE]), replay
-    )
+    return XjtuModelDemoPreparation(workspace, config, package, replay)
 
 
-def fit_xjtu_packages(
+def fit_xjtu_package(
     preset: XjtuModelDemoConfig,
     workspace: OperationsWorkspace,
-    recipes: list[str],
     checkout_revision: str | None,
     report: Callable[[str], None],
-) -> dict[str, str]:
-    """Fit the packaged models of ``recipes`` on the fold-1 train bearings.
-
-    Returns the new package ID of each recipe.
-    """
+) -> str:
+    """Fit the fold-1 Isolation Forest on the train bearings and return its package ID."""
     from industrial_phm.adapters import XjtuSyAdapter, validate_xjtu_source
     from industrial_phm.experiments.xjtu import get_xjtu_reference_split
-    from industrial_phm.experiments.xjtu_lstm_operational_package import build_xjtu_lstm_packages
     from industrial_phm.experiments.xjtu_operational_package import build_xjtu_fold_1_packages
     from industrial_phm.features import iter_vibration_features
 
@@ -149,20 +139,16 @@ def fit_xjtu_packages(
     if not validate_xjtu_source(preset.source).profile_matches:
         raise ValueError("XJTU-SY source does not match the complete profile")
     fold = next(f for f in get_xjtu_reference_split().folds if f.fold_id == "fold-1")
-    report(f"fitting {', '.join(recipes)} on {len(fold.train)} train bearing runs (a few minutes)")
+    report(f"fitting {IFOREST_RECIPE} on {len(fold.train)} train bearing runs")
     train = tuple(
         iter_vibration_features(XjtuSyAdapter().iter_asset_series(preset.source, fold.train))
     )
-    builders = {IFOREST_RECIPE: build_xjtu_fold_1_packages, LSTM_RECIPE: build_xjtu_lstm_packages}
-    fitted: dict[str, str] = {}
-    for recipe in recipes:
-        manifest = builders[recipe](
-            train,
-            workspace.models_path,
-            created_at=datetime.now(UTC),
-            code_revision=revision,
-            evidence_root=preset.evidence_root,
-        )
-        report(f"package={manifest.package_id}")
-        fitted[recipe] = manifest.package_id
-    return fitted
+    manifest = build_xjtu_fold_1_packages(
+        train,
+        workspace.models_path,
+        created_at=datetime.now(UTC),
+        code_revision=revision,
+        evidence_root=preset.evidence_root,
+    )
+    report(f"package={manifest.package_id}")
+    return manifest.package_id

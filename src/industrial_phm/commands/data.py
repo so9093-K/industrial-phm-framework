@@ -358,8 +358,7 @@ def _run_xjtu_data_validate(args: argparse.Namespace, title: str) -> int:
 
     print("profile compatibility: PASS")
     print(
-        "next: uv run --locked --group research --extra deep-learning "
-        "marimo run notebooks/03_analysis_explorer.py"
+        "next: uv run --locked --group research marimo edit notebooks/01_xjtu_feature_analysis.py"
     )
     return 0
 

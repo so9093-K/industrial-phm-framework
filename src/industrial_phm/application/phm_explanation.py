@@ -233,13 +233,27 @@ def explanation_context(
             [row["feature"] for row in features[:8]],
         )
     related = []
+    # 실행할 수 없는 모델(불러올 수 없는 패키지)의 저장 결과는 AI 문맥에 넣지 않는다(ADR-0026·0033).
+    runnable = {
+        item["binding_id"] for item in summaries["bindings"] if item.get("health") != "unavailable"
+    }
     for other in store.list_bindings()[:100]:
-        if other.binding_id == binding_id or (
-            other.asset_id,
-            other.source_id,
-            other.measurement_point_id,
-            other.step_kind,
-        ) != (binding.asset_id, binding.source_id, binding.measurement_point_id, binding.step_kind):
+        if (
+            other.binding_id == binding_id
+            or other.binding_id not in runnable
+            or (
+                other.asset_id,
+                other.source_id,
+                other.measurement_point_id,
+                other.step_kind,
+            )
+            != (
+                binding.asset_id,
+                binding.source_id,
+                binding.measurement_point_id,
+                binding.step_kind,
+            )
+        ):
             continue
         matched = store.get_result(other.binding_id, position)
         if (
@@ -314,7 +328,6 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             "exceeds_threshold",
             "change_from_previous",
             "feature_contributions",
-            "sequence_positions",
         )
         if key in original
     }

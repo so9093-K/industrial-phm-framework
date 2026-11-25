@@ -1,6 +1,9 @@
 # 0025. Run versioned PHM model packages over ordered per-asset analysis steps
 
-Status: Accepted
+Status: Accepted · Amended by [ADR-0033](0033-retire-lstm-autoencoder-and-pytorch-runtime.md)
+
+> ADR-0033: LSTM 오토인코더와 PyTorch 실행 환경을 폐기하면서 패키지 입력의 시퀀스 길이와 torch 가중치 읽기
+> 규칙을 없앴습니다. 패키지는 단계마다 특징 한 줄을 입력으로 받습니다.
 
 ## Context
 

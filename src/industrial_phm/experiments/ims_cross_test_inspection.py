@@ -47,19 +47,6 @@ _UNSUPPORTED_CAPABILITIES = (
 )
 
 
-def _acquisition_level_sequence_stage() -> InspectionStage:
-    return InspectionStage(
-        "Sequence Construction",
-        "not applicable",
-        (
-            InspectionFact(
-                "Reason",
-                "model consumes acquisition-level feature observations",
-            ),
-        ),
-    )
-
-
 def _validated_capability_scope(
     root: Mapping[str, object],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -248,7 +235,6 @@ def inspect_ims_cross_test(root: Mapping[str, object], path: Path) -> Experiment
                     InspectionFact("Eligible observations", reference_count),
                 ),
             ),
-            _acquisition_level_sequence_stage(),
             InspectionStage(
                 "Population",
                 "completed",

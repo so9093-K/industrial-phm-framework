@@ -20,7 +20,6 @@ RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin phm \
  && chown phm:phm /var/lib/industrial-phm
 COPY --from=build /opt/industrial-phm/.venv /opt/industrial-phm/.venv
 COPY docs/research/results/xjtu-sy-iforest-fold-1-holdout-v1.json \
-     docs/research/results/xjtu-sy-lstm-autoencoder-fold-1-development-v1.json \
      /opt/industrial-phm/evidence/
 # The checkout commit recorded in models the Web fits; empty when the tree had local changes.
 ARG CODE_REVISION=""
