@@ -15,6 +15,7 @@ import math
 import os
 import shutil
 import tempfile
+from bisect import bisect_right
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -35,6 +36,18 @@ _JsonValue = str | int | float | bool | None | list[Any] | dict[str, Any]
 
 class ModelPackageError(ValueError):
     """Raised when a model package is malformed, tampered with or not reproducible."""
+
+
+class OutsideLearnedLevel(ModelPackageError):
+    """A row ran at an operating level the model's reference period held too little of.
+
+    The model judges each level against that level's own reference; a level it did not learn
+    is not judged at all, rather than compared with patterns of another load.
+    """
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"operating level not learned: {name}")
+        self.level = name
 
 
 class ModelTask(StrEnum):
@@ -62,6 +75,9 @@ class EstimatorKind(StrEnum):
     ISOLATION_FOREST_REFIT = "isolation-forest-refit-v1"
     LINEAR = "linear-v1"
     PCA_RESIDUAL = "pca-residual-v1"
+    # One Isolation Forest per operating level of the source's current, each with its own
+    # scaling and threshold; scores are said relative to that level's threshold.
+    ISOLATION_FOREST_BY_LEVEL = "isolation-forest-by-level-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,6 +246,8 @@ class PackageBuild:
     created_at: str
     code_revision: str
     probe_tolerance: float = 0.0
+    # The operating level of each fit row, for estimators that learn each level apart.
+    fit_levels: Sequence[int] | None = None
 
 
 class LoadedModelPackage:
@@ -296,8 +314,22 @@ def write_model_package(models_root: Path, build: PackageBuild) -> ModelPackageM
         buffer = io.BytesIO()
         np.savez(buffer, rows=np.asarray(build.fit_rows, dtype=np.float64))
         payload[_FIT_ROWS_NAME] = buffer.getvalue()
+    elif build.estimator_kind is EstimatorKind.ISOLATION_FOREST_BY_LEVEL:
+        if not build.fit_rows or build.fit_levels is None:
+            raise ModelPackageError("level packages must store their fit rows and levels")
+        if len(build.fit_levels) != len(build.fit_rows):
+            raise ModelPackageError("every fit row needs its operating level")
+        buffer = io.BytesIO()
+        np.savez(
+            buffer,
+            rows=np.asarray(build.fit_rows, dtype=np.float64),
+            levels=np.asarray(build.fit_levels, dtype=np.int64),
+        )
+        payload[_FIT_ROWS_NAME] = buffer.getvalue()
     elif build.fit_rows is not None:
         raise ModelPackageError("only refit estimators store fit rows")
+    elif build.fit_levels is not None:
+        raise ModelPackageError("only level estimators store fit levels")
     if not build.probe_rows:
         raise ModelPackageError("a package needs probe rows")
 
@@ -401,14 +433,17 @@ def load_model_package(path: Path) -> LoadedModelPackage:
 
 
 def fit_row_ranges(
-    path: Path, quantiles: tuple[float, float] = (0.05, 0.95)
+    path: Path,
+    quantiles: tuple[float, float] = (0.05, 0.95),
+    features: Mapping[str, float] | None = None,
 ) -> dict[str, tuple[float, float]]:
     """Each input feature's range over the rows the model was fitted on, when it kept them.
 
     The rows are kept after the package's preprocessing, so they are read back into the
     features' own units first. Only the manifest, the state and the fit rows are read, each
     checked against its recorded digest; the model itself is not restored. A package without
-    fit rows has no learned ranges.
+    fit rows has no learned ranges. A model that learned each operating level apart gives the
+    ranges of the level ``features`` ran at, and none for a level it did not learn.
     """
     try:
         manifest = _manifest_from_json(
@@ -425,6 +460,13 @@ def fit_row_ranges(
         scale = np.asarray(state["preprocessing"]["scale"], dtype=float)
         with np.load(io.BytesIO(data[_FIT_ROWS_NAME]), allow_pickle=False) as arrays:
             rows = np.asarray(arrays["rows"], dtype=float)
+            levels = np.asarray(arrays["levels"]) if "levels" in arrays else None
+        if levels is not None:
+            estimator = state["estimator"]
+            value = None if features is None else features.get(estimator["level_feature"])
+            if value is None:
+                return {}
+            rows = rows[levels == bisect_right(estimator["level_edges"], value)]
     except OSError, ValueError, KeyError, TypeError, ModelPackageError:
         return {}
     names = manifest.input.feature_names
@@ -473,6 +515,8 @@ def _restore(
 
         # Squared prediction error (SPE) and its exact per-feature decomposition.
         return (lambda rows: residual_squares(rows).sum(axis=1)), residual_squares
+    if kind is EstimatorKind.ISOLATION_FOREST_BY_LEVEL:
+        return _restore_by_level(state, payload), None
     if kind is EstimatorKind.ISOLATION_FOREST_REFIT:
         from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 
@@ -491,6 +535,63 @@ def _restore(
         # Higher score means more anomalous, matching FittedIsolationForest.score.
         return (lambda x: -cast(np.ndarray, estimator.score_samples(x))), None
     raise ModelPackageError(f"unsupported estimator kind: {kind!r}")  # pragma: no cover
+
+
+def _restore_by_level(state: Mapping[str, Any], payload: Mapping[str, bytes]) -> _Evaluate:
+    """One Isolation Forest per learned level, each refitted from that level's kept rows.
+
+    A row's level is read from its current feature with the edges frozen at build time. Its
+    score is the level forest's score over that level's threshold, so 1 is the threshold at
+    every level; a row at a level the model did not learn raises :class:`OutsideLearnedLevel`.
+    """
+    from sklearn.ensemble import IsolationForest
+
+    with np.load(io.BytesIO(payload[_FIT_ROWS_NAME]), allow_pickle=False) as arrays:
+        rows = np.asarray(arrays["rows"], dtype=np.float64)
+        bands = np.asarray(arrays["levels"], dtype=np.int64)
+    index = int(state["level_index"])
+    edges = [float(edge) for edge in state["level_edges"]]
+    names = [str(name) for name in state["level_names"]]
+    if len(names) != len(edges) + 1:
+        raise ModelPackageError("every operating band needs a name")
+    forests: dict[int, tuple[Any, np.ndarray, np.ndarray, float]] = {}
+    for key, level in state["levels"].items():
+        band = int(key)
+        members = rows[bands == band]
+        if not len(members):
+            raise ModelPackageError(f"no fit rows for learned operating level {band}")
+        center = np.asarray(level["center"], dtype=np.float64)
+        scale = np.asarray(level["scale"], dtype=np.float64)
+        threshold = float(level["threshold"])
+        if center.shape != scale.shape or np.any(scale <= 0) or not threshold > 0:
+            raise ModelPackageError("level scaling and threshold must be positive")
+        estimator = IsolationForest(
+            n_estimators=int(state["n_estimators"]),
+            max_samples=int(level["max_samples"]),
+            contamination=state["contamination"],
+            max_features=state["max_features"],
+            bootstrap=bool(state["bootstrap"]),
+            n_jobs=1,
+            random_state=int(state["random_seed"]),
+        )
+        estimator.fit((members - center) / scale)
+        forests[band] = (estimator, center, scale, threshold)
+
+    def evaluate(x: np.ndarray) -> np.ndarray:
+        levels = [bisect_right(edges, float(row[index])) for row in x]
+        for band in levels:
+            if band not in forests:
+                raise OutsideLearnedLevel(names[band])
+        out = np.empty(len(x), dtype=np.float64)
+        for band in set(levels):
+            estimator, center, scale, threshold = forests[band]
+            chosen = np.asarray([level == band for level in levels])
+            # Higher is more anomalous, as for the refit forest; 1 is this level's threshold.
+            raw = -cast(np.ndarray, estimator.score_samples((x[chosen] - center) / scale))
+            out[chosen] = raw / threshold
+        return out
+
+    return evaluate
 
 
 def _manifest_from_json(body: Mapping[str, Any]) -> ModelPackageManifest:

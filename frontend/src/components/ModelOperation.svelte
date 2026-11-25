@@ -3,14 +3,16 @@
   import {bandName, bandRange, percent} from "../record-findings";
   import {readModelOperation, unlearnedText, type ModelOperation} from "../model-operation";
   /** Excesses of a time-window model per operating level, beside its reference period's mix. */
-  let {bindingId}: {bindingId: string} = $props();
+  /** byLevel: the model learned and judges each level apart (ADR-0034), so no excess comes from
+   * a level its reference lacked; the per-level counts below still read as they are. */
+  let {bindingId, levels = null}: {bindingId: string; levels?: string | null} = $props();
   let operation: ModelOperation | null = $state(null);
   onMount(() => {
     const request = new AbortController();
     void readModelOperation(bindingId, request.signal).then(value => { operation = value; }).catch(() => { operation = null; });
     return () => request.abort();
   });
-  const told = $derived(operation ? unlearnedText(operation) : null);
+  const told = $derived(levels ? "운전 수준별로 학습한 모델 · " + levels : operation ? unlearnedText(operation) : null);
 </script>
 
 {#if operation && operation.windows.length}

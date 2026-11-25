@@ -12,7 +12,8 @@ import {object} from "./writes.ts";
 import {measurementLabel} from "./time-axis.ts";
 import {MAX_SPAN_MS, windowParams, zoomWindow} from "./signal-selection.ts";
 
-export type ModelState="processed"|"pending"|"rejected"|"waiting"|"unavailable";
+/** unjudged: the latest window ran at an operating level the model did not learn (ADR-0034). */
+export type ModelState="processed"|"pending"|"rejected"|"waiting"|"unavailable"|"unjudged";
 export type MonitoredModel={
   bindingId:string;assetId:string;stepKind:"acquisition-snapshot"|"observation-window"|"history-window";recipeId:string|null;
   sourceId:string|null;pointId:string|null;
@@ -48,7 +49,7 @@ export function attentionComplete(phm: PhmMonitor, sources: Awaited<ReturnType<t
     && departuresComplete;
 }
 
-const STATES:readonly ModelState[]=["processed","pending","rejected","waiting","unavailable"];
+const STATES:readonly ModelState[]=["processed","pending","rejected","waiting","unavailable","unjudged"];
 const PRIORITY:Record<NoteKind,number>={threshold:0,departure:0,refusal:1,unavailable:1,crossing:2,receipt:2,pending:3};
 /** Unclassified checks share waiting's count-based sorting tier; no severity is inferred. */
 export function notePriority(note:Note|undefined):number {

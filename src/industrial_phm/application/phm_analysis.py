@@ -23,6 +23,7 @@ from typing import Any
 from industrial_phm.models.package import (
     LoadedModelPackage,
     ModelPackageError,
+    OutsideLearnedLevel,
     StepKind,
 )
 
@@ -713,6 +714,9 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
         inputs = step.features
         try:
             (value,) = package.evaluate([inputs])
+        except OutsideLearnedLevel as error:
+            # 기준 기간에 적었던 운전 수준: 고장이 아니라 판정하지 않은 구간이다.
+            return StepEvaluation(StepState.SKIPPED, {}, next_state, str(error))
         except ModelPackageError as error:
             return StepEvaluation(
                 StepState.SKIPPED, {}, next_state, f"package evaluation failed: {error}"

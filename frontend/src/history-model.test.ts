@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {parseHistoryStreams} from "./history.ts";
-import {buildPayload, parseBuildResult, referencePeriod} from "./history-model.ts";
-import {modelNames, parseModelBindings, parseModelRun, parseModelTrace} from "./model-evidence.ts";
+import {buildPayload, learnedLevels, levelsText, parseBuildResult, referencePeriod} from "./history-model.ts";
+import {modelNames, parseModelBindings, parseModelRun, parseModelTrace, skipReasonText} from "./model-evidence.ts";
 
 const facts = {schema_version: 1, asset_id: "pump-01", acquisition: null,
   history: {channels: ["vibration", "temperature", "current"],
@@ -47,10 +47,10 @@ test("the reference period is the first share of the stream's record or what was
 test("a build answers with the binding, or with the reason the period was too thin", () => {
   assert.deepEqual(parseBuildResult({schema_version: 1, built: true, binding_id: "phm-pump",
     reference_windows: 144, skipped_windows: 0, package_id: "p", threshold: 0.6}),
-  {built: true, bindingId: "phm-pump", referenceWindows: 144, skippedWindows: 0, reused: false});
+  {built: true, bindingId: "phm-pump", referenceWindows: 144, skippedWindows: 0, reused: false, levels: null});
   assert.deepEqual(parseBuildResult({schema_version: 1, built: true, binding_id: "phm-pump", reused: true,
     reference_windows: 144, skipped_windows: 0}), {built: true, bindingId: "phm-pump", referenceWindows: 144,
-    skippedWindows: 0, reused: true});
+    skippedWindows: 0, reused: true, levels: null});
   assert.equal(parseBuildResult({schema_version: 1, built: false, reason: "최소 24개",
     reference_windows: 12, skipped_windows: 0}).built, false);
   assert.throws(() => parseBuildResult({schema_version: 1, built: true, reference_windows: 1, skipped_windows: 0}));
@@ -87,4 +87,24 @@ test("two models built from one asset's record are told apart by the period they
     bindings: [row("one", "2026-10-15T00:00:00+00:00"), row("two", "2026-10-15T12:00:00+00:00")]}, "pump-01");
   const names = [...modelNames(list).values()];
   assert.equal(new Set(names).size, 2);
+});
+
+test("a model built by operating level says which levels it judges and which the reference barely held", () => {
+  const levels = {channel: "current", added: true, edges: [1, 20, 45], typical: [10.6, 31.4, 61.9],
+    reference_windows: {"1": 18, "2": 40, "3": 126}, learned: ["2", "3"]};
+  const learned = learnedLevels(levels)!;
+  assert.deepEqual(learned, {judged: ["약 31 A 운전", "약 62 A 운전"], unjudged: [{name: "약 11 A 운전", windows: 18}]});
+  assert.equal(levelsText(learned), "약 31 A 운전·약 62 A 운전을 각각 판정 · 약 11 A 운전은 기준 기간에 18개뿐이라 판정하지 않음");
+  // A reference period that ran at one load only: the other levels were not in it at all.
+  assert.equal(levelsText(learnedLevels({...levels, reference_windows: {"1": 0, "2": 0, "3": 647}, learned: ["3"]})!),
+    "약 62 A 운전을 판정 · 약 11 A 운전·약 31 A 운전은 기준 기간에 없어 판정하지 않음");
+  const built = parseBuildResult({schema_version: 1, built: true, binding_id: "b", reference_windows: 184,
+    skipped_windows: 0, reused: false, levels});
+  assert.ok(built.built && built.levels?.judged.length === 2);
+  // A model of a stream without a current learned its whole period as one.
+  assert.equal(learnedLevels(undefined), null);
+  // A window at a level it did not learn reads as not judged, named like every level on screen.
+  assert.equal(skipReasonText("operating level not learned: 11 A"), "기준 기간에 적었던 운전 수준(약 11 A 운전)이라 판정하지 않았습니다.");
+  assert.equal(skipReasonText("operating level not learned: stopped"), "기준 기간에 적었던 운전 수준(정지)이라 판정하지 않았습니다.");
+  assert.equal(skipReasonText("feature schema differs"), "feature schema differs");
 });

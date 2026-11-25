@@ -1,6 +1,6 @@
 /** A model's stored scores over its whole input order, its threshold-exceedance intervals and
  * the raw input of one measurement. Nothing is rescored; a skipped step stays a gap. */
-import type {ModelBinding,StepPointer} from "./model-evidence.ts";
+import {isUnjudged,type ModelBinding,type StepPointer} from "./model-evidence.ts";
 import {object} from "./writes.ts";
 import {sinceStart} from "./time-axis.ts";
 
@@ -277,13 +277,15 @@ export async function readInput(binding:ModelBinding,position:number,signal:Abor
 }
 
 /** Plain counts that say what the trend shows before anyone reads the graph. */
-export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;exceeded:number;open:number}{
-  let analyzed=0,skipped=0,exceeded=0;
+export function trendSummary(trend:ScoreTrend):{analyzed:number;skipped:number;unjudged:number;exceeded:number;open:number}{
+  let analyzed=0,skipped=0,unjudged=0,exceeded=0;
   for(const point of trend.points){
-    if(point.pointer.state==="skipped")skipped++;
+    // 학습하지 않은 운전 수준의 구간은 입력 문제로 뺀 것이 아니라 판정하지 않은 것이다(ADR-0034).
+    if(point.pointer.state==="skipped"&&isUnjudged(point.pointer.reason))unjudged++;
+    else if(point.pointer.state==="skipped")skipped++;
     else{analyzed++;if(point.exceeds)exceeded++;}
   }
-  return {analyzed,skipped,exceeded,open:trend.intervals.filter(item=>item.open).length};
+  return {analyzed,skipped,unjudged,exceeded,open:trend.intervals.filter(item=>item.open).length};
 }
 
 export type RatioLine={points:{position:number;ratio:number;score:number}[];exceeded:number;analyzed:number;

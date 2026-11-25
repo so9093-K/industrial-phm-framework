@@ -104,7 +104,9 @@ def attach_learned_ranges(models_root: Path, package_id: str, rows: list[dict[st
     which reads differently from a value the asset itself rarely shows. It does not mean the model
     never saw such a value: the tails and feature combinations are not judged here.
     """
-    learned = fit_row_ranges(models_root / package_id, USUAL_QUANTILES)
+    # 운전 수준별로 학습한 모델은 이 결과가 돈 수준의 범위를 준다.
+    current = {row["feature"]: row["current"] for row in rows if row.get("current") is not None}
+    learned = fit_row_ranges(models_root / package_id, USUAL_QUANTILES, current)
     for row in rows:
         edges = learned.get(row["feature"])
         row["learned"] = None if edges is None else {"low": edges[0], "high": edges[1]}

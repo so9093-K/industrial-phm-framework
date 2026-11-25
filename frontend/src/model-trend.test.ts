@@ -17,7 +17,12 @@ test("stored scores merge by input order; a skipped step has no score",()=>{
   assert.equal(known.get(1)!.score,null);
   assert.equal(known.get(3)!.exceeds,true);
   assert.deepEqual(trendSummary({points:[...known.values()],intervals:page.intervals,truncated:false}),
-    {analyzed:2,skipped:1,exceeded:1,open:1});
+    {analyzed:2,skipped:1,unjudged:0,exceeded:1,open:1});
+  // A window at an operating level the model did not learn is counted as not judged, not as excluded.
+  const unjudged=[...known.values()].map(point=>point.pointer.state==="skipped"
+    ?{...point,pointer:{...point.pointer,reason:"operating level not learned: 11 A"}}:point);
+  assert.deepEqual(trendSummary({points:unjudged,intervals:page.intervals,truncated:false}),
+    {analyzed:2,skipped:0,unjudged:1,exceeded:1,open:1});
   assert.throws(()=>mergeSeries({schema_version:1,binding:{binding_id:"other"},steps:[],intervals:[]},binding,known),/형식/);
 });
 

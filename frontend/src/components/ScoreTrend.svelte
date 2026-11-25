@@ -136,7 +136,7 @@
       <p class="result-statement">분석한 {summary.analyzed}회 모두 모델 기준 이하였습니다.</p>
     {/if}
     {#if trend.truncated}<StatusNotice kind="uncertain" message="점수 기록을 일부만 읽었습니다. 전체 기록의 마지막 상태는 이 그래프로 판단할 수 없습니다."/>{/if}
-    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} />{/if}
+    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} levels={binding.levels ?? null} />{/if}
     <div class="chart" bind:clientWidth={chartWidth}>
     {#if focus}<div class="chart-head"><strong>선택 구간의 점수 추이</strong>
       <button type="button" class="ui-button" onclick={()=>{focus=null;hovered=null;}}>전체 기록 보기</button></div>{/if}
@@ -193,7 +193,7 @@
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
-    <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
+    <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.unjudged ? " · 판정하지 않은 운전 수준 " + summary.unjudged.toLocaleString("ko-KR") + "회" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
     {#if trend.intervals.length}
       <details><summary>기준 초과 구간 조사 · {trend.intervals.length}개</summary>
       {#if told?.earlier}<p class="context">{told.earlier}{#if story?.first && story.first !== first}

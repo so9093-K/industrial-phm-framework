@@ -247,3 +247,92 @@ def test_progress_follows_the_bound_streams_own_observations_across_a_long_gap(
         store, history, binding_id=str(built["binding_id"]), position=results[-1].position
     )
     assert preview["available"] is True
+
+
+def _compressor(minutes: int) -> tuple[FileBackfillEvent, ...]:
+    """One-minute current and voltage: mostly loaded at about 62 A, one hour in eight unloaded at
+    about 11 A, when the supply voltage sits higher. The record ends in an unloaded hour."""
+    rng = random.Random(11)
+    events = []
+    for minute in range(minutes):
+        unloaded = minute // 60 % 8 == 7
+        current = (11.0 if unloaded else 62.0) + rng.gauss(0, 0.6)
+        voltage = (226.0 if unloaded else 214.0) + rng.gauss(0, 0.4)
+        for offset, channel, unit, value in (
+            (0, "current", "A", current),
+            (1, "voltage", "V", voltage),
+        ):
+            events.append(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:comp:{'e' * 64}:{2 * minute + offset}",
+                    source_id="comp-file",
+                    asset_id="comp-01",
+                    channel_id=channel,
+                    source_file="comp.csv",
+                    source_sha256="e" * 64,
+                    source_size_bytes=10,
+                    sample_index=2 * minute + offset,
+                    event_at=BASE + timedelta(minutes=minute),
+                    value=value,
+                    source_metadata_json=json.dumps({"binding": {"definition": {"unit": unit}}}),
+                )
+            )
+    return tuple(events)
+
+
+def test_a_stream_with_a_current_is_learned_and_judged_by_operating_level(
+    tmp_path: Path,
+) -> None:
+    """The unloaded hours the reference day barely held are not judged, instead of every one of
+    them going over a threshold learned at full load (ADR-0034)."""
+    if find_spec("duckdb") is None:
+        pytest.skip("DuckLake history runtime is not installed")
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    initialize_operations_workspace(workspace)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    history.append_file_batch(_compressor(3 * DAY), batch_id="comp")
+    request = {
+        "asset_id": "comp-01",
+        "source_id": "comp-file",
+        "channels": ["voltage"],
+        "reference_start": BASE.isoformat(),
+        "reference_end": (BASE + timedelta(days=1)).isoformat(),
+        "window_seconds": 600,
+    }
+    built = build_web_history_model(workspace.root, request)
+    assert built["built"] is True and str(built["package_id"]).startswith(
+        "operator-history-iforest-by-level-v1"
+    )
+    levels = built["levels"]
+    assert isinstance(levels, dict) and levels["channel"] == "current" and levels["added"]
+    # The reference day held 21 loaded hours (126 windows) and 3 unloaded ones (18 windows).
+    assert levels["reference_windows"] == {"1": 18, "2": 126} and levels["learned"] == ["2"]
+    store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
+    packages = PackageCache(workspace.models_path)
+    results = []
+    for _ in range(10):
+        found = [
+            r
+            for cycle in run_history_window_bindings(store, history, packages)
+            for r in cycle.results
+        ]
+        if not found:
+            break
+        results += found
+    unloaded = [r for r in results if r.state is StepState.SKIPPED]
+    loaded = [r for r in results if r.state is StepState.ANALYZED]
+    assert {r.reason for r in unloaded} == {"operating level not learned: 11 A"}
+    assert len(unloaded) == 3 * 18 - 1 and len(loaded) == 3 * 126
+    # Loaded windows are read against loaded windows only; their threshold is 1 at every level.
+    assert sum(bool(r.output["exceeds_threshold"]) for r in loaded) / len(loaded) <= 0.02
+    assert {r.output["threshold"] for r in loaded} == {1.0}
+    # The latest window ran unloaded: the model did not judge it, which is not an input refusal.
+    (item,) = project_phm_monitor(
+        store,
+        workspace.models_path,
+        SqliteAcquisitionSnapshotRepository(workspace.acquisition_snapshot_path),
+    )["items"]
+    assert item["processing_state"] == "unjudged"
+    assert item["training_reference"]["channels"] == 1
