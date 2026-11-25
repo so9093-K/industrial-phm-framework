@@ -423,11 +423,22 @@ def acquisition_period(
 
 
 def package_task(workspace: OperationsWorkspace, package_id: str) -> str | None:
+    """The task of a package this code can run; None for one it cannot read or restore.
+
+    Results of a retired estimator stay stored, but they are not evidence for outlooks,
+    capabilities or AI context (ADR-0026, ADR-0033).
+    """
+    from industrial_phm.models.package import EstimatorKind
+
     try:
         manifest = json.loads((workspace.models_path / package_id / "package.json").read_text())
     except OSError, ValueError:
         return None
-    output = manifest.get("output") if isinstance(manifest, dict) else None
+    if not isinstance(manifest, dict) or manifest.get("estimator_kind") not in {
+        kind.value for kind in EstimatorKind
+    }:
+        return None
+    output = manifest.get("output")
     task = output.get("task") if isinstance(output, dict) else None
     return task if isinstance(task, str) else None
 

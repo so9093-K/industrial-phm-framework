@@ -207,7 +207,7 @@ def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how
     outlook = _outlook()
     sustained = {
         **outlook["anomaly_model"],
-        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "package_id": "xjtu-pca-residual-fold-1",
         "exceeding": 47,
         "intervals": [{"start_position": 77, "end_position": 123, "steps": 47, "open": True}],
     }
@@ -222,7 +222,7 @@ def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how
     facts = outlook_facts(outlook)
     assert facts["links"] == (
         "측정값이 초기 비교 범위를 벗어나기 시작 #76; "
-        "LSTM #77 이후 기준 초과 47회 (1회 차이, 같은 무렵); Isolation Forest 기준 초과 없음 · "
+        "PCA #77 이후 기준 초과 47회 (1회 차이, 같은 무렵); Isolation Forest 기준 초과 없음 · "
         "같은 무렵을 가리키는 이상 탐지 모델과 기준을 넘지 않은 이상 탐지 모델이 함께 있음 "
         "(이상 탐지 모델끼리 다르게 말함)"
     )
@@ -237,7 +237,7 @@ def test_the_analyses_are_joined_by_where_they_start_and_the_past_check_says_how
     )
     # An answer that relays these facts in their own words passes the checks.
     text = (
-        "마지막 기록 #123 기준으로 측정값은 #76부터 초기 비교 범위를 벗어났고 LSTM도 #77부터 "
+        "마지막 기록 #123 기준으로 측정값은 #76부터 초기 비교 범위를 벗어났고 PCA도 #77부터 "
         "기준을 넘었지만 Isolation Forest는 기준을 넘지 않아 이상 탐지 모델끼리 다르게 말합니다."
     )
     assert outlook_answer.text_issues(text, facts) == []
@@ -250,7 +250,7 @@ def test_models_that_disagree_are_all_in_the_facts() -> None:
     outlook = _outlook()
     quiet = {
         **outlook["anomaly_model"],
-        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "package_id": "xjtu-pca-residual-fold-1",
         "latest": {"position": 123, "score": 0.9, "threshold": 1.77, "exceeds": False},
         "first_exceeding": None,
         "recent": {"results": 10, "exceeding": 0},
@@ -258,7 +258,7 @@ def test_models_that_disagree_are_all_in_the_facts() -> None:
     outlook["anomaly_models"] = [outlook["anomaly_model"], quiet]
     text = outlook_facts(outlook)["model"]
     assert text.startswith("Isolation Forest · #123 점수 0.771 · 모델 기준 0.754 초과")
-    assert "; LSTM" in text and "모델 기준 1.77 이하" in text
+    assert "; PCA" in text and "모델 기준 1.77 이하" in text
     assert text.endswith(
         "이상 탐지 모델 2개 중 1개가 마지막 측정에서 기준 초과 (이상 탐지 모델끼리 다르게 말함)"
     )
@@ -454,7 +454,7 @@ def test_crossings_are_told_by_place_and_count_not_by_a_kind_of_run() -> None:
     outlook = _outlook()
     outlook["anomaly_model"] = {
         **outlook["anomaly_model"],
-        "package_id": "xjtu-lstm-autoencoder-fold-1",
+        "package_id": "xjtu-pca-residual-fold-1",
         "first_exceeding": {"position": 30, "at": None},
         "exceeding": 49,
         "intervals": [{"start_position": 76, "end_position": 123, "steps": 47, "open": True}],

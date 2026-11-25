@@ -23,10 +23,10 @@ test("missing labels and invalid addresses never expose internal feature IDs or 
 
 test("AI actions keep their own target measurement while retaining the observed phenomenon",()=>{
   const current="http://local/web/?monitor_asset=bearing&summary_change=selected&summary_kind=vibration&summary_label=RMS&model_position=123";
-  const target="/web/?page=assets&monitor_asset=bearing&tab=anomaly&model_position=72&model_binding=lstm";
+  const target="/web/?page=assets&monitor_asset=bearing&tab=anomaly&model_position=72&model_binding=pca";
   const next=new URL(investigationOriginUrl(target,current),current);
   assert.equal(next.searchParams.get("model_position"),"72");
-  assert.equal(next.searchParams.get("model_binding"),"lstm");
+  assert.equal(next.searchParams.get("model_binding"),"pca");
   assert.equal(next.searchParams.get("summary_change"),"selected");
   const other=new URL(investigationOriginUrl(target.replace("bearing","other"),current),current);
   assert.equal(other.searchParams.has("summary_change"),false);

@@ -14,7 +14,7 @@ def test_doctor_reports_environment_and_next_action(
     assert "project checkout: detected" in output
     assert "data root:" in output
     assert "research UI runtime:" in output
-    assert "deep-learning runtime:" in output
+    assert "deep-learning runtime:" not in output
     assert "next:" in output
     assert "start Operations: make up" in output
     assert "open the printed operations_url" in output
@@ -134,7 +134,7 @@ def test_xjtu_demo_can_prepare_without_starting_operations(
     prepared = SimpleNamespace(
         workspace=SimpleNamespace(root=tmp_path),
         config=None,
-        packages=("forest", "lstm"),
+        package="forest",
         replay=SimpleNamespace(delivered=100, already_present=0),
     )
     monkeypatch.setattr(demo, "prepare_xjtu_model_demo", lambda *args, **kwargs: prepared)

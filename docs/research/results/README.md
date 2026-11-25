@@ -3,7 +3,7 @@
 이 디렉터리는 versioned research/evaluation evidence를 보관합니다.
 
 연구 평가 결과는 운영 Web에서 보여주지 않습니다. 이 디렉터리의 JSON을 직접 보거나
-`industrial-phm analysis report`로 Markdown 보고서를 만들어 확인합니다. 원본 데이터는 별도로 준비해야 하며,
+`industrial-phm experiment inspect`로 확인합니다. 원본 데이터는 별도로 준비해야 하며,
 결과 파일만으로 실험 재실행 가능성을 보장하지 않습니다.
 
 Raw dataset 저장소가 아니며, 각 JSON은 schema/provenance/capability boundary가 검증된 canonical machine
@@ -14,7 +14,6 @@ evidence입니다. 큰 prediction-level artifact는 Git diff 전체를 사람용
 ```text
 canonical JSON
   -> industrial-phm experiment inspect <artifact>
-  -> 필요하면 industrial-phm analysis report ...
   -> raw prediction/score rows drill-down
 ```
 

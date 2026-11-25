@@ -52,7 +52,7 @@ def _run_demo_xjtu(args: argparse.Namespace) -> int:
     print(
         f"workspace={prepared.workspace.root} bearing={preset.bearing} "
         f"delivered={prepared.replay.delivered} already_present={prepared.replay.already_present} "
-        f"models={','.join(prepared.packages)} (recorded replay)",
+        f"model={prepared.package} (recorded replay)",
         flush=True,
     )
     if args.prepare_only:

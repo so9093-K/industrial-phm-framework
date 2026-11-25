@@ -17,7 +17,6 @@
 ## Protocols and runbooks
 
 - [XJTU-SY Reference Experiment Protocol](xjtu-experiment-protocol.md)
-- [XJTU LSTM Autoencoder Development Protocol](xjtu-lstm-autoencoder-protocol.md)
 - [MIMII DUE Experiment Protocol](mimii-due-experiment-protocol.md)
 - [MIMII DUE Development Evidence Execution Runbook](mimii-due-development-execution-runbook.md)
 - [Prepared FILE Source Conformance Runbook](prepared-file-source-conformance.md)

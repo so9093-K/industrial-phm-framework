@@ -20,7 +20,7 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0003: Define canonical time-series contract](0003-define-canonical-timeseries-contract.md)
 - [ADR-0004: Separate domain adapters from PHM core](0004-separate-domain-adapters-from-phm-core.md)
 - [ADR-0005: Allow implicit time for regularly sampled signals](0005-allow-implicit-regular-sample-time.md)
-- [ADR-0006: Use PyTorch for the CPU reference deep-learning runtime](0006-use-pytorch-cpu-reference-runtime.md)
+- [ADR-0006: Use PyTorch for the CPU reference deep-learning runtime](0006-use-pytorch-cpu-reference-runtime.md) (Superseded by ADR-0033)
 - [ADR-0007: Preserve raw measurements before analysis projection](0007-preserve-raw-measurements-before-analysis-projection.md)
 - [ADR-0008: Analyze the finalized window's accepted events, not a history re-query](0008-analyze-finalized-window-accepted-events.md)
 - [ADR-0009: Align multi-channel observations with an explicit, versioned temporal policy](0009-temporal-alignment-policy.md)
@@ -46,3 +46,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0029: Axis-aware reviewed outlook and reobservation](0029-axis-aware-reviewed-outlook-and-reobservation.md)
 - [ADR-0030: Build Operations Web with Svelte and packaged static assets](0030-svelte-typescript-operations-web.md)
 - [ADR-0032: Score stored measurement history with operator-built models over fixed windows](0032-history-window-steps-and-operator-built-models.md)
+- [ADR-0033: Retire the LSTM autoencoder and the PyTorch runtime](0033-retire-lstm-autoencoder-and-pytorch-runtime.md)

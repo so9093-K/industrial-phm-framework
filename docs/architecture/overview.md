@@ -109,7 +109,7 @@ alignment와 eligibility policy를 evidence에 남깁니다. Live window 분석�
 
 ### 연구 reference 구현
 
-Isolation Forest와 LSTM Autoencoder는 research path의 reference implementation이며
+Isolation Forest는 research path의 reference implementation이며
 공통 PHM 코어나 production capability를 정의하지 않습니다. 새로운 모델도 동일한 contract/evaluation 경계를
 지키고 기존 evidence gap을 실제로 해결하는 경우에 추가합니다.
 
@@ -129,7 +129,7 @@ flowchart LR
 일반화하지 않습니다. scaler, normalizer, threshold, feature statistics처럼 데이터로부터 학습되는 상태는
 **train 범위에서만 fit**하고 validation/test에는 학습된 상태만 적용합니다.
 
-모델 평가는 모델 구현과 분리합니다. Isolation Forest와 LSTM Autoencoder를 비교할 때도 같은 split과 같은
+모델 평가는 모델 구현과 분리합니다. 모델을 비교할 때는 같은 split과 같은
 평가 프로토콜을 사용합니다. anomaly, early detection, prognostics 지표는 데이터가 실제로 지원하는 capability와
 ground truth가 정의된 경우에만 사용합니다.
 

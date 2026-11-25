@@ -27,7 +27,6 @@ _STAGES = (
     "Feature",
     "Preprocessing",
     "Reference",
-    "Sequence Construction",
     "Population",
     "Model",
     "Scoring",
@@ -64,14 +63,6 @@ def test_mimii_development_inspection_exposes_domain_shift_evidence_boundary(
     assert "Selection or threshold calibration: none" in summary
     assert "Unsupported: thresholded-state-detection" in summary
     assert "sections 03-05 external evaluation is not included" in summary
-
-    sequence_stage = next(
-        stage for stage in inspection.stages if stage.name == "Sequence Construction"
-    )
-    assert sequence_stage.status == "not applicable"
-    assert tuple((fact.label, fact.value) for fact in sequence_stage.facts) == (
-        ("Reason", "model consumes one fixed feature vector per audio clip"),
-    )
 
 
 def test_mimii_development_inspection_rejects_source_record_drift(

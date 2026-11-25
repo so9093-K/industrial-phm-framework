@@ -46,7 +46,6 @@ def relation(before: object, after: object) -> str | None:
 def model_name(package_id: str, task: object, step_kind: object = None) -> str:
     """The name the screen shows for a model: its method (model-evidence.ts modelName)."""
     for pattern, name in (
-        (r"lstm|autoencoder", "LSTM 오토인코더"),
         (r"pca", "PCA 잔차"),
         (r"iforest|isolation", "Isolation Forest"),
         (r"ridge", "Ridge"),
@@ -73,14 +72,6 @@ def _ratio(output: dict[str, Any]) -> float | None:
     if not isinstance(score, (int, float)) or not isinstance(threshold, (int, float)):
         return None
     return round(float(score) / float(threshold), 2) if threshold > 0 else None
-
-
-def input_range(output: dict[str, Any], position: int) -> dict[str, int]:
-    """Which inputs one result used: a sequence model reads several acquisitions."""
-    sequence = output.get("sequence_positions")
-    if isinstance(sequence, list) and sequence and all(isinstance(p, int) for p in sequence):
-        return {"first": sequence[0], "last": sequence[-1], "count": len(sequence)}
-    return {"first": position, "last": position, "count": 1}
 
 
 def _size(row: dict[str, Any]) -> str | None:
@@ -216,13 +207,11 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
     signals = context.get("signal_comparison") or {}
     previous = signals.get("previous_output") or {}
     task = output.get("task")
-    position = int(context["position"])
     kind = (context.get("input_reference") or {}).get("kind")
     primary: dict[str, Any] = {
         "name": operator["value_label"],
         "model": model_name(str(context.get("package_id") or ""), task, kind),
         "change": _word(relation(previous.get("score"), output.get("score"))),
-        "input_acquisitions": input_range(output, position)["count"],
     }
     if task == "anomaly-score":
         primary["reference"] = "모델 기준 " + (
@@ -265,7 +254,6 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
                 # question about two models disagreeing has stored facts to answer with.
                 "reference": _reference(other),
                 "threshold_ratio": _ratio(other),
-                "input_acquisitions": input_range(other, position)["count"],
             }
         )
     amplitude = []
@@ -440,8 +428,7 @@ _INSTRUCTIONS = (
     "아닙니다. 반영·기여를 말할 때는 contribution_order 앞쪽의 특징만 쓰고, 비어 있으면 말하지 "
     "마세요. "
     "size가 '뚜렷함'인 특징을 우선 언급하고, size가 없는 특징은 분포 모양의 변화라고만 쓰세요. "
-    "related_models는 같은 입력을 쓴 다른 모델 결과입니다. input_acquisitions가 다르면 서로 다른 "
-    "입력 범위라고 구분하세요. "
+    "related_models는 같은 입력을 쓴 다른 모델 결과입니다. "
     "정상·고장·위험·진단·정비 지시를 만들지 마세요. 마크다운, 수식 기호, 제목을 쓰지 마세요. "
     "focus가 있으면 사용자가 고른 지점이며, before_after로 그 지점 이전과 이후를 비교해 답하세요. "
     "history는 같은 비교에서 앞서 나눈 질문과 답입니다. 이미 답한 내용을 되풀이하지 말고 새 "

@@ -259,10 +259,7 @@ def test_xjtu_same_count_edit_and_relocation_get_separate_snapshot_streams(
     monkeypatch.setattr(
         xjtu_models,
         "existing_packages",
-        lambda _: {
-            xjtu_models.IFOREST_RECIPE: "iforest",
-            xjtu_models.LSTM_RECIPE: "lstm",
-        },
+        lambda _: {xjtu_models.IFOREST_RECIPE: "iforest"},
     )
     bindings: list[str] = []
     monkeypatch.setattr(
@@ -303,7 +300,7 @@ def test_xjtu_same_count_edit_and_relocation_get_separate_snapshot_streams(
     latest = snapshots.get(moved["source_id"], bearing, 1)
     assert latest.file_path.is_file() and latest.sha256 == new.sha256
     assert snapshots.get(original["source_id"], bearing, 1) == old
-    assert bindings == [job["source_id"] for job in (original, updated, moved) for _ in range(2)]
+    assert bindings == [job["source_id"] for job in (original, updated, moved)]
 
 
 def test_import_without_source_fingerprint_is_not_proof_of_current_completion(
@@ -401,7 +398,7 @@ def test_legacy_xjtu_source_is_reused_only_when_its_file_composition_matches(
     monkeypatch.setattr(
         xjtu_models,
         "existing_packages",
-        lambda _: {xjtu_models.IFOREST_RECIPE: "iforest", xjtu_models.LSTM_RECIPE: "lstm"},
+        lambda _: {xjtu_models.IFOREST_RECIPE: "iforest"},
     )
     bindings: list[str] = []
     monkeypatch.setattr(
@@ -440,7 +437,7 @@ def test_legacy_xjtu_source_is_reused_only_when_its_file_composition_matches(
         assert (snapshots.get(job["source_id"], bearing, 2) is not None) == (change == "added")
     else:
         assert (job["source_id"], streams) == (legacy, {legacy})
-    assert bindings == [legacy, legacy, job["source_id"], job["source_id"]]
+    assert bindings == [legacy, job["source_id"]]
 
 
 def test_source_change_during_import_cannot_be_recorded_as_success(

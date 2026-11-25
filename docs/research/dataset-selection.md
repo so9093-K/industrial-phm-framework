@@ -169,9 +169,7 @@ Dataset별 검증 책임은 다음 순서로 확장합니다. Project-level curr
 ```text
 XJTU-SY model lifecycle baseline + IMS model-pipeline portability
         ↓
-XJTU LSTM numerical evidence + LSTM-centric Developer Workbench
-        ↓
-XJTU / IMS / model-family cross-schema evidence review
+XJTU / IMS cross-schema evidence review
         ↓
 MIMII DUE cross-domain validation
         ↓

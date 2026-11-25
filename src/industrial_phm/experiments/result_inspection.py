@@ -17,9 +17,6 @@ from industrial_phm.experiments.result_inspection_support import (
     _text,
 )
 from industrial_phm.experiments.xjtu_holdout import XJTU_HOLDOUT_RESULT_SCHEMA_ID
-from industrial_phm.experiments.xjtu_lstm_result import (
-    XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID,
-)
 
 __all__ = [
     "ExperimentInspection",
@@ -51,12 +48,6 @@ def inspect_experiment_result(path: Path) -> ExperimentInspection:
         )
 
         return inspect_ims_cross_test(root, path)
-    elif schema_id == XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID:
-        from industrial_phm.experiments.xjtu_lstm_inspection import (
-            inspect_xjtu_lstm_development,
-        )
-
-        return inspect_xjtu_lstm_development(root, path)
     elif schema_id == MIMII_DEVELOPMENT_RESULT_SCHEMA_ID:
         from industrial_phm.experiments.mimii_development_inspection import (
             inspect_mimii_development,
@@ -66,7 +57,6 @@ def inspect_experiment_result(path: Path) -> ExperimentInspection:
     raise ExperimentResultInspectionError(
         f"unsupported experiment result schema_id {schema_id!r}; expected one of "
         f"{XJTU_HOLDOUT_RESULT_SCHEMA_ID!r}, {IMS_CROSS_TEST_RESULT_SCHEMA_ID!r}, "
-        f"{XJTU_LSTM_DEVELOPMENT_RESULT_SCHEMA_ID!r}, "
         f"{MIMII_DEVELOPMENT_RESULT_SCHEMA_ID!r}"
     )
 

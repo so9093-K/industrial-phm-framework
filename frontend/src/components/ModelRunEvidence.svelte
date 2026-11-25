@@ -133,8 +133,9 @@
   // Models on the same measurement stream share positions, so they can be drawn together.
   const comparable=$derived.by(():ModelBinding[]=>{
     const current=binding;
+    // 실행할 수 없는 모델은 비교 후보가 아니다(지금 보고 있는 모델이면 그대로 둔다).
     return current?bindings.filter(item=>item.sourceId===current.sourceId&&item.stepKind===current.stepKind&&item.pointId===current.pointId
-      &&item.lastAnalyzed!==null&&item.lastAnalyzed===current.lastAnalyzed):[];
+      &&item.lastAnalyzed!==null&&item.lastAnalyzed===current.lastAnalyzed&&(item===current||item.health!=="unavailable")):[];
   });
   // A measurement inside an over-threshold run is compared with the last one before the run.
   const suggested=$derived.by(():number|null=>{
@@ -182,11 +183,14 @@
       if(!available.length){listState="empty";return;}
       listState="ready";
       // Without a bookmark, open the latest measurement; a failed read keeps the first.
-      const latest=selectedBinding||available.length<2?null
-        :await loadLatestScores(assetId,request.signal,available).then(latestModel).catch(()=>null);
+      // 패키지를 불러올 수 없는 모델(폐기된 종류 등)은 저장된 결과만 남는다: 실행할 수 있는 모델을 먼저 연다.
+      const runnable=available.filter(b=>b.health!=="unavailable");
+      const candidates=runnable.length?runnable:available;
+      const latest=selectedBinding||candidates.length<2?null
+        :await loadLatestScores(assetId,request.signal,candidates).then(latestModel).catch(()=>null);
       if(request.signal.aborted)return;
       const desired=selectedBinding?available.find(b=>b.bindingId===selectedBinding)
-        :available.find(b=>b.bindingId===latest?.bindingId)??available[0];
+        :candidates.find(b=>b.bindingId===latest?.bindingId)??candidates[0];
       if(!desired){listState="unavailable";error="북마크의 적용 모델은 이 설비에 없습니다.";return;}
       await chooseBinding(desired.bindingId);
     }catch(cause:unknown){
@@ -337,7 +341,7 @@
       <div class="analysis-workspace model-workspace"><div class="model-toolbar">
       <label class="model-choice">이상 탐지 모델
         <select value={selectedBinding} onchange={e=>void chooseBinding(e.currentTarget.value,true)}>
-          {#each bindings as model(model.bindingId)}<option value={model.bindingId}>{names.get(model.bindingId)}</option>{/each}
+          {#each bindings as model(model.bindingId)}<option value={model.bindingId}>{names.get(model.bindingId)}{model.health==="unavailable"?" · 실행할 수 없음":""}</option>{/each}
         </select>
       </label>
       <AnalysisControls title="모델 설정">{#snippet children()}{#if binding}
@@ -361,6 +365,8 @@
     <div class="analysis-body">
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
+      {:else if binding.health==="unavailable"}
+        <StatusNotice kind="uncertain" message="이 모델은 실행할 수 없어 새 측정을 분석하지 않습니다. 저장된 결과만 보입니다."/>
       {/if}
       {#if binding.lastProcessed!==null&&binding.lastProcessed!==binding.lastAnalyzed}
         <StatusNotice kind="uncertain" message={"가장 최근 "+place(binding.lastProcessed)+"은 모델이 분석하지 않았습니다. 이전 점수를 최신 점수처럼 보여 주지 않습니다."}/>

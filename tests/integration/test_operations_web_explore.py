@@ -1462,3 +1462,24 @@ def test_selected_observation_keeps_signal_comparison_and_relation_at_its_snapsh
             assert get(path, asset_id="motor", snapshot="-1", **query)[0] == 400
     finally:
         stop()
+
+
+def test_only_packages_this_code_can_run_count_as_model_evidence(tmp_path: Path) -> None:
+    """A retired estimator's package keeps its files, but it is not an anomaly model anymore."""
+    from industrial_phm.runtime.operations_web_explore import package_task
+    from industrial_phm.runtime.operations_workspace import OperationsWorkspace
+
+    workspace = OperationsWorkspace(tmp_path / "ws")
+    for package_id, kind in (
+        ("forest", "isolation-forest-refit-v1"),
+        ("retired", "lstm-autoencoder-v1"),
+    ):
+        folder = workspace.models_path / package_id
+        folder.mkdir(parents=True)
+        (folder / "package.json").write_text(
+            json.dumps({"estimator_kind": kind, "output": {"task": "anomaly-score"}}),
+            encoding="utf-8",
+        )
+    assert package_task(workspace, "forest") == "anomaly-score"
+    assert package_task(workspace, "retired") is None
+    assert package_task(workspace, "missing") is None

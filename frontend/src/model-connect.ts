@@ -17,7 +17,7 @@ function text(raw:unknown):string|null{return typeof raw==="string"&&raw?raw:nul
 
 /** A plain name for what a package does: the signal it watches and, when known, its method. */
 export function modelTitle(recipe:string,kind:ModelStream["kind"]|null):string{
-  const method=/lstm|autoencoder/i.test(recipe)?"LSTM":/pca/i.test(recipe)?"PCA":/iforest/i.test(recipe)?"Isolation Forest":"";
+  const method=/pca/i.test(recipe)?"PCA":/iforest/i.test(recipe)?"Isolation Forest":"";
   const signal=kind==="observation-window"?"관측 신호":kind==="acquisition-snapshot"?"진동":"신호";
   return signal+" 변화 탐지"+(method?" · "+method+" 기반":"");
 }

@@ -8,7 +8,7 @@ CSV·OPC UA·베어링 진동 기록을 설비별로 저장하고, 신호 변화
 
 - **데이터 연결:** CSV 등록·검증·이력 저장, OPC UA 수집·재연결, 설비·측정 지점·채널별 이력 탐색
 - **신호 분석:** 시간 추세, 특징 분포, 두 기간 비교, 채널 간 관계, 진동 파형·주파수 분석
-- **이상 징후:** 연결한 Isolation Forest·LSTM 오토인코더·PCA 잔차 모델의 점수 비교, 모델 없는 이력의 기준 구간 이탈 탐색
+- **이상 징후:** 연결한 Isolation Forest·PCA 잔차 모델의 점수 비교, 모델 없는 이력의 기준 구간 이탈 탐색
 - **상태 전망:** 선택한 신호의 추세와 사용자가 지정한 관리·종료 기준까지 예상되는 시간
 - **AI 해설 및 검토:** 저장된 수치 근거에 기반한 질문·설명, 선택적 사람의 검토 기록
 
@@ -43,7 +43,7 @@ macOS의 `make up`은 Linux 컨테이너를 사용하고, Linux의 기본 실행
 [데이터 안내](data/README.md)에 따라 `data/` 폴더에 준비한 기록은 웹의 **데이터 연결 › 공개 실측 데이터로 시작**에 나타나며, 하나를 골라 가져오면 같은 분석 화면에서 봅니다. `make up`은 이 폴더를 읽기 전용으로 연결합니다.
 
 - **AI-Hub 239 설비 전력 기록:** 원천 JSON 하나가 설비 하나의 저장된 이력이 됩니다(공기압축기·보일러·압출기·펌프 등, 설비당 약 한 달). 원본 시각에 시간대가 없어 한국 표준시로 저장합니다.
-- **XJTU-SY 베어링 진동 기록:** 모델 학습에 쓰지 않은 베어링의 실측 파형을 넣고 Isolation Forest·LSTM 오토인코더를 연결합니다. 처음 가져올 때 두 모델을 학습용 베어링으로 한 번 준비합니다(몇 분).
+- **XJTU-SY 베어링 진동 기록:** 모델 학습에 쓰지 않은 베어링의 실측 파형을 넣고 Isolation Forest를 연결합니다. 처음 가져올 때 모델을 학습용 베어링으로 한 번 준비합니다.
 
 개발용으로 저장 기록을 Operations에 흘려 보내는 명령은 `industrial-phm demo xjtu`와 `industrial-phm demo aihub-boiler`입니다. 옵션은 `--help`로 확인합니다.
 
@@ -51,7 +51,7 @@ IMS 및 MIMII DUE 등 공개 데이터는 별도의 연구용 어댑터·결과�
 
 ## 기술 구성 및 제약
 
-Python 3.14·DuckDB/DuckLake·SQLite·PyTorch·scikit-learn·Prophet·asyncua·Svelte/TypeScript 기반입니다. AI 해설에는 OpenAI 호환 모델 서버가 필요하며 나머지 분석은 AI 서버 없이 가능합니다.
+Python 3.14·DuckDB/DuckLake·SQLite·scikit-learn·Prophet·asyncua·Svelte/TypeScript 기반입니다. AI 해설에는 OpenAI 호환 모델 서버가 필요하며 나머지 분석은 AI 서버 없이 가능합니다.
 
 현재는 **로컬 단일 사용자**를 대상으로 하며 원격 인증·TLS·다중 사용자 운영을 지원하지 않습니다. 현장 고장 진단·자동 정비 지시·장비 제어 기능으로 사용하지 마세요.
 

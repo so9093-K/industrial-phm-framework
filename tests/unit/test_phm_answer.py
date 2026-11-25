@@ -49,7 +49,6 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
         "name": "이상 점수",
         "model": "진동 변화 탐지 모델",
         "change": "증가",
-        "input_acquisitions": 1,
         "reference": "모델 기준 초과",
         "threshold_ratio": 1.79,
     }
@@ -68,10 +67,9 @@ def test_model_reads_directions_and_names_not_values(contexts: dict[str, Any]) -
     # The other model on the same input carries its direction and its own threshold verdict,
     # so "why do the two models differ" has stored facts to answer with.
     (related,) = payload["related_models"]
-    assert {k: related[k] for k in ("name", "change", "input_acquisitions")} == {
+    assert {k: related[k] for k in ("name", "change")} == {
         "name": "진동 변화 탐지 모델",
         "change": "거의 같음",
-        "input_acquisitions": 1,
     }
     assert related["reference"] in {"모델 기준 초과", "모델 기준 이하"}
     assert isinstance(related["threshold_ratio"], float)
@@ -344,13 +342,11 @@ def test_a_clause_about_another_model_is_checked_against_that_model(
     contexts: dict[str, Any],
 ) -> None:
     payload = answer_input(contexts["anomaly-a"])
-    payload["primary"]["model"] = "LSTM 오토인코더"
+    payload["primary"]["model"] = "PCA 잔차"
     payload["related_models"] = [
         {**payload["related_models"][0], "name": "Isolation Forest", "reference": "모델 기준 이하"}
     ]
-    agree = (
-        "이상 점수가 증가해 LSTM 오토인코더는 기준을 넘었지만 Isolation Forest는 기준 아래입니다."
-    )
+    agree = "이상 점수가 증가해 PCA 잔차는 기준을 넘었지만 Isolation Forest는 기준 아래입니다."
     assert text_issues(agree, payload, field="summary") == []
     wrong = "이상 점수가 증가했고 Isolation Forest도 기준을 넘었습니다."
     assert (
@@ -363,11 +359,11 @@ def test_a_clause_about_another_model_is_checked_against_that_model(
     ("text", "valid"),
     [
         ("Isolation Forest는 기준을 넘지 않았습니다.", True),
-        ("LSTM 오토인코더는 기준 아래가 아닙니다.", True),
-        ("LSTM 오토인코더와 달리 Isolation Forest는 기준 아래입니다.", True),
+        ("PCA 잔차는 기준 아래가 아닙니다.", True),
+        ("PCA 잔차와 달리 Isolation Forest는 기준 아래입니다.", True),
         ("Isolation Forest는 기준보다 낮습니다.", True),
         ("Isolation Forest는 기준 아래가 아닙니다.", False),
-        ("LSTM 오토인코더는 기준을 초과하지 않았습니다.", False),
+        ("PCA 잔차는 기준을 초과하지 않았습니다.", False),
         ("Isolation Forest는 기준보다 높습니다.", False),
     ],
 )
@@ -375,7 +371,7 @@ def test_natural_threshold_negation_and_named_subjects(
     contexts: dict[str, Any], text: str, valid: bool
 ) -> None:
     payload = answer_input(contexts["anomaly-a"])
-    payload["primary"]["model"] = "LSTM 오토인코더"
+    payload["primary"]["model"] = "PCA 잔차"
     payload["related_models"] = [{"name": "Isolation Forest", "reference": "모델 기준 이하"}]
     assert (not phm_answer._threshold_issues(text, payload)) is valid
 

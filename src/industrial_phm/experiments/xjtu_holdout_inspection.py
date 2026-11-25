@@ -36,19 +36,6 @@ from industrial_phm.experiments.xjtu_inspection_support import (
 from industrial_phm.experiments.xjtu_lifecycle import early_third_length
 
 
-def _acquisition_level_sequence_stage() -> InspectionStage:
-    return InspectionStage(
-        "Sequence Construction",
-        "not applicable",
-        (
-            InspectionFact(
-                "Reason",
-                "model consumes acquisition-level feature observations",
-            ),
-        ),
-    )
-
-
 def inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> ExperimentInspection:
     config = get_xjtu_finalized_configuration()
     _validate_xjtu_identity(root, config)
@@ -187,7 +174,6 @@ def inspect_xjtu_holdout(root: Mapping[str, object], path: Path) -> ExperimentIn
                     InspectionFact("Eligible observations", reference_count),
                 ),
             ),
-            _acquisition_level_sequence_stage(),
             InspectionStage(
                 "Population",
                 "completed",

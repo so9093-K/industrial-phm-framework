@@ -57,19 +57,6 @@ from industrial_phm.features import (
 _SCORE_SEMANTICS = "higher-is-more-anomalous"
 
 
-def _clip_level_sequence_stage() -> InspectionStage:
-    return InspectionStage(
-        "Sequence Construction",
-        "not applicable",
-        (
-            InspectionFact(
-                "Reason",
-                "model consumes one fixed feature vector per audio clip",
-            ),
-        ),
-    )
-
-
 def inspect_mimii_development(
     root: Mapping[str, object],
     path: Path,
@@ -577,7 +564,6 @@ def inspect_mimii_development(
                     InspectionFact("Eligible train clips", train_total),
                 ),
             ),
-            _clip_level_sequence_stage(),
             InspectionStage(
                 "Population",
                 "completed",
