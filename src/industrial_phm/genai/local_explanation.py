@@ -7,6 +7,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -162,27 +163,65 @@ def _poster(provider: ExplanationProvider) -> Callable[[str, dict[str, object]],
     return post
 
 
-def complete_text(
-    provider: ExplanationProvider, messages: list[dict[str, str]], *, max_tokens: int = 400
-) -> str:
-    """One plain chat reply, as a conversation answers: no schema to fill.
-
-    Raises:
-        AnalysisExplanationError: The model server was unavailable or replied with no text.
-    """
-    try:
-        data = _poster(provider)(
-            "/chat/completions",
+def complete_chat(
+    provider: ExplanationProvider,
+    messages: list[dict[str, str]],
+    *,
+    max_tokens: int,
+    tools: dict[str, str] | None = None,
+) -> tuple[Literal["summary", "tool"], str]:
+    """Read a chat answer or one argument-free analysis request from the offered tools."""
+    payload: dict[str, object] = {
+        "model": provider.model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": 0.2,
+    }
+    if tools:
+        payload["tools"] = [
             {
-                "model": provider.model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": 0.2,
-            },
-        )
-        if not isinstance(data, dict):
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": description,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                },
+            }
+            for name, description in tools.items()
+        ]
+        payload["tool_choice"] = "auto"
+    try:
+        try:
+            data = _poster(provider)("/chat/completions", payload)
+        except HTTPError as error:
+            if tools and error.code in _UNSUPPORTED:
+                # A provider that declines tools can still answer from the current screen.
+                return complete_chat(provider, messages, max_tokens=max_tokens)
+            raise
+        message = data["choices"][0]["message"] if isinstance(data, dict) else None
+        if not isinstance(message, dict):
             raise AnalysisExplanationError("invalid chat explanation response")
-        text = data["choices"][0]["message"]["content"]
+        if calls := message.get("tool_calls"):
+            if (
+                tools
+                and isinstance(calls, list)
+                and len(calls) == 1
+                and calls[0]["type"] == "function"
+            ):
+                function = calls[0]["function"]
+                name = function["name"]
+                if (
+                    isinstance(name, str)
+                    and name in tools
+                    and json.loads(function["arguments"]) == {}
+                ):
+                    return "tool", name
+            raise AnalysisExplanationError("invalid chat analysis request")
+        text = message.get("content")
     except (
         HTTPError,
         URLError,
@@ -196,49 +235,7 @@ def complete_text(
         raise AnalysisExplanationError("configured explanation provider unavailable") from error
     if not isinstance(text, str) or not text.strip():
         raise AnalysisExplanationError("empty explanation response")
-    return text.strip()
-
-
-def select_tool(
-    provider: ExplanationProvider, messages: list[dict[str, str]], tools: dict[str, str]
-) -> str | None:
-    """Ask for one named operation. All arguments are bound by the caller."""
-    try:
-        data = _poster(provider)(
-            "/chat/completions",
-            {
-                "model": provider.model,
-                "messages": messages,
-                "tools": [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": name,
-                            "description": description,
-                            "parameters": {
-                                "type": "object",
-                                "properties": {},
-                                "additionalProperties": False,
-                            },
-                        },
-                    }
-                    for name, description in tools.items()
-                ],
-                "tool_choice": "required",
-                "max_tokens": 100,
-                "temperature": 0,
-            },
-        )
-        if not isinstance(data, dict):
-            return None
-        calls = data["choices"][0]["message"]["tool_calls"]
-        if not isinstance(calls, list) or len(calls) != 1 or calls[0]["type"] != "function":
-            return None
-        function = calls[0]["function"]
-        name = function["name"]
-        return name if name in tools and json.loads(function["arguments"]) == {} else None
-    except AnalysisExplanationError, OSError, KeyError, IndexError, TypeError, ValueError:
-        return None
+    return "summary", text.strip()
 
 
 def complete_json(

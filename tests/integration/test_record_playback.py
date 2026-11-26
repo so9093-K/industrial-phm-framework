@@ -112,14 +112,15 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     model_started = Event()
     finish_answer = Event()
 
-    def explain(_provider, messages, *, max_tokens):
+    def explain(_provider, messages, *, max_tokens, tools):
+        assert tools is None
         data = json.loads(messages[0]["content"].split("\n\n", 1)[1])
         assert data["같은 전류 범위의 실제 비교"] == facts
         model_started.set()
         assert finish_answer.wait(8)
-        return "같은 전류 범위에서도 전압이 높았습니다."
+        return "summary", "같은 전류 범위에서도 전압이 높았습니다."
 
-    monkeypatch.setattr(change_answer, "complete_text", explain)
+    monkeypatch.setattr(change_answer, "complete_chat", explain)
     monkeypatch.setattr(explanations, "_MANAGERS", {})
     job = explanations.request_phm_explanation(
         workspace.root,
