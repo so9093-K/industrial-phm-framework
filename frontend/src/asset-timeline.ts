@@ -16,7 +16,7 @@ export type TimelineLane = {
   usual: {low: number; high: number}; interval: Span; numbers: string; focus: boolean; up: boolean;
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
-  values?: {before:number|null;after:number|null;latest:{value:number;at:number;ratio?:number}|null};
+  values?: {before:number|null;after:number|null;latest:{value:number;at:number;ratioLabel?:string}|null};
   /** 진동 변화 구간의 앞 절반·뒤 절반에 움직인 양: 빨라지는지 느려지는지 그래프에 그대로 적는다. */
   halves?: {from:number;to:number;change:number}[] | null;
 };

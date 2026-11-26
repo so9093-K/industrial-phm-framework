@@ -22,7 +22,7 @@ export type VibrationChange = {
   halves?: Half[] | null;
 };
 export type Half = {from: number; to: number; change: number};
-export type RmsReading = {value: number; reference: number; ratio: number};
+export type RmsReading = {value: number; reference: number; ratioLabel: string};
 export type VibrationFindings = {
   sourceId:string|null; bindingId:string|null;
   assetId: string; first: number | null; last: number | null; periodSeconds: number | null;
@@ -43,9 +43,9 @@ export function parseVibrationFindings(raw: unknown, assetId: string): Vibration
   const intervals = root.intervals.map(parseVibrationChange);
   const currentAxes = Object.fromEntries((Array.isArray(root.current_axes) ? root.current_axes : []).map(entry => {
     const axis = object(entry) ?? invalid();
-    const value = finite(axis.value), reference = finite(axis.reference), ratio = finite(axis.ratio);
-    if (reference <= 0 || value < 0 || ratio < 0) invalid();
-    return [text(axis.channel), {value, reference, ratio}];
+    const value = finite(axis.value), reference = finite(axis.reference);
+    if (reference <= 0 || value < 0) invalid();
+    return [text(axis.channel), {value, reference, ratioLabel: text(axis.ratio_label)}];
   }));
   return {assetId,sourceId:typeof root.source_id==="string"?root.source_id:null,bindingId:typeof root.binding_id==="string"?root.binding_id:null, first: root.first === null ? null : whole(root.first), last: root.last === null ? null : whole(root.last),
     periodSeconds: optional(root.period_seconds), judged: whole(root.judged), features: whole(root.features), intervals, currentAxes};

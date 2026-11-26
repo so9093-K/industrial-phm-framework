@@ -27,7 +27,7 @@
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {rmsRatioText, CHANGE_WHY, plainLabel, versusStart, changeEnded} from "../change-story";
+  import {CHANGE_WHY, plainLabel, versusStart, changeEnded} from "../change-story";
   import {measure} from "../chart-axis";
   type Props = {
     asset: Asset;
@@ -241,8 +241,8 @@
   function vibrationLane(measured: VibrationRecord, change: VibrationRecord["intervals"][number], focused: boolean): TimelineLane {
     const points = traces[change.feature] ?? change.trace.map(point => ({x: point.at, value: point.value, join: point.join}));
     const reading = change.to === measured.last ? measured.currentAxes?.[change.feature] : undefined;
-    const last = reading && measured.last !== null ? {value: reading.value, at: measured.last, ratio: reading.ratio} : null;
-    const latest = last ? " · 마지막 " + measure(last.value, change.unit) + " (" + rmsRatioText(last.ratio) + ")" : "";
+    const last = reading && measured.last !== null ? {value: reading.value, at: measured.last, ratioLabel: reading.ratioLabel} : null;
+    const latest = last ? " · 마지막 " + measure(last.value, change.unit) + " (초기의 약 " + last.ratioLabel + ")" : "";
     return {key: vibrationKey(change), reviewKey: change.reviewKey, label: plainLabel(change.label, change.feature), unit: change.unit, condition: null,
       points, detail: [], usual: change.usual, interval: {from: change.from, to: change.to},
       values:{before:reading?.reference??change.reference,after:change.typical,latest:last},

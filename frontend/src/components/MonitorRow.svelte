@@ -3,7 +3,7 @@
   import {onDestroy, type Snippet} from "svelte";
   import {investigationHref, latestEpisode, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
-  import {rmsRatioText,plainLabel} from "../change-story";
+  import {plainLabel} from "../change-story";
   import {DECISION_LABEL} from "../review-writes";
   import {elapsedText} from "../time-axis";
   import AssetName from "./AssetName.svelte";
@@ -105,7 +105,7 @@
       {#if lead}
         <section class="finding" aria-label="이 그래프의 특이사항">
           <div class="change-copy">
-            <strong>{changeName} <span aria-hidden="true">·</span> {now ? "지금 " + rmsRatioText(now.ratio) : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
+            <strong>{changeName} <span aria-hidden="true">·</span> {now ? "지금 초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>

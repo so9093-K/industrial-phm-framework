@@ -38,10 +38,6 @@ export function plainLabel(label: string, feature?: string | null): string {
   return found ? label.replace(found[1], found[2]) : label;
 }
 
-/** The server's same-measurement RMS ratio, displayed with the same precision as AI investigation. */
-export function rmsRatioText(ratio: number): string {
-  return "초기의 약 " + (ratio >= 1 ? ratio.toFixed(1) + "배" : (ratio * 100).toFixed(1) + "%");
-}
 const TEMPERATURE = /°|℃|℉/;
 const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
 const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});

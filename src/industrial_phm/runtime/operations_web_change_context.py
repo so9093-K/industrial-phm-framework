@@ -353,7 +353,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             compared += f" (약 {_about(level['typical'])}{unit_name} 운전 중인 측정끼리)"
         card[compared] = f"{_text(before, None)} → {_text(after, unit)}"
         if not history and ongoing and (axis := current_axes.get(change["feature"])):
-            card["지금"] = f"{_text(axis['value'], unit)} (초기의 약 {_rms_ratio(axis['ratio'])})"
+            card["지금"] = f"{_text(axis['value'], unit)} (초기의 약 {axis['ratio_label']})"
     if load := change.get("load"):
         card[f"같은 기간 {load['label']}"] = (
             f"{_text(load['reference'], None)} → {_text(load['current'], load['unit'])}"
@@ -402,11 +402,9 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         at, value = row["trace"][-1][0], row["trace"][-1][1]
         text = f"{_reading(value, row['unit'])} ({when(at)})"
         axis = current_axes.get(row.get("key"))
-        return text + (f" · 초기의 약 {_rms_ratio(axis['ratio'])}" if axis else "")
+        return text + (f" · 초기의 약 {axis['ratio_label']}" if axis else "")
 
-    order = ", ".join(
-        f"{row['label']} 약 {_rms_ratio(row['ratio'])}" for row in current_axes.values()
-    )
+    order = ", ".join(f"{row['label']} 약 {row['ratio_label']}" for row in current_axes.values())
     pointed: dict[str, Any] = {}
     if (at := context.get("at")) is not None:
         # 사람이 그래프에서 짚고 물은 곳: 그때 각 신호의 값과, 특이사항 구간 안인지 밖인지.
@@ -454,10 +452,6 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             if row["trace"]
         },
     }
-
-
-def _rms_ratio(ratio: float) -> str:
-    return f"{ratio:.1f}배" if ratio >= 1 else f"{ratio * 100:.1f}%"
 
 
 def _times(before: float, after: float, history: bool) -> str:

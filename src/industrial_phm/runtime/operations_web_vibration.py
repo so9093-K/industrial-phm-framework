@@ -153,7 +153,8 @@ def acquisition_findings(
     except LookupError, ValueError:
         return body
     body["current_axes"] = [
-        row | {"label": feature_label(row["channel"])} for row in found["current_axes"]
+        row | {"label": feature_label(row["channel"]), "ratio_label": _ratio_label(row["ratio"])}
+        for row in found["current_axes"]
     ]
     body["judged"] = sum(
         row["state"] in {"scored", "level-change", "constant"} for row in found["channels"]
@@ -242,6 +243,10 @@ def acquisition_findings(
         for related in change["related"]:
             related["latest"] = series[related["feature"]][-1][2]
     return body
+
+
+def _ratio_label(ratio: float) -> str:
+    return f"{ratio:.1f}배" if ratio >= 1 else f"{ratio * 100:.1f}%"
 
 
 def _halves(

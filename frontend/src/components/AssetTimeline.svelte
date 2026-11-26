@@ -8,7 +8,7 @@
   import {measure} from "../chart-axis";
   import {measurementScale} from "../time-axis";
   import {bandName} from "../record-findings";
-  import {rmsRatioText, versusStart} from "../change-story";
+  import {versusStart} from "../change-story";
   import {SERIES_COLORS, type FleetChange, type FleetGroup} from "../fleet-observation";
   import {focusWindow, startsZoomed, valueAt, visiblePoints, type Span, type TimelineLane, type TimelineOperation} from "../asset-timeline";
   import {clockText, spanText} from "../date-format";
@@ -111,7 +111,7 @@
 </script>
 {#if focused}
 <section class="timeline" aria-label="선택한 변화">
-  <header class="headline"><div><h2>{focused.label} · {now?.ratio!==undefined?"지금 "+rmsRatioText(now.ratio):focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
+  <header class="headline"><div><h2>{focused.label} · {now?.ratioLabel?"지금 초기의 약 "+now.ratioLabel:focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
     <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
