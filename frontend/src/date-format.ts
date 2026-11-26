@@ -34,15 +34,15 @@ export function timeLabel(at: DateInput, precision: Precision = "minute", zone: 
   });
 }
 
-export function dateTime(at: DateInput | null, precision: Precision = "second", year = true): string {
-  if (at === null) return "기록 없음";
-  if (!Number.isFinite(new Date(at).getTime())) return "시각 해석 불가";
-  return dateLabel(at, year) + " " + timeLabel(at, precision);
+/** A full timestamp on screen: the same form as every other moment ('10월 22일(목) 23:59:08'), with
+ * seconds unless the caller asks for minutes. Graph ticks keep their short numeric dates (timeTicks). */
+export function dateTime(at: DateInput | null, precision: Precision = "second"): string {
+  return clockText(at, precision);
 }
 
 export function dateTimeRange(from: DateInput, to: DateInput, precision: Precision = "second"): string {
-  const end = dateLabel(from) === dateLabel(to) ? timeLabel(to, precision) : dateTime(to, precision);
-  return dateTime(from, precision) + " ~ " + end;
+  const end = dateLabel(from) === dateLabel(to) ? timeLabel(to, precision) : clockText(to, precision);
+  return clockText(from, precision) + " ~ " + end;
 }
 
 export function dayText(at: DateInput, weekday = false): string {
@@ -50,9 +50,17 @@ export function dayText(at: DateInput, weekday = false): string {
     weekday: weekday ? "short" : undefined}).replace(" (", "(");
 }
 
-/** A compact date on a record timeline. */
-export function clockText(at: DateInput): string {
-  return dayText(at, true) + " " + timeLabel(at);
+/** A moment in a record, written the same way on every screen: '10월 22일(목) 23:59'. */
+export function clockText(at: DateInput | null, precision: Precision = "minute"): string {
+  if (at === null) return "기록 없음";
+  if (!Number.isFinite(new Date(at).getTime())) return "시각 해석 불가";
+  return dayText(at, true) + " " + timeLabel(at, precision);
+}
+
+/** When the screen last read its list (today's clock): the time alone today, with its day otherwise. */
+export function refreshedText(at: DateInput | null, now: DateInput = Date.now()): string {
+  if (at === null) return "기록 없음";
+  return dateLabel(at) === dateLabel(now) ? timeLabel(at) : clockText(at);
 }
 
 export function spanText(from: number, to: number): string {

@@ -1,4 +1,4 @@
-import {dateTime} from "./date-format.ts";
+import {clockText} from "./date-format.ts";
 /** Which analyses one asset's stored data supports, as the server decided them from the stores:
  * ready, one model connection away, waiting for results, or not possible with the reason. It
  * says what the data supports, not whether the asset is healthy; nothing here runs an analysis. */
@@ -82,7 +82,7 @@ export function nothingStored(capabilities:Capabilities):"no-data"|"not-received
   return empty?empty.reason as "no-data"|"not-received":null;
 }
 
-const kst = (iso: string) => dateTime(iso, "minute");
+const kst = (iso: string) => clockText(iso);
 
 /** The fact each analysis rests on, in a few words. */
 export function fact(item:Capability,capabilities:Capabilities):string{

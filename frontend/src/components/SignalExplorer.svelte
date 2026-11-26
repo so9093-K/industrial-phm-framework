@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {dateTime} from "../date-format";
+  import {clockText} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import SignalGroupChart from "./SignalGroupChart.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
@@ -98,7 +98,7 @@
     return listed ? phaseSiblings(listed.ids, selectedChannel).filter((id) => !companions.includes(id)) : [];
   });
 
-  const recorded = (at: string | null) => at ? dateTime(at) : "관측 시각 없음";
+  const recorded = (at: string | null) => at ? clockText(at, "second") : "관측 시각 없음";
 
   async function loadChannels() {
     channelAbort?.abort();

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {clockText, dateTime} from "../date-format";
+  import {clockText} from "../date-format";
   import {onDestroy, type Snippet} from "svelte";
   import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
@@ -61,7 +61,7 @@
     return investigationHref(assetId, group, position, change);
   };
 
-  const short = (at: number) => group.axis === "time" ? dateTime(at, "minute")
+  const short = (at: number) => group.axis === "time" ? clockText(at)
     : Math.floor(at) + "번째" + (group.periodSeconds ? " · " + elapsedText((Math.floor(at) - 1) * group.periodSeconds) : "");
   function nearest(points: {x: number; value: number}[], at: number) {
     let best: {x: number; value: number} | null = null;
@@ -111,13 +111,15 @@
       {#if lead}
         <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
-            <strong>{changeName} <span aria-hidden="true">·</span> {now ? "지금 초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
+            <!-- 지금 볼 것인지(이어짐·끝남)는 제목 줄에 둔다. 작은 회색 줄 끝에 두었더니 가장 중요한 사실이 가장 약하게 보였다. -->
+            <span class="change-head"><strong>{changeName} <span aria-hidden="true">·</span> <span class="keep">{now ? "지금 초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
+              <span class="state" class:ongoing={continuing}>{continuing ? "이어짐" : "끝남"}</span></span>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
-              <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}
-                · {continuing ? "기록 끝까지 이어짐" : (group.axis === "time" ? clockText(lead.to) : lead.to + "번째 측정") + "에 끝남"}</small>
+              <!-- 날짜·기간은 한 덩어리로 줄을 바꾼다('10월 5일 / (월) 07:31'처럼 끊기지 않게). -->
+              <small><span class="keep">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터</span> · <span class="keep">{duration(lead)}</span>{#if !continuing} · <span class="keep">{group.axis === "time" ? clockText(lead.to) : lead.to + "번째 측정"}에 끝남</span>{/if}</small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
           </div>
@@ -198,7 +200,7 @@
   .values > div,.values dt { display:flex; align-items:baseline; gap:5px; }
   .values dt { font-size:var(--font-label); color:var(--color-ink-muted); }
   .values dt i { align-self:center; width:10px; height:3px; border-radius:2px; }
-  .values dd { margin:0; font-size:var(--font-small); font-weight:650; font-variant-numeric:tabular-nums; }
+  .values dd { margin:0; font-size:var(--font-body); font-weight:650; font-variant-numeric:tabular-nums; }
   .finding {
     display:grid; gap:10px;
     padding:10px 12px; border-left:3px solid var(--color-change-mark);
@@ -209,7 +211,13 @@
   .change-copy { display:grid; gap:2px; min-width:0; font-size:var(--font-small); }
   .change-values { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; }
   .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }
-  .change-values small { color:var(--color-ink-muted); }
+  /* 사실을 담은 글씨는 13px 아래로 내리지 않는다(한글은 11~12px에서 읽기 힘들다). */
+  .change-values small { color:var(--color-ink-muted); font-size:var(--font-label); }
+  .change-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .keep { white-space:nowrap; }
+  .state { flex:none; padding:1px 8px; border-radius:999px; font-size:var(--font-label); font-weight:650;
+    color:var(--color-ink-muted); background:var(--color-surface); border:1px solid var(--color-border); }
+  .state.ongoing { color:var(--color-caution-ink); border-color:var(--color-change-mark); }
   .finding-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
   .finding-actions .ui-button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:5px 12px; font-size:var(--font-label); font-weight:650; white-space:nowrap; text-decoration:none; }
   .ai { color:var(--color-action); }
@@ -219,7 +227,7 @@
   .plot-area :global(.plotted) { grid-template-columns:44px minmax(0,1fr); }
   .plot-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 7px; }
   .plot-title h2 { margin:0; font-size:var(--font-label); }
-  .plot-title > span { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--color-ink-muted); }
+  .plot-title > span { display:flex; align-items:center; gap:5px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .reference { width:14px; border-top:1px dashed var(--color-reference-line); }
   .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }
   .load-label { margin:5px 0 4px 52px; font-size:var(--font-label); color:var(--color-ink-muted); }

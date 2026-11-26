@@ -1,4 +1,4 @@
-import {dateTime} from "./date-format.ts";
+import {clockText} from "./date-format.ts";
 /** A model's stored scores over its whole input order, its threshold-exceedance intervals and
  * the raw input of one measurement. Nothing is rescored; a skipped step stays a gap. */
 import {isUnjudged,type ModelBinding,type StepPointer} from "./model-evidence.ts";
@@ -135,7 +135,7 @@ export function exceedanceText(story: ExceedanceStory, place: (position: number)
 export function measurementTime(point: TrendPoint, period: number | null): string | null {
   if (point.eventStart && /(?:Z|[+-]\d{2}:\d{2})$/i.test(point.eventStart)
     && Number.isFinite(Date.parse(point.eventStart)))
-    return dateTime(point.eventStart) + " (KST)";
+    return clockText(point.eventStart, "second");
   return period !== null && Number.isFinite(period) && period > 0
     ? sinceStart(point.pointer.position, period) : null;
 }

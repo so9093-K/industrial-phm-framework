@@ -33,7 +33,7 @@ test("an old forecast is anchored to the last measurement and never claims obser
   assert.equal(recordAgeText(last, Date.parse(last)), "");
   assert.match(reachCalendarText(reach("expected", 3600), last, now), /도달 예상 시점이 지났습니다/);
   assert.match(reachCalendarText(reach("expected", 3600), last, now), /실제 도달 여부는 이후 측정/);
-  assert.match(reachCalendarText(reach("expected", 3600), last, Date.parse(last)), /도달 예상 시각.*10\. 18\..*10:00/);
+  assert.match(reachCalendarText(reach("expected", 3600), last, Date.parse(last)), /^도달 예상 시각 10월 18일\(일\) 10:00$/);
   assert.doesNotMatch(reachCalendarText(reach("expected", 3600), last, Date.parse(last)), /지났/);
   assert.match(reachCalendarText(reach("possible", null, 3600), last, now), /예측 범위의 가장 이른 도달 시각.*지난 시점/);
   assert.equal(reachCalendarText(reach("beyond"), last, now), "");

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {dateTime} from "../date-format";
+  import {clockText} from "../date-format";
   import {focusChange,type FoundInterval} from "../record-findings";
   import {measure, yTicks} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
@@ -23,7 +23,7 @@
   const ticks=$derived(yTicks(low-pad,high+pad,0,height,5));
   const joins=(i:number)=>i>0&&(values[i].join??(!!finding.bucketSeconds&&Date.parse(values[i].at)-Date.parse(values[i-1].at)<=finding.bucketSeconds*1500));
   const path=$derived(values.map((row,i)=>(joins(i)?"L":"M")+x(row.at).toFixed(2)+","+y(row.value).toFixed(2)).join(" "));
-  const clock = (at: string) => dateTime(at, "minute", false);
+  const clock = (at: string) => clockText(at);
 </script>
 <figure aria-label={"특이사항 전후의 구간별 평균과 특이사항 구간. 시작 "+clock(finding.start)+", 종료 "+clock(finding.end)}>
   <ValueAxis {ticks} {height} unit={finding.unit}>

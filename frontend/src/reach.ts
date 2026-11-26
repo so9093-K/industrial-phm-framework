@@ -1,4 +1,4 @@
-import {dateTime} from "./date-format.ts";
+import {clockText} from "./date-format.ts";
 /** One wording for a server-computed limit reach, kept on its own axis: acquisition
  * counts are never turned into durations, and time offsets count from the last record. */
 import type {Reach} from "./projections.ts";
@@ -33,12 +33,12 @@ export function reachCalendarText(value: Reach | null | undefined, last: string,
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return "";
   const at = Date.parse(last) + seconds * 1000;
   if (!Number.isFinite(at) || !Number.isFinite(now)) return "";
-  const clock = dateTime(at);
+  const clock = clockText(at);
   if (value?.state === "possible")
-    return "예측 범위의 가장 이른 도달 시각 " + clock + " (KST)" + (at <= now ? " · 지난 시점" : "");
+    return "예측 범위의 가장 이른 도달 시각 " + clock + (at <= now ? " · 지난 시점" : "");
   return at <= now
-    ? "도달 예상 시점이 지났습니다 (" + clock + " KST). 실제 도달 여부는 이후 측정으로 확인하세요."
-    : "도달 예상 시각 " + clock + " (KST)";
+    ? "도달 예상 시점이 지났습니다 (" + clock + "). 실제 도달 여부는 이후 측정으로 확인하세요."
+    : "도달 예상 시각 " + clock;
 }
 
 export function reachText(value: Reach | null | undefined, axis: ReachAxis): string {

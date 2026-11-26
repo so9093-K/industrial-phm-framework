@@ -31,7 +31,7 @@ test("each analysis opens its own place with the asset and data kind kept",()=>{
   assert.match(connectPlace(anomaly,"motor")!,/tab=anomaly&method=model/);
   assert.equal(connectPlace(measurements,"motor"),null);
   assert.match(place(ask,"motor")!,/tab=outlook/);
-  assert.match(fact(measurements,parsed),/^시계열 신호 2개 · 2026\. 10\. 14\./);
+  assert.match(fact(measurements,parsed),/^시계열 신호 2개 · 10월 14일\(수\) 09:00/);
   assert.equal(fact(relation,parsed),"시계열 신호 3개 중 2개 선택");
   assert.equal(fact(anomaly,parsed),"모델 없이 기준 구간에서 벗어난 값 찾기 · 맞는 모델 2개 연결 가능");
   assert.equal(fact(spectrum,parsed),"원본 진동 파형 없음");
