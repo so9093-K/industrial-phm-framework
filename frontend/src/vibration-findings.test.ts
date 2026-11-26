@@ -15,6 +15,10 @@ test("vibration changes read by acquisition number and open the feature at the c
   assert.equal(first.from, 77);
   assert.deepEqual(first.trace[1], {at: 77, value: 6.9});
   assert.equal(first.related[0].label, "수직 진동 RMS");
+  // 기록 끝의 값이 없으면 null: 화면은 구간 대표값으로 보인다.
+  assert.equal(first.related[0].latest, null);
+  const latest = parseVibrationFindings(body([{...change, related: [{...change.related[0], latest: 3.1}]}]), "bearing").intervals[0];
+  assert.equal(latest.related[0].latest, 3.1);
   assert.throws(() => parseVibrationFindings(body([{...change, related: [{...change.related[0], state: "within"}]}]), "bearing"));
   const links = vibrationLinks("bearing", first);
   const signal = new URL(links.signal, "http://local").searchParams;

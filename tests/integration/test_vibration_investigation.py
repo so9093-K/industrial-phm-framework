@@ -61,6 +61,8 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     analyze(workspace)
     changes = acquisition_findings(workspace, "bearing-a")["intervals"]
     chosen = changes[0]
+    # 함께 달라진 특징은 기록 끝의 값도 준다: 이어지는 변화의 '지금'과 같은 때에 견준다.
+    assert chosen["related"] and all(isinstance(row["latest"], float) for row in chosen["related"])
     assert acquisition_findings(workspace, "bearing-a")["intervals"] == changes
     context = selected_change(workspace, "bearing-a", chosen["review_key"])
     screen = screen_view(workspace, context)

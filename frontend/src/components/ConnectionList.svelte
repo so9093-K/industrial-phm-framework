@@ -104,7 +104,9 @@
       <StatusNotice kind="uncertain" message="연결이 많아 일부만 보여 줍니다." />
     {/if}
     {#if !sources.items.length}
-      <p class="context">아직 등록한 데이터 연결이 없습니다. 위에서 CSV 파일로 시작하세요.</p>
+      <!-- 공개 실측 데이터로 가져온 기록은 이 목록이 아니라 '공개 실측 데이터'에 나온다. 그 기록이 있는데
+           '연결이 없다'고만 하면 데이터가 없다는 뜻으로 읽혔다. -->
+      <p class="context">CSV 파일이나 자동 수신으로 등록한 연결이 여기에 나옵니다. 가져온 공개 실측 데이터는 위 '공개 실측 데이터'에서 봅니다.</p>
     {:else}
       <ul class="sources">
         {#each sources.items as source (source.sourceId)}

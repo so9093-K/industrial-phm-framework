@@ -180,6 +180,8 @@ def acquisition_findings(
                 "unit": feature_unit(other, amplitude),
                 "reference": row["reference"],
                 "current": row["current"],
+                # 기록 끝(재생 중이면 그 위치)의 값: 이어지는 변화의 '지금'과 같은 때에 견준다.
+                "latest": series[other][-1][2],
                 "state": row["state"],
             }
             for _, _, other, row in sorted(moved)[:_RELATED]
