@@ -1,7 +1,7 @@
 <script lang="ts">
   import {clockText, dateTime} from "../date-format";
   import {onDestroy, type Snippet} from "svelte";
-  import {investigationHref, latestEpisode, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
+  import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
   import {plainLabel} from "../change-story";
   import {DECISION_LABEL} from "../review-writes";
@@ -42,6 +42,12 @@
   const episode = $derived(latestEpisode(changes));
   const lead = $derived(group.axis === "acquisition" ? changes[0] : episode.find(row => row.key === group.focus) ?? episode[0]);
   const changeName = $derived(lead ? plainLabel(lead.label, lead.channel) : null);
+  // 지금 볼 것인지: 기록(재생 중이면 판정한 위치) 끝까지 이어지는 변화인지, 이미 끝난 변화인지.
+  const judgedUntil = $derived(replaying ? analyzed ?? until ?? group.record.to : group.record.to);
+  const continuing = $derived(lead ? ongoing(group, [lead], judgedUntil) : false);
+  // 재생 중 판정은 화면 위치보다 늦게 도착한다. 따라오기 전에는 '없음'이 아니라 판정한 데까지만 말한다.
+  const lagging = $derived(replaying && analyzed !== null && until !== null
+    && analyzed < until - (group.axis === "time" ? (group.bucketMs ?? 60_000) * 1.5 : 1));
   // Use the synchronized server observation that selected the representative axis.
   const now = $derived(lead?.current ?? null);
   const shownBefore = $derived(now?.reference ?? lead?.before ?? null);
@@ -103,14 +109,15 @@
         {#if companion}<div class="load"><dt>{companion.label}</dt><dd>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
       </dl>
       {#if lead}
-        <section class="finding" aria-label="이 그래프의 특이사항">
+        <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
             <strong>{changeName} <span aria-hidden="true">·</span> {now ? "지금 초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</strong>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
-              <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}</small>
+              <small>{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터 · {duration(lead)}
+                · {continuing ? "기록 끝까지 이어짐" : (group.axis === "time" ? clockText(lead.to) : lead.to + "번째 측정") + "에 끝남"}</small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
           </div>
@@ -125,7 +132,8 @@
       {/if}
       <footer class="row-footer">
         {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
-        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
+        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다"
+          : lagging ? short(analyzed) + "까지 특이사항 없음 · 판정 중" : "지금까지 특이사항 없음"}</span>
           <a class="secondary-action" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
         {#if !replaying && other}
           <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>
@@ -137,12 +145,14 @@
         <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
         {#if lead}<span><i class="reference"></i>초기 수준 <i class="change"></i>특이사항</span>{/if}
       </div>
-      <TrendChart {group} {series} {lo} {hi} {changes} reference={shownBefore} live={replaying && playing}
+      <!-- 그래프는 카드가 말하는 특이사항 하나만 표시한다. 여러 개를 겹치면 띠가 두 겹이 되고 시작선이
+           카드의 '몇 번째부터'와 달랐다. -->
+      <TrendChart {group} {series} {lo} {hi} changes={lead ? [lead] : []} reference={shownBefore} live={replaying && playing}
         height={mainHeight} axis={!companion} guide={cursor} endLabel={true} onHover={at => hovered = at}
         bind:picked={() => picked, value => { picked = value; loadPick = null; if (value !== null) onPause(); }}/>
       {#if companion}
         <p class="load-label">{companion.label}</p>
-        <TrendChart group={companion} series={load} {lo} {hi} changes={changes.map(row => ({...row, key: "load:" + row.key}))}
+        <TrendChart group={companion} series={load} {lo} {hi} changes={lead ? [{...lead, key: "load:" + lead.key}] : []}
           height={loadHeight} axis={true} colors={["var(--color-ink-muted)"]} endLabel={true} guide={cursor} onHover={at => hovered = at}
           bind:picked={() => loadPick, value => { loadPick = value; picked = null; if (value !== null) onPause(); }}/>
       {/if}
@@ -194,6 +204,8 @@
     padding:10px 12px; border-left:3px solid var(--color-change-mark);
     background:var(--color-uncertain-surface); border-radius:0 6px 6px 0;
   }
+  /* 끝난 특이사항은 지금 볼 것이 아니다: 강조를 낮춘다. */
+  .finding.ended { border-left-color:var(--color-border); background:var(--color-surface-selected); }
   .change-copy { display:grid; gap:2px; min-width:0; font-size:var(--font-small); }
   .change-values { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; }
   .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }

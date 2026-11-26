@@ -65,9 +65,12 @@ export function nearestAt(history: OutlookPoint[], future: OutlookFuture[], at: 
 export type LimitSuggestion = {label: string; value: number; direction: "upper" | "lower"; source: string};
 const round3 = (n: number) => Number(n.toPrecision(3));
 /** 기준을 비워 둔 사람에게 한 번에 고를 수 있는 기준. 처음 범위(이 기록의 처음 30%가 흔들린 폭)의 끝과,
- * 220 V 계통 전압이면 공급 전압 허용 범위(표준전압 220 V ± 13 V)를 낸다. 값은 화면에서 고쳐 쓸 수 있다. */
+ * 220 V 계통 전압이면 공급 전압 허용 범위(표준전압 220 V ± 13 V)를 낸다. 값은 화면에서 고쳐 쓸 수 있다.
+ * 마지막 값이 이미 지난 기준은 '얼마나 남았나'에 답하지 못해 내지 않는다. 기록이 초기 범위 위(아래)로 벗어나
+ * 있으면 그 쪽 기준만 낸다. 배수가 뜻을 갖는 값(진동 크기, ratio)이 초기 범위 위로 벗어나 있으면 마지막 값의
+ * 두 배를 내, 지금 흐름으로 얼마나 남았는지 볼 수 있게 한다. */
 export function limitSuggestions(unit: string | null, baseline: {median: number | null; low: number | null; high: number | null} | null,
-  label: string): LimitSuggestion[] {
+  label: string, latest: number | null = null, ratio = false): LimitSuggestion[] {
   const out: LimitSuggestion[] = [];
   if (unit === "V" && baseline?.median != null && baseline.median >= 200 && baseline.median <= 240 && /전압/.test(label) && !/선간/.test(label))
     out.push({label: "공급 전압 상한 233 V", value: 233, direction: "upper", source: "표준전압 220 V의 허용 범위 207~233 V(전기사업법 시행규칙 별표 3)"},
@@ -76,7 +79,15 @@ export function limitSuggestions(unit: string | null, baseline: {median: number 
     source: "이 기록 처음 30%의 값이 흔들린 범위의 위쪽 끝"});
   if (baseline?.low != null && baseline.low > 0) out.push({label: "초기 범위 하단 " + round3(baseline.low) + (unit ? " " + unit : ""), value: round3(baseline.low), direction: "lower",
     source: "이 기록 처음 30%의 값이 흔들린 범위의 아래쪽 끝"});
-  return out;
+  if (latest === null || !Number.isFinite(latest)) return out;
+  const above = baseline?.high != null && latest > baseline.high, below = baseline?.low != null && latest < baseline.low;
+  const ahead = out.filter(item => (item.direction === "upper" ? item.value > latest : item.value < latest)
+    && !(above && item.direction === "lower") && !(below && item.direction === "upper"));
+  const suffix = unit ? " " + unit : "";
+  if (ratio && above && latest > 0)
+    ahead.push({label: "지금의 2배 " + round3(latest * 2) + suffix, value: round3(latest * 2), direction: "upper",
+      source: "마지막 값 " + round3(latest) + suffix + "의 두 배"});
+  return ahead;
 }
 
 /** 지금까지 이어서 기준을 넘고 있는 구간의 시작(마지막 측정이 기준 안이면 null). '이미 넘음'을 측정 사실로 말한다. */

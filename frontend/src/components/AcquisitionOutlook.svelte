@@ -143,7 +143,7 @@
   const place=(at:number,period:number|null)=>Math.round(at)+"번째 측정"+(period!==null?" · "+elapsedText((Math.round(at)-1)*period):"");
   const baseline=$derived.by(()=>{const shown:AcquisitionProjection|null=outlook,evolution=shown?.evolution;return evolution?{median:evolution.baselineMedian,low:evolution.baselineRange?.low??null,high:evolution.baselineRange?.high??null}:null;});
   const suggestions=$derived.by(()=>{const shown:AcquisitionProjection|null=outlook;
-    return shown?limitSuggestions(shown.unit,baseline,options?.features.find(item=>item.id===shown.featureId)?.label??""):[];});
+    return shown?limitSuggestions(shown.unit,baseline,options?.features.find(item=>item.id===shown.featureId)?.label??"",shown.history.at(-1)?.value??null,true):[];});
   function suggest(value:number,toward:Direction){direction=toward;managementText=String(value);remember();void calculate();}
   const formatOffset=(n:number)=>Number.isInteger(n)?String(n):n.toFixed(2);
   const scenarioLabel=(id:string)=>({current:"기본 설정",recent:"최근 구간 중심",responsive:"변화에 민감",linear:"최근 속도 유지"} as Record<string,string>)[id]??id;

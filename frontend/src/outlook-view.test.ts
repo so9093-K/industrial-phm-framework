@@ -48,6 +48,14 @@ test("limits to pick from: the early range, and the supply tolerance for a 220 V
   assert.equal(limitSuggestions("V", {median: 380, low: 370, high: 390}, "R상선간전압").some(row => row.label.startsWith("공급")), false);
   assert.deepEqual(limitSuggestions("g", {median: .6, low: .55, high: .65}, "수직 진동 RMS").map(row => row.value), [.65, .55]);
   assert.deepEqual(limitSuggestions(null, null, "x"), []);
+  // 마지막 값이 이미 지난 기준은 내지 않고, 초기 범위를 벗어난 기록에는 지금의 두 배를 낸다.
+  const bearing = limitSuggestions("g", {median: .7, low: .43, high: .999}, "수평 진동 RMS", 7.27, true);
+  assert.deepEqual(bearing.map(row => [row.label, row.direction]), [["지금의 2배 14.5 g", "upper"]]);
+  const voltage2 = limitSuggestions("V", {median: 218.4, low: 211.2, high: 225.6}, "R상전압", 213.9);
+  assert.deepEqual(voltage2.map(row => row.value), [233, 207, 226, 211]);
+  // 초기 범위 아래로 벗어난 전압: 아래쪽 기준 중 아직 닿지 않은 것만, 배수 기준은 없다.
+  assert.deepEqual(limitSuggestions("V", {median: 218.4, low: 211.2, high: 225.6}, "R상전압", 209).map(row => row.label),
+    ["공급 전압 하한 207 V"]);
 });
 
 test("an exceeded limit is told from the measurements: since when it has stayed beyond", () => {
