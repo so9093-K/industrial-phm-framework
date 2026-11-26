@@ -30,6 +30,10 @@ RECENT_SHARE = 0.2
 MIN_WINDOW = 10
 MAX_WINDOW = 200
 MIN_POINTS = 20
+# For a counted record (one value per vibration acquisition) "recent" is the last ten
+# measurements: the movement the AI states as "최근 10회 측정 동안". Each value already
+# summarises a waveform, so its latest moves are the news, not noise to discount.
+RECENT_MEASUREMENTS = 10
 # A departure counts as lasting from the first point after which most points stay outside.
 SUSTAINED_SHARE = 0.8
 
@@ -52,8 +56,19 @@ def _windows(xs: np.ndarray) -> tuple[int, int]:
     return baseline, recent
 
 
-def degradation(xs: Sequence[float], values: Sequence[float]) -> dict[str, Any]:
+def degradation(
+    xs: Sequence[float],
+    values: Sequence[float],
+    *,
+    counted: bool = False,
+    recent_readings: Mapping[int, float] | None = None,
+) -> dict[str, Any]:
     """The degradation indicator of one signal, with window bounds as indices into ``xs``.
+
+    ``counted`` marks a record of measurements counted one by one: its rates are what the last
+    ``RECENT_MEASUREMENTS`` steps (and the ones before them) actually moved when those values
+    are available. Otherwise
+    the rates are robust slopes over the recent window, so a single sample does not tilt them.
 
     ``xs`` is the axis in the unit rates are stated in (acquisitions, hours or days).
     """
@@ -67,10 +82,24 @@ def degradation(xs: Sequence[float], values: Sequence[float]) -> dict[str, Any]:
     recent_median, recent_spread = float(np.median(recent)), robust_spread(recent)
     # A relative change only means something for a level that cannot go below zero.
     level = bool(np.all(y >= 0)) and base_median > 0
-    rate = theil_sen(x[-recent_n:], recent)
-    earlier = None
-    if len(y) >= 2 * recent_n + 5:
-        earlier = theil_sen(x[-2 * recent_n : -recent_n], y[-2 * recent_n : -recent_n])
+    latest = round(x[-1])
+    readings = (
+        recent_readings
+        if recent_readings is not None
+        else (dict(zip(x, y, strict=True)) if counted else {})
+    )
+    last, before = readings.get(latest), readings.get(latest - RECENT_MEASUREMENTS)
+    if counted and last is not None and before is not None:
+        rate_points = RECENT_MEASUREMENTS
+        rate = (last - before) / rate_points
+        older = readings.get(latest - 2 * rate_points)
+        earlier = (before - older) / rate_points if older is not None else None
+    else:
+        rate_points = recent_n
+        rate = theil_sen(x[-recent_n:], recent)
+        earlier = None
+        if len(y) >= 2 * recent_n + 5:
+            earlier = theil_sen(x[-2 * recent_n : -recent_n], y[-2 * recent_n : -recent_n])
     departure: dict[str, Any] | None = None
     if base_spread > 0:
         distance = (y - base_median) / base_spread
@@ -109,6 +138,7 @@ def degradation(xs: Sequence[float], values: Sequence[float]) -> dict[str, Any]:
         "change_ratio": (recent_median - base_median) / base_median if level else None,
         "rate": rate,
         "earlier_rate": earlier,
+        "rate_points": rate_points,
         "spread_ratio": recent_spread / base_spread if base_spread > 0 else None,
         "departure": departure,
     }
@@ -150,19 +180,19 @@ def reach(
 
 
 def linear_reach(
-    seconds: Sequence[float],
-    values: Sequence[float],
+    latest: float,
+    rate: float,
+    points: int,
     limits: Mapping[str, float],
     *,
     upper: bool,
     search_seconds: float,
 ) -> dict[str, Any]:
-    """The recent rate carried on from the last value, against each condition."""
-    x = np.asarray(seconds, dtype=float)
-    y = np.asarray(values, dtype=float)
-    _, recent_n = _windows(x)
-    rate = theil_sen(x[-recent_n:], y[-recent_n:])
-    latest = float(y[-1])
+    """Extend the observed rate per second from the last value to each condition.
+
+    It is the same rate the outlook shows as the recent movement, so the screen never states one
+    speed and reaches a limit with another.
+    """
     results: dict[str, dict[str, Any]] = {}
     for name, limit in limits.items():
         if (latest >= limit) if upper else (latest <= limit):
@@ -176,4 +206,4 @@ def linear_reach(
             "earliest": None,
             "latest": None,
         }
-    return {"start": latest, "rate_per_second": rate, "points": recent_n, "limits": results}
+    return {"start": latest, "rate_per_second": rate, "points": points, "limits": results}

@@ -90,7 +90,7 @@
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
       <!-- 커지는 변화는 앞 절반 값을 위에, 뒤 절반 값을 아래에 적는다(앞에서 낮고 뒤에서 높은 선을 가리지 않게). 작아지는 변화는 반대. -->
       {#if paced}{#each paced as half, i (half.from)}
-        <span class="half-label" class:low={(i === 1) !== (paced[0].change + paced[1].change < 0)} style:left={(pct(half.from) + pct(half.to)) / 2 + "%"}>
+        <span class="half-label" style:left={(pct(half.from) + pct(half.to)) / 2 + "%"}>
           {(half.change > 0 ? "+" : "") + measure(half.change, group.unit, 3)}</span>{/each}{/if}
       {#each last as item (item.row.key)}
         <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
@@ -121,7 +121,6 @@
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
   .half{stroke:var(--color-change-line);stroke-dasharray:2 3;stroke-width:1.5}
   .half-label{position:absolute;top:6px;transform:translateX(-50%);padding:1px 5px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);font-size:12px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
-  .half-label.low{top:auto;bottom:6px}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
   .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:12px;font-weight:650;pointer-events:none}

@@ -1,6 +1,6 @@
 /** 전망 그래프가 무엇을 어디까지 그리는지: 관제·조사 화면과 같은 규칙(처음 수준·처음 범위·찾은 변화)에
  * 예측과 기준선, 기준에 닿는 자리를 더한다. 그리기는 OutlookChart가, 계산은 여기서 한다. */
-import type {Reach} from "./projections.ts";
+import type {Reach, Scenario} from "./projections.ts";
 
 export type OutlookPoint = {x: number; value: number};
 export type OutlookFuture = {x: number; estimate: number; lower: number | null; upper: number | null};
@@ -40,6 +40,16 @@ export function reachAt(reach: Reach | null | undefined, last: number, axis: "ti
   const offset = reach.state === "expected" ? reach.expected : reach.state === "possible" ? reach.earliest : null;
   if (offset === null || !Number.isFinite(offset) || offset < 0) return null;
   return {x: last + (axis === "time" ? offset * 1000 : offset), sure: reach.state === "expected"};
+}
+
+const reachOffset = (reach: Reach | null | undefined) => !reach ? Infinity : reach.state === "already" ? 0
+  : reach.state === "expected" ? reach.expected ?? Infinity : reach.state === "possible" ? reach.earliest ?? Infinity : Infinity;
+/** When the model fits poorly, offer the sooner measured pace as a conditional reading. */
+export function reachReading(scenarios: Scenario[], key: "management" | "end", weakForecast: boolean): Scenario | undefined {
+  const current = scenarios.find(item => item.id === "current") ?? scenarios[0];
+  const linear = scenarios.find(item => item.id === "linear");
+  return weakForecast && linear?.[key]?.state === "expected"
+    && reachOffset(linear[key]) < reachOffset(current?.[key]) ? linear : current;
 }
 
 /** 조사 화면에서 고른 변화(summary_change)가 이 신호의 것이면 그 구간. 다른 신호의 변화는 그리지 않는다. */
@@ -104,7 +114,7 @@ const duration = (seconds: number) => {
 };
 /** 기준까지의 여유를 큰 글씨 한 줄과 설명 한 줄로. 시간 간격을 모르는 진동 기록은 측정 횟수로 말한다. */
 export function reachSummary(reach: Reach | null | undefined, axis: "time" | "acquisition", period: number | null,
-  place: (x: number) => string, last: number, since: number | null): {headline: string; detail: string} {
+  place: (x: number) => string, last: number, since: number | null, line = "예측선 도달"): {headline: string; detail: string} {
   if (!reach) return {headline: "계산 안 됨", detail: ""};
   if (reach.state === "already") return {headline: "이미 넘음", detail: since !== null ? place(since) + "부터 이어서 넘음" : "마지막 측정이 기준 밖"};
   const offset = reach.state === "expected" ? reach.expected : reach.state === "possible" ? reach.earliest : null;
@@ -112,6 +122,6 @@ export function reachSummary(reach: Reach | null | undefined, axis: "time" | "ac
   const seconds = axis === "time" ? offset : period !== null ? offset * period : null;
   const when = seconds !== null ? duration(seconds) + " 뒤" : "추가 측정 " + Math.round(offset) + "회 뒤";
   const at = place(last + (axis === "time" ? offset * 1000 : offset));
-  return reach.state === "expected" ? {headline: when, detail: "예측선 도달 · " + at}
+  return reach.state === "expected" ? {headline: when, detail: line + " · " + at}
     : {headline: "빠르면 " + when, detail: "예측 범위에서만 닿음 · " + at};
 }

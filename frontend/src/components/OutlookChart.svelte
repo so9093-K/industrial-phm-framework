@@ -8,11 +8,13 @@
   /** 전망 그래프. 관제·조사 화면과 같은 규칙으로 측정(파랑 실선)·처음 수준(회색 점선)·처음 범위(회색 띠)·
    * 조사에서 고른 변화(노란 구간)를 그리고, 그 뒤에 예측(같은 색 점선)과 예측 범위, 관리·종료 기준선,
    * 기준에 닿는 자리를 더한다. 포인터를 올린 자리의 측정값·예측값을 위 줄에서 읽는다. */
-  let {history, future, last, baseline = null, change = null, limits, direction = "upper", reach, unit, scale, place, unreliable = false, height = 260}: {
+  let {history, future, last, baseline = null, change = null, limits, direction = "upper", reach, pace = null, unit, scale, place, unreliable = false, height = 260}: {
     history: OutlookPoint[]; future: OutlookFuture[]; last: number;
     baseline?: {median: number | null; low: number | null; high: number | null} | null; change?: OutlookWindow | null;
     limits: OutlookLimits; direction?: "upper" | "lower";
     reach: {management: {x: number; sure: boolean; already?: boolean} | null; end: {x: number; sure: boolean; already?: boolean} | null};
+    /** 마지막 측정에서 최근 속도(x 한 칸당)를 그대로 이은 직선. 기준까지의 답이 이 읽기일 때만 그린다. */
+    pace?: {rate: number; label: string} | null;
     unit: string | null; scale: XScale; place: (x: number) => string; unreliable?: boolean; height?: number} = $props();
   const W = 1000;
   const view = $derived(outlookWindow(history, future, change));
@@ -30,6 +32,7 @@
   const band = $derived(ranged.length > 1 ? "M" + ranged.map(p => x(p.x).toFixed(1) + " " + y(p.upper!).toFixed(1)).join(" L")
     + " L" + [...ranged].reverse().map(p => x(p.x).toFixed(1) + " " + y(p.lower!).toFixed(1)).join(" L") + " Z" : "");
   const tail = $derived(shown.at(-1));
+  const paced = $derived(pace && tail ? "M" + x(tail.x).toFixed(1) + " " + y(tail.value).toFixed(1) + " L" + x(view.to).toFixed(1) + " " + y(tail.value + pace.rate * (view.to - tail.x)).toFixed(1) : "");
   const start = $derived(future[0]);
   // 기준선과 닿는 자리. 그래프 밖(세 배 넘게 먼 기준)은 그리지 않고 아래 범례에 값만 적는다.
   // 이미 넘은 기준은 '언제부터 이어서 넘었는지'를 측정에서 찾아 그 자리에 표시한다.
@@ -53,8 +56,8 @@
 <figure class="outlook-chart" class:unreliable>
   <p class="readout" aria-live="off">{#if read}
     <span>{place(read.point.x)}{hover === null ? " · 마지막 측정" : ""}</span>
-    {#if read.kind === "measured"}<b><i class="key measured"></i>{measure(read.point.value, unit, 4)}</b>
-    {:else}<b><i class="key estimate"></i>예측 {measure(read.point.estimate, unit, 4)}</b>{#if read.point.lower !== null && read.point.upper !== null}<small>범위 {measure(read.point.lower, unit, 3)} ~ {measure(read.point.upper, unit, 3)}</small>{/if}{/if}
+    {#if read.kind === "measured"}<b><i class="key measured"></i>{measure(read.point.value, unit)}</b>
+    {:else}<b><i class="key estimate"></i>예측 {measure(read.point.estimate, unit)}</b>{#if read.point.lower !== null && read.point.upper !== null}<small>범위 {measure(read.point.lower, unit, 3)} ~ {measure(read.point.upper, unit, 3)}</small>{/if}{/if}
   {/if}</p>
   <ValueAxis {ticks} {height} {unit}>
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
@@ -70,6 +73,7 @@
         {#each lines as line (line.key)}<line class={"limit " + line.key} x1="0" x2={W} y1={y(line.value)} y2={y(line.value)}/>{/each}
         <path class="measured" d={measured}/>
         <path class="estimate" d={estimate}/>
+        {#if paced}<path class="pace" d={paced}/>{/if}
         {#if change && change.from >= view.from}<line class="onset" x1={x(change.from)} x2={x(change.from)} y1="0" y2={height}/>{/if}
         {#if hover !== null}<line class="cursor" x1={x(hover)} x2={x(hover)} y1="0" y2={height}/>{/if}
       </svg>
@@ -77,14 +81,15 @@
       {#if start}
         <span class="dot forecast-dot" style:left={pct(start.x) + "%"} style:top={y(start.estimate) / height * 100 + "%"}></span>
         <span class="start-label" class:left={pct(start.x) > 76} style:left={pct(start.x) + "%"}
-          style:top={y(start.estimate) / height * 100 + "%"}>첫 예측 {measure(start.estimate, unit, 4)}</span>
+          style:top={y(start.estimate) / height * 100 + "%"}>첫 예측 {measure(start.estimate, unit)}</span>
       {/if}
       {#each lines as line (line.key)}
         <span class={"limit-label " + line.key} style:top={y(line.value) / height * 100 + "%"}>{line.name} {measure(line.value, unit)}</span>
         {#if line.reach}
           {#if line.reach.x <= view.to}
             <span class={"reach " + line.key} class:maybe={!line.reach.sure} style:left={pct(line.reach.x) + "%"} style:top={y(line.value) / height * 100 + "%"}></span>
-            <span class={"reach-label " + line.key} class:left={pct(line.reach.x) > 70} style:left={pct(line.reach.x) + "%"} style:top={y(line.value) / height * 100 + "%"}>{line.reach.text}</span>
+            <!-- 값이 기준에 다가오는 쪽(오를 때 아래)을 가리지 않게, 닿는 자리 글씨는 기준선 바깥쪽에 둔다. -->
+            <span class={"reach-label " + line.key} class:left={pct(line.reach.x) > 70} class:above={direction === "upper"} style:left={pct(line.reach.x) + "%"} style:top={y(line.value) / height * 100 + "%"}>{line.reach.text}</span>
           {:else}
             <span class={"reach-label beyond " + line.key} style:top={y(line.value) / height * 100 + "%"}>{line.reach.text} →</span>
           {/if}
@@ -100,6 +105,7 @@
     {#if change}<span><i class="key change"></i>조사한 변화</span>{/if}
     <span><i class="key estimate"></i>예측</span>
     {#if band}<span><i class="key band"></i>예측 범위</span>{/if}
+    {#if paced && pace}<span><i class="key pace"></i>{pace.label}</span>{/if}
     {#if limits.management !== null && scaled.outside.management}<span>관리 기준 {measure(limits.management, unit)} · 그래프 밖</span>{/if}
     {#if limits.end !== null && scaled.outside.end}<span>종료 기준 {measure(limits.end, unit)} · 그래프 밖</span>{/if}
   </figcaption>
@@ -123,6 +129,7 @@
   .measured{fill:none;stroke:var(--color-series-1);stroke-width:1.6;stroke-linejoin:round}
   .estimate{fill:none;stroke:var(--color-series-1);stroke-width:1.8;stroke-dasharray:6 4}
   .unreliable .estimate{stroke:var(--color-ink-muted)}.unreliable .band{fill:var(--color-ink-muted);opacity:.08}
+  .pace{fill:none;stroke:var(--color-series-1);stroke-width:2;stroke-dasharray:1 4;stroke-linecap:round}
   .now{stroke:var(--color-ink-muted);stroke-width:1;opacity:.5}
   .limit{stroke-width:1.5;stroke-dasharray:3 3}.limit.management{stroke:var(--color-caution-ink)}.limit.end{stroke:var(--color-failure-ink)}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
@@ -138,6 +145,7 @@
   .reach.maybe{background:var(--color-surface);border:2px solid currentColor;box-sizing:border-box}
   .reach-label{position:absolute;transform:translate(8px,6px);padding:0 4px;border-radius:3px;background:rgb(255 255 255 / .85);font-size:var(--font-label);font-weight:650;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
   .reach-label.left{transform:translate(calc(-100% - 8px),6px)}
+  .reach-label.above{transform:translate(8px,calc(-100% - 6px))}.reach-label.left.above{transform:translate(calc(-100% - 8px),calc(-100% - 6px))}
   .reach-label.beyond{right:4px;transform:translateY(6px)}
   .legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:0;padding-left:56px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -148,4 +156,5 @@
   .key.baseline{height:10px;border:0;background:var(--color-reference-line);opacity:.25}
   .key.change{width:14px;height:12px;border:0;border-left:1.5px solid var(--color-change-line);background:var(--color-change-fill)}
   .key.band{height:10px;border:0;background:var(--color-series-1);opacity:.2}
+  .key.pace{border-color:var(--color-series-1);border-top-style:dotted}
 </style>

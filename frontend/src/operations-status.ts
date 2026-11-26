@@ -141,11 +141,11 @@ export function readSourceNames(): Promise<Map<string, string>> {
   return named.names;
 }
 /** Metadata encoded by the public importer; partition is not model training usage. */
-export function publicSourceInfo(id:string):{name:string;partition:string|null;fingerprint:string|null}|null {
+export function publicSourceInfo(id:string):{kind:"aihub-239"|"xjtu-sy";name:string;partition:string|null;fingerprint:string|null}|null {
   const aihub=/^aihub239-(training|validation)-[^-]+-[^-]+(?:-([0-9a-f]{64}))?$/.exec(id);
-  if(aihub)return {name:"AI-Hub 239 공개 실측 데이터",partition:aihub[1]==="training"?"Training":"Validation",fingerprint:aihub[2]??null};
+  if(aihub)return {kind:"aihub-239",name:"AI-Hub 239 공개 실측 데이터",partition:aihub[1]==="training"?"Training":"Validation",fingerprint:aihub[2]??null};
   const xjtu=/^xjtu-sy-replay(?:-([0-9a-f]{64}))?$/.exec(id);
-  return xjtu?{name:"XJTU-SY 공개 실측 데이터",partition:null,fingerprint:xjtu[1]??null}:null;
+  return xjtu?{kind:"xjtu-sy",name:"XJTU-SY 공개 실측 데이터",partition:null,fingerprint:xjtu[1]??null}:null;
 }
 /** A brief data identity; source bookkeeping is shown in data details. */
 function csvSourceName(id:string,among:readonly string[]=[]):string|null {

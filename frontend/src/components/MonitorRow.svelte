@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {clockText} from "../date-format";
+  import {clockText, spanText} from "../date-format";
   import {onDestroy, type Snippet} from "svelte";
   import {investigationHref, latestEpisode, ongoing, visibleSeries, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
@@ -72,8 +72,10 @@
   // 부하 신호(전류): 전압 그래프 바로 아래 같은 시간축에. 모니터링 중이면 같은 시점까지만 그린다.
   const companion = $derived(read.companion);
   const load = $derived(!companion ? [] : !replaying ? companion.series : until === null ? companion.series.map(row => ({...row, points: []})) : visibleSeries(companion, until));
-  const mainHeight = $derived(companion ? Math.round(height * .68) : height);
-  const loadHeight = $derived(companion ? Math.max(48, height - mainHeight - 20) : 0);
+  const compact = $derived(lead && !continuing && !replaying && !read.live);
+  const plotHeight = $derived(compact ? Math.min(height, 168) : height);
+  const mainHeight = $derived(companion ? Math.round(plotHeight * .68) : plotHeight);
+  const loadHeight = $derived(companion ? Math.max(42, plotHeight - mainHeight - 20) : 0);
   const loadPoint = $derived(load[0] ? (cursor !== null ? nearest(load[0].points, cursor) : load[0].points.at(-1)) : null);
   const judged = $derived(lead?.reviewKey ? read.judgments?.[lead.reviewKey] ?? null : null);
   const savedJudgment = $derived(judged ? {
@@ -93,7 +95,7 @@
     label: group.axis === "time" ? clockText(picked) : Math.floor(picked) + "번째 측정"} : null);
 </script>
 
-<li class="row" class:chatting>
+<li class="row" class:chatting class:compact>
   <div class="card-main">
     <div class="summary">
       <header class="equipment-head">
@@ -119,7 +121,14 @@
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
               <!-- 날짜·기간은 한 덩어리로 줄을 바꾼다('10월 5일 / (월) 07:31'처럼 끊기지 않게). -->
-              <small><span class="keep">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터</span> · <span class="keep">{duration(lead)}</span>{#if !continuing} · <span class="keep">{group.axis === "time" ? clockText(lead.to) : lead.to + "번째 측정"}에 끝남</span>{/if}</small>
+              <small>
+                {#if !continuing}
+                  {group.axis === "time" ? spanText(lead.from, lead.to) : lead.from + "–" + lead.to + "번째 측정"}
+                {:else}
+                  <span class="keep">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터</span>
+                {/if}
+                · <span class="keep">{duration(lead)}</span>
+              </small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
           </div>
@@ -132,7 +141,7 @@
           </div>
         </section>
       {/if}
-      <footer class="row-footer">
+      {#if analysisFailed || !lead || (!replaying && other)}<footer class="row-footer">
         {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
         {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다"
           : analyzed === null || lagging ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
@@ -140,7 +149,7 @@
         {#if !replaying && other}
           <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>
         {/if}
-      </footer>
+      </footer>{/if}
     </div>
     <div class="plot-area">
       <div class="plot-title">
@@ -180,6 +189,9 @@
     display:grid; gap:20px; min-width:0; list-style:none; padding:18px 20px;
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
   }
+  .row.compact {padding-block:12px}
+  @media(min-width:1001px) { .row.compact .card-main{grid-template-columns:390px minmax(0,1fr)} }
+  .row.compact .summary{gap:8px}.row.compact .finding{gap:6px;padding-block:7px}
   /* 대화 칸이 열린 줄: 오른쪽 칸이 어느 설비의 이야기인지 테두리로 잇는다. */
   .row.chatting { border-color:var(--color-action); box-shadow:0 0 0 1px var(--color-action); }
   .card-main { display:grid; grid-template-columns:300px minmax(0,1fr); gap:12px 28px; min-width:0; align-items:start; }

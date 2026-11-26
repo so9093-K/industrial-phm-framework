@@ -4,6 +4,7 @@
   type LoadPoint={x:number;value:number;join:boolean;low:number;high:number};
   import XAxis from "./XAxis.svelte";
   import RecordNavigator from "./RecordNavigator.svelte";
+  import MeasurementSchematic from "./MeasurementSchematic.svelte";
   import TrendChart from "./TrendChart.svelte";
   import {measure} from "../chart-axis";
   import {measurementScale} from "../time-axis";
@@ -15,12 +16,14 @@
   /** 고른 변화를 관제 화면과 같은 그래프 규칙으로 크게 본다. 같은 시기에 함께 변한 신호 중 단위가 같은 것은
    * 한 그래프에 겹치고(R·S·T상은 관제 화면과 같은 색), 단위가 다른 것은 같은 시간축의 작은 그래프로 아래에 둔다.
    * 처음 범위(변화로 판단하지 않는 범위)·처음 수준·같은 운전 수준의 값은 고른 신호에만 그린다. */
-  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant}:{
+  let {axis,record,episode,ongoing,episodes=[],lanes,operation=null,load=null,periodSeconds=null,selected=null,onSelect,onFocus,actions,context,assistant,decisionAction,measurementMap=null}:{
     axis:"time"|"acquisition";record:Span;episode:Span;ongoing:boolean;
     episodes?:{label:string;selected:boolean;onPick:()=>void}[];lanes:TimelineLane[];operation?:TimelineOperation|null;
     /** 부하 신호(전류): 보이는 구간의 실제 추이를 읽어 그래프 아래에 그린다. 없으면 운전 수준 띠를 그린다. */
     load?:{label:string;unit:string|null;read:(from:number,to:number,signal:AbortSignal)=>Promise<LoadPoint[]>}|null;
-    actions?:Snippet;context?:Snippet;periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
+    actions?:Snippet;context?:Snippet;decisionAction?:Snippet;
+    measurementMap?:{kind:"bearing"|"compressor";signal:string}|null;
+    periodSeconds?:number|null;selected?:number|null;onSelect?:(at:number)=>void;onFocus?:(key:string)=>void;
     /** 오른쪽 칸의 AI 조사. colorOf·labelOf로 고른 특이사항을 그래프와 같은 색·이름으로 보인다. */
     assistant?:Snippet<[{colorOf:(reviewKey:string)=>string|null;labelOf:(reviewKey:string)=>string|null;close:()=>void}]>}=$props();
   let zoomed=$state(false),cursor:number|null=$state(null);
@@ -120,10 +123,12 @@
 <section class="timeline" aria-label="선택한 변화">
   <header class="headline"><div><h2>{focused.label} · {now?.ratioLabel?"지금 초기의 약 "+now.ratioLabel:focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
     <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
+    {#if measurementMap}<MeasurementSchematic {...measurementMap} color={focused.reviewKey ? colorOf(focused.reviewKey) ?? SERIES_COLORS[0] : SERIES_COLORS[0]}/>{/if}
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
       {#if assistant}<button type="button" class="ai-toggle" aria-pressed={chatting} onclick={()=>rail=chatting?"context":"assistant"}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>{/if}
+      {#if decisionAction}{@render decisionAction()}{/if}
     </div>
   </header>
   {#if !focused.values}<p class="numbers">{focused.numbers}</p>{/if}
@@ -139,7 +144,7 @@
     {#each charts as chart,index(chart.group.focus)}
       <div class="lane-heading" class:main={index===0}>
         <strong>{chart.group.label}</strong>
-        {#if readAt!==null}<span class="readout">{#each chart.group.series as row,i(row.key)}{@const point=valueAt(row.points,readAt,reach)}<span><i style:background={SERIES_COLORS[i%SERIES_COLORS.length]}></i>{chart.many?row.short+" ":""}<b>{point?measure(point.value,chart.group.unit,4):"—"}</b></span>{/each}{#if index===0}<small>{place(readAt)}{readAt===shownLast&&inside(cursor)===null?(zoomed&&shownLast!==null&&hi<record.to?" · 확대 범위의 끝":" · 마지막"):""}</small>{/if}</span>{/if}
+        {#if readAt!==null}<span class="readout">{#each chart.group.series as row,i(row.key)}{@const point=valueAt(row.points,readAt,reach)}<span><i style:background={SERIES_COLORS[i%SERIES_COLORS.length]}></i>{chart.many?row.short+" ":""}<b>{point?measure(point.value,chart.group.unit):"—"}</b></span>{/each}{#if index===0}<small>{place(readAt)}{readAt===shownLast&&inside(cursor)===null?(zoomed&&shownLast!==null&&hi<record.to?" · 확대 범위의 끝":" · 마지막"):""}</small>{/if}</span>{/if}
       </div>
       <TrendChart group={chart.group} series={chart.group.series} {lo} {hi} changes={chart.changes} axis={false}
         reference={chart.main===focused?focused.values?.before??null:null} band={chart.main===focused?focused.usual:null}
@@ -191,7 +196,7 @@
 <style>
   .timeline{display:grid;gap:var(--space-3);min-width:0}
   .dock{display:flex;min-width:0;height:540px}.dock :global(.chat){flex:1}
-  .head-tools{display:flex;align-items:end;gap:8px}
+  .head-tools{display:flex;flex-wrap:wrap;align-items:end;gap:8px}
   .ai-toggle{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);font-size:var(--font-small);font-weight:650}
   .ai-toggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
   .ai-toggle[aria-pressed="true"]{background:var(--color-action);border-color:var(--color-action);color:var(--color-action-ink)}

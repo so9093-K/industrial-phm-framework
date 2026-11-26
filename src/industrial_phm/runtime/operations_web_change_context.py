@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from industrial_phm.application.condition_outlook import RECENT_MEASUREMENTS
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
 from industrial_phm.runtime.operations_web_vibration import acquisition_findings
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
@@ -16,8 +17,6 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 _KST = ZoneInfo("Asia/Seoul")
 # 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
 _POINTS = 30
-# 진동이 '지금도 오르는지'를 말할 최근 측정 수.
-_RECENT = 10
 _PHASES = ("R상", "S상", "T상")
 
 
@@ -369,15 +368,20 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
     ]
     recent: dict[str, str] = {}
     if not history:
-        # '지금도 오르고 있어?'와 '얼마나 급해?'는 최근 측정의 움직임으로 답한다. 없으면 모델이
-        # '계속 상승하는 추세'처럼 그래프 30점을 짐작해 말했다.
+        from industrial_phm.runtime.operations_web_forecast import recent_feature_values
+
+        last_at = context["vibration_last"]
+        earlier_at = last_at - RECENT_MEASUREMENTS
+        readings = recent_feature_values(
+            SqlitePhmAnalysisStore(workspace.phm_analysis_path), context["binding_id"], last_at
+        )
         for row in chart:
-            trace = row["trace"]
-            if len(trace) > 2:
-                back, last_point = trace[-min(len(trace), _RECENT + 1)], trace[-1]
+            series = readings.get(row["key"], {})
+            earlier, latest_value = series.get(earlier_at), series.get(last_at)
+            if earlier is not None and latest_value is not None:
                 recent[row["label"]] = (
-                    f"{when(back[0])} {_text(back[1], None)} → {when(last_point[0])} "
-                    f"{_text(last_point[1], row['unit'])}" + _times(back[1], last_point[1], history)
+                    f"{when(earlier_at)} {_text(earlier, None)} → {when(last_at)} "
+                    f"{_text(latest_value, row['unit'])}" + _times(earlier, latest_value, history)
                 )
     now: dict[str, str] = {}
     if history:
@@ -445,7 +449,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         "지금 값(마지막 측정)": {row["label"]: latest(row) for row in chart if row["trace"]},
         **({"지금 초기 대비 변화 폭 순서": order} if len(current_axes) > 1 else {}),
         **now,
-        **({f"최근 {_RECENT}회 측정 동안": recent} if recent else {}),
+        **({f"최근 {RECENT_MEASUREMENTS}회 측정 동안": recent} if recent else {}),
         "그래프(시각, 값)" if history else "그래프(측정 번호, 값)": {
             row["label"]: [[tick(x), _value(value)] for x, value in _compact_trace(row["trace"])]
             for row in chart

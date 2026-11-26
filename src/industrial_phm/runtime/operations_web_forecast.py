@@ -545,6 +545,30 @@ def acquisition_points(
     )
 
 
+def recent_feature_values(
+    store: SqlitePhmAnalysisStore, binding_id: str, last: int
+) -> dict[str, dict[int, float]]:
+    """Keep actual endpoints for the two recent acquisition intervals, even on long records."""
+    from industrial_phm.application.condition_outlook import RECENT_MEASUREMENTS
+
+    rows, _ = store.analyzed_between(
+        binding_id,
+        max(1, last - 2 * RECENT_MEASUREMENTS),
+        last,
+        max_points=2 * RECENT_MEASUREMENTS + 1,
+    )
+    out: dict[str, dict[int, float]] = {}
+    for row in rows:
+        for name, value in (row.features or {}).items():
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+            ):
+                out.setdefault(name, {})[row.position] = float(value)
+    return out
+
+
 def _finite_acquisition_points(
     results: Sequence[StepResult], feature: str
 ) -> list[tuple[int, float]]:

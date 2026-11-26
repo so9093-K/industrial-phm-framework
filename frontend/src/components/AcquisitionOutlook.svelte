@@ -25,7 +25,7 @@
   import {assetTabUrl} from "../routes";
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
   import OutlookChart from "./OutlookChart.svelte";
-  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary} from "../outlook-view";
+  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary,reachReading} from "../outlook-view";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
@@ -146,6 +146,7 @@
     return shown?limitSuggestions(shown.unit,baseline,options?.features.find(item=>item.id===shown.featureId)?.label??"",shown.history.at(-1)?.value??null,true):[];});
   function suggest(value:number,toward:Direction){direction=toward;managementText=String(value);remember();void calculate();}
   const formatOffset=(n:number)=>Number.isInteger(n)?String(n):n.toFixed(2);
+  const paceLabel=(record:AcquisitionProjection)=>"최근 "+(record.evolution?.ratePoints??"")+"회 속도 유지";
   const scenarioLabel=(id:string)=>({current:"기본 설정",recent:"최근 구간 중심",responsive:"변화에 민감",linear:"최근 속도 유지"} as Record<string,string>)[id]??id;
   onMount(()=>{void loadOptions();return()=>{listAbort?.abort();resultAbort?.abort();};});
 </script>
@@ -174,17 +175,18 @@
         </select>
       </label>
 
-      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();void calculate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
+
       {#if timeHorizon!==null}<label>예측 기간<select value={timeHorizon} onchange={e=>{timeHorizon=e.currentTarget.value as Horizon;invalidate();void calculate();}}>{#each ["1h","24h","7d","30d"] as h}<option value={h}>{HORIZON_LABEL[h as Horizon]}</option>{/each}</select></label>{/if}
       {#if timeHorizon===null}<label>앞으로 볼 측정 횟수 (1~2000)
         <input type="number" min="1" max="2000" step="1" value={countText}
           oninput={e=>{countText=e.currentTarget.value;invalidate();}}/>
       </label>{/if}
-      <button type="button" class="ui-button ui-button-primary"
-        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>
+      {#if timeHorizon === null && resultState === "empty"}<button type="button" class="ui-button ui-button-primary"
+        onclick={()=>void calculate()} disabled={available.length===0}>계산하기</button>{/if}
     </div>
 
     <AnalysisControls title="고급 설정">{#snippet children(close)}{#if options}
+      <label>예측 범위 단위<select value={timeHorizon===null?"count":"time"} onchange={e=>{timeHorizon=e.currentTarget.value==="time"?"1h":null;invalidate();void calculate();}}><option value="count">측정 횟수</option><option value="time">시간 (측정 간격 필요)</option></select></label>
     <details class="interval-assumption" open={assumedText.trim()!==""||(timeHorizon!==null&&options.recordedPeriod===null)}>
       <summary>측정 간격 가정 (선택)</summary><label>측정 간격 가정 (선택 · 초, 1~86400)
         <input type="number" min="1" max="86400" step="any" value={assumedText}
@@ -212,9 +214,9 @@
       {@const displayFeature=outlook.featureId}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const chart=outlook.forecast.length>0}
-      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
       {@const worse=worseThanPersistence(outlook.checks?.[0])}
+      {@const ahead={management:reachReading(outlook.scenarios,"management",worse),end:reachReading(outlook.scenarios,"end",worse)}}
       {@const told=outlookMessage({axis:"acquisition",period,unit:outlook.unit,conditions:outlook.conditions,
         scenarios:outlook.scenarios,checks:outlook.reachChecks??[]},
         [{label:"다음 측정이 기준에 다가가는지 특징 추이에서 보기",href:featureTrendHref(outlook.assetId,outlook.featureId)}]) ?? forecastMessage({last:outlook.history.at(-1)?.value??null,start:outlook.forecast[0].estimate,end:outlook.forecast.at(-1)!,unit:outlook.unit,
@@ -231,7 +233,8 @@
             future={outlook.forecast.map(row=>({x:row.ordinal,estimate:row.estimate,lower:row.lower,upper:row.upper}))}
             last={outlook.record.last} {baseline} change={investigatedChange(location.search,"vibration",outlook.featureId)}
             limits={{management:outlook.conditions.management,end:outlook.conditions.end}} direction={outlook.conditions.direction}
-            reach={{management:reachAt(current?.management,outlook.record.last,"acquisition"),end:reachAt(current?.end,outlook.record.last,"acquisition")}}
+            reach={{management:reachAt(ahead.management?.management,outlook.record.last,"acquisition"),end:reachAt(ahead.end?.end,outlook.record.last,"acquisition")}}
+            pace={outlook.evolution&&(ahead.management?.id==="linear"||ahead.end?.id==="linear")?{rate:outlook.evolution.rate,label:paceLabel(outlook)}:null}
             unit={outlook.unit} scale={measurementScale(period)} place={at=>place(at,period)} unreliable={worse}/>
         {/if}
         {#if outlook.evolution}<SignalEvolution data={outlook.evolution} unit={outlook.unit}/>{/if}
@@ -315,8 +318,6 @@
       <h3 class="inspector-title">기준 도달·예상 여유</h3>
 
     {#if outlook}
-      {@const current=outlook.scenarios.find(item=>item.id==="current")??outlook.scenarios[0]}
-      {@const basis=current&&current.id!=="current"?" · "+scenarioLabel(current.id)+" 기준":""}
       {@const period=outlook.timeBasis==="ordinal"?null:outlook.effectivePeriod}
       {@const limited=outlook.conditions.management!==null||outlook.conditions.end!==null}
       {@const worse=worseThanPersistence(outlook.checks?.[0])}
@@ -324,11 +325,16 @@
         {#if limited}
           {@const shown=outlook.history.map(row=>({x:row.ordinal,value:row.value}))}
           <div class="tiles">
-            {#each [["management","관리 기준",outlook.conditions.management,current?.management],["end","종료 기준",outlook.conditions.end,current?.end]] as const as [key,name,value,reach] (key)}
-              {#if value!==null}{@const told=reachSummary(reach,"acquisition",period,at=>place(at,period),outlook.record.last,reach?.state==="already"?crossedSince(shown,value,outlook.conditions.direction):null)}
-                <div><span>{name} {measure(value, outlook.unit)}{basis}</span><strong>{told.headline}</strong>
+            {#each [["management","관리 기준",outlook.conditions.management],["end","종료 기준",outlook.conditions.end]] as const as [key,name,value] (key)}
+              {#if value!==null}
+                {@const reading=reachReading(outlook.scenarios,key,worse)}{@const reach=reading?.[key]}{@const paced=reading?.id==="linear"}
+                {@const basis=reading&&!paced&&reading.id!=="current"?" · "+scenarioLabel(reading.id)+" 기준":""}
+                {@const told=reachSummary(reach,"acquisition",period,at=>place(at,period),outlook.record.last,reach?.state==="already"?crossedSince(shown,value,outlook.conditions.direction):null,paced?"기준 도달":undefined)}
+                <div><span>{name} {measure(value, outlook.unit)}{basis}</span>
+                  {#if paced}<span class="pace-basis">{paceLabel(outlook)} 시</span>{/if}
+                  <strong>{told.headline}</strong>
                   {#if told.detail}<span>{told.detail}</span>{/if}
-                  {#if worse&&reach?.state!=="already"}<span class="caveat">예측 오차가 커서 참고로만 봅니다.</span>{/if}
+                  {#if worse&&!paced&&reach?.state!=="already"}<span class="caveat">예측 오차가 커서 참고로만 봅니다.</span>{/if}
                   {#if key==="end"}<span>입력한 종료 기준까지의 조건부 예측입니다. 설비의 실제 잔여수명은 아닙니다.</span>{/if}</div>
               {/if}
             {/each}
@@ -363,6 +369,7 @@
 </section>
 <style>
   .criteria{display:grid;gap:var(--space-2);padding:var(--space-3);background:var(--color-surface-selected);border-radius:var(--radius-control)}
+  .pace-basis{font-weight:650;color:var(--color-action)}
   .criteria-title{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:baseline;font-size:var(--font-small)}
   .criteria .inputs{grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:var(--space-2);margin:0}
   .criteria label{gap:4px;font-size:var(--font-label)}.criteria input,.criteria select{padding:var(--space-2)}
