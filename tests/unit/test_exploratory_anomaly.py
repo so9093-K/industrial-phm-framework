@@ -103,6 +103,19 @@ def test_related_signal_comparison_separates_typical_change_from_stable_values()
     assert interval_comparison([], reference, interval) is None
 
 
+def test_current_rms_comparison_requires_a_value_at_the_same_measurement() -> None:
+    horizontal = _points([1.0] * 20 + [12.0] * 9)
+    vertical = _points([1.0] * 20 + [2.0] * 10)
+    found = record_changes(
+        {"horizontal": horizontal, "vertical": vertical},
+        min_ratio=1.5,
+        latest_at=vertical[-1][0],
+    )
+    assert found["intervals"][0]["channel"] == "vertical"
+    assert [row["channel"] for row in found["current_axes"]] == ["vertical"]
+    assert found["current_axes"][0]["ratio"] == 2.0
+
+
 def test_only_a_signal_the_source_declares_a_running_total_is_left_unjudged() -> None:
     # AI-Hub leaves the energy unit unresolved; its item name still says what it is.
     assert declared_running_total(name="누적전력량 누적전력량", unit=None, meaning=None)

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as date} from "../date-format";
   import {bandName} from "../record-findings";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {focusFrom,focusParams,type SourceFocus} from "../signal-selection";
@@ -58,12 +59,7 @@
     { value: "first-50", label: "처음 50%와 비교" },
     { value: "all", label: "전체 분포에서 다른 구간" },
   ];
-  function date(at: string): string {
-    const when = new Date(at);
-    return Number.isNaN(when.getTime())
-      ? "시각 해석 불가"
-      : when.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
-  }
+
   function rememberSelection() {
     const url = new URL(location.href);
     url.searchParams.set("monitor_asset", assetId);

@@ -22,10 +22,12 @@ export type VibrationChange = {
   halves?: Half[] | null;
 };
 export type Half = {from: number; to: number; change: number};
+export type RmsReading = {value: number; reference: number; ratio: number};
 export type VibrationFindings = {
   sourceId:string|null; bindingId:string|null;
   assetId: string; first: number | null; last: number | null; periodSeconds: number | null;
   judged: number; features: number; intervals: VibrationChange[];
+  currentAxes?: Record<string, RmsReading>;
 };
 
 function invalid(): never { throw new Error("진동 측정 특이사항의 형식이 올바르지 않습니다."); }
@@ -39,8 +41,14 @@ export function parseVibrationFindings(raw: unknown, assetId: string): Vibration
   if (!root || root.schema_version !== 1 || root.asset_id !== assetId
     || root.meaning !== "departures-from-the-first-30-percent-not-fault-diagnosis" || !Array.isArray(root.intervals)) invalid();
   const intervals = root.intervals.map(parseVibrationChange);
+  const currentAxes = Object.fromEntries((Array.isArray(root.current_axes) ? root.current_axes : []).map(entry => {
+    const axis = object(entry) ?? invalid();
+    const value = finite(axis.value), reference = finite(axis.reference), ratio = finite(axis.ratio);
+    if (reference <= 0 || value < 0 || ratio < 0) invalid();
+    return [text(axis.channel), {value, reference, ratio}];
+  }));
   return {assetId,sourceId:typeof root.source_id==="string"?root.source_id:null,bindingId:typeof root.binding_id==="string"?root.binding_id:null, first: root.first === null ? null : whole(root.first), last: root.last === null ? null : whole(root.last),
-    periodSeconds: optional(root.period_seconds), judged: whole(root.judged), features: whole(root.features), intervals};
+    periodSeconds: optional(root.period_seconds), judged: whole(root.judged), features: whole(root.features), intervals, currentAxes};
 }
 
 /** A change and its trace always describe the same feature and acquisition record. */

@@ -11,6 +11,7 @@ against.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime, timedelta
 from itertools import combinations, pairwise
@@ -347,6 +348,7 @@ def record_changes(
     streams: Mapping[str, tuple[str, str | None] | tuple[str, str | None, str, str]] | None = None,
     priority: Mapping[str, int] | None = None,
     min_ratio: float | None = None,
+    latest_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Select distinct sustained, end-of-record and large changes across every signal.
 
@@ -365,6 +367,8 @@ def record_changes(
         min_ratio: For levels read as multiples of their reference (vibration amplitude),
             keep only changes whose typical value is at least this multiple of the reference
             or at most its inverse.
+        latest_at: Compare amplitude channels at the same observation and promote the strongest
+            ongoing relative change. Previously selected intervals stay available for review.
 
     Returns:
         Per-signal baseline states, the threshold, the selected intervals and their count.
@@ -485,8 +489,60 @@ def record_changes(
     if len(selected) < limit:
         for item in sustained:
             take([item], "sustained")
+
+    channels = [row for read in analyses.values() for row in read["channels"]]
+    current_axes = []
+    if latest_at is not None and min_ratio is not None:
+        for row in channels:
+            name, baseline = row["key"], row.get("median")
+            at, _, latest = series[name][-1]
+            if at != latest_at or baseline is None or baseline <= 0 or latest < 0:
+                continue
+            ratio = latest / baseline
+            if math.isfinite(ratio):
+                current_axes.append(
+                    {"channel": name, "value": latest, "reference": baseline, "ratio": ratio}
+                )
+        # A doubling and a halving have the same distance from their reference on this scale.
+        current_axes.sort(
+            key=lambda row: (
+                -abs(math.log(row["ratio"])) if row["ratio"] else -math.inf,
+                row["channel"],
+            )
+        )
+        for axis in current_axes:
+            name, ratio = axis["channel"], axis["ratio"]
+            direction = "up" if ratio >= min_ratio else "down" if ratio <= 1 / min_ratio else None
+            if direction is None:
+                continue
+            choice = next(
+                (
+                    item
+                    for item in candidates
+                    if item["channel"] == name
+                    and item["end"] == ends[name]
+                    and item["direction"] == direction
+                ),
+                None,
+            )
+            if choice is None:
+                continue
+            prior = next(
+                (
+                    i
+                    for i, item in enumerate(selected)
+                    if (item["channel"], item["start"], item["end"])
+                    == (name, choice["start"], choice["end"])
+                ),
+                None,
+            )
+            selected.insert(
+                0, selected.pop(prior) if prior is not None else {**choice, "reason": "record-end"}
+            )
+            break
     return {
-        "channels": [row for read in analyses.values() for row in read["channels"]],
+        "channels": channels,
+        "current_axes": current_axes,
         "threshold": THRESHOLD,
         "intervals": selected,
         "interval_count": len(candidates),

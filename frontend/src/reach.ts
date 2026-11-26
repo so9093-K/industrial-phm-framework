@@ -1,3 +1,4 @@
+import {dateTime} from "./date-format.ts";
 /** One wording for a server-computed limit reach, kept on its own axis: acquisition
  * counts are never turned into durations, and time offsets count from the last record. */
 import type {Reach} from "./projections.ts";
@@ -32,7 +33,7 @@ export function reachCalendarText(value: Reach | null | undefined, last: string,
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds < 0) return "";
   const at = Date.parse(last) + seconds * 1000;
   if (!Number.isFinite(at) || !Number.isFinite(now)) return "";
-  const clock = new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+  const clock = dateTime(at);
   if (value?.state === "possible")
     return "예측 범위의 가장 이른 도달 시각 " + clock + " (KST)" + (at <= now ? " · 지난 시점" : "");
   return at <= now

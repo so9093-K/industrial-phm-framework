@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount, untrack} from "svelte";
   import {readSourceNames, sourceLabel} from "../operations-status";
   import {assetLabel, assetOptionLabel, type Snapshot} from "../monitor";
@@ -35,7 +36,7 @@
   const QUANTITY = {current: "전류", voltage: "전압"};
   const QUALITY: Record<QualityState, string> = {pass: "통과", warning: "주의", error: "오류"};
   const STATUS: Record<ReviewStatus, string> = {open: "검토 대기", acknowledged: "확인함", closed: "검토 종료"};
-  const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
+
   const key = (item: AnalysisRecord) => item.runId + "\n" + item.evidenceId;
   const matches = (owner: string) => !chosen || owner === chosen;
   const records = $derived(snapshot.analyses.records.filter((item) => matches(item.assetId)));

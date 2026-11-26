@@ -1,3 +1,4 @@
+import {dayText, timeLabel} from "./date-format.ts";
 /** 주요 변화를 읽는 사람의 말로 옮긴다: 무엇이, 언제부터 얼마 동안, 무엇과 견줘 어땠는지.
  * 판정 이름을 붙이지 않고 관측한 사실만 말한다. */
 
@@ -37,6 +38,10 @@ export function plainLabel(label: string, feature?: string | null): string {
   return found ? label.replace(found[1], found[2]) : label;
 }
 
+/** The server's same-measurement RMS ratio, displayed with the same precision as AI investigation. */
+export function rmsRatioText(ratio: number): string {
+  return "초기의 약 " + (ratio >= 1 ? ratio.toFixed(1) + "배" : (ratio * 100).toFixed(1) + "%");
+}
 const TEMPERATURE = /°|℃|℉/;
 const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
 const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
@@ -74,8 +79,7 @@ export function changeNumbers(facts: ChangeFacts, spanCaption: string | null = n
   };
 }
 
-const shortTime = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric",
-  hour: "2-digit", minute: "2-digit", hour12: false});
+const shortTime = (at: string) => dayText(at) + " " + timeLabel(at);
 /** 변화가 기록 끝보다 먼저 끝났으면 언제 끝났고 기록은 언제까지인지. 마지막 두 구간 안에서 끝났으면
  * 기록 끝까지 이어진 변화로 보고 null을 돌려준다. 상태 요약과 관측 현황이 같은 규칙을 쓴다. */
 export function changeEnded(end: string, recordTo: string | null | undefined, bucketSeconds: number | null | undefined): string | null {

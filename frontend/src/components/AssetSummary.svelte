@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {clockText, dayText} from "../date-format";
   import {type PlaybackScope, scopeParams} from "../record-playback";
   import {recordParams} from "../record-context";
   import {readOverview, type OverviewRow} from "../asset-overview";
@@ -9,7 +10,7 @@
   import ChangeInvestigation from "./ChangeInvestigation.svelte";
   import OperationLevels from "./OperationLevels.svelte";
   import AssetTimeline from "./AssetTimeline.svelte";
-  import {clockText, episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
+  import {episodes, operationColumns, type Span, type TimelineLane, type TimelineOperation, type TimelinePoint} from "../asset-timeline";
   import {readAcquisitionTrend} from "../acquisition-trend";
   import {readTrends, trendRange} from "../history";
   import {readChangeReviews} from "../change-reviews";
@@ -26,7 +27,7 @@
   import AnalysisOptions from "./AnalysisOptions.svelte";
   import {attentionText, readAttention, type AttentionState, type Note} from "../monitor-attention";
   import {changeValue, copiedGroups, findingLinks, findingText, readRecordFindings, bandName, unjudgedText, type CheckedSignal, type FoundInterval, type RecordFindings} from "../record-findings";
-  import {CHANGE_WHY, plainLabel, versusStart, changeEnded} from "../change-story";
+  import {rmsRatioText, CHANGE_WHY, plainLabel, versusStart, changeEnded} from "../change-story";
   import {measure} from "../chart-axis";
   type Props = {
     asset: Asset;
@@ -239,11 +240,12 @@
   }
   function vibrationLane(measured: VibrationRecord, change: VibrationRecord["intervals"][number], focused: boolean): TimelineLane {
     const points = traces[change.feature] ?? change.trace.map(point => ({x: point.at, value: point.value, join: point.join}));
-    const last = change.to === measured.last ? points.at(-1) : undefined;
-    const latest = last && last.x === measured.last ? " · 마지막 " + measure(last.value, change.unit) + "(" + versusStart(last.value, change.reference, change.unit) + ")" : "";
+    const reading = change.to === measured.last ? measured.currentAxes?.[change.feature] : undefined;
+    const last = reading && measured.last !== null ? {value: reading.value, at: measured.last, ratio: reading.ratio} : null;
+    const latest = last ? " · 마지막 " + measure(last.value, change.unit) + " (" + rmsRatioText(last.ratio) + ")" : "";
     return {key: vibrationKey(change), reviewKey: change.reviewKey, label: plainLabel(change.label, change.feature), unit: change.unit, condition: null,
       points, detail: [], usual: change.usual, interval: {from: change.from, to: change.to},
-      values:{before:change.reference,after:change.typical,latest:last&&last.x===measured.last?{value:last.value,at:last.x}:null},
+      values:{before:reading?.reference??change.reference,after:change.typical,latest:last},
       halves: change.halves ?? null,
       numbers: magnitude(change.reference, change.typical, change.unit) + latest, focus: focused, up: change.direction === "up"};
   }
@@ -261,7 +263,7 @@
       void readChangeReviews(assetId, request.signal, {finding_id: key}).then(page => {
         const decided = page.captures[0]?.review.events.filter(event => event.decision).at(-1);
         if (request.signal.aborted || !decided?.decision) return;
-        const day = new Date(decided.recordedAt).toLocaleDateString("ko-KR", {timeZone: "Asia/Seoul", month: "long", day: "numeric"});
+        const day = dayText(decided.recordedAt);
         decisions = {...decisions, [member.key]: DECISION_LABEL[decided.decision] + " · " + day};
       }).catch(() => {});
     }

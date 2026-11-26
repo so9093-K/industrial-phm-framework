@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {clockText, dateTime as clock} from "../date-format";
   import SignalEvolution from "./SignalEvolution.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
@@ -29,7 +30,6 @@
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
   import OutlookChart from "./OutlookChart.svelte";
   import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary} from "../outlook-view";
-  import {clockText} from "../asset-timeline";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
@@ -98,8 +98,7 @@
     return shown.future.map((row,i)=>({x:Date.parse(row.at),estimate:row.estimate,lower:steady[i]?.lower??null,upper:steady[i]?.upper??null}));
   }
   function suggest(value:number,toward:Direction){direction=toward;management=String(value);save();void calculate();}
-  const clock = (at: string): string =>
-    new Date(at).toLocaleString("ko-KR", {timeZone:"Asia/Seoul"});
+
   function label(id: string): string {
     return ({current:"기본 설정", recent:"최근 구간 중심", responsive:"변화에 민감",
       linear:"최근 속도 유지"} as Record<string,string>)[id] ?? id;

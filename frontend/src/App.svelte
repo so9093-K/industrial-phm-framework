@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as observed} from "./date-format";
   import { onMount, tick } from "svelte";
   import { assetLabel, readMonitor, unreadNotice, type Asset, type Snapshot } from "./monitor";
   import {recentAsset} from "./observation";
@@ -177,13 +178,7 @@
     }
   }
 
-  function observed(at: string | null): string {
-    if (!at) return "기록 없음";
-    const date = new Date(at);
-    return Number.isNaN(date.getTime())
-      ? "시각 해석 불가"
-      : date.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-  }
+
 
   onMount(() => {
     const restore = async () => {

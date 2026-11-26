@@ -56,11 +56,18 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
             ordinal,
             0.5 if ordinal < 16 else 2.0,
             amplitude_unit="g",
-            vertical_scale=1.0 if ordinal < 23 else 5.0,
+            vertical_scale=1.0 if ordinal < 21 else 5.0,
         )
     analyze(workspace)
     changes = acquisition_findings(workspace, "bearing-a")["intervals"]
     chosen = changes[0]
+    # Vertical starts later and overlaps the longer horizontal change. Keep both review targets,
+    # and select the larger same-measurement change rather than the longer period.
+    assert ".Vertical_" in chosen["feature"] and chosen["from"] == 21
+    horizontal = next(row for row in changes if ".Horizontal_" in row["feature"])
+    assert horizontal["from"] == 16 and horizontal["review_key"] != chosen["review_key"]
+    earlier = acquisition_findings(workspace, "bearing-a", until=20)
+    assert earlier["intervals"][0]["feature"] == horizontal["feature"]
     # 함께 달라진 특징은 기록 끝의 값도 준다: 이어지는 변화의 '지금'과 같은 때에 견준다.
     assert chosen["related"] and all(isinstance(row["latest"], float) for row in chosen["related"])
     assert acquisition_findings(workspace, "bearing-a")["intervals"] == changes
@@ -81,9 +88,11 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert now[chosen["label"]].split(" · ")[0].endswith("g (30번째 측정)")
     assert all(line.endswith("배") for line in now.values())
     if len(now) > 1:
-        order = screen["지금 초기 대비 큰 순서"]
+        order = screen["지금 초기 대비 변화 폭 순서"]
         times = [float(part.rsplit("약 ", 1)[1].rstrip("배")) for part in order.split(", ")]
         assert times == sorted(times, reverse=True)
+        assert order.startswith(chosen["label"])
+        assert times == [5.0, 4.0]
     chart = screen["그래프(측정 번호, 값)"]
     assert next(iter(chart)) == chosen["label"] and chart[chosen["label"]][-1][0] == 30
     # 지금도 오르는지는 최근 10회 측정의 움직임으로 읽는다. 배수는 지금 값에만 붙인다: 같은 기간의

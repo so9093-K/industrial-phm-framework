@@ -93,7 +93,7 @@ test("minutes in a row that read the same are one time to check, with their end 
   }));
   const checks=firstChecks(stopped);
   assert.equal(checks.length,1);
-  assert.equal(checks[0].label,"2020. 11. 21. 오전 3:23:35 ~ 오전 3:27:35 · 5회");
+  assert.equal(checks[0].label,"2020. 11. 21. 03:23:35 ~ 03:27:35 · 5회");
   assert.equal(checks[0].at,at(0));
 });
 

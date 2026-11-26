@@ -86,6 +86,8 @@ def selected_change(
         "source_id": binding.source_id,
         "change_id": key,
         "vibration_change": change,
+        "vibration_current_axes": record["current_axes"],
+        "vibration_last": record["last"],
         "until": int(scope["acquisition_until"]) if "acquisition_until" in scope else None,
         "signal_comparison": {"previous_position": change["baseline"]["to"]},
     }
@@ -261,10 +263,10 @@ def _vibration_chart(
         context["binding_id"],
         context["source_id"],
         change["feature"],
-        until=context["until"],
+        until=context["vibration_last"],
     )
     return [
-        {"label": row["label"], "unit": group["unit"], "trace": row["trace"]}
+        {"key": row["key"], "label": row["label"], "unit": group["unit"], "trace": row["trace"]}
         for row in sorted(group["series"], key=lambda row: row["key"] != change["feature"])
     ]
 
@@ -302,6 +304,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         return datetime.fromisoformat(str(value)).astimezone(_KST).strftime("%m-%d %H:%M")
 
     operation = None
+    current_axes = {row["channel"]: row for row in context.get("vibration_current_axes", [])}
     if history:
         from industrial_phm.runtime.operations_web_explore import record_findings
 
@@ -329,7 +332,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             width = timedelta(seconds=float(change.get("bucket_seconds") or 0))
             ongoing = datetime.fromisoformat(end) + width >= datetime.fromisoformat(last[0])
         else:
-            ongoing = end >= last[0]
+            ongoing = end == last[0] == context["vibration_last"]
         # '문제 있어?'는 지금을 묻는다: 이어지는지 끝났는지를 말로, 신호 바로 다음에 둔다.
         card["지금도 이어지는지"] = "기록 끝까지 이어짐" if ongoing else f"{when(end)}에 끝남"
     lasted = (
@@ -349,9 +352,8 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             unit_name = f" {operation['unit']}" if operation.get("unit") else ""
             compared += f" (약 {_about(level['typical'])}{unit_name} 운전 중인 측정끼리)"
         card[compared] = f"{_text(before, None)} → {_text(after, unit)}"
-        if not history and ongoing and last is not None and before:
-            # 계속 커지는 진동은 관제 카드처럼 지금 값으로 말한다('지금 초기의 약 9.3배').
-            card["지금"] = f"{_text(last[1], unit)} (초기의 약 {last[1] / before:.1f}배)"
+        if not history and ongoing and (axis := current_axes.get(change["feature"])):
+            card["지금"] = f"{_text(axis['value'], unit)} (초기의 약 {_rms_ratio(axis['ratio'])})"
     if load := change.get("load"):
         card[f"같은 기간 {load['label']}"] = (
             f"{_text(load['reference'], None)} → {_text(load['current'], load['unit'])}"
@@ -365,13 +367,6 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
         for row in change.get("related", [])
     ]
-    # 축마다 초기 값: 지금 값 옆에 배수를 붙인다. 없으면 모델이 그래프 첫 점으로 배수를 계산했다
-    # (수평 7.27 g를 '초기의 약 13배'로).
-    initial: dict[str, float] = {}
-    if not history:
-        initial = {row["label"]: row["reference"] for row in change.get("related", [])}
-        if before is not None:
-            initial[change["label"]] = before
     recent: dict[str, str] = {}
     if not history:
         # '지금도 오르고 있어?'와 '얼마나 급해?'는 최근 측정의 움직임으로 답한다. 없으면 모델이
@@ -406,20 +401,12 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
     def latest(row: dict[str, Any]) -> str:
         at, value = row["trace"][-1][0], row["trace"][-1][1]
         text = f"{_reading(value, row['unit'])} ({when(at)})"
-        start_value = initial.get(row["label"]) or 0
-        return text + (f" · 초기의 약 {value / start_value:.1f}배" if start_value > 0 else "")
+        axis = current_axes.get(row.get("key"))
+        return text + (f" · 초기의 약 {_rms_ratio(axis['ratio'])}" if axis else "")
 
-    # '어느 쪽이 더 나빠?'·'어디부터 볼까?'는 순서를 묻는다. 순서를 주지 않으면 모델은 수평이
-    # 10.1배인데도 카드의 신호(수직 9.3배)를 '가장 크게 오른 축'이라고 했다.
-    ranked = sorted(
-        (
-            (row["trace"][-1][1] / initial[row["label"]], row["label"])
-            for row in chart
-            if row["trace"] and (initial.get(row["label"]) or 0) > 0
-        ),
-        reverse=True,
+    order = ", ".join(
+        f"{row['label']} 약 {_rms_ratio(row['ratio'])}" for row in current_axes.values()
     )
-    order = ", ".join(f"{label} 약 {times:.1f}배" for times, label in ranked)
     pointed: dict[str, Any] = {}
     if (at := context.get("at")) is not None:
         # 사람이 그래프에서 짚고 물은 곳: 그때 각 신호의 값과, 특이사항 구간 안인지 밖인지.
@@ -458,7 +445,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         "특이사항": card,
         **({"같은 기간 다른 신호": related} if related else {}),
         "지금 값(마지막 측정)": {row["label"]: latest(row) for row in chart if row["trace"]},
-        **({"지금 초기 대비 큰 순서": order} if len(ranked) > 1 else {}),
+        **({"지금 초기 대비 변화 폭 순서": order} if len(current_axes) > 1 else {}),
         **now,
         **({f"최근 {_RECENT}회 측정 동안": recent} if recent else {}),
         "그래프(시각, 값)" if history else "그래프(측정 번호, 값)": {
@@ -467,6 +454,10 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             if row["trace"]
         },
     }
+
+
+def _rms_ratio(ratio: float) -> str:
+    return f"{ratio:.1f}배" if ratio >= 1 else f"{ratio * 100:.1f}%"
 
 
 def _times(before: float, after: float, history: bool) -> str:

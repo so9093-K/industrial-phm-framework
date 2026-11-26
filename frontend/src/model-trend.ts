@@ -1,3 +1,4 @@
+import {dateTime} from "./date-format.ts";
 /** A model's stored scores over its whole input order, its threshold-exceedance intervals and
  * the raw input of one measurement. Nothing is rescored; a skipped step stays a gap. */
 import {isUnjudged,type ModelBinding,type StepPointer} from "./model-evidence.ts";
@@ -134,8 +135,7 @@ export function exceedanceText(story: ExceedanceStory, place: (position: number)
 export function measurementTime(point: TrendPoint, period: number | null): string | null {
   if (point.eventStart && /(?:Z|[+-]\d{2}:\d{2})$/i.test(point.eventStart)
     && Number.isFinite(Date.parse(point.eventStart)))
-    return new Date(point.eventStart).toLocaleString("ko-KR", {timeZone: "Asia/Seoul", hourCycle: "h23",
-      year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit"}) + " (KST)";
+    return dateTime(point.eventStart) + " (KST)";
   return period !== null && Number.isFinite(period) && period > 0
     ? sinceStart(point.pointer.position, period) : null;
 }

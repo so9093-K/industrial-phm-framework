@@ -1,8 +1,8 @@
 <script lang="ts">
+  import {dateTime as clock, kstInstant} from "../date-format";
   import type {HistoryStream} from "../history";
   import {onMount} from "svelte";
   import {explainWrite} from "../connections";
-  import {kstInstant} from "../electrical-condition";
   import {readSignalNames, signalName, type SignalNames} from "../history";
   import {OutcomeUnknown, WriteForbidden, WriteRejected} from "../writes";
   import {
@@ -27,7 +27,7 @@
   let busy = $state(false);
   let message = $state("");
   let failed = $state(false);
-  const clock = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
 
   let request: AbortController | null = null;
   function readStreams() {

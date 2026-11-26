@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from industrial_phm.application.measurement_history import HistoryAssetSummary
-from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore, StepState
+from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_signal_comparison import feature_label
 from industrial_phm.history import DuckLakeAssetHistory
 from industrial_phm.runtime.operations_web_explore import (
@@ -172,15 +172,10 @@ def asset_overview(
         body["finding"] = {
             key: first[key] for key in ("label", "unit", "direction", "kind", "from", "to", "value")
         } | {"reference": first["reference_value"], "typical": first["typical_value"]}
-        # 마지막 저장값은 변화한 특징의 값이어야 변화와 같은 이야기로 읽힌다.
-        newest = store.latest_result(binding.binding_id, state=StepState.ANALYZED)
-        value = (newest.features or {}).get(first["feature"]) if newest else None
+        position, value = first["trace"][-1]
         body["finding"]["latest"] = (
-            {"at": None, "position": newest.position, "value": float(value)}
-            if newest is not None
-            and isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(value)
+            {"at": None, "position": position, "value": value}
+            if position == found["last"]
             else None
         )
     results, _ = store.analyzed_between(binding.binding_id, 0, 2**62, max_points=_TRACE)

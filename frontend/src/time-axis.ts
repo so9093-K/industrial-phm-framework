@@ -1,5 +1,6 @@
 import {niceTicks} from "./chart-axis.ts";
 import {num} from "./format.ts";
+import {dateLabel, KST_OFFSET_MS, SEOUL, timeLabel} from "./date-format.ts";
 
 /** What the horizontal axis of a measurement chart counts, and its tick labels.
  * Stored records keep their own clock, order and receipt times; only the display converts.
@@ -13,7 +14,7 @@ export type XScale =
   | {kind: "value"}
   /** Values are epoch milliseconds; labels in `zone` (wall times written without an offset
    * are placed on UTC to keep their written clock). */
-  | {kind: "clock"; zone?: "Asia/Seoul" | "UTC"}
+  | {kind: "clock"; zone?: typeof SEOUL | "UTC"}
   /** Values are measurement numbers; #1 is at 0 and each step is `period` seconds. */
   | {kind: "elapsed"; period: number}
   /** Values are measurement numbers. */
@@ -67,16 +68,6 @@ function zeroLabel(unit: number): string {
   return unit < MINUTE ? "0초" : unit < HOUR ? "0분" : unit < DAY ? "0시간" : "0일";
 }
 
-function clockParts(at: number, zone: string, unit: number, year: boolean): {day: string; time: string} {
-  const date = new Date(at);
-  return {
-    day: date.toLocaleDateString("ko-KR", {timeZone: zone, year: year ? "numeric" : undefined, month: "numeric", day: "numeric"}),
-    time: date.toLocaleTimeString("ko-KR", {timeZone: zone, hour: "2-digit", minute: "2-digit",
-      second: unit < MINUTE * 1000 ? "2-digit" : undefined,
-      fractionalSecondDigits: unit < 1000 ? 3 : undefined, hourCycle: "h23"}),
-  };
-}
-
 /** Tick precision follows the spacing even when zoomed into a late part of a long record. */
 function elapsedTick(seconds: number, unit: number): string {
   if (seconds === 0) return zeroLabel(unit);
@@ -104,21 +95,21 @@ export function xTicks(lo: number, hi: number, scale: XScale, count = 5): XTick[
       .map(value => ({value, x: at(value), label: num(value)}));
   }
   if (scale.kind === "clock") {
-    const zone = scale.zone ?? "Asia/Seoul";
-    const shift = zone === "UTC" ? 0 : 9 * HOUR * 1000;
+    const zone = scale.zone ?? SEOUL;
+    const shift = zone === "UTC" ? 0 : KST_OFFSET_MS;
     const unit = Math.max(1, step(Math.max(1, hi - lo) / 1000, count, CLOCK_STEPS) * 1000);
     const year = new Date(lo + shift).getUTCFullYear() !== new Date(hi + shift).getUTCFullYear();
+    const precision = unit < 1000 ? "millisecond" : unit < MINUTE * 1000 ? "second" : "minute";
     let previousDay = "";
     for (let value = Math.ceil((lo + shift) / unit) * unit - shift; value <= hi; value += unit) {
-      const {day, time} = clockParts(value, zone, unit, year);
+      const day = dateLabel(value, year, zone), time = timeLabel(value, precision, zone);
       // Midnight names the day alone; the first tick of a new day carries its date.
       const label = unit >= DAY * 1000 || time === "00:00" ? day : day !== previousDay ? day + " " + time : time;
       previousDay = day;
       ticks.push({value, x: at(value), label});
     }
     if (ticks.length < 2) return (hi === lo ? [lo] : [lo, hi]).map(value => {
-      const {day, time} = clockParts(value, zone, unit, year);
-      return {value, x: at(value), label: day + " " + time};
+      return {value, x: at(value), label: dateLabel(value, year, zone) + " " + timeLabel(value, precision, zone)};
     });
     return ticks;
   }

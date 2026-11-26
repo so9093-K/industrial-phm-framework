@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime} from "../date-format";
   import XAxis from "./XAxis.svelte";
   import {bandName, bandRange, percent, type Operation} from "../record-findings";
   let {operation}: {operation: Operation} = $props();
@@ -35,8 +36,7 @@
     const count = Math.min(200, operation.timeline.length);
     hovered = Math.floor((event.clientX - box.left) / Math.max(1, box.width) * count);
   }
-  const clock = (at: number) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul",
-    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+  const clock = (at: number) => dateTime(at, "minute", false);
 </script>
 
 <section class="operation" aria-labelledby={"operation-" + operation.key}>
@@ -77,7 +77,7 @@
           </div>
         {/if}
       </div>
-      <XAxis lo={start} hi={end} scale={{kind: "clock", zone: "Asia/Seoul"}}
+      <XAxis lo={start} hi={end} scale={{kind: "clock"}}
         note={"세로 · 시간대별 운전 상태 비율" + (baseline ? " · 점선 · 기록 처음 30%의 끝" : "")} />
     </figure>
   {/if}

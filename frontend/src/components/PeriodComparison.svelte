@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as showTime, kstInput as kst, kstInstant as isoKst} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import {observationSnapshot} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
@@ -55,16 +56,6 @@
   let sourceAbort: AbortController | null = null;
   let profileAbort: AbortController | null = null;
 
-  const kst = (iso: string): string =>
-    new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 16);
-  const isoKst = (input: string): string => {
-    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(input)
-        || !Number.isFinite(Date.parse(input + ":00+09:00")))
-      throw new Error("구간 시각은 KST 날짜와 시각으로 지정하세요.");
-    return input + ":00+09:00";
-  };
-  const showTime = (iso: string): string =>
-    new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 19).replace("T", " ");
   // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
   const names = $derived(handedOver === "summary" ? {a: "초기", b: "특이사항 구간"} : {a: "기간 A", b: "기간 B"});
   /** 한 출처의 두 기간: 크기 한 마디, 기간 A 값의 90% 범위 밖 측정 수, 전류가 낮았던 측정 비율이 크게 다를 때 그 차이. */

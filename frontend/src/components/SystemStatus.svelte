@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount, untrack} from "svelte";
   import {unreadNotice, type Snapshot} from "../monitor";
   import {readRuntimeStatus, COMPONENT, CONDITION, type RuntimeStatus} from "../operations-status";
@@ -11,7 +12,7 @@
   let runtime: RuntimeStatus | null = $state(null);
   let runtimeState: "loading" | "ready" | "failed" = $state("loading");
   let request: AbortController | null = null;
-  const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
+
 
   async function load() {
     request?.abort();

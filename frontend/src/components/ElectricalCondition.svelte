@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {kstInput} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import {subject} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
@@ -26,7 +27,7 @@
   const W = 800, H = 200, LEFT = 0, RIGHT = 800, TOP = 6, BOTTOM = 194;
   const query=new URLSearchParams(location.search),picked=pickFrom(query.get("monitor_pick"));
   const baseline=pickFrom(query.get("compare_a"));
-  const inputTime=(at:number)=>new Date(at+9*3_600_000).toISOString().slice(0,19);
+  const inputTime = (at: number) => kstInput(at, "second");
   const initialPeriod:ConditionPeriod=picked&&picked.to-picked.from<=3_600_000?"1h":picked&&picked.to-picked.from<=6*3_600_000?"6h":"24h";
   const duration={"1h":3_600_000,"6h":6*3_600_000,"24h":24*3_600_000}[initialPeriod];
   // This analysis supports references of at most 24 hours. Longer change baselines

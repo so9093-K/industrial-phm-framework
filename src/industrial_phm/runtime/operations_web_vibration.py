@@ -67,7 +67,7 @@ def acquisition_findings(
         asset_id: The asset.
 
     Returns:
-        The judged features and up to three changes, each with its acquisitions, reference
+        The judged features and selected changes, each with its acquisitions, reference
         values and a short trace; empty when the asset has no analysed acquisitions.
     """
     if until is not None and until < 1:
@@ -83,6 +83,7 @@ def acquisition_findings(
         "judged": 0,
         "features": 0,
         "intervals": [],
+        "current_axes": [],
         "meaning": "departures-from-the-first-30-percent-not-fault-diagnosis",
     }
     store = SqlitePhmAnalysisStore(workspace.phm_analysis_path)
@@ -147,9 +148,13 @@ def acquisition_findings(
             limit=_SHOWN,
             priority={name: feature_rank(name) for name in leads},
             min_ratio=_MIN_RATIO,
+            latest_at=at(positions[-1]),
         )
     except LookupError, ValueError:
         return body
+    body["current_axes"] = [
+        row | {"label": feature_label(row["channel"])} for row in found["current_axes"]
+    ]
     body["judged"] = sum(
         row["state"] in {"scored", "level-change", "constant"} for row in found["channels"]
     )
@@ -180,8 +185,6 @@ def acquisition_findings(
                 "unit": feature_unit(other, amplitude),
                 "reference": row["reference"],
                 "current": row["current"],
-                # 기록 끝(재생 중이면 그 위치)의 값: 이어지는 변화의 '지금'과 같은 때에 견준다.
-                "latest": series[other][-1][2],
                 "state": row["state"],
             }
             for _, _, other, row in sorted(moved)[:_RELATED]
@@ -235,6 +238,9 @@ def acquisition_findings(
         ).hexdigest()
     for change, pace in zip(body["intervals"], halves, strict=True):
         change["halves"] = pace
+        # Current readings describe the replay position, not the identity of a saved change.
+        for related in change["related"]:
+            related["latest"] = series[related["feature"]][-1][2]
     return body
 
 

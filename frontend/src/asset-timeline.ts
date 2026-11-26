@@ -16,7 +16,7 @@ export type TimelineLane = {
   usual: {low: number; high: number}; interval: Span; numbers: string; focus: boolean; up: boolean;
   /** 이 변화에 마지막으로 남긴 판단(예: '계속 관찰 · 11월 19일'). */
   decision?: string | null;
-  values?: {before:number|null;after:number|null;latest:{value:number;at:number}|null};
+  values?: {before:number|null;after:number|null;latest:{value:number;at:number;ratio?:number}|null};
   /** 진동 변화 구간의 앞 절반·뒤 절반에 움직인 양: 빨라지는지 느려지는지 그래프에 그대로 적는다. */
   halves?: {from:number;to:number;change:number}[] | null;
 };
@@ -51,21 +51,6 @@ export function operationColumns(timeline: {at: string; counts: number[]}[], buc
     const from = Date.parse(row.at);
     return total ? [{from, to: from + bucketSeconds * 1000, shares: row.counts.map(count => count / total)}] : [];
   });
-}
-
-const KST = 9 * 3600 * 1000;
-const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
-/** 시간축의 시각 한 가지 형식: '10월 4일(일) 09:19'. */
-export function clockText(ms: number): string {
-  const at = new Date(ms + KST);
-  const hh = String(at.getUTCHours()).padStart(2, "0"), mm = String(at.getUTCMinutes()).padStart(2, "0");
-  return (at.getUTCMonth() + 1) + "월 " + at.getUTCDate() + "일(" + WEEKDAY[at.getUTCDay()] + ") " + hh + ":" + mm;
-}
-/** 두 시각: 같은 날이면 끝은 시각만 쓴다. */
-export function spanText(from: number, to: number): string {
-  const start = clockText(from), end = clockText(to);
-  return start.slice(0, start.lastIndexOf(" ")) === end.slice(0, end.lastIndexOf(" "))
-    ? start + " ~ " + end.slice(end.lastIndexOf(" ") + 1) : start + " ~ " + end;
 }
 
 /** 확대했을 때 쓰는 값: 변화 앞뒤를 촘촘히 읽은 값이 있는 범위는 그것으로, 나머지는 기록 전체 값으로. */

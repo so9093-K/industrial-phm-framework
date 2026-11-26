@@ -5,6 +5,7 @@
   const drafts=new Map<string,{note:string;decision:ReviewDecision|null;judged:ReviewDecision|null;status:ReviewStatus;pending:Pending}>();
 </script>
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount, tick} from "svelte";
   import {
     latestDecision, reviewNote, DECISIONS, DECISION_LABEL, OutcomeUnknown, ReviewConflict,
@@ -63,7 +64,7 @@
   let controller: AbortController | null = null;
 
   const ACTION = {note: "메모", acknowledge: "확인", close: "검토 종료"};
-  const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
 
   async function refreshed(signal: AbortSignal): Promise<boolean> {
     if (await reload(signal)) return true;
