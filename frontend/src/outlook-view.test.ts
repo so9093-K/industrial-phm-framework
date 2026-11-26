@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {crossedSince, investigatedChange, limitSuggestions, nearestAt, outlookScale, outlookWindow, reachAt, reachSummary} from "./outlook-view.ts";
+import {crossedSince, investigatedChange, limitSuggestions, nearestAt, outlookScale, outlookWindow, reachAt, reachSummary, reachReading} from "./outlook-view.ts";
 
 const history = Array.from({length: 100}, (_, i) => ({x: i + 1, value: 1 + i / 100}));
 const future = Array.from({length: 10}, (_, i) => ({x: 101 + i, estimate: 2, lower: 1.8, upper: 2.2}));
@@ -75,4 +75,19 @@ test("the margin reads as one short headline and one line of where it comes from
     {headline: "추가 측정 5회 뒤", detail: "예측선 도달 · 128번째"});
   assert.equal(reachSummary({state: "expected", expected: 30, earliest: 3, latest: 9}, "acquisition", 60, place, 123, null).headline, "약 30분 뒤");
   assert.equal(reachSummary({state: "beyond", expected: null, earliest: null, latest: null}, "time", null, place, 0, null).headline, "계산한 범위 안에서 닿지 않음");
+  assert.equal(reachSummary({state: "expected", expected: 19, earliest: null, latest: null}, "acquisition", 60, place, 123, null, "최근 10회 속도 유지 시 도달").detail,
+    "최근 10회 속도 유지 시 도달 · 142번째");
+});
+
+test("a weak forecast can use the recent measured pace", () => {
+  const reach = (state: string, expected: number | null = null, earliest: number | null = null) => ({state, expected, earliest, latest: null});
+  // 베어링: 추세 예측은 계산한 범위 안에서 닿지 않지만, 마지막 10회 속도로는 19회 뒤 관리 기준에 닿는다.
+  const failing = [{id: "current", management: reach("beyond"), end: null}, {id: "recent", management: reach("expected", 3), end: null},
+    {id: "linear", management: reach("expected", 19), end: null}];
+  assert.equal(reachReading(failing, "management", true)?.id, "linear");
+  assert.equal(reachReading(failing, "management", false)?.id, "current");
+  // 예측이 먼저 닿거나 둘 다 이미 넘었으면 추세 예측으로 답한다. 그래프에 없는 다른 계산 방식은 고르지 않는다.
+  assert.equal(reachReading([{id: "current", management: reach("possible", null, 8), end: null}, {id: "linear", management: reach("expected", 19), end: null}], "management", true)?.id, "current");
+  assert.equal(reachReading([{id: "current", management: reach("already"), end: null}, {id: "linear", management: reach("already"), end: null}], "management", true)?.id, "current");
+  assert.equal(reachReading([{id: "linear", management: reach("expected", 19), end: null}], "end", true)?.id, "linear");
 });

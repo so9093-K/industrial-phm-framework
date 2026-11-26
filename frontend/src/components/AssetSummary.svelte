@@ -16,6 +16,7 @@
   import {readChangeReviews} from "../change-reviews";
   import {DECISION_LABEL} from "../review-writes";
   import {readVibrationFindings, vibrationLinks, type VibrationFindings as VibrationRecord} from "../vibration-findings";
+  import {publicSourceInfo} from "../operations-status";
   import type {EvidenceFocus} from "../change-evidence";
   import SourceIdentity from "./SourceIdentity.svelte";
   import {onMount,tick,untrack} from "svelte";
@@ -358,6 +359,19 @@
       return {kind: "vibration", change: measured.intervals[shown.index], record: measured};
     return null;
   });
+  const measurementMap = $derived.by((): {kind: "bearing" | "compressor"; signal: string} | null => {
+    const chosen = evidenceFocus;
+    if (chosen?.kind === "vibration" && publicSourceInfo(chosen.record.sourceId ?? "")?.kind === "xjtu-sy") {
+      if (chosen.change.feature.startsWith("feature.Horizontal_vibration_signals.")) return {kind: "bearing", signal: "수평"};
+      if (chosen.change.feature.startsWith("feature.Vertical_vibration_signals.")) return {kind: "bearing", signal: "수직"};
+    }
+    if (chosen?.kind === "history" && publicSourceInfo(chosen.item.context?.sourceId ?? "")?.kind === "aihub-239"
+      && /^공기압축기(?:\s|\d|$)/.test(asset.assetId)) {
+      const phase = /^([RST])상\s*(전압|전류)/.exec(chosen.item.label);
+      if (phase) return {kind: "compressor", signal: phase[1] + "상"};
+    }
+    return null;
+  });
   // AI 조사의 답을 판단 메모로 옮긴 것: 그 변화의 판단·메모 대화상자가 이 초안으로 열린다.
   let memo: {reviewKey: string; sequence: number; text: string} | null = $state(null);
   // 판단하는 곳: 가운데 변화를 저장할 수 있을 때만 연다.
@@ -425,6 +439,11 @@
 {#snippet actions()}
   <div class="investigation-actions" inert={busy}>
     {#if evidenceFocus}<ChangeActions assetId={asset.assetId} focus={evidenceFocus} {onInvestigate}/>{/if}
+  </div>
+{/snippet}
+
+{#snippet decisionAction()}
+  <div inert={busy}>
     {#if decision}{#key decision.reviewKey}<DecisionPanel assetId={asset.assetId} reviewKey={decision.reviewKey} memo={memo?.reviewKey === decision.reviewKey ? memo : null} {onInvestigate} onCommitted={() => reviewRevision++}/>{/key}{/if}
   </div>
 {/snippet}
@@ -433,7 +452,7 @@
 <section class="ui-panel facts-panel" aria-label="고른 변화" aria-busy={busy}>
   {#if current && recordSpan && lanes.length}
     <AssetTimeline context={evidenceFocus?context:undefined} assistant={evidenceFocus&&decision?assistant:undefined} axis={focus?.kind === "history" ? "time" : "acquisition"} record={recordSpan} episode={current} {ongoing}
-      episodes={episodeChoices} {actions} {lanes} operation={timelineOperation} load={timelineLoad}
+      episodes={episodeChoices} {actions} decisionAction={decision?decisionAction:undefined} {measurementMap} {lanes} operation={timelineOperation} load={timelineLoad}
       periodSeconds={vibration?.periodSeconds ?? null}
       selected={selectedAt} onSelect={at => {onInvestigate?.();selectedAt = at;}}
       onFocus={key => { const item = items.find(row => row.key === key); if (item) selectChange(item.pick); }} />

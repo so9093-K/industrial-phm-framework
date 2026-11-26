@@ -62,7 +62,7 @@ test("an imported source reads as what it is; its version stays distinct even wh
 test("public data has a brief identity while partition and original fingerprint stay available as details",()=>{
   const id="aihub239-training-1306-1";
   assert.equal(sourceSummary(id),"AI-Hub 239 공개 실측 데이터");
-  assert.deepEqual(publicSourceInfo(id),{name:"AI-Hub 239 공개 실측 데이터",partition:"Training",fingerprint:null});
+  assert.deepEqual(publicSourceInfo(id),{kind:"aihub-239",name:"AI-Hub 239 공개 실측 데이터",partition:"Training",fingerprint:null});
   assert.equal(sourceSummary("operator-chosen-id"),"operator-chosen-id");
   assert.equal(publicSourceInfo("operator-chosen-id"),null);
 });

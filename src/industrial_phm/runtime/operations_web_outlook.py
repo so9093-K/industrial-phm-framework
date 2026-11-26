@@ -43,6 +43,7 @@ from industrial_phm.runtime.operations_web_forecast import (
     acquisition_points,
     history_points,
     measurement_version,
+    recent_feature_values,
 )
 from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
@@ -183,6 +184,7 @@ def condition_outlook(
     period = meta.get("period_seconds") or 1.0
     span = (times[-1] - times[0]).total_seconds()
     if acquisitions:
+        scale = period
         axis = [1 + (t - _ORIGIN).total_seconds() / period for t in times]
         labels: list[Any] = [round(x) for x in axis]
         rate_unit = "acquisition"
@@ -191,7 +193,14 @@ def condition_outlook(
         scale = 86_400 if rate_unit == "day" else 3_600
         axis = [(t - times[0]).total_seconds() / scale for t in times]
         labels = [t.astimezone(UTC).isoformat() for t in times]
-    indicator = degradation(axis, values)
+    recent_readings = (
+        recent_feature_values(
+            SqlitePhmAnalysisStore(workspace.phm_analysis_path), meta["binding_id"], labels[-1]
+        ).get(series, {})
+        if acquisitions
+        else None
+    )
+    indicator = degradation(axis, values, counted=acquisitions, recent_readings=recent_readings)
     for window in ("baseline", "recent"):
         part = indicator[window]
         part["from"], part["to"] = labels[part["first_index"]], labels[part["last_index"]]
@@ -243,11 +252,17 @@ def condition_outlook(
                     **result,
                 }
             )
-        seconds = [(t - times[0]).total_seconds() for t in times]
         scenarios.append(
             {
                 "id": "linear",
-                **linear_reach(seconds, values, limits, upper=upper, search_seconds=search_seconds),
+                **linear_reach(
+                    values[-1],
+                    indicator["rate"] / scale,
+                    indicator["rate_points"],
+                    limits,
+                    upper=upper,
+                    search_seconds=search_seconds,
+                ),
             }
         )
         for scenario in scenarios:

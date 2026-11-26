@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from industrial_phm.application.condition_outlook import (
+    RECENT_MEASUREMENTS,
     degradation,
     linear_reach,
     reach,
@@ -75,21 +76,43 @@ def test_a_limit_is_already_reached_expected_possible_or_beyond_the_search() -> 
 
 
 def test_the_recent_rate_is_carried_on_from_the_last_value() -> None:
-    seconds = [60.0 * i for i in range(50)]
-    values = [1.0 + 0.1 * i for i in range(50)]  # 5.9 last, 0.1 per minute
     carried = linear_reach(
-        seconds,
-        values,
+        5.9,
+        0.1 / 60,  # 0.1 a minute
+        10,
         {"management": 7.0, "end": 20.0, "passed": 2.0},
         upper=True,
         search_seconds=1800,
     )
-    assert carried["rate_per_second"] == pytest.approx(0.1 / 60)
+    assert carried["rate_per_second"] == pytest.approx(0.1 / 60) and carried["points"] == 10
     assert carried["limits"]["management"]["expected"] == pytest.approx(660.0)
     assert carried["limits"]["end"]["state"] == "beyond"
     assert carried["limits"]["passed"]["state"] == "already"
-    away = linear_reach(seconds, values, {"low": 0.0}, upper=False, search_seconds=1800)
+    away = linear_reach(5.9, 0.1 / 60, 10, {"low": 0.0}, upper=False, search_seconds=1800)
     assert away["limits"]["low"]["state"] == "beyond"
+
+
+def test_a_counted_record_moves_by_its_last_measurements() -> None:
+    # A bearing that creeps up and then accelerates over its last few measurements.
+    values = [1.0 + 0.01 * i for i in range(100)] + [2.1, 2.3, 2.8, 4.5]
+    xs = list(range(1, len(values) + 1))
+    counted = degradation(xs, values, counted=True)
+    assert counted["rate_points"] == RECENT_MEASUREMENTS
+    # What the last ten measurements moved, per measurement: never slower than before.
+    assert counted["rate"] == pytest.approx((4.5 - values[-11]) / 10)
+    assert counted["earlier_rate"] == pytest.approx((values[-11] - values[-21]) / 10)
+    assert counted["rate"] > 5 * counted["earlier_rate"]
+    # A long record's plot/fit can omit those positions. Exact observations still own the rate.
+    sampled_x = [*xs[:-1:3], xs[-1]]
+    sampled_values = [*values[:-1:3], values[-1]]
+    tail = dict(zip(xs[-21:], values[-21:], strict=True))
+    observed = degradation(sampled_x, sampled_values, counted=True, recent_readings=tail)
+    assert observed["rate"] == pytest.approx(counted["rate"])
+    assert observed["earlier_rate"] == pytest.approx(counted["earlier_rate"])
+    # A sampled history keeps the robust slope over its recent window.
+    sampled = degradation(xs, values)
+    assert sampled["rate_points"] == sampled["recent"]["points"]
+    assert sampled["rate"] < counted["rate"]
 
 
 def test_a_forecast_reaches_each_limit_past_the_chart_horizon() -> None:

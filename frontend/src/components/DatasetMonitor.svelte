@@ -10,7 +10,6 @@
   import {recentAsset} from "../observation";
   import AssetName from "./AssetName.svelte";
   import MonitorRow from "./MonitorRow.svelte";
-  import DatasetSchematic from "./DatasetSchematic.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   import {systemUrl} from "../routes";
 
@@ -322,7 +321,13 @@
   {/if}
   <TaskDialog title="설비와 측정 데이터" bind:open={guideOpen}>
     <div class="data-guide">{#each datasets.filter(row=>dataset?.key==="all"||row.key===dataset?.key) as row(row.key)}
-      <h2>{row.title}</h2><DatasetSchematic kind={row.key} equipment={new Set(Object.values(row.detail)).size===1?Object.values(row.detail)[0]:null}/>
+      {@const equipment = new Set(Object.values(row.detail))}
+      {@const role = equipmentRole(row.key, equipment.size === 1 ? [...equipment][0] : null)}
+      <section><h2>{row.title}</h2>
+        {#if role}<p>{role.role} {role.purpose}</p>{/if}
+        {#if row.key === "xjtu-sy"}<p>수평·수직 진동 · 1분마다 1.28초 측정</p>
+        {:else if row.key === "aihub-239"}<p>전압·전류 등 전력 시계열 · 약 1분 간격</p>{/if}
+      </section>
     {/each}</div>
   </TaskDialog>
 </section>
@@ -356,7 +361,7 @@
   .row{list-style:none;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;min-width:0}
   .who{display:flex;justify-content:space-between;gap:8px}.name{font-weight:650}.detail{font-size:var(--font-label);color:var(--color-ink-muted)}
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
-  .data-guide{display:grid;gap:16px}.data-guide h2{margin:0;font-size:var(--font-body)}
+  .data-guide{display:grid;gap:16px}.data-guide p{margin:4px 0 0;font-size:var(--font-small)}.data-guide h2{margin:0;font-size:var(--font-body)}
   @media(max-width:1000px){.board.with-chat{grid-template-columns:minmax(0,1fr)}.chat-rail{contain:none}}
   @media(max-width:650px){
     .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import {xTicks, measurementScale, measurementLabel} from "../time-axis";
+  import {spanText} from "../date-format";
   import {onMount} from "svelte";
   import {movePosition} from "../plot-selection";
   import {num} from "../format";
@@ -20,6 +21,15 @@
     signal?: ReasonRow | null};
   let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false, signal = null}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
+  const eventStarts = $derived.by(() => {
+    const read: ScoreTrend | null = trend;
+    return new Map(read?.points.map(point => [point.pointer.position, point.eventStart]));
+  });
+  function intervalText(start: number, end: number): string {
+    if (!isTimeWindow(binding.stepKind)) return start === end ? place(start) : start + "–" + end + "번째 측정";
+    const firstEvent = Date.parse(eventStarts.get(start) ?? "");
+    return spanText(Number.isFinite(firstEvent) && firstEvent <= start / 1000 ? firstEvent : start / 1000, end / 1000);
+  }
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let focus: Interval | null = $state(null);
   let chartWidth = $state(640);
@@ -214,7 +224,7 @@
       <rect x={LEFT} y={LANE} width={RIGHT-LEFT} height={LANE_HEIGHT} class="lane" />
       {#each lane as row (row.start)}{#if row.over}
         <rect x={scale.x(row.start)} y={LANE} width={Math.max(2,scale.x(row.end)-scale.x(row.start))} height={LANE_HEIGHT}
-          class="lane-over" fill-opacity={0.2+0.8*row.over/row.judged}><title>{place(row.start)} ~ {place(row.end)} · {row.judged}회 중 {row.over}회 기준 초과</title></rect>
+          class="lane-over" fill-opacity={0.2+0.8*row.over/row.judged}><title>{intervalText(row.start,row.end)} · {row.judged}회 중 {row.over}회 기준 초과</title></rect>
       {/if}{/each}
       {#each ticks as tick (tick.value)}
           <text x={scale.x(tick.value)} y={H - 6} text-anchor={tick.x < 0.1 ? "start" : tick.x > 0.9 ? "end" : "middle"} class="label">{tick.label}</text>
@@ -259,7 +269,7 @@
         {#each priorities as row (row.interval.start)}
           {@const raised = raisedIn(row.interval, 2)}
           <li><strong>{row.label}</strong>
-            <span>{place(row.interval.start)} ~ {place(row.interval.end)}</span>
+            <span>{intervalText(row.interval.start,row.interval.end)}</span>
             <span>{row.interval.steps}회 · 최고 점수 {num(row.interval.peak, "기록 없음")}</span>
             {#if raised}<span>점수를 올린 신호 {raised}</span>{/if}
             <button type="button" class="ui-button" onclick={() => inspectInterval(row.interval)}>이 구간 분석 →</button></li>
@@ -269,7 +279,7 @@
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}
           {@const raised = raisedIn(interval, 1)}
-          <li>{place(interval.start)} ~ {place(interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{raised ? " · " + raised : ""}{interval.open ? " · 진행 중" : ""}
+          <li>{intervalText(interval.start,interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{raised ? " · " + raised : ""}{interval.open ? " · 진행 중" : ""}
             <button type="button" class="ui-button" onclick={() => choose(interval.start)}>시작 측정 보기</button></li>
         {/each}
       </ul>

@@ -69,7 +69,7 @@
     void readScoreReason(model,run,request.signal).then(value=>{if(!request.signal.aborted)reason=value;}).catch(()=>{});
     return()=>request.abort();
   });
-  let reviewRun:string|null=$state(null);
+  let reviewRun:string|null=$state(null), explanationRun:string|null=$state(null);
   let reviewPanel: HTMLDetailsElement | null = $state(null);
   // The hash target appears after asynchronous model reads, beyond native anchor navigation,
   // and the explanation above it keeps growing as its own reads finish. Keep the panel in view
@@ -492,8 +492,11 @@
         {#if result}
           {#if result.state!=="skipped"}
             {#key result.runId}
-              <ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
-                onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>
+              <details class="optional-review" ontoggle={event=>explanationRun=event.currentTarget.open ? result?.runId ?? null : null}>
+                <summary>이 구간의 측정 비교·AI 해설</summary>
+                {#if explanationRun === result.runId}<ModelExplanation {binding} run={result} {earlier} {suggested} {writable} {place}
+                  onInteract={()=>followLatest=false} onExplained={id=>explanationId=id}/>{/if}
+              </details>
               <details id="model-review" bind:this={reviewPanel} class="optional-review" open={location.hash==="#model-review"} ontoggle={(event)=>reviewRun=event.currentTarget.open && result ? result.runId : null}><summary>검토 기록에 남기기 (선택)</summary>
                 {#if reviewRun === result.runId}<ModelReviewRequest {binding} run={result} {explanationId} {writable}
                   subject={reviewSubject(binding, result)}/>{/if}
