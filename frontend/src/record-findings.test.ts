@@ -29,7 +29,7 @@ test("what the whole record held reads as when, how long, against which range, a
   assert.deepEqual(found.record, body().record);
   assert.equal(found.count, 9);
   const told = findingText(found.intervals[0], found.bucketSeconds);
-  assert.equal(told.when, "10. 24. 16:10 ~ 10. 26. 08:19 (약 1일 16시간)");
+  assert.equal(told.when, "10월 24일(토) 16:10 ~ 10월 26일(월) 08:19 (약 1일 16시간)");
   assert.equal(told.what, "T상전류 · 기록 처음 30%의 비교 범위(46.2~78.4 A)보다 낮았습니다 · 10분 평균으로 가장 낮을 때 0 A");
   // Signals not judged say why, never "no change"; a held baseline also says what came after.
   assert.deepEqual(found.signals.filter((row) => row.state !== "scored").map(unjudgedText), [

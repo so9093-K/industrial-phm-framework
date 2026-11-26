@@ -1,4 +1,4 @@
-import {dateTime, dateTimeRange} from "./date-format.ts";
+import {clockText, dateTimeRange} from "./date-format.ts";
 /** What needs a look on each asset right now: a model over its threshold, a stored signal that
  * ends far from its own baseline, an input the model refused or has not reached, a model that
  * cannot run, or a collection that stopped receiving. An optional person-review status
@@ -105,7 +105,7 @@ export function refusalReason(reason:string|null):string{
 function since(model:MonitoredModel):string{
   const run=model.ongoing!;
   if(model.stepKind!=="acquisition-snapshot"&&run.startAt)
-    return dateTime(run.startAt, "minute", false);
+    return clockText(run.startAt);
   return model.stepKind==="acquisition-snapshot"?measurementLabel(run.start,model.periodSeconds):windowLabel(run.start);
 }
 
@@ -226,7 +226,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
       href:at(waiting[0],null),action:"분석 진행 보기"});
   }
   for(const item of departures){
-    const since=dateTime(item.since, "minute");
+    const since=clockText(item.since);
     const amount=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
     const range=item.usual?"기록 초반의 비교 범위 "+amount(item.usual.low)+"~"+amount(item.usual.high)+(item.unit?" "+item.unit:""):"기록 초반과 비교";
     const change=item.kind==="level-change"?"일정하던 값이 달라짐":item.direction==="down"?"기준 범위보다 낮아짐":item.direction==="up"?"기준 범위보다 높아짐":"기준 범위 밖의 값";

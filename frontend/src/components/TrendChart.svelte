@@ -124,7 +124,7 @@
   .half-label.low{top:auto;bottom:6px}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
-  .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:11px;font-weight:650;pointer-events:none}
+  .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:12px;font-weight:650;pointer-events:none}
   .end-label.at-start{transform:translate(8px,-100%)}
   .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}
   @keyframes pulse{from{transform:scale(.6);opacity:.9}to{transform:scale(1.8);opacity:0}}

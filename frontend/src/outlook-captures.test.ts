@@ -254,7 +254,7 @@ test("reobservation compares only the same subject and assumptions",()=>{
 
 test("positions stay on their axis and links reopen the same subject and conditions",()=>{
   assert.equal(positionText(64),"64번째 측정");
-  assert.match(positionText("2026-10-16T00:00:00+00:00"),/2026/);
+  assert.equal(positionText("2026-10-16T00:00:00+00:00"),"10월 16일(금) 09:00");
   const saved=parseCapturePage(page(row("acquisition")),"bearing-a").captures[0].outlook;
   const url=new URL(reobservationUrl({...saved,timeBasis:"assumed",assumedPeriod:30}),"http://localhost");
   assert.deepEqual(Object.fromEntries(url.searchParams),{page:"assets",tab:"outlook",data:"vibration",

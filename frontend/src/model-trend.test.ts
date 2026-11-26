@@ -84,7 +84,7 @@ test("the first exceeded measurement is visible even without a sustained interva
   assert.equal(firstExceedance([{...points[2], exceeds: false}]), null); // Respect the stored flag.
   assert.equal(measurementTime(points[2], 60), "기록 시작 후 2분");
   assert.equal(measurementTime(points[2], null), null); // No receipt-time clock is invented.
-  assert.match(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00Z"}, null)!, /09:00:00.*KST/);
+  assert.match(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00Z"}, null)!, /^10월 20일\(화\) 09:00:00$/);
   assert.equal(measurementTime({...points[2], eventStart:"2026-10-20T00:00:00"}, null), null);
 });
 

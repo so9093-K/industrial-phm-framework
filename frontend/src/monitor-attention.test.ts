@@ -94,7 +94,7 @@ test("a stored signal that ends far from its baseline asks for a look and opens 
   assert.equal(group.assetId,"pump-2");
   assert.equal(group.notes[0].kind,"departure");
   assert.equal(group.notes[0].label,"전류 · 기준 범위보다 높아짐");
-  assert.match(group.notes[0].detail,/비교 범위 42\.1~73\.2 A.*2020/);
+  assert.match(group.notes[0].detail,/비교 범위 42\.1~73\.2 A.*10월 1일\(목\) 11:05/);
   assert.match(group.notes[0].href,/tab=signals/);
   const link=new URL(group.notes[0].href,"http://local");
   assert.equal(link.searchParams.get("monitor_source"),"source-b");

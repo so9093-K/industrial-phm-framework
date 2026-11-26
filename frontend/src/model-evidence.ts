@@ -1,4 +1,4 @@
-import {dateTime} from "./date-format.ts";
+import {clockText} from "./date-format.ts";
 /** Read-only PHM model run provenance; never manufacture Operational Evidence IDs. */
 import {learnedLevels,levelsText} from "./history-model.ts";
 export type StepKind="acquisition-snapshot"|"observation-window"|"history-window";
@@ -6,7 +6,7 @@ export type StepKind="acquisition-snapshot"|"observation-window"|"history-window
 export const isTimeWindow=(kind:StepKind)=>kind!=="acquisition-snapshot";
 /** A time-window step is named by when its window ends (its position, in microseconds). */
 export function windowLabel(position:number):string{
-  return dateTime(position / 1000, "minute", false)+"까지 구간";
+  return clockText(position / 1000)+"까지 구간";
 }
 export type ModelBinding={
   assetId:string;sourceId:string;pointId:string|null;bindingId:string;packageId:string;
@@ -19,7 +19,7 @@ export type ModelBinding={
   /** For a model that learned each operating level apart: which levels it judges (ADR-0034). */
   levels?:string;
 };
-const kstShort=(iso:string)=>dateTime(iso, "minute", false);
+const kstShort=(iso:string)=>clockText(iso);
 /** A model someone built from their own record learned a period they chose, not one confirmed
  * normal in the field; its "기준 초과/이하" is read against that choice. */
 export function builtModelNote(binding:{reference?:string}):string|null{

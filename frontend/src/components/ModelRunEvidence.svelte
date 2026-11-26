@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {dateTime} from "../date-format";
+  import {clockText} from "../date-format";
   import {exposeAnalysis, type AnalysisReadout} from "../analysis-readout.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
@@ -107,7 +107,7 @@
   let listRequest:AbortController|null=null;
   let traceRequest:AbortController|null=null;
   let resultRequest:AbortController|null=null;
-  const clock = (at: string | null) => at ? dateTime(at) : "원본 기록 시각 없음";
+  const clock = (at: string | null) => at ? clockText(at, "second") : "원본 기록 시각 없음";
   const stringify=(v:unknown)=>JSON.stringify(v,null,2);
   let inputOpen=$state(false),comparisonOpen=$state(false);
   async function showSelectedInput() {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {dateTime} from "../date-format";
+  import {clockText} from "../date-format";
   import XAxis from "./XAxis.svelte";
   import {bandName, bandRange, percent, type Operation} from "../record-findings";
   let {operation}: {operation: Operation} = $props();
@@ -36,7 +36,7 @@
     const count = Math.min(200, operation.timeline.length);
     hovered = Math.floor((event.clientX - box.left) / Math.max(1, box.width) * count);
   }
-  const clock = (at: number) => dateTime(at, "minute", false);
+  const clock = (at: number) => clockText(at);
 </script>
 
 <section class="operation" aria-labelledby={"operation-" + operation.key}>
