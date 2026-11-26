@@ -15,8 +15,7 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 
 # 화면의 시각 표기(asset-timeline의 clockText)와 같은 한국 시간이다.
 _KST = ZoneInfo("Asia/Seoul")
-# 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
-_POINTS = 30
+_TRACE_SEGMENTS = 5
 _PHASES = ("R상", "S상", "T상")
 
 
@@ -204,12 +203,20 @@ def asset_label(workspace: OperationsWorkspace, asset_id: str) -> str:
 
 
 def _compact_trace(points: list[list[Any]]) -> list[list[Any]]:
-    """Keep both endpoints and sample in order without inventing intermediate values."""
-    if len(points) <= _POINTS:
+    """Keep both endpoints and each segment's extremes in measurement order."""
+    if len(points) <= 2 + 2 * _TRACE_SEGMENTS:
         return [point[:2] for point in points]
-    return [
-        points[round(index * (len(points) - 1) / (_POINTS - 1))][:2] for index in range(_POINTS)
-    ]
+    interior = len(points) - 2
+    sampled = [points[0][:2]]
+    for index in range(_TRACE_SEGMENTS):
+        start = 1 + index * interior // _TRACE_SEGMENTS
+        end = 1 + (index + 1) * interior // _TRACE_SEGMENTS
+        positions = range(start, end)
+        low = min(positions, key=lambda at: points[at][1])
+        high = max(positions, key=lambda at: points[at][1])
+        sampled.extend(points[at][:2] for at in sorted({low, high}))
+    sampled.append(points[-1][:2])
+    return sampled
 
 
 def _span(seconds: float) -> str:
@@ -297,7 +304,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         return f"{moment.month}월 {moment.day}일 {moment:%H:%M}"
 
     def tick(value: str | int) -> str | int:
-        # 그래프의 가로축은 짧게(메시지 크기 제한 8KB 안에서 점을 더 보낸다).
+        # 그래프의 가로축은 짧게 적고, 카드의 변화 시점과 짚은 점은 원래 시각으로 읽는다.
         if not history:
             return value
         return datetime.fromisoformat(str(value)).astimezone(_KST).strftime("%m-%d %H:%M")

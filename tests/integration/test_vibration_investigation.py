@@ -16,6 +16,7 @@ from industrial_phm.genai import change_answer, local_explanation
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.runtime import operations_web_phm_explanation as runtime
 from industrial_phm.runtime.operations_web_change_context import (
+    _compact_trace,
     asset_label,
     screen_view,
     selected_change,
@@ -288,3 +289,17 @@ def test_change_chat_uses_one_completion_with_the_actual_question_and_turns(
         {"role": "assistant", "content": "기록에 변화는 있었어요."},
         {"role": "user", "content": "왜 그래?"},
     ]
+
+
+def test_ai_chart_sample_keeps_brief_peaks_dips_and_ends_in_order() -> None:
+    trace = [[i, 1.0] for i in range(50)]
+    trace[7][1] = 9.0
+    trace[22][1] = -4.0
+    trace[-1][1] = 3.0
+
+    sampled = _compact_trace(trace)
+
+    assert len(sampled) <= 12
+    assert sampled == sorted(sampled)
+    assert sampled[0] == trace[0] and sampled[-1] == trace[-1]
+    assert trace[7] in sampled and trace[22] in sampled
