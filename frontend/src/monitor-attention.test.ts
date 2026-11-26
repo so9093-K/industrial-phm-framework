@@ -186,3 +186,10 @@ test("short equipment statuses combine only models of the same measured input",(
   assert.equal(modelFact(monitor(first,{...second,source_id:"another-source"}).models,true),"모델마다 분석한 측정이 다름");
   assert.equal(modelFact(monitor(second).models,true),"마지막 분석 · 모델 기준 이하");
 });
+
+test("a latest window at an operating level the model did not learn is not an input refusal", () => {
+  const [item]=monitor(model({step_kind:"history-window",processing_state:"unjudged",processing_reason:"operating level not learned: 11 A",
+    latest_processed:{position:4,reason:"operating level not learned: 11 A"}})).models;
+  assert.equal(item.state,"unjudged");
+  assert.deepEqual(attentionByAsset([item],null),[]);
+});

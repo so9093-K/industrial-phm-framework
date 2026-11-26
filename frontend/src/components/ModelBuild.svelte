@@ -6,7 +6,7 @@
   import {readSignalNames, signalName, type SignalNames} from "../history";
   import {OutcomeUnknown, WriteForbidden, WriteRejected} from "../writes";
   import {
-    buildHistoryModel, MAX_SIGNALS, readHistoryStreams, referencePeriod, streamLabel, WINDOW_CHOICES,
+    buildHistoryModel, levelsText, MAX_SIGNALS, readHistoryStreams, referencePeriod, streamLabel, WINDOW_CHOICES,
     type ReferenceChoice,
   } from "../history-model";
   import StatusNotice from "./StatusNotice.svelte";
@@ -71,6 +71,7 @@
           + result.referenceWindows + "개로 학습한 모델입니다."
         : "모델을 만들어 연결했습니다 · 기준 구간 " + result.referenceWindows + "개로 학습"
           + (result.skippedWindows ? " (값이 부족한 구간 " + result.skippedWindows + "개 제외)" : "")
+          + (result.levels ? " · 운전 수준별로 " + levelsText(result.levels) : "")
           + ". 분석 서비스가 기록을 구간마다 채점하면 점수가 나타납니다.";
       onBuilt(result.bindingId, message);
     } catch (cause: unknown) {
@@ -91,7 +92,8 @@
   <details class="build">
     <summary>{hasModel ? "이 설비 데이터로 다른 모델 만들기" : "이 설비 데이터로 모델 만들기"}</summary>
     <p class="context">고른 기준 기간을 평소 모습으로 삼아 Isolation Forest 모델을 학습하고 이 설비에 연결합니다.
-      이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다.</p>
+      이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다. 전류를 기록하는 설비는 운전 수준별로 따로
+      학습해, 각 구간을 같은 부하의 기준 구간과만 견줍니다.</p>
     <fieldset>
       <legend>신호 (최대 {MAX_SIGNALS}개)</legend>
       {#each stream.channels as channel (channel)}

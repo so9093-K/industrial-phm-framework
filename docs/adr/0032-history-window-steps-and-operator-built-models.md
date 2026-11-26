@@ -1,6 +1,9 @@
 # 0032. Score stored measurement history with operator-built models over fixed windows
 
-Status: Accepted (2026-10-25)
+Status: Accepted (2026-10-25) · Amended by [ADR-0034](0034-learn-and-judge-each-operating-level-apart.md)
+
+> ADR-0034: 전류를 기록하는 스트림에서 만든 모델은 운전 수준별로 학습·판정합니다. 기준 기간에 적었던 수준의
+> 구간은 기준 초과로 세지 않고 판정하지 않은 구간으로 남깁니다.
 
 Extends: [ADR-0025](0025-run-versioned-model-packages-over-ordered-asset-steps.md). Does not change
 its package format, binding, one-transaction-per-step or fail-closed loading rules.

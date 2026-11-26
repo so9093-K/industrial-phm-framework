@@ -9,6 +9,7 @@ from pathlib import Path
 from industrial_phm.application.history_window import (
     MAX_CHANNELS,
     HistoryModelRequest,
+    LevelBasis,
     build_history_model,
 )
 from industrial_phm.history import DuckLakeAssetHistory
@@ -85,6 +86,7 @@ def build_web_history_model(root: Path, payload: dict[str, object]) -> dict[str,
         request,
         created_at=datetime.now(UTC),
         code_revision=_revision(),
+        levels=_levels(history, request),
     )
     body: dict[str, object] = {
         "schema_version": 1,
@@ -92,6 +94,7 @@ def build_web_history_model(root: Path, payload: dict[str, object]) -> dict[str,
         "reference_windows": built.reference_windows,
         "skipped_windows": built.skipped_windows,
         "reused": built.reused,
+        **({"levels": dict(built.levels)} if built.levels is not None else {}),
     }
     if built.package_id is None:
         return {**body, "reason": built.reason}
@@ -108,3 +111,31 @@ def build_web_history_model(root: Path, payload: dict[str, object]) -> dict[str,
         "binding_id": binding.binding_id,
         "threshold": built.threshold,
     }
+
+
+def _levels(history: DuckLakeAssetHistory, request: HistoryModelRequest) -> LevelBasis | None:
+    """The stream's operating levels when it records a current, as every screen splits them.
+
+    The levels come from the stream's whole stored record at this snapshot and are frozen into
+    the model, so later data never moves a level the model learned.
+    """
+    from industrial_phm.runtime.operations_web_operation import source_levels
+
+    stream = next(
+        (
+            item
+            for item in history.list_history_streams(request.asset_id)
+            if (item.source_id, item.measurement_point_id)
+            == (request.source_id, request.measurement_point_id)
+        ),
+        None,
+    )
+    found = (
+        source_levels(history, request.asset_id, stream, snapshot_id=history.current_snapshot_id())
+        if stream is not None
+        else None
+    )
+    if found is None:
+        return None
+    (channel, _meaning), levels = found
+    return LevelBasis(channel, tuple(levels.edges), tuple(levels.typical))

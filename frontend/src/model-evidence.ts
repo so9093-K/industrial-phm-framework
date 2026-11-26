@@ -1,4 +1,5 @@
 /** Read-only PHM model run provenance; never manufacture Operational Evidence IDs. */
+import {learnedLevels,levelsText} from "./history-model.ts";
 export type StepKind="acquisition-snapshot"|"observation-window"|"history-window";
 /** Steps that cover a time interval (finalized live windows, stored-history windows). */
 export const isTimeWindow=(kind:StepKind)=>kind!=="acquisition-snapshot";
@@ -14,6 +15,8 @@ export type ModelBinding={
   minimumIntervalSteps?:number;
   /** For a model someone built from their own record: the period it learned from. */
   reference?:string;
+  /** For a model that learned each operating level apart: which levels it judges (ADR-0034). */
+  levels?:string;
 };
 const kstShort=(iso:string)=>new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});
 /** A model someone built from their own record learned a period they chose, not one confirmed
@@ -25,14 +28,30 @@ export function builtModelNote(binding:{reference?:string}):string|null{
 export function referenceLabel(start:string,end:string,channels:number):string{
   return "기준 "+kstShort(start)+"~"+kstShort(end)+" · 신호 "+channels+"개";
 }
+const BUILT_RECIPES=["operator-history-iforest-v1","operator-history-iforest-by-level-v1"];
 function referenceOf(summary:Record<string,unknown>|null):string|undefined{
   const scope=obj(summary?.training_scope),channels=obj(summary?.input)?.channels;
-  if(summary?.recipe_id!=="operator-history-iforest-v1"||typeof scope?.reference_start!=="string"
+  if(!BUILT_RECIPES.includes(String(summary?.recipe_id))||typeof scope?.reference_start!=="string"
     ||typeof scope?.reference_end!=="string"||!Array.isArray(channels))return undefined;
-  return referenceLabel(scope.reference_start,scope.reference_end,channels.length);
+  // 운전 수준을 읽으려고 더한 전류는 사람이 고른 신호가 아니다.
+  const added=obj(scope.operating_levels)?.added===true?1:0;
+  const label=referenceLabel(scope.reference_start,scope.reference_end,channels.length-added);
+  return scope.operating_levels?label+" · 운전 수준별":label;
 }
+function levelsOf(summary:Record<string,unknown>|null):string|undefined{
+  const levels=learnedLevels(obj(summary?.training_scope)?.operating_levels);
+  return levels?levelsText(levels):undefined;
+}
+/** Why a model did not judge a result, in words: an operating level the model did not learn is
+ * named as the screens name levels; another reason is kept as recorded. */
+export function skipReasonText(reason:string|null):string{
+  const level=/^operating level not learned: (stopped|(.+) A)$/.exec(reason??"");
+  if(level)return "기준 기간에 적었던 운전 수준("+(level[1]==="stopped"?"정지":"약 "+level[2]+" A 운전")+")이라 판정하지 않았습니다.";
+  return reason??"제외 사유가 기록되지 않았습니다.";
+}
+export const isUnjudged=(reason:string|null)=>(reason??"").startsWith("operating level not learned");
 const METHOD:Record<string,string>={
-  "isolation-forest-refit-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
+  "isolation-forest-refit-v1":"Isolation Forest","isolation-forest-by-level-v1":"Isolation Forest","pca-residual-v1":"PCA 잔차",
 };
 /** A connected model as people name it: its method, else its recipe, else its package without
  * the content hash. The recipe, package and binding identifiers stay under 기술 상세. */
@@ -151,7 +170,8 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
       estimatorKind:typeof packageSummary?.estimator_kind==="string"?packageSummary.estimator_kind:null,
       lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed"),
       ...(typeof minimum==="number"&&Number.isSafeInteger(minimum)&&minimum>0?{minimumIntervalSteps:minimum}:{}),
-      ...(referenceOf(packageSummary)?{reference:referenceOf(packageSummary)}:{})};
+      ...(referenceOf(packageSummary)?{reference:referenceOf(packageSummary)}:{}),
+      ...(levelsOf(packageSummary)?{levels:levelsOf(packageSummary)}:{})};
   }).filter(binding=>assetId===null||binding.assetId===assetId);
 }
 function pointer(raw:unknown):StepPointer{

@@ -83,7 +83,9 @@ def project_phm_monitor(
         elif pending:
             state, reason = "pending", "latest delivered input has not been processed"
         elif processed and processed.state is StepState.SKIPPED:
-            state, reason = "rejected", processed.reason
+            # 기준 기간에 적었던 운전 수준의 구간은 판정하지 않은 것이지 입력을 거부한 것이 아니다.
+            unjudged = (processed.reason or "").startswith("operating level not learned")
+            state, reason = ("unjudged" if unjudged else "rejected"), processed.reason
         elif analyzed:
             state, reason = "processed", None
         else:
@@ -343,7 +345,8 @@ def _training_reference(package: dict[str, Any] | None) -> dict[str, Any] | None
     start, end = scope.get("reference_start"), scope.get("reference_end")
     if not isinstance(start, str) or not isinstance(end, str) or not isinstance(channels, list):
         return None
-    return {"start": start, "end": end, "channels": len(channels)}
+    added = bool((scope.get("operating_levels") or {}).get("added"))
+    return {"start": start, "end": end, "channels": len(channels) - added}
 
 
 def _latest_delivered(

@@ -37,9 +37,41 @@ export function referencePeriod(choice: ReferenceChoice, facts: Pick<HistoryStre
   return {from: new Date(start).toISOString(), to: new Date(start + (end - start) * share).toISOString()};
 }
 
+/** How a model learned each operating level of its stream's current (ADR-0034). */
+export type LearnedLevels = {judged: string[]; unjudged: {name: string; windows: number}[]};
 export type BuildResult =
-  | {built: true; bindingId: string; referenceWindows: number; skippedWindows: number; reused: boolean}
+  | {built: true; bindingId: string; referenceWindows: number; skippedWindows: number; reused: boolean; levels: LearnedLevels | null}
   | {built: false; reason: string; referenceWindows: number; skippedWindows: number};
+
+const about = (value: number) => value.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
+/** The levels a model learned and those it does not judge, as the screens name levels
+ * ("약 62 A 운전", "정지"); null for a model that learned its whole period as one. */
+export function learnedLevels(raw: unknown): LearnedLevels | null {
+  const root = object(raw);
+  const typical = root?.typical, counts = object(root?.reference_windows), learned = root?.learned;
+  if (!root || !Array.isArray(typical) || !counts || !Array.isArray(learned)
+    || !typical.every(value => typeof value === "number" && Number.isFinite(value))) return null;
+  const name = (band: number) => band === 0 ? "정지" : "약 " + about(typical[band - 1] as number) + " A 운전";
+  const bands = Object.keys(counts).map(Number).filter(band => Number.isInteger(band) && band >= 0 && band <= typical.length);
+  return {
+    judged: bands.filter(band => learned.includes(String(band))).map(name),
+    unjudged: bands.filter(band => !learned.includes(String(band)))
+      .map(band => ({name: name(band), windows: typeof counts[String(band)] === "number" ? counts[String(band)] as number : 0})),
+  };
+}
+// '약 62 A 운전을', '정지를': 마지막 이름의 받침에 맞춘 조사.
+const particle = (names: string[], withFinal: string, without: string) =>
+  names.at(-1)?.endsWith("정지") ? without : withFinal;
+/** "약 62 A 운전을 판정 · 약 11 A·31 A 운전은 기준 기간에 없어 판정하지 않음". */
+export function levelsText(levels: LearnedLevels): string {
+  const parts = [levels.judged.join("·") + particle(levels.judged, "을", "를")
+    + (levels.judged.length > 1 ? " 각각" : "") + " 판정"];
+  const absent = levels.unjudged.filter(row => row.windows === 0).map(row => row.name);
+  if (absent.length) parts.push(absent.join("·") + particle(absent, "은", "는") + " 기준 기간에 없어 판정하지 않음");
+  for (const row of levels.unjudged.filter(row => row.windows > 0))
+    parts.push(row.name + particle([row.name], "은", "는") + " 기준 기간에 " + row.windows + "개뿐이라 판정하지 않음");
+  return parts.join(" · ");
+}
 
 export function parseBuildResult(raw: unknown): BuildResult {
   const root = object(raw);
@@ -49,7 +81,7 @@ export function parseBuildResult(raw: unknown): BuildResult {
     throw new Error("모델 만들기 응답을 해석하지 못했습니다.");
   if (root.built === true && typeof root.binding_id === "string" && root.binding_id)
     return {built: true, bindingId: root.binding_id, referenceWindows: windows, skippedWindows: skipped,
-      reused: root.reused === true};
+      reused: root.reused === true, levels: learnedLevels(root.levels)};
   if (root.built === false && typeof root.reason === "string")
     return {built: false, reason: root.reason, referenceWindows: windows, skippedWindows: skipped};
   throw new Error("모델 만들기 응답을 해석하지 못했습니다.");

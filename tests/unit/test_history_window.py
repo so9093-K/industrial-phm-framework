@@ -122,3 +122,91 @@ def test_a_reference_period_whose_unit_changes_builds_no_model(tmp_path: Path) -
     )
     assert built.package_id is None and "단위나 의미가 바뀝니다" in str(built.reason)
     assert not list(tmp_path.glob("*/package.json"))
+
+
+def _loaded(minutes: range, current: float, voltage: float) -> list[ChannelObservation]:
+    """A minute series at one load: the current and a voltage that sags a little with it."""
+    rows = []
+    for m in minutes:
+        jitter = (m * 37 % 11) / 10
+        rows += [_obs("i", m, current + jitter), _obs("v", m, voltage + jitter / 5)]
+    return rows
+
+
+def test_each_operating_level_is_learned_and_judged_apart(tmp_path: Path) -> None:
+    """A window is compared only with windows of its own load; a load the reference period
+    hardly ran at is not judged, rather than being called anomalous for its other voltage."""
+    from industrial_phm.application.history_window import LEVEL_RECIPE_ID, LevelBasis
+    from industrial_phm.models.package import (
+        OutsideLearnedLevel,
+        fit_row_ranges,
+        load_model_package,
+    )
+
+    # 48 ten-minute windows at about 62 A, then 30 at about 31 A, then 6 at about 11 A.
+    rows = (
+        _loaded(range(0, 480), 62.0, 214.0)
+        + _loaded(range(480, 780), 31.0, 220.0)
+        + _loaded(range(780, 840), 11.0, 226.0)
+    )
+    levels = LevelBasis("i", (1.0, 20.0, 45.0), (11.0, 31.0, 62.0))
+    request = HistoryModelRequest(
+        "asset", "s", ("v",), AT - timedelta(minutes=3), AT + timedelta(minutes=840), 600
+    )
+    built = build_history_model(
+        tmp_path, _History(rows), request, created_at=AT, code_revision="test", levels=levels
+    )
+    assert built.package_id is not None and built.package_id.startswith(LEVEL_RECIPE_ID)
+    assert built.levels is not None and built.levels["learned"] == ["2", "3"]
+    assert built.levels["reference_windows"]["1"] < 24
+    package = load_model_package(tmp_path / built.package_id)
+    # The current is read with the chosen signal to place each window at its level.
+    assert list(package.manifest.input.channels) == ["v", "i"]
+    names = package.manifest.input.feature_names
+
+    def row(current: float, voltage: float) -> list[float]:
+        # A later window computed the way every step is: from its own observations.
+        (window,) = group_windows(
+            _loaded(range(897, 907), current, voltage), seconds=600, measurement_point_id=None
+        )
+        values, _ = window_features(window, ["v", "i"])
+        assert values is not None
+        return [values[name] for name in names]
+
+    # Each window is read against its own level: 220 V is usual at about 31 A and stays under
+    # that level's threshold, while 226 V at 62 A scores above what 62 A usually scores.
+    usual_62, odd_62, usual_31 = package.evaluate(
+        [row(62.0, 214.0), row(62.0, 226.0), row(31.0, 220.0)]
+    )
+    assert usual_62 <= 1 and usual_31 <= 1 and odd_62 > usual_62
+    with pytest.raises(OutsideLearnedLevel, match="operating level not learned: 11 A"):
+        package.evaluate([row(11.0, 226.0)])
+    # The learned range of a feature is the one of the level the window ran at.
+    at_62 = fit_row_ranges(tmp_path / built.package_id, features={"i.mean": 62.0})
+    at_31 = fit_row_ranges(tmp_path / built.package_id, features={"i.mean": 31.0})
+    assert at_62["v.mean"][1] < 216 < 218 < at_31["v.mean"][0]
+    assert fit_row_ranges(tmp_path / built.package_id, features={"i.mean": 11.0}) == {}
+    # Pressing again with the same choices reuses the model.
+    again = build_history_model(
+        tmp_path, _History(rows), request, created_at=AT, code_revision="test", levels=levels
+    )
+    assert again.reused and again.package_id == built.package_id
+
+
+def test_no_level_with_enough_reference_windows_builds_nothing(tmp_path: Path) -> None:
+    from industrial_phm.application.history_window import LevelBasis
+
+    rows = _loaded(range(0, 200), 62.0, 214.0) + _loaded(range(200, 400), 31.0, 220.0)
+    request = HistoryModelRequest(
+        "asset", "s", ("v",), AT - timedelta(minutes=3), AT + timedelta(minutes=400), 600
+    )
+    built = build_history_model(
+        tmp_path,
+        _History(rows),
+        request,
+        created_at=AT,
+        code_revision="test",
+        levels=LevelBasis("i", (1.0, 20.0, 45.0), (11.0, 31.0, 62.0)),
+    )
+    assert built.package_id is None
+    assert "약 62 A 운전 20개" in str(built.reason) and "약 31 A 운전 20개" in str(built.reason)

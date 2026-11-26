@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import tempfile
+from bisect import bisect_right
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -48,6 +49,8 @@ MIN_VALUES = 3
 MIN_REFERENCE_WINDOWS = 24
 MAX_CHANNELS = 8
 RECIPE_ID = "operator-history-iforest-v1"
+# A stream that records a current: one forest per operating level of that current (ADR-0034).
+LEVEL_RECIPE_ID = "operator-history-iforest-by-level-v1"
 THRESHOLD_QUANTILE = 0.995
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -383,6 +386,29 @@ class HistoryModelRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class LevelBasis:
+    """The current that says how the equipment ran, and its operating levels frozen at build.
+
+    Band 0 is stopped (below ``edges[0]``); band ``k`` runs from ``edges[k - 1]`` and usually
+    draws ``typical[k - 1]``, as in ``operating_state.OperatingLevels``.
+    """
+
+    channel: str
+    edges: tuple[float, ...]
+    typical: tuple[float, ...]
+
+    def band(self, current: float) -> int:
+        return bisect_right(self.edges, current)
+
+    def name(self, band: int) -> str:
+        """'stopped' or '11 A': the level as the screens' '약 11 A 운전' names it."""
+        if band == 0:
+            return "stopped"
+        value = float(f"{self.typical[band - 1]:.2g}")
+        return (f"{value:,.0f}" if abs(value) >= 10 else f"{value:g}") + " A"
+
+
+@dataclass(frozen=True, slots=True)
 class HistoryModelBuild:
     package_id: str | None
     reference_windows: int
@@ -390,6 +416,8 @@ class HistoryModelBuild:
     threshold: float | None = None
     reason: str | None = None
     reused: bool = False
+    # Reference windows per operating level and which levels the model learned (level models).
+    levels: Mapping[str, Any] | None = None
 
 
 def _reference_digest(reference: Sequence[tuple[float, ...]]) -> str:
@@ -398,35 +426,27 @@ def _reference_digest(reference: Sequence[tuple[float, ...]]) -> str:
 
 def _same_model(
     models_root: Path,
-    request: HistoryModelRequest,
-    digest: str,
-    learned: Mapping[str, list[str | None]],
+    recipe: str,
+    channels: Sequence[str],
+    feature_set: str,
+    wanted: Mapping[str, Any],
     skipped: int,
 ) -> HistoryModelBuild | None:
     """A package already built from these choices and the same reference values; pressing twice
     reuses it, while values changed inside the period (a later backfill) build a new one."""
     if not models_root.is_dir():
         return None
-    wanted = {
-        "dataset_id": request.source_id,
-        "asset_ids": [request.asset_id],
-        "measurement_point_id": request.measurement_point_id,
-        "reference_start": request.reference_start.isoformat(),
-        "reference_end": request.reference_end.isoformat(),
-        "reference_digest": digest,
-        "channel_meanings": dict(learned),
-    }
     for path in sorted(models_root.glob("*/package.json")):
         try:
             body = json.loads(path.read_text(encoding="utf-8"))
         except OSError, ValueError:
             continue
-        if not isinstance(body, dict) or body.get("recipe_id") != RECIPE_ID:
+        if not isinstance(body, dict) or body.get("recipe_id") != recipe:
             continue
         scope, spec = body.get("training_scope") or {}, body.get("input") or {}
         if (
-            spec.get("channels") == list(request.channels)
-            and spec.get("feature_set_id") == feature_set_id(request.window_seconds)
+            spec.get("channels") == list(channels)
+            and spec.get("feature_set_id") == feature_set
             and all(scope.get(key) == value for key, value in wanted.items())
         ):
             return HistoryModelBuild(
@@ -435,6 +455,7 @@ def _same_model(
                 skipped,
                 (body.get("output") or {}).get("threshold"),
                 reused=True,
+                levels=scope.get("operating_levels"),
             )
     return None
 
@@ -446,34 +467,45 @@ def build_history_model(
     *,
     created_at: datetime,
     code_revision: str,
+    levels: LevelBasis | None = None,
 ) -> HistoryModelBuild:
-    """Fit an Isolation Forest on the reference windows, or say why the period is too thin."""
+    """Fit Isolation Forest on the reference windows, or say why the period is too thin.
+
+    With ``levels`` (the stream records a current) each operating level is learned and judged
+    apart; without, one forest learns the whole period.
+    """
     seconds = request.window_seconds
     snapshot = history.current_snapshot_id()
     start = window_start(request.reference_start, seconds)
+    # 운전 수준을 정하는 전류가 고른 신호에 없으면 입력에 더한다: 구간마다 그 수준을 읽어야 한다.
+    channels = (
+        request.channels
+        if levels is None or levels.channel in request.channels
+        else (*request.channels, levels.channel)
+    )
     rows = history.query_channel_observations(
         request.asset_id,
         source_id=request.source_id,
-        channel_ids=list(request.channels),
+        channel_ids=list(channels),
         start_at=start,
         end_at=request.reference_end,
         snapshot_id=snapshot,
     )
     reference: list[tuple[float, ...]] = []
-    meanings: dict[str, set[Meaning]] = {channel: set() for channel in request.channels}
+    meanings: dict[str, set[Meaning]] = {channel: set() for channel in channels}
     skipped = 0
-    names = feature_names(request.channels)
+    names = feature_names(channels)
     for window in group_windows(
         rows, seconds=seconds, measurement_point_id=request.measurement_point_id
     ):
         if window.start < start or window.end > request.reference_end:
             continue
-        values, _ = window_features(window, request.channels)
+        values, _ = window_features(window, channels)
         if values is None:
             skipped += 1
         else:
             reference.append(tuple(values[name] for name in names))
-            for channel, meaning in channel_meanings(window, request.channels)[0].items():
+            for channel, meaning in channel_meanings(window, channels)[0].items():
                 meanings[channel].add(meaning)
     changed = [channel for channel, kinds in meanings.items() if len(kinds) > 1]
     if changed:
@@ -494,7 +526,25 @@ def build_history_model(
             f"최소 {MIN_REFERENCE_WINDOWS}개가 필요하니 기간을 늘리거나 구간 길이를 줄이세요.",
         )
     digest = _reference_digest(reference)
-    if (existing := _same_model(models_root, request, digest, learned, skipped)) is not None:
+    scope = _scope(request, snapshot, len(reference), digest, learned)
+    if levels is not None:
+        return _build_by_level(
+            models_root,
+            request,
+            channels,
+            reference,
+            skipped,
+            levels,
+            scope,
+            created_at=created_at,
+            code_revision=code_revision,
+        )
+    wanted = {key: scope[key] for key in _REUSE_KEYS}
+    if (
+        existing := _same_model(
+            models_root, RECIPE_ID, channels, feature_set_id(seconds), wanted, skipped
+        )
+    ) is not None:
         return existing
     array = np.asarray(reference)
     center = np.median(array, axis=0)
@@ -504,29 +554,13 @@ def build_history_model(
     build = PackageBuild(
         recipe_id=RECIPE_ID,
         estimator_kind=EstimatorKind.ISOLATION_FOREST_REFIT,
-        input=PackageInputSpec(
-            StepKind.HISTORY_WINDOW, request.channels, feature_set_id(seconds), names
-        ),
-        output=PackageOutputSpec(
-            task=ModelTask.ANOMALY_SCORE,
-            value_name="anomaly-score",
-            threshold=0,
-            threshold_rule=f"operator-reference-quantile-{THRESHOLD_QUANTILE}",
-            review_interval=ReviewIntervalRule(2, 1),
-            step_period_seconds=seconds,
-        ),
+        input=PackageInputSpec(StepKind.HISTORY_WINDOW, channels, feature_set_id(seconds), names),
+        output=_output(seconds, f"operator-reference-quantile-{THRESHOLD_QUANTILE}"),
         preprocessing=preprocessing,
-        estimator_state={
-            "n_estimators": 100,
-            "max_samples": min(256, len(reference)),
-            "contamination": "auto",
-            "max_features": 1.0,
-            "bootstrap": False,
-            "random_seed": 42,
-        },
+        estimator_state={**_FOREST, "max_samples": min(256, len(reference))},
         fit_rows=preprocessing.transform(reference),
         probe_rows=reference[:8],
-        training_scope=_scope(request, snapshot, len(reference), digest, learned),
+        training_scope=scope,
         validation={"evidence_class": "operator-reference-not-validated"},
         applicability={"source_id": [request.source_id], "asset_id": [request.asset_id]},
         created_at=created_at.isoformat(),
@@ -541,6 +575,151 @@ def build_history_model(
     final = replace(build, output=replace(build.output, threshold=threshold))
     manifest = write_model_package(models_root, final)
     return HistoryModelBuild(manifest.package_id, len(reference), skipped, threshold)
+
+
+# The deterministic refit every operator-built forest uses; max_samples follows the rows.
+_FOREST: dict[str, Any] = {
+    "n_estimators": 100,
+    "contamination": "auto",
+    "max_features": 1.0,
+    "bootstrap": False,
+    "random_seed": 42,
+}
+_REUSE_KEYS = (
+    "dataset_id",
+    "asset_ids",
+    "measurement_point_id",
+    "reference_start",
+    "reference_end",
+    "reference_digest",
+    "channel_meanings",
+)
+
+
+def _output(seconds: int, rule: str, threshold: float = 0) -> PackageOutputSpec:
+    return PackageOutputSpec(
+        task=ModelTask.ANOMALY_SCORE,
+        value_name="anomaly-score",
+        threshold=threshold,
+        threshold_rule=rule,
+        review_interval=ReviewIntervalRule(2, 1),
+        step_period_seconds=seconds,
+    )
+
+
+def _build_by_level(
+    models_root: Path,
+    request: HistoryModelRequest,
+    channels: Sequence[str],
+    reference: Sequence[tuple[float, ...]],
+    skipped: int,
+    levels: LevelBasis,
+    scope: Mapping[str, Any],
+    *,
+    created_at: datetime,
+    code_revision: str,
+) -> HistoryModelBuild:
+    """One forest per operating level the reference period held enough windows of.
+
+    Each level gets its own scaling (median, IQR) and its own threshold at the 99.5th percentile
+    of that level's reference scores, so a window is compared only with windows of its own load.
+    A level with fewer than the minimum windows is not learned and its windows are not judged.
+    """
+    seconds = request.window_seconds
+    names = feature_names(channels)
+    index = names.index(f"{levels.channel}.mean")
+    bands = [levels.band(row[index]) for row in reference]
+    # 기록의 모든 운전 수준을 센다(기준 기간에 없던 수준은 0개): 판정하지 않을 수준을 말해야 한다.
+    # 정지는 기준 기간에 있었을 때만 센다(한 번도 멈추지 않은 설비에 '정지'를 말하지 않는다).
+    running = range(1, len(levels.edges) + 1)
+    counts = {band: bands.count(band) for band in sorted({*running, *bands})}
+    learned = [band for band, count in counts.items() if count >= MIN_REFERENCE_WINDOWS]
+    operating = {
+        "channel": levels.channel,
+        # 사람이 고르지 않았는데 수준을 읽으려고 더한 전류인지: 화면의 '신호 N개'는 고른 것만 센다.
+        "added": levels.channel not in request.channels,
+        "edges": list(levels.edges),
+        "typical": list(levels.typical),
+        "reference_windows": {str(band): count for band, count in counts.items()},
+        "learned": [str(band) for band in learned],
+    }
+    if not learned:
+        said = ", ".join(f"{_said(levels, band)} {count}개" for band, count in counts.items())
+        return HistoryModelBuild(
+            None,
+            len(reference),
+            skipped,
+            reason=f"운전 수준별로 학습하려면 한 수준에 구간이 {MIN_REFERENCE_WINDOWS}개 이상 "
+            f"있어야 합니다. 기준 기간에는 {said}입니다. 기간을 늘리세요.",
+            levels=operating,
+        )
+    scope = {**scope, "operating_levels": operating}
+    wanted = {key: scope[key] for key in (*_REUSE_KEYS, "operating_levels")}
+    if (
+        existing := _same_model(
+            models_root, LEVEL_RECIPE_ID, channels, feature_set_id(seconds), wanted, skipped
+        )
+    ) is not None:
+        return existing
+    rows = [row for row, band in zip(reference, bands, strict=True) if band in learned]
+    row_bands = [band for band in bands if band in learned]
+    state: dict[str, Any] = {
+        **_FOREST,
+        "level_feature": f"{levels.channel}.mean",
+        "level_index": index,
+        "level_edges": list(levels.edges),
+        "level_names": [levels.name(band) for band in range(len(levels.edges) + 1)],
+        "levels": {},
+    }
+    for band in learned:
+        array = np.asarray([row for row, own in zip(rows, row_bands, strict=True) if own == band])
+        center = np.median(array, axis=0)
+        spread = np.quantile(array, 0.75, axis=0) - np.quantile(array, 0.25, axis=0)
+        scale = np.maximum(spread, 1e-6 * np.maximum(1.0, np.abs(center)))
+        state["levels"][str(band)] = {
+            "center": center.tolist(),
+            "scale": scale.tolist(),
+            "threshold": 1.0,
+            "max_samples": min(256, len(array)),
+        }
+    # The package scales inside each level, so its own preprocessing is the identity.
+    identity = AffinePreprocessing([0.0] * len(names), [1.0] * len(names))
+    # A probe row from every learned level, so loading checks each forest.
+    first = {band: rows[row_bands.index(band)] for band in learned}
+    probe = [first[band] for band in learned]
+    build = PackageBuild(
+        recipe_id=LEVEL_RECIPE_ID,
+        estimator_kind=EstimatorKind.ISOLATION_FOREST_BY_LEVEL,
+        input=PackageInputSpec(StepKind.HISTORY_WINDOW, channels, feature_set_id(seconds), names),
+        output=_output(seconds, f"operator-reference-quantile-{THRESHOLD_QUANTILE}-per-level"),
+        preprocessing=identity,
+        estimator_state=state,
+        fit_rows=rows,
+        fit_levels=row_bands,
+        probe_rows=(probe + rows)[:8],
+        training_scope=scope,
+        validation={"evidence_class": "operator-reference-not-validated"},
+        applicability={"source_id": [request.source_id], "asset_id": [request.asset_id]},
+        created_at=created_at.isoformat(),
+        code_revision=code_revision,
+    )
+    # Each level's threshold is a quantile of its own reference scores: score with a provisional
+    # copy whose thresholds are 1, then fix each level's.
+    models_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".history-model-", dir=models_root) as temporary:
+        provisional = write_model_package(Path(temporary), build)
+        scores = load_model_package(Path(temporary) / provisional.package_id).evaluate(rows)
+    for band in learned:
+        own = [score for score, b in zip(scores, row_bands, strict=True) if b == band]
+        state["levels"][str(band)]["threshold"] = float(np.quantile(own, THRESHOLD_QUANTILE))
+    final = replace(build, estimator_state=state, output=replace(build.output, threshold=1.0))
+    manifest = write_model_package(models_root, final)
+    return HistoryModelBuild(manifest.package_id, len(reference), skipped, 1.0, levels=operating)
+
+
+def _said(levels: LevelBasis, band: int) -> str:
+    name = levels.name(band)
+    return "정지" if name == "stopped" else f"약 {name} 운전"
 
 
 def _scope(

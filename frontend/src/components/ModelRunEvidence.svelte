@@ -17,7 +17,7 @@
   import {readWriteSession} from "../session";
   import {assetTabUrl} from "../routes";
   import {
-    loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,
+    loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,skipReasonText,isUnjudged,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
@@ -310,7 +310,7 @@
     const model = names.get(binding.bindingId) ?? binding.bindingId;
     const measurement = place(result.position);
     if (result.state === "skipped") return {"선택한 모델": model, "선택한 측정": measurement,
-      "모델 결과": result.reason ?? "이 측정은 모델 분석에서 제외됨"};
+      "모델 결과": skipReasonText(result.reason)};
     const {score, threshold, exceeds} = scoreSummary(result.output);
     return {"선택한 모델": model, "선택한 측정": measurement,
       "모델 점수": num(score, "기록 없음"), "모델 기준": num(threshold, "기록 없음"),
@@ -396,7 +396,7 @@
               if(item){followLatest=false;void chooseStep(item);}
             }}>
             {#each choices as item(item.runId)}
-              <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":"분석에서 제외"}</option>
+              <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":isUnjudged(item.reason??null)?"판정 안 함":"분석에서 제외"}</option>
             {/each}
           </select>
         </label>
@@ -414,8 +414,8 @@
           <StatusNotice kind="uncertain" title="선택한 모델 결과를 찾을 수 없습니다" message={error}/>
         {:else if result}
           {#if result.state==="skipped"}
-            <StatusNotice kind="uncertain" title="이 측정은 모델 분석에서 제외됐습니다"
-              message={result.reason??"제외 사유가 기록되지 않았습니다."}/>
+            <StatusNotice kind="uncertain" title={isUnjudged(result.reason)?"이 구간은 판정하지 않았습니다":"이 측정은 모델 분석에서 제외됐습니다"}
+              message={skipReasonText(result.reason)}/>
           {:else}
             {@const summary=scoreSummary(result.output)}
             <div class="selected-result"><h3>{place(result.position)}</h3>
