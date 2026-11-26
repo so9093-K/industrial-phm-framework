@@ -6,6 +6,7 @@
   import {OutcomeUnknown} from "../writes";
 
   import type {ChangeFollowup} from "../change-evidence";
+  import {answerParts, freshLink} from "../answer-text";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
 
   let {assetId, origin, reviewKey, scope, followup, analyses = {}, pointed = null, onUnpoint, savedJudgment, onPause, compareLoad = false}: {
@@ -51,7 +52,12 @@
         if (remaining-- > 0) timer = setTimeout(() => void refresh(), 1500);
         else { awaiting = null; error = "답변 상태를 확인하지 못했습니다."; }
       }
-    } catch (cause) { if (!pending.signal.aborted) error = cause instanceof Error ? cause.message : "대화를 불러오지 못했습니다."; }
+    } catch (cause) {
+      if (pending.signal.aborted) return;
+      // 답을 기다리는 중의 읽기 실패는 다시 읽는다. 멈추면 답이 끝났는데도 '답 정리 중'이 계속 셌다.
+      if ((awaiting || records[0]?.status === "pending") && remaining-- > 0) { timer = setTimeout(() => void refresh(), 1500); return; }
+      error = cause instanceof Error ? cause.message : "대화를 불러오지 못했습니다.";
+    }
   }
   async function ask(text: string, runComparison = false) {
     if (!writable || waiting || !text.trim()) return;
@@ -90,12 +96,12 @@
     <p class="saved"><b>{savedJudgment.label}</b>{savedJudgment.note ? " · " + savedJudgment.note : ""}</p>
   {/if}
   <div class="log" bind:this={log} onscroll={() => { if (log) stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 48; }} aria-live="polite">
-    {#each thread as row (row.id)}
+    {#each thread as row, index (row.id)}
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="msg answer" class:charted={row.comparison?.status === "ready"}>
-        {#if row.status === "complete" && row.answer}<p>{row.answer.summary}</p>{/if}
+        {#if row.status === "complete" && row.answer}<p>{#each answerParts(row.answer.summary) as part, at (at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>{/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} {origin} {conversation} result={row.comparison}/>{/if}
-        {#if row.status === "complete" && row.analysis && analyses[row.analysis]}
+        {#if row.status === "complete" && row.analysis && analyses[row.analysis] && freshLink(thread, index)}
           <a class="opened" href={withConversation(analyses[row.analysis].href, conversation)} onclick={onPause}>{analyses[row.analysis].label} →</a>{/if}
         {#if row.status === "pending"}<p class="typing"><i></i><i></i><i></i>{typing("답 정리 중")}</p>
         {:else if row.status === "failed"}<p class="note">답을 만들지 못했습니다. 다시 물어 주세요.</p>{/if}
@@ -130,6 +136,7 @@
   .agent{display:flex;flex-direction:column;gap:6px;min-height:0;height:100%;font-size:var(--font-small)}
   .log{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;padding-right:2px;overscroll-behavior:contain}
   p{margin:0;line-height:1.5;overflow-wrap:anywhere}
+  .answer b{font-weight:700;font-variant-numeric:tabular-nums}
   .msg{align-self:flex-start;max-width:96%;padding:7px 10px;border-radius:4px 12px 12px 12px;background:#f2f5f7;color:var(--color-ink)}
   .me{align-self:flex-end;max-width:88%;padding:6px 10px;border-radius:12px 4px 12px 12px;background:var(--color-surface-selected)}
   .answer{display:grid;gap:5px;white-space:pre-wrap}

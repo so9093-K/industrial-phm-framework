@@ -6,7 +6,7 @@ import {bandName} from "./record-findings.ts";
 /** AI의 답: 사람에게 말하듯 쓴 몇 문장. */
 export type ChangeAnswer={summary:string};
 /** 대화를 여는 짧은 질문: 사람이 실제로 묻는 말 그대로 보내고 그대로 보인다. */
-export const STARTERS=["문제 있어?","무엇이 함께 달라졌어?"];
+export const STARTERS=["문제 있어?","무엇이 함께 달라졌어?","뭘 점검해야 해?"];
 export const LOAD_QUESTION="같은 부하에서도 전압이 달라졌어?";
 export type LoadComparison={status:"unavailable"|"failed"}|{
   /** 견준 운전 수준을 기간 비교 화면·관제 카드와 같은 말로('약 11 A 운전'). */

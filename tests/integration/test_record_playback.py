@@ -88,6 +88,10 @@ def test_later_load_and_voltage_do_not_rewrite_a_replayed_investigation(
     assert screen["초기 범위를 벗어나 지금까지 이어지는 신호"] == (
         f"1개({chosen['label']}), 살펴본 신호 {before['judged']}개 중"
     )
+    # 전력 값의 지금 값에는 배수를 붙이지 않는다(1배 근처를 오가는 값이다).
+    assert screen["지금 값(마지막 측정)"] and not any(
+        "배" in line for line in screen["지금 값(마지막 측정)"].values()
+    )
     # 재생 시점 뒤의 값은 그래프에도 지금 값에도 없다.
     drawn = screen["그래프(시각, 값)"].values()
     assert all(value < 1000 for points in drawn for _, value in points)

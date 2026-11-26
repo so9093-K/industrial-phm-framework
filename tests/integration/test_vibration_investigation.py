@@ -74,9 +74,23 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     count = chosen["to"] - chosen["from"] + 1
     assert card["언제"] == f"{chosen['from']}번째 측정부터 {count}회 측정"
     assert card["지금"].endswith("배)")
-    assert screen["지금 값(마지막 측정)"][chosen["label"]].endswith("g (30번째 측정)")
+    # 지금 값마다 그 축의 초기 대비 배수를 붙인다: 모델이 그래프 첫 점으로 배수를 계산하지 않게.
+    now = screen["지금 값(마지막 측정)"]
+    assert now[chosen["label"]].split(" · ")[0].endswith("g (30번째 측정)")
+    assert all(line.endswith("배") for line in now.values())
+    if len(now) > 1:
+        order = screen["지금 초기 대비 큰 순서"]
+        times = [float(part.rsplit("약 ", 1)[1].rstrip("배")) for part in order.split(", ")]
+        assert times == sorted(times, reverse=True)
     chart = screen["그래프(측정 번호, 값)"]
     assert next(iter(chart)) == chosen["label"] and chart[chosen["label"]][-1][0] == 30
+    # 지금도 오르는지는 최근 10회 측정의 움직임으로 읽는다. 배수는 지금 값에만 붙인다: 같은 기간의
+    # 대표값에도 붙였더니 한 축이 '3.4배'와 '4.3배'로 두 번 불렸다.
+    assert not any("배" in line for line in screen.get("같은 기간 다른 신호", []))
+    recent = screen["최근 10회 측정 동안"]
+    assert set(recent) == set(chart)
+    own = recent[chosen["label"]]
+    assert own.startswith("20번째 측정 ") and "→ 30번째 측정 " in own
     # 출처나 '판정이 없다'는 말은 모델에 주지 않는다: 그 말을 답으로 옮겼다.
     assert "기록" not in screen and "화면의 특이사항" not in screen
     question = "문제 있어?"
@@ -128,7 +142,7 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "history" not in next_record["context"]
     # 진동 변화에서 고를 수 있는 분석은 이미 있는 화면들이다. 고른 화면은 답에 실리고,
     # 답은 그 화면을 소개하라는 데이터를 받는다.
-    assert offered[0] == {"reply", "open_compare", "open_spectrum", "open_signals"}
+    assert offered[0] == {"reply", "open_compare", "open_spectrum", "open_signals", "open_outlook"}
     assert next_record["answer"]["analysis"] == "open_spectrum"
     system, *turns = model.requests[1]
     data = json.loads(system["content"].rsplit("\n\n", 1)[1])
