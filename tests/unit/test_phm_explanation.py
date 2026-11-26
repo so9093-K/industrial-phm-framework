@@ -5,14 +5,17 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from threading import Thread
+from urllib.error import HTTPError
 
 import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
+from industrial_phm.genai import local_explanation
 from industrial_phm.genai.local_explanation import (
     AnalysisExplanationError,
     ExplanationProvider,
     _answer_object,
+    complete_chat,
     complete_json,
 )
 from industrial_phm.runtime.operations_web_phm_explanation import (
@@ -68,6 +71,58 @@ def test_job_records_immutable_context_and_interrupted_generation_is_not_success
 def test_provider_rejects_unconfigured_remote_or_credentials_in_url(url: str) -> None:
     with pytest.raises(AnalysisExplanationError):
         ExplanationProvider(base_url=url)
+
+
+def test_chat_retries_without_tools_if_the_provider_rejects_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+
+    def post(path: str, payload: dict[str, object]) -> object:
+        requests.append(payload)
+        if "tools" in payload:
+            raise HTTPError(path, 422, "unsupported tools", {}, None)
+        return {"choices": [{"message": {"content": "진동이 높아졌습니다."}}]}
+
+    monkeypatch.setattr(local_explanation, "_poster", lambda _provider: post)
+    result = complete_chat(
+        ExplanationProvider(),
+        [{"role": "user", "content": "어떤 변화가 있었나요?"}],
+        max_tokens=300,
+        tools={"open_spectrum": "주파수 분석"},
+    )
+    assert result == ("summary", "진동이 높아졌습니다.")
+    assert [request.get("tool_choice") for request in requests] == ["auto", None]
+
+
+@pytest.mark.parametrize(
+    ("name", "arguments"),
+    [("open_other", "{}"), ("open_spectrum", '{"asset": "other"}')],
+)
+def test_chat_only_accepts_the_available_analyses_with_bound_arguments(
+    monkeypatch: pytest.MonkeyPatch, name: str, arguments: str
+) -> None:
+    def post(_path: str, _payload: dict[str, object]) -> object:
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {
+                                "type": "function",
+                                "function": {"name": name, "arguments": arguments},
+                            },
+                        ]
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(local_explanation, "_poster", lambda _provider: post)
+    with pytest.raises(AnalysisExplanationError, match="invalid chat analysis request"):
+        complete_chat(
+            ExplanationProvider(), [], max_tokens=300, tools={"open_spectrum": "주파수 분석"}
+        )
 
 
 @pytest.mark.parametrize("chat_status", [200, 422])

@@ -1,6 +1,6 @@
 <script lang="ts">
   import {equipmentRole} from "../equipment-roles";
-  import {onDestroy, onMount, untrack, type Snippet} from "svelte";
+  import {onDestroy, onMount, untrack} from "svelte";
   import {assetOptionLabel, type Asset} from "../monitor";
   import {attention, focusChannel, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
     type FleetChange, type FleetGroup, type FleetRead, type MonitorDataset} from "../fleet-observation";
@@ -10,6 +10,7 @@
   import {recentAsset} from "../observation";
   import AssetName from "./AssetName.svelte";
   import MonitorRow from "./MonitorRow.svelte";
+  import MonitorChat, {type MonitorChatPoint, type MonitorChatTarget} from "./MonitorChat.svelte";
   import TaskDialog from "./TaskDialog.svelte";
   import {systemUrl} from "../routes";
 
@@ -28,13 +29,19 @@
   const filters=$derived([all,...datasets]);
   const filterLabel=(row:MonitorDataset)=>({all:"전체 설비","aihub-239":"전력·운전","xjtu-sy":"베어링 진동",connected:"연결한 설비"}[row.key]??row.title);
   let guideOpen=$state(false);
-  // 열린 AI 조사 대화 칸(한 번에 하나): 내용은 그 설비 줄이 만들고, 목록 오른쪽 칸에 띄운다.
-  let chat=$state<{assetId:string;panel:Snippet}|null>(null);
+  // 대화가 보는 구간은 열었을 때 정한다. 재생과 목록 갱신은 같은 대화에 영향을 주지 않는다.
+  let chat = $state.raw<MonitorChatTarget | null>(null);
+  let chatPoint = $state.raw<MonitorChatPoint | null>(null);
+  function selectChat(target: MonitorChatTarget | null, point: MonitorChatPoint | null = null) {
+    chat = target;
+    chatPoint = point;
+  }
   // 조사 화면에 다녀오면 보던 데이터셋으로 돌아온다(주소에 없으면 이 탭에서 마지막으로 본 것).
   const LAST = "phm.monitor.view.v2";
   function lastDataset():string|null {try{return sessionStorage.getItem(LAST);}catch{return null;}}
   let chosen = $state(new URLSearchParams(location.search).get("dataset") ?? lastDataset() ?? "all");
   const dataset: MonitorDataset | undefined = $derived(filters.find(row => row.key === chosen) ?? all);
+  const datasetKey = $derived(dataset?.key);
   $effect(() => { const key = dataset?.key; if (key) try { sessionStorage.setItem(LAST, key); } catch { /* 기억하지 못해도 첫 데이터셋을 연다. */ } });
   function choose(key: string) {
     playing = false;
@@ -235,7 +242,7 @@
     analyze();
   }
   function stop() { playing = false; resetJudgement(); setFraction(null); }
-  $effect(() => { dataset?.key; untrack(() => { resetJudgement(); analyze(); }); });
+  $effect(() => { datasetKey; untrack(() => { resetJudgement(); analyze(); }); });
   onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
   // 한 줄에 설비 하나: 넓은 그래프 덕에 높이를 줄여 1440×900에 두 설비가 함께 보인다.
@@ -299,8 +306,8 @@
             replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
             lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
-            height={chartHeight} {playing} chatting={chat?.assetId === asset.assetId}
-            onChat={panel => chat = panel ? {assetId: asset.assetId, panel} : null}
+            height={chartHeight} {playing} chat={chat?.assetId === asset.assetId ? chat : null}
+            onChat={selectChat} onPoint={point => chatPoint = point}
             onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
           <!-- 읽는 동안에도 다 읽은 줄과 비슷한 높이로 두어, 아래 줄이 출렁이지 않게 한다. -->
@@ -316,7 +323,14 @@
         {/if}
       {/each}
     </ol>
-    {#if chat}<div class="chat-rail">{@render chat.panel()}</div>{/if}
+    {#if chat}
+      <div class="chat-rail">
+        {#key chat}
+          <MonitorChat target={chat} pointed={chatPoint?.point ?? null} onUnpoint={() => { chatPoint?.clear(); chatPoint = null; }}
+            onPause={() => playing = false} onClose={() => selectChat(null)}/>
+        {/key}
+      </div>
+    {/if}
     </div>
   {/if}
   <TaskDialog title="설비와 측정 데이터" bind:open={guideOpen}>

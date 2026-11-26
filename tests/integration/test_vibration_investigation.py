@@ -12,10 +12,11 @@ from uuid import uuid4
 import pytest
 
 from industrial_phm.application.phm_explanation import PhmExplanationStore
-from industrial_phm.genai import change_answer
+from industrial_phm.genai import change_answer, local_explanation
 from industrial_phm.genai.local_explanation import ExplanationProvider
 from industrial_phm.runtime import operations_web_phm_explanation as runtime
 from industrial_phm.runtime.operations_web_change_context import (
+    _compact_trace,
     asset_label,
     screen_view,
     selected_change,
@@ -32,17 +33,24 @@ from tests.support.phm import analyze, deliver, phm_workspace
 
 
 class Replies:
-    """Stands in for the local model's plain chat replies, in order; keeps what it was sent."""
+    """Capture each model request and return a plain answer or an analysis request."""
 
-    def __init__(self, *texts: str) -> None:
-        self.texts = list(texts)
+    def __init__(self, *answers: str | dict[str, Any]) -> None:
+        self.answers = list(answers)
         self.requests: list[list[dict[str, str]]] = []
+        self.tool_names: list[set[str]] = []
 
-    def __call__(
-        self, provider: object, messages: list[dict[str, str]], *, max_tokens: int = 400
-    ) -> str:
-        self.requests.append(list(messages))
-        return self.texts.pop(0) if len(self.texts) > 1 else self.texts[0]
+    def __call__(self, _provider: object):
+        def post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+            assert path == "/chat/completions"
+            self.requests.append(payload["messages"])
+            self.tool_names.append({item["function"]["name"] for item in payload.get("tools", [])})
+            assert payload.get("tool_choice") == ("auto" if self.tool_names[-1] else None)
+            answer = self.answers.pop(0)
+            message = {"content": answer} if isinstance(answer, str) else answer
+            return {"choices": [{"message": message}]}
+
+        return post
 
 
 def test_one_vibration_change_is_explained_reviewed_and_reopened(
@@ -105,16 +113,18 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     # 출처나 '판정이 없다'는 말은 모델에 주지 않는다: 그 말을 답으로 옮겼다.
     assert "기록" not in screen and "화면의 특이사항" not in screen
     question = "문제 있어?"
-    model = Replies("기준보다 높은 진동이 구간 안에서 이어집니다.")
-    monkeypatch.setattr(change_answer, "complete_text", model)
-    # 함께 보여 줄 분석을 고르는 모델: 첫 질문은 바로 답하고, '왜 그래?'에는 주파수 화면을 연다.
-    offered: list[set[str]] = []
-
-    def choose(_provider: object, messages: list[dict[str, str]], tools: dict[str, str]) -> str:
-        offered.append(set(tools))
-        return "open_spectrum" if messages[-1]["content"] == "왜 그래?" else "reply"
-
-    monkeypatch.setattr(change_answer, "select_tool", choose)
+    summary = "기준보다 높은 진동이 구간 안에서 이어집니다."
+    model = Replies(
+        summary,
+        {
+            "tool_calls": [
+                {"type": "function", "function": {"name": "open_spectrum", "arguments": "{}"}}
+            ]
+        },
+        "주파수 대역별 에너지 비중이 달라졌습니다.",
+        summary,
+    )
+    monkeypatch.setattr(local_explanation, "_poster", model)
     monkeypatch.setattr(runtime, "_MANAGERS", {})
     address = {"asset_id": "bearing-a", "change_id": chosen["review_key"]}
     conversation = uuid4().hex
@@ -139,8 +149,9 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
 
     record = finished(job["explanation_id"])
     assert record["status"] == "complete"
-    assert record["answer"] == {"summary": "기준보다 높은 진동이 구간 안에서 이어집니다."}
+    assert record["answer"] == {"summary": summary}
     assert "screen" not in record["context"]
+    assert len(model.requests) == 1
     system, *turns = model.requests[0]
     assert json.loads(system["content"].rsplit("\n\n", 1)[1]) == {"screen": screen}
     assert turns == [{"role": "user", "content": question}]
@@ -153,9 +164,10 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert "history" not in next_record["context"]
     # 진동 변화에서 고를 수 있는 분석은 이미 있는 화면들이다. 고른 화면은 답에 실리고,
     # 답은 그 화면을 소개하라는 데이터를 받는다.
-    assert offered[0] == {"reply", "open_compare", "open_spectrum", "open_signals", "open_outlook"}
+    offered = {"open_compare", "open_spectrum", "open_signals", "open_outlook"}
+    assert model.tool_names == [offered, offered, set()]
     assert next_record["answer"]["analysis"] == "open_spectrum"
-    system, *turns = model.requests[1]
+    system, *turns = model.requests[2]
     data = json.loads(system["content"].rsplit("\n\n", 1)[1])
     # 고른 화면은 답 아래 링크로 열리고, 답은 그 화면의 수치(축마다 에너지와 비중이 바뀐 대역)를
     # 화면 데이터보다 먼저 읽는다. 그 화면을 소개하라고 시키지는 않는다.
@@ -163,7 +175,7 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert all("Hz 비중" in line for line in data["주파수 화면"].values())
     assert turns == [
         {"role": "user", "content": question},
-        {"role": "assistant", "content": "기준보다 높은 진동이 구간 안에서 이어집니다."},
+        {"role": "assistant", "content": summary},
         {"role": "user", "content": "왜 그래?"},
     ]
     assert store.list_for(context["binding_id"], context["position"]) == []
@@ -182,10 +194,10 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     done = finished(fresh["explanation_id"])
     assert done["status"] == "complete"
     assert done["context"]["pointed"] == f"{chosen['from']}번째 측정"
-    sent = json.loads(model.requests[2][0]["content"].rsplit("\n\n", 1)[1])["screen"]
+    sent = json.loads(model.requests[3][0]["content"].rsplit("\n\n", 1)[1])["screen"]
     assert next(iter(sent)) == "설비" and list(sent)[1] == "그래프에서 짚은 곳"
     assert sent["그래프에서 짚은 곳"]["특이사항 구간"] == "안"
-    assert model.requests[2][1:] == [{"role": "user", "content": "여기는 어때?"}]
+    assert model.requests[3][1:] == [{"role": "user", "content": "여기는 어때?"}]
     with pytest.raises(ValueError, match="pointed"):
         runtime.prepare_web_explanation(workspace, another | {"question": "?", "at": "어제"})
     # 화면에서 고른 다른 기간과 방향을 읽고, 모니터링 대표 변화는 다시 계산하지 않는다.
@@ -257,7 +269,7 @@ def test_change_chat_uses_one_completion_with_the_actual_question_and_turns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     model = Replies("**기록상 변화는 있었습니다.** 그때 전류도 낮아졌습니다.")
-    monkeypatch.setattr(change_answer, "complete_text", model)
+    monkeypatch.setattr(local_explanation, "_poster", model)
     context = {
         "question": "왜 그래?",
         "history": [
@@ -277,3 +289,17 @@ def test_change_chat_uses_one_completion_with_the_actual_question_and_turns(
         {"role": "assistant", "content": "기록에 변화는 있었어요."},
         {"role": "user", "content": "왜 그래?"},
     ]
+
+
+def test_ai_chart_sample_keeps_brief_peaks_dips_and_ends_in_order() -> None:
+    trace = [[i, 1.0] for i in range(50)]
+    trace[7][1] = 9.0
+    trace[22][1] = -4.0
+    trace[-1][1] = 3.0
+
+    sampled = _compact_trace(trace)
+
+    assert len(sampled) <= 12
+    assert sampled == sorted(sampled)
+    assert sampled[0] == trace[0] and sampled[-1] == trace[-1]
+    assert trace[7] in sampled and trace[22] in sampled

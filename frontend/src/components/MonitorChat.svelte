@@ -1,25 +1,36 @@
+<script module lang="ts">
+  import type {Pointed} from "../change-investigation";
+  import type {ChangeFollowup} from "../change-evidence";
+  import type {PlaybackScope} from "../record-playback";
+
+  export type MonitorChatTarget = {
+    assetId: string; name: string; title: string; origin: string; reviewKey: string; scope: PlaybackScope | null;
+    followup: ChangeFollowup | null; analyses: Record<string, ChangeFollowup>;
+    savedJudgment: {label: string; note: string | null} | null; compareLoad?: boolean;
+  };
+  export type MonitorChatPoint = {point: Pointed; clear: () => void};
+</script>
+
 <script lang="ts">
   import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, newChangeConversation, readChangeDiscussion, withConversation, STARTERS, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
-  import type {PlaybackScope} from "../record-playback";
+  import {askChange, newChangeConversation, readChangeDiscussion, withConversation, STARTERS, LOAD_QUESTION, type ChangeDiscussion} from "../change-investigation";
+  import {clockText} from "../date-format";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
-
-  import type {ChangeFollowup} from "../change-evidence";
   import {answerParts, freshLink} from "../answer-text";
+  import AssetName from "./AssetName.svelte";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
 
-  let {assetId, origin, reviewKey, scope, followup, analyses = {}, pointed = null, onUnpoint, savedJudgment, onPause, compareLoad = false}: {
-    assetId: string; origin: string; reviewKey: string; scope: PlaybackScope | null;
-    followup: ChangeFollowup | null;
-    /** AI가 답과 함께 고를 수 있는 분석 화면(분석 이름 → 링크). */
-    analyses?: Record<string, ChangeFollowup>;
+  let {target, pointed = null, onUnpoint, onPause, onClose}: {
+    target: MonitorChatTarget;
     /** 그래프에서 짚은 곳: 질문과 함께 보낸다. 지우면 기록 전체에 대해 묻는다. */
     pointed?: Pointed | null; onUnpoint?: () => void;
-    savedJudgment: {label: string; note: string | null} | null;
-    onPause: () => void;
-    compareLoad?: boolean;
+    onPause: () => void; onClose: () => void;
   } = $props();
+  const {assetId, name, title, origin, reviewKey, scope, followup, analyses, savedJudgment, compareLoad} = $derived(target);
+  const scopeEnd = $derived(scope
+    ? (scope.kind === "history" ? clockText(scope.until) : scope.until + "번째 측정") + "까지의 기록"
+    : null);
 
   const conversation = newChangeConversation();
   let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(""), error = $state("");
@@ -91,7 +102,14 @@
   });
 </script>
 
-<section class="agent" aria-label="AI 관제 대화">
+<section class="card-chat" aria-label="AI 조사">
+  <header class="chat-head">
+    <div><strong>AI 조사 · <AssetName label={name}/></strong><span>{title}</span>{#if scopeEnd}<span>{scopeEnd}</span>{/if}</div>
+    <button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </header>
+  <div class="agent" aria-label="AI 관제 대화">
   {#if savedJudgment}
     <p class="saved"><b>{savedJudgment.label}</b>{savedJudgment.note ? " · " + savedJudgment.note : ""}</p>
   {/if}
@@ -130,9 +148,23 @@
     <button type="button" class="send" aria-label="질문 보내기" disabled={!writable || waiting || !question.trim()} onclick={() => void ask(question)}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
   </div>
+  </div>
 </section>
 
 <style>
+  .card-chat {
+    position:sticky;top:16px;box-sizing:border-box;height:min(100%, calc(100vh - 200px));min-height:420px;
+    display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;padding:16px;
+    background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
+  }
+  .chat-head{display:flex;align-items:start;justify-content:space-between;gap:8px}
+  .chat-head div{display:grid;gap:1px;min-width:0}
+  .chat-head strong{font-size:var(--font-small)}
+  .chat-head span{font-size:var(--font-label);color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:none;color:var(--color-ink-muted);cursor:pointer}
+  .close:hover{background:var(--color-surface-selected);color:var(--color-ink)}
+  .close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
+  @media(max-width:1000px){.card-chat{position:static;height:480px}}
   .agent{display:flex;flex-direction:column;gap:6px;min-height:0;height:100%;font-size:var(--font-small)}
   .log{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;padding-right:2px;overscroll-behavior:contain}
   p{margin:0;line-height:1.5;overflow-wrap:anywhere}

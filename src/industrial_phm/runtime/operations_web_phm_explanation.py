@@ -17,7 +17,7 @@ from industrial_phm.application.operational import OperationalFinding
 from industrial_phm.application.phm_analysis import SqlitePhmAnalysisStore
 from industrial_phm.application.phm_explanation import PhmExplanationStore, explanation_context
 from industrial_phm.application.phm_range import focus_point
-from industrial_phm.genai.change_answer import choose_analysis, generate_change_answer
+from industrial_phm.genai.change_answer import generate_change_answer
 from industrial_phm.genai.local_explanation import AnalysisExplanationError, ExplanationProvider
 from industrial_phm.genai.phm_answer import generate_grounded_answer
 from industrial_phm.runtime.operations_web_change_context import (
@@ -152,11 +152,13 @@ class ExplanationManager:
                     if "load_comparison_result" in context:
                         # 이 대화에서 이미 본 비교는 다시 실행하지 않는다.
                         analyses.pop("compare_same_load", None)
-                    chosen = (
-                        "compare_same_load"
-                        if context.get("compare_load")
-                        else choose_analysis(context | {"analyses": analyses}, provider)
-                    )
+                    if context.get("compare_load"):
+                        answer = {"tool": "compare_same_load"}
+                    else:
+                        answer = generate_change_answer(
+                            context | {"screen": screen}, provider, analyses=analyses
+                        )
+                    chosen = answer.pop("tool", None)
                     if chosen == "compare_same_load" and (plan := context.get("load_profile")):
                         comparison = read_load_comparison(
                             self.workspace, plan["query"], plan["interpretation"]
@@ -175,7 +177,8 @@ class ExplanationManager:
                             numbers := self._opened_numbers(context, OPENS[chosen])
                         ):
                             context["opened_view"] = {f"{VIEWS[OPENS[chosen]]} 화면": numbers}
-                    answer = generate_change_answer(context | {"screen": screen}, provider)
+                    if chosen:
+                        answer = generate_change_answer(context | {"screen": screen}, provider)
             except AnalysisExplanationError:
                 self.store.finish(
                     identifier,
