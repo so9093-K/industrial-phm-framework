@@ -106,6 +106,28 @@ def _source_digest(item: PublicDataset) -> str:
     return hashlib.sha256(json.dumps(files).encode()).hexdigest()
 
 
+# 서명이 달라진 원본의 내용 다이제스트, 프로세스마다 (데이터셋, 서명)당 한 번만 계산한다.
+_DIGESTS: dict[tuple[str, str], str] = {}
+
+
+def _same_content(item: PublicDataset, signature: str, recorded: object) -> bool:
+    """Whether a source whose signature moved still holds the bytes the import hashed.
+
+    The signature carries file identities (device, inode, ctime) that a container restart or a
+    re-mounted folder changes without touching a byte; it is the cheap check, the recorded
+    content digest is the truth. Only a moved signature is hashed, once per process.
+    """
+    if not isinstance(recorded, str):
+        return False
+    key = (item.dataset_id, signature)
+    if key not in _DIGESTS:
+        try:
+            _DIGESTS[key] = _source_digest(item)
+        except OSError, ValueError:
+            return False
+    return _DIGESTS[key] == recorded
+
+
 def datasets_root() -> Path:
     """The folder that holds prepared public datasets; ``data/`` unless configured."""
     return Path(os.environ.get("INDUSTRIAL_PHM_DATASETS_DIR", "data"))
@@ -360,7 +382,10 @@ def list_public_datasets(
             signature = _source_signature(item) if previous_signature is not None else None
         except OSError, ValueError:
             signature = None
-        matches = signature is not None and previous_signature == signature
+        matches = signature is not None and (
+            previous_signature == signature
+            or (job is not None and _same_content(item, signature, job.get("source_digest")))
+        )
         verified = matches and job is not None and isinstance(job.get("source_digest"), str)
         changed = previous_signature is not None and not matches
         # A success belongs to one source version, not just a stable dataset name.

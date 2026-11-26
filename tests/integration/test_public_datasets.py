@@ -232,11 +232,12 @@ def test_changed_aihub_source_needs_reimport_and_preserves_previous_history(tmp_
     assert [r.value for r in history.query_file_events(updated["source_id"])] == [79.0, 0.0]
     assert run()["source_id"] == updated["source_id"]
     assert len(history.query_file_events(updated["source_id"])) == 2
-    # A metadata-only change is conservative until retry, then byte identity recovers
-    # the same stream instead of inserting a duplicate source version.
+    # A metadata-only change (a restored copy, a container restart giving the file another
+    # inode) keeps the same bytes: the content digest, not the file identity, says it is stored.
     stamp = archive.stat()
     os.utime(archive, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000))
-    assert list_public_datasets(workspace, root)["items"][0]["stored"] is False
+    same = list_public_datasets(workspace, root)["items"][0]
+    assert (same["stored"], same["source_changed"]) == (True, False)
     assert run()["source_id"] == updated["source_id"]
     assert len(history.query_file_events(updated["source_id"])) == 2
 
@@ -469,7 +470,9 @@ def test_source_change_during_import_cannot_be_recorded_as_success(
     job = listing["jobs"][target["dataset_id"]]
     assert (job["state"], job["failure"]) == ("failed", "source-changed")
     item = listing["items"][0]
-    assert (item["stored"], item["partial"], item["source_changed"]) == (False, True, True)
+    # The import refused to record success; the bytes themselves are unchanged, so the listing
+    # does not call the source changed (its content digest is the truth, not its file identity).
+    assert (item["stored"], item["partial"], item["source_changed"]) == (False, True, False)
 
 
 def test_a_failed_import_keeps_what_failed_and_logs_why(

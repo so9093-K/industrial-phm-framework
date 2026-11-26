@@ -15,3 +15,7 @@ test("unavailable rates in old captures and invalid statistics never become zero
   const flat=parseSignalEvolution({...data,degradation:{...data.degradation,rate:0,earlier_rate:null,change_ratio:null}});
   assert.equal(flat?.rate,0);assert.equal(flat?.earlierRate,null);assert.equal(flat?.changeRatio,null);
 });
+test("the last value travels beside the robust representative value, never invented", () => {
+  assert.equal(parseSignalEvolution({...data,degradation:{...data.degradation,latest:7.27}})?.latest,7.27);
+  assert.equal(parseSignalEvolution(data)?.latest,null);
+});

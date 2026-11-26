@@ -129,7 +129,9 @@ def test_acquisition_ranges_are_compared_by_their_stored_features(tmp_path: Path
         stop()
 
 
-def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Path) -> None:
+def test_stored_history_periods_are_compared_from_raw_observations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     if find_spec("duckdb") is None:
         pytest.skip("DuckLake history runtime is not installed")
     workspace = phm_workspace(tmp_path / "ws", bind=False)
@@ -216,7 +218,18 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
             )[0]
             == 404
         )
-        # Model-free comparison uses the same stored evidence as signal exploration.
+        # Model-free comparison uses the same stored evidence as signal exploration. It reads the
+        # chosen signal (and the current that sets its operating levels), never every signal.
+        from industrial_phm.runtime import operations_web_explore as explore
+
+        read: list[list[str]] = []
+        real = explore.stream_records
+
+        def spy(history: Any, asset_id: str, channels: list[str], **kwargs: Any) -> Any:
+            read.append(list(channels))
+            return real(history, asset_id, channels, **kwargs)
+
+        monkeypatch.setattr(explore, "stream_records", spy)
         status, departures = get(
             "/api/v1/explore/anomaly",
             asset_id="motor-01",
@@ -233,6 +246,7 @@ def test_stored_history_periods_are_compared_from_raw_observations(tmp_path: Pat
         assert departures["units"]["current"] == "A"
         assert departures["interval_count"] > 0
         assert all(interval["channel"] == "current" for interval in departures["intervals"])
+        assert read[0] == ["current"]
         missing_status, missing = get("/api/v1/explore/anomaly", asset_id="unknown-asset")
         assert missing_status == 404 and missing["error"] == "nothing_to_explore"
     finally:

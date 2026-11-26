@@ -458,10 +458,12 @@ def _departures(
     if len(series) != 1:
         raise ValueError("choose one signal and its source record")
     baseline = (query.get("baseline") or ["first-30"])[0]
+    # 고른 신호 하나만 읽는다(운전 수준을 나눌 전류는 stream_records가 함께 읽는다). 설비의 모든
+    # 신호를 읽고 하나를 고르던 때는 기록 변화 찾기가 매번 약 9초 걸렸다.
     all_records, operations, levels = stream_records(
         history,
         asset_id,
-        channels,
+        series,
         until=_instant(query, "record_until") if "record_until" in query else None,
     )
     records = [item for item in all_records if item["channel"] in series]
@@ -894,7 +896,11 @@ def stream_records(
             return hashlib.sha256(text.encode()).hexdigest()
 
         read = source_levels(history, asset_id, stream, until=until)
-        chosen, operating = read if read and read[0][0] in selected else (None, None)
+        chosen, operating = read if read else (None, None)
+        if chosen is not None and chosen[0] not in selected:
+            # 운전 수준은 그 출처의 전류로 나눈다. 고른 신호만 읽을 때도 전류를 함께 읽어, 모든
+            # 신호를 읽을 때와 같은 수준별 기록을 낸다.
+            selected = [*selected, chosen[0]]
         main = identity(*chosen) if chosen else None
         aggregation = history.query_stream_aggregation(
             asset_id,

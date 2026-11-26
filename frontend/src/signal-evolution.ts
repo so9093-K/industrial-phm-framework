@@ -4,6 +4,8 @@ export type SignalEvolution = {
   /** 처음 범위: 처음 구간 중앙값 ± 변동폭×이탈 기준 배수. 이 밖의 값을 처음과 달라진 값으로 본다. */
   baselineRange:{low:number;high:number}|null;
   changeRatio:number|null;rate:number;earlierRate:number|null;rateUnit:"acquisition"|"hour"|"day";
+  /** The last value itself: the representative value and the rates are robust and can hide it. */
+  latest:number|null;
 };
 const finite=(v:unknown):v is number=>typeof v==="number"&&Number.isFinite(v);
 /** Optional measured change statistics. Old saved results can still show their forecast. */
@@ -22,5 +24,5 @@ export function parseSignalEvolution(raw:unknown):SignalEvolution|null {
   return {recentPoints:recent.points,recentFrom:recent.from,recentTo:recent.to,recentMedian:recent.median,baselineMedian:finite(baseline?.median)?baseline.median:null,
     baselineRange:range,
     changeRatio:data.change_ratio as number|null,rate:data.rate,earlierRate:data.earlier_rate as number|null,
-    rateUnit:root.rate_unit as SignalEvolution["rateUnit"]};
+    rateUnit:root.rate_unit as SignalEvolution["rateUnit"],latest:finite(data.latest)?data.latest:null};
 }

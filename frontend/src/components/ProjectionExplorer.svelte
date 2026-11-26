@@ -9,6 +9,7 @@
   import {recordParams} from "../record-context";
   import {readableSourceId} from "../operations-status";
   import ForecastFit from "./ForecastFit.svelte";
+  import ForecastCaution from "./ForecastCaution.svelte";
   import {worseThanPersistence} from "../forecast-fit";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
@@ -293,9 +294,7 @@
           <h3 id="projection-result-title">{signalName(names, projection.channel)} · 앞으로 {HORIZON_LABEL[projection.horizon]} 전망</h3>
           <span class="intro">마지막 측정 {clockText(Date.parse(projection.record.last))}</span>
         </div>
-        {#if worse}
-          <p class="forecast-caution" role="status"><strong>이 예측은 마지막 값이 그대로 이어진다고 볼 때보다 과거 오차가 컸습니다.</strong> 측정값의 흐름과 기준선을 먼저 보세요.</p>
-        {/if}
+        <ForecastCaution fit={projection.fit??null} start={projection.future[0]} checks={projection.checks} unit={projection.unit} lastLabel="마지막 구간 평균"/>
         {#if chart}
           <OutlookChart history={(projection.history??[]).map(row=>({x:Date.parse(row.at),value:row.value}))}
             future={steadyFuture(projection)}
@@ -450,7 +449,6 @@
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
   .criteria-button{min-height:40px}
 
-  .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .controls>button{align-self:end;min-height:44px}
   .projection { min-width: 0; }
