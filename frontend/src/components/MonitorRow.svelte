@@ -45,7 +45,7 @@
   // 지금 볼 것인지: 기록(재생 중이면 판정한 위치) 끝까지 이어지는 변화인지, 이미 끝난 변화인지.
   const judgedUntil = $derived(replaying ? analyzed ?? until ?? group.record.to : group.record.to);
   const continuing = $derived(lead ? ongoing(group, [lead], judgedUntil) : false);
-  // 재생 중 판정은 화면 위치보다 늦게 도착한다. 따라오기 전에는 '없음'이 아니라 판정한 데까지만 말한다.
+  // 재생 중 판정은 화면 위치보다 늦게 도착한다. 따라오기 전에는 '없음'이라고 하지 않는다.
   const lagging = $derived(replaying && analyzed !== null && until !== null
     && analyzed < until - (group.axis === "time" ? (group.bucketMs ?? 60_000) * 1.5 : 1));
   // Use the synchronized server observation that selected the representative axis.
@@ -134,8 +134,8 @@
       {/if}
       <footer class="row-footer">
         {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
-        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다" : analyzed === null ? "특이사항을 찾고 있습니다"
-          : lagging ? short(analyzed) + "까지 특이사항 없음 · 판정 중" : "지금까지 특이사항 없음"}</span>
+        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다"
+          : analyzed === null || lagging ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
           <a class="secondary-action" href={href()} onclick={onPause}>기록 살펴보기 →</a>{/if}
         {#if !replaying && other}
           <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>
