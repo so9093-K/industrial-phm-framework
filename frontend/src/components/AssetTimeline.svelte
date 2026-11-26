@@ -71,8 +71,11 @@
       unit:main.unit,axis,focus:main.key,record,bucketMs:null,periodSeconds,
       series:members.map(lane=>({key:lane.key,channel:lane.key,label:lane.label,short:short(lane,many),
         points:visiblePoints(lane,range,zoomed).map(point=>({x:point.x,value:point.value,join:point.join===true}))}))};
-    const changes:FleetChange[]=members.map(lane=>({key:lane.key,channel:lane.key,label:lane.label,from:lane.interval.from,to:lane.interval.to,
-      up:lane.up,before:lane.values?.before??null,after:lane.values?.after??null}));
+    // 조사하는 특이사항만 띠로 그린다. 같은 단위의 다른 신호 특이사항까지 겹치면 띠가 여러 겹이 되고
+    // 제목의 시작·기간과 다른 선이 생겼다. 다른 신호의 특이사항은 '조사할 신호'에서 고른다.
+    // 다른 단위의 그래프에도 같은 구간을 표시해, 같은 때를 견주게 한다.
+    const changes:FleetChange[]=[{key:main.key+":"+focused.key,channel:focused.key,label:focused.label,from:focused.interval.from,to:focused.interval.to,
+      up:focused.up,before:focused.values?.before??null,after:focused.values?.after??null}];
     return {group,changes,main,many};
   }
   const charts=$derived(panels.map(chartOf));

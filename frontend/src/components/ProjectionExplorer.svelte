@@ -91,7 +91,7 @@
   // 처음 수준과 처음 범위: 관제·조사 화면의 회색 점선·띠와 같은 뜻으로 전망 그래프에도 그린다.
   const baseline=$derived.by(()=>{const shown:Projection|null=projection,evolution=shown?.evolution;return evolution?{median:evolution.baselineMedian,low:evolution.baselineRange?.low??null,high:evolution.baselineRange?.high??null}:null;});
   const suggestions=$derived.by(()=>{const shown:Projection|null=projection;
-    return shown?limitSuggestions(shown.unit??names.get(shown.channel)?.unit??null,baseline,signalName(names,shown.channel)):[];});
+    return shown?limitSuggestions(shown.unit??names.get(shown.channel)?.unit??null,baseline,signalName(names,shown.channel),shown.history?.at(-1)?.value??null):[];});
   /** 예측 범위 폭은 표본 탓에 칸마다 들쭉날쭉하다. 그래프에는 고른 폭(steadyRange)으로 그린다. */
   function steadyFuture(shown:Projection){
     const steady=steadyRange(shown.future);
