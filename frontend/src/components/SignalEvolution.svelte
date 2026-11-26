@@ -11,8 +11,9 @@
   const relative=$derived(versusStart(data.recentMedian,data.baselineMedian,unit));
 </script>
 <section class="evolution" aria-label="실제로 측정된 값의 변화 속도">
+  <!-- 대표값(중앙값)과 속도(기울기의 중앙값)는 마지막 급등을 가린다. 마지막 값을 함께 둔다. -->
   <header><h4>측정값 변화 속도</h4><span>최근 {data.recentPoints}{samples} 대표값 <b>{measure(data.recentMedian,unit)}</b>
-    {#if relative} · {relative}{/if}</span></header>
+    {#if relative} · {relative}{/if}{#if data.latest!==null}{" · "+(data.rateUnit==="acquisition"?"마지막 측정":"마지막 값")+" "}<b>{measure(data.latest,unit)}</b>{/if}</span></header>
   <div class="rates" title={data.rateUnit==="acquisition"?"최근 "+data.recentFrom+"–"+data.recentTo+"번째 측정":"최근 구간의 실측 변화 속도"}>
     {#each rows as row,i(row.name)}
       <div class="rate" class:recent={i===1}><span>{row.name}</span>

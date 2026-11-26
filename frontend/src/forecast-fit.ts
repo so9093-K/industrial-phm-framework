@@ -21,6 +21,13 @@ export function worseThanPersistence(check:{error:number;naive:number}|undefined
   return !!check && check.error-check.naive > 1e-9*Math.max(1,check.error,check.naive);
 }
 
+/** Whether the last measurement sits farther from the forecast's start than the whole range the
+ * forecast gives there: the forecast then begins from a level the record has already left. */
+export function apartFromStart(observed:number,start:{estimate:number;lower:number|null;upper:number|null}|undefined):boolean {
+  if(!start||start.lower===null||start.upper===null)return false;
+  return Math.abs(observed-start.estimate)>start.upper-start.lower;
+}
+
 /** This is a visible-range comparison, not a claim about future prediction error. */
 export function outsideRecentRange(fit:ForecastFit):boolean {
   const tolerance=1e-9*Math.max(1,Math.abs(fit.observed),Math.abs(fit.modeled));

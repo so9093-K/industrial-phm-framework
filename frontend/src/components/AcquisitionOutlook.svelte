@@ -6,6 +6,7 @@
   import SignalEvolution from "./SignalEvolution.svelte";
   import {preferredFeature} from "../acquisition-profile";
   import ForecastFit from "./ForecastFit.svelte";
+  import ForecastCaution from "./ForecastCaution.svelte";
   import {worseThanPersistence} from "../forecast-fit";
   import ForecastSettings from "./ForecastSettings.svelte";
   import ForecastValidation from "./ForecastValidation.svelte";
@@ -223,9 +224,8 @@
           <h3 id="acq-result-title">{options.features.find(item=>item.id===displayFeature)?.label ?? displayFeature} · 앞으로 {timeHorizon === null ? num(outlook.horizonCount)+"회" : HORIZON_LABEL[timeHorizon]} 전망</h3>
           <span class="context">마지막 측정 {place(outlook.record.last,period)} · {timeBasis(outlook)}</span>
         </div>
-        {#if worse}
-          <p class="forecast-caution" role="status"><strong>이 예측은 마지막 값이 그대로 이어진다고 볼 때보다 과거 오차가 컸습니다.</strong> 측정값의 흐름과 기준선을 먼저 보세요. <a href={featureTrendHref(outlook.assetId,outlook.featureId)}>최근 측정의 변화 보기 →</a></p>
-        {/if}
+        <ForecastCaution fit={outlook.fit??null} start={outlook.forecast[0]} checks={outlook.checks} unit={outlook.unit} lastLabel="마지막 측정"
+          href={featureTrendHref(outlook.assetId,outlook.featureId)}/>
         {#if chart}
           <OutlookChart history={outlook.history.map(row=>({x:row.ordinal,value:row.value}))}
             future={outlook.forecast.map(row=>({x:row.ordinal,estimate:row.estimate,lower:row.lower,upper:row.upper}))}
@@ -372,7 +372,6 @@
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
   .criteria-button{min-height:40px}
 
-  .forecast-caution{padding:var(--space-3);border-inline-start:3px solid var(--color-caution-ink);background:var(--color-uncertain-surface);color:var(--color-caution-ink);line-height:1.6;overflow-wrap:anywhere}
 
   .inputs>button{align-self:end;min-height:44px}
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-3); }
