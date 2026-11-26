@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {readableSourceId} from "../operations-status";
   import {tick} from "svelte";
   import type {Evidence} from "../reviews";
@@ -23,7 +24,7 @@
   const ANALYSIS = {phase: "3상 불평형 분석", file: "파일 특징 분석"};
   const QUALITY: Record<string, string> = {pass: "통과", warning: "주의", error: "오류"};
   const PART = {flow: "초과 구간", changes: "전후 비교", ai: "AI 해설", others: "같은 원본의 다른 모델"};
-  const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
+
   const missing = $derived(linked === null ? [] : review.evidenceIds.filter(
     (evidenceId) => !linked.some((item) => item.evidenceId === evidenceId)));
   // The model result under review and what a person needs to judge it, read from stored records.

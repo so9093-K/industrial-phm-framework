@@ -3,7 +3,7 @@
   import XAxis from "./XAxis.svelte";
   import {nearestPosition,movePosition} from "../plot-selection";
   import {snapSpan,type Span} from "../signal-selection";
-  import {clockText} from "../asset-timeline";
+  import {clockText} from "../date-format";
   import {measure} from "../chart-axis";
   import type {SignalChart} from "../history";
   let {chart,origin,step,unit,label,averageLabel,picked,intervals=[],reference=null,referenceValue=null,onFreeze,onSelect,onCancel,onClear}:{chart:SignalChart;

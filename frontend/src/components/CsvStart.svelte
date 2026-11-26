@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {tick} from "svelte";
   import {
     declaredRoles, emptyRoles, explainWrite, PHASE_ROLES, phaseRoleProblem, preflightUpload, receiveFile, registerUpload,
@@ -76,7 +77,7 @@
   let fileInput: HTMLInputElement | null = $state(null);
   let doneHeading: HTMLElement | null = $state(null);
 
-  const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
+
   const choices = $derived(table ? channelChoices(table, timeIndex) : []);
   const numericColumns = $derived(choices.filter(choice=>choice.usable));
   const excludedColumns = $derived(numericColumns.filter(choice=>!channels.includes(choice.name)));

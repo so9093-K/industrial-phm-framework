@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import SignalGroupChart from "./SignalGroupChart.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
@@ -97,12 +98,7 @@
     return listed ? phaseSiblings(listed.ids, selectedChannel).filter((id) => !companions.includes(id)) : [];
   });
 
-  function recorded(at: string | null): string {
-    if (!at) return "관측 시각 없음";
-    const d = new Date(at);
-    return Number.isNaN(d.getTime()) ? "관측 시각 해석 불가"
-      : d.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
-  }
+  const recorded = (at: string | null) => at ? dateTime(at) : "관측 시각 없음";
 
   async function loadChannels() {
     channelAbort?.abort();

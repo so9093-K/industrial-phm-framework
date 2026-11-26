@@ -13,7 +13,7 @@ import {routeUrl} from "./routes.ts";
 import {object} from "./writes.ts";
 import {changeAnalyses, changeFollowup, type ChangeFollowup} from "./change-evidence.ts";
 import {parseRecordFindings} from "./record-findings.ts";
-import {parseVibrationFindings} from "./vibration-findings.ts";
+import {parseVibrationFindings, type RmsReading} from "./vibration-findings.ts";
 
 export type FleetPoint = {x: number; value: number; join: boolean};
 /** `channel`은 같은 데이터셋의 다른 설비에서 같은 신호를 찾는 이름이다(전력: 채널 이름, 진동: 특징 이름). */
@@ -27,6 +27,7 @@ export type FleetGroup = {
 };
 export type FleetChange = {key: string; channel: string; label: string; from: number; to: number; up: boolean;
   before: number | null; after: number | null;
+  current?: RmsReading | null;
   /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 모니터링 중이면 그 판정 위치(record_until)의 기록에서만 맞는다. */
   ref?: string;
   /** 같은 때의 부하(전류): 비교 기준 구간과 변화 구간의 평균. */
@@ -139,7 +140,8 @@ export async function readFleetChanges(assetId: string, group: FleetGroup, until
     ref: JSON.stringify(["vibration", change.feature, change.from, change.to]), reviewKey: change.reviewKey,
     followup: changeFollowup(assetId, {kind: "vibration", change, record}, until !== null),
     analyses: changeAnalyses(assetId, {kind: "vibration", change, record}),
-    from: change.from, to: change.to, before: change.reference, after: change.typical}));
+    from: change.from, to: change.to, before: change.reference, after: change.typical,
+    current: change.to === record.last ? record.currentAxes?.[change.feature] ?? null : null}));
 }
 
 /** 보는 묶음 안의 변화와 밖의 변화. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount, untrack} from "svelte";
   import {routeUrl} from "../routes";
   import {assetLabel, type Snapshot} from "../monitor";
@@ -71,7 +72,7 @@
   // The item someone just acted on stays open even when its new status leaves the filter.
   let keptKey: string | null = $state(null);
 
-  const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
   // Stored analysis evidence comes from the same monitor snapshot, matched by asset, run
   // and evidence ID; without it the review is still shown, never next to another record.
   const evidenceFor = (review: FindingReview): Evidence[] | null => {

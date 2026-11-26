@@ -1,3 +1,4 @@
+import {dateTime, dateTimeRange} from "./date-format.ts";
 /** What needs a look on each asset right now: a model over its threshold, a stored signal that
  * ends far from its own baseline, an input the model refused or has not reached, a model that
  * cannot run, or a collection that stopped receiving. An optional person-review status
@@ -104,7 +105,7 @@ export function refusalReason(reason:string|null):string{
 function since(model:MonitoredModel):string{
   const run=model.ongoing!;
   if(model.stepKind!=="acquisition-snapshot"&&run.startAt)
-    return new Date(run.startAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+    return dateTime(run.startAt, "minute", false);
   return model.stepKind==="acquisition-snapshot"?measurementLabel(run.start,model.periodSeconds):windowLabel(run.start);
 }
 
@@ -151,10 +152,7 @@ function analyzedPlace(model:MonitoredModel):string{
   if(model.stepKind==="acquisition-snapshot")return result.position+"번째 측정";
   const start=Date.parse(result.eventStart??""),end=Date.parse(result.eventEnd??"");
   if(!Number.isFinite(start)||!Number.isFinite(end))return windowLabel(result.position);
-  const clock=(value:number,date:boolean)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",
-    ...(date?{year:"numeric",month:"numeric",day:"numeric"} as const:{}),hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false});
-  const sameDay=new Date(start).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})===new Date(end).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"});
-  return clock(start,true)+"~"+clock(end,!sameDay);
+  return dateTimeRange(start, end);
 }
 
 /** Summarize a shared input only when its stream and measured interval match. */
@@ -228,7 +226,7 @@ export function attentionByAsset(models:MonitoredModel[],sources:Source[]|null,d
       href:at(waiting[0],null),action:"분석 진행 보기"});
   }
   for(const item of departures){
-    const since=new Date(item.since).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+    const since=dateTime(item.since, "minute");
     const amount=(value:number)=>value.toLocaleString("ko-KR",{maximumSignificantDigits:3});
     const range=item.usual?"기록 초반의 비교 범위 "+amount(item.usual.low)+"~"+amount(item.usual.high)+(item.unit?" "+item.unit:""):"기록 초반과 비교";
     const change=item.kind==="level-change"?"일정하던 값이 달라짐":item.direction==="down"?"기준 범위보다 낮아짐":item.direction==="up"?"기준 범위보다 높아짐":"기준 범위 밖의 값";

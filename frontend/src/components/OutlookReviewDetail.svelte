@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount, tick} from "svelte";
   import {
     compareReobservation, positionText, readCaptures, recomputeForComparison, recordReview,
@@ -39,7 +40,7 @@
   };
   const SCENARIO: Record<string, string> = {current: "기본 설정", recent: "최근 구간 중심",
     responsive: "변화에 민감", linear: "최근 속도 유지"};
-  const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
 
   async function refresh(signal: AbortSignal): Promise<boolean> {
     try {

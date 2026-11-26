@@ -4,7 +4,7 @@
   import {assetOptionLabel, type Asset} from "../monitor";
   import {attention, focusChannel, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
     type FleetChange, type FleetGroup, type FleetRead, type MonitorDataset} from "../fleet-observation";
-  import {clockText} from "../asset-timeline";
+  import {clockText} from "../date-format";
   import {elapsedText, measurementScale} from "../time-axis";
   import {readPublicDatasets, type PublicDatasets} from "../public-datasets";
   import {recentAsset} from "../observation";

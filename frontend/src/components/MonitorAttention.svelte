@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {readableSourceId} from "../operations-status";
   import {assetLabel, attentionLabel, type Snapshot, type OperationAttention} from "../monitor";
   import {assetTabUrl,routeUrl,systemUrl} from "../routes";
@@ -29,7 +30,7 @@
     return attentionComplete(current,connections,true) ? "ready" : "partial";
   });
   $effect(() => { const model: PhmMonitor | null = phm; onChecks(assetChecks(model?.models ?? [], groups, notesState)); });
-  const clock = (at: Date) => at.toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
   $effect(()=>onSources?.(sources,loadState==="loading"?"loading":loadState==="failed"||sources===null?"failed":"ready"));
   const serviceItems = $derived((snapshot.operationsAttention?.items ?? []).filter((item) => item.destination === "system"));
   const dataItems = $derived((snapshot.operationsAttention?.items ?? []).filter((item) => item.destination !== "system"));
@@ -76,7 +77,7 @@
 </script>
 
 {#snippet operation(item: OperationAttention)}
-  <li><strong>{attentionLabel(item)}</strong><span>{item.assetId ? assetLabel(snapshot.assets, item.assetId) : "공통 운영 서비스"}{item.sourceId?" · 데이터 출처 "+readableSourceId(item.sourceId):""}{item.at?" · "+new Date(item.at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):""}</span>
+  <li><strong>{attentionLabel(item)}</strong><span>{item.assetId ? assetLabel(snapshot.assets, item.assetId) : "공통 운영 서비스"}{item.sourceId?" · 데이터 출처 "+readableSourceId(item.sourceId):""}{item.at?" · "+clock(item.at):""}</span>
     {#if destination(item)}<a href={destination(item)!}>상세 확인 →</a>{/if}</li>
 {/snippet}
 

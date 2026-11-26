@@ -387,6 +387,8 @@ def prepare_web_explanation(
     )
     context.pop("history_change", None)
     context.pop("vibration_change", None)
+    context.pop("vibration_current_axes", None)
+    context.pop("vibration_last", None)
     context["question"] = change_question
     context["conversation_id"] = conversation
     if parent:

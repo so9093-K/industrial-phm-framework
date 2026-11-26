@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount} from "svelte";
   import {num} from "../format";
   import type {ModelBinding} from "../model-evidence";
@@ -20,7 +21,7 @@
     return unit !== null && channel.unit === unit && channel.property === property && (!phase || channel.scope === "phase " + phase);
   };
   const W = 640, H = 90;
-  const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
 
   function bands(values: [number, number][]): string {
     const low = Math.min(...values.map((v) => v[0])), high = Math.max(...values.map((v) => v[1]), low + 1e-12);

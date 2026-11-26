@@ -1,10 +1,10 @@
 <script lang="ts">
+  import {spanText as timeSpan, timeLabel} from "../date-format";
   import {untrack,onDestroy} from "svelte";
   import {groupHistory,readSignalNames,signalName,signalChart,type SignalNames,type HistoryStream,type TrendWindow} from "../history";
   import {readObservation,readWindow,receiptStatus,observationLink,observationAnchor,type Observation} from "../observation";
   import {observationOrigin} from "../observation-context";
   import {summarize,type Span} from "../signal-selection";
-  import {spanText as timeSpan} from "../asset-timeline";
   import {measure} from "../chart-axis";
   import {elapsedText} from "../time-axis";
   import type {Source} from "../operations-status";
@@ -158,7 +158,7 @@
         <span>달라진 구간 {changes.length}개</span>
         {#each changes.slice(0,3) as interval(interval.from)}<button type="button" onclick={()=>choose(interval)}
           title={spanText(interval)+" · "+averageLabel+" "+measure(interval.value,comparison.unit,4)}>
-          {new Date(interval.from).toLocaleTimeString("ko-KR",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hourCycle:"h23"})}
+          {timeLabel(interval.from)}
           <strong>{averageLabel} 최대 차이 {comparison.median!==null?difference(interval.value,comparison.median,comparison.unit):measure(interval.value,comparison.unit,4)}</strong>
           <small>{elapsedText((interval.to-interval.from)/1000)}</small>
         </button>{/each}

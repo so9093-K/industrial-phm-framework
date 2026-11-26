@@ -1,3 +1,4 @@
+import {dateTime as kstTime, dateTimeRange, kstInput, kstInstant} from "./date-format.ts";
 import {currentPlayback, scopedUrl} from "./record-playback.ts";
 /** Load, voltage/current unbalance and the reference-pattern score of a 3-phase asset, for a
  * recent period against an earlier one, as the server measured them. Changed operating
@@ -66,14 +67,7 @@ function counts(raw:unknown):Record<string,number>{
   return Object.fromEntries(Object.entries(object(raw)??{}).flatMap(([key,value])=>finite(value)===null?[]:[[key,value as number]]));
 }
 
-/** A KST wall-clock input (YYYY-MM-DDTHH:MM[:SS]) as the same instant with its offset. */
-export function kstInstant(value:string):string{
-  const match=/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
-  if(!match)throw new Error("시각 형식을 확인하세요.");
-  const iso=match[1]+"T"+match[2]+":"+match[3]+":"+(match[4]??"00")+"+09:00";
-  if(!Number.isFinite(Date.parse(iso)))throw new Error("시각 형식을 확인하세요.");
-  return iso;
-}
+export {kstInstant, kstTime};
 
 export function parseCondition(raw:unknown,assetId:string,expected:Pick<ConditionSource,"sourceId"|"pointId">|null):Condition{
   const root=object(raw);
@@ -160,7 +154,7 @@ export async function readCondition(
 export function shiftedPeriod(current:Extract<Condition,{analyzed:true}>,direction:-1|1,
   custom:{end:string;referenceStart:string;referenceEnd:string}){
   const end=Date.parse(current.targetEnd), length=end-Date.parse(current.targetStart);
-  return {...custom,end:new Date(end+direction*length+9*3_600_000).toISOString().slice(0,19)};
+  return {...custom,end:kstInput(end + direction * length, "second")};
 }
 
 export type Metric="currentMean"|"voltageUnbalance"|"currentUnbalance"|"patternScore";
@@ -172,9 +166,7 @@ export const EXCLUDED_TEXT:Record<string,string>={
   "missing-or-duplicate-phase":"상 값이 빠지거나 겹침","conflict-or-bad-quality":"값 충돌·품질 불량","missing-value":"빠진 값",
 };
 
-export function kstTime(iso:string|null):string{
-  return iso?new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"}):"기록 없음";
-}
+
 export function measured(value:number|null,unit=""):string{
   return value===null?"분석값 없음":value.toLocaleString("ko-KR",{maximumFractionDigits:2})+unit;
 }
@@ -238,7 +230,7 @@ function mergeAdjacent(checks:{at:string;label:string;detail:string;metric:Metri
     else runs.push({first:check,last:check.at,count:1});
   }
   return runs.map(run=>run.count===1?run.first
-    :{...run.first,label:kstTime(run.first.at)+" ~ "+kstTime(run.last).replace(/^.*\. /,"")+" · "+run.count+"회"});
+    :{...run.first,label:dateTimeRange(run.first.at, run.last)+" · "+run.count+"회"});
 }
 export function firstChecks(condition:Extract<Condition,{analyzed:true}>):{at:string;label:string;detail:string;metric:Metric}[]{
   const notable=condition.pattern.scored?condition.pattern.notable:[];

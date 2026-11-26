@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {tick} from "svelte";
   import {
     analyzeFile, analyzePhase, diagnoseOpcua, explainWrite, historyStored, nextStep, otherActions, receiveFile,
@@ -21,7 +22,7 @@
   let messages: Record<string, {text: string; kind: "information" | "uncertain" | "failure"; analysis?: SavedAnalysis}> = $state({});
   let confirming: Record<string, Action | null> = $state({});
   let confirmBox: HTMLElement | null = $state(null);
-  const clock = (at: string | null) => at ? new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"}) : "기록 없음";
+
   const CONFIRM: Partial<Record<Action, string>> = {
     pause: "일시정지하면 이 연결의 데이터를 읽지 않습니다. 저장된 기록은 그대로입니다.",
     stop: "수집 중지는 원하는 상태만 기록합니다. 이미 받은 데이터는 그대로입니다.",

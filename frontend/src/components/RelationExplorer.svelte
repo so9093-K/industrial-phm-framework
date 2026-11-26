@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as asTime, kstInput as localTime, kstInstant as selectedPeriod} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
@@ -72,10 +73,7 @@
   }
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
-  const asTime=(value:string)=>new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
   const periodText=(n:"a"|"b")=>periods?asTime(periods[n].from)+" ~ "+asTime(periods[n].to):"";
-  const localTime=(value:string)=>new Date(Date.parse(value)+9*3600000).toISOString().slice(0,16);
-  const selectedPeriod=(raw:string)=>raw+":00+09:00";
   // A registered name already carries its unit; otherwise the unit comes with the measurements.
   const axisName=(id:string,unit:string|null)=>signalName(names,id)+(unit&&!names.get(id)?.unit?" ("+unit+")":"");
   function initialPeriods(fallback:Periods):Periods{
@@ -147,7 +145,9 @@
   }
   function editPeriod(n:"a"|"b",edge:"from"|"to",value:string){
     if(!periods)return;
-    periods={...periods,[n]:{...periods[n],[edge]:selectedPeriod(value)}};
+        let at = "";
+    try { at = selectedPeriod(value); } catch { /* An incomplete input is checked when comparing. */ }
+    periods={...periods,[n]:{...periods[n],[edge]:at}};
     relationAbort?.abort();relation=null;resultState="empty";handedOver=null;summaryNote="";summaryBand=null;
   }
   async function compare(){

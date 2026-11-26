@@ -173,8 +173,8 @@ test("windows ending together are combined only when their measured intervals ma
   for(const start of ["2020-10-22T14:30:00Z",null])
     assert.match(modelFact(monitor(first,window(start,false)).models)!,/^모델별 마지막 분석/);
   const different=modelFact(monitor(first,window("2020-10-22T14:30:00Z",false)).models)!;
-  assert.match(different,/23:40:00~23:50:00/);
-  assert.match(different,/23:30:00~23:50:00/);
+  assert.match(different,/23:40:00 ~ 23:50:00/);
+  assert.match(different,/23:30:00 ~ 23:50:00/);
   assert.match(modelFact(monitor(first,window("2020-10-22T23:40:00+09:00",false)).models)!,/^마지막 분석/);
 });
 

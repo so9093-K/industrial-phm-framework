@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onDestroy,onMount,untrack} from "svelte";
   import {questionDraft,keepQuestionDraft} from "../question-drafts";
   import {num} from "../format";
@@ -53,7 +54,7 @@
   const RELATION: Record<Relation, string> = {increased: "증가", decreased: "감소", unchanged: "거의 같음"};
   const SOURCE = {"model": "AI 해설 · 근거 확인됨", "model-trimmed": "AI 해설 · 근거 없는 문장 제외",
     "verified-comparison": "저장된 비교로 작성 · AI 문장은 근거가 확인되지 않아 뺐습니다"};
-  const clock = (at: string) => new Date(at).toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
   const percent = (value: number | null) => value === null ? "—"
     : (value > 0 ? "+" : "") + value.toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
   const same = (item: ModelExplanation) => item.comparePosition === compare && (item.focus?.position ?? null) === (focus?.position ?? null) && (item.focus?.series ?? null) === (focus?.series ?? null);

@@ -3,7 +3,7 @@
   import type {Asset} from "../monitor";
   import type {AssetData} from "../asset-data";
   import {sourceSummary,type Sources} from "../operations-status";
-  import {clockText} from "../asset-timeline";
+  import {clockText} from "../date-format";
   import {streamKey} from "../observation";
   import {playbackScope, scopeParams, type PlaybackScope} from "../record-playback";
   import AssetSummary from "./AssetSummary.svelte";

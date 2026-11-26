@@ -1,3 +1,4 @@
+import {dateTime} from "./date-format.ts";
 import {scopeParams, type PlaybackScope} from "./record-playback.ts";
 import {phaseSiblings} from "./history.ts";
 /** What one asset's whole stored record held: where its signals left the first 30% of the record,
@@ -233,8 +234,7 @@ export async function readRecordFindings(assetId: string, signal: AbortSignal, s
   return parseRecordFindings(await response.json() as unknown, assetId);
 }
 
-const clock = (iso: string) => new Date(iso).toLocaleString("ko-KR", {timeZone: "Asia/Seoul",
-  month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false});
+const clock = (iso: string) => dateTime(iso, "minute", false);
 const value = (number: number, unit: string | null) =>
   number.toLocaleString("ko-KR", {maximumSignificantDigits: 3}) + (unit ? " " + unit : "");
 

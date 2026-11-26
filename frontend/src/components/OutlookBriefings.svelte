@@ -1,4 +1,5 @@
 <script lang="ts">
+  import {dateTime as clock} from "../date-format";
   import {onMount} from "svelte";
   import type {BriefingProjection} from "../outlook-briefings";
   import StatusNotice from "./StatusNotice.svelte";
@@ -27,7 +28,7 @@
   const latest=$derived(records.find(item=>item.status==="complete"&&item.answer)??null);
   const waiting=$derived(records.some(item=>item.status==="pending"));
   const earlier=$derived(records.filter(item=>item!==latest));
-  const clock=(at:string)=>new Date(at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
+
   const readyVersion=$derived(/^[a-f0-9]{64}$/.test(projection.dataVersion) && !!projection.outlookSettings);
   function cancel(){
     request?.abort();

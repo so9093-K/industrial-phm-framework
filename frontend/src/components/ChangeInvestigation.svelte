@@ -2,7 +2,7 @@
   import {onDestroy,tick,untrack} from "svelte";
   import type {AnalysisReadout} from "../analysis-readout.svelte";
   import {askChange,newChangeConversation,readChangeDiscussion,withConversation,STARTERS,LOAD_QUESTION,type ChangeDiscussion,type Pointed} from "../change-investigation";
-  import {spanText} from "../asset-timeline";
+  import {spanText} from "../date-format";
   import {answerParts,freshLink} from "../answer-text";
   import {changeAnalyses, changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";

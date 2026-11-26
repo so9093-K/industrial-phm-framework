@@ -1,4 +1,4 @@
-import {clockText} from "./asset-timeline.ts";
+import {clockText} from "./date-format.ts";
 
 /** The observation that opened an investigation, not the analysis's editable A/B periods. */
 export function investigationContext(search: string): {label: string; span: string} | null {

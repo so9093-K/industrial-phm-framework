@@ -1,3 +1,4 @@
+import {dateTime} from "./date-format.ts";
 /** Explicitly captured outlooks and their exact human-review subject (ADR-0029).
  * The supervisor recomputes and stores every number. The browser only names the
  * selection it showed, so a saved record is never a copy of rendered values. */
@@ -391,7 +392,7 @@ export function compareReobservation(saved:CapturedOutlook,current:OutlookFacts)
 
 export function positionText(value:Position):string{
   return typeof value==="number"?value+"번째 측정"
-    :new Date(value).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"});
+    :dateTime(value);
 }
 
 /** The exact review subject inside the maintenance task. */
