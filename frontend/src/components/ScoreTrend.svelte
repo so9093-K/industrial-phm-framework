@@ -6,7 +6,8 @@
   import {measure, yTicks} from "../chart-axis";
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
   import {drawTrend, exceedanceLane, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
-  import {raisersText, scoreRaisers} from "../score-raisers";
+  import {scoreRaisers} from "../score-raisers";
+  import type {ReasonRow} from "../score-reason";
   import StatusNotice from "./StatusNotice.svelte";
   import ModelOperation from "./ModelOperation.svelte";
 
@@ -14,8 +15,10 @@
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
     onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void;
-    period?: number | null; pinned?: boolean};
-  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false}: Props = $props();
+    period?: number | null; pinned?: boolean;
+    /** The signal that raised the selected result most, drawn under the scores. */
+    signal?: ReasonRow | null};
+  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false, signal = null}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let focus: Interval | null = $state(null);
@@ -52,7 +55,7 @@
   /** The signals that raised the scores of one exceedance interval, its results' parts added up. */
   function raisedIn(interval: Interval, limit: number): string {
     const inside = (trend?.points ?? []).filter((point) => point.pointer.position >= interval.start && point.pointer.position <= interval.end);
-    return raisersText(scoreRaisers(inside.map((point) => point.contributions), limit));
+    return scoreRaisers(inside.map((point) => point.contributions), limit).map((item) => item.signal).join(" · ");
   }
   const scale = $derived.by(() => {
     const values = scored.map((point) => point.score as number);
@@ -90,7 +93,38 @@
   });
   const chosen = $derived(scored.find(point=>point.pointer.position===selected) ?? null);
   const inspected = $derived(hovered ?? chosen);
-  const inspectedRaised = $derived(inspected ? raisersText(scoreRaisers(inspected.contributions, 1)) : "");
+  const inspectedRaised = $derived(inspected?.exceeds ? scoreRaisers(inspected.contributions, 1)[0]?.signal ?? "" : "");
+  // 점수를 가장 많이 올린 신호의 값: 판정한 구간만 잇고, 판정하지 않은 구간은 끊는다.
+  const SH = 120, ST = 8, SB = 104;
+  const signalDrawn = $derived.by((): TrendPoint[] => {
+    if (!signal) return [];
+    const feature = signal.feature;
+    return drawTrend(visible.map((point) => {
+      const value = point.score === null ? null : point.features?.[feature];
+      return {...point, score: typeof value === "number" && Number.isFinite(value) ? value : null};
+    }), Math.max(20, Math.floor(chartWidth / 4)));
+  });
+  const signalScale = $derived.by(() => {
+    const values = signalDrawn.flatMap((point) => point.score === null ? [] : [point.score]);
+    if (signal?.learned) values.push(signal.learned.low, signal.learned.high);
+    if (!values.length) return null;
+    const low = Math.min(...values), high = Math.max(...values, low + 1e-9), pad = (high - low) * 0.06;
+    return {low: low - pad, high: high + pad, y: (value: number) => SB - ((value - (low - pad)) / (high - low + 2 * pad)) * (SB - ST)};
+  });
+  const signalPath = $derived.by(() => {
+    if (!signalScale) return "";
+    let d = "", drawing = false;
+    for (const point of signalDrawn) {
+      if (point.score === null) { drawing = false; continue; }
+      d += (drawing ? "L" : "M") + scale.x(point.pointer.position).toFixed(1) + " " + signalScale.y(point.score).toFixed(1) + " ";
+      drawing = true;
+    }
+    return d;
+  });
+  const signalChosen = $derived.by(() => {
+    const value = signal && chosen ? chosen.features?.[signal.feature] : null;
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  });
   const clipId = $derived("score-clip-"+binding.bindingId);
   function pointAt(event: PointerEvent | MouseEvent): TrendPoint | null {
     const rect = (event.currentTarget as SVGRectElement).ownerSVGElement!.getBoundingClientRect();
@@ -126,12 +160,7 @@
   {:else if !scored.length}
     <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
-    {#if pinned && selected !== null}
-      <div class="onset" aria-label="선택한 측정의 모델 결과">
-        <p class="result-statement">{place(selected)}{chosen?.exceeds == null ? "" : chosen.exceeds ? " · 기준 초과" : " · 기준 이하"}</p>
-        {#if chosen}<p class="context">점수 {num(chosen.score)} · 모델 기준 {num(chosen.threshold)}</p>{/if}
-      </div>
-    {:else if first && told}
+    {#if first && told}
       <div class="onset" aria-label="기준 초과 상태">
         <p class="result-statement">{told.headline}</p>
         <div class="onset-actions">
@@ -143,7 +172,6 @@
       <p class="result-statement">분석한 {summary.analyzed}회 모두 모델 기준 이하였습니다.</p>
     {/if}
     {#if trend.truncated}<StatusNotice kind="uncertain" message="점수 기록을 일부만 읽었습니다. 전체 기록의 마지막 상태는 이 그래프로 판단할 수 없습니다."/>{/if}
-    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} levels={binding.levels ?? null} />{/if}
     <div class="chart" bind:clientWidth={chartWidth}>
     {#if focus}<div class="chart-head"><strong>선택 구간의 점수 추이</strong>
       <button type="button" class="ui-button" onclick={()=>{focus=null;hovered=null;}}>전체 기록 보기</button></div>{/if}
@@ -196,11 +224,33 @@
         onpointermove={event=>hovered=pointAt(event)} onpointerleave={()=>hovered=null}
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
     </svg></div>
-    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 올린 신호 " + inspectedRaised : ""}</p>{/if}
+    {#if signal && signalScale && signalPath}
+      <figure class="signal" aria-labelledby={"signal-" + binding.bindingId}>
+        <figcaption id={"signal-" + binding.bindingId}><strong>{signal.name} {signal.statistic}{signal.unit ? " (" + signal.unit + ")" : ""}</strong>
+          · 선택한 구간의 점수를 가장 많이 올린 신호{signal.learned ? " · 띠는 기준 기간 범위" : ""}</figcaption>
+        <svg class="signal-chart" viewBox={"0 0 " + W + " " + SH} role="img"
+          aria-label={signal.name + " " + signal.statistic + " 추이 · " + place(scale.first) + "부터 " + place(scale.last) + "까지"}>
+          <path d={"M" + LEFT + " " + ST + " V" + SB + " H" + RIGHT} class="axis" />
+          {#if signal.learned}
+            <rect x={LEFT} width={RIGHT - LEFT} y={signalScale.y(signal.learned.high)} height={Math.max(1, signalScale.y(signal.learned.low) - signalScale.y(signal.learned.high))} class="band" />
+          {/if}
+          {#each yTicks(signalScale.low, signalScale.high, ST, SB, 3) as tick (tick.value)}
+            <text x={LEFT - 6} y={tick.y + 4} text-anchor="end" class="label">{measure(tick.value, null)}</text>
+          {/each}
+          <path d={signalPath} class="line" />
+          {#if chosen && signalChosen !== null}
+            <line x1={scale.x(chosen.pointer.position)} x2={scale.x(chosen.pointer.position)} y1={ST} y2={SB} class="chosen-line" />
+            <circle cx={scale.x(chosen.pointer.position)} cy={signalScale.y(signalChosen)} r="5" class="chosen" />
+          {/if}
+        </svg>
+      </figure>
+    {/if}
+    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 가장 많이 올린 신호 " + inspectedRaised : ""}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.unjudged ? " · 판정하지 않은 운전 수준 " + summary.unjudged.toLocaleString("ko-KR") + "회" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
+    {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} levels={binding.levels ?? null} />{/if}
     {#if trend.intervals.length}
       <details><summary>기준 초과 구간 조사 · {trend.intervals.length}개</summary>
       {#if told?.earlier}<p class="context">{told.earlier}{#if story?.first && story.first !== first}
@@ -235,6 +285,12 @@
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
   svg { display: block; width: 100%; height: 300px; }
+  .signal { margin: var(--space-3) 0 0; display: grid; gap: var(--space-1); }
+  .signal figcaption { font-size: var(--font-small); color: var(--color-ink-muted); }
+  .signal figcaption strong { color: var(--color-ink); }
+  svg.signal-chart { height: 120px; }
+  .band { fill: var(--color-reference-line); fill-opacity: 0.14; }
+  .chosen-line { stroke: var(--color-ink-muted); stroke-dasharray: 2 3; }
   .axis { fill: none; stroke: var(--color-border); }
   .grid { stroke: var(--color-border); stroke-opacity: 0.5; }
   .lane { fill: var(--color-surface-selected); }
