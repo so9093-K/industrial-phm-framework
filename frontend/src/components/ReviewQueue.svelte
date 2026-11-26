@@ -370,7 +370,8 @@
             </a></li>
           {/each}
         </ul>
-      {:else}
+      {:else if items.length || snapshot === null || assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope}
+        <!-- 남긴 판단이 아직 없으면 오른쪽이 그 사실을 한 번 말한다(같은 말을 두 칸에 두지 않는다). -->
         <p class="context">{snapshot === null && !focusAssetId ? "위에서 검토할 설비 ID를 입력하세요. 전체 설비 목록을 조회하지 못한 상태입니다." : assetIndexProblem || failedAssets.length || hiddenFindings || partialAssetScope ? "현재 확인된 범위에서 조건에 맞는 검토 항목이 없습니다. 전체 기록의 검토가 완료됐다는 뜻은 아닙니다." : "이 조건에 맞는 검토 항목이 없습니다."}</p>
       {/if}
       {#if Object.keys(captureCursors).length}

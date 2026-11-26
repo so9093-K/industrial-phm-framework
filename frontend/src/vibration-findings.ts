@@ -15,7 +15,9 @@ export type VibrationChange = {
   referenceSpread?: number | null; effectDistance?: number | null;
   usual: {low: number; high: number}; trace: {at: number; value: number; join?: boolean}[];
   /** Other features that moved over the same acquisitions. */
-  related: {feature: string; label: string; unit: string | null; reference: number; current: number; state: "higher" | "lower"}[];
+  related: {feature: string; label: string; unit: string | null; reference: number; current: number;
+    /** The value at the record's end (or the replay position), when the server gives it. */
+    latest: number | null; state: "higher" | "lower"}[];
   /** 변화 구간 앞 절반과 뒤 절반에 측정값이 각각 움직인 양(측정이 6회 미만이면 없음). */
   halves?: Half[] | null;
 };
@@ -65,7 +67,8 @@ export function parseVibrationChange(entry: unknown): VibrationChange {
       const other = object(entry);
       if (!other || (other.state !== "higher" && other.state !== "lower")) invalid();
       return {feature: text(other.feature), label: text(other.label), unit: typeof other.unit === "string" && other.unit ? other.unit : null,
-        reference: finite(other.reference), current: finite(other.current), state: other.state};
+        reference: finite(other.reference), current: finite(other.current),
+        latest: typeof other.latest === "number" && Number.isFinite(other.latest) ? other.latest : null, state: other.state};
     }),
     halves: Array.isArray(row.halves) && row.halves.length === 2 ? row.halves.map((entry: unknown) => {
       const half = object(entry);

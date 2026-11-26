@@ -60,6 +60,10 @@
     ];
   });
   const label = (row: typeof rows[number]) => row.label;
+  // 기록 끝까지 이어지는 진동 변화는 위에서 '지금' 값으로 말한다. 함께 달라진 특징도 같은 때의 값을
+  // 보인다. 구간 대표값을 두면 수평이 지금 7.27 g인데 '3.23 g'로 읽혔다.
+  const ongoing = $derived(focus.kind === "vibration" && focus.record.last !== null && focus.change.to >= focus.record.last);
+  const after = (row: typeof rows[number]) => ongoing && "latest" in row && row.latest !== null ? row.latest : row.current;
 </script>
 <aside class="context" aria-label="선택한 변화의 관련 관측">
   <h3>{focus.kind === "history" ? "같은 구간의 다른 신호" : "함께 달라진 진동 특징"}</h3>
@@ -67,7 +71,7 @@
   {#if rows.length}
     <!-- 한 줄에 이름과 비교 구간 → 변화 구간. 그림은 왼쪽 그래프가 맡는다. -->
     <dl>{#each rows.slice(0, focus.kind==="vibration"?1:3) as row(label(row))}<div class="fact">
-      <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><i aria-hidden="true">→</i><strong>{measure(row.current,row.unit,3)}</strong></dd>
+      <dt>{row.label}</dt><dd><span>{measure(row.reference,row.unit,3)}</span><i aria-hidden="true">→</i><strong>{measure(after(row),row.unit,3)}</strong></dd>
     </div>{/each}</dl>
   {:else}<p>함께 비교할 신호가 이 기록에 없습니다.</p>{/if}
   {#if focus.kind === "vibration" && input}

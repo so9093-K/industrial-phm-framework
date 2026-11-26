@@ -312,9 +312,13 @@
         <p class="selected-value"><span>{METRICS[metric].label}</span><strong>{measured(selected[metric],METRICS[metric].unit)}</strong></p>
         {#if notable&&notable.value!==null&&notable.low!==null&&notable.high!==null}<p class="selected-comparison">{subject(notable.channel)} {measured(notable.value," "+notable.unit)} · 비교 범위 {measured(notable.low)}–{measured(notable.high," "+notable.unit)}</p>{/if}
         {#if phaseValues}
-          {@const largest=Math.max(1,...phaseValues.map(value=>value??0))}
+          <!-- 불평형은 세 상이 평균에서 얼마나 벗어났는지다. 0부터 그린 막대는 207 V와 208 V가 같아 보였다. -->
+          {@const known=phaseValues.filter((value):value is number=>value!==null)}
+          {@const mean=known.length?known.reduce((sum,value)=>sum+value,0)/known.length:0}
+          {@const spread=Math.max(1e-9,...known.map(value=>Math.abs(value-mean)))}
           <div class="phase-values" aria-label={metric==="voltageUnbalance"?"선택 시점의 상별 전압":"선택 시점의 상별 전류"}>
-            {#each PHASES as phase,index(phase)}<div><span>{phase}상</span><div class="phase-track" aria-hidden="true"><i style:width={(phaseValues[index]??0)/largest*100+"%"}></i></div><strong>{measured(phaseValues[index],metric==="voltageUnbalance"?" V":" A")}</strong></div>{/each}
+            {#each PHASES as phase,index(phase)}{@const off=phaseValues[index]===null?0:(phaseValues[index]!-mean)/spread}<div><span>{phase}상</span><div class="phase-track" aria-hidden="true"><i style:left={(off<0?50+off*50:50)+"%"} style:width={Math.abs(off)*50+"%"}></i></div><strong>{measured(phaseValues[index],metric==="voltageUnbalance"?" V":" A")}</strong></div>{/each}
+            <p class="context">막대 · 세 상 평균 {measured(mean,metric==="voltageUnbalance"?" V":" A")}에서 벗어난 쪽과 정도</p>
           </div>
         {/if}
         <details><summary>비교 조건·다른 측정값</summary>
@@ -429,6 +433,7 @@
 
   .selected-value{display:grid;gap:4px;margin:0}.selected-value span{font-size:var(--font-small);color:var(--color-ink-muted)}.selected-value strong{font-size:var(--font-result);font-variant-numeric:tabular-nums}
   .phase-values{display:grid;gap:var(--space-3);padding-block:var(--space-2)}.phase-values>div{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:var(--space-2);font-size:var(--font-small)}.phase-values strong{font-variant-numeric:tabular-nums;font-weight:650}
-  .phase-track{height:7px;background:var(--color-surface-selected)}.phase-track i{display:block;height:100%;background:var(--color-action)}
+  .phase-track{position:relative;height:7px;background:var(--color-surface-selected)}.phase-track::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px solid var(--color-ink-muted)}
+  .phase-track i{position:absolute;top:0;height:100%;background:var(--color-action)}.phase-values>p{grid-column:1/-1;margin:0}
   .selected-comparison{font-size:var(--font-small);color:var(--color-ink-muted);line-height:1.5}
 </style>

@@ -152,7 +152,7 @@
           <aside class="reading-inspector"><section class="pick" aria-label="선택한 측정">
             <h3 title={measurementLabel(chosen,period)}>{chosen}번째 측정</h3>
             <p class="reading-value">{chosenPoint ? measure(chosenPoint.value, trend.unit) : "값은 원본에서 확인"}</p>
-            {#if latest}<p class="context">마지막 저장 · {latest.ordinal}번째 · {measure(latest.value,trend.unit)}</p>{/if}
+            {#if latest && latest.ordinal !== chosen}<p class="context">마지막 저장 · {latest.ordinal}번째 · {measure(latest.value,trend.unit)}</p>{/if}
             <p class="pick-links">
               {#each measurementLinks(assetId, chosen, {first: options.first, last: options.last, feature, bindingId: trend.bindingId}, "trend") as item (item.key)}
                 <a href={item.href}>{item.label} →</a>
