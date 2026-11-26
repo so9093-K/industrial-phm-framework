@@ -12,6 +12,7 @@
   import ScoreTrend from "./ScoreTrend.svelte";
   import ModelScoreOverlay from "./ModelScoreOverlay.svelte";
   import ModelReviewRequest from "./ModelReviewRequest.svelte";
+  import ScoreReason from "./ScoreReason.svelte";
   import {selectedScoreMessage} from "../analysis-messages";
   import {num} from "../format";
   import {readWriteSession} from "../session";
@@ -22,6 +23,7 @@
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
   import {raisersText,scoreRaisers} from "../score-raisers";
+  import {readScoreReason,type ScoreReason as Reason} from "../score-reason";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
   import {measurementLinks} from "../measurement-links";
@@ -56,6 +58,16 @@
   let error=$state("");
   let writable=$state(false);
   let explanationId:string|null=$state(null);
+  // Why the selected result went over its threshold, read only for a result that did.
+  let reason:Reason|null=$state(null);
+  $effect(()=>{
+    const model=binding,run=result;
+    reason=null;
+    if(!model||!run||run.state!=="analyzed"||run.output.exceeds_threshold!==true)return;
+    const request=new AbortController();
+    void readScoreReason(model,run,request.signal).then(value=>{if(!request.signal.aborted)reason=value;}).catch(()=>{});
+    return()=>request.abort();
+  });
   let reviewRun:string|null=$state(null);
   let reviewPanel: HTMLDetailsElement | null = $state(null);
   // The hash target appears after asynchronous model reads, beyond native anchor navigation,
@@ -386,7 +398,8 @@
       {:else if trace}
         <!-- 이상 탐지의 중심 그림: 점수 추이와 임계선(모델 기준), 넘은 구간. 시간축 옆에 열려도 보인다. -->
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
+          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace}
+            signal={reason?.rows[0]??null} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
         {/key}
       {/if}
       </div>
@@ -421,9 +434,10 @@
               message={skipReasonText(result.reason)}/>
           {:else}
             {@const summary=scoreSummary(result.output)}
-            <div class="selected-result"><h3>{place(result.position)}</h3>
-              <span class="context">점수 {num(summary.score,"기록 없음")} · 기준 {num(summary.threshold,"기록 없음")}</span>
-</div>
+            <div class="selected-result"><h3>{place(result.position)}{summary.exceeds===null?"":summary.exceeds?" · 기준 초과":" · 기준 이하"}</h3>
+              <span class="context">점수 {num(summary.score,"기록 없음")} · 모델 기준 {num(summary.threshold,"기록 없음")}</span>
+            </div>
+            {#if reason}<ScoreReason {reason}/>{/if}
           {/if}
           {#if result.state==="skipped"}<button type="button" class="ui-button input-details" onclick={()=>inputOpen=true}>원본·모델 상세</button>{/if}
           <TaskDialog bind:open={inputOpen} title="선택한 측정의 원본·모델 상세"><div class="selected-more">
