@@ -51,6 +51,7 @@ export function changeAnalyses(asset: string, focus: EvidenceFocus): Record<stri
   out.open_compare = {label: "기간 비교에서 보기", href: own.compare};
   out.open_spectrum = {label: "주파수에서 보기", href: own.spectrum};
   out.open_signals = {label: "실측 신호에서 보기", href: own.signal};
+  out.open_outlook = {label: "전망·예상 여유에서 보기", href: own.outlook};
   return out;
 }
 

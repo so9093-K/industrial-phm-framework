@@ -72,7 +72,8 @@ test("an analysis the AI picks opens the screen for this change's own signal and
   const change={feature:"vertical.rms",label:"수직 진동 RMS",unit:"g",direction:"up" as const,reason:"record-end" as const,kind:"departure" as const,
     from:72,to:123,baseline:{from:1,to:37},reference:0.623,typical:2.3,value:5.78,usual:{low:0.57,high:0.65},trace:[],related:[]};
   const vibration=changeAnalyses("Bearing1_1",{kind:"vibration",change,record:{sourceId:"s",bindingId:"b",assetId:"Bearing1_1",first:1,last:123,periodSeconds:60,judged:1,features:1,intervals:[change]}});
-  assert.deepEqual(Object.keys(vibration).sort(),["open_compare","open_signals","open_spectrum"]);
+  assert.deepEqual(Object.keys(vibration).sort(),["open_compare","open_outlook","open_signals","open_spectrum"]);
+  assert.equal(new URL(vibration.open_outlook.href,"http://local").searchParams.get("tab"),"outlook");
   assert.equal(new URL(vibration.open_spectrum.href,"http://local").searchParams.get("method"),"spectrum");
 });
 

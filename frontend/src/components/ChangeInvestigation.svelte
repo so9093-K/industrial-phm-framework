@@ -3,6 +3,7 @@
   import type {AnalysisReadout} from "../analysis-readout.svelte";
   import {askChange,newChangeConversation,readChangeDiscussion,withConversation,STARTERS,LOAD_QUESTION,type ChangeDiscussion,type Pointed} from "../change-investigation";
   import {spanText} from "../asset-timeline";
+  import {answerParts,freshLink} from "../answer-text";
   import {changeAnalyses, changeFollowup, type EvidenceFocus} from "../change-evidence";
   import {investigationOriginUrl} from "../routes";
   import type {PlaybackScope} from "../record-playback";
@@ -77,7 +78,12 @@
         if(remaining-->0)timer=setTimeout(()=>void refresh(),1500);
         else {awaitingQuestion=null;error="접수·생성 상태를 확인하지 못했습니다. 다시 읽어 확인하세요.";}
       }
-    }catch(cause){if(!pending.signal.aborted)error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";}
+    }catch(cause){
+      if(pending.signal.aborted)return;
+      // 답을 기다리는 중의 읽기 실패는 다시 읽는다(멈추면 끝난 답이 '답 정리 중'으로 남았다).
+      if((awaitingQuestion||records[0]?.status==="pending")&&remaining-->0){timer=setTimeout(()=>void refresh(),1500);return;}
+      error=cause instanceof Error?cause.message:"답변을 불러오지 못했습니다.";
+    }
   }
   async function ask(text:string,runComparison=false){
     if(!writable||waiting||!text.trim())return;
@@ -127,12 +133,12 @@
     {#if onClose}<button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
-    {#each thread as row(row.id)}
+    {#each thread as row,index(row.id)}
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
-        {#if row.status==="complete"&&row.answer}<p class="answer">{row.answer.summary}</p>{/if}
+        {#if row.status==="complete"&&row.answer}<p class="answer">{#each answerParts(row.answer.summary) as part,at(at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>{/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} {conversation} result={row.comparison}/>{/if}
-        {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]}
+        {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]&&freshLink(thread,index)}
           <a class="followup" href={withConversation(investigationOriginUrl(analyses[row.analysis].href,location.href),conversation)} onclick={onStart}>{analyses[row.analysis].label} →</a>{/if}
         {#if row.status==="complete"&&row.answer}
           <div class="tools">
@@ -182,6 +188,7 @@
   .avatar{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--color-action);color:#fff;font-size:10px;font-weight:700;letter-spacing:.02em}
   .body{display:grid;gap:8px;min-width:0;padding-top:2px}
   .answer{line-height:1.7;white-space:pre-wrap;color:var(--color-ink)}
+  .answer b{font-weight:700;font-variant-numeric:tabular-nums}
   .typing{display:flex;align-items:center;gap:4px;color:var(--color-ink-muted);font-size:var(--font-label);min-height:24px}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}.typing span{margin-left:6px}

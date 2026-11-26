@@ -16,6 +16,8 @@ from industrial_phm.runtime.operations_workspace import OperationsWorkspace
 _KST = ZoneInfo("Asia/Seoul")
 # 신호마다 그래프에서 넘기는 점 수: 모양이 읽히는 만큼만(점이 많으면 모델의 첫 응답이 느려진다).
 _POINTS = 30
+# 진동이 '지금도 오르는지'를 말할 최근 측정 수.
+_RECENT = 10
 _PHASES = ("R상", "S상", "T상")
 
 
@@ -101,8 +103,10 @@ _HISTORY_ANALYSES = {
 }
 _VIBRATION_ANALYSES = {
     "open_compare": "'기간 비교' 화면: 초기와 특이사항 구간의 진동 특징을 자세히 견준다.",
-    "open_spectrum": "'주파수' 화면: 주파수 대역별 진동 에너지가 어떻게 달라졌는지 본다.",
+    "open_spectrum": "'주파수' 화면: 어느 주파수 대역의 진동 에너지가 커졌는지 본다. 어디를 "
+    "점검할지 가릴 때 본다.",
     "open_signals": "'실측 신호' 화면: 측정마다 진동 값과 원본 파형을 본다.",
+    "open_outlook": "'전망·예상 여유' 화면: 지금 속도라면 사람이 정한 기준에 언제 닿을지 본다.",
 }
 
 
@@ -155,6 +159,7 @@ OPENS = {
     "open_spectrum": "spectrum",
     "open_phase_balance": "electrical",
     "open_signals": "signals",
+    "open_outlook": "outlook",
 }
 
 
@@ -360,6 +365,25 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
         for row in change.get("related", [])
     ]
+    # 축마다 초기 값: 지금 값 옆에 배수를 붙인다. 없으면 모델이 그래프 첫 점으로 배수를 계산했다
+    # (수평 7.27 g를 '초기의 약 13배'로).
+    initial: dict[str, float] = {}
+    if not history:
+        initial = {row["label"]: row["reference"] for row in change.get("related", [])}
+        if before is not None:
+            initial[change["label"]] = before
+    recent: dict[str, str] = {}
+    if not history:
+        # '지금도 오르고 있어?'와 '얼마나 급해?'는 최근 측정의 움직임으로 답한다. 없으면 모델이
+        # '계속 상승하는 추세'처럼 그래프 30점을 짐작해 말했다.
+        for row in chart:
+            trace = row["trace"]
+            if len(trace) > 2:
+                back, last_point = trace[-min(len(trace), _RECENT + 1)], trace[-1]
+                recent[row["label"]] = (
+                    f"{when(back[0])} {_text(back[1], None)} → {when(last_point[0])} "
+                    f"{_text(last_point[1], row['unit'])}" + _times(back[1], last_point[1], history)
+                )
     now: dict[str, str] = {}
     if history:
         # '지금은 괜찮아?'는 지금을 묻는다. 지금까지 이어지는 특이사항이 어느 신호인지와
@@ -378,6 +402,24 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
             + (f"({', '.join(still[:5])})" if still else "")
             + f", 살펴본 신호 {record['judged']}개 중"
         )
+
+    def latest(row: dict[str, Any]) -> str:
+        at, value = row["trace"][-1][0], row["trace"][-1][1]
+        text = f"{_reading(value, row['unit'])} ({when(at)})"
+        start_value = initial.get(row["label"]) or 0
+        return text + (f" · 초기의 약 {value / start_value:.1f}배" if start_value > 0 else "")
+
+    # '어느 쪽이 더 나빠?'·'어디부터 볼까?'는 순서를 묻는다. 순서를 주지 않으면 모델은 수평이
+    # 10.1배인데도 카드의 신호(수직 9.3배)를 '가장 크게 오른 축'이라고 했다.
+    ranked = sorted(
+        (
+            (row["trace"][-1][1] / initial[row["label"]], row["label"])
+            for row in chart
+            if row["trace"] and (initial.get(row["label"]) or 0) > 0
+        ),
+        reverse=True,
+    )
+    order = ", ".join(f"{label} 약 {times:.1f}배" for times, label in ranked)
     pointed: dict[str, Any] = {}
     if (at := context.get("at")) is not None:
         # 사람이 그래프에서 짚고 물은 곳: 그때 각 신호의 값과, 특이사항 구간 안인지 밖인지.
@@ -415,20 +457,27 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         **pointed,
         "특이사항": card,
         **({"같은 기간 다른 신호": related} if related else {}),
-        "지금 값(마지막 측정)": {
-            row[
-                "label"
-            ]: f"{_reading(row['trace'][-1][1], row['unit'])} ({when(row['trace'][-1][0])})"
-            for row in chart
-            if row["trace"]
-        },
+        "지금 값(마지막 측정)": {row["label"]: latest(row) for row in chart if row["trace"]},
+        **({"지금 초기 대비 큰 순서": order} if len(ranked) > 1 else {}),
         **now,
+        **({f"최근 {_RECENT}회 측정 동안": recent} if recent else {}),
         "그래프(시각, 값)" if history else "그래프(측정 번호, 값)": {
             row["label"]: [[tick(x), _value(value)] for x, value in _compact_trace(row["trace"])]
             for row in chart
             if row["trace"]
         },
     }
+
+
+def _times(before: float, after: float, history: bool) -> str:
+    """A vibration value's multiple of an earlier one (' (약 4.4배)'); power values give none.
+
+    진동은 몇 배로 커졌는지가 축과 특징을 견주는 말이다. 모델이 두 축을 '둘 다 약 3.5배'로
+    뭉뚱그리지 않게 배수를 계산해 준다. 전압처럼 1배 근처를 오가는 값에는 붙이지 않는다.
+    """
+    if history or not before > 0 or not after > 0:
+        return ""
+    return f" (약 {after / before:.1f}배)"
 
 
 def _spans(change: dict[str, Any]) -> list[tuple[str, int, int]]:
