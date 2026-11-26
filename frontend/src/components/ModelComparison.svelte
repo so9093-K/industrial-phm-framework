@@ -1,5 +1,6 @@
 <script lang="ts">
-  import {readSignalNames, type SignalNames} from "../history";
+  import {readSignalNames, signalName, type SignalNames} from "../history";
+  import {scoreRaisers} from "../score-raisers";
   import {historyFeatureLabel} from "../history-model";
   import {assetTabUrl} from "../routes";
   import {num} from "../format";
@@ -23,11 +24,18 @@
   let exploreFeature=$state("");
   let failed=$state(false),rangeFailed=$state(false),loading=$state(false);
   let preview:{position:number;feature:string|null}|null=$state(null);
-  const contributions=$derived.by(() => {
-    const raw=run.output.feature_contributions;
-    if(!raw||typeof raw!=="object"||Array.isArray(raw))return [];
-    return Object.entries(raw).filter((entry): entry is [string,number] => typeof entry[1]==="number"&&Number.isFinite(entry[1])).sort((a,b)=>b[1]-a[1]);
+  // The model's own split of this score per signal, when it gives one; the summary leads with it.
+  const everyRaiser=$derived(scoreRaisers(run.output.feature_contributions,Infinity));
+  const raisers=$derived(everyRaiser.slice(0,3));
+  // The bars show three signals; the rest of the rise is named once, so the bars do not read as all of it.
+  const restShare=$derived(100-raisers.reduce((sum,item)=>sum+item.share,0));
+  const raisedRows=$derived.by(()=>{
+    const current: Comparison | null = comparison;
+    return raisers.map(raiser=>({raiser,feature:current?.features.find(item=>item.feature===raiser.feature)??null}));
   });
+  const signalShown=(signal:string)=>signalName(signalNames,signal);
+  /** The statistic named after its signal: "평균" under "R상역률". */
+  function statistic(label:string,signal:string):string{const full=shown(label),head=signalShown(signal);return full.startsWith(head+" ")?full.slice(head.length+1):full;}
   const rows=$derived.by(() => { const flow: ModelRange | null = range; return flow ? [{name:"primary",label:"모델 점수",shape:flow.primary},...flow.features] : []; });
   // Rows with a change point to open come first; the rest are named once instead of repeated.
   const marked=$derived(rows.filter(row=>row.shape.shift||row.shape.largest));
@@ -100,11 +108,22 @@
     {#if compare===null}<p class="context">비교할 이전 분석이 없어 한 시점의 측정값을 보여 줍니다.</p>{:else if !told}
     <p class="context">모델 점수 {num(comparison.previousScore,"기록 없음")} → {num(typeof run.output.score==="number"?run.output.score:null,"기록 없음")} · {place(compare)} → {place(run.position)}</p>{/if}
     <div class="views" role="group" aria-label="측정 변화 살펴보기">
-      <button type="button" class="ui-button" aria-pressed={view==="summary"} onclick={()=>view="summary"}>주요 측정값</button>
+      <button type="button" class="ui-button" aria-pressed={view==="summary"} onclick={()=>view="summary"}>{raisers.length?"점수를 올린 신호":"주요 측정값"}</button>
       <button type="button" class="ui-button" aria-pressed={view==="values"} onclick={()=>view="values"}>전체 특징 비교</button>
       <button type="button" class="ui-button" aria-pressed={view==="flow"} onclick={()=>view="flow"}>두 측정 사이의 흐름</button>
     </div>
-    <div class="comparison-columns">{#if view==="summary"}
+    <div class="comparison-columns">{#if view==="summary" && raisers.length}
+      <dl class="primary-features" aria-label="이 점수를 올린 신호">{#each raisedRows as {raiser,feature}(raiser.signal)}<div>
+        <dt><span>{signalShown(raiser.signal)}</span><span class="share">{raiser.share}%</span></dt>
+        <dd class="share-bar" aria-hidden="true"><span style:width={raiser.share+"%"}></span></dd>
+        {#if feature}
+          <dd><button type="button" class="text-button stat" onclick={()=>open(run.position,feature.feature)}>{statistic(feature.label,raiser.signal)}</button>
+            {num(feature.previous,"—")} <span>→</span> {num(feature.current)}{feature.unit?" "+feature.unit:""}</dd>
+          {#if feature.usual || feature.learned}<dd class="range-note">{#if feature.usual}{AGAINST_TEXT[against(feature.current,feature.usual)]} · 비교 범위 {num(feature.usual.low)}–{num(feature.usual.high)}{feature.unit?" "+feature.unit:""}{/if}{#if feature.learned&&against(feature.current,feature.learned)!=="inside"}{feature.usual?" · ":""}{LEARNED_TEXT[against(feature.current,feature.learned)]}{/if}</dd>{/if}
+        {/if}
+      </div>{/each}</dl>
+      {#if everyRaiser.length>raisers.length && restShare>0}<p class="context">다른 신호 {everyRaiser.length-raisers.length}개 합계 {restShare}%</p>{/if}
+    {:else if view==="summary"}
       <dl class="primary-features">{#each primary as feature(feature.feature)}<div>
         <dt><button type="button" class="text-button" onclick={()=>open(run.position,feature.feature)}>{shown(feature.label)}</button></dt>
         <dd>{num(feature.previous,"—")} <span>→</span> {num(feature.current)}{feature.unit?" "+feature.unit:""}</dd>
@@ -145,7 +164,6 @@
     </div>{/if}</div>
     {#if told}<details><summary>측정값 비교 해석</summary><AnalysisMessage message={told} showHeadline={false}/></details>{/if}
   {/if}
-  {#if contributions.length}<details><summary>모델이 반영한 특징 ({contributions.length}개)</summary><p class="context">모델 출력의 특징별 기여도입니다. 설비 고장의 원인이나 확률이 아닙니다.</p><dl>{#each contributions as [name,value] (name)}<div><dt>{shown(comparison?.features.find(item=>item.feature===name)?.label??name)}</dt><dd>{num(value)}</dd></div>{/each}</dl></details>{/if}
   <TaskDialog bind:open={previewOpen} title="선택한 측정의 원본">{#if preview}
     {#key preview.position+":"+preview.feature}<ModelInput {binding} position={preview.position} feature={preview.feature} {place}/>{/key}
   {/if}</TaskDialog>
@@ -165,6 +183,10 @@
   .views{display:flex;gap:var(--space-2);flex-wrap:wrap}.views button[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action);font-weight:650}
   .primary-features{display:grid;gap:var(--space-3);margin:0}.primary-features>div{border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .primary-features dt .text-button{padding:0;font-weight:650}.primary-features dd{font-size:1.5rem;font-weight:700;margin:var(--space-1) 0 0;font-variant-numeric:tabular-nums}.primary-features dd span{color:var(--color-ink-muted);font-weight:400}.primary-features dd.range-note{font-size:var(--font-small);font-weight:400;color:var(--color-ink-muted)}
+  .primary-features dt{display:flex;justify-content:space-between;gap:var(--space-2);font-weight:650}.share{font-variant-numeric:tabular-nums}
+  .primary-features dd.share-bar{height:6px;margin:var(--space-2) 0;border-radius:3px;background:var(--color-surface-selected);overflow:hidden}
+  .share-bar span{display:block;height:100%;border-radius:3px;background:var(--color-action)}
+  .primary-features dd .stat{padding:0 var(--space-1) 0 0;font-size:var(--font-small);font-weight:650;vertical-align:middle}
   .flow-row{grid-template-columns:minmax(100px,1fr) 1fr}.flow-row>div:last-child{grid-column:1 / -1}.flow-row .ui-button{padding:var(--space-2);font-size:var(--font-small)}
   @media(max-width:600px){.flow-row{grid-template-columns:1fr}.flow-row>div{flex-direction:column;align-items:start}}
 </style>

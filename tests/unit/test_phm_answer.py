@@ -136,15 +136,33 @@ def test_sentences_that_overstate_two_results_are_named(
 def test_contribution_claims_name_only_the_model_top_features(contexts: dict[str, Any]) -> None:
     payload = {
         **answer_input(contexts["anomaly-a"]),
-        "contribution_order": ["수평 진동 RMS", "수평 진동 피크-피크", "수평 진동 표준편차"],
+        "contribution_order": [
+            {"signal": "수평 진동", "share": "100%", "largest": "수평 진동 RMS"},
+        ],
     }
     text = (
-        "이상 점수가 증가했고 수평 진동 절대 피크도 커졌으며, "
+        "이상 점수가 증가했고 수직 진동 RMS도 커졌으며, "
         "모델 점수에는 수평 진동 RMS가 크게 반영됐습니다."
     )
     assert text_issues(text, payload, field="summary") == []
-    wrong = "이상 점수가 증가했고 수평 진동 절대 피크가 점수에 크게 반영됐습니다."
-    assert "수평 진동 RMS" in text_issues(wrong, payload, field="summary")[0]
+    wrong = "이상 점수가 증가했고 수직 진동 RMS가 점수에 크게 반영됐습니다."
+    assert "수평 진동" in text_issues(wrong, payload, field="summary")[0]
+
+
+def test_the_model_reads_the_signals_that_raised_the_score_as_the_screen_shows_them(
+    contexts: dict[str, Any],
+) -> None:
+    context = {
+        **contexts["anomaly-a"],
+        "output": {
+            **contexts["anomaly-a"]["output"],
+            "feature_contributions": {RMS: 0.6, PEAK: 0.2, VERTICAL: 0.2},
+        },
+    }
+    assert answer_input(context)["contribution_order"] == [
+        {"signal": "수평 진동", "share": "80%", "largest": "수평 진동 RMS"},
+        {"signal": "수직 진동", "share": "20%", "largest": "수직 진동 RMS"},
+    ]
 
 
 def test_common_two_point_phrasing_is_rewritten_not_rejected() -> None:

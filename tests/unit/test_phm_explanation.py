@@ -275,7 +275,8 @@ def test_facts_state_meanings_the_model_must_not_reinterpret() -> None:
             recorded_replay=False,
         )
     )
-    assert "임계값 1.00 를 초과" in anomaly and "b=2.00" in anomaly.replace(", ", ",")
+    assert "임계값 1.00 를 초과" in anomaly
+    assert "모델 점수를 올린 신호(올린 몫): b 80% · c 16% · a 4%" in anomaly
     assert "FAIL (protocol v1 §3)" in anomaly and "RUL" not in anomaly
 
 

@@ -328,6 +328,12 @@ def test_a_stream_with_a_current_is_learned_and_judged_by_operating_level(
     # Loaded windows are read against loaded windows only; their threshold is 1 at every level.
     assert sum(bool(r.output["exceeds_threshold"]) for r in loaded) / len(loaded) <= 0.02
     assert {r.output["threshold"] for r in loaded} == {1.0}
+    # Each judged window keeps what raised its score, per feature, and only what raised it;
+    # a window every feature made look usual keeps none.
+    assert all(isinstance(r.output["feature_contributions"], dict) for r in loaded)
+    assert all(v > 0 for r in loaded for v in r.output["feature_contributions"].values())
+    highest = max(loaded, key=lambda r: r.output["score"])
+    assert highest.output["feature_contributions"]
     # The latest window ran unloaded: the model did not judge it, which is not an input refusal.
     (item,) = project_phm_monitor(
         store,

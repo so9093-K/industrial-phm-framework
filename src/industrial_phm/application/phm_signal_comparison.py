@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -146,6 +146,10 @@ def feature_comparison(current: StepResult, previous: StepResult | None) -> list
 
 
 _HISTORY_STATS = {"mean": "평균", "std": "표준편차", "min": "최소", "max": "최대"}
+_VIBRATION_CHANNELS = {
+    "Horizontal_vibration_signals": "수평 진동",
+    "Vertical_vibration_signals": "수직 진동",
+}
 
 
 def feature_label(name: str) -> str:
@@ -176,12 +180,49 @@ def feature_label(name: str) -> str:
         return f"{channel} {_HISTORY_STATS[statistic]}"
     if name.startswith("feature."):
         channel, statistic = name.removeprefix("feature.").rsplit(".", 1)
-        channel = {
-            "Horizontal_vibration_signals": "수평 진동",
-            "Vertical_vibration_signals": "수직 진동",
-        }.get(channel, channel)
+        channel = _VIBRATION_CHANNELS.get(channel, channel)
         return f"{channel} {labels.get(statistic, statistic)}"
     return name
+
+
+def signal_label(name: str) -> str:
+    """The signal a model feature summarizes: a window statistic's channel, else the feature."""
+    channel, _, statistic = name.rpartition(".")
+    if channel and not name.startswith("feature.") and statistic in _HISTORY_STATS:
+        return channel
+    if name.startswith("feature.") and "." in name.removeprefix("feature."):
+        channel = name.removeprefix("feature.").rsplit(".", 1)[0]
+        return _VIBRATION_CHANNELS.get(channel, channel)
+    return feature_label(name)
+
+
+class Raiser(NamedTuple):
+    """A signal, its percent of what raised the score, and its feature that raised it most."""
+
+    signal: str
+    share: int
+    feature: str
+
+
+def score_raisers(contributions: Mapping[str, Any], limit: int = 3) -> list[Raiser]:
+    """Signals whose features raised the model score, largest first."""
+    totals: dict[str, float] = {}
+    largest: dict[str, tuple[float, str]] = {}
+    for name, value in contributions.items():
+        if isinstance(value, int | float) and math.isfinite(value) and value > 0:
+            label = signal_label(name)
+            totals[label] = totals.get(label, 0.0) + float(value)
+            largest[label] = max(largest.get(label, (0.0, name)), (float(value), name))
+    whole = sum(totals.values())
+    if not whole > 0:
+        return []
+    ranked = sorted(totals.items(), key=lambda item: -item[1])[:limit]
+    return [Raiser(label, round(100 * total / whole), largest[label][1]) for label, total in ranked]
+
+
+def score_raisers_text(contributions: Mapping[str, Any]) -> str:
+    """The signals that raised the score with their shares, as "R상역률 52% · R상전압 21%"."""
+    return " · ".join(f"{item.signal} {item.share}%" for item in score_raisers(contributions))
 
 
 def raw_signal_summary(

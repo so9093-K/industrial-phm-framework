@@ -6,6 +6,7 @@
   import {measure, yTicks} from "../chart-axis";
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
   import {drawTrend, exceedanceLane, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {raisersText, scoreRaisers} from "../score-raisers";
   import StatusNotice from "./StatusNotice.svelte";
   import ModelOperation from "./ModelOperation.svelte";
 
@@ -48,6 +49,11 @@
   const told = $derived(story ? exceedanceText(story, position=>isTimeWindow(binding.stepKind)?place(position):measurementLabel(position), "마지막 분석") : null);
   const first = $derived(story?.anchor ?? null);
   const priorities = $derived.by(() => { const read: ScoreTrend | null = trend; return priorityIntervals(read?.intervals ?? []); });
+  /** The signals that raised the scores of one exceedance interval, its results' parts added up. */
+  function raisedIn(interval: Interval, limit: number): string {
+    const inside = (trend?.points ?? []).filter((point) => point.pointer.position >= interval.start && point.pointer.position <= interval.end);
+    return raisersText(scoreRaisers(inside.map((point) => point.contributions), limit));
+  }
   const scale = $derived.by(() => {
     const values = scored.map((point) => point.score as number);
     if (threshold !== null) values.push(threshold);
@@ -84,6 +90,7 @@
   });
   const chosen = $derived(scored.find(point=>point.pointer.position===selected) ?? null);
   const inspected = $derived(hovered ?? chosen);
+  const inspectedRaised = $derived(inspected ? raisersText(scoreRaisers(inspected.contributions, 1)) : "");
   const clipId = $derived("score-clip-"+binding.bindingId);
   function pointAt(event: PointerEvent | MouseEvent): TrendPoint | null {
     const rect = (event.currentTarget as SVGRectElement).ownerSVGElement!.getBoundingClientRect();
@@ -189,7 +196,7 @@
         onpointermove={event=>hovered=pointAt(event)} onpointerleave={()=>hovered=null}
         onclick={event=>{const point=pointAt(event);if(point)onSelect(point.pointer);}} />
     </svg></div>
-    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}</p>{/if}
+    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 올린 신호 " + inspectedRaised : ""}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>
@@ -200,16 +207,19 @@
         <button type="button" class="link" onclick={() => {if (story?.first) onSelect(story.first.pointer);}}>그 측정 보기</button>{/if}</p>{/if}
       <ul class="priorities" aria-label="우선 살펴볼 모델 구간">
         {#each priorities as row (row.interval.start)}
+          {@const raised = raisedIn(row.interval, 2)}
           <li><strong>{row.label}</strong>
             <span>{place(row.interval.start)} ~ {place(row.interval.end)}</span>
             <span>{row.interval.steps}회 · 최고 점수 {num(row.interval.peak, "기록 없음")}</span>
+            {#if raised}<span>점수를 올린 신호 {raised}</span>{/if}
             <button type="button" class="ui-button" onclick={() => inspectInterval(row.interval)}>이 구간 분석 →</button></li>
         {/each}
       </ul>
       <h4>전체 기준 초과 구간 {trend.intervals.length}개</h4>
       <ul class="intervals" aria-label="기준 초과 구간">
         {#each trend.intervals as interval (interval.start)}
-          <li>{place(interval.start)} ~ {place(interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{interval.open ? " · 진행 중" : ""}
+          {@const raised = raisedIn(interval, 1)}
+          <li>{place(interval.start)} ~ {place(interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{raised ? " · " + raised : ""}{interval.open ? " · 진행 중" : ""}
             <button type="button" class="ui-button" onclick={() => choose(interval.start)}>시작 측정 보기</button></li>
         {/each}
       </ul>

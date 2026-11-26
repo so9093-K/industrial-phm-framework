@@ -21,6 +21,7 @@
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
   import {beforeInterval,type Interval} from "../model-trend";
+  import {raisersText,scoreRaisers} from "../score-raisers";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
   import {measurementLinks} from "../measurement-links";
@@ -312,9 +313,11 @@
     if (result.state === "skipped") return {"선택한 모델": model, "선택한 측정": measurement,
       "모델 결과": skipReasonText(result.reason)};
     const {score, threshold, exceeds} = scoreSummary(result.output);
+    const raised = raisersText(scoreRaisers(result.output.feature_contributions));
     return {"선택한 모델": model, "선택한 측정": measurement,
       "모델 점수": num(score, "기록 없음"), "모델 기준": num(threshold, "기록 없음"),
-      "기준 대비": exceeds === null ? "판단 정보 없음" : exceeds ? "기준 초과" : "기준 이하"};
+      "기준 대비": exceeds === null ? "판단 정보 없음" : exceeds ? "기준 초과" : "기준 이하",
+      ...(raised ? {"점수를 올린 신호": raised} : {})};
   });
 </script>
 

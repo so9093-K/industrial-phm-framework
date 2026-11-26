@@ -169,3 +169,25 @@ def test_a_model_that_cannot_run_is_not_a_related_model(tmp_path: Path) -> None:
     )
     assert context["related_models"] == []
     assert store.list_results("anomaly-b")
+
+
+def test_score_raisers_add_each_signals_features_and_name_their_share() -> None:
+    from industrial_phm.application.phm_signal_comparison import score_raisers, score_raisers_text
+
+    parts = {
+        "R상역률.mean": 0.3,
+        "R상역률.min": 0.22,
+        "R상전압.max": 0.4,
+        "R상전류.std": 0.08,
+        "R상전압.mean": -0.5,
+        "feature.Horizontal_vibration_signals.rms": 0.0,
+    }
+    assert score_raisers(parts) == [
+        ("R상역률", 52, "R상역률.mean"),
+        ("R상전압", 40, "R상전압.max"),
+        ("R상전류", 8, "R상전류.std"),
+    ]
+    assert score_raisers_text(parts) == "R상역률 52% · R상전압 40% · R상전류 8%"
+    vertical = "feature.Vertical_vibration_signals.rms"
+    assert score_raisers({vertical: 2.0}) == [("수직 진동", 100, vertical)]
+    assert score_raisers_text({"a.mean": -1.0}) == ""

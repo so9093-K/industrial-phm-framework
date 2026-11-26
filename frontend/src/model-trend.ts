@@ -4,7 +4,9 @@ import {isUnjudged,type ModelBinding,type StepPointer} from "./model-evidence.ts
 import {object} from "./writes.ts";
 import {sinceStart} from "./time-axis.ts";
 
-export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null};
+export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null;
+  /** The model's per-feature parts of this score, when it gives them. */
+  contributions?:unknown};
 export type Interval={start:number;end:number;steps:number;peak:number|null;open:boolean};
 export type ScoreTrend={points:TrendPoint[];intervals:Interval[];truncated:boolean};
 
@@ -181,7 +183,7 @@ export function mergeSeries(raw:unknown,binding:ModelBinding,known:Map<number,Tr
     known.set(step.position,{pointer:step,score:step.state==="analyzed"?finite(output.score):null,
       threshold:finite(output.threshold),
       exceeds:typeof output.exceeds_threshold==="boolean"?output.exceeds_threshold:null,
-      eventStart:typeof row.event_start==="string"?row.event_start:null});
+      eventStart:typeof row.event_start==="string"?row.event_start:null,contributions:output.feature_contributions??null});
   }
   const intervals=root.intervals.map((item:unknown):Interval=>{
     const row=object(item);

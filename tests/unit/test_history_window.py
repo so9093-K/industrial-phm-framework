@@ -181,6 +181,14 @@ def test_each_operating_level_is_learned_and_judged_apart(tmp_path: Path) -> Non
     assert usual_62 <= 1 and usual_31 <= 1 and odd_62 > usual_62
     with pytest.raises(OutsideLearnedLevel, match="operating level not learned: 11 A"):
         package.evaluate([row(11.0, 226.0)])
+    # What raised the odd window's score is its voltage, read against its own level's forest.
+    parts = package.feature_contributions([row(62.0, 226.0)])
+    assert parts is not None
+    voltage = sum(v for name, v in parts[0].items() if name.startswith("v."))
+    current = sum(v for name, v in parts[0].items() if name.startswith("i."))
+    assert voltage > 0 and voltage > current
+    with pytest.raises(OutsideLearnedLevel):
+        package.feature_contributions([row(11.0, 226.0)])
     # The learned range of a feature is the one of the level the window ran at.
     at_62 = fit_row_ranges(tmp_path / built.package_id, features={"i.mean": 62.0})
     at_31 = fit_row_ranges(tmp_path / built.package_id, features={"i.mean": 31.0})

@@ -13,7 +13,11 @@ import re
 from typing import Any
 
 from industrial_phm.application.phm_explanation import operator_explanation_context
-from industrial_phm.application.phm_signal_comparison import feature_label
+from industrial_phm.application.phm_signal_comparison import (
+    feature_label,
+    score_raisers,
+    signal_label,
+)
 from industrial_phm.genai.local_explanation import (
     AnalysisExplanationError,
     ExplanationProvider,
@@ -316,9 +320,14 @@ def answer_input(context: dict[str, Any]) -> dict[str, Any]:
         "range": shapes,
         "primary": primary,
         "candidates": candidates,
+        # 화면의 "점수를 올린 신호"와 같은 신호·몫, 그 신호에서 가장 크게 올린 특징.
         "contribution_order": [
-            feature_label(name)
-            for name, _ in sorted(contributions.items(), key=lambda item: -item[1])[:5]
+            {
+                "signal": item.signal,
+                "share": f"{item.share}%",
+                "largest": feature_label(item.feature),
+            }
+            for item in score_raisers(contributions)
         ]
         if isinstance(contributions, dict)
         else [],
@@ -398,8 +407,8 @@ _INSTRUCTIONS = (
     "사이에 어떻게 달라졌는지 말하고, 같은 두 시점에서 함께 달라진 측정 특징을 연결하세요. "
     "특징을 나열하지 말고 같은 채널의 진폭 특징(RMS·표준편차·피크)은 '수평 진동의 진폭'처럼 묶어 "
     "가장 관련 있는 두세 가지만 말하세요. 다음 탐색 제안은 summary가 아니라 next_step에만 쓰세요. "
-    "질문이 원인을 물으면 두 시점 비교로는 원인을 확정할 수 없다고 한 번만 말한 뒤, 함께 달라진 "
-    "측정 특징과 (contribution_order가 있으면) 모델 점수에 크게 반영된 특징을 구분해 답하세요. "
+    "질문이 원인이나 점수가 오른 이유를 물으면, contribution_order가 있을 때 모델 점수를 올린 "
+    "신호와 그 몫으로 먼저 답하고 함께 달라진 측정 특징을 이어서 말하세요. "
     "질문이 다른 모델의 결과를 물으면 related_models의 reference(기준 초과/이하)와 change로 "
     "답하세요. 두 모델의 판단이 다르면 각 모델의 reference를 함께 말하세요. "
     "threshold_ratio는 점수를 그 모델의 기준으로 나눈 값이라 숫자로 쓰지 말고 '기준에 가깝다', "
@@ -424,9 +433,9 @@ _INSTRUCTIONS = (
     "largest_step은 전체 구간의 인접한 분석 결과를 별도로 확인한 값입니다. "
     "급변을 물으면 largest_step을 쓰세요. level_shift_at이 없는 항목을 '그 지점부터 달라졌다'고 "
     "하지 말고 구간의 흐름(trend)으로 말하세요. "
-    "contribution_order는 모델 점수 계산에 크게 반영된 특징의 순서이며 설비 고장의 원인이 "
-    "아닙니다. 반영·기여를 말할 때는 contribution_order 앞쪽의 특징만 쓰고, 비어 있으면 말하지 "
-    "마세요. "
+    "contribution_order는 모델 점수를 올린 신호와 그 몫(share)이고, largest는 그 신호에서 가장 "
+    "크게 올린 특징입니다. 설비 고장의 원인은 아닙니다. 반영·기여를 말할 때는 contribution_order "
+    "앞쪽의 신호만 쓰고, 비어 있으면 말하지 마세요. "
     "size가 '뚜렷함'인 특징을 우선 언급하고, size가 없는 특징은 분포 모양의 변화라고만 쓰세요. "
     "related_models는 같은 입력을 쓴 다른 모델 결과입니다. "
     "정상·고장·위험·진단·정비 지시를 만들지 마세요. 마크다운, 수식 기호, 제목을 쓰지 마세요. "
@@ -584,13 +593,15 @@ def claim_issues(text: str, payload: dict[str, Any], *, field: str) -> list[str]
         issues.append(
             f"{field}: '{match.group()}' — 단위가 다른 특징의 변화 순위를 단정하지 마세요."
         )
-    top = {_bare(label) for label in payload["contribution_order"][:3]}
-    labels = [c["label"] for c in payload["candidates"]]
+    top = {item["signal"] for item in payload["contribution_order"][:3]}
     clauses = (
         c for sentence in sentences(text) for c in re.split(r",|\s(?:하며|이며|으며)\s", sentence)
     )
     for clause in filter(_ATTRIBUTION.search, clauses):
-        named = {name for name in map(_bare, labels) if name in clause}
+        # 특징을 말해도 그 특징의 신호가 점수를 올린 앞쪽 신호면 화면과 같은 말이다.
+        named = {
+            signal_label(c["id"]) for c in payload["candidates"] if _bare(c["label"]) in clause
+        }
         if not top or named - top:
             issues.append(
                 f"{field}: 모델 점수에 크게 반영된 특징은 {', '.join(sorted(top))}입니다."
