@@ -58,12 +58,16 @@
   const panels=$derived.by(()=>{
     const groups=new Map<string,TimelineLane[]>();
     for(const lane of lanes){const key=lane.unit?"unit:"+lane.unit:"lane:"+lane.key;groups.set(key,[...(groups.get(key)??[]),lane]);}
-    return [...groups.values()].map(members=>[...members].sort((a,b)=>a.label.localeCompare(b.label,"ko")))
+    return [...groups.values()].map(members=>[...members].sort((a,b)=>
+      axis==="acquisition"?a.key.localeCompare(b.key):a.label.localeCompare(b.label,"ko")))
       .sort((a,b)=>Number(b.includes(focused))-Number(a.includes(focused)));
   });
   function chartOf(members:TimelineLane[]){
     const main=members.includes(focused)?focused:members[0],many=members.length>1;
-    const group:FleetGroup={label:many?members.map(lane=>short(lane,true).replace(/상$/,"")).join("·")+"상 "+main.label.replace(/^[RST]상/,""):main.label,
+    const phases=many&&axis==="time"&&members.every(lane=>/^[RST]상/.test(lane.label));
+    const label=phases?members.map(lane=>short(lane,true).replace(/상$/,"")).join("·")+"상 "+main.label.replace(/^[RST]상/,"")
+      :many&&axis==="acquisition"?main.label.replace(/^(수평|수직)\s+/,""):main.label;
+    const group:FleetGroup={label,
       unit:main.unit,axis,focus:main.key,record,bucketMs:null,periodSeconds,
       series:members.map(lane=>({key:lane.key,channel:lane.key,label:lane.label,short:short(lane,many),
         points:visiblePoints(lane,range,zoomed).map(point=>({x:point.x,value:point.value,join:point.join===true}))}))};
