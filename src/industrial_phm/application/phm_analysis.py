@@ -741,7 +741,10 @@ def evaluate_with_package(package: LoadedModelPackage) -> StepEvaluator:
         }
         contributions = package.feature_contributions([inputs])
         if contributions is not None:
-            output["feature_contributions"] = dict(contributions[0])
+            # 점수를 올린 몫만 유효숫자 4자리로 남긴다. 결과마다 저장되어 점수 추이와 함께 읽힌다.
+            output["feature_contributions"] = {
+                name: float(f"{value:.4g}") for name, value in contributions[0].items() if value > 0
+            }
         return StepEvaluation(
             StepState.ANALYZED, output, {**next_state, "interval": tracker}, None, writes
         )

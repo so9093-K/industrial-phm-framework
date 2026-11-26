@@ -18,8 +18,8 @@ from industrial_phm.application.phm_signal_comparison import (
     attach_learned_ranges,
     attach_usual_ranges,
     feature_comparison,
-    feature_label,
     raw_signal_summary,
+    score_raisers_text,
 )
 
 
@@ -351,17 +351,14 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
             f"{'초과' if output.get('exceeds_threshold') else '이하'}입니다. "
             "정상·고장 판정이 아닙니다."
         )
-        if not output.get("feature_contributions"):
-            facts.append("변수별 기여도가 없으므로 원인 신호를 추정하지 마세요.")
+        parts = output.get("feature_contributions")
+        raisers = score_raisers_text(parts) if isinstance(parts, dict) else ""
+        if raisers:
+            facts.append(f"선택 시점의 모델 점수를 올린 신호(올린 몫): {raisers}")
+        elif isinstance(parts, dict):
+            facts.append(_NONE_RAISED)
         else:
-            facts.append("기여도는 모델 점수에 대한 잔차 기여이며 고장의 원인이 아닙니다.")
-            ranked = sorted(
-                output["feature_contributions"].items(), key=lambda item: item[1], reverse=True
-            )[:3]
-            facts.append(
-                "선택 시점의 잔차 기여가 큰 순서: "
-                + " → ".join(feature_label(name) for name, _ in ranked)
-            )
+            facts.append("변수별 기여도가 없으므로 원인 신호를 추정하지 마세요.")
     if isinstance(signals, dict):
         for row in signals.get("features", [])[:4]:
             if row["previous"] is not None:
@@ -407,6 +404,10 @@ def operator_explanation_context(context: dict[str, Any]) -> dict[str, Any]:
         "value_label": label,
         "facts": facts,
     }
+
+
+# 기여도를 주는 모델에서 올린 몫이 하나도 없으면, 모든 신호가 점수를 낮추는 쪽이었다는 사실이다.
+_NONE_RAISED = "모델 점수를 올린 신호가 없습니다. 모든 신호가 학습한 값 쪽이어서 점수를 낮췄습니다."
 
 
 def _n(value: Any) -> str:
@@ -462,12 +463,11 @@ def explanation_facts(
             )
         )
         contributions = output.get("feature_contributions")
-        if isinstance(contributions, dict) and contributions:
-            top = sorted(contributions.items(), key=lambda item: item[1], reverse=True)[:3]
-            facts.append(
-                "점수에 가장 크게 기여한 입력 특징(모델 잔차 기준): "
-                + ", ".join(f"{name}={_n(value)}" for name, value in top)
-            )
+        raisers = score_raisers_text(contributions) if isinstance(contributions, dict) else ""
+        if raisers:
+            facts.append(f"모델 점수를 올린 신호(올린 몫): {raisers}")
+        elif isinstance(contributions, dict):
+            facts.append(_NONE_RAISED)
         else:
             facts.append(
                 "이 모델은 변수별 기여도를 제공하지 않습니다. 원인 변수를 추정하지 마세요."

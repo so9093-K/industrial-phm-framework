@@ -46,4 +46,4 @@ ADR-0032의 모델은 사람이 고른 기준 기간 전체로 Isolation Forest 
 - Isolation Forest는 학습 범위 밖의 값을 학습 데이터의 가장 바깥쪽 점과 비슷한 점수로 매긴다. 수준별 학습은
   부하 차이를 걸러 내지만, 한 수준 안의 큰 변화가 늘 임계값을 넘는다는 보장은 아니다. 관제의 특이사항 판정과
   함께 읽는다.
-- 점수에 반영된 신호를 설명하는 SHAP은 수준별 forest 위에 붙인다(다음 결정).
+- 점수에 반영된 신호를 설명하는 SHAP은 수준별 forest 위에 붙인다([ADR-0035](0035-show-which-signals-raised-an-isolation-forest-score.md)).

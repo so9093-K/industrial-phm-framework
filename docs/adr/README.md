@@ -48,3 +48,4 @@ Accepted ADR의 과거 내용을 현재 설계에 맞추기 위해 다시 쓰지
 - [ADR-0032: Score stored measurement history with operator-built models over fixed windows](0032-history-window-steps-and-operator-built-models.md)
 - [ADR-0033: Retire the LSTM autoencoder and the PyTorch runtime](0033-retire-lstm-autoencoder-and-pytorch-runtime.md)
 - [ADR-0034: Learn and judge each operating level apart in operator-built history models](0034-learn-and-judge-each-operating-level-apart.md)
+- [ADR-0035: Show which signals raised an Isolation Forest score (TreeSHAP)](0035-show-which-signals-raised-an-isolation-forest-score.md)

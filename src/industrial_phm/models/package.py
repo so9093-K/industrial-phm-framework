@@ -19,6 +19,7 @@ from bisect import bisect_right
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
@@ -286,7 +287,12 @@ class LoadedModelPackage:
     def feature_contributions(
         self, rows: Sequence[Sequence[float]]
     ) -> tuple[dict[str, float], ...] | None:
-        """Per-feature parts of the value, only for estimators whose value decomposes."""
+        """Per-feature parts of each row's value, larger where a feature raised it more.
+
+        A PCA residual splits its value exactly. An Isolation Forest gives each feature's
+        TreeSHAP part of the shortened path (positive raised the score; the parts add up to
+        the forest's expected path length minus the row's). Other estimators give ``None``.
+        """
         if self._contributions is None:
             return None
         transformed = self._transform(rows)
@@ -516,7 +522,7 @@ def _restore(
         # Squared prediction error (SPE) and its exact per-feature decomposition.
         return (lambda rows: residual_squares(rows).sum(axis=1)), residual_squares
     if kind is EstimatorKind.ISOLATION_FOREST_BY_LEVEL:
-        return _restore_by_level(state, payload), None
+        return _restore_by_level(state, payload)
     if kind is EstimatorKind.ISOLATION_FOREST_REFIT:
         from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 
@@ -532,17 +538,28 @@ def _restore(
             random_state=int(state["random_seed"]),
         )
         estimator.fit(rows)
+        explain = _forest_parts(estimator, rows.shape[1])
         # Higher score means more anomalous, matching FittedIsolationForest.score.
-        return (lambda x: -cast(np.ndarray, estimator.score_samples(x))), None
+        return (lambda x: -cast(np.ndarray, estimator.score_samples(x))), (lambda x: explain()(x))
     raise ModelPackageError(f"unsupported estimator kind: {kind!r}")  # pragma: no cover
 
 
-def _restore_by_level(state: Mapping[str, Any], payload: Mapping[str, bytes]) -> _Evaluate:
+def _forest_parts(estimator: Any, width: int) -> Callable[[], Callable[[np.ndarray], np.ndarray]]:
+    """The forest's per-feature score parts, prepared on first use (loading only evaluates)."""
+    from industrial_phm.models.forest_shap import ForestShap
+
+    return cache(lambda: ForestShap(estimator, width).parts)
+
+
+def _restore_by_level(
+    state: Mapping[str, Any], payload: Mapping[str, bytes]
+) -> tuple[_Evaluate, _Evaluate]:
     """One Isolation Forest per learned level, each refitted from that level's kept rows.
 
     A row's level is read from its current feature with the edges frozen at build time. Its
     score is the level forest's score over that level's threshold, so 1 is the threshold at
     every level; a row at a level the model did not learn raises :class:`OutsideLearnedLevel`.
+    Its feature parts are the level forest's, in path length.
     """
     from sklearn.ensemble import IsolationForest
 
@@ -555,6 +572,7 @@ def _restore_by_level(state: Mapping[str, Any], payload: Mapping[str, bytes]) ->
     if len(names) != len(edges) + 1:
         raise ModelPackageError("every operating band needs a name")
     forests: dict[int, tuple[Any, np.ndarray, np.ndarray, float]] = {}
+    parts: dict[int, Callable[[], Callable[[np.ndarray], np.ndarray]]] = {}
     for key, level in state["levels"].items():
         band = int(key)
         members = rows[bands == band]
@@ -576,12 +594,17 @@ def _restore_by_level(state: Mapping[str, Any], payload: Mapping[str, bytes]) ->
         )
         estimator.fit((members - center) / scale)
         forests[band] = (estimator, center, scale, threshold)
+        parts[band] = _forest_parts(estimator, rows.shape[1])
 
-    def evaluate(x: np.ndarray) -> np.ndarray:
+    def levels_of(x: np.ndarray) -> list[int]:
         levels = [bisect_right(edges, float(row[index])) for row in x]
         for band in levels:
             if band not in forests:
                 raise OutsideLearnedLevel(names[band])
+        return levels
+
+    def evaluate(x: np.ndarray) -> np.ndarray:
+        levels = levels_of(x)
         out = np.empty(len(x), dtype=np.float64)
         for band in set(levels):
             estimator, center, scale, threshold = forests[band]
@@ -591,7 +614,16 @@ def _restore_by_level(state: Mapping[str, Any], payload: Mapping[str, bytes]) ->
             out[chosen] = raw / threshold
         return out
 
-    return evaluate
+    def explain(x: np.ndarray) -> np.ndarray:
+        levels = levels_of(x)
+        out = np.empty(x.shape, dtype=np.float64)
+        for band in set(levels):
+            _, center, scale, _ = forests[band]
+            chosen = np.asarray([level == band for level in levels])
+            out[chosen] = parts[band]()((x[chosen] - center) / scale)
+        return out
+
+    return evaluate, explain
 
 
 def _manifest_from_json(body: Mapping[str, Any]) -> ModelPackageManifest:
