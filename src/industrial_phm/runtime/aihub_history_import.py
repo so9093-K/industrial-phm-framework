@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 
-from industrial_phm.adapters.aihub_power import archive_sha256, iter_power_observations
+from industrial_phm.adapters.aihub_power import (
+    PowerObservation,
+    archive_sha256,
+    iter_power_observations,
+)
 from industrial_phm.adapters.aihub_power_history import (
     AIHUB_239_HISTORY_SCHEMA,
     AIHUB_239_SEMANTICS_DIGESTS,
     AIHUB_239_SEMANTICS_V3,
+    COPIED_FROM,
     PowerHistoryBinding,
     project_power_observation,
 )
@@ -46,6 +51,37 @@ def batch_id(selection_id: str, index: int) -> str:
     return f"aihub239:{selection_id}:{index}"
 
 
+def _same_time(records: Iterable[PowerObservation]) -> Iterator[list[PowerObservation]]:
+    """Consecutive records of one timestamp, in source order; members list a timestamp's
+    items together, so one pass sees each copy beside the item it repeats."""
+    group: list[PowerObservation] = []
+    for record in records:
+        if group and record.timestamp_text != group[0].timestamp_text:
+            yield group
+            group = []
+        group.append(record)
+    if group:
+        yield group
+
+
+def copies(group: Sequence[PowerObservation]) -> dict[int, str]:
+    """Record index -> copied item, for cells of one timestamp that repeat another item's value.
+
+    The copied item must hold exactly one value at that timestamp; with none or with
+    conflicting values nothing is judged a copy and the raw values stay as they are.
+    """
+    seen: dict[str, set[float]] = {}
+    for record in group:
+        if record.value is not None:
+            seen.setdefault(record.channel_name, set()).add(record.value)
+    found: dict[int, str] = {}
+    for record in group:
+        copied = COPIED_FROM.get(record.channel_name)
+        if copied is not None and record.value is not None and seen.get(copied) == {record.value}:
+            found[record.record_index] = copied
+    return found
+
+
 def _selected_batches(
     archive: Path,
     member: str,
@@ -57,27 +93,30 @@ def _selected_batches(
 ) -> Iterator[list[FileBackfillEvent]]:
     archive_bytes = archive.stat().st_size
     batch: list[FileBackfillEvent] = []
-    for record in iter_power_observations(archive, member):
-        if (record.device_id, record.device_board_id) != (
-            binding.device_id,
-            binding.device_board_id,
-        ):
-            raise ValueError("member source identifiers do not match the explicit binding")
-        local = datetime.fromisoformat(record.timestamp_text)
-        if not start <= local < end:
-            continue
-        batch.append(
-            project_power_observation(
-                record,
-                archive=archive,
-                archive_digest=digest,
-                archive_bytes=archive_bytes,
-                binding=binding,
+    for group in _same_time(iter_power_observations(archive, member)):
+        copied = copies(group)
+        for record in group:
+            if (record.device_id, record.device_board_id) != (
+                binding.device_id,
+                binding.device_board_id,
+            ):
+                raise ValueError("member source identifiers do not match the explicit binding")
+            local = datetime.fromisoformat(record.timestamp_text)
+            if not start <= local < end:
+                continue
+            batch.append(
+                project_power_observation(
+                    record,
+                    archive=archive,
+                    archive_digest=digest,
+                    archive_bytes=archive_bytes,
+                    binding=binding,
+                    copy_of=copied.get(record.record_index),
+                )
             )
-        )
-        if len(batch) == batch_size:
-            yield batch
-            batch = []
+            if len(batch) == batch_size:
+                yield batch
+                batch = []
     if batch:
         yield batch
 

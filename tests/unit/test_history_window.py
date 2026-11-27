@@ -218,3 +218,19 @@ def test_no_level_with_enough_reference_windows_builds_nothing(tmp_path: Path) -
     )
     assert built.package_id is None
     assert "약 62 A 운전 20개" in str(built.reason) and "약 31 A 운전 20개" in str(built.reason)
+
+
+def test_a_signal_without_values_in_the_reference_is_named_not_the_period(tmp_path: Path) -> None:
+    # 가져올 때 비운 칸(다른 item을 옮긴 값)만 있는 신호: 기간을 늘려도 모델을 만들 수 없다.
+    rows = _loaded(range(0, 400), 62.0, 214.0) + [_obs("h", m, None) for m in range(0, 400)]
+    request = HistoryModelRequest(
+        "asset", "s", ("v", "h"), AT - timedelta(minutes=3), AT + timedelta(minutes=400), 600
+    )
+    built = build_history_model(
+        tmp_path, _History(rows), request, created_at=AT, code_revision="test"
+    )
+    assert built.package_id is None
+    assert (
+        built.reason
+        == "h 신호는 기준 기간에 값이 없습니다. 이 신호를 빼거나 값이 있는 기간을 고르세요."
+    )
