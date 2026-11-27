@@ -279,3 +279,48 @@ def test_a_change_that_speeds_up_rises_more_in_its_second_half(tmp_path: Path) -
     assert first["from"] == change["from"] and second["to"] == change["to"] == 40
     assert first["to"] == second["from"]
     assert 0 < first["change"] < second["change"]
+
+
+def test_a_replayed_card_judges_only_the_signals_it_draws(tmp_path: Path) -> None:
+    # 재생 중인 관제 카드는 자기 그래프의 신호만 묻는다.
+    # 그 신호의 특이사항은 전체를 판정할 때와 같다.
+    workspace = phm_workspace(tmp_path / "ws", bind=False)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(workspace.history_catalog_path, workspace.history_data_path)
+    )
+    events = []
+    for index in range(40):
+        for channel, unit, value in (
+            ("current", "A", 10.0),
+            ("voltage", "V", 220 + (10 if index >= 20 else 0) + index % 3 * 0.01),
+            ("frequency", "Hz", 60 + (2 if index >= 24 else 0) + index * 7 % 5 * 0.003),
+        ):
+            events.append(
+                FileBackfillEvent(
+                    raw_evidence_id=f"file:meter:{'a' * 64}:{channel}-{index}",
+                    source_id="meter",
+                    asset_id="compressor",
+                    channel_id=channel,
+                    source_file="meter.csv",
+                    source_sha256="a" * 64,
+                    source_size_bytes=10,
+                    sample_index=index,
+                    event_at=BASE + timedelta(minutes=index),
+                    value=value,
+                    source_metadata_json='{"binding":{"definition":{"unit":"' + unit + '"}}}',
+                )
+            )
+    history.append_file_batch(tuple(events), batch_id="part-0")
+    until = BASE + timedelta(minutes=40)
+    whole = record_findings(workspace, "compressor", until=until)
+    drawn = record_findings(workspace, "compressor", until=until, channels=("voltage",))
+    assert whole["signal_count"] == 3 and drawn["signal_count"] == 1
+    assert "voltage" in {row["channel"] for row in whole["intervals"]}
+    assert {row["channel"] for row in drawn["intervals"]} == {"voltage"}
+
+    def span(body: dict[str, object]) -> tuple[str, str]:
+        rows = body["intervals"]
+        assert isinstance(rows, list)
+        return next((row["start"], row["end"]) for row in rows if row["channel"] == "voltage")
+
+    assert span(drawn) == span(whole)

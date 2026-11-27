@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {investigationHref, judgmentsOf, latestEpisode, parseGroup, positionAt, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
+import {investigationHref, judgmentsOf, latestEpisode, parseGroup, positionAt, readFleetChanges, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
 
 const hour = 3600_000;
 const phases = parseGroup({label: "상전압", unit: "V", axis: "time", focus: "r", bucket_seconds: 3600, period_seconds: null,
@@ -68,4 +68,21 @@ test("a 특이사항's judgment is its latest decision, last record time and lat
       event("2", "note", "", "2026-11-22T04:00:00Z", null)]}} as never;
   assert.deepEqual(judgmentsOf([capture])["k".repeat(64)],
     {decision: "inspect", closed: false, at: "2026-11-22T04:00:00Z", note: "부하가 줄 때 전압 상승"});
+});
+
+test("a replayed card asks only for the signals it draws; the whole record also reads the others", async () => {
+  const original = globalThis.fetch, asked: string[] = [];
+  globalThis.fetch = async (url) => {
+    asked.push(String(url));
+    return new Response(JSON.stringify({schema_version: 1, asset_id: "a", intervals: []}), {headers: {"content-type": "application/json"}});
+  };
+  try {
+    await readFleetChanges("a", phases, Date.parse("2020-10-04T02:00:00Z"), new AbortController().signal).catch(() => []);
+    await readFleetChanges("a", phases, null, new AbortController().signal).catch(() => []);
+  } finally { globalThis.fetch = original; }
+  const [replayed, whole] = asked.map(url => new URL(url, "http://local").searchParams);
+  // 재생 위치마다 한 달 기록의 모든 신호를 다시 판정하지 않도록, 카드가 그리는 신호만 묻는다.
+  assert.deepEqual(replayed.getAll("channel_id"), phases.series.map(row => row.channel));
+  assert.equal(replayed.get("record_until"), "2020-10-04T02:00:00.000Z");
+  assert.deepEqual(whole.getAll("channel_id"), []);
 });

@@ -257,6 +257,8 @@ def level_series(
 # Levels per source, so the summary and the comparison split by the same levels without reading
 # the whole record again. A record that grows changes its extent and so its entry.
 _SOURCE_LEVELS: dict[tuple[str, ...], tuple[tuple[str, str], OperatingLevels] | None] = {}
+# Each source's stored (channel, meaning) pairs over its whole extent, per snapshot.
+_STREAM_MEANINGS: dict[tuple[str, ...], tuple[tuple[str, str], ...]] = {}
 
 
 def source_levels(
@@ -293,14 +295,22 @@ def source_levels(
     start, end = stream.start_at, stream.end_at + timedelta(seconds=1)
     if until is not None:
         end = until
-    meanings = history.list_stream_meanings(
-        asset_id,
-        source_id=stream.source_id,
-        measurement_point_id=stream.measurement_point_id,
-        start_at=start,
-        end_at=end,
-        snapshot_id=snapshot_id,
-    )
+    # 어느 신호가 전류인지는 저장된 기록 전체의 의미로 정한다. 재생 위치마다 모든 신호의 의미를
+    # 다시 읽으면 한 달 1분 기록에서 위치 하나에 2초가 넘게 걸렸다.
+    meanings_key = key[:7]
+    meanings = _STREAM_MEANINGS.get(meanings_key)
+    if meanings is None:
+        meanings = history.list_stream_meanings(
+            asset_id,
+            source_id=stream.source_id,
+            measurement_point_id=stream.measurement_point_id,
+            start_at=stream.start_at,
+            end_at=stream.end_at + timedelta(seconds=1),
+            snapshot_id=snapshot_id,
+        )
+        if len(_STREAM_MEANINGS) > 64:
+            _STREAM_MEANINGS.clear()
+        _STREAM_MEANINGS[meanings_key] = meanings
     labels = {f"{channel}\0{meaning}": (channel, meaning) for channel, meaning in meanings}
     main = main_current([(name, display_unit(*pair), pair[1]) for name, pair in labels.items()])
     found = None
