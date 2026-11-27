@@ -8,7 +8,6 @@
   import RangeCompare from "./RangeCompare.svelte";
   import {systemUrl} from "../routes";
   import {countShare} from "../analysis-messages";
-  import {versusStart} from "../change-story";
   import {rangeEvidence} from "../change-evidence";
   import {focusFrom, focusParams} from "../signal-selection";
   import {comparisonDefault, defaultChannel, readSummary} from "../summary-defaults";
@@ -17,7 +16,7 @@
   import {readSignalNames,signalName,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
-  import {ORIGIN_TEXT, periodOrigin, type PeriodOrigin} from "../signal-selection";
+  import {ORIGIN_TEXT, periodNames, periodOrigin, type PeriodOrigin} from "../signal-selection";
   import {
     defaultPeriods, readProfile, readSources, validatePeriods, NoHistoryError,
     type CompareOperation, type Periods, type ProfileResult, type ProfileSeries, type SourceHistory,
@@ -57,11 +56,11 @@
   let profileAbort: AbortController | null = null;
 
   // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
-  const names = $derived(handedOver === "summary" ? {a: "초기", b: "특이사항 구간"} : {a: "기간 A", b: "기간 B"});
-  /** 한 출처의 두 기간: 크기 한 마디, 기간 A 값의 90% 범위 밖 측정 수, 전류가 낮았던 측정 비율이 크게 다를 때 그 차이. */
+  const names = $derived(periodNames(handedOver));
+  /** 한 출처의 두 기간: 기간 A 값의 90% 범위 밖 측정 수, 전류가 낮았던 측정 비율이 크게 다를 때 그 차이.
+   * 초기와 견준 배수는 관제·조사 화면의 '지금' 값 하나로만 말한다. 여기서 중앙값의 배수를 더하면 같은 변화에 배수가 둘이 된다. */
   function facts(row: ProfileSeries, unit: string | null) {
     const a = row.periods.a, b = row.periods.b, qa = a.quantiles;
-    const versus = a.median !== null && b.median !== null ? versusStart(b.median, a.median, unit, names.a) : null;
     const condition = level !== null && operation ? bandName(operation.names, level) : null;
     const outside = rangeEvidence({usable: b.usable, outside: row.outsideCount, low: qa?.[0] ?? null, high: qa?.[4] ?? null,
       unit, percent: row.outsidePercent}, names);
@@ -69,7 +68,7 @@
     const low = a.lowCurrent !== null && b.lowCurrent !== null && a.usable && b.usable
       && Math.abs(a.lowCurrent / a.usable - b.lowCurrent / b.usable) >= 0.1
       ? "전류 1 A 미만 측정 · " + names.a + " " + countShare(a.lowCurrent, a.usable) + " · " + names.b + " " + countShare(b.lowCurrent, b.usable) : null;
-    return {versus, condition, outside, low};
+    return {condition, outside, low};
   }
 
   function loadPeriodUrl(fallback: Periods): Periods {
@@ -313,7 +312,7 @@
       <p class="handed">{ORIGIN_TEXT[handedOver]}</p>
     {/if}
     {#if beforeRecord > 0}
-      <p class="context">기간 A의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
+      <p class="context">{names.a}의 앞 {beforeRecord >= 3600000 ? (beforeRecord / 3600000).toFixed(1) + "시간" : Math.ceil(beforeRecord / 60000) + "분"}은 기록이 시작되기 전이라 측정이 없습니다. 표의 측정 수로 두 기간의 양을 확인하세요.</p>
     {/if}
     {#if operation}{@const shown = operation}
         <p class="context">{level === null ? "운전 상태가 다른 값도 함께 비교합니다. 두 기간의 운전 상태 비율이 다르면 같은 상태의 값끼리 비교해야 합니다."
@@ -345,7 +344,7 @@
           {#if result.series.length > 1}<SourceIdentity id={row.source} name={sources_?.get(row.source)} pointId={row.point} interpretationId={row.interpretation} among={result.series.map(each=>each.source)}/>{/if}
           {#if row.periods.a.median !== null && row.periods.b.median !== null}
             <ComparisonValues caption={told.condition ? told.condition+" 중 측정의 중앙값" : "측정 중앙값"} {names}
-              a={num(row.periods.a.median)+(unit?" "+unit:"")} b={num(row.periods.b.median)+(unit?" "+unit:"")} note={told.versus}/>
+              a={num(row.periods.a.median)+(unit?" "+unit:"")} b={num(row.periods.b.median)+(unit?" "+unit:"")}/>
             {#if told.outside}<p class="fact">{told.outside}</p>{/if}
             {#if told.low}<p class="fact">{told.low}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="두 기간의 차이를 계산할 값이 부족합니다" message="기간별 측정 수와 품질을 확인하세요."/>{/if}

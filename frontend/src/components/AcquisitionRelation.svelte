@@ -19,7 +19,8 @@
   import {featureCompareHref,measurementLinks} from "../measurement-links";
   import {loadFeatureSource,preferredFeature,type FeatureSource} from "../acquisition-profile";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
-  import {readVibrationSummary,vibrationDefault} from "../summary-defaults";
+  import {handedSpans,isHanded,readVibrationSummary,vibrationDefault} from "../summary-defaults";
+  import {periodNames} from "../signal-selection";
   import {
     readAcquisitionRelation,AcquisitionRelationUnavailable,
     type AcquisitionRelation,
@@ -58,6 +59,9 @@
   let y=$state(params.get("acq_relation_y")??"");
   const linked=$derived.by(()=>{const current:FeatureSource|null=source;return current&&chosen?measurementLinks(assetId,chosen.point.ordinal,{first:current.first,last:current.last,feature:x}):[];});
   let fromSummary=$state(false);
+  // 특이사항에서 넘어온 기간이면 다른 화면과 같은 '초기'·'특이사항 구간', 직접 고치면 '기간 A'·'기간 B'.
+  const handed=handedSpans(location.search);
+  const names=$derived(periodNames(fromSummary||isHanded(spans,handed)?"summary":null));
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
   const count=(n:number|null)=>n===null?"계산 안 됨":n.toFixed(3);
@@ -168,7 +172,7 @@
     const crest = axis&&whole(ga)&&whole(gb)
       ? {a:middle(ga.points.map(p=>p[axis])),b:middle(gb.points.map(p=>p[axis]))} : null;
     return relationMessage(read.x,read.y,side(ga),side(gb),crest,[read.x,read.y].map(id=>({
-      label:featureLabel(id)+" 두 기간 비교",href:featureCompareHref(assetId,id,read.spans)})));
+      label:featureLabel(id)+" 두 기간 비교",href:featureCompareHref(assetId,id,read.spans)})),null,names);
   });
   onMount(()=>{void load();return()=>{sourceAbort?.abort();relationAbort?.abort();};});
 
@@ -177,9 +181,9 @@
     const {a, b} = relation.spans;
     return {
       "비교한 진동 특징": featureLabel(relation.x) + " × " + featureLabel(relation.y),
-      "비교 기간": `A ${a.from}–${a.to}번째, B ${b.from}–${b.to}번째 측정`,
+      "비교 기간": `${names.a} ${a.from}–${a.to}번째, ${names.b} ${b.from}–${b.to}번째 측정`,
       ...Object.fromEntries(relation.groups.map((group) => [
-        "기간 " + group.period.toUpperCase(), `${group.pairs}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}`,
+        names[group.period], `${group.pairs}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}`,
       ])),
       ...(message ? {"관계 요약": message.headline} : {}),
       ...(chosen ? {"선택한 측정": `${place(chosen.point.ordinal)} · ${measure(chosen.point.x, relation.xUnit)} · ${measure(chosen.point.y, relation.yUnit)}`} : {}),
@@ -198,11 +202,11 @@
     <StatusNotice kind="uncertain" title="비교할 진동 특징이 부족합니다"
       message={error||"같은 적용 모델에서 나온 서로 다른 특징이 두 개 이상 필요합니다."}/>
   {:else if source && spans}
-    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{featureLabel(x)} × {featureLabel(y)}</h3><p>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if source && spans}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{featureLabel(x)} × {featureLabel(y)}</h3><p>{names.a} · {spans.a.from}–{spans.a.to}회 / {names.b} · {spans.b.from}–{spans.b.to}회</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if source && spans}
     <p class="purpose">두 진동 특징이 함께 움직이는 방식이 달라졌는지 같은 측정의 특징값끼리 비교합니다. 계산식으로 연결된 특징의 높은 상관은 새로운 현상을 뜻하지 않을 수 있습니다.</p>
     <p class="context">데이터 출처 <strong>{readableSourceId(source.sourceId)}</strong>
       · {place(source.first)} ~ {place(source.last)}</p>
-    <p class="period-summary">기간 A · 비교 기준 {place(spans.a.from)} ~ {place(spans.a.to)}<br/>기간 B · 살펴볼 구간 {place(spans.b.from)} ~ {place(spans.b.to)}</p>
+    <p class="period-summary">{names.a} · 비교 기준 {place(spans.a.from)} ~ {place(spans.a.to)}<br/>{names.b} · 살펴볼 구간 {place(spans.b.from)} ~ {place(spans.b.to)}</p>
     <section class="conditions">
     <div class="controls">
       <label>가로축 특징
@@ -240,14 +244,14 @@
       {#if message}<p class="relationship-summary">{message.headline}</p>{/if}
       <div class="relation-workspace"><div class="pair">
       {#if axes}<RelationPlot bounds={axes} timeScale={measurementScale(period)}
-        groups={relation.groups.map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,at:point.ordinal,label:place(point.ordinal)}))}))}
+        groups={relation.groups.map(group=>({period:group.period,label:names[group.period],points:group.points.map(point=>({x:point.x,y:point.y,at:point.ordinal,label:place(point.ordinal)}))}))}
         xLabel={featureLabel(x)+(relation.xUnit?" · "+relation.xUnit:"")} yLabel={featureLabel(y)+(relation.yUnit?" · "+relation.yUnit:"")}
         picked={chosen?{period:chosen.period,index:relation.groups.find(group=>group.period===chosen.period)?.points.findIndex(point=>point.ordinal===chosen.point.ordinal)??0}:null}
         onPick={(period,index)=>{const group=relation?.groups.find(group=>group.period===period);if(group)pickMeasurement(period,group.points[index].ordinal);}}/>{/if}
       <details class="period-statistics"><summary>기간별 상관계수·측정 수</summary>
       {#each relation.groups as group(group.period)}
         <section class="group">
-          <h3>기간 {group.period.toUpperCase()}</h3>
+          <h3>{names[group.period]}</h3>
           <p class="context span">{place(spans[group.period].from)} ~ {place(spans[group.period].to)}</p>
           {#if group.sampled||group.points.length<group.pairs}
             <StatusNotice kind="uncertain"
@@ -283,7 +287,7 @@
       {/each}
       </details></div>
       {#if chosen}<aside class="relation-inspector" aria-label="선택한 측정">
-        <header><h3>{chosen.point.ordinal}번째 측정</h3><span>기간 {chosen.period.toUpperCase()}</span></header>
+        <header><h3>{chosen.point.ordinal}번째 측정</h3><span>{names[chosen.period]}</span></header>
         <dl><div><dt>{featureLabel(x)}</dt><dd>{measure(chosen.point.x,relation.xUnit)}</dd></div>
           <div><dt>{featureLabel(y)}</dt><dd>{measure(chosen.point.y,relation.yUnit)}</dd></div></dl>
         <nav aria-label="이 측정에서 이어서 분석">{#each linked.filter(link=>link.key!=="features") as link(link.key)}<a href={link.href}

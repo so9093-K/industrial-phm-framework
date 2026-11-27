@@ -578,11 +578,12 @@ def _vibration_spectrum(workspace: OperationsWorkspace, context: dict[str, Any])
     out: dict[str, str] = {}
     for channel in spectrum["channels"]:
         bands = channel["band_shares"]
-        if not bands or channel["power_ratio"] is None:
+        if not bands:
             continue
         band = max(bands, key=lambda item: abs(item["b"] - item["a"]))
+        # 크기는 RMS의 '초기의 약 N배' 하나로 말한다. 전체 에너지 배율(RMS의 제곱)을 더하면
+        # 같은 변화에 배수가 둘이 되어, 주파수 화면처럼 어디서 커졌는지만 넘긴다.
         out[channel["label"]] = (
-            f"전체 에너지 초기의 약 {channel['power_ratio']:.3g}배, "
             f"{band['from_hz']:,.0f}~{band['to_hz']:,.0f} Hz 비중 "
             f"{band['a'] * 100:.3g}% → {band['b'] * 100:.3g}%"
         )

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {HistoryGroup} from "./history.ts";
 import {
-  MAX_SPAN_MS, atFinest, focusFrom, focusGroups, focusParams, momentWindow, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
+  MAX_SPAN_MS, atFinest, focusFrom, focusGroups, focusParams, momentWindow, periodNames, periodOrigin, periodParams, periodsBefore, pickFrom, snapInside, snapSpan, summarize, windowParams, zoomWindow,
 } from "./signal-selection.ts";
 
 const at = (minute: number) => Date.parse("2026-10-01T00:00:00Z") + minute * 60000;
@@ -98,3 +98,11 @@ test("handed-over periods name where they came from and a pick reads back", () =
 });
 
 
+
+test("two periods carry the names of the screen they came from, and A·B once edited", () => {
+  // 특이사항에서 넘어온 두 기간은 모니터링·조사 화면과 같은 이름이다. 기간을 고치면 출처가 없어져 A·B로 부른다.
+  assert.deepEqual(periodNames("summary"), {a: "초기", b: "특이사항 구간"});
+  assert.deepEqual(periodNames("previous"), {a: "직전 구간", b: "특이사항 구간"});
+  assert.deepEqual(periodNames(null), {a: "기간 A", b: "기간 B"});
+  assert.deepEqual(periodNames("signal"), {a: "기간 A", b: "기간 B"});
+});

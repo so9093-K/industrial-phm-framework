@@ -18,6 +18,8 @@ export type ModelBinding={
   reference?:string;
   /** For a model that learned each operating level apart: which levels it judges (ADR-0034). */
   levels?:string;
+  /** When the model was connected to the asset: a model rebuilt for the same stream is newer. */
+  createdAt?:string|null;
 };
 const kstShort=(iso:string)=>clockText(iso);
 /** A model someone built from their own record learned a period they chose, not one confirmed
@@ -172,7 +174,8 @@ export function parseModelBindings(raw:unknown,assetId:string|null):ModelBinding
       lastAnalyzed:last("latest_analyzed"),lastProcessed:last("latest_processed"),
       ...(typeof minimum==="number"&&Number.isSafeInteger(minimum)&&minimum>0?{minimumIntervalSteps:minimum}:{}),
       ...(referenceOf(packageSummary)?{reference:referenceOf(packageSummary)}:{}),
-      ...(levelsOf(packageSummary)?{levels:levelsOf(packageSummary)}:{})};
+      ...(levelsOf(packageSummary)?{levels:levelsOf(packageSummary)}:{}),
+      createdAt:typeof row.created_at==="string"&&Number.isFinite(Date.parse(row.created_at))?row.created_at:null};
   }).filter(binding=>assetId===null||binding.assetId===assetId);
 }
 function pointer(raw:unknown):StepPointer{
@@ -294,7 +297,10 @@ export function latestModel(scores:LatestScore[]):ModelBinding|null{
   for(const item of available){
     const key=JSON.stringify([item.binding.sourceId,item.binding.pointId,item.binding.stepKind]);
     const current=streams.get(key);
-    if(!current||item.run.position>current.run.position)streams.set(key,item);
+    // 같은 기록을 같은 측정까지 분석한 모델끼리는 나중에 만든 모델을 연다: 다시 만든 모델이 앞의 것을 대신한다.
+    const newer=(one:ModelBinding,other:ModelBinding)=>Date.parse(one.createdAt??"")>Date.parse(other.createdAt??"");
+    if(!current||item.run.position>current.run.position
+      ||item.run.position===current.run.position&&newer(item.binding,current.binding))streams.set(key,item);
   }
   const latest=[...streams.values()];
   const time=(run:ModelRun)=>Date.parse(run.eventEnd??run.eventStart??"");

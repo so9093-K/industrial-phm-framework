@@ -12,7 +12,7 @@
   import AnalysisMessage from "./AnalysisMessage.svelte";
   import {relationMessage,sameXText,short,shortRange} from "../analysis-messages";
   import ComparisonValues from "./ComparisonValues.svelte";
-  import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin} from "../signal-selection";
+  import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin,periodNames} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
   import {num} from "../format";
   import {movedAtSameX,sameXRanges} from "../relation";
@@ -35,6 +35,8 @@
   let periods:Periods|null=$state(null);
   // Periods handed over from a span picked on the signal chart; said on screen until edited.
   let handedOver:PeriodOrigin|null=$state(periodOrigin(location.search));
+  // 넘어온 기간이면 다른 화면과 같은 이름('초기'·'특이사항 구간' 등), 직접 고치면 '기간 A'·'기간 B'.
+  const spanNames=$derived(periodNames(handedOver));
   // Why the screen opened on its pair when the summary chose it; said until anything is edited.
   let summaryNote=$state("");
   // 요약의 대표 변화가 판단된 운전 수준. 결론 문장을 같은 수준에서 말해 요약과 숫자가 어긋나지 않게 한다.
@@ -181,9 +183,9 @@
     return {
       "비교 신호": xName + " × " + yName,
       "비교한 기록": sourceLabel(sourceNames, pair.source, pairs.map((item) => item.source)) + (pair.point ? " · " + pair.point : ""),
-      "기간 A": periodText("a") + " · " + stats(pair.a),
-      "기간 B": periodText("b") + " · " + stats(pair.b),
-      "같은 범위에서 비교": moved ? sameXText(moved, {name:xName, unit:xUnit}, {name:yName, unit:yUnit}) : "같은 범위의 중앙값 차이가 표시되지 않음",
+      [spanNames.a]: periodText("a") + " · " + stats(pair.a),
+      [spanNames.b]: periodText("b") + " · " + stats(pair.b),
+      "같은 범위에서 비교": moved ? sameXText(moved, {name:xName, unit:xUnit}, {name:yName, unit:yUnit}, spanNames) : "같은 범위의 중앙값 차이가 표시되지 않음",
       ...(point ? {"선택한 측정": `${asTime(point.at)} · ${axisName(x,xUnit)} ${short(point.x)} · ${axisName(y,yUnit)} ${short(point.y)}`} : {}),
     };
   });
@@ -233,11 +235,11 @@
       message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
-    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>A · {periodText("a")} / B · {periodText("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>{spanNames.a} · {periodText("a")} / {spanNames.b} · {periodText("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
 
     <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
-      <p><strong>기간 A · 비교 기준</strong><span>{periodText("a")}</span></p>
-      <p><strong>기간 B · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
+      <p><strong>{spanNames.a} · 비교 기준</strong><span>{periodText("a")}</span></p>
+      <p><strong>{spanNames.b} · 살펴볼 구간</strong><span>{periodText("b")}</span></p>
     </div>
     {#if focus}<p class="context">선택한 출처 {sourceLabel(sourceNames,focus.source)}{focus.point?" · "+focus.point:""}의 기록을 보고 있습니다.</p>
       {#if resultState!=="empty" || !relation}<button type="button" class="ui-button" onclick={()=>{focus=null;remember();close();void compare();}}>다른 출처의 기록 보기</button>{/if}{/if}
@@ -267,17 +269,17 @@
         {@const xUnit=pair.a?.xUnit??pair.b?.xUnit??null}
         {@const yUnit=pair.a?.yUnit??pair.b?.yUnit??null}
         {@const moved=movedAtSameX(ranges,summaryBand)}
-        {@const sameX=moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit}):null}
+        {@const sameX=moved?sameXText(moved,{name:signalName(names,x),unit:xUnit},{name:signalName(names,y),unit:yUnit},spanNames):null}
         {@const message=relation?relationMessage(relation.x,relation.y,side(pair.a),side(pair.b),null,[],
-          sameX):null}
+          sameX,spanNames):null}
         {@const explained=sameX&&moved?{...(message??{meaning:null,next:[]}),headline:sameX,
-          certainty:"이 범위에서 비교한 측정 수는 기간 A "+moved.shown.a.pairs+"개 · 기간 B "+moved.shown.b.pairs+"개입니다."}:message}
+          certainty:"이 범위에서 비교한 측정 수는 "+spanNames.a+" "+moved.shown.a.pairs+"개 · "+spanNames.b+" "+moved.shown.b.pairs+"개입니다."}:message}
         <section class="group">
           {#if pairs.length>1}<p class="record-label">{sourceLabel(sourceNames,pair.source,pairs.map(each=>each.source))}{#if pair.point}{" · "+pair.point}{/if}</p>{/if}
           {#if explained}
             {#if moved}<ComparisonValues
               caption={signalName(names,x)+" "+shortRange(moved.shown.low,moved.shown.high)+(xUnit?" "+xUnit:"")+"일 때의 "+signalName(names,y)+" 중앙값"}
-              names={{a:handedOver==="previous"?"직전 구간":handedOver==="summary"?"초기":"기간 A",b:handedOver==="previous"||handedOver==="summary"?"특이사항 구간":"기간 B"}}
+              names={spanNames}
               a={short(moved.shown.a.median)+(yUnit?" "+yUnit:"")} b={short(moved.shown.b.median)+(yUnit?" "+yUnit:"")}/>
             {:else if common}
               <p class="relationship-summary">두 기간 모두 측정이 충분한 {signalName(names,x)} {shortRange(common.low,common.high)}{xUnit?" "+xUnit:""} 범위를 그래프에 표시했습니다.</p>
@@ -285,7 +287,7 @@
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
           {#if axes}<RelationPlot bounds={axes}
-            groups={[pair.a,pair.b].filter((group):group is PairedGroup=>group!==null).map(group=>({period:group.period,label:group.period==="a"?"기간 A":"기간 B",points:group.points.map(point=>({x:point.x,y:point.y,at:Date.parse(point.at),label:asTime(point.at)}))}))}
+            groups={[pair.a,pair.b].filter((group):group is PairedGroup=>group!==null).map(group=>({period:group.period,label:spanNames[group.period],points:group.points.map(point=>({x:point.x,y:point.y,at:Date.parse(point.at),label:asTime(point.at)}))}))}
             xLabel={axisName(x,xUnit)} yLabel={axisName(y,yUnit)} timeScale={{kind:"clock"}} band={moved?.shown??common}
             picked={chosen?.key===pair.key?{period:chosen.period,index:chosen.index}:null} onPick={(period,index)=>chosen={key:pair.key,period,index}}/>{/if}
           {#if chosen?.key===pair.key}
@@ -293,7 +295,7 @@
             {@const shown=pair[chosen.period]}
             {#if point}
               <div class="chosen" aria-live="polite">
-                <p><strong>선택한 점 · 기간 {chosen.period.toUpperCase()} · {asTime(point.at)}</strong></p>
+                <p><strong>선택한 점 · {spanNames[chosen.period]} · {asTime(point.at)}</strong></p>
                 <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
                 <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
                   <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
@@ -301,9 +303,9 @@
             {/if}
           {/if}
           <details class="coefficients"><summary>기간별 상관계수·측정 수</summary>
-            {#each [pair.a,pair.b] as group,i(i)}{#if group}<dl><div><dt>기간 {group.period.toUpperCase()}</dt><dd>{group.pairCount.toLocaleString("ko-KR")}개 측정</dd></div>
+            {#each [pair.a,pair.b] as group,i(i)}{#if group}<dl><div><dt>{spanNames[group.period]}</dt><dd>{group.pairCount.toLocaleString("ko-KR")}개 측정</dd></div>
               <div><dt>상관계수</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(2)}</dd></div></dl>
-              {#if group.sampled}<p class="context">그래프에는 기간 {group.period.toUpperCase()}의 측정 일부를 표시합니다.</p>{/if}{/if}{/each}
+              {#if group.sampled}<p class="context">그래프에는 {spanNames[group.period]}의 측정 일부를 표시합니다.</p>{/if}{/if}{/each}
           </details>
           {#if explained}<details class="interpretation"><summary>관계 해석과 이어서 분석</summary><AnalysisMessage message={explained} showHeadline={false}
             boundary="두 값이 함께 변했다는 사실만으로 원인을 정하지 않습니다." /></details>{/if}
@@ -315,7 +317,7 @@
               <p class="context">{sameX}</p>
               <div class="table-scroll"><table>
                 <caption>두 기간이 함께 지난 {signalName(names,x)} 범위를 같은 폭으로 나눠, 양쪽에 짝이 20개 이상인 범위만 견줍니다. 모든 짝으로 계산합니다.</caption>
-                <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">기간 A 중앙값 (가운데 절반)</th><th scope="col">기간 B 중앙값</th><th scope="col">짝 A · B</th></tr></thead>
+                <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">{spanNames.a} 중앙값 (가운데 절반)</th><th scope="col">{spanNames.b} 중앙값</th><th scope="col">짝 수</th></tr></thead>
                 <tbody>{#each ranges as range (range.a.bin)}
                   <tr class:moved={range.b.median<range.a.q1||range.b.median>range.a.q3}>
                     <td>{unit(shortRange(range.low,range.high),xUnit)}</td>
@@ -330,7 +332,7 @@
           {#each [pair.a,pair.b] as group,i(i)}
             {#if group}
               <details>
-                <summary>기간 {group.period.toUpperCase()} · 같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
+                <summary>{spanNames[group.period]} · 같은 시각 측정 짝 보기 ({group.points.length}개)</summary>
                 <div class="table-scroll"><table>
                   <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다</caption>
                   <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{signalName(names,x)}</th><th scope="col">{signalName(names,y)}</th></tr></thead>

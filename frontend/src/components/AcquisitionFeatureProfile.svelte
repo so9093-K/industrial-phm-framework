@@ -13,7 +13,8 @@
   import {num} from "../format";
   import {defaultSpans,validateSpans,type Spans} from "../spectrum";
   import {readVibrationSummary,vibrationDefault} from "../summary-defaults";
-  import {plainLabel,versusStart} from "../change-story";
+  import {periodNames} from "../signal-selection";
+  import {plainLabel} from "../change-story";
   import {rangeEvidence} from "../change-evidence";
   import ComparisonValues from "./ComparisonValues.svelte";
   import {
@@ -139,7 +140,7 @@
   onMount(()=>{void loadSource();return()=>{listAbort?.abort();profileAbort?.abort();};});
   const label=(value:number|null)=>num(value);
   // 모니터링에서 같은 변화로 열었으면 중심 화면과 같은 이름을 쓴다. 기간을 직접 고치면 A·B로 돌아간다.
-  const names=$derived(fromSummary?{a:"초기",b:"특이사항 구간"}:{a:"기간 A",b:"기간 B"});
+  const names=$derived(periodNames(fromSummary?"summary":null));
   // 기간 A 값의 90% 범위(5~95%): 시간 추이에 띠로 그리고, 그 밖의 B 측정 수를 한 줄로 쓴다.
   const usual=$derived.by(()=>{
     const read:FeatureProfile|null=profile,q=read?.a.quantiles;
@@ -148,10 +149,10 @@
   const facts=$derived.by(()=>{
     const read:FeatureProfile|null=profile;
     if(!read)return null;
-    const versus=read.a.median!==null&&read.b.median!==null?versusStart(read.b.median,read.a.median,read.unit??null,names.a):null;
+    // 초기와 견준 배수는 관제·조사 화면의 '지금' 값 하나로만 말한다. 중앙값의 배수를 더하면 같은 변화에 배수가 둘이 된다.
     const outside=rangeEvidence({usable:read.b.usable,outside:read.outsideCount,low:usual?.low??null,high:usual?.high??null,
       unit:read.unit??null},names);
-    return {versus,outside};
+    return {outside};
   });
 
   exposeAnalysis(() => {
@@ -213,7 +214,7 @@
       <section class="evidence">
         {#if profile.a.median !== null && profile.b.median !== null}
           <ComparisonValues caption="측정 중앙값" {names} a={label(profile.a.median)+(profile.unit?" "+profile.unit:"")}
-            b={label(profile.b.median)+(profile.unit?" "+profile.unit:"")} note={facts?.versus}/>
+            b={label(profile.b.median)+(profile.unit?" "+profile.unit:"")}/>
         {/if}
         {#if facts?.outside}<p class="comparison-fact">{facts.outside}</p>{/if}
         <div class="comparison-plots"><div>

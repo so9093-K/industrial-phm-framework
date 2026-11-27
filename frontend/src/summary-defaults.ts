@@ -105,7 +105,19 @@ export async function defaultChannel(assetId: string, ids: string[], signal: Abo
 }
 
 /** 진동 탭이 상태 요약의 대표 변화를 그대로 이어받았을 때 함께 보여 주는 문장. */
-export const VIBRATION_SUMMARY_NOTE = "모니터링 화면의 변화와 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 특이사항 구간입니다.";
+/** 조사 화면이 넘긴 진동 두 기간(초기·특이사항 구간). 주소에 compare_origin=summary와 함께 실려 온다. */
+export function handedSpans(search: string): Spans | null {
+  const query = new URLSearchParams(search), keys = ["a_from", "a_to", "b_from", "b_to"].map(key => "acq_" + key);
+  if (query.get("compare_origin") !== "summary" || !keys.every(key => query.has(key))) return null;
+  const [aFrom, aTo, bFrom, bTo] = keys.map(key => Number(query.get(key)));
+  return [aFrom, aTo, bFrom, bTo].every(Number.isSafeInteger) ? {a: {from: aFrom, to: aTo}, b: {from: bFrom, to: bTo}} : null;
+}
+/** 보이는 두 기간이 조사 화면이 넘긴 그 기간인지. 그렇다면 다른 화면과 같은 이름('초기'·'특이사항 구간')으로 부른다. */
+export function isHanded(spans: Spans | null, handed: Spans | null): boolean {
+  return !!spans && !!handed && spans.a.from === handed.a.from && spans.a.to === handed.a.to
+    && spans.b.from === handed.b.from && spans.b.to === handed.b.to;
+}
+export const VIBRATION_SUMMARY_NOTE = "초기는 기록 처음 30%, 특이사항 구간은 모니터링 화면의 특이사항과 같은 기간입니다.";
 
 /** 진동 탭을 바로 열었을 때의 기본값: 상태 요약이 앞세우는 진동 변화와 같은 특징과 기간(판단에 쓴
  * 기록 처음 30%를 A, 변화 구간을 B), 그리고 같은 측정에서 함께 달라진 특징 하나. 다른 모델 연결의

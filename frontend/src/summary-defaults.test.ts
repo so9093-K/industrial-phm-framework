@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {comparisonDefault, relationPair, summarySignal, vibrationDefault} from "./summary-defaults.ts";
+import {comparisonDefault, handedSpans, isHanded, relationPair, summarySignal, vibrationDefault} from "./summary-defaults.ts";
 import type {VibrationFindings} from "./vibration-findings.ts";
 import {suggestedHorizon} from "./projections.ts";
 import type {FoundInterval, RecordFindings} from "./record-findings.ts";
@@ -100,4 +100,15 @@ test("a vibration tab opened without a choice starts from the summary's change, 
   assert.equal(vibrationDefault(found, "other", ["feature.V.rms"]), null);
   assert.equal(vibrationDefault(found, "b", ["feature.H.rms"]), null);
   assert.equal(vibrationDefault(found, "b", ["feature.V.rms"])?.related, null);
+});
+
+test("periods handed over by the investigation keep its names until they are edited", () => {
+  // 조사 화면이 넘긴 두 기간 그대로면 '초기'·'특이사항 구간', 한 끝이라도 고치면 그 이름을 쓰지 않는다.
+  const search = "?compare_origin=summary&acq_a_from=1&acq_a_to=37&acq_b_from=76&acq_b_to=123";
+  const handed = handedSpans(search);
+  assert.deepEqual(handed, {a: {from: 1, to: 37}, b: {from: 76, to: 123}});
+  assert.equal(isHanded({a: {from: 1, to: 37}, b: {from: 76, to: 123}}, handed), true);
+  assert.equal(isHanded({a: {from: 1, to: 37}, b: {from: 100, to: 123}}, handed), false);
+  assert.equal(handedSpans("?acq_a_from=1&acq_a_to=37&acq_b_from=76&acq_b_to=123"), null);
+  assert.equal(handedSpans("?compare_origin=summary&acq_a_from=1"), null);
 });
