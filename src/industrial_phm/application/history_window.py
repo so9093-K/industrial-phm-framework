@@ -495,11 +495,14 @@ def build_history_model(
     meanings: dict[str, set[Meaning]] = {channel: set() for channel in channels}
     skipped = 0
     names = feature_names(channels)
+    # 구간이 빠졌어도 값이 있었던 신호: 값이 하나도 없는 신호를 이름으로 말하려고 센다.
+    seen: set[str] = set()
     for window in group_windows(
         rows, seconds=seconds, measurement_point_id=request.measurement_point_id
     ):
         if window.start < start or window.end > request.reference_end:
             continue
+        seen.update(channel_meanings(window, channels)[0])
         values, _ = window_features(window, channels)
         if values is None:
             skipped += 1
@@ -517,6 +520,17 @@ def build_history_model(
             "바뀌기 전이나 후로 기간을 좁히세요.",
         )
     learned = {channel: list(next(iter(kinds))) for channel, kinds in meanings.items() if kinds}
+    # 기준 기간에 값이 하나도 없는 신호가 있으면 모든 구간이 빠진다.
+    # 기간이 아니라 그 신호가 원인이다.
+    silent = [channel for channel in channels if channel not in seen]
+    if silent and len(reference) < MIN_REFERENCE_WINDOWS:
+        return HistoryModelBuild(
+            None,
+            len(reference),
+            skipped,
+            reason=f"{', '.join(silent)} 신호는 기준 기간에 값이 없습니다. "
+            "이 신호를 빼거나 값이 있는 기간을 고르세요.",
+        )
     if len(reference) < MIN_REFERENCE_WINDOWS:
         return HistoryModelBuild(
             None,

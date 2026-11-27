@@ -92,7 +92,7 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     )
     assert first["event_count"] == 3
     assert first["snapshot_id"] > 0
-    assert first["metadata_schema"] == "aihub-239-history-v5"
+    assert first["metadata_schema"] == "aihub-239-history-v6"
     assert first["semantic_binding_version"] == "aihub-239-semantics-v3"
     assert again["recovered_batch_count"] == 1
     assert first["snapshot_id"] == again["snapshot_id"]
@@ -102,7 +102,7 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     assert metadata["raw_timestamp"] == "2021-02-03 07:01:07"
     assert metadata["binding"]["timezone_evidence"] == _binding().timezone_evidence
     # R상전류 is one of the items where the provider unit table and data agree.
-    assert metadata["schema"] == "aihub-239-history-v5"
+    assert metadata["schema"] == "aihub-239-history-v6"
     assert metadata["semantics"]["version"] == "aihub-239-semantics-v3"
     assert metadata["semantics"]["definition"]["observed_property"] == "phase current"
     assert metadata["semantics"]["definition"]["unit"] == "A"
@@ -142,6 +142,77 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
         import_history(archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=2), history)
 
 
+def _copied_archive(tmp_path):
+    """Two timestamps: the first repeats R상전류 and R상전압 in harmonic and line-voltage
+    cells, as 공기압축기 SourceData_76 does until 2020-10-16; the second holds real values."""
+    rows = [
+        ("2021-02-03 07:01:07", "R상전류", 61.3472),
+        ("2021-02-03 07:01:07", "R상전류고조파", 61.3472),
+        ("2021-02-03 07:01:07", "R상전압", 217.074),
+        ("2021-02-03 07:01:07", "R상선간전압", 217.074),
+        ("2021-02-03 07:01:07", "R상전압고조파", 8.3),
+        ("2021-02-03 07:02:07", "R상전류", 61.125),
+        ("2021-02-03 07:02:07", "R상전류고조파", 42.38),
+        ("2021-02-03 07:02:07", "R상전압", 220.0),
+        ("2021-02-03 07:02:07", "R상선간전압", 380.75),
+        # 옮겨 올 item이 서로 다른 두 값을 가지면 판단하지 않는다.
+        ("2021-02-03 07:03:07", "S상전류", 10.0),
+        ("2021-02-03 07:03:07", "S상전류", 11.0),
+        ("2021-02-03 07:03:07", "S상전류고조파", 10.0),
+    ]
+    path = tmp_path / "copied.zip"
+    with ZipFile(path, "w") as archive:
+        archive.writestr(
+            MEMBER,
+            json.dumps(
+                {
+                    "DEVICE_ID": 7303,
+                    "DEVICE_BD_ID": 1,
+                    "data": [
+                        {"ITEM_NAME": name, "ITEM_VALUE": value, "TIMESTAMP": at}
+                        for at, name, value in rows
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+        )
+    return path
+
+
+def test_a_cell_repeating_another_items_value_keeps_its_record_but_no_value(tmp_path, monkeypatch):
+    archive = _copied_archive(tmp_path)
+    treat_archive_as_profiled(monkeypatch, archive)
+    history = DuckLakeAssetHistory(
+        DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
+    )
+    result = import_history(
+        archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(minutes=3), history
+    )
+    assert result["event_count"] == 12
+    stored = {
+        (json.loads(event.source_metadata_json)["raw_timestamp"], event.channel_id, index): event
+        for index, event in enumerate(history.query_file_events("research-source"))
+    }
+    by_cell = {(at, channel): event for (at, channel, _), event in stored.items()}
+    first, second = "2021-02-03 07:01:07", "2021-02-03 07:02:07"
+    for channel, copied, raw in (
+        ("R상전류고조파", "R상전류", 61.3472),
+        ("R상선간전압", "R상전압", 217.074),
+    ):
+        event = by_cell[(first, channel)]
+        metadata = json.loads(event.source_metadata_json)
+        assert event.value is None
+        assert metadata["copy_of"] == copied
+        assert metadata["raw_record"]["ITEM_VALUE"] == raw
+    # 옮겨 온 item 자신과, 같은 시각이라도 다른 값을 가진 칸은 그대로다.
+    assert by_cell[(first, "R상전류")].value == 61.3472
+    assert by_cell[(first, "R상전압고조파")].value == 8.3
+    assert by_cell[(second, "R상전류고조파")].value == 42.38
+    assert by_cell[(second, "R상선간전압")].value == 380.75
+    assert "copy_of" not in json.loads(by_cell[(second, "R상전류고조파")].source_metadata_json)
+    assert by_cell[("2021-02-03 07:03:07", "S상전류고조파")].value == 10.0
+
+
 def test_unprofiled_archive_keeps_raw_values_but_leaves_meaning_unresolved(tmp_path):
     archive = _archive(tmp_path, (1.0,))
     history = DuckLakeAssetHistory(
@@ -150,7 +221,7 @@ def test_unprofiled_archive_keeps_raw_values_but_leaves_meaning_unresolved(tmp_p
     result = import_history(
         archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history
     )
-    assert result["metadata_schema"] == "aihub-239-history-v5"
+    assert result["metadata_schema"] == "aihub-239-history-v6"
     (event,) = history.query_file_events("research-source")
     assert event.value == 1.0
     semantics = json.loads(event.source_metadata_json)["semantics"]

@@ -22,12 +22,25 @@ from industrial_phm.application.measurement_semantics import (
 # is a new version; a published version is never edited. Generic explanatory wording
 # written into interpretation_evidence is serialization, not dictionary payload.
 # Pinned digests make an accidental in-place edit fail the contract test. History
-# metadata v5 writes semantics-v3; earlier schemas and dictionaries live in git history.
+# metadata v6 writes semantics-v3 and stores no value for copied cells (COPIED_FROM);
+# earlier schemas and dictionaries live in git history.
 AIHUB_239_SEMANTICS_V3 = "aihub-239-semantics-v3"
 AIHUB_239_SEMANTICS_DIGESTS = {
     AIHUB_239_SEMANTICS_V3: "2df8cf5bfaeab39f22396ab1dc849db23483c4c4676d8515139b6a10c4d130b1",
 }
-AIHUB_239_HISTORY_SCHEMA = "v5"
+AIHUB_239_HISTORY_SCHEMA = "v6"
+# Some members repeat a per-phase harmonic or line-voltage column from that phase's current
+# or phase voltage: 공기압축기 SourceData_76 (device 1306) does until 2020-10-16 15:06, then
+# records real values (current THD near 42 %, line voltage near 380 V). Such a cell holds
+# the other item's reading, not a measurement of its own item, so history keeps its raw
+# record and the item it copies but no value. Only the exact same value at the same
+# timestamp counts; a real harmonic or line voltage never equals its phase's current or
+# phase voltage. See docs/research/aihub-239-source-profile.md.
+COPIED_FROM: dict[str, str] = {
+    **{f"{phase}상전류고조파": f"{phase}상전류" for phase in "RST"},
+    **{f"{phase}상전압고조파": f"{phase}상전압" for phase in "RST"},
+    **{f"{phase}상선간전압": f"{phase}상전압" for phase in "RST"},
+}
 _GUIDE = (
     "AI-Hub 239 construction/usage guideline v1.5 section 1.6.3 unit table "
     "(sha256 dfad9cd6d9451f571048813ae394923faec165519cc6eab84babee9c2f66560a)"
@@ -278,7 +291,15 @@ def project_power_observation(
     archive_digest: str,
     archive_bytes: int,
     binding: PowerHistoryBinding,
+    copy_of: str | None = None,
 ) -> FileBackfillEvent:
+    """One source cell as a history event.
+
+    ``copy_of`` names the item whose value this cell repeats at the same timestamp
+    (see ``COPIED_FROM``); the event then keeps the raw record but stores no value.
+    """
+    if copy_of is not None and COPIED_FROM.get(record.channel_name) != copy_of:
+        raise ValueError(f"{record.channel_name} does not copy {copy_of}")
     semantics_version = AIHUB_239_SEMANTICS_V3
     if (record.device_id, record.device_board_id) != (binding.device_id, binding.device_board_id):
         raise ValueError("source device identifiers do not match the explicit asset binding")
@@ -325,6 +346,7 @@ def project_power_observation(
         "raw_record": json.loads(record.raw_record_json),
         "binding": asdict(binding),
         "semantics": semantic_metadata,
+        **({"copy_of": copy_of} if copy_of is not None else {}),
     }
     # The raw identity excludes mapping and selected range. Changing a binding
     # cannot silently insert a second copy of the same source observation.
@@ -343,6 +365,6 @@ def project_power_observation(
         source_size_bytes=archive_bytes,
         sample_index=record.record_index,
         event_at=aware,
-        value=record.value,
+        value=None if copy_of is not None else record.value,
         source_metadata_json=json.dumps(metadata, ensure_ascii=False, sort_keys=True),
     )
