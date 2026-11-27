@@ -139,10 +139,17 @@ export type PeriodOrigin = "signal" | "departure" | "previous" | "summary" | "ob
 export const ORIGIN_TEXT: Record<PeriodOrigin, string> = {
   observation: "관측에서 고정한 비교 기준을 기간 A로, 선택한 구간을 기간 B로 가져왔습니다.",
   signal: "신호 그래프에서 고른 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
-  previous: "특이사항 구간을 기간 B로, 바로 앞 같은 길이를 기간 A로 가져왔습니다.",
+  previous: "특이사항 구간과 바로 앞 같은 길이의 직전 구간을 비교합니다.",
   departure: "기록 변화 찾기에서 고른 구간을 기간 B로, 그때 쓴 기준 구간을 기간 A로 가져왔습니다.",
-  summary: "모니터링 화면의 특이사항과 같은 기간입니다. 기간 A는 초기(기록 처음 30%), 기간 B는 특이사항 구간입니다.",
+  summary: "초기는 기록 처음 30%, 특이사항 구간은 모니터링 화면의 특이사항과 같은 기간입니다.",
 };
+export type PeriodNames = {a: string; b: string};
+/** 두 기간의 이름. 특이사항에서 넘어온 기간이면 중심 화면과 같은 이름을 쓰고, 직접 고친 기간은 A·B로 부른다. */
+export function periodNames(origin: PeriodOrigin | null): PeriodNames {
+  return origin === "summary" ? {a: "초기", b: "특이사항 구간"}
+    : origin === "previous" ? {a: "직전 구간", b: "특이사항 구간"}
+    : {a: "기간 A", b: "기간 B"};
+}
 export function periodOrigin(search: string): PeriodOrigin | null {
   const raw = new URLSearchParams(search).get("compare_origin");
   return raw === "signal" || raw === "departure" || raw === "previous" || raw === "summary" || raw === "observation" ? raw : null;

@@ -1,9 +1,10 @@
 /** The message an analysis screen leads with: what changed, how plain that is, and what to look at
  * next. Every sentence is built from numbers the screen already shows; nothing is fitted or
  * guessed, and no sentence names a cause or a fault. */
-import {object, subject, withAnd} from "./change-story.ts";
+import {object, subject, topic, withAnd} from "./change-story.ts";
+import {periodNames, type PeriodNames} from "./signal-selection.ts";
+const PLAIN_PERIODS = periodNames(null);
 import {worseThanPersistence} from "./forecast-fit.ts";
-import type {BandShare} from "./spectrum.ts";
 import {elapsedText} from "./time-axis.ts";
 import type {FeatureChange} from "./model-explanations.ts";
 
@@ -60,7 +61,6 @@ export function times(ratio: number): string {
     : ratio >= 0.1 ? String(Number(ratio.toFixed(2))) : ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
   return text + "배";
 }
-const percent = (share: number) => Math.round(share * 100) + "%";
 /** A share of counted measurements as a percentage that is neither inflated nor read as all or
  * none unless it is: 1–99% rounds to a whole percent, otherwise to one decimal, and a share below
  * 0.1% or above 99.9% is said as that bound ("0.1% 미만", "99.9% 초과") instead of rounded to it. */
@@ -73,7 +73,6 @@ export function countShare(part: number, whole: number): string {
   if (share >= 1 && share <= 99) return Math.round(share) + "%";
   return (Math.round(share * 10) / 10).toFixed(1) + "%";
 }
-const hz = (value: number) => Math.round(value).toLocaleString("ko-KR");
 
 /** Where period B first leaves A's usual range, read from every stored value of the feature. */
 export function periodOnset(points: {ordinal: number; value: number}[], b: {from: number; to: number},
@@ -136,7 +135,8 @@ export function middle(values: number[]): number | null {
 /** What y did at the same x, as sentences: how many compared ranges moved, and the best supported
  * one with both medians and A's middle 50%. */
 export function sameXText(moved: {shown: {low: number; high: number; a: {median: number; q1: number; q3: number}; b: {median: number}};
-  outside: number; total: number}, x: {name: string; unit: string | null}, y: {name: string; unit: string | null}): string {
+  outside: number; total: number}, x: {name: string; unit: string | null}, y: {name: string; unit: string | null},
+  names: PeriodNames = PLAIN_PERIODS): string {
   const unit = (value: string, of: string | null) => value + (of ? " " + of : "");
   const {shown, outside, total} = moved;
   const where = unit(short(shown.low) + "~" + short(shown.high), x.unit);
@@ -145,20 +145,21 @@ export function sameXText(moved: {shown: {low: number; high: number; a: {median:
   // 두 기간 비교와 같은 말을 쓴다: 사분위 범위는 '가운데 절반', 5~95%는 '90%가 있던 범위'.
   const side = shown.b.median > shown.a.q3 ? "보다 높습니다." : "보다 낮습니다.";
   if (outside === total && total > 1)
-    return object(x.name) + " " + total + "개 범위로 나눠 비교해도 모든 범위에서 기간 B의 " + y.name + " 중앙값이 기간 A 값의 가운데 절반을 벗어났습니다. "
-      + "측정이 가장 많은 " + where + "에서는 " + values + "입니다(기간 A 값의 가운데 절반 " + usual + ").";
-  return subject(x.name) + " " + where + "인 측정만 보면 " + y.name + " 중앙값이 " + values + "로, 기간 A 값의 가운데 절반(" + usual + ")" + side
+    return object(x.name) + " " + total + "개 범위로 나눠 비교해도 모든 범위에서 " + names.b + "의 " + y.name + " 중앙값이 " + names.a + " 값의 가운데 절반을 벗어났습니다. "
+      + "측정이 가장 많은 " + where + "에서는 " + values + "입니다(" + names.a + " 값의 가운데 절반 " + usual + ").";
+  return subject(x.name) + " " + where + "인 측정만 보면 " + y.name + " 중앙값이 " + values + "로, " + names.a + " 값의 가운데 절반(" + usual + ")" + side
     + (total > 1 ? " " + x.name + " 범위 " + total + "개 중 " + outside + "개에서 이렇게 달랐습니다." : "");
 }
 
 export function relationMessage(x: string, y: string, a: RelationSide, b: RelationSide,
-  crest: {a: number | null; b: number | null} | null, next: NextStep[] = [], sameX: string | null = null): AnalysisMessage | null {
+  crest: {a: number | null; b: number | null} | null, next: NextStep[] = [], sameX: string | null = null,
+  names: PeriodNames = PLAIN_PERIODS): AnalysisMessage | null {
   const ta = tie(a), tb = tie(b);
   if (!ta && !tb) return null;
   let headline: string;
   if (!ta || !tb) {
-    const [name, side, t] = ta ? ["A", a, ta] as const : ["B", b, tb!] as const;
-    headline = "기간 " + name + "에서 두 값은 " + is(t) + " (" + coefficients(side, t) + "). 다른 기간은 짝이 부족해 계산하지 못했습니다.";
+    const [name, side, t] = ta ? [names.a, a, ta] as const : [names.b, b, tb!] as const;
+    headline = name + "에서 두 값은 " + is(t) + " (" + coefficients(side, t) + "). 다른 기간은 짝이 부족해 계산하지 못했습니다.";
   } else {
     // Two coefficients both too small to call a relation are no change of one, however far apart.
     const neither = ta.kind === "none" && tb.kind === "none";
@@ -167,9 +168,9 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
     // Moving together as strongly says nothing of where y sits at the same x; a shift there is
     // a change of the relation the coefficients cannot show.
     headline = kept
-      ? "두 기간 모두 두 값은 " + is(tb) + " (기간 A " + coefficients(a, ta) + " · 기간 B " + coefficients(b, tb) + ")."
+      ? "두 기간 모두 두 값은 " + is(tb) + " (" + names.a + " " + coefficients(a, ta) + " · " + names.b + " " + coefficients(b, tb) + ")."
         + (sameX ? " 다만 " + sameX : "")
-      : "두 값의 관계가 달라졌습니다. 기간 A에서는 " + was(ta) + "(" + coefficients(a, ta) + "), 기간 B에서는 " + is(tb)
+      : "두 값의 관계가 달라졌습니다. " + names.a + "에서는 " + was(ta) + "(" + coefficients(a, ta) + "), " + names.b + "에서는 " + is(tb)
         + "(" + coefficients(b, tb) + ")." + (sameX ? " " + sameX : "");
   }
   const link = formulaLink(x, y);
@@ -188,8 +189,8 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
   } else if (link === "peaks") {
     meaning = "피크-피크는 가장 큰 값과 가장 작은 값의 차이라 절대 피크와 대부분 같은 정보를 담습니다. 서로 다른 근거로 세지 마세요.";
   }
-  const sides = [{name: "A", side: a, t: ta}, {name: "B", side: b, t: tb}];
-  const few = sides.filter(({side}) => side.pairs < 10).map(({name, side}) => "기간 " + name + "는 짝이 " + side.pairs + "개뿐");
+  const sides = [{name: names.a, side: a, t: ta}, {name: names.b, side: b, t: tb}];
+  const few = sides.filter(({side}) => side.pairs < 10).map(({name, side}) => topic(name) + " 짝이 " + side.pairs + "개뿐");
   const unclear = sides.filter(({t}) => t?.kind === "unclear").map(({name}) => name);
   const spread = ta && tb ? coefficientSpread(a, b) : null;
   // Consecutive measurements resemble their neighbours, which can make a coefficient look stronger
@@ -198,51 +199,10 @@ export function relationMessage(x: string, y: string, a: RelationSide, b: Relati
   let certainty: string | null = null;
   if (few.length) certainty = few.join(" · ") + "이라 계수가 크게 흔들릴 수 있습니다.";
   else if (unclear.length)
-    certainty = "기간 " + unclear.join("·") + "에서는 값 그대로 본 상관계수와 순위로 본 상관계수가 서로 다른 방향을 가리켜, 몇몇 측정이 관계를 좌우하고 있을 수 있습니다. 산점도에서 떨어진 점을 확인하세요.";
+    certainty = unclear.join("·") + "에서는 값 그대로 본 상관계수와 순위로 본 상관계수가 서로 다른 방향을 가리켜, 몇몇 측정이 관계를 좌우하고 있을 수 있습니다. 산점도에서 떨어진 점을 확인하세요.";
   else if (spread !== null)
     certainty = "두 기간의 상관계수는 " + SPREAD_TEXT[spread] + " 다릅니다(" + a.pearson!.toFixed(2) + " → " + b.pearson!.toFixed(2) + "). " + caution;
   return {headline, meaning, certainty, next};
-}
-
-export type SpectrumFacts = {label: string; ratio: number | null; shares: BandShare[]};
-
-/** The band whose share of the energy grew most, if any grew by ten points or more. */
-export function shiftedBand(shares: BandShare[]): BandShare | null {
-  const best = shares.reduce<BandShare | null>((top, band) => !top || band.b - band.a > top.b - top.a ? band : top, null);
-  return best && best.b - best.a >= 0.1 ? best : null;
-}
-
-/** How much of the energy moved between bands, all bands together: half the summed share changes.
- * Several bands can each move a little and still move much of the energy between them. */
-export function movedShare(shares: BandShare[]): number {
-  return shares.reduce((sum, band) => sum + Math.abs(band.b - band.a), 0) / 2;
-}
-
-export function spectrumMessage(channels: SpectrumFacts[], used: {a: number; b: number},
-  next: NextStep[] = []): AnalysisMessage | null {
-  const [main, ...others] = channels;
-  if (!main || main.ratio === null) return null;
-  const energy = main.ratio >= 1.25 ? "기간 A의 " + times(main.ratio) + "가 됐고"
-    : main.ratio <= 0.8 ? "기간 A의 " + times(main.ratio) + "로 줄었고" : "기간 A와 비슷하고(" + times(main.ratio) + ")";
-  const band = shiftedBand(main.shares);
-  const headline = "기간 B의 " + main.label + " 에너지는 " + energy + ", "
-    + (band ? hz(band.from) + "~" + hz(band.to) + " Hz가 전체 에너지에서 차지하는 비중이 " + percent(band.a) + " → " + percent(band.b) + "로 커졌습니다."
-      : "비중이 10%p 이상 커진 대역은 없고, 대역 사이에 옮겨 간 에너지 비중은 모두 합쳐 전체의 " + percent(movedShare(main.shares)) + "입니다.");
-  const notes: string[] = [];
-  for (const other of others) {
-    const moved = shiftedBand(other.shares);
-    if (!band) continue;
-    if (moved && moved.from <= band.to && band.from <= moved.to)
-      notes.push(other.label + "에서도 같은 대역 비중이 " + percent(moved.a) + " → " + percent(moved.b) + "로 커져, 두 방향이 같은 변화를 보입니다.");
-    else if (moved)
-      notes.push(other.label + "에서는 비중이 커진 대역이 달라(" + hz(moved.from) + "~" + hz(moved.to) + " Hz) 한 방향에서만 보이는 변화일 수 있습니다.");
-    else notes.push(other.label + "에서는 비중이 10%p 이상 커진 대역이 없어(옮겨 간 비중 전체의 " + percent(movedShare(other.shares))
-      + ") 한 방향에서만 보이는 변화일 수 있습니다.");
-  }
-  notes.push(Math.min(used.a, used.b) < 3
-    ? "기간마다 측정 " + Math.min(used.a, used.b) + "회만 비교해 우연일 수 있습니다."
-    : "각 기간에서 고르게 고른 측정 " + used.a + "회·" + used.b + "회의 평균입니다.");
-  return {headline, meaning: null, certainty: notes.join(" "), next};
 }
 
 export type OutlookReach = {state: string; expected: number | null; earliest: number | null; latest: number | null};

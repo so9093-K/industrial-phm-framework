@@ -15,7 +15,9 @@
   import {readWaterfall,type Waterfall} from "../waterfall";
   import {readAcquisition,readSpectrum,defaultSpans,validateSpans,peakSummary,frequencyText,
     SpectrumUnavailable,WaveformUnavailable,type Acquisition,type Spans,type Spectrum} from "../spectrum";
-  import {readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
+  import {handedSpans,isHanded,readVibrationSummary,vibrationDefault,VIBRATION_SUMMARY_NOTE} from "../summary-defaults";
+  import {periodNames} from "../signal-selection";
+  import {toward} from "../change-story";
 
   let {assetId,timing=null,selectedPosition=null,onPosition}:{assetId:string;timing?:AcquisitionTiming|null;selectedPosition?:number|null;onPosition?:(at:number)=>void}=$props();
   type State="loading"|"ready"|"empty"|"failed"|"unavailable"|"missing-waveform";
@@ -23,6 +25,9 @@
   let acquisition:Acquisition|null=$state(null),spans:Spans|null=$state(null),result:Spectrum|null=$state(null);
   let waterfall:Waterfall|null=$state(null),mapState:State=$state("loading");
   let error=$state(""),selectionNotice=$state(""),fromSummary=$state(false);
+  // 특이사항에서 넘어온 기간이면 다른 화면과 같은 '초기'·'특이사항 구간', 직접 고치면 '기간 A'·'기간 B'.
+  const handed=handedSpans(location.search);
+  const names=$derived(periodNames(fromSummary||isHanded(spans,handed)?"summary":null));
   const query=new URLSearchParams(location.search);
   const savedNumber=(key:string)=>{const value=Number(query.get(key)??NaN);return Number.isFinite(value)?value:null;};
   const savedFrom=savedNumber("spectrum_hz_from"),savedTo=savedNumber("spectrum_hz_to");
@@ -45,8 +50,8 @@
   const top=$derived(channel?Math.max(...channel.a,...channel.b,1e-16):1);
   const plotSeries=$derived(viewMode==="measurement"
     ?individual?[{label:"선택 측정 "+selected+"회",values:individual}]:[]
-    :channel?[{label:"기간 A",values:decibel?relativePower(channel.a,top):channel.a},
-      {label:"기간 B",values:decibel?relativePower(channel.b,top):channel.b,comparison:true}]:[]);
+    :channel?[{label:names.a,values:decibel?relativePower(channel.a,top):channel.a},
+      {label:names.b,values:decibel?relativePower(channel.b,top):channel.b,comparison:true}]:[]);
   const linked=$derived.by(()=>{const current:Acquisition|null=acquisition;return current&&selected!==null?measurementLinks(assetId,selected,{first:current.first,last:current.last,bindingId:current.binding},"spectrum"):[];});
   let sourceRequest:AbortController|null=null,spectrumRequest:AbortController|null=null,mapRequest:AbortController|null=null;
   $effect(()=>{
@@ -156,12 +161,9 @@
     if (resultState !== "ready" || !result || !spans || !channel) return null;
     return {
       "비교한 방향": channel.label,
-      "비교 기간": `A ${spans.a.from}–${spans.a.to}번째, B ${spans.b.from}–${spans.b.to}번째 측정`,
-      "파형 수": `A ${result.used.a.length}회, B ${result.used.b.length}회 평균`,
-      // 에너지 배율과 대역 비중을 한 이름 아래 두면 AI가 둘을 섞어 '그 대역 에너지가 20배'라고 했다.
-      // 화면의 제목 그대로, 무엇의 값인지를 이름에 단다.
-      [channel.label + " 전체 에너지(모든 주파수 합)"]: channel.ratio === null ? "배율을 계산할 수 없음" : "B가 A의 " + measure(channel.ratio, "배"),
-      ...(band ? {[`${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz가 차지하는 비중`]: `A ${measure(band.a * 100, "%")} → B ${measure(band.b * 100, "%")}`} : {}),
+      "비교 기간": `${names.a} ${spans.a.from}–${spans.a.to}번째, ${names.b} ${spans.b.from}–${spans.b.to}번째 측정`,
+      "파형 수": `${names.a} ${result.used.a.length}회, ${names.b} ${result.used.b.length}회 평균`,
+      ...(band ? {[`${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz가 차지하는 비중`]: `${names.a} ${measure(band.a * 100, "%")} → ${names.b} ${measure(band.b * 100, "%")}`} : {}),
     };
   });
 </script>
@@ -173,19 +175,15 @@
   {:else if sourceState==="failed"}<StatusNotice kind="failure" title="원본 파형 목록을 불러오지 못했습니다" message={error} actionLabel="다시 불러오기" onAction={()=>void readSource()}/>
   {:else if acquisition&&spans}
     {#if viewMode==="compare"||resultState!=="ready"}<div class="spectrum-heading">
-      {#if result&&channel}
-      <div class="spectrum-facts" aria-label={channel.label+" 기간 비교 결과"}>
-        <div><span>{channel.label} 전체 에너지</span>
-          <div class="energy-value"><strong class="energy-ratio">{channel.ratio===null?"비교 불가":measure(channel.ratio,null)+"배"}</strong>
-            {#if channel.ratio!==null}<small>기간 B / 기간 A</small>{/if}</div>
-        </div>
-        {#if band}<div class="band-share"><span>{frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz가 차지하는 비중</span>
-          {#each PERIODS as name(name)}<div class={"share-row "+name}>
-            <b>{name.toUpperCase()}</b><span class="track"><i style:width={band[name]*100+"%"}></i></span><strong>{measure(band[name]*100,null)}%</strong>
-          </div>{/each}
-        </div>{/if}
+      <!-- 크기는 RMS 화면들이 말한다. 이 화면은 어느 주파수에서 커졌는지를 먼저 보인다. -->
+      {#if result&&channel&&band}
+      <div class="spectrum-facts band-share" aria-label={channel.label+" 기간 비교 결과"}>
+        <span>{channel.label} · {frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz가 차지하는 비중</span>
+        {#each PERIODS as name(name)}<div class={"share-row "+name}>
+          <b>{names[name]}</b><span class="track"><i style:width={band[name]*100+"%"}></i></span><strong>{measure(band[name]*100,null)}%</strong>
+        </div>{/each}
       </div>{/if}
-      <div class="period-controls"><p>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</p><AnalysisControls title="비교 기간">
+      <div class="period-controls"><p>{names.a} · {spans.a.from}–{spans.a.to}회 / {names.b} · {spans.b.from}–{spans.b.to}회</p><AnalysisControls title="비교 기간">
       {#snippet children(close)}{#if acquisition&&spans}
         <div class="periods">{#each PERIODS as name(name)}
           <AcquisitionRange {name} span={spans[name]} first={acquisition.first} last={acquisition.last} {period} onChange={(edge,value)=>change(name,edge,value)}/>
@@ -220,11 +218,11 @@
             <FrequencyPlot frequencies={viewMode==="measurement"?waterfall!.frequencies:result.frequencies} series={plotSeries} {domain} {band}
               height={viewMode==="measurement"?240:150} floor={viewMode==="measurement"||decibel?-60:0}
               ceiling={viewMode==="measurement"||decibel?0:top*1.05} unit={viewMode==="measurement"||decibel?"dB":channel.unit??"진폭²/Hz"}
-              label={viewMode==="measurement"?place(selected!)+"의 주파수별 세기. 시간별 지도와 같은 dB 기준입니다.":channel.label+"의 평균 스펙트럼. 기간 A 실선, 기간 B 점선. 두 기간은 같은 기준입니다."}/>
+              label={viewMode==="measurement"?place(selected!)+"의 주파수별 세기. 시간별 지도와 같은 dB 기준입니다.":channel.label+"의 평균 스펙트럼. "+names.a+" 실선, "+names.b+" 점선. 두 기간은 같은 기준입니다."}/>
             <p class="spectrum-key">{#if viewMode==="measurement"}전체 표시 측정의 최대 세기 = 0 dB
-              {:else}<span><i></i>A 평균</span><span><i class="b"></i>B 평균</span>
+              {:else}<span><i></i>{names.a} 평균</span><span><i class="b"></i>{names.b} 평균</span>
                 <label class="scale"><input type="checkbox" checked={decibel} onchange={event=>{decibel=event.currentTarget.checked;remember();}}/> dB</label>
-                <span>{decibel?"A/B 전체의 최대 세기 = 0 dB":"원본 진폭의 제곱/Hz"}</span>{/if}</p>
+                <span>{decibel?"두 기간 전체의 최대 세기 = 0 dB":"원본 진폭의 제곱/Hz"}</span>{/if}</p>
           {:else}<StatusNotice message={mapState==="loading"?"선택한 측정의 주파수를 불러오고 있습니다.":"이 측정의 주파수 지도를 표시할 수 없습니다. 기간 비교는 계속 사용할 수 있습니다."}/>{/if}
         </section>
         {#if waterfall&&mapChannel&&waterfall.acquisitions.length}
@@ -242,27 +240,27 @@
           </select></label>
           {#if linked.find(link=>link.key==="model")}<a href={linked.find(link=>link.key==="model")!.href}>원본 파형·모델 보기 →</a>{/if}
           <details class="use-measurement"><summary>이 측정으로 비교</summary><div>
-            <span>A · {spans.a.from}–{spans.a.to}회 / B · {spans.b.from}–{spans.b.to}회</span>
-            <button class="ui-button" type="button" onclick={()=>useMeasurement("a")}>기간 A로 사용</button>
-            <button class="ui-button" type="button" onclick={()=>useMeasurement("b")}>기간 B로 사용</button>
+            <span>{names.a} · {spans.a.from}–{spans.a.to}회 / {names.b} · {spans.b.from}–{spans.b.to}회</span>
+            <button class="ui-button" type="button" onclick={()=>useMeasurement("a")}>{toward(names.a)} 사용</button>
+            <button class="ui-button" type="button" onclick={()=>useMeasurement("b")}>{toward(names.b)} 사용</button>
           </div></details>
           <output aria-live="polite" class="visually-hidden">{selected!==null?place(selected)+" 선택":""}</output>
         </div>
       {/if}
       <details class="analysis-details"><summary>계산 조건·상세 수치</summary>
         <SourceIdentity id={acquisition.source}/>
-        {#if fromSummary}<p>{VIBRATION_SUMMARY_NOTE}</p>{/if}
-        <p>기간 A {result.used.a.length}회, 기간 B {result.used.b.length}회 파형의 평균입니다. 전체 에너지 배율과 대역 비중은 서로 다른 값입니다. 변화 대역이 고장 원인을 뜻하지는 않습니다.</p>
-        <p>시간별 지도와 선택 측정은 표시된 모든 측정 중 해당 방향의 최대 세기를 0 dB로 둡니다. 평균 스펙트럼은 A/B 평균의 최대 세기를 기준으로 하므로 두 그림의 dB 값을 직접 비교하지 않습니다. −60 dB 아래는 잘라 표시합니다.</p>
-        <p>기간 A: {result.used.a.map(place).join(", ")}<br/>기간 B: {result.used.b.map(place).join(", ")}</p>
-        <h4>가장 센 주파수</h4><p>A · {peakSummary(result.frequencies,channel.a)}<br/>B · {peakSummary(result.frequencies,channel.b)}</p>
+        {#if fromSummary||isHanded(spans,handed)}<p>{VIBRATION_SUMMARY_NOTE}</p>{/if}
+        <p>{names.a} {result.used.a.length}회, {names.b} {result.used.b.length}회 파형의 평균입니다. 변화 대역이 고장 원인을 뜻하지는 않습니다.</p>
+        <p>시간별 지도와 선택 측정은 표시된 모든 측정 중 해당 방향의 최대 세기를 0 dB로 둡니다. 평균 스펙트럼은 두 기간 평균의 최대 세기를 기준으로 하므로 두 그림의 dB 값을 직접 비교하지 않습니다. −60 dB 아래는 잘라 표시합니다.</p>
+        <p>{names.a}: {result.used.a.map(place).join(", ")}<br/>{names.b}: {result.used.b.map(place).join(", ")}</p>
+        <h4>가장 센 주파수</h4><p>{names.a} · {peakSummary(result.frequencies,channel.a)}<br/>{names.b} · {peakSummary(result.frequencies,channel.b)}</p>
         <p>표시 주파수와 피크는 인접 주파수를 묶은 평균값입니다.</p>
-        {#if channel.bands.length}<div class="table-scroll"><table><caption>세기가 달라진 대역 · 대역 에너지 B/A를 dB로 표시</caption>
+        {#if channel.bands.length}<div class="table-scroll"><table><caption>세기가 달라진 대역 · {names.b}의 대역 에너지를 {names.a} 대비 dB로 표시</caption>
           <thead><tr><th scope="col">대역 Hz</th><th scope="col">변화 dB</th></tr></thead><tbody>
             {#each channel.bands as changed(changed.from)}<tr><td>{frequencyText(changed.from)}–{frequencyText(changed.to)}</td><td>{measure(changed.changeDb,"dB")}</td></tr>{/each}
           </tbody></table></div>{/if}
         <div class="table-scroll"><table><caption>평균 스펙트럼 ({channel.unit??"원본 진폭²/Hz"}) · 선택 범위의 앞 60개 주파수</caption>
-          <thead><tr><th scope="col">Hz</th><th scope="col">기간 A</th><th scope="col">기간 B</th></tr></thead><tbody>
+          <thead><tr><th scope="col">Hz</th><th scope="col">{names.a}</th><th scope="col">{names.b}</th></tr></thead><tbody>
           {#each result.frequencies.flatMap((hz,i)=>hz>=domain.from&&hz<=domain.to?[{hz,i}]:[]).slice(0,60) as item(item.i)}
             <tr><td>{frequencyText(item.hz)}</td><td>{channel.a[item.i].toExponential(3)}</td><td>{channel.b[item.i].toExponential(3)}</td></tr>
           {/each}</tbody></table></div>
@@ -275,13 +273,11 @@
   .spectra{min-width:0;--frequency-gutter:4.25rem;padding:var(--space-4) var(--space-5)}
   .periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:var(--space-4)}
   .spectrum-heading{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin-bottom:var(--space-3)}
-  .spectrum-facts{flex:1 1 500px;display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:var(--space-6);align-items:start}
+  .spectrum-facts{flex:1 1 500px;display:grid;gap:var(--space-1);align-items:start;max-width:760px}
   .period-controls{margin-left:auto;max-width:100%;display:grid;justify-items:end;gap:var(--space-1)}.period-controls p{margin:0;font-size:var(--font-label);color:var(--color-ink-muted)}
   .period-controls :global(.analysis-controls>button){padding:var(--space-2) var(--space-3);font-size:var(--font-small)}
-  .spectrum-facts>div>span{display:block;color:var(--color-ink-muted);font-size:var(--font-small);margin-bottom:var(--space-1)}
-  .energy-ratio{display:block;font-size:var(--font-result);line-height:1.25;font-variant-numeric:tabular-nums}
-  .energy-value{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2)}.energy-value small{font-size:var(--font-label);color:var(--color-ink-muted)}
-  .share-row{display:grid;grid-template-columns:1rem minmax(0,1fr) 3.8rem;align-items:center;gap:var(--space-2);font-size:var(--font-small);margin-top:var(--space-1)}
+  .spectrum-facts>span{display:block;color:var(--color-ink-muted);font-size:var(--font-small);margin-bottom:var(--space-1)}
+  .share-row{display:grid;grid-template-columns:7.5rem minmax(0,1fr) 3.8rem;align-items:center;gap:var(--space-2);font-size:var(--font-small);margin-top:var(--space-1)}
   .share-row strong{text-align:right;font-variant-numeric:tabular-nums}.track{height:8px;background:var(--color-surface-selected)}
   .track i{display:block;height:100%;background:var(--color-ink-muted)}.b .track i{background:var(--color-action)}
   .spectrum-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding-block:var(--space-3);border-block:1px solid var(--color-border);margin-bottom:var(--space-4)}

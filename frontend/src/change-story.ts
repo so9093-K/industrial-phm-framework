@@ -20,6 +20,12 @@ export function subject(word: string): string { return word + (closed(word) ? "�
 export function withAnd(word: string): string { return word + (closed(word) ? "과" : "와"); }
 /** 이름 뒤에 목적격 조사 '을/를'을 붙인다. */
 export function object(word: string): string { return word + (closed(word) ? "을" : "를"); }
+/** 이름 뒤에 부사격 조사 '으로/로'를 붙인다. ㄹ 받침 뒤에는 '로'다. */
+export function toward(word: string): string {
+  const last = word.trim().slice(-1), code = last.charCodeAt(0);
+  const rieul = code >= 0xac00 && code <= 0xd7a3 ? (code - 0xac00) % 28 === 8 : "1lr".includes(last.toLowerCase());
+  return word + (closed(word) && !rieul ? "으로" : "로");
+}
 /** 이름 뒤에 보조사 '은/는'을 붙인다. */
 export function topic(word: string): string { return word + (closed(word) ? "은" : "는"); }
 
@@ -40,7 +46,8 @@ export function plainLabel(label: string, feature?: string | null): string {
 
 const TEMPERATURE = /°|℃|℉/;
 const share = (fraction: number) => (fraction * 100).toLocaleString("ko-KR", {maximumFractionDigits: 1}) + "%";
-const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {maximumSignificantDigits: 2});
+// 서버의 배수 표기(관제 카드·조사 화면·AI의 '초기의 약 10.1배')와 같은 소수 한 자리.
+const ratioText = (ratio: number) => ratio.toLocaleString("ko-KR", {minimumFractionDigits: 1, maximumFractionDigits: 1});
 /** 초기(기록 처음 30%의 중앙값)와 비교한 크기 한 마디. 1.5배 이상이면 배수, 2/3 이하면 초기의 몇 %,
  * 그 사이면 차이와 비율. 온도처럼 0이 기준이 아닌 단위는 차이만 쓴다. 두 기간 비교처럼 기준 이름이
  * 다르면 name으로 바꾼다(예: '기간 A의 약 2배'). */
@@ -65,6 +72,10 @@ export function lastJump(trace: {at: number; value: number}[], direction: "up" |
 }
 
 export type ChangeNumber = {caption: string; value: string; note: string | null};
+/** 기록 끝까지 이어진 진동 특이사항의 마지막 측정. 조사 화면의 '지금 초기의 약 N배'와 같은 값과 배수다. */
+export function lastNumber(facts: ChangeFacts, value: number, caption: string): ChangeNumber {
+  return {caption, value: amount(value, facts.unit), note: facts.reference === null ? null : versusStart(value, facts.reference, facts.unit)};
+}
 /** 숫자 칸 두 개: 초기와 변화 구간. 변화 구간 아래에는 초기와 비교한 크기를 적는다. */
 export function changeNumbers(facts: ChangeFacts, spanCaption: string | null = null): {before: ChangeNumber; after: ChangeNumber} | null {
   if (facts.reference === null || facts.typical === null) return null;

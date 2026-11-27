@@ -105,4 +105,10 @@ test("default model follows measurement time, never cross-model score ratios",()
   assert.equal(latestModel([{binding:binding("a"),run:run(10,1000,"2026-11-01T00:00:00Z")},
     {binding:binding("b","other-source"),run:run(1,0.5,"2026-11-02T00:00:00Z")}])?.bindingId,"b");
   assert.equal(latestModel([{binding:binding("waiting"),run:null}]),null);
+  // 같은 기록을 다시 학습한 모델: 같은 측정까지 분석했으면 나중에 만든 모델을 연다.
+  const built=(bindingId:string,createdAt:string)=>({...binding(bindingId),createdAt});
+  assert.equal(latestModel([{binding:built("first","2026-11-18T00:00:00Z"),run:run(100,0.5)},
+    {binding:built("rebuilt","2026-11-27T00:00:00Z"),run:run(100,0.5)}])?.bindingId,"rebuilt");
+  assert.equal(latestModel([{binding:built("rebuilt","2026-11-27T00:00:00Z"),run:run(90,0.5)},
+    {binding:built("first","2026-11-18T00:00:00Z"),run:run(100,0.5)}])?.bindingId,"first");
 });
