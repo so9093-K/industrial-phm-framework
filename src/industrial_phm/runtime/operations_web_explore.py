@@ -7,6 +7,7 @@ import json
 import sqlite3
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -93,7 +94,8 @@ _ATTENTION_REUSE_SECONDS = 30.0
 # Show distinct sustained, end-of-record and large changes, with simultaneous comparisons.
 _FINDINGS_SHOWN = 3
 _findings_cache: dict[
-    tuple[str, str, datetime | None], tuple[HistoryAssetSummary, dict[str, Any]]
+    tuple[str, str, datetime | None, tuple[str, ...] | None],
+    tuple[HistoryAssetSummary, dict[str, Any]],
 ] = {}
 _findings_locks: dict[tuple[str, str], threading.Lock] = {}
 _findings_guard = threading.Lock()
@@ -105,7 +107,9 @@ _MAX_ID_LENGTH = 512
 
 def _query(raw: str) -> dict[str, list[str]]:
     parsed = parse_qs(raw, keep_blank_values=True, strict_parsing=False)
-    if any(len(values) != 1 for name, values in parsed.items() if name != "series"):
+    if any(
+        len(values) != 1 for name, values in parsed.items() if name not in {"series", "channel_id"}
+    ):
         raise ValueError("repeated query parameter")
     return parsed
 
@@ -115,6 +119,20 @@ def _one(query: dict[str, list[str]], name: str) -> str:
     if not value or len(value) > _MAX_ID_LENGTH or any(ord(c) < 32 for c in value):
         raise ValueError(f"invalid {name}")
     return value
+
+
+def _channels(query: dict[str, list[str]]) -> tuple[str, ...]:
+    values = query.get("channel_id") or []
+    if (
+        not values
+        or len(values) > 64
+        or any(
+            not value or len(value) > _MAX_ID_LENGTH or any(ord(c) < 32 for c in value)
+            for value in values
+        )
+    ):
+        raise ValueError("invalid channel_id")
+    return tuple(sorted(set(values)))
 
 
 def _snapshot(query: dict[str, list[str]], history: DuckLakeAssetHistory) -> int:
@@ -174,6 +192,7 @@ def handle_explore_read(
                 workspace,
                 asset_id,
                 until=_instant(query, "record_until") if "record_until" in query else None,
+                channels=_channels(query) if "channel_id" in query else None,
             )
         if path == "/api/v1/explore/overview":
             # Imported here: the overview row is built from this module's findings.
@@ -878,7 +897,8 @@ def stream_records(
     records: list[dict[str, Any]] = []
     operations: dict[tuple[str, str | None], StreamOperation] = {}
     levels: dict[str, LevelSeries] = {}
-    for stream in history.list_history_streams(asset_id):
+    for stored in history.list_history_streams(asset_id):
+        stream = stored
         if until is not None:
             if until <= stream.start_at:
                 continue
@@ -895,7 +915,8 @@ def stream_records(
             text = json.dumps([channel, source, point, meaning], ensure_ascii=False)
             return hashlib.sha256(text.encode()).hexdigest()
 
-        read = source_levels(history, asset_id, stream, until=until)
+        # 저장된 기록 전체로 넘긴다: 어느 신호가 전류인지는 재생 위치마다 다시 읽지 않는다.
+        read = source_levels(history, asset_id, stored, until=until)
         chosen, operating = read if read else (None, None)
         if chosen is not None and chosen[0] not in selected:
             # 운전 수준은 그 출처의 전류로 나눈다. 고른 신호만 읽을 때도 전류를 함께 읽어, 모든
@@ -959,9 +980,17 @@ def stream_records(
 
 
 def record_findings(
-    workspace: OperationsWorkspace, asset_id: str, *, until: datetime | None = None
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    *,
+    until: datetime | None = None,
+    channels: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Representative changes from each source/point/meaning record's own first 30%.
+
+    ``channels`` judges only those stored signals (and the current their source's operating
+    levels are read from). A replayed monitor card asks for the signals it draws: reading every
+    signal of a month of 1-minute records at each new playback position took about 12 seconds.
 
     A change that came back still counts. Each record owns its aggregation grid, baseline,
     units and links; adding another source cannot alter the facts already found in it. A source
@@ -974,11 +1003,15 @@ def record_findings(
     # The summary, the overview row and each screen's default ask for the same asset together:
     # one computes it, the others wait and read the cached result.
     with lock:
-        return _record_findings(workspace, asset_id, until=until)
+        return _record_findings(workspace, asset_id, until=until, channels=channels)
 
 
 def _record_findings(
-    workspace: OperationsWorkspace, asset_id: str, *, until: datetime | None = None
+    workspace: OperationsWorkspace,
+    asset_id: str,
+    *,
+    until: datetime | None = None,
+    channels: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "schema_version": 1,
@@ -1000,14 +1033,15 @@ def _record_findings(
     summary = next((a for a in history.list_history_assets() if a.asset_id == asset_id), None)
     if summary is None:
         return body
-    key = (str(workspace.root), asset_id, until)
+    wanted = None if channels is None else tuple(sorted(set(channels)))
+    key = (str(workspace.root), asset_id, until, wanted)
     # 이 설비의 기록(처음·마지막 측정, 측정 수)이 같으면 다시 계산하지 않는다. 저장소 전체의
     # 스냅숏은 다른 설비의 쓰기나 파일 정리에도 바뀌어, 그때마다 한 달 기록을 다시 읽었다.
     held = _findings_cache.get(key)
     if held is not None and held[0] == summary:
         return held[1]
-    channels = list(history.list_history_channels(asset_id))
-    checked = channels
+    stored = list(history.list_history_channels(asset_id))
+    checked = stored if wanted is None else [channel for channel in stored if channel in wanted]
     records, operations, levels = stream_records(history, asset_id, checked, until=until)
     points = {record["key"]: record["points"] for record in records}
     by_key = {record["key"]: record for record in records}

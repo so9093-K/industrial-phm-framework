@@ -115,7 +115,12 @@ async function json(url: string, signal: AbortSignal, tries = 5): Promise<Record
 export async function readFleetChanges(assetId: string, group: FleetGroup, until: number | null, signal: AbortSignal): Promise<FleetChange[]> {
   const query = new URLSearchParams({asset_id: assetId});
   if (group.axis === "time") {
-    if (until !== null) query.set("record_until", new Date(until).toISOString());
+    if (until !== null) {
+      query.set("record_until", new Date(until).toISOString());
+      // 재생 중인 카드는 자기 그래프의 신호 특이사항만 쓴다. 그 신호만 물어야 재생 위치마다 한 달 기록의
+      // 모든 신호를 다시 읽지 않는다(위치 하나에 약 12초 → 2초). 전체 기록에서는 '다른 특이사항'도 쓴다.
+      for (const channel of new Set(group.series.map(row => row.channel))) query.append("channel_id", channel);
+    }
     const body = await json("/api/v1/explore/findings?" + query, signal);
     const record = parseRecordFindings(body, assetId);
     const original = body.intervals as Record<string, unknown>[];
