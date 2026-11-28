@@ -20,7 +20,7 @@
 
 <style>
   .x-axis { min-width: 0; }
-  .ticks { position: relative; height: 1.6em; font-size: 12px; color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
+  .ticks { position: relative; height: 1.6em; font-size: var(--font-label); color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
   .ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; padding-top: 5px; line-height: 1.2; }
   .ticks span::before { content: ""; position: absolute; top: 0; left: 50%; height: 4px; border-left: 1px solid var(--color-border); }
   .ticks span.start { transform: none; }

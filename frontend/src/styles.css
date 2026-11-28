@@ -63,7 +63,7 @@ main {
   padding: var(--space-8);
 }
 h1 { font-size: var(--font-page); line-height: 1.25; margin: .2rem 0; }
-h2 { font-size: var(--font-section); margin: 0 0 var(--space-4); }
+h2 { font-size: var(--font-section); line-height: 1.35; margin: 0 0 var(--space-4); }
 p { margin: .4rem 0 var(--space-4); }
 .meta { font-size: var(--font-small); margin-block: var(--space-6); color: var(--color-ink-muted); }
 
@@ -81,6 +81,7 @@ p { margin: .4rem 0 var(--space-4); }
   color: var(--color-ink);
   background: var(--color-surface);
 }
+.ui-button:hover:not(:disabled) { border-color: var(--color-action); }
 .ui-button-primary, .ui-link-primary {
   background: var(--color-action);
   color: var(--color-action-ink);
@@ -153,7 +154,7 @@ main:has(.workspace-asset){padding-block:var(--space-3)}
 .analysis-body .source-identity{margin-bottom:var(--space-2)}.analysis-body .source-identity summary{min-height:28px;padding-block:var(--space-1)}
 
 /* 분석 화면의 결론 한 줄: 수치(A → B)는 .primary-insight, 문장 결론은 .result-statement를 쓴다. */
-.result-statement{margin:var(--space-2) 0 var(--space-3);font-size:1.25rem;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
+.result-statement{margin:var(--space-2) 0 var(--space-3);font-size:var(--font-workspace-title);font-weight:700;line-height:1.35;overflow-wrap:anywhere;text-wrap:pretty}
 .result-note{margin:0 0 var(--space-3);color:var(--color-ink-muted);overflow-wrap:anywhere}
 .analysis-body>.result:first-child,.analysis-body>section:first-child{margin-top:0;padding-top:0;border-top:0}
 
@@ -168,3 +169,4 @@ main:has(.workspace-asset){padding-block:var(--space-3)}
 .analysis-result-head h3 { margin:0; font-size:var(--font-section); }
 .analysis-result-head p { margin:4px 0 0; font-size:var(--font-small); color:var(--color-ink-muted); }
 .analysis-result-head .analysis-controls { flex:none; }
+.analysis-result-head p, .primary-insight, .result-statement { font-variant-numeric: tabular-nums; }

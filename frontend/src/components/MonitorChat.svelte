@@ -189,8 +189,8 @@
   .me{align-self:flex-end;max-width:88%;padding:6px 10px;border-radius:12px 4px 12px 12px;background:var(--color-surface-selected)}
   .answer{display:grid;gap:5px;white-space:pre-wrap}
   .answer.charted{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
-  .note{font-size:12px;color:var(--color-ink-muted)}
-  .typing{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--color-ink-muted)}
+  .note{font-size:var(--font-label);color:var(--color-ink-muted)}
+  .typing{display:flex;align-items:center;gap:4px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .typing i{width:5px;height:5px;border-radius:50%;background:var(--color-ink-muted);animation:blink 1.2s infinite ease-in-out}
   .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s;margin-right:4px}
   @keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
@@ -210,7 +210,7 @@
   .composer{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:end;gap:4px;padding:4px 4px 4px 10px;border:1px solid var(--color-control-border);border-radius:12px;background:var(--color-surface)}
   .composer:focus-within{border-color:var(--color-action)}
   .composer.disabled{background:#f4f6f8}
-  textarea{border:0;outline:0;resize:none;padding:4px 0;font:inherit;font-size:12px;line-height:1.5;background:transparent;color:var(--color-ink);field-sizing:content;min-height:1.5em;max-height:6em}
+  textarea{border:0;outline:0;resize:none;padding:4px 0;font:inherit;line-height:1.5;background:transparent;color:var(--color-ink);field-sizing:content;min-height:1.5em;max-height:6em}
   .send{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:var(--color-action);cursor:pointer}
   .send svg{width:14px;height:14px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .send:disabled{background:var(--color-border);cursor:default}

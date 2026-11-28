@@ -51,12 +51,12 @@
 </div>
 <style>
   .frequency-plot{display:grid;grid-template-columns:var(--frequency-gutter,4.25rem) minmax(0,1fr);gap:var(--space-2);padding-top:var(--space-5);min-width:0}
-  .value-labels{position:relative;font-size:12px;color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
+  .value-labels{position:relative;font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
   .value-labels>span{position:absolute;right:0;transform:translateY(-50%);line-height:1;white-space:nowrap}
-  .value-labels .unit{top:-20px;transform:none;font-size:11px}.curve{position:relative;min-width:0}
+  .value-labels .unit{top:-20px;transform:none}.curve{position:relative;min-width:0}
   svg{display:block;width:100%;overflow:visible}polyline{fill:none;stroke:var(--color-action);stroke-width:1.8;vector-effect:non-scaling-stroke}
   polyline.baseline{stroke:var(--color-ink-muted)}polyline.comparison{stroke-dasharray:5 3}
   .grid{stroke:var(--color-border);stroke-width:1;vector-effect:non-scaling-stroke}.band{fill:var(--color-surface-selected)}
-  .band-label{position:absolute;top:-21px;transform:translateX(-50%);font-size:12px;white-space:nowrap;color:var(--color-ink);max-width:100%}
+  .band-label{position:absolute;top:-21px;transform:translateX(-50%);font-size:var(--font-label);white-space:nowrap;color:var(--color-ink);max-width:100%}
   .tip{position:absolute;z-index:1;display:grid;padding:var(--space-2);font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-control);box-shadow:0 2px 8px #0002;pointer-events:none;width:max-content;max-width:min(240px,100%);overflow-wrap:anywhere}
 </style>

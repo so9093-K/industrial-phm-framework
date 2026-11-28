@@ -385,7 +385,7 @@
   }
 </script>
 
-<section class="ui-panel" aria-labelledby="model-evidence-title">
+<section class="ui-panel model-panel" aria-labelledby="model-evidence-title">
   <h2 class="visually-hidden" id="model-evidence-title">모델 이상 점수</h2>
   {#if connectedNotice}<StatusNotice message={connectedNotice}/>{/if}
   {#if listState==="loading"}
@@ -452,7 +452,7 @@
       {:else if trace}
         <!-- 이상 탐지의 중심 그림: 점수 추이와 임계선(모델 기준), 넘은 구간. 시간축 옆에 열려도 보인다. -->
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} {period} change={modelChange} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace}
+          <ScoreTrend {binding} {period} change={modelChange} selected={selectedStep?.position??null} place={timelinePlace}
             signal={reason?.rows[0]??null} onSelect={inspectStep} onLoaded={receiveTrend}/>
         {/key}
       {/if}
@@ -561,11 +561,20 @@
   {/if}
 </section>
 <style>
+  .model-panel{container-type:inline-size}
   .model-toolbar{grid-column:1/-1;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
   .model-toolbar :global(.analysis-controls){flex:none;margin:0;margin-left:auto}
   .model-choice{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);font-size:var(--font-small)}.model-choice select{width:auto;min-width:160px}
   .model-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
   .model-comparison-area{min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-3);display:grid;gap:var(--space-2)}
+  @container (min-width: 980px) {
+    .model-workspace:has(.model-comparison-area){grid-template-columns:minmax(0,1fr) minmax(17rem,28%);gap:var(--space-4)}
+    .model-comparison-area{border-top:0;border-inline-start:1px solid var(--color-border);padding:0 0 0 var(--space-4)}
+    .measurement-picker,.selector{align-items:stretch}
+    .selector{display:grid;flex:1 1 100%}
+    .selector select{width:100%}
+    .step-actions .ui-button{font-size:var(--font-small)}
+  }
   .measurement-picker{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-2)}
   .step-actions{display:flex;flex-wrap:wrap;gap:var(--space-1)}
   .input-details{justify-self:start}

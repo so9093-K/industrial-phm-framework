@@ -95,7 +95,7 @@
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
               <small>
-                {changeRange(lead, group.axis)}{#if group.axis === "time" && lead.to > lead.from} · <span class="keep">{elapsedText((lead.to - lead.from) / 1000)}</span>{/if}
+                {changeRange(lead, group.axis)}{#if group.axis === "time" && lead.to > lead.from} <span class="keep">({elapsedText((lead.to - lead.from) / 1000)})</span>{/if}
               </small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
@@ -188,7 +188,7 @@
   .plot-area { min-width:0; }
   .plot-area :global(.plotted) { grid-template-columns:44px minmax(0,1fr); }
   .plot-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 7px; }
-  .plot-title h2 { margin:0; font-size:var(--font-label); }
+  .plot-title h2 { margin:0; font-size:var(--font-small); }
   .plot-title > span { display:flex; align-items:center; gap:5px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .reference { width:14px; border-top:1px dashed var(--color-reference-line); }
   .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }

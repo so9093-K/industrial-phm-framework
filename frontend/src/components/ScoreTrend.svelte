@@ -17,10 +17,10 @@
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
     onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[], inChange: TrendPoint[] | null, truncated: boolean) => void;
-    period?: number | null; pinned?: boolean; change?: ChangeRef | null;
+    period?: number | null; change?: ChangeRef | null;
     /** The signal that raised the selected result most, drawn under the scores. */
     signal?: ReasonRow | null};
-  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false, signal = null, change = null}: Props = $props();
+  let {binding, selected, place, onSelect, onLoaded, period = null, signal = null, change = null}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
   let showWhole = $state(false);
   const inChange = $derived.by(() => {
@@ -196,7 +196,7 @@
           <p class="result-statement">{changeJudged.length
             ? (trend.truncated ? "읽은 " : "선택한 변화의 ")+(change?.kind==="history"?"입력 구간 ":"진동 측정 ")+changeJudged.length+"개 중 "+changeExceeded+"개가 모델 기준 초과"
             : "선택한 변화에서 읽은 모델 점수가 없습니다."}</p>
-          <p class="context">실측 변화는 초기 기록과 비교한 결과입니다. 이 화면은 선택한 모델의 기준에 대한 반응을 보여줍니다.</p>
+          <p class="context">실측 변화는 초기 기록과, 점수는 선택한 모델의 기준과 비교합니다.</p>
           {#if inChange.length>changeJudged.length}<p class="context">판정 없이 기록된 입력 {inChange.length - changeJudged.length}개</p>{/if}
         </div>
         <div class="scope-toggle" role="group" aria-label="점수 그래프 표시 범위">
@@ -290,7 +290,7 @@
         </svg>
       </figure>
     {/if}
-    {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 가장 많이 올린 신호 " + inspectedRaised : ""}</p>{/if}
+    {#if inspected && inspected.pointer.position !== selected}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 가장 많이 올린 신호 " + inspectedRaised : ""}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
     </div>{:else if !inChange || showWhole}
@@ -368,7 +368,7 @@
   circle { fill: var(--color-action); cursor: pointer; }
   circle.over { fill: var(--color-failure-ink); }
   circle.chosen { stroke: var(--color-ink); stroke-width: 2; }
-  .label { font-size: 11px; fill: var(--color-ink-muted); }
+  .label { font-size: var(--font-label); fill: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
   .intervals { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
   .priorities { list-style: none; margin: var(--space-3) 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: var(--space-3); }
   .priorities li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--color-border); }

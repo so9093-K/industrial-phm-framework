@@ -401,11 +401,11 @@
 <style>
   .monitor{display:grid;gap:12px;min-width:0}
   .bar{display:flex;justify-content:space-between;align-items:center;gap:10px}
-  h1{margin:0;font-size:1.35rem;line-height:1.2}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
+  h1{margin:0;font-size:var(--font-workspace-title);line-height:1.25}h1 span{font-size:var(--font-small);font-weight:500;color:var(--color-ink-muted);margin-left:8px}
   .datasets{display:flex;flex-wrap:wrap;gap:4px}
   .datasets button{border:0;border-radius:6px;background:transparent;font:inherit;font-size:var(--font-small);color:var(--color-ink-muted);padding:6px 10px;cursor:pointer}
   .datasets button[aria-pressed="true"]{background:var(--color-sidebar);color:white;font-weight:650}.datasets button span{margin-left:4px;opacity:.75}
-  .status{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px;font-size:12px;color:var(--color-ink-muted)}
+  .status{display:flex;align-items:center;flex-wrap:wrap;justify-content:end;gap:8px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .status>span{text-align:right}.status a{text-decoration:none}
   /* 맨 위 조작은 모두 같은 높이(34px): 새로고침·데이터 추가·모니터링·속도·전체 기록. */
   .quiet{display:inline-flex;align-items:center;min-height:0;height:34px;box-sizing:border-box;padding:0 12px;font-size:var(--font-label)}
@@ -421,7 +421,7 @@
   .signals button[aria-checked="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .guide{margin-left:auto;border:0;background:none;color:var(--color-action);font:inherit;font-size:var(--font-label);cursor:pointer;padding:6px}
   .board{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
-  .board.with-activity{grid-template-columns:minmax(0,1fr) clamp(290px,25vw,360px)}
+  .board.with-activity{grid-template-columns:minmax(0,1fr) clamp(280px,23vw,330px)}
   .rows{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0;padding:0;list-style:none;min-width:0;align-content:start}
   .activity-rail{position:sticky;top:16px;align-self:start;min-width:0;max-height:calc(100dvh - 32px);overflow:auto;scrollbar-gutter:stable}
   .activity-rail[hidden]{display:none}
