@@ -106,7 +106,7 @@
       </PlotCursor>
       {#if onset && onsetLink}
         <a class="onset-link" class:align-end={pct(onset.from) > 50} style:left={pct(onset.from) + "%"}
-          href={onsetLink.href} aria-label={onsetLink.label} title={onsetLink.title} onclick={onsetLink.onOpen}>변화 시작 · 조사 →</a>
+          href={onsetLink.href} aria-label={onsetLink.label} title={onsetLink.title} onclick={onsetLink.onOpen}>변화 구간 조사 →</a>
       {/if}
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
       <!-- 커지는 변화는 앞 절반 값을 위에, 뒤 절반 값을 아래에 적는다(앞에서 낮고 뒤에서 높은 선을 가리지 않게). 작아지는 변화는 반대. -->

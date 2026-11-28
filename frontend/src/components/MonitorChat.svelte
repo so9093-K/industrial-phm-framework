@@ -4,7 +4,7 @@
 
 <script lang="ts">
   import {onDestroy, onMount, tick, untrack} from "svelte";
-  import {askChange, readChangeDiscussion, withConversation, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
+  import {askChange, readChangeDiscussion, withConversation, CHANGE_QUESTION, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
   import {clockText} from "../date-format";
   import {OutcomeUnknown} from "../writes";
   import {keepQuestionDraft, questionDraft} from "../question-drafts";
@@ -157,18 +157,18 @@
   {#if !thread.length && !waiting && writable}
     <div class="replies">
       {#if compareLoad}<button type="button" onclick={() => void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>
-      {:else}<button type="button" onclick={() => void ask("무엇이 함께 달라졌어?")}>무엇이 함께 달라졌어?</button>{/if}
+      {:else}<button type="button" onclick={() => void ask(CHANGE_QUESTION)}>{CHANGE_QUESTION}</button>{/if}
     </div>
   {:else if latest?.status === "complete" && latest.comparison?.status !== "ready" && !latest.analysis && followup && !waiting}
     <a class="followup" href={withConversation(followup.href, conversation)} onclick={onPause}>{followup.label} →</a>
   {/if}
   {#if pointed && writable}
-    <p class="pointed">그래프에서 짚은 곳 · <b>{pointed.label}</b>
-      {#if onUnpoint}<button type="button" aria-label="짚은 곳 지우기" onclick={onUnpoint}>×</button>{/if}</p>
+    <p class="pointed">선택한 시점 <b>{pointed.label}</b>
+      {#if onUnpoint}<button type="button" aria-label="시점 선택 해제" onclick={onUnpoint}>×</button>{/if}</p>
   {/if}
   <div class="composer" class:disabled={!writable}>
-    <textarea rows="1" maxlength="600" aria-label="이 변화에 질문하기" bind:this={input} bind:value={question} onkeydown={keydown} onfocus={onPause} disabled={!writable}
-      placeholder={!writable ? "보기 전용" : waiting ? "다음 질문을 써 둘 수 있습니다" : pointed ? "선택한 측정에 질문" : "이 변화에 질문하기"}></textarea>
+    <textarea rows="1" maxlength="600" aria-label="AI 질문 입력" bind:this={input} bind:value={question} onkeydown={keydown} onfocus={onPause} disabled={!writable}
+      placeholder={!writable ? "보기 전용" : waiting ? "다음 질문 입력" : pointed ? "선택한 시점에 대해 질문" : "질문 입력"}></textarea>
     <button type="button" class="send" aria-label="질문 보내기" disabled={!writable || waiting || !question.trim()} onclick={() => void ask(question)}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
   </div>
