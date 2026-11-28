@@ -14,7 +14,7 @@
       };
   });
   const rows = $derived(focus.kind==="history"?[
-    {label:focus.item.unit==="V"?"상전압·전류 추이":"같은 시각의 관련 신호",href:links.signal},
+    {label:"변화 구간의 실측 추이",href:links.signal},
     {label:"전후 분포 비교",href:links.compare},
     {label:"추세 전망·기준 도달",href:links.outlook},
   ]:[
