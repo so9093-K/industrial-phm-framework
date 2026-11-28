@@ -87,7 +87,9 @@
       {#if lead}
         <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
-            <strong>{changeName} <span aria-hidden="true">·</span> <span class="keep">{now ? "초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
+            <!-- 지금도 이어지는지는 제목 줄에 둔다. 범위만 적으면 베어링이 지금도 오르는 중이라는 것이 그래프로만 읽혔다. -->
+            <span class="change-head"><strong>{changeName} <span class="keep"><span aria-hidden="true">·</span> {now ? "초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
+              <span class="state" class:ongoing={continuing}>{continuing ? "이어짐" : "끝남"}</span></span>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
@@ -174,7 +176,11 @@
   .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }
   /* 사실을 담은 글씨는 13px 아래로 내리지 않는다(한글은 11~12px에서 읽기 힘들다). */
   .change-values small { color:var(--color-ink-muted); font-size:var(--font-label); }
+  .change-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
   .keep { white-space:nowrap; }
+  .state { flex:none; padding:1px 8px; border-radius:999px; font-size:var(--font-label); font-weight:650;
+    color:var(--color-ink-muted); background:var(--color-surface); border:1px solid var(--color-border); }
+  .state.ongoing { color:var(--color-caution-ink); border-color:var(--color-change-mark); }
   .finding-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
   .finding-actions .ui-button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:5px 9px; font-size:var(--font-label); font-weight:650; white-space:nowrap; text-decoration:none; }
   .ai { color:var(--color-action); }

@@ -229,7 +229,7 @@
         {#if period==="custom"}<label>분석 시작 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.start} /></label>{/if}
         <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
         <label>비교 기준<select bind:value={referenceMode}>
-          <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
+          <option value="previous">분석 앞의 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
         </select></label>
         <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
         <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>

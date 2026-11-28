@@ -12,7 +12,12 @@ from industrial_phm.application.electrical_condition import (
 from industrial_phm.application.phase_unbalance import UnbalanceQuantity, resolve_phase_channels
 from industrial_phm.runtime.operations_app_composition import OperationsAppSnapshot
 from industrial_phm.runtime.operations_live import query_operations_latest_asset_measurements
-from industrial_phm.runtime.operations_web_operation import levels_body, source_levels
+from industrial_phm.runtime.operations_web_operation import (
+    StreamOperation,
+    levels_body,
+    source_levels,
+    stream_operation,
+)
 
 
 class ConditionSelectionError(ValueError):
@@ -20,6 +25,50 @@ class ConditionSelectionError(ValueError):
 
 
 _PERIODS = {"1h": timedelta(hours=1), "6h": timedelta(hours=6), "24h": timedelta(days=1)}
+# The fewest reference observations one operating level is scored against (``_scored``).
+_LEVEL_REFERENCE = 60
+
+
+def same_level_reference(
+    operation: StreamOperation,
+    start: datetime,
+    end: datetime,
+    reference_start: datetime,
+    reference_end: datetime,
+) -> tuple[datetime, datetime] | None:
+    """An earlier period of the same length that can judge more of the target.
+
+    Each level is compared only with the same level in the reference, and a level the
+    reference holds fewer than ``_LEVEL_REFERENCE`` observations of is left unjudged. A target
+    that ran partly at a level the period just before it hardly held (a compressor at 11 A
+    after a day at 31 A and 62 A) would be judged only in part. The period just before is kept
+    unless an earlier one judges more of the target's observations; among equals, the latest.
+
+    Returns:
+        The new reference period, or None to keep the one just before the target.
+    """
+    target = operation.counts(start, end)
+    running = range(1, len(target))
+
+    def judged(since: datetime, until: datetime) -> float:
+        held = operation.counts(since, until)
+        return sum(target[band] for band in running if held[band] >= _LEVEL_REFERENCE)
+
+    whole = sum(target[band] for band in running)
+    kept = judged(reference_start, reference_end)
+    if whole <= 0 or kept >= whole:
+        return None
+    length = reference_end - reference_start
+    first = operation.starts[0] if operation.starts else start
+    best: tuple[float, datetime, datetime] | None = None
+    for until in operation.starts[1:]:
+        since = until - length
+        if since < first or until > reference_start:
+            continue
+        covered = judged(since, until)
+        if covered > kept and (best is None or covered >= best[0]):
+            best = (covered, since, until)
+    return None if best is None else (best[1], best[2])
 
 
 def project_electrical_condition(
@@ -74,6 +123,7 @@ def project_electrical_condition(
         return {**base, "state": "unknown-event-time"}
     end = end_at or until or max(stored_times) + timedelta(seconds=1)
     start = start_at or end - _PERIODS[period]
+    explicit_reference = reference_start is not None
     reference_end = reference_end or start
     reference_start = reference_start or reference_end - (end - start)
     for at in (start, end, reference_start, reference_end, until):
@@ -116,6 +166,37 @@ def project_electrical_condition(
     }
     if any(len(values) != 1 for values in versions.values()):
         return {**base, "state": "changed-measurement-meaning"}
+    # The levels the summary and the comparison show for this source.
+    stream = next(
+        (
+            item
+            for item in reader.list_history_streams(asset_id)
+            if (item.source_id, item.measurement_point_id) == (source_id, point_id)
+        ),
+        None,
+    )
+    read = source_levels(reader, asset_id, stream, until=until) if current and stream else None
+    levels = read[1] if read else None
+    reference_basis = "chosen" if explicit_reference else "previous"
+    if not explicit_reference and read is not None and stream is not None:
+        operation = stream_operation(
+            reader,
+            asset_id,
+            {
+                "key": "operating-level-current",
+                "channel": read[0][0],
+                "source_id": source_id,
+                "point_id": point_id,
+                "interpretation": read[0][1],
+                "points": [(stream.start_at, stream.end_at, 0.0)],
+            },
+            read[1],
+            until=until,
+        )
+        moved = same_level_reference(operation, start, end, reference_start, reference_end)
+        if moved is not None:
+            reference_start, reference_end = moved
+            reference_basis = "same-level"
     time_evidence: set[str] = set()
     for point in relevant:
         if not point.source_metadata_json:
@@ -136,6 +217,7 @@ def project_electrical_condition(
             "target_end": end.astimezone(UTC).isoformat(),
             "reference_start": reference_start.astimezone(UTC).isoformat(),
             "reference_end": reference_end.astimezone(UTC).isoformat(),
+            "reference_basis": reference_basis,
             "channels": list(channels),
             "semantic_versions": {name: sorted(v) for name, v in versions.items()},
             "last_observed_at": max(stored_times).isoformat(),
@@ -198,17 +280,6 @@ def project_electrical_condition(
             next_available = False
     if until is not None and end + (end - start) > until:
         next_available = False
-    # The levels the summary and the comparison show for this source.
-    stream = next(
-        (
-            item
-            for item in reader.list_history_streams(asset_id)
-            if (item.source_id, item.measurement_point_id) == (source_id, point_id)
-        ),
-        None,
-    )
-    read = source_levels(reader, asset_id, stream, until=until) if current and stream else None
-    levels = read[1] if read else None
     result = analyze_electrical_condition(
         reference,
         target,
