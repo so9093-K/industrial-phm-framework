@@ -362,7 +362,12 @@
         {:else}
           <!-- 읽는 동안에도 다 읽은 줄과 비슷한 높이로 두어, 아래 줄이 출렁이지 않게 한다. -->
           <li class="row" style:min-height={chartHeight + 80 + "px"}>
-            <div class="who"><span class="name"><AssetName label={name}/></span><span class="detail">{dataset.detail[asset.assetId] ?? ""}</span></div>
+            <div class="who">
+              <span class="name"><AssetName label={name}/></span>
+              {#if asset.lastObservedAt}<span class="detail">마지막 측정 {clockText(Date.parse(asset.lastObservedAt))}</span>
+              {:else if asset.lastPosition}<span class="detail">마지막 측정 {asset.lastPosition}번째</span>
+              {:else}<span class="detail">{dataset.detail[asset.assetId] ?? ""}</span>{/if}
+            </div>
             <div class="chart pending" style:height={chartHeight + "px"}>
               {#if card?.error}<span>측정을 읽지 못했습니다</span><button type="button" class="ui-button quiet" onclick={() => reload(asset.assetId)}>다시 읽기</button>
               {:else if card?.read && !switching && card.like}<span>이 설비에는 '{options.find(row => row.like === card.like)?.label ?? card.like}' 기록이 없습니다</span>
