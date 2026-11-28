@@ -1,7 +1,7 @@
 <script lang="ts">
   import {measure, yTicks} from "../chart-axis";
   import {tracePath} from "../asset-overview";
-  import {SERIES_COLORS, type FleetChange, type FleetGroup, type FleetSeries} from "../fleet-observation";
+  import {pointInBucket, SERIES_COLORS, type FleetChange, type FleetGroup, type FleetSeries} from "../fleet-observation";
   import {measurementScale} from "../time-axis";
   import {nearestPosition} from "../plot-selection";
   import ValueAxis from "./ValueAxis.svelte";
@@ -13,13 +13,18 @@
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
    * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, endLabel = false, selectedRange = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
+    colors = SERIES_COLORS, guide = null, endLabel = false, selectedRange = false, halves = null, picked = $bindable(null), cursor = $bindable(null),
+    guideSamples = false, distinctLines = false, onsetLink, formatValue, onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
     live?: boolean; height?: number; axis?: boolean; picked?: number | null; cursor?: number | null; onPick?: (at: number) => void; onHover?: (at: number | null) => void;
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
+    guideSamples?: boolean;
+    distinctLines?: boolean;
+    onsetLink?: {href: string; label: string; title: string; onOpen: () => void};
+    formatValue?: (at: number) => string;
     endLabel?: boolean;
     selectedRange?: boolean;
     /** 변화 구간 앞 절반·뒤 절반에 움직인 양. 가운데 점선과 각 절반 위의 값으로 빨라지는지 보인다. */
@@ -51,23 +56,33 @@
   function move(event: PointerEvent) {
     if (event.buttons) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    hover = nearestPosition(positions, lo + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span);
+    const at = lo + Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * span;
+    hover = guideSamples && group.axis === "time" ? at : nearestPosition(positions, at);
     onHover?.(hover);
   }
   function leave() { hover = null; onHover?.(null); }
-  const at = $derived(hover ?? guide ?? picked);
+  const at = $derived.by(() => {
+    const position = guideSamples ? guide ?? hover ?? picked : hover ?? guide ?? picked;
+    return position !== null && position >= lo && position <= lo + span ? position : null;
+  });
   const last = $derived(series.map((row, index) => ({row, index, point: row.points.at(-1)})).filter(item => item.point));
+  const samples = $derived(!guideSamples || at === null ? [] : series.flatMap((row, index) => {
+    const point = pointInBucket(row.points, at!, group.bucketMs);
+    return point ? [{row, index, point}] : [];
+  }));
   // 처음 수준 점선은 그 설비의 기록이 있는 곳까지만(공유 축에서 짧은 기록 뒤로 이어지지 않게).
   const end = $derived(Math.max(...series.map(row => row.points.at(-1)?.x ?? lo)));
   const pct = (n: number) => Math.max(0, Math.min(100, x(n) / W * 100));
+  const onset = $derived(onsetLink ? shown.find(change => change.from >= lo) ?? null : null);
   // 두 절반이 모두 그래프 폭의 6% 넘게 보일 때만 적는다. 좁으면 값이 서로 겹쳐 읽히지 않는다.
   const paced = $derived(halves && halves.every(half => pct(half.to) - pct(half.from) >= 6) ? halves : null);
 </script>
 
 {#if values.length}
+  <div class:annotated={onset !== null}>
   <ValueAxis {ticks} {height} unit={group.unit}>
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={leave}>
-      <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} onSelect={value => { picked = value; onPick?.(value); }}>
+      <PlotCursor {positions} value={picked} {lo} hi={lo + span} label={group.label + " 측정 시점 선택"} {formatValue} onSelect={value => { picked = value; onPick?.(value); }}>
         <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
           aria-label={series.map(row => row.label).join(" · ") + " 실측 추이" + (shown.length ? " · 특이사항 " + shown.length + "곳" : "")}>
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
@@ -79,7 +94,8 @@
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
           {#if spread.length}<path class="spread" d={spreadPath} style:fill={colors[0]}/>{/if}
           {#each series as row, index (row.key)}
-            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}/>
+            <path d={tracePath(row.points.map(point => ({x: x(point.x), y: y(point.value), join: point.join})))} stroke={colors[index % colors.length]}
+              class:dashed={distinctLines && index === 1} class:dotted={distinctLines && index === 2}/>
           {/each}
           <!-- 늘어나는 그림에서도 둥근 점이 되도록 길이 0의 선에 둥근 끝을 쓴다. -->
           {#if marks.length}<path class="marks" stroke={colors[0]} d={marks.filter(point => point.x >= lo && point.x <= lo + span).map(point => "M" + x(point.x).toFixed(1) + " " + y(point.value).toFixed(1) + "h0").join(" ")}/>{/if}
@@ -88,6 +104,10 @@
           {#if at !== null}<line class="cursor" x1={x(at)} x2={x(at)} y1="0" y2={height}/>{/if}
         </svg>
       </PlotCursor>
+      {#if onset && onsetLink}
+        <a class="onset-link" class:align-end={pct(onset.from) > 50} style:left={pct(onset.from) + "%"}
+          href={onsetLink.href} aria-label={onsetLink.label} title={onsetLink.title} onclick={onsetLink.onOpen}>변화 시작 · 조사 →</a>
+      {/if}
       {#each shown as change (change.key + change.from)}{#if change.from >= lo}<span class="mark" style:left={pct(change.from) + "%"}></span>{/if}{/each}
       <!-- 커지는 변화는 앞 절반 값을 위에, 뒤 절반 값을 아래에 적는다(앞에서 낮고 뒤에서 높은 선을 가리지 않게). 작아지는 변화는 반대. -->
       {#if paced}{#each paced as half, i (half.from)}
@@ -96,19 +116,28 @@
       {#each last as item (item.row.key)}
         <span class="dot" class:live style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
           style:--dot={colors[item.index % colors.length]}></span>
-        {#if endLabel && !live && item.row.key === group.focus && !hover}
+        {#if endLabel && !live && item.row.key === group.focus && (guideSamples ? at === null : hover === null)}
           <span class="end-label" class:at-start={pct(item.point!.x) < 33}
             style:left={pct(item.point!.x) + "%"} style:top={y(item.point!.value) / height * 100 + "%"}
             style:--dot={colors[item.index % colors.length]}>{measure(item.point!.value, group.unit, group.unit === "V" ? 4 : 3)}</span>
         {/if}
       {/each}
+      {#each samples as item (item.row.key)}
+        <span class="dot sample" aria-hidden="true" style:left={pct(item.point.x) + "%"} style:top={y(item.point.value) / height * 100 + "%"}
+          style:--dot={colors[item.index % colors.length]}></span>
+      {/each}
     </div>
     {#snippet footer()}{#if axis}<XAxis {lo} hi={lo + span} {scale}/>{/if}{/snippet}
   </ValueAxis>
+  </div>
 {:else}<div class="empty" style:height={height + "px"}>{live ? "이 시점까지 끝난 측정 구간이 아직 없습니다" : "표시할 측정이 없습니다"}</div>{/if}
 
 <style>
   .plot{position:relative}
+  .annotated{padding-block-start:28px}
+  .onset-link{position:absolute;top:-28px;z-index:1;padding:1px 6px;border:1px solid var(--color-change-mark);border-radius:4px;background:var(--color-uncertain-surface);color:var(--color-caution-ink);font-size:var(--font-label);font-weight:650;text-decoration:none;white-space:nowrap}
+  .onset-link.align-end{translate:-100% 0}
+  .onset-link:hover{text-decoration:underline}
   svg{display:block;width:100%;overflow:hidden}
   .grid{stroke:#e3eaee;stroke-width:1}
   .change{fill:var(--color-change-fill)}
@@ -119,12 +148,15 @@
   .spread{stroke:none;opacity:.22}
   .marks{fill:none;stroke-width:6;stroke-linecap:round;opacity:.55}
   path{fill:none;stroke-width:1.6;stroke-linejoin:round}
+  path.dashed{stroke-dasharray:6 3}
+  path.dotted{stroke-dasharray:2 3}
   line,path{vector-effect:non-scaling-stroke}
   .cursor{stroke:var(--color-ink);stroke-dasharray:3 3;stroke-width:1}
   .half{stroke:var(--color-change-line);stroke-dasharray:2 3;stroke-width:1.5}
   .half-label{position:absolute;top:6px;transform:translateX(-50%);padding:1px 5px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);font-size:var(--font-label);font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
   .mark{position:absolute;top:-6px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--color-change-mark);pointer-events:none}
   .dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 2px var(--color-surface);pointer-events:none}
+  .dot.sample{z-index:1;background:var(--color-surface);border:2px solid var(--dot)}
   .end-label{position:absolute;transform:translate(calc(-100% - 8px),-100%);padding:1px 4px;border-radius:3px;background:var(--color-surface);color:var(--color-ink);border-bottom:2px solid var(--dot);white-space:nowrap;font-size:var(--font-label);font-weight:650;pointer-events:none}
   .end-label.at-start{transform:translate(8px,-100%)}
   .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--dot);animation:pulse 1.4s ease-out infinite}

@@ -289,7 +289,7 @@
   onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
   // 한 줄에 설비 하나: 넓은 그래프 덕에 높이를 줄여 1440×900에 두 설비가 함께 보인다.
-  const chartHeight=$derived(rows.length===1?280:210);
+  const chartHeight=$derived(rows.length===1?280:192);
   const legend = $derived(rows.find(row => row.card?.read?.group)?.card?.read?.group ?? null);
   const counts = $derived({
     stored: rows.filter(row => row.card?.read && !row.card.read.live).length,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
-import {investigationHref, judgmentsOf, latestEpisode, parseGroup, positionAt, readFleetChanges, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
+import {investigationHref, judgmentsOf, latestEpisode, parseGroup, pointInBucket, positionAt, readFleetChanges, sharedSpan, visibleSeries, type FleetGroup} from "./fleet-observation.ts";
 
 const hour = 3600_000;
 const phases = parseGroup({label: "상전압", unit: "V", axis: "time", focus: "r", bucket_seconds: 3600, period_seconds: null,
@@ -13,6 +13,18 @@ test("a replay draws only the time buckets that have fully passed", () => {
   // 02:30에는 02:00–03:00 구간 평균이 아직 정해지지 않았다.
   assert.deepEqual(visibleSeries(phases, start + 2.5 * hour)[0].points.map(point => point.value), [220, 221]);
   assert.deepEqual(visibleSeries(phases, start + 3 * hour)[1].points.map(point => point.value), [220, 221, 226]);
+});
+
+test("aligned chart readings use the bucket at the shared time and leave gaps empty", () => {
+  const voltage = phases.series[0].points;
+  const start = voltage[0].x;
+  const load = [{x: start + 0.5 * hour, value: 41, join: false}, {x: start + 2 * hour, value: 23, join: false}];
+  assert.equal(pointInBucket(voltage, start + hour, hour)?.value, 221);
+  assert.equal(pointInBucket(load, start + hour, hour)?.value, 41);
+  assert.equal(pointInBucket(load, start + 1.5 * hour, hour), null);
+  assert.equal(pointInBucket(load, start + 2 * hour, hour)?.value, 23);
+  assert.equal(pointInBucket(load, start + 2.5 * hour, null), null);
+  assert.equal(pointInBucket(load, start + 2 * hour, null)?.value, 23);
 });
 
 test("the replay position is a share of each record; acquisitions stay whole numbers", () => {
