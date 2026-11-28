@@ -366,8 +366,8 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
     )
     card["언제"] = f"{when(start)}부터 {lasted}"
     before, after = change["reference_value"], change["typical_value"]
+    compared = "초기 → 특이사항 구간"
     if before is not None and after is not None:
-        compared = "초기 → 특이사항 구간"
         band = change.get("band")
         if operation and band is not None and 0 < band <= len(operation["levels"]):
             # 한 운전 수준의 측정끼리 견준 값이다. 화면 제목('약 11 A 운전일 때')처럼 값 옆에
@@ -391,6 +391,27 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         f"{row['label']} {_text(row['reference'], None)} → {_text(row['current'], row['unit'])}"
         for row in change.get("related", [])
     ]
+    phases: dict[str, tuple[Any, Any]] = {}
+    if (
+        history
+        and change["channel"].startswith(_PHASES)
+        and change.get("observed_property") == "phase voltage"
+    ):
+        phases[change["channel"][:2]] = (before, after)
+        for row in change.get("related", []):
+            if (
+                row["channel"].startswith(_PHASES)
+                and row.get("observed_property") == change["observed_property"]
+                and row.get("source_id") == change["source_id"]
+                and row.get("measurement_point_id") == change["measurement_point_id"]
+            ):
+                phases[row["channel"][:2]] = (row["reference"], row["current"])
+    common_shift = None
+    if len(phases) == 3 and all(a is not None and b is not None for a, b in phases.values()):
+        if all(b > a for a, b in phases.values()):
+            common_shift = "세 상 전압의 대표값이 모두 높아짐"
+        elif all(b < a for a, b in phases.values()):
+            common_shift = "세 상 전압의 대표값이 모두 낮아짐"
     recent: dict[str, str] = {}
     if not history:
         from industrial_phm.runtime.operations_web_forecast import recent_feature_values
@@ -470,6 +491,7 @@ def screen_view(workspace: OperationsWorkspace, context: dict[str, Any]) -> dict
         # 짚고 물은 곳이 이 질문의 대상이다: 카드보다 앞에 둔다.
         **pointed,
         "특이사항": card,
+        **({"함께 관찰한 변화": f"{compared}: {common_shift}"} if common_shift else {}),
         **({"같은 기간 다른 신호": related} if related else {}),
         "지금 값(마지막 측정)": {row["label"]: latest(row) for row in chart if row["trace"]},
         **({"지금 초기 대비 변화 폭 순서": order} if len(current_axes) > 1 else {}),

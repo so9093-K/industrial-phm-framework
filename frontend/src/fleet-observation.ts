@@ -173,7 +173,8 @@ export function investigationHref(assetId: string, group: FleetGroup | null, unt
 }
 
 /** 실제로 수신 중인 출처는 최근 1시간 관측(앞선 관측과 비교한 변화 포함), 그 밖에는 저장 기록 전체를 읽는다. */
-export async function readFleet(asset: Asset, signal: AbortSignal, like: string | null = null): Promise<FleetRead> {
+export async function readFleet(asset: Asset, signal: AbortSignal, like: string | null = null,
+  onMeasured?: (read: FleetRead) => void): Promise<FleetRead> {
   if (asset.flow !== "stored-history") {
     const data = await readAssetData(asset.assetId, signal);
     const stream = [...(data.history?.streams ?? [])].sort((a, b) => Date.parse(b.endAt) - Date.parse(a.endAt))[0];
@@ -218,9 +219,14 @@ export async function readFleet(asset: Asset, signal: AbortSignal, like: string 
   const body = await json("/api/v1/explore/overview?" + query, signal);
   if (body.asset_id !== asset.assetId) invalid();
   const group = parseGroup(body.group);
-  const split = group ? splitChanges(group, await readFleetChanges(asset.assetId, group, null, signal)) : {changes: [], others: []};
-  return {group, ...split, live: false, href: investigationHref(asset.assetId, group, null), companion: parseGroup(body.companion),
-    judgments: await readJudgments(asset.assetId, signal)};
+  const measured: FleetRead = {group, changes: [], others: [], live: false,
+    href: investigationHref(asset.assetId, group, null), companion: parseGroup(body.companion)};
+  if (group) onMeasured?.(measured);
+  const [changes, judgments] = await Promise.all([
+    group ? readFleetChanges(asset.assetId, group, null, signal) : [],
+    readJudgments(asset.assetId, signal),
+  ]);
+  return {...measured, ...(group ? splitChanges(group, changes) : {}), judgments};
 }
 
 /** 저장한 검토를 특이사항 열쇠별 판단으로: 가장 최근 판단, 마지막 기록 시각, 가장 최근 메모. */

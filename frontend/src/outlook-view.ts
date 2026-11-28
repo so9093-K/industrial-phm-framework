@@ -2,7 +2,7 @@
  * 예측과 기준선, 기준에 닿는 자리를 더한다. 그리기는 OutlookChart가, 계산은 여기서 한다. */
 import type {Reach, Scenario} from "./projections.ts";
 
-export type OutlookPoint = {x: number; value: number};
+export type OutlookPoint = {x: number; value: number; join?: boolean};
 export type OutlookFuture = {x: number; estimate: number; lower: number | null; upper: number | null};
 export type OutlookLimits = {management: number | null; end: number | null};
 export type OutlookWindow = {from: number; to: number};
@@ -11,6 +11,7 @@ export type OutlookWindow = {from: number; to: number};
 export function outlookWindow(history: OutlookPoint[], future: OutlookFuture[], change: OutlookWindow | null): OutlookWindow {
   const first = history[0]?.x ?? future[0]?.x ?? 0;
   const last = history.at(-1)?.x ?? first;
+  if (!future.length) return {from: first, to: Math.max(last, first + 1)};
   const end = Math.max(future.at(-1)?.x ?? last, last);
   const span = Math.max(end - last, 1);
   let from = last - 2 * span;
@@ -73,6 +74,12 @@ export function nearestAt(history: OutlookPoint[], future: OutlookFuture[], at: 
 }
 
 export type LimitSuggestion = {label: string; value: number; direction: "upper" | "lower"; source: string};
+/** Extend the measured change per acquisition to an example limit. */
+export function measuredPaceReach(last: number, rate: number, limit: number, direction: LimitSuggestion["direction"]): Reach | null {
+  if (direction === "upper" ? last >= limit || rate <= 0 : last <= limit || rate >= 0) return null;
+  const expected = Math.ceil((limit - last) / rate - 1e-6);
+  return Number.isSafeInteger(expected) && expected > 0 ? {state: "expected", expected, earliest: null, latest: null} : null;
+}
 const round3 = (n: number) => Number(n.toPrecision(3));
 /** 기준을 비워 둔 사람에게 한 번에 고를 수 있는 기준. 처음 범위(이 기록의 처음 30%가 흔들린 폭)의 끝과,
  * 220 V 계통 전압이면 공급 전압 허용 범위(표준전압 220 V ± 13 V)를 낸다. 값은 화면에서 고쳐 쓸 수 있다.

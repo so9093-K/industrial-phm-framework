@@ -1625,7 +1625,8 @@ class DuckLakeAssetHistory:
             self._ensure_initialized(connection)
             rows = connection.execute(
                 f"""
-                SELECT source_id, measurement_point_id, channel_id, min(event_at), max(event_at)
+                SELECT source_id, measurement_point_id, channel_id, min(event_at), max(event_at),
+                    min(event_at) FILTER (WHERE value IS NOT NULL)
                 FROM {_CATALOG_NAME}.history.measurement {at}
                 WHERE asset_id = ? AND event_at IS NOT NULL
                 GROUP BY source_id, measurement_point_id, channel_id
@@ -1637,23 +1638,27 @@ class DuckLakeAssetHistory:
             connection.close()
         if len(rows) > 1000:
             raise ValueError("history stream discovery exceeds 1000 channels")
-        streams: dict[tuple[str, str | None], list[tuple[str, datetime, datetime]]] = {}
-        for source, point, channel, first, last in rows:
+        streams: dict[
+            tuple[str, str | None], list[tuple[str, datetime, datetime, datetime | None]]
+        ] = {}
+        for source, point, channel, first, last, valued in rows:
             key = (_require_str(source, "source_id"), _optional_str(point, "measurement_point_id"))
             streams.setdefault(key, []).append(
                 (
                     _require_str(channel, "channel_id"),
                     _require_datetime(first, "start_at"),
                     _require_datetime(last, "end_at"),
+                    None if valued is None else _require_datetime(valued, "valued_since"),
                 )
             )
         return tuple(
             HistoryStream(
                 source_id=source,
                 measurement_point_id=point,
-                channels=tuple(channel for channel, _, _ in items),
-                start_at=min(first for _, first, _ in items),
-                end_at=max(last for _, _, last in items),
+                channels=tuple(channel for channel, _, _, _ in items),
+                start_at=min(first for _, first, _, _ in items),
+                end_at=max(last for _, _, last, _ in items),
+                valued_since=tuple((channel, valued) for channel, _, _, valued in items),
             )
             for (source, point), items in streams.items()
         )

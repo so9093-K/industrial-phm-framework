@@ -131,7 +131,8 @@
     if(available.includes("relation"))rows.push({label:"신호 관계",tab:"change",method:"relation",kind:input});
     if(available.includes("spectrum"))rows.push({label:"주파수",tab:"change",method:"spectrum",kind:null});
     if(available.includes("electrical"))rows.push({label:"3상 전력",tab:"change",method:"electrical",kind:null});
-    rows.push({label:"이상 점수",tab:"anomaly",method:anomalyDefault,kind:null});
+    rows.push({label:"이상 점수",tab:"anomaly",method:"model",kind:null});
+    if (route.tab === "anomaly" && method === "baseline") rows.push({label:"기록 변화 찾기",tab:"anomaly",method:"baseline",kind:null});
     rows.push({label:"전망·예상 여유",tab:"outlook",method:null,kind:input});
     return rows;
   });

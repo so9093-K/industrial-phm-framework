@@ -84,9 +84,18 @@ def test_raw_history_roundtrip_preserves_null_conflicts_and_assumptions(tmp_path
     history = DuckLakeAssetHistory(
         DuckLakeAssetHistoryConfig(tmp_path / "catalog", tmp_path / "data")
     )
+    bytes_read = []
     first = import_history(
-        archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history
+        archive,
+        MEMBER,
+        _binding(),
+        LOCAL,
+        LOCAL + timedelta(seconds=1),
+        history,
+        read_progress=lambda read, total: bytes_read.append((read, total)),
     )
+    assert bytes_read[0][0] == 0
+    assert bytes_read[-1][0] == bytes_read[0][1] > 0
     again = import_history(
         archive, MEMBER, _binding(), LOCAL, LOCAL + timedelta(seconds=1), history
     )
@@ -211,6 +220,10 @@ def test_a_cell_repeating_another_items_value_keeps_its_record_but_no_value(tmp_
     assert by_cell[(second, "R상선간전압")].value == 380.75
     assert "copy_of" not in json.loads(by_cell[(second, "R상전류고조파")].source_metadata_json)
     assert by_cell[("2021-02-03 07:03:07", "S상전류고조파")].value == 10.0
+    (stream,) = history.list_history_streams(_binding().asset_id)
+    first_value = dict(stream.valued_since)
+    assert first_value["R상전압"] == UTC_START
+    assert first_value["R상선간전압"] == UTC_START + timedelta(minutes=1)
 
 
 def test_unprofiled_archive_keeps_raw_values_but_leaves_meaning_unresolved(tmp_path):

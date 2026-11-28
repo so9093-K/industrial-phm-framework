@@ -23,6 +23,8 @@ class HistoryStream:
     channels: tuple[str, ...]
     start_at: datetime
     end_at: datetime
+    # 신호마다 처음 값이 기록된 시각(값 없이 시각만 있는 신호는 None).
+    valued_since: tuple[tuple[str, datetime | None], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

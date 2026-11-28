@@ -37,6 +37,15 @@ export function referencePeriod(choice: ReferenceChoice, facts: Pick<HistoryStre
   return {from: new Date(start).toISOString(), to: new Date(start + (end - start) * share).toISOString()};
 }
 
+/** A first value on or after the exclusive end cannot contribute to the reference period. */
+export function signalsForReference(stream: HistoryStream, end: string): string[] {
+  const stop = Date.parse(end);
+  return stream.channels.filter(channel => {
+    const first = stream.valuedSince?.[channel];
+    return first === undefined || (first !== null && Date.parse(first) < stop);
+  });
+}
+
 /** How a model learned each operating level of its stream's current (ADR-0034). */
 export type LearnedLevels = {judged: string[]; unjudged: {name: string; windows: number}[]};
 export type BuildResult =

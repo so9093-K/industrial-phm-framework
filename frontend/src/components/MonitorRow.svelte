@@ -9,12 +9,12 @@
   import AssetName from "./AssetName.svelte";
   import TrendChart from "./TrendChart.svelte";
 
-  let {name, flow, role = null, read, group, href, activity, selected, replaying, until, analyzed, analysisFailed, lo, hi, height, playing, onQuestion, onPoint, onPause, onSignal}: {
+  let {name, flow, role = null, read, group, href, activity, selected, replaying, until, analyzed, readingChanges = false, analysisFailed, lo, hi, height, playing, onQuestion, onPoint, onPause, onSignal}: {
     name: string; flow: string; read: FleetRead; group: FleetGroup; href: string; activity: ChangeActivity | null; selected: boolean;
     /** 설비가 하는 일(한 줄): '압축공기 공급', '회전축 지지'. 모르면 null. */
     role?: string | null;
     /** 재생 중이면 위치(시각 또는 측정 번호, 기록 시작 전이면 null)와 그 위치까지 판정한 변화. */
-    replaying: boolean; until: number | null; analyzed: number | null; analysisFailed: boolean;
+    replaying: boolean; until: number | null; analyzed: number | null; readingChanges?: boolean; analysisFailed: boolean;
     lo: number; hi: number; height: number; playing: boolean;
     onQuestion: (activity: ChangeActivity, point: MonitorChatPoint | null) => void;
     onPoint: (point: MonitorChatPoint | null) => void;
@@ -88,7 +88,7 @@
         <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
             <!-- 지금도 이어지는지는 제목 줄에 둔다. 범위만 적으면 베어링이 지금도 오르는 중이라는 것이 그래프로만 읽혔다. -->
-            <span class="change-head"><strong>{changeName} <span class="keep"><span aria-hidden="true">·</span> {now ? "초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
+            <span class="change-head"><strong>{changeName} <span class="keep">{now ? "초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
               <span class="state" class:ongoing={continuing}>{continuing ? "이어짐" : "끝남"}</span></span>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
@@ -111,8 +111,8 @@
       {/if}
       {#if analysisFailed || !lead || (!replaying && other)}<footer class="row-footer">
         {#if analysisFailed}<span role="status">이 모니터링 시점의 특이사항을 읽지 못했습니다</span>
-        {:else if !lead}<span>{!replaying ? "이 기록에는 특이사항이 없습니다"
-          : analyzed === null || lagging ? "특이사항을 찾고 있습니다" : "지금까지 특이사항 없음"}</span>
+        {:else if !lead}<span>{readingChanges || (replaying && (analyzed === null || lagging)) ? "특이사항을 찾고 있습니다"
+          : replaying ? "지금까지 특이사항 없음" : "이 기록에는 특이사항이 없습니다"}</span>
           <a class="secondary-action" {href} onclick={onPause}>기록 살펴보기 →</a>{/if}
         {#if !replaying && other}
           <button type="button" class="secondary-action" onclick={() => onSignal(other.channel)}>다른 특이사항 {read.others.length}개</button>

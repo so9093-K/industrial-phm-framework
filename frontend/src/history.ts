@@ -9,7 +9,9 @@ import {assertObservationSnapshot} from "./observation-context.ts";
 import {yTicks, type Tick} from "./chart-axis.ts";
 import {object as dataObject} from "./writes.ts";
 /** One source and measurement point of the asset's record: the signals and period it holds. */
-export type HistoryStream = {sourceId: string; pointId: string | null; channels: string[]; startAt: string; endAt: string};
+/** valuedSince: 신호마다 처음 값이 기록된 시각(null이면 값이 없음). 예전 응답에는 없다. */
+export type HistoryStream = {sourceId: string; pointId: string | null; channels: string[]; startAt: string; endAt: string;
+  valuedSince?: Record<string, string | null>};
 const strings = (raw: unknown): string[] =>
   Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string" && item.length > 0) : [];
 
@@ -26,7 +28,11 @@ export function parseHistoryStreams(raw: unknown): HistoryStream[] {
     const channels = strings(row?.channels), point = row?.measurement_point_id;
     if (!row || typeof row.source_id !== "string" || !row.source_id || !channels.length
       || !instant(row.start_at) || !instant(row.end_at) || (point !== null && (typeof point !== "string" || !point))) return [];
-    return [{sourceId: row.source_id, pointId: point, channels, startAt: row.start_at, endAt: row.end_at}];
+    const valued = dataObject(row.valued_since);
+    const valuedSince = valued ? Object.fromEntries(channels.flatMap(channel =>
+      channel in valued && (valued[channel] === null || instant(valued[channel])) ? [[channel, valued[channel] as string | null]] : [])) : undefined;
+    return [{sourceId: row.source_id, pointId: point, channels, startAt: row.start_at, endAt: row.end_at,
+      ...(valuedSince ? {valuedSince} : {})}];
   });
 }
 

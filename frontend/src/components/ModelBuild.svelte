@@ -6,7 +6,7 @@
   import {readSignalNames, signalName, type SignalNames} from "../history";
   import {OutcomeUnknown, WriteForbidden, WriteRejected} from "../writes";
   import {
-    buildHistoryModel, levelsText, MAX_SIGNALS, readHistoryStreams, referencePeriod, streamLabel, WINDOW_CHOICES,
+    buildHistoryModel, levelsText, MAX_SIGNALS, readHistoryStreams, referencePeriod, signalsForReference, streamLabel, WINDOW_CHOICES,
     type ReferenceChoice,
   } from "../history-model";
   import StatusNotice from "./StatusNotice.svelte";
@@ -23,6 +23,20 @@
   const stream = $derived(streams[streamIndex] ?? null);
   let choice: ReferenceChoice = $state("first-30");
   let from = $state(""), to = $state("");
+  let manualSelection = $state(false);
+  const period = $derived.by(() => {
+    if (!stream) return null;
+    try { return referencePeriod(choice, stream, choice === "custom" ? {from: from && kstInstant(from), to: to && kstInstant(to)} : null); }
+    catch { return null; }
+  });
+  const eligible = $derived(period && stream ? new Set(signalsForReference(stream, period.to)) : null);
+  const selectedUnavailable = $derived(eligible !== null && chosen.some(channel => !eligible!.has(channel)));
+  const requestedChannel = new URLSearchParams(location.search).get("monitor_channel");
+  $effect(() => {
+    if (manualSelection || !eligible) return;
+    const channels = [...eligible];
+    chosen = requestedChannel && eligible.has(requestedChannel) ? [requestedChannel] : channels.slice(0, 4);
+  });
   let windowSeconds = $state(600);
   let busy = $state(false);
   let message = $state("");
@@ -49,20 +63,18 @@
   /** A stream offers only its own signals and period. */
   function pick(index: number) {
     streamIndex = index;
-    const channels = streams[index]?.channels ?? [];
-    const selected = new URLSearchParams(location.search).get("monitor_channel");
-    chosen = selected && channels.includes(selected) ? [selected] : channels.slice(0, 4);
+    manualSelection = false;
+    chosen = [];
   }
 
   function toggle(channel: string, on: boolean) {
+    manualSelection = true;
     chosen = on ? [...chosen, channel].slice(0, MAX_SIGNALS) : chosen.filter((item) => item !== channel);
   }
   async function build() {
-    if (!stream || !writable || busy || !chosen.length) return;
+    if (!stream || !period || !writable || busy || !chosen.length || selectedUnavailable) return;
     busy = true; failed = false; message = "기준 기간의 기록을 읽고 모델을 학습하고 있습니다.";
     try {
-      const period = referencePeriod(choice, stream,
-        choice === "custom" ? {from: from && kstInstant(from), to: to && kstInstant(to)} : null);
       const result = await buildHistoryModel({assetId, stream, channels: chosen,
         from: period.from, to: period.to, windowSeconds}, new AbortController().signal);
       if (!result.built) { failed = true; message = result.reason; return; }
@@ -89,18 +101,9 @@
     message="저장된 기록의 신호와 기간을 불러오지 못해 모델 만들기를 보여 줄 수 없습니다."
     actionLabel="다시 불러오기" onAction={readStreams} />
 {:else if stream}
-  <details class="build">
+  <details class="build" open={!hasModel}>
     <summary>{hasModel ? "이 설비 데이터로 다른 모델 만들기" : "이 설비 데이터로 모델 만들기"}</summary>
-    <p class="context">고른 기준 기간을 평소 모습으로 삼아 Isolation Forest 모델을 학습하고 이 설비에 연결합니다.
-      이후 기록을 구간마다 채점해 그 모델의 기준을 넘는지 보여 줍니다. 전류를 기록하는 설비는 운전 수준별로 따로
-      학습해, 각 구간을 같은 부하의 기준 구간과만 견줍니다.</p>
-    <fieldset>
-      <legend>신호 (최대 {MAX_SIGNALS}개)</legend>
-      {#each stream.channels as channel (channel)}
-        <label class="check"><input type="checkbox" checked={chosen.includes(channel)} disabled={busy}
-          onchange={(event) => toggle(channel, event.currentTarget.checked)} /> {signalName(names, channel)}</label>
-      {/each}
-    </fieldset>
+    <p class="context">평소 운전이 담긴 기간과 신호를 고르세요. 이후 측정이 그때와 얼마나 다른지 점수로 볼 수 있습니다.</p>
     {#if streams.length > 1}
       <label class="field">데이터 출처<select value={streamIndex} disabled={busy}
         onchange={(event) => pick(Number(event.currentTarget.value))}>
@@ -118,11 +121,28 @@
         </div>
       {/if}
     </fieldset>
+    <fieldset>
+      <legend>신호 (최대 {MAX_SIGNALS}개)</legend>
+      {#each stream.channels as channel (channel)}
+        {@const unavailable = eligible !== null && !eligible.has(channel)}
+        {#if !unavailable || chosen.includes(channel)}
+          <label class="check"><input type="checkbox" checked={chosen.includes(channel)} disabled={busy}
+            onchange={(event) => toggle(channel, event.currentTarget.checked)} /> {signalName(names, channel)}{#if unavailable}<small> · 기준 기간에 값 없음</small>{/if}</label>
+        {/if}
+      {/each}
+    </fieldset>
+    {#if eligible && eligible.size < stream.channels.length}
+      <details>
+        <summary>이 기간에 값이 없는 신호 {stream.channels.length - eligible.size}개</summary>
+        <p class="context">{stream.channels.filter(channel=>!eligible!.has(channel)).map(channel=>signalName(names,channel)).join(", ")}</p>
+      </details>
+    {/if}
     <label class="field">구간 길이<select bind:value={windowSeconds} disabled={busy}>
       {#each WINDOW_CHOICES as item (item.seconds)}<option value={item.seconds}>{item.label}</option>{/each}</select></label>
-    <p class="context">학습 기준으로 사용할 운전 상태가 포함된 기간을 선택하세요. 모델 결과는 설비 운전 조건과 함께 검토하세요.</p>
+    {#if selectedUnavailable}<p role="status">기준 기간에 값이 없는 신호의 선택을 풀거나 기간을 바꾸세요.</p>
+    {:else if choice === "custom" && !period}<p role="status">기준 기간의 시작과 끝을 확인하세요.</p>{/if}
     {#if writable}
-      <button type="button" class="ui-button ui-button-primary" disabled={busy || !chosen.length} onclick={() => void build()}>
+      <button type="button" class="ui-button ui-button-primary" disabled={busy || !period || !chosen.length || selectedUnavailable} onclick={() => void build()}>
         {busy ? "만드는 중" : "이 기간으로 모델 만들기"}</button>
     {:else}
       <p class="context">보기 전용이라 모델을 만들 수 없습니다.</p>

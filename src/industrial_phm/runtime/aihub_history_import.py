@@ -90,10 +90,12 @@ def _selected_batches(
     end: datetime,
     batch_size: int,
     digest: str,
+    *,
+    read_progress: Callable[[int, int], None] | None = None,
 ) -> Iterator[list[FileBackfillEvent]]:
     archive_bytes = archive.stat().st_size
     batch: list[FileBackfillEvent] = []
-    for group in _same_time(iter_power_observations(archive, member)):
+    for group in _same_time(iter_power_observations(archive, member, read_progress=read_progress)):
         copied = copies(group)
         for record in group:
             if (record.device_id, record.device_board_id) != (
@@ -169,6 +171,7 @@ def import_history(
     batch_size: int = 2000,
     flush_every_batches: int = 10,
     progress: Callable[[int], None] | None = None,
+    read_progress: Callable[[int, int], None] | None = None,
 ) -> dict[str, object]:
     """Use local source time for selection; normalize only with the explicit binding.
 
@@ -209,7 +212,9 @@ def import_history(
         if progress is not None:
             progress(count)
 
-    for batch in _selected_batches(archive, member, binding, start, end, batch_size, digest):
+    for batch in _selected_batches(
+        archive, member, binding, start, end, batch_size, digest, read_progress=read_progress
+    ):
         commit(batch)
     if unflushed:
         flush()
