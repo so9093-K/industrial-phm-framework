@@ -181,7 +181,7 @@
     const {a, b} = relation.spans;
     return {
       "비교한 진동 특징": featureLabel(relation.x) + " × " + featureLabel(relation.y),
-      "비교 기간": `${names.a} ${a.from}–${a.to}번째, ${names.b} ${b.from}–${b.to}번째 측정`,
+      "조회 범위": `${names.a} ${a.from}–${a.to}번째, ${names.b} ${b.from}–${b.to}번째 측정`,
       ...Object.fromEntries(relation.groups.map((group) => [
         names[group.period], `${group.pairs}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}`,
       ])),

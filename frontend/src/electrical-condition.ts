@@ -187,6 +187,14 @@ export function segments(timeline:TimelinePoint[],metric:Metric):TimelinePoint[]
 }
 
 /** What differs from the reference period, in the order an operator checks it. */
+export function patternCounts(pattern: Pattern) {
+  return {
+    different: pattern.scored ? pattern.above : 0,
+    within: pattern.scored ? Math.max(0, pattern.scoredSamples - pattern.above) : 0,
+    unscored: pattern.byLevel?.unscored ?? 0,
+  };
+}
+
 export function insights(condition:Extract<Condition,{analyzed:true}>):string[]{
   const {reference,target,pattern}=condition;const lines:string[]=[];
   if(target.currentAboveFloorHours!==null&&reference.currentAboveFloorHours!==null){

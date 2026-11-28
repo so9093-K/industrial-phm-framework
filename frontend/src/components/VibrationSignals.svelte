@@ -87,7 +87,7 @@
     const point = chosenPoint ?? latest;
     return {
       "진동 특징 추이": trend.label,
-      "표시 측정 범위": `${trend.points[0].ordinal}–${trend.points.at(-1)?.ordinal}번째 측정`,
+      "조회 범위": `${trend.points[0].ordinal}–${trend.points.at(-1)?.ordinal}번째 측정`,
       ...(point ? {[chosenPoint ? "선택한 진동 측정" : "마지막 진동 측정"]: measurementLabel(point.ordinal, trend.periodSeconds) + " · " + measure(point.value, trend.unit)} : {}),
     };
   });

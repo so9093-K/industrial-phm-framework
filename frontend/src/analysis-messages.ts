@@ -132,6 +132,10 @@ export function middle(values: number[]): number | null {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+const relationNumber = new Intl.NumberFormat("ko-KR", {maximumSignificantDigits: 5});
+export const relationValue = (value: number) => relationNumber.format(value);
+export const relationRange = (low: number, high: number) => relationValue(low) + "~" + relationValue(high);
+
 /** What y did at the same x, as sentences: how many compared ranges moved, and the best supported
  * one with both medians and A's middle 50%. */
 export function sameXText(moved: {shown: {low: number; high: number; a: {median: number; q1: number; q3: number}; b: {median: number}};
@@ -139,9 +143,9 @@ export function sameXText(moved: {shown: {low: number; high: number; a: {median:
   names: PeriodNames = PLAIN_PERIODS): string {
   const unit = (value: string, of: string | null) => value + (of ? " " + of : "");
   const {shown, outside, total} = moved;
-  const where = unit(short(shown.low) + "~" + short(shown.high), x.unit);
-  const values = short(shown.a.median) + " → " + unit(short(shown.b.median), y.unit);
-  const usual = unit(short(shown.a.q1) + "~" + short(shown.a.q3), y.unit);
+  const where = unit(relationRange(shown.low, shown.high), x.unit);
+  const values = relationValue(shown.a.median) + " → " + unit(relationValue(shown.b.median), y.unit);
+  const usual = unit(relationRange(shown.a.q1, shown.a.q3), y.unit);
   // 두 기간 비교와 같은 말을 쓴다: 사분위 범위는 '가운데 절반', 5~95%는 '90%가 있던 범위'.
   const side = shown.b.median > shown.a.q3 ? "보다 높습니다." : "보다 낮습니다.";
   if (outside === total && total > 1)

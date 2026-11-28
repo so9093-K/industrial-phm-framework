@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {movedAtSameX,parseRelation,sameXRanges} from "./relation.ts";
+import {sameXText} from "./analysis-messages.ts";
 const good=()=>({
   schema_version:1,asset_id:"motor",kind:"history",x:"current",y:"voltage",
   pairing:"same-source-point-and-timestamp",
@@ -27,6 +28,13 @@ test("missing/unreliable correlation stays unavailable and is not zero",()=>{
   assert.equal(p.groups[1].pearson,null);
   assert.equal(p.groups[0].pearson,0.8);
   assert.equal(p.groups[1].points[0].x,3);
+});
+test("the relation explanation preserves a sub-volt difference at a 225 V level",()=>{
+  const compared=sameXText({shown:{low:225.1688,high:225.6334,
+    a:{median:224.6225,q1:224.553,q3:224.7175},b:{median:224.4075}},outside:1,total:1},
+  {name:"R상전압",unit:"V"},{name:"S상전압",unit:"V"});
+  assert.match(compared,/225\.17~225\.63 V/);
+  assert.match(compared,/224\.62 → 224\.41 V/);
 });
 test("reject mixed or invalid pair evidence",()=>{
   const duplicated=good();

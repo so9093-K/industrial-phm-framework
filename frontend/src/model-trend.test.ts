@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import type {ModelBinding} from "./model-evidence.ts";
-import {drawTrend,exceedanceLane,priorityIntervals,beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
+import {changeScores,drawTrend,exceedanceLane,priorityIntervals,beforeInterval,exceedanceStory,exceedanceText,firstExceedance,inputCheck,measurementTime,mergeSeries,overlayModels,parseWaveform,parseWindow,thresholdRatios,trendSummary,type TrendPoint} from "./model-trend.ts";
 
 const binding={bindingId:"anomaly-a",stepKind:"acquisition-snapshot"} as ModelBinding;
 const step=(position:number,state:"analyzed"|"skipped",score?:number)=>({position,state,step_key:"k"+position,
@@ -24,6 +24,17 @@ test("stored scores merge by input order; a skipped step has no score",()=>{
   assert.deepEqual(trendSummary({points:unjudged,intervals:page.intervals,truncated:false}),
     {analyzed:2,skipped:0,unjudged:1,exceeded:1,open:1});
   assert.throws(()=>mergeSeries({schema_version:1,binding:{binding_id:"other"},steps:[],intervals:[]},binding,known),/형식/);
+});
+
+test("model change counts only windows fully inside the selected change",()=>{
+  const at=(minute:number)=>"2020-10-04T00:"+String(minute).padStart(2,"0")+":00Z";
+  const known=new Map<number,TrendPoint>();
+  const examples=[[1,0,10],[2,10,20],[3,20,30],[4,30,40],[5,18,null]] as const;
+  mergeSeries({schema_version:1,binding:{binding_id:"anomaly-a"},change_seq:5,has_more:false,intervals:[],
+    steps:examples.map(([position,start,end])=>({...step(position,"analyzed",position),event_start:at(start),event_end:end===null?null:at(end)}))},binding,known);
+  const points=[...known.values()];
+  assert.deepEqual(changeScores(points,{kind:"history",key:"voltage",start:at(10),end:at(30)}).map(row=>row.pointer.position),[2,3]);
+  assert.deepEqual(changeScores(points,{kind:"vibration",feature:"rms",from:3,to:5}).map(row=>row.pointer.position),[3,4,5]);
 });
 
 test("raw input previews keep unreadable and unusable values apart from data",()=>{

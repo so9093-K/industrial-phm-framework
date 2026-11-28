@@ -317,7 +317,7 @@
     const span = picked ?? {from: Date.parse(trend.startAt), to: Date.parse(trend.endAt)};
     const read = [...groups.map((group) => ({id: selectedChannel, group})), ...companionGroups];
     return {
-      [picked ? "선택한 구간" : "표시 범위"]: new Date(span.from).toISOString() + " ~ " + new Date(span.to).toISOString(),
+      "조회 범위": spanText(span),
       ...Object.fromEntries(read.slice(0, 4).map(({id, group}, index) => {
         const value = summarize(group, span);
         const unit = unitOf(id, group);

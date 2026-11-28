@@ -6,7 +6,8 @@
   import {num} from "../format";
   import {measure, yTicks} from "../chart-axis";
   import {isTimeWindow, type ModelBinding, type StepPointer} from "../model-evidence";
-  import {drawTrend, exceedanceLane, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import {changeScores, drawTrend, exceedanceLane, exceedanceStory, exceedanceText, measurementTime, priorityIntervals, readScoreTrend, trendSummary, type Interval, type ScoreTrend, type TrendPoint} from "../model-trend";
+  import type {ChangeRef} from "../analysis-chat";
   import {scoreRaisers} from "../score-raisers";
   import type {ReasonRow} from "../score-reason";
   import StatusNotice from "./StatusNotice.svelte";
@@ -15,12 +16,19 @@
   /** Every stored score of this model in input order, its threshold and the intervals the
    * model marked as over it. Choosing a point or an interval opens that measurement. */
   type Props = {binding: ModelBinding; selected: number | null; place: (position: number) => string;
-    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[]) => void;
-    period?: number | null; pinned?: boolean;
+    onSelect: (step: StepPointer) => void; onLoaded?: (steps: StepPointer[], intervals: Interval[], inChange: TrendPoint[] | null, truncated: boolean) => void;
+    period?: number | null; pinned?: boolean; change?: ChangeRef | null;
     /** The signal that raised the selected result most, drawn under the scores. */
     signal?: ReasonRow | null};
-  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false, signal = null}: Props = $props();
+  let {binding, selected, place, onSelect, onLoaded, period = null, pinned = false, signal = null, change = null}: Props = $props();
   let trend: ScoreTrend | null = $state(null);
+  let showWhole = $state(false);
+  const inChange = $derived.by(() => {
+    const current: ScoreTrend | null = trend;
+    return current && change ? changeScores(current.points, change) : null;
+  });
+  const changeJudged = $derived(inChange?.filter(point=>point.score!==null&&point.exceeds!==null) ?? []);
+  const changeExceeded = $derived(changeJudged.filter(point=>point.exceeds).length);
   const eventStarts = $derived.by(() => {
     const read: ScoreTrend | null = trend;
     return new Map(read?.points.map(point => [point.pointer.position, point.eventStart]));
@@ -41,7 +49,7 @@
   const visible = $derived.by((): TrendPoint[] => {
     const read: ScoreTrend | null = trend;
     if (!read) return [];
-    if (!focus) return read.points;
+    if (!focus) return !showWhole && inChange ? inChange : read.points;
     const spacing = read.points.length > 1 ? read.points[1].pointer.position-read.points[0].pointer.position : 1;
     const margin = Math.max(focus.end-focus.start,spacing*5);
     return read.points.filter(point=>point.pointer.position>=focus!.start-margin && point.pointer.position<=focus!.end+margin/2);
@@ -70,7 +78,11 @@
   const scale = $derived.by(() => {
     const values = scored.map((point) => point.score as number);
     if (threshold !== null) values.push(threshold);
-    const low = Math.min(0, ...values), high = Math.max(...values, low + 1e-9);
+    const focused = (inChange !== null && !showWhole) || focus !== null;
+    const bottom = values.length && focused ? Math.min(...values) : Math.min(0, ...values);
+    const top = Math.max(...values, bottom + 1e-9);
+    const padding = focused ? Math.max((top - bottom) * 0.10, Math.abs(top) * 0.002, 1e-9) : 0;
+    const low = bottom - padding, high = top + padding;
     const first = visible[0]?.pointer.position ?? 0, last = visible.at(-1)?.pointer.position ?? 1;
     const span = Math.max(1, last - first);
     return {x: (position: number) => LEFT + ((position - first) / span) * (RIGHT - LEFT),
@@ -143,6 +155,13 @@
     return scored.length ? scored.reduce((a,b)=>Math.abs(a.pointer.position-position)<=Math.abs(b.pointer.position-position)?a:b) : null;
   }
   function inspectInterval(interval: Interval) { focus=interval; hovered=null; choose(interval.start); }
+  function showChange() {
+    showWhole=false;focus=null;hovered=null;
+    if (!inChange?.some(point=>point.pointer.position===selected)) {
+      const first = changeJudged.find(point=>point.exceeds) ?? changeJudged.at(-1) ?? inChange?.[0];
+      if (first) onSelect(first.pointer);
+    }
+  }
 
   $effect(() => {
     if (focus && selected !== null && (selected < scale.first || selected > scale.last)) { focus = null; hovered = null; }
@@ -155,7 +174,10 @@
   onMount(() => {
     const request = new AbortController();
     void readScoreTrend(binding, request.signal).then((value) => {
-      if (!request.signal.aborted) { trend = value; loadState = "ready"; onLoaded?.(value.points.map(point=>point.pointer), value.intervals); }
+      if (!request.signal.aborted) {
+        trend = value; loadState = "ready";
+        onLoaded?.(value.points.map(point=>point.pointer),value.intervals,change ? changeScores(value.points,change) : null,value.truncated);
+      }
     }).catch(() => { if (!request.signal.aborted) loadState = "failed"; });
     return () => request.abort();
   });
@@ -167,10 +189,20 @@
     <StatusNotice message="이 모델의 점수 기록을 불러오고 있습니다." />
   {:else if loadState === "failed" || !trend}
     <StatusNotice kind="uncertain" message="점수 추이를 불러오지 못했습니다. 아래에서 측정을 골라 점수를 볼 수 있습니다." />
-  {:else if !scored.length}
-    <p class="context">아직 그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
   {:else}
-    {#if first && told}
+    {#if inChange}
+      <div class="change-score">
+        <div>
+          <p class="result-statement">{changeJudged.length ? (trend.truncated ? "조회한 변화에서 " : "선택한 변화에서 ")+changeJudged.length+"개 중 "+changeExceeded+"개 기준 초과" : "선택한 변화에서 읽은 모델 점수가 없습니다."}</p>
+          {#if inChange.length>changeJudged.length}<p class="context">판정 없이 기록된 입력 {inChange.length - changeJudged.length}개</p>{/if}
+        </div>
+        <div class="scope-toggle" role="group" aria-label="점수 그래프 표시 범위">
+          <button type="button" class="ui-button" aria-pressed={!showWhole&&!focus} onclick={showChange}>변화 구간</button>
+          <button type="button" class="ui-button" aria-pressed={showWhole&&!focus} onclick={()=>{showWhole=true;focus=null;hovered=null;}}>전체 기록</button>
+        </div>
+      </div>
+    {/if}
+    {#if (!inChange || showWhole) && first && told}
       <div class="onset" aria-label="기준 초과 상태">
         <p class="result-statement">{told.headline}</p>
         <div class="onset-actions">
@@ -178,13 +210,13 @@
           <button type="button" class="ui-button" onclick={() => {if (first) onSelect(first.pointer);}}>{story?.state === "ongoing" ? "구간 시작 보기 →" : "측정 보기 →"}</button>
         </div>
       </div>
-    {:else if summary && !summary.exceeded && !trend.truncated}
+    {:else if (!inChange || showWhole) && summary?.analyzed && !summary.exceeded && !trend.truncated}
       <p class="result-statement">분석한 {summary.analyzed}회 모두 모델 기준 이하였습니다.</p>
     {/if}
     {#if trend.truncated}<StatusNotice kind="uncertain" message="점수 기록을 일부만 읽었습니다. 전체 기록의 마지막 상태는 이 그래프로 판단할 수 없습니다."/>{/if}
-    <div class="chart" bind:clientWidth={chartWidth}>
+    {#if scored.length}<div class="chart" bind:clientWidth={chartWidth}>
     {#if focus}<div class="chart-head"><strong>선택 구간의 점수 추이</strong>
-      <button type="button" class="ui-button" onclick={()=>{focus=null;hovered=null;}}>전체 기록 보기</button></div>{/if}
+      <button type="button" class="ui-button" onclick={()=>{showWhole=true;focus=null;hovered=null;}}>전체 기록 보기</button></div>{/if}
     <ul class="legend" aria-label="모델 점수 범례">
       <li><i class="key score-key"></i>모델 점수</li><li><i class="key over-key"></i>기준 초과</li>
       <li><i class="key threshold-key"></i>모델 기준 {num(threshold)}</li>
@@ -258,9 +290,13 @@
     {#if inspected && (!pinned || inspected.pointer.position !== selected)}<p class="readout">{place(inspected.pointer.position)} · 점수 {num(inspected.score)} · 기준 {num(inspected.threshold)}{inspected.exceeds === null ? "" : inspected.exceeds ? " · 기준 초과" : " · 기준 이하"}{inspectedRaised ? " · 점수를 가장 많이 올린 신호 " + inspectedRaised : ""}</p>{/if}
     <p class="context">그래프에서 측정 선택 · 아래 띠는 기준을 넘은 측정 비율
       {#if drawn.length<visible.length}전체 기록은 최솟값·최댓값을 보존해 간추렸습니다. 아래 구간을 선택하면 확대합니다.{/if}</p>
-    </div>
+    </div>{:else if !inChange || showWhole}
+      <p class="context">그릴 점수가 없습니다{summary?.skipped ? " · 분석에서 제외된 측정 " + summary.skipped + "회" : ""}.</p>
+    {/if}
+    {#if !inChange || showWhole}
     <p class="context">분석 {summary?.analyzed}회 · 모델 기준 초과 {summary?.exceeded}회 · 기준 초과 구간 {trend.intervals.length}개{summary?.open ? " (진행 중 " + summary.open + "개)" : ""}{summary?.unjudged ? " · 판정하지 않은 운전 수준 " + summary.unjudged.toLocaleString("ko-KR") + "회" : ""}{summary?.skipped ? " · 분석에서 제외 " + summary.skipped + "회" : ""}{trend.truncated ? " · 기록이 많아 앞부분만 읽었습니다" : ""}</p>
     {#if isTimeWindow(binding.stepKind)}<ModelOperation bindingId={binding.bindingId} levels={binding.levels ?? null} />{/if}
+    {/if}
     {#if trend.intervals.length}
       <details><summary>기준 초과 구간 조사 · {trend.intervals.length}개</summary>
       {#if told?.earlier}<p class="context">{told.earlier}{#if story?.first && story.first !== first}
@@ -280,7 +316,7 @@
         {#each trend.intervals as interval (interval.start)}
           {@const raised = raisedIn(interval, 1)}
           <li>{intervalText(interval.start,interval.end)} · {interval.steps}회 · 최고 {num(interval.peak, "기록 없음")}{raised ? " · " + raised : ""}{interval.open ? " · 진행 중" : ""}
-            <button type="button" class="ui-button" onclick={() => choose(interval.start)}>시작 측정 보기</button></li>
+            <button type="button" class="ui-button" onclick={() => {showWhole=true;focus=null;choose(interval.start);}}>시작 측정 보기</button></li>
         {/each}
       </ul>
       </details>
@@ -289,6 +325,9 @@
 </section>
 
 <style>
+  .change-score { display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px 16px; }
+  .scope-toggle { display:flex;gap:4px;flex-wrap:wrap; }
+  .scope-toggle .ui-button[aria-pressed="true"] { background:var(--color-surface-selected);color:var(--color-action); }
   .score-cursor{outline-offset:3px;border-radius:3px}.score-cursor:focus-visible{outline:2px solid var(--color-action)}
   .trend { display: grid; gap: var(--space-2); margin-block: 0 var(--space-4); min-width: 0; }
   h3 { margin: 0; font-size: var(--font-section); }

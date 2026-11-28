@@ -136,7 +136,10 @@
     {#each thread as row,index(row.id)}
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
-        {#if row.status==="complete"&&row.answer}<p class="answer">{#each answerParts(row.answer.summary) as part,at(at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>{/if}
+        {#if row.status==="complete"&&row.answer}
+          {#if row.answerView || viewTitle}<p class="answer-scope">{row.answerView ?? "이전 답변"}{row.answerScope ? " · "+row.answerScope : ""}</p>{/if}
+          <p class="answer">{#each answerParts(row.answer.summary) as part,at(at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>
+        {/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} {conversation} result={row.comparison}/>{/if}
         {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]&&freshLink(thread,index)}
           <a class="followup" href={withConversation(investigationOriginUrl(analyses[row.analysis].href,location.href),conversation)} onclick={onStart}>{analyses[row.analysis].label} →</a>{/if}
@@ -171,6 +174,7 @@
 </section>
 
 <style>
+  .answer-scope{margin:0;color:var(--color-ink-muted);font-size:var(--font-label);overflow-wrap:anywhere}
   .chat{display:grid;grid-template-rows:auto minmax(0,1fr) auto;height:100%;min-height:0;min-width:0;border:1px solid var(--color-border);border-radius:10px;background:var(--color-surface);overflow:hidden}
   header{display:flex;align-items:start;justify-content:space-between;gap:8px;padding:10px 10px 10px 14px;border-bottom:1px solid var(--color-border);background:#f7f9fa}
   header>div{display:grid;gap:2px;min-width:0}

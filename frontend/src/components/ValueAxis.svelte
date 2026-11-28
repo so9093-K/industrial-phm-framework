@@ -4,9 +4,9 @@
 
   /** Value labels to the left of a stretched chart: the ticks sit at the chart's own heights,
    * so they line up with the grid lines drawn inside the SVG. */
-  let {ticks, height, unit, children, footer}: {ticks: Tick[]; height: number; unit: string | null; children: Snippet;
-    footer?: Snippet} = $props();
-  const labels = $derived(ticks.map((tick) => ({...tick, text: measure(tick.value, unit)})));
+  let {ticks, height, unit, children, footer, format}: {ticks: Tick[]; height: number; unit: string | null; children: Snippet;
+    footer?: Snippet; format?: (value: number) => string} = $props();
+  const labels = $derived(ticks.map((tick) => ({...tick, text: format?.(tick.value) ?? measure(tick.value, unit)})));
   const widest = $derived(labels.reduce((best, item) => item.text.length > best.length ? item.text : best, ""));
 </script>
 

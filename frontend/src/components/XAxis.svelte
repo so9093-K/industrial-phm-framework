@@ -3,7 +3,8 @@
 
   /** Tick labels under a stretched chart whose horizontal values run from `lo` to `hi`. As many
    * labels as fit the drawn width; `note` names what the axis counts when that is not plain. */
-  let {lo, hi, scale, note = "", suffix = ""}: {lo: number; hi: number; scale: XScale; note?: string; suffix?:string} = $props();
+  let {lo, hi, scale, note = "", suffix = "", format}: {lo: number; hi: number; scale: XScale; note?: string; suffix?:string;
+    format?: (value: number) => string} = $props();
   let width = $state(640);
   const ticks = $derived(xTicks(lo, hi, scale, Math.max(2, Math.min(6, Math.floor(width / 115)))));
 </script>
@@ -11,7 +12,7 @@
 <div class="x-axis" bind:clientWidth={width}>
   <div class="ticks" aria-hidden="true">
     {#each ticks as tick,index (tick.value)}
-      <span style={"left:" + tick.x * 100 + "%"} class:start={tick.x < 0.06} class:end={tick.x > 0.94}>{tick.label}{index===ticks.length-1&&suffix?" "+suffix:""}</span>
+      <span style={"left:" + tick.x * 100 + "%"} class:start={tick.x < 0.06} class:end={tick.x > 0.94}>{format?.(tick.value) ?? tick.label}{index===ticks.length-1&&suffix?" "+suffix:""}</span>
     {/each}
   </div>
   {#if note}<p class="note">{note}</p>{/if}

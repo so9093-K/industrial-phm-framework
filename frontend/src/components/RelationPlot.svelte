@@ -4,7 +4,7 @@
   import XAxis from "./XAxis.svelte";
   import {niceTicks, yTicks} from "../chart-axis";
   import type {XScale} from "../time-axis";
-  import {num} from "../format";
+  import {relationValue} from "../analysis-messages";
 
   type Period = "a" | "b";
   type Point = {x: number; y: number; at: number; label: string};
@@ -17,17 +17,24 @@
     onPick: (period: Period, index: number) => void;
   } = $props();
 
-  let zoom = $state<Period | null>(null);
+  type Zoom = Period | "band" | null;
+  let zoom = $state<Zoom>(null);
   let width = $state(800);
   let timeWidth = $state(800);
   const height = 280;
   const timeHeight = 40;
+  // Rounded tick positions already express the chart's scale. Preserve their decimals on zoom.
+  const tickFormat = new Intl.NumberFormat("ko-KR", {maximumSignificantDigits:12});
+  const formatTick = (value: number) => tickFormat.format(value);
   const colors = {a: "var(--color-reference-line)", b: "var(--color-action)"};
-  const visible = $derived(groups.filter(group => zoom === null || group.period === zoom));
+  const visible = $derived(groups.filter(group => zoom === null || zoom === "band" || group.period === zoom)
+    .map(group => ({...group, entries: group.points.map((point, index) => ({point, index}))
+      .filter(({point}) => zoom !== "band" || !band || (point.x >= band.low && point.x <= band.high))})));
   const scale = $derived.by(() => {
-    const points = zoom === null ? [] : visible.flatMap(group => group.points);
+    const points = zoom === null ? [] : visible.flatMap(group => group.entries.map(({point}) => point));
     const own = points.length ? {
-      xmin: Math.min(...points.map(point => point.x)), xmax: Math.max(...points.map(point => point.x)),
+      xmin: zoom === "band" && band ? band.low : Math.min(...points.map(point => point.x)),
+      xmax: zoom === "band" && band ? band.high : Math.max(...points.map(point => point.x)),
       ymin: Math.min(...points.map(point => point.y)), ymax: Math.max(...points.map(point => point.y)),
     } : bounds;
     const xp = (own.xmax - own.xmin || Math.abs(own.xmin) * .05 || 1) * .06;
@@ -39,11 +46,12 @@
   const ticks = $derived(yTicks(scale.bottom, scale.top, 0, height, 5));
   const selected = $derived(groups.find(group => group.period === picked?.period));
   const point = $derived(picked ? selected?.points[picked.index] : null);
-  const navigated = $derived((zoom === null ? selected : groups.find(group => group.period === zoom))
-    ?? groups.find(group => group.period === "b") ?? groups[0]);
-  const index = $derived(picked?.period === navigated?.period ? picked.index : 0);
+  const navigated = $derived(visible.find(group => group.period === picked?.period && group.entries.length)
+    ?? visible.find(group => group.period === "b" && group.entries.length) ?? visible.find(group => group.entries.length));
+  const index = $derived(navigated?.entries.findIndex(item => picked?.period === navigated?.period && item.index === picked?.index) ?? -1);
+  const pointVisible = $derived(picked !== null && index >= 0);
 
-  const ordered = $derived(visible.flatMap(group => group.points.map((point, index) => ({point, period: group.period, index})))
+  const ordered = $derived(visible.flatMap(group => group.entries.map(({point, index}) => ({point, period: group.period, index})))
     .sort((left, right) => left.point.at - right.point.at));
   const times = $derived([...new Set(ordered.map(item => item.point.at))]);
   const first = $derived(times[0] ?? 0);
@@ -58,16 +66,16 @@
     }).join(" ");
   }
 
-  function chooseZoom(period: Period | null) {
+  function chooseZoom(period: Zoom) {
     zoom = period;
-    if (period && picked?.period !== period && groups.find(group => group.period === period)?.points.length) onPick(period, 0);
+    if (period && navigated && !pointVisible) onPick(navigated.period, navigated.entries[0].index);
   }
   function pick(event: MouseEvent) {
     const box = (event.currentTarget as Element).getBoundingClientRect();
     let nearest: Selection | null = null;
     let distance = Infinity;
     for (const group of visible) {
-      for (const [index, point] of group.points.entries()) {
+      for (const {index, point} of group.entries) {
         const dx = x(point.x) - (event.clientX - box.left), dy = y(point.y) - (event.clientY - box.top);
         if (dx * dx + dy * dy < distance) {
           distance = dx * dx + dy * dy;
@@ -87,20 +95,21 @@
 <figure class="relation-plot">
   <header class="plot-toolbar">
     <div class="legend">
-      {#each groups as group (group.period)}
+      {#each visible as group (group.period)}
         <span><i class:a={group.period === "a"} style:--series={colors[group.period]}></i>{group.label}</span>
       {/each}
       {#if band && zoom === null}<span class="band-key"><i></i>같은 {xLabel} 범위에서 비교</span>{/if}
     </div>
     <div class="zoom" role="group" aria-label="관계 그래프 확대">
       <button type="button" aria-pressed={zoom === null} onclick={() => chooseZoom(null)}>전체 비교</button>
+      {#if band}<button type="button" aria-pressed={zoom === "band"} onclick={() => chooseZoom("band")}>공통 범위 확대</button>{/if}
       {#each groups as group (group.period)}
         <button type="button" aria-pressed={zoom === group.period} onclick={() => chooseZoom(group.period)}>{group.label} 확대</button>
       {/each}
     </div>
   </header>
   <p class="axis-name">{yLabel}</p>
-  <ValueAxis {ticks} {height} unit={null}>
+  <ValueAxis {ticks} {height} unit={null} format={formatTick}>
     <div bind:clientWidth={width}>
       <svg class="scatter" viewBox={"0 0 " + width + " " + height} role="img" aria-label={xLabel + "과 " + yLabel + "의 전후 분포 비교"}>
         {#if band && zoom === null}
@@ -109,21 +118,21 @@
         {#each ticks as tick (tick.value)}<line x1="0" x2={width} y1={tick.y} y2={tick.y} class="grid"/>{/each}
         {#each niceTicks(scale.lo, scale.hi) as tick (tick)}<line x1={x(tick)} x2={x(tick)} y1="0" y2={height} class="grid"/>{/each}
         {#each visible as group (group.period)}
-          {#each group.points as point, i (i)}
+          {#each group.entries as {point, index} (index)}
             <circle cx={x(point.x)} cy={y(point.y)} r={group.period === "a" ? 3.5 : 3}
               fill={group.period === "a" ? "var(--color-surface)" : colors[group.period]}
               stroke={colors[group.period]} stroke-width={group.period === "a" ? 1.2 : 0} opacity=".72">
-              <title>{group.label} · {point.label} · {xLabel} {num(point.x)} · {yLabel} {num(point.y)}</title>
+              <title>{group.label} · {point.label} · {xLabel} {relationValue(point.x)} · {yLabel} {relationValue(point.y)}</title>
             </circle>
           {/each}
         {/each}
-        {#if point && picked && (zoom === null || zoom === picked.period)}
+        {#if point && pointVisible}
           <circle cx={x(point.x)} cy={y(point.y)} r="7" class="picked"/>
         {/if}
         <rect x="0" y="0" {width} {height} class="hit" role="presentation" onclick={pick}/>
       </svg>
     </div>
-    {#snippet footer()}<XAxis lo={scale.lo} hi={scale.hi} scale={{kind:"value"}} note={xLabel}/>{/snippet}
+    {#snippet footer()}<XAxis lo={scale.lo} hi={scale.hi} scale={{kind:"value"}} note={xLabel} format={formatTick}/>{/snippet}
   </ValueAxis>
   {#if last > first}
     <div class="time-strip">
@@ -148,17 +157,18 @@
     </div>
   {/if}
   <footer class="navigation">
-    {#if navigated && navigated.points.length}
+    {#if navigated}
       <label>측정 선택
         <select aria-label="점을 선택할 기간" value={navigated.period} onchange={event => {
           const period = event.currentTarget.value as Period;
-          if (zoom !== null) zoom = period;
-          onPick(period, 0);
+          if (zoom !== null && zoom !== "band") zoom = period;
+          const first = visible.find(group => group.period === period)?.entries[0];
+          if (first) onPick(period, first.index);
         }}>{#each groups as group (group.period)}<option value={group.period}>{group.label}</option>{/each}</select>
       </label>
-      <button type="button" aria-label="이전 측정" disabled={index <= 0} onclick={() => onPick(navigated.period, index - 1)}>←</button>
-      <button type="button" aria-label="다음 측정" disabled={index >= navigated.points.length - 1} onclick={() => onPick(navigated.period, index + 1)}>→</button>
-      <output>{point?.label ?? "그래프에서 시점 선택"}</output>
+      <button type="button" aria-label="이전 측정" disabled={index <= 0} onclick={() => onPick(navigated.period, navigated.entries[index - 1].index)}>←</button>
+      <button type="button" aria-label="다음 측정" disabled={index >= navigated.entries.length - 1} onclick={() => onPick(navigated.period, navigated.entries[index + 1].index)}>→</button>
+      <output>{pointVisible ? point?.label : "그래프에서 시점 선택"}</output>
     {/if}
   </footer>
 </figure>

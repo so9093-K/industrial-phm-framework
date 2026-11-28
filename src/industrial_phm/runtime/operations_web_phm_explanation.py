@@ -9,6 +9,7 @@ from pathlib import Path
 from threading import Lock, Thread
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from industrial_phm.application import JsonFindingReviewRepository, JsonOperationalFindingRepository
 from industrial_phm.application.acquisition_snapshot import SqliteAcquisitionSnapshotRepository
@@ -133,6 +134,7 @@ class ExplanationManager:
                     "load_comparison_result",
                     "analyses",
                     "active_analysis",
+                    "record_year",
                 }
             }
         )
@@ -332,6 +334,12 @@ def prepare_web_explanation(
         k: str(payload[k]) for k in ("record_until", "acquisition_until") if k in payload
     }
     context = selected_change(workspace, asset, key, scope)
+    history_change = context.get("history_change")
+    if history_change:
+        record_start = datetime.fromisoformat(history_change["start"]).astimezone(
+            ZoneInfo("Asia/Seoul")
+        )
+        context["record_year"] = record_start.year
     query = load_comparison_query(context)
     if payload.get("analysis") is not None and (
         payload["analysis"] != "same_load" or query is None
@@ -374,12 +382,22 @@ def prepare_web_explanation(
             raise ValueError("invalid analysis view results")
         name = VIEWS[str(view)]
         context["active_analysis"] = name
+        context["answer_view"] = name
+        if shown_scope := values.get("조회 범위"):
+            context["analysis_scope"] = shown_scope
         context.pop("compare_load", None)
         screen = {"설비": asset_label(workspace, asset), f"지금 보고 있는 {name} 화면": values}
     else:
         if snapshot is not None:
             raise ValueError("analysis view is required for results")
         screen = screen_view(workspace, context)
+        context["answer_view"] = "변화 조사"
+        if history_change:
+            # The overview reads the selected change and other points of the same stored record.
+            context["analysis_scope"] = screen["특이사항"]["언제"]
+        else:
+            change = context["vibration_change"]
+            context["analysis_scope"] = f"{change['from']}~{change['to']}번째 측정"
         if "그래프에서 짚은 곳" in screen:
             # 대화에 '어디를 짚고 물었는지'를 함께 보인다.
             context["pointed"] = screen["그래프에서 짚은 곳"]["때"]

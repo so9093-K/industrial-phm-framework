@@ -12,10 +12,18 @@ test("a conversation only reads replies from this opening and selected change",a
   globalThis.fetch=async()=>new Response(JSON.stringify(body),{headers:{"content-type":"application/json"}});
   try{
     const signal=new AbortController().signal;
-    assert.deepEqual((await readChangeDiscussion("bearing",key,conversation,signal))[0].answer,{summary:"지금도 커지고 있습니다."});
+    const [legacy]=await readChangeDiscussion("bearing",key,conversation,signal);
+    assert.deepEqual(legacy.answer,{summary:"지금도 커지고 있습니다."});
+    assert.equal(legacy.answerView,null);
+    assert.equal(legacy.answerScope,null);
     // 같은 변화를 눌러도 다른 창의 문답은 들어오지 않는다.
-    body={schema_version:1,asset_id:"bearing",change_id:key,conversation_id:conversation,explanations:[{...record,answer:{summary:"높은 상태가 이어집니다.",next_step:"주파수를 견주면 알 수 있습니다.",actions:["spectrum"],evidence:[{fact:"x"}],source:"computed"}}]};
-    assert.deepEqual((await readChangeDiscussion("bearing",key,conversation,signal))[0].answer,{summary:"높은 상태가 이어집니다."});
+    body={schema_version:1,asset_id:"bearing",change_id:key,conversation_id:conversation,explanations:[{...record,
+      context:{...record.context,answer_view:"이상 점수",analysis_scope:"72~95번째 측정"},
+      answer:{summary:"높은 상태가 이어집니다.",next_step:"주파수를 견주면 알 수 있습니다.",actions:["spectrum"],evidence:[{fact:"x"}],source:"computed"}}]};
+    const [reply]=await readChangeDiscussion("bearing",key,conversation,signal);
+    assert.deepEqual(reply.answer,{summary:"높은 상태가 이어집니다."});
+    assert.equal(reply.answerView,"이상 점수");
+    assert.equal(reply.answerScope,"72~95번째 측정");
     body={schema_version:1,asset_id:"bearing",change_id:key,conversation_id:conversation,explanations:[{...record,context:{...record.context,change_id:"b".repeat(64)}}]};
     await assert.rejects(readChangeDiscussion("bearing",key,conversation,signal),/대상/);
     body={schema_version:1,asset_id:"bearing",change_id:key,conversation_id:conversation,explanations:[{...record,context:{...record.context,conversation_id:newChangeConversation()}}]};

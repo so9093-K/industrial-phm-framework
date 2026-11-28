@@ -151,6 +151,8 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
     assert record["status"] == "complete"
     assert record["answer"] == {"summary": summary}
     assert "screen" not in record["context"]
+    assert record["context"]["answer_view"] == "변화 조사"
+    assert record["context"]["analysis_scope"] == f"{chosen['from']}~{chosen['to']}번째 측정"
     assert len(model.requests) == 1
     system, *turns = model.requests[0]
     assert json.loads(system["content"].rsplit("\n\n", 1)[1]) == {"screen": screen}
@@ -217,6 +219,7 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
         ),
     )
     for view, name, values in views:
+        values = {"조회 범위": "7~20번째 측정", **values}
         asked = runtime.prepare_web_explanation(
             workspace,
             another
@@ -227,6 +230,8 @@ def test_one_vibration_change_is_explained_reviewed_and_reopened(
             },
         )
         assert asked["screen"] == {"설비": "bearing-a", f"지금 보고 있는 {name} 화면": values}
+        assert asked["_change"]["answer_view"] == name
+        assert asked["_change"]["analysis_scope"] == "7~20번째 측정"
         assert f"open_{view}" not in asked["_change"]["analyses"]
     with pytest.raises(ValueError, match="analysis view"):
         runtime.prepare_web_explanation(workspace, another | {"question": "?", "view": "signals"})
