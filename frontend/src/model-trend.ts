@@ -1,15 +1,26 @@
 import {clockText} from "./date-format.ts";
+import type {ChangeRef} from "./analysis-chat.ts";
 /** A model's stored scores over its whole input order, its threshold-exceedance intervals and
  * the raw input of one measurement. Nothing is rescored; a skipped step stays a gap. */
 import {isUnjudged,type ModelBinding,type StepPointer} from "./model-evidence.ts";
 import {object} from "./writes.ts";
 import {sinceStart} from "./time-axis.ts";
 
-export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null;
+export type TrendPoint={pointer:StepPointer;score:number|null;threshold:number|null;exceeds:boolean|null;eventStart:string|null;eventEnd?:string|null;
   /** The model's per-feature parts of this score, when it gives them, and the input features. */
   contributions?:unknown;features?:Record<string,unknown>|null};
 export type Interval={start:number;end:number;steps:number;peak:number|null;open:boolean};
 export type ScoreTrend={points:TrendPoint[];intervals:Interval[];truncated:boolean};
+
+/** Include complete model inputs in the change, with no time inferred from their index. */
+export function changeScores(points: TrendPoint[], change: ChangeRef): TrendPoint[] {
+  if (change.kind === "vibration") return points.filter(({pointer}) => pointer.position >= change.from && pointer.position <= change.to);
+  const start = Date.parse(change.start), end = Date.parse(change.end);
+  return points.filter(point => {
+    const from = Date.parse(point.eventStart ?? ""), to = Date.parse(point.eventEnd ?? "");
+    return from >= start && from < end && to >= from && to <= end;
+  });
+}
 
 /** Reduce dense drawing without averaging away a peak or joining across skipped input.
  * Each horizontal bin retains its first, last, minimum and maximum actual measurement. */
@@ -183,7 +194,8 @@ export function mergeSeries(raw:unknown,binding:ModelBinding,known:Map<number,Tr
     known.set(step.position,{pointer:step,score:step.state==="analyzed"?finite(output.score):null,
       threshold:finite(output.threshold),
       exceeds:typeof output.exceeds_threshold==="boolean"?output.exceeds_threshold:null,
-      eventStart:typeof row.event_start==="string"?row.event_start:null,contributions:output.feature_contributions??null,
+      eventStart:typeof row.event_start==="string"?row.event_start:null,eventEnd:typeof row.event_end==="string"?row.event_end:null,
+      contributions:output.feature_contributions??null,
       features:object(row.features)});
   }
   const intervals=root.intervals.map((item:unknown):Interval=>{

@@ -218,6 +218,8 @@
     if (compareState !== "ready" || !result?.series.length) return null;
     const compared = result;
     return {
+      "조회 범위": names.a + " " + showTime(compared.periods.a.from) + " ~ " + showTime(compared.periods.a.to)
+        + " · " + names.b + " " + showTime(compared.periods.b.from) + " ~ " + showTime(compared.periods.b.to),
       "비교 신호": signalName(names_, compared.channel),
       [names.a]: showTime(compared.periods.a.from) + " ~ " + showTime(compared.periods.a.to) + " KST",
       [names.b]: showTime(compared.periods.b.from) + " ~ " + showTime(compared.periods.b.to) + " KST",

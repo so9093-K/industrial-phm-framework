@@ -161,7 +161,7 @@
     if (resultState !== "ready" || !result || !spans || !channel) return null;
     return {
       "비교한 방향": channel.label,
-      "비교 기간": `${names.a} ${spans.a.from}–${spans.a.to}번째, ${names.b} ${spans.b.from}–${spans.b.to}번째 측정`,
+      "조회 범위": `${names.a} ${spans.a.from}–${spans.a.to}번째, ${names.b} ${spans.b.from}–${spans.b.to}번째 측정`,
       "파형 수": `${names.a} ${result.used.a.length}회, ${names.b} ${result.used.b.length}회 평균`,
       ...(band ? {[`${frequencyLabel(band.from)}–${frequencyLabel(band.to)} Hz가 차지하는 비중`]: `${names.a} ${measure(band.a * 100, "%")} → ${names.b} ${measure(band.b * 100, "%")}`} : {}),
     };

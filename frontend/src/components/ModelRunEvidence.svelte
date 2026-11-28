@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {clockText} from "../date-format";
+  import {clockText, spanText} from "../date-format";
   import {exposeAnalysis, type AnalysisReadout} from "../analysis-readout.svelte";
   import AnalysisControls from "./AnalysisControls.svelte";
   import TaskDialog from "./TaskDialog.svelte";
@@ -22,8 +22,9 @@
     loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,skipReasonText,isUnjudged,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
   } from "../model-evidence";
-  import {beforeInterval,type Interval} from "../model-trend";
-  import {raisersText,scoreRaisers} from "../score-raisers";
+  import {beforeInterval,type Interval,type TrendPoint} from "../model-trend";
+  import {changeRef} from "../analysis-chat";
+  import {scoreRaisers} from "../score-raisers";
   import {readScoreReason,type ScoreReason as Reason} from "../score-reason";
   import type {AcquisitionTiming} from "../asset-data";
   import {measurementLabel} from "../time-axis";
@@ -99,8 +100,21 @@
     return stop;
   });
   const params=new URLSearchParams(location.search);
+  const investigation=changeRef(location.search);
+  const changeSource=params.get("monitor_source");
+  const changePoint=params.has("monitor_point") ? params.get("monitor_point") || null : undefined;
+  function matchesChange(model:ModelBinding) {
+    return investigation!==null && (investigation.kind==="history")===isTimeWindow(model.stepKind)
+      && (!changeSource || model.sourceId===changeSource) && (changePoint===undefined || model.pointId===changePoint);
+  }
+  const modelChange=$derived.by(()=>{
+    const current:ModelBinding|null=binding;
+    return current && matchesChange(current) ? investigation : null;
+  });
+  let changeResponse=$state<string|null>(null);
   let selectedBinding=$state(params.get("model_binding")??"");
   let selectedPosition=$state(params.get("model_position")??"");
+  let inspectedByUser=$state(params.has("model_position"));
   let followLatest=$state(!params.has("model_position"));
   let polling=false;
   let pollRequest:AbortController|null=null;
@@ -171,7 +185,7 @@
     const url=new URL(location.href);
     url.searchParams.set("monitor_asset",assetId);
     url.searchParams.set("model_binding",binding.bindingId);
-    if(selectedStep){
+    if(selectedStep&&(!modelChange||inspectedByUser||overviewPosition!==null)){
       url.searchParams.set("model_position",String(selectedStep.position));
       if(binding.stepKind==="acquisition-snapshot"){
         url.searchParams.set("vibration_at",String(selectedStep.position));
@@ -198,8 +212,10 @@
       listState="ready";
       // Without a bookmark, open the latest measurement; a failed read keeps the first.
       // 패키지를 불러올 수 없는 모델(폐기된 종류 등)은 저장된 결과만 남는다: 실행할 수 있는 모델을 먼저 연다.
-      const runnable=available.filter(b=>b.health!=="unavailable");
-      const candidates=runnable.length?runnable:available;
+      const matching=available.filter(matchesChange);
+      const eligible=matching.length?matching:available;
+      const runnable=eligible.filter(b=>b.health!=="unavailable");
+      const candidates=runnable.length?runnable:eligible;
       const latest=selectedBinding||candidates.length<2?null
         :await loadLatestScores(assetId,request.signal,candidates).then(latestModel).catch(()=>null);
       if(request.signal.aborted)return;
@@ -218,8 +234,8 @@
     traceRequest?.abort();resultRequest?.abort();
     const matched=bindings.find(item=>item.bindingId===bindingId);
     if(!matched)return;
-    if(binding && binding.bindingId!==matched.bindingId&&!(keepPosition&&selectedStep)){selectedPosition="";followLatest=true;}
-    binding=matched;selectedBinding=bindingId;trace=null;trendSteps=[];intervals=[];selectedStep=null;result=null;
+    if(binding && binding.bindingId!==matched.bindingId&&!(keepPosition&&selectedStep)){selectedPosition="";followLatest=true;inspectedByUser=false;}
+    binding=matched;selectedBinding=bindingId;trace=null;trendSteps=[];intervals=[];selectedStep=null;result=null;changeResponse=null;
     traceState="loading";detailState="empty";error="";
     const request=new AbortController();traceRequest=request;
     try{
@@ -265,6 +281,11 @@
       error=cause instanceof Error?cause.message:"모델 실행 근거 조회 실패";
     }
   }
+  function inspectStep(step:StepPointer) {
+    inspectedByUser=true;
+    followLatest=false;
+    void chooseStep(step);
+  }
   async function poll(){
     if(!followLatest||polling||document.visibilityState!=="visible"||!binding||listState!=="ready")return;
     polling=true;
@@ -287,6 +308,7 @@
     }finally{polling=false;}
   }
   async function pick(position:number){
+    inspectedByUser=true;
     const step=trendSteps.find(item=>item.position===position)??trace?.steps.find(item=>item.position===position);
     if(step){followLatest=false;await chooseStep(step);return;}
     if(!binding)return;
@@ -302,7 +324,7 @@
   let connectedNotice=$state("");
   // The notice outlives the panel that asked, since the model list is read again right after.
   function connected(bindingId:string,notice="모델을 연결했습니다. 분석 서비스가 입력을 분석하면 점수가 나타납니다."){
-    selectedBinding=bindingId;selectedPosition="";followLatest=true;
+    selectedBinding=bindingId;selectedPosition="";followLatest=true;inspectedByUser=false;
     connectedNotice=notice;
     void loadBindings();
   }
@@ -320,18 +342,47 @@
   });
 
   exposeAnalysis((): AnalysisReadout | null => {
-    if (detailState !== "ready" || !result || !binding) return null;
+    if (!binding) return null;
+    if (modelChange && changeResponse === null) return null;
     const model = names.get(binding.bindingId) ?? binding.bindingId;
-    const measurement = place(result.position);
-    if (result.state === "skipped") return {"선택한 모델": model, "선택한 측정": measurement,
+    const measurement = result ? place(result.position) : null;
+    const scope = modelChange
+      ? modelChange.kind==="history" ? spanText(Date.parse(modelChange.start),Date.parse(modelChange.end)) : modelChange.from+"–"+modelChange.to+"번째 측정"
+      : measurement;
+    if (!scope) return null;
+    const facts = {"조회 범위": scope, ...(changeResponse!==null ? {"변화 구간의 모델 반응":changeResponse}:{}), "선택한 모델": model,
+      ...(investigation && !modelChange ? {"모델 입력":"조사 중인 변화와 다른 출처 또는 측정 종류"}:{})};
+    if (modelChange && !inspectedByUser && overviewPosition===null) return facts;
+    const context = {...facts, ...(measurement!==null ? {"선택한 측정": measurement}:{})};
+    if (detailState !== "ready" || !result) return changeResponse===null ? null : context;
+    if (result.state === "skipped") return {...context,
       "모델 결과": skipReasonText(result.reason)};
     const {score, threshold, exceeds} = scoreSummary(result.output);
-    const raised = raisersText(scoreRaisers(result.output.feature_contributions));
-    return {"선택한 모델": model, "선택한 측정": measurement,
+    const raised = scoreRaisers(result.output.feature_contributions).map(row=>row.signal).join(" · ");
+    return {...context,
       "모델 점수": num(score, "기록 없음"), "모델 기준": num(threshold, "기록 없음"),
       "기준 대비": exceeds === null ? "판단 정보 없음" : exceeds ? "기준 초과" : "기준 이하",
       ...(raised ? {"점수를 올린 신호": raised} : {})};
   });
+
+  function receiveTrend(steps:StepPointer[], found:Interval[], points:TrendPoint[]|null, truncated:boolean) {
+    trendSteps=steps;
+    intervals=found;
+    if (!points) {changeResponse=null;return;}
+    const judged=points.filter(point=>point.score!==null&&point.exceeds!==null);
+    const crossed=judged.filter(point=>point.exceeds);
+    const counted=investigation?.kind==="history"?"입력 구간":"진동 측정";
+    changeResponse=(truncated?"읽은 점수만 · ":"")+(judged.length
+      ? "같은 모델로 분석한 "+counted+" "+judged.length+"개 중 "+crossed.length+"개의 점수가 모델 기준을 넘음"
+      : "선택한 변화에 해당하는 모델 점수 없음");
+    if (points.length>judged.length) changeResponse+=" · 판정하지 않은 입력 "+(points.length-judged.length)+"개";
+    if (followLatest && overviewPosition===null) {
+      followLatest=false;
+      const initial=crossed[0]??judged.at(-1)??points[0];
+      if (initial) void chooseStep(initial.pointer);
+      else {selectedStep=null;result=null;resultRequest?.abort();detailState="empty";}
+    }
+  }
 </script>
 
 <section class="ui-panel" aria-labelledby="model-evidence-title">
@@ -379,6 +430,9 @@
         {/if}
       </TaskDialog></div>
     <div class="analysis-body">
+      {#if investigation && !modelChange}
+        <p class="context">선택한 모델의 입력 출처 또는 측정 종류가 조사 중인 기록과 달라, 이 모델의 전체 점수를 표시합니다.</p>
+      {/if}
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
       {:else if binding.health==="unavailable"}
@@ -399,29 +453,25 @@
       {:else if trace}
         <!-- 이상 탐지의 중심 그림: 점수 추이와 임계선(모델 기준), 넘은 구간. 시간축 옆에 열려도 보인다. -->
         {#key binding.bindingId+":"+binding.lastProcessed}
-          <ScoreTrend {binding} {period} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace}
-            signal={reason?.rows[0]??null} onSelect={step=>{followLatest=false;void chooseStep(step);}} onLoaded={(steps,found)=>{trendSteps=steps;intervals=found;}}/>
+          <ScoreTrend {binding} {period} change={modelChange} selected={selectedStep?.position??null} pinned={!followLatest} place={timelinePlace}
+            signal={reason?.rows[0]??null} onSelect={inspectStep} onLoaded={receiveTrend}/>
         {/key}
       {/if}
       </div>
       {#if trace}
       <div class="model-comparison-area">
-        <div class="measurement-picker">        <label class="selector">측정 선택 (최근 {trace.limit}회)
+        <div class="measurement-picker"><label class="selector">측정 선택
           <select value={selectedStep?String(selectedStep.position):""}
             onchange={e=>{
               const item=choices.find(s=>String(s.position)===e.currentTarget.value);
-              if(item){followLatest=false;void chooseStep(item);}
+              if(item)inspectStep(item);
             }}>
             {#each choices as item(item.runId)}
               <option value={String(item.position)} selected={selectedStep?.position===item.position}>{place(item.position)} · {item.state==="analyzed"?"분석함":isUnjudged(item.reason??null)?"판정 안 함":"분석에서 제외"}</option>
             {/each}
           </select>
         </label>
-        {#if trace.steps.length===trace.limit}
-          <p class="context">측정 선택 목록은 최근 {trace.limit}회를 표시합니다.</p>
-        {/if}
-
-        <div class="step-actions"><button type="button" class="ui-button" disabled={!adjacent(-1)} onclick={()=>{const step=adjacent(-1);if(step){followLatest=false;void chooseStep(step);}}}>이전 측정</button><button type="button" class="ui-button" disabled={!adjacent(1)} onclick={()=>{const step=adjacent(1);if(step){followLatest=false;void chooseStep(step);}}}>다음 측정</button><button type="button" class="ui-button" disabled={!result} onclick={showSelectedInput}>{measurements?"원본 파형·입력값":"입력 측정값"}</button></div></div>
+        <div class="step-actions"><button type="button" class="ui-button" disabled={!adjacent(-1)} onclick={()=>{const step=adjacent(-1);if(step)inspectStep(step);}}>이전 측정</button><button type="button" class="ui-button" disabled={!adjacent(1)} onclick={()=>{const step=adjacent(1);if(step)inspectStep(step);}}>다음 측정</button><button type="button" class="ui-button" disabled={!result} onclick={showSelectedInput}>{measurements?"원본 파형·입력값":"입력 측정값"}</button></div></div>
         {#if detailState==="loading"}
           <StatusNotice message="선택한 측정의 모델 결과와 입력 파일을 맞춰 보고 있습니다."/>
         {:else if detailState==="failed"}
@@ -514,14 +564,12 @@
 <style>
   .model-toolbar{grid-column:1/-1;grid-row:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3)}
   .model-toolbar :global(.analysis-controls){flex:none;margin:0;margin-left:auto}
-  .model-choice{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);font-size:var(--font-small)}.model-choice select{min-width:200px}
-  /* 모델 곡선과 선택 측정의 비교를 한 작업 영역에서 읽는다. */
-  .model-workspace{grid-template-columns:minmax(0,1.25fr) minmax(420px,1fr);gap:var(--space-5)}
-  .model-workspace>.analysis-body{grid-column:1;grid-row:2}
-  .model-comparison-area{grid-column:2;grid-row:2;min-width:0;border-left:1px solid var(--color-border);padding-left:var(--space-5);display:grid;gap:var(--space-2)}
-  .measurement-picker{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-2)}.measurement-picker>p{display:none}.step-actions{display:flex;gap:var(--space-1)}
+  .model-choice{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2);font-size:var(--font-small)}.model-choice select{width:auto;min-width:160px}
+  .model-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}
+  .model-comparison-area{min-width:0;border-top:1px solid var(--color-border);padding-top:var(--space-3);display:grid;gap:var(--space-2)}
+  .measurement-picker{display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-2)}
+  .step-actions{display:flex;flex-wrap:wrap;gap:var(--space-1)}
   .input-details{justify-self:start}
-  @media(max-width:1150px){.model-workspace{grid-template-columns:minmax(0,1fr)}.model-workspace>.analysis-body,.model-comparison-area{grid-column:1;grid-row:auto}.model-comparison-area{border-left:0;border-top:1px solid var(--color-border);padding-left:0;padding-top:var(--space-4)}}
   .selected-result{display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
   .selected-result h3{margin:0;font-size:1.2rem}
   .selected-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-5)}
@@ -529,7 +577,8 @@
   .selected-more{display:flex;flex-wrap:wrap;align-items:start;gap:0 var(--space-5)}
   .selected-more>details[open]{flex-basis:100%}
   .context{color:var(--color-ink-muted);overflow-wrap:anywhere}
-  .selector{display:grid;gap:var(--space-2);margin-block:var(--space-4);font-weight:650}
+  .selector{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;font-size:var(--font-small);font-weight:650}
+  .selector select{width:auto;max-width:100%}
   select{width:100%;min-width:0;border:1px solid var(--color-border);
     border-radius:var(--radius-control);padding:var(--space-3);
     background:var(--color-surface);color:var(--color-ink)}

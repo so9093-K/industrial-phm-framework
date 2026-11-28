@@ -1,5 +1,5 @@
 <script lang="ts">
-  import {dateTime as asTime, kstInput as localTime, kstInstant as selectedPeriod} from "../date-format";
+  import {dateTime as asTime, kstInput as localTime, kstInstant as selectedPeriod, spanText} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
   import {observationSnapshot,withObservation} from "../observation-context";
   import AnalysisControls from "./AnalysisControls.svelte";
@@ -10,11 +10,10 @@
   import {readRelation,RelationUnavailable,type PairedGroup,type Relation} from "../relation";
   import RelationPlot from "./RelationPlot.svelte";
   import AnalysisMessage from "./AnalysisMessage.svelte";
-  import {relationMessage,sameXText,short,shortRange} from "../analysis-messages";
-  import ComparisonValues from "./ComparisonValues.svelte";
+  import {relationMessage,sameXText,relationValue,relationRange} from "../analysis-messages";
+  import {measure} from "../chart-axis";
   import {ORIGIN_TEXT,focusFrom,focusParams,momentWindow,periodOrigin,windowParams,type PeriodOrigin,periodNames} from "../signal-selection";
   import StatusNotice from "./StatusNotice.svelte";
-  import {num} from "../format";
   import {movedAtSameX,sameXRanges} from "../relation";
   import {assetTabUrl} from "../routes";
   import {readSummary,relationPair} from "../summary-defaults";
@@ -76,6 +75,7 @@
   let sourceAbort:AbortController|null=null;
   let relationAbort:AbortController|null=null;
   const periodText=(n:"a"|"b")=>periods?asTime(periods[n].from)+" ~ "+asTime(periods[n].to):"";
+  const concisePeriod=(n:"a"|"b")=>periods?spanText(Date.parse(periods[n].from),Date.parse(periods[n].to)):"";
   // A registered name already carries its unit; otherwise the unit comes with the measurements.
   const axisName=(id:string,unit:string|null)=>signalName(names,id)+(unit&&!names.get(id)?.unit?" ("+unit+")":"");
   function initialPeriods(fallback:Periods):Periods{
@@ -181,12 +181,13 @@
     const point = chosen ? pair[chosen.period]?.points[chosen.index] : null;
     const stats = (group: PairedGroup | null) => group ? `${group.pairCount}쌍 · 상관계수 ${group.pearson?.toFixed(2) ?? "계산 안 됨"}` : "측정 짝 없음";
     return {
+      "조회 범위": spanNames.a + " " + concisePeriod("a") + " · " + spanNames.b + " " + concisePeriod("b"),
       "비교 신호": xName + " × " + yName,
       "비교한 기록": sourceLabel(sourceNames, pair.source, pairs.map((item) => item.source)) + (pair.point ? " · " + pair.point : ""),
       [spanNames.a]: periodText("a") + " · " + stats(pair.a),
       [spanNames.b]: periodText("b") + " · " + stats(pair.b),
       "같은 범위에서 비교": moved ? sameXText(moved, {name:xName, unit:xUnit}, {name:yName, unit:yUnit}, spanNames) : "같은 범위의 중앙값 차이가 표시되지 않음",
-      ...(point ? {"선택한 측정": `${asTime(point.at)} · ${axisName(x,xUnit)} ${short(point.x)} · ${axisName(y,yUnit)} ${short(point.y)}`} : {}),
+      ...(point ? {"선택한 측정": `${asTime(point.at)} · ${axisName(x,xUnit)} ${relationValue(point.x)} · ${axisName(y,yUnit)} ${relationValue(point.y)}`} : {}),
     };
   });
 </script>
@@ -235,7 +236,7 @@
       message="같은 출처·시각에 함께 기록된 서로 다른 신호가 두 개 이상 있어야 합니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")}/>
   {:else if available&&periods}
-    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>{spanNames.a} · {periodText("a")} / {spanNames.b} · {periodText("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
+    <div class="analysis-workspace"><header class="analysis-result-head"><div><h3>{signalName(names,x)} × {signalName(names,y)}</h3><p>{spanNames.a} {concisePeriod("a")} · {spanNames.b} {concisePeriod("b")}</p></div><AnalysisControls title="비교 대상·기간">{#snippet children(close)}{#if available && periods}
 
     <div class="period-summary" role="group" aria-label="현재 관계 비교 기간">
       <p><strong>{spanNames.a} · 비교 기준</strong><span>{periodText("a")}</span></p>
@@ -277,12 +278,19 @@
         <section class="group">
           {#if pairs.length>1}<p class="record-label">{sourceLabel(sourceNames,pair.source,pairs.map(each=>each.source))}{#if pair.point}{" · "+pair.point}{/if}</p>{/if}
           {#if explained}
-            {#if moved}<ComparisonValues
-              caption={signalName(names,x)+" "+shortRange(moved.shown.low,moved.shown.high)+(xUnit?" "+xUnit:"")+"일 때의 "+signalName(names,y)+" 중앙값"}
-              names={spanNames}
-              a={short(moved.shown.a.median)+(yUnit?" "+yUnit:"")} b={short(moved.shown.b.median)+(yUnit?" "+yUnit:"")}/>
+            {#if moved}
+              {@const delta=moved.shown.b.median-moved.shown.a.median}
+              <div>
+                <p class="relationship-summary">같은 {signalName(names,x)} 범위에서 {signalName(names,y)} 중앙값이 약 {measure(Math.abs(delta),yUnit,2)} {delta<0?"낮아졌습니다":"높아졌습니다"}.</p>
+                <p class="context">{signalName(names,x)} {relationRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}
+                  · {spanNames.a} {relationValue(moved.shown.a.median)} → {spanNames.b} {relationValue(moved.shown.b.median)}{yUnit?" "+yUnit:""}
+                  · 측정 {moved.shown.a.pairs}개 / {moved.shown.b.pairs}개</p>
+              </div>
             {:else if common}
-              <p class="relationship-summary">두 기간 모두 측정이 충분한 {signalName(names,x)} {shortRange(common.low,common.high)}{xUnit?" "+xUnit:""} 범위를 그래프에 표시했습니다.</p>
+              <div>
+                <p class="relationship-summary">{message?.headline ?? "두 기간의 측정이 겹칩니다."}</p>
+                <p class="context">공통 비교 범위 · {signalName(names,x)} {relationRange(common.low,common.high)}{xUnit?" "+xUnit:""}</p>
+              </div>
             {:else}<p class="relationship-summary">{explained.headline}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
             message="값의 변동이나 같은 시각의 측정 짝이 부족해 계산할 수 없습니다." />{/if}
@@ -296,7 +304,7 @@
             {#if point}
               <div class="chosen" aria-live="polite">
                 <p><strong>선택한 점 · {spanNames[chosen.period]} · {asTime(point.at)}</strong></p>
-                <p>{signalName(names,x)} {num(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {num(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
+                <p>{signalName(names,x)} {relationValue(point.x)}{shown?.xUnit?" "+shown.xUnit:""} · {signalName(names,y)} {relationValue(point.y)}{shown?.yUnit?" "+shown.yUnit:""}</p>
                 <p class="links"><a href={around(point.at,x,chosen.period,pair)}>{signalName(names,x)} 신호에서 이 시각 보기 →</a>
                   <a href={around(point.at,y,chosen.period,pair)}>{signalName(names,y)} 신호에서 이 시각 보기 →</a></p>
               </div>
@@ -320,9 +328,9 @@
                 <thead><tr><th scope="col">{signalName(names,x)} 범위</th><th scope="col">{spanNames.a} 중앙값 (가운데 절반)</th><th scope="col">{spanNames.b} 중앙값</th><th scope="col">짝 수</th></tr></thead>
                 <tbody>{#each ranges as range (range.a.bin)}
                   <tr class:moved={range.b.median<range.a.q1||range.b.median>range.a.q3}>
-                    <td>{unit(shortRange(range.low,range.high),xUnit)}</td>
-                    <td>{unit(short(range.a.median),yUnit)} ({short(range.a.q1)}~{short(range.a.q3)})</td>
-                    <td>{unit(short(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · A 값의 가운데 절반 밖":""}</td>
+                    <td>{unit(relationRange(range.low,range.high),xUnit)}</td>
+                    <td>{unit(relationValue(range.a.median),yUnit)} ({relationRange(range.a.q1,range.a.q3)})</td>
+                    <td>{unit(relationValue(range.b.median),yUnit)}{range.b.median<range.a.q1||range.b.median>range.a.q3?" · "+spanNames.a+" 값의 가운데 절반 밖":""}</td>
                     <td>{range.a.pairs.toLocaleString("ko-KR")} · {range.b.pairs.toLocaleString("ko-KR")}</td>
                   </tr>
                 {/each}</tbody>
@@ -337,7 +345,7 @@
                   <caption>각 행은 같은 출처·측정 위치·시각에 저장된 실제 측정 짝입니다</caption>
                   <thead><tr><th scope="col">시각 (KST)</th><th scope="col">{signalName(names,x)}</th><th scope="col">{signalName(names,y)}</th></tr></thead>
                   <tbody>{#each group.points.slice(0,100) as item,i (i)}
-                    <tr><td>{asTime(item.at)}</td><td>{num(item.x)}</td><td>{num(item.y)}</td></tr>
+                    <tr><td>{asTime(item.at)}</td><td>{relationValue(item.x)}</td><td>{relationValue(item.y)}</td></tr>
                   {/each}</tbody>
                 </table></div>
                 {#if group.points.length>100}<p class="context">표에 최대 100개 짝만 표시합니다.</p>{/if}
@@ -367,7 +375,7 @@
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}dd{margin:0;font-weight:700}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--color-border);padding:var(--space-2)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .relationship-summary{font-size:var(--font-small);color:var(--color-ink-muted);margin:0 0 16px;line-height:1.5}.interpretation{margin-block:12px}
+  .relationship-summary{font-size:var(--font-body);font-weight:700;margin:0 0 4px;line-height:1.5}.interpretation{margin-block:12px}
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
   .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}

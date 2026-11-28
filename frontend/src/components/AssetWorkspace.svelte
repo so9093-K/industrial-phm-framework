@@ -304,7 +304,7 @@
   .analysis-tabs .back:hover{background:var(--color-surface-selected)}
   .analysis-view-body{min-width:0;display:grid;gap:var(--space-3)}
   /* AI 조사를 열면 분석 오른쪽에 대화 칸: 화면을 보면서 묻는다. 대화 칸은 화면 안에 따라온다. */
-  .analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr) 380px;align-items:start}
+  .analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr) clamp(280px,23%,360px);align-items:start}
   .analysis-main{min-width:0;display:grid;gap:var(--space-3)}
   .analysis-chat{position:sticky;top:16px;height:clamp(380px,calc(100dvh - 240px),680px);min-width:0}
   .ai-toggle{margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:6px;min-height:0;height:32px;padding:0 12px;font-size:var(--font-label);font-weight:650;color:var(--color-action)}

@@ -1,14 +1,13 @@
 <script lang="ts">
-  import {kstInput} from "../date-format";
+  import {dateTimeRange, kstInput} from "../date-format";
   import {exposeAnalysis} from "../analysis-readout.svelte";
-  import {subject} from "../change-story";
   import AnalysisControls from "./AnalysisControls.svelte";
   import {readableSourceId} from "../operations-status";
   import {onMount, tick} from "svelte";
   import {yTicks} from "../chart-axis";
   import {systemUrl} from "../routes";
   import {
-    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, shiftedPeriod, kstTime, measured, readCondition, segments,
+    EXCLUDED_TEXT, METRICS, STATE_TEXT, firstChecks, insights, patternCounts, shiftedPeriod, kstTime, measured, readCondition, segments,
     type Condition, type ConditionPeriod, type ConditionSource, type Metric, type PeriodSummary, type TimelinePoint,
   } from "../electrical-condition";
   import CautionNote from "./CautionNote.svelte";
@@ -58,6 +57,12 @@
     const current: Condition | null = condition;
     return current && current.analyzed ? current : null;
   });
+  const coverage = $derived(analyzed ? patternCounts(analyzed.pattern) : null);
+  const coverageRows = $derived(coverage ? [
+    {label:"기준과 다름", count:coverage.different, tone:"different"},
+    {label:"기준 범위 안", count:coverage.within, tone:"within"},
+    {label:"비교할 기준 없음", count:coverage.unscored, tone:"unscored"},
+  ] : []);
   const visibleTimeline=$derived.by(()=>{
     const current:Analyzed|null=analyzed;if(!current)return [];
     if(wholePeriod||!windowAt)return current.timeline;
@@ -159,9 +164,9 @@
     if (loadState !== "ready" || !analyzed) return null;
     const signal = METRICS[metric];
     return {
-      // 서버가 받는 화면 값은 8개까지다: 두 기간을 한 줄로 둔다.
-      "분석 기간 (비교 기준)": kstTime(analyzed.targetStart) + " ~ " + kstTime(analyzed.targetEnd)
-        + " (" + kstTime(analyzed.referenceStart) + " ~ " + kstTime(analyzed.referenceEnd) + ")",
+      "조회 범위": "분석 " + dateTimeRange(analyzed.targetStart, analyzed.targetEnd, "minute")
+        + " · 기준 " + dateTimeRange(analyzed.referenceStart, analyzed.referenceEnd, "minute"),
+      ...(analyzed.pattern.scored ? {"3상 비교": coverageRows.map(row=>row.label+" "+row.count+"개").join(" · ")} : {}),
       "표시 신호": phased ? "R·S·T 상별 전류" : signal.label,
       ...(selected ? {"선택한 측정": kstTime(selected.at) + " · " + signal.label + " " + measured(selected[metric], signal.unit)} : {}),
       // 상끼리의 차이는 이 화면의 카드와 선택 시점의 상별 값이 보여 준다. 그 값을 같은 말로 넘긴다.
@@ -237,17 +242,27 @@
       actionLabel={condition.state === "no-history" || condition.state === "unsupported-signals" ? "데이터 연결 확인하기" : undefined}
       actionHref={condition.state === "no-history" || condition.state === "unsupported-signals" ? systemUrl("connections") : undefined} />
   {:else if analyzed}
-    <!-- A stopped day shows only zeros; the neighbouring periods are one press away, not a date to type. -->
-    <div class="range-row"><p class="range">분석 기간 {kstTime(analyzed.targetStart)} → {kstTime(analyzed.targetEnd)}
-      <span>비교 기준 {kstTime(analyzed.referenceStart)} → {kstTime(analyzed.referenceEnd)}</span></p>
+    <div class="range-row"><p class="range">분석 기간 {dateTimeRange(analyzed.targetStart,analyzed.targetEnd,"minute")}
+      <span>비교 기준 {dateTimeRange(analyzed.referenceStart,analyzed.referenceEnd,"minute")}</span></p>
     <div class="shift">
       {@render settingsPanel()}
       <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>
       <button type="button" class="ui-button" disabled={!analyzed.nextPeriodAvailable} onclick={() => void shift(analyzed!, 1)}>다음 기간 →</button>
     </div></div>
-    {#if baseline&&!reusableBaseline&&referenceMode==="previous"}<p class="context">최대 24시간씩 비교 · 기준은 분석 직전 같은 길이의 기간입니다.</p>{/if}
-    <p class="result-statement">{insights(analyzed).find(line=>line.includes("3상 패턴")) ?? insights(analyzed).find(line=>line.includes("패턴을 비교하지")) ?? insights(analyzed)[0]}</p>
-    {#if insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}<p class="context">{insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}</p>{/if}
+    {#if analyzed.pattern.scored && coverage}
+      <section class="coverage" aria-label="3상 패턴 비교 결과">
+        <p class="result-statement">비교한 {analyzed.pattern.scoredSamples.toLocaleString("ko-KR")}개 중 {coverage.different.toLocaleString("ko-KR")}개의 3상 패턴이 기준과 달랐습니다.</p>
+        <div class="coverage-bar" aria-hidden="true">
+          {#each coverageRows as row (row.tone)}{#if row.count > 0}<i class={row.tone} style:flex-grow={row.count}></i>{/if}{/each}
+        </div>
+        <ul>{#each coverageRows as row (row.tone)}<li><i class={row.tone}></i>{row.label} <strong>{row.count.toLocaleString("ko-KR")}개</strong></li>{/each}</ul>
+        {#if coverage.unscored > 0 && insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}
+          <p class="context">{insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}</p>
+        {/if}
+      </section>
+    {:else}
+      <p class="result-statement">{insights(analyzed).find(line=>line.includes("패턴을 비교하지")) ?? insights(analyzed)[0]}</p>
+    {/if}
     <div class="electrical-investigation"><div>
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
@@ -310,8 +325,10 @@
       {@const notable=analyzed.pattern.scored?analyzed.pattern.notable.find(point=>Date.parse(point.at)===Date.parse(selected.at)):null}
       <section class="block selected" bind:this={detail} tabindex="-1" aria-labelledby="condition-selected">
         <h3 id="condition-selected">{kstTime(selected.at)}</h3>
-        <p class="selected-value"><span>{METRICS[metric].label}</span><strong>{measured(selected[metric],METRICS[metric].unit)}</strong></p>
-        {#if notable&&notable.value!==null&&notable.low!==null&&notable.high!==null}<p class="selected-comparison">{subject(notable.channel)} {measured(notable.value," "+notable.unit)} · 비교 범위 {measured(notable.low)}–{measured(notable.high," "+notable.unit)}</p>{/if}
+        {#if notable&&notable.value!==null&&notable.low!==null&&notable.high!==null}
+          <p class="selected-value"><span>{notable.channel}</span><strong>{measured(notable.value," "+notable.unit)}</strong></p>
+          <p class="selected-comparison">비교 범위 {measured(notable.low)}–{measured(notable.high," "+notable.unit)} · {METRICS[metric].label} {measured(selected[metric],METRICS[metric].unit)}</p>
+        {:else}<p class="selected-value"><span>{METRICS[metric].label}</span><strong>{measured(selected[metric],METRICS[metric].unit)}</strong></p>{/if}
         {#if phaseValues}
           <!-- 불평형은 세 상이 평균에서 얼마나 벗어났는지다. 0부터 그린 막대는 207 V와 208 V가 같아 보였다. -->
           {@const known=phaseValues.filter((value):value is number=>value!==null)}
@@ -377,6 +394,15 @@
   h3 { font-size: var(--font-section); overflow-wrap: anywhere; }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); font-size: var(--font-small); }
+  .coverage { display:grid;gap:var(--space-2); }
+  .coverage-bar { display:flex;height:8px;overflow:hidden;border-radius:4px;background:var(--color-surface-selected); }
+  .coverage-bar i { flex-basis:0; }
+  .coverage ul { list-style:none;display:flex;flex-wrap:wrap;gap:4px 16px;margin:0;padding:0;font-size:var(--font-small); }
+  .coverage li { display:flex;align-items:center;gap:5px; }
+  .coverage li i { width:9px;height:9px;border-radius:2px; }
+  .different { background:var(--color-action); }
+  .within { background:var(--color-control-border); }
+  .unscored { background:repeating-linear-gradient(135deg,var(--color-surface-selected) 0 3px,var(--color-border) 3px 5px); }
   .controls { display: grid; gap: var(--space-3); grid-template-columns: minmax(0, 1fr); align-items: end; }
   .controls > details, .controls > button { grid-column: 1 / -1; justify-self: start; }
   .controls > details { justify-self: stretch; }

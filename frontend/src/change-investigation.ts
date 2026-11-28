@@ -15,7 +15,7 @@ export type LoadComparison={status:"unavailable"|"failed"}|{
 };
 /** 한 문답: 물은 말, 그래프에서 짚고 물은 곳(pointed), 답, 대화 안에서 실행한 비교, AI가 함께 연 분석 화면(analysis). */
 export type ChangeDiscussion={id:string;question:string;pointed:string|null;status:"pending"|"complete"|"failed";answer:ChangeAnswer|null;
-  comparison:LoadComparison|null;analysis:string|null};
+  comparison:LoadComparison|null;analysis:string|null;answerView:string|null;answerScope:string|null};
 
 function loadComparison(raw:unknown,asset:string):LoadComparison|null {
   if(raw==null)return null;
@@ -49,7 +49,9 @@ export async function readChangeDiscussion(asset:string,key:string,conversation:
     if(row.status==="complete"&&typeof answer?.summary!=="string")throw new Error("답을 읽지 못했습니다.");
     return {id:row.id,question:context.question,pointed:typeof context.pointed==="string"?context.pointed:null,status:row.status as ChangeDiscussion["status"],
       answer:typeof answer?.summary==="string"?{summary:answer.summary}:null,comparison:loadComparison(answer?.load_comparison,asset),
-      analysis:typeof answer?.analysis==="string"?answer.analysis:null};
+      analysis:typeof answer?.analysis==="string"?answer.analysis:null,
+      answerView:typeof context.answer_view==="string"?context.answer_view:null,
+      answerScope:typeof context.analysis_scope==="string"?context.analysis_scope:null};
   });
 }
 /** 질문 하나를 보낸다. parent는 이어 묻는 앞 답: AI는 그 대화를 이어 읽는다. */

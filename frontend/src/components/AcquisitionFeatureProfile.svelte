@@ -160,6 +160,7 @@
     const shown = profile;
     const number = (value: number | null) => value === null ? "측정 없음" : label(value) + (shown.unit ? " " + shown.unit : "");
     return {
+      "조회 범위": `${names.a} ${shown.spans.a.from}–${shown.spans.a.to}번째 · ${names.b} ${shown.spans.b.from}–${shown.spans.b.to}번째 측정`,
       "비교한 진동 특징": shown.label,
       [names.a]: `${shown.spans.a.from}–${shown.spans.a.to}번째 측정 · 중앙값 ${number(shown.a.median)} · 유효 ${shown.a.usable}회`,
       [names.b]: `${shown.spans.b.from}–${shown.spans.b.to}번째 측정 · 중앙값 ${number(shown.b.median)} · 유효 ${shown.b.usable}회`,
