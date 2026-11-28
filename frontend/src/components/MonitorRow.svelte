@@ -58,7 +58,7 @@
   const loadPoint = $derived(readAt !== null && load[0] ? pointInBucket(load[0].points, readAt, companion?.bucketMs ?? null) : null);
   const distinctLines = $derived(group.axis === "time" && series.length === 3);
   const onsetLink = $derived(lead && activity && lead.from >= lo && lead.from <= hi && series.some(row => row.points.length)
-    ? {href: activity.href, label: name + " 변화 시작 · 조사", title: short(lead.from) + "부터의 변화 조사", onOpen: onPause} : undefined);
+    ? {href: activity.href, label: name + " 변화 구간 조사", title: short(lead.from) + "부터의 변화 조사", onOpen: onPause} : undefined);
   function chatPoint(at: number | null): MonitorChatPoint | null {
     if (at === null) return null;
     const label = group.axis === "time" ? clockText(at) : Math.floor(at) + "번째 측정";
@@ -98,9 +98,9 @@
           <div class="finding-actions">
             {#if activity?.question}
               <button type="button" class="ui-button ai" onclick={() => onQuestion(activity!, chatPoint(picked))}>
-                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>이 변화에 질문하기</button>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI에게 질문</button>
             {/if}
-            {#if !onsetLink}<a class="ui-button ui-button-primary investigate" href={activity?.href ?? href} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>{/if}
+            {#if !onsetLink}<a class="ui-button ui-button-primary investigate" href={activity?.href ?? href} onclick={onPause} aria-label={name + " 변화 구간 조사"}>변화 구간 조사 →</a>{/if}
           </div>
         </section>
       {/if}

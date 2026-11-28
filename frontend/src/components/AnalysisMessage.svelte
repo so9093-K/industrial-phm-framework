@@ -20,7 +20,7 @@
   {#if message.certainty}<p class="certainty">{message.certainty}</p>{/if}
   {#if boundary}<details class="limits"><summary>계산 조건·해석 안내</summary><p>{boundary}</p></details>{/if}
   {#if message.next.length}
-    <p class="next"><strong>다음 확인</strong>
+    <p class="next"><strong>추가 확인</strong>
       {#each message.next as step (step.href)}<a href={step.href}>{step.label} →</a>{/each}
     </p>
   {/if}

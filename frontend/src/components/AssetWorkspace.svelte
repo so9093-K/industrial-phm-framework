@@ -232,7 +232,7 @@
       {/each}
       {#if chatAvailable}
         <button type="button" class="ui-button ai-toggle" bind:this={chatToggle} aria-expanded={chatOpen} aria-controls={chatOpen?"analysis-questions":undefined} onclick={toggleChat}>
-          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>이 변화에 질문하기</button>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI에게 질문</button>
       {/if}
     </nav>
     </header>

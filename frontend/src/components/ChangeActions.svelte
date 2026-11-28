@@ -14,18 +14,18 @@
       };
   });
   const rows = $derived(focus.kind==="history"?[
-    {label:focus.item.unit==="V"?"다른 상전압·전류 함께 보기":"같은 시각의 관련 신호",href:links.signal},
-    {label:"전후 값·분포 비교",href:links.compare},
-    {label:"추세·기준까지의 여유",href:links.outlook},
+    {label:"변화 구간의 실측 추이",href:links.signal},
+    {label:"전후 분포 비교",href:links.compare},
+    {label:"추세 전망·기준 도달",href:links.outlook},
   ]:[
     {label:"달라진 주파수 대역",href:links.spectrum},
     {label:"전후 진동 비교",href:links.compare},
-    {label:"추세·기준까지의 여유",href:links.outlook},
+    {label:"추세 전망·기준 도달",href:links.outlook},
   ]);
 </script>
 <!-- 다른 화면에서 이어 볼 분석: 같은 폭·같은 높이의 줄로. 판단은 이 아래 따로 둔다. -->
-<nav aria-label="이 특이사항의 분석">
-  <h3>더 볼 분석</h3>
+<nav aria-label="관련 분석">
+  <h3>관련 분석</h3>
   <ul>
     {#each rows as row(row.label)}{#if row.href}<li><a href={row.href}
       onclick={event=>{onInvestigate?.();event.currentTarget.href=tabSelectionUrl(event.currentTarget.href,location.href);}}><span>{row.label}</span><i aria-hidden="true">→</i></a></li>{/if}{/each}
