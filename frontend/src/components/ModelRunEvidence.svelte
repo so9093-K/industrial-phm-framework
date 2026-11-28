@@ -101,9 +101,15 @@
   });
   const params=new URLSearchParams(location.search);
   const investigation=changeRef(location.search);
+  const changeSource=params.get("monitor_source");
+  const changePoint=params.has("monitor_point") ? params.get("monitor_point") || null : undefined;
+  function matchesChange(model:ModelBinding) {
+    return investigation!==null && (investigation.kind==="history")===isTimeWindow(model.stepKind)
+      && (!changeSource || model.sourceId===changeSource) && (changePoint===undefined || model.pointId===changePoint);
+  }
   const modelChange=$derived.by(()=>{
     const current:ModelBinding|null=binding;
-    return current && investigation && (investigation.kind==="history")===isTimeWindow(current.stepKind) ? investigation : null;
+    return current && matchesChange(current) ? investigation : null;
   });
   let changeResponse=$state<string|null>(null);
   let selectedBinding=$state(params.get("model_binding")??"");
@@ -206,8 +212,10 @@
       listState="ready";
       // Without a bookmark, open the latest measurement; a failed read keeps the first.
       // 패키지를 불러올 수 없는 모델(폐기된 종류 등)은 저장된 결과만 남는다: 실행할 수 있는 모델을 먼저 연다.
-      const runnable=available.filter(b=>b.health!=="unavailable");
-      const candidates=runnable.length?runnable:available;
+      const matching=available.filter(matchesChange);
+      const eligible=matching.length?matching:available;
+      const runnable=eligible.filter(b=>b.health!=="unavailable");
+      const candidates=runnable.length?runnable:eligible;
       const latest=selectedBinding||candidates.length<2?null
         :await loadLatestScores(assetId,request.signal,candidates).then(latestModel).catch(()=>null);
       if(request.signal.aborted)return;
@@ -342,7 +350,8 @@
       ? modelChange.kind==="history" ? spanText(Date.parse(modelChange.start),Date.parse(modelChange.end)) : modelChange.from+"–"+modelChange.to+"번째 측정"
       : measurement;
     if (!scope) return null;
-    const facts = {"조회 범위": scope, ...(changeResponse!==null ? {"변화 구간의 모델 반응":changeResponse}:{}), "선택한 모델": model};
+    const facts = {"조회 범위": scope, ...(changeResponse!==null ? {"변화 구간의 모델 반응":changeResponse}:{}), "선택한 모델": model,
+      ...(investigation && !modelChange ? {"모델 입력":"조사 중인 변화와 다른 출처 또는 측정 종류"}:{})};
     if (modelChange && !inspectedByUser && overviewPosition===null) return facts;
     const context = {...facts, ...(measurement!==null ? {"선택한 측정": measurement}:{})};
     if (detailState !== "ready" || !result) return changeResponse===null ? null : context;
@@ -362,8 +371,9 @@
     if (!points) {changeResponse=null;return;}
     const judged=points.filter(point=>point.score!==null&&point.exceeds!==null);
     const crossed=judged.filter(point=>point.exceeds);
+    const counted=investigation?.kind==="history"?"입력 구간":"진동 측정";
     changeResponse=(truncated?"읽은 점수만 · ":"")+(judged.length
-      ? judged.length+"개 중 "+crossed.length+"개 모델 기준 초과"
+      ? "같은 모델로 분석한 "+counted+" "+judged.length+"개 중 "+crossed.length+"개의 점수가 모델 기준을 넘음"
       : "선택한 변화에 해당하는 모델 점수 없음");
     if (points.length>judged.length) changeResponse+=" · 판정하지 않은 입력 "+(points.length-judged.length)+"개";
     if (followLatest && overviewPosition===null) {
@@ -420,6 +430,9 @@
         {/if}
       </TaskDialog></div>
     <div class="analysis-body">
+      {#if investigation && !modelChange}
+        <p class="context">선택한 모델의 입력 출처 또는 측정 종류가 조사 중인 기록과 달라, 이 모델의 전체 점수를 표시합니다.</p>
+      {/if}
       {#if !binding.packageAvailable}
         <StatusNotice kind="uncertain" message="모델 정보 파일을 읽지 못했습니다. 저장된 점수는 볼 수 있지만 모델이 맞는 범위는 확인할 수 없습니다."/>
       {:else if binding.health==="unavailable"}

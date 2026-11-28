@@ -193,7 +193,9 @@
     {#if inChange}
       <div class="change-score">
         <div>
-          <p class="result-statement">{changeJudged.length ? (trend.truncated ? "조회한 변화에서 " : "선택한 변화에서 ")+changeJudged.length+"개 중 "+changeExceeded+"개 기준 초과" : "선택한 변화에서 읽은 모델 점수가 없습니다."}</p>
+          <p class="result-statement">{changeJudged.length
+            ? (trend.truncated ? "읽은 " : "선택한 변화의 ")+(change?.kind==="history"?"입력 구간 ":"진동 측정 ")+changeJudged.length+"개 중 "+changeExceeded+"개 기준 초과"
+            : "선택한 변화에서 읽은 모델 점수가 없습니다."}</p>
           {#if inChange.length>changeJudged.length}<p class="context">판정 없이 기록된 입력 {inChange.length - changeJudged.length}개</p>{/if}
         </div>
         <div class="scope-toggle" role="group" aria-label="점수 그래프 표시 범위">
