@@ -14,6 +14,7 @@ export type PublicDataset = {
 export type DatasetJob = {
   state: "running" | "succeeded" | "failed" | "interrupted"; step: string; done: number;
   assetId: string; failure: string | null;
+  inputRead?: number | null; inputTotal?: number | null; remainingSeconds?: number | null;
   /** The kinds of error behind a failure, such as "RuntimeError ← OSError EIO", for a report. */
   detail: string | null;
 };
@@ -45,7 +46,8 @@ export function parsePublicDatasets(raw: unknown): PublicDatasets {
     const row = object(entry);
     if (!row || !states.includes(row.state as DatasetJob["state"])) continue;
     jobs[key] = {state: row.state as DatasetJob["state"], step: text(row.step) ?? "", done: count(row.done) ?? 0,
-      assetId: text(row.asset_id) ?? "", failure: text(row.failure), detail: text(row.failure_detail)};
+      assetId: text(row.asset_id) ?? "", failure: text(row.failure), detail: text(row.failure_detail),
+      inputRead: count(row.input_read), inputTotal: count(row.input_total), remainingSeconds: count(row.remaining_seconds)};
   }
   return {available: root.available === true, canImport: root.can_import === true, items, jobs};
 }
@@ -63,25 +65,24 @@ export async function startImport(datasetId: string, signal: AbortSignal): Promi
   await postWrite("/api/v1/datasets/import", {dataset_id: datasetId}, signal);
 }
 
-/** AI-Hub by equipment and 학습용/검증용, then the XJTU-SY bearings, in the server's order. */
+/** Group recordings by what was measured. */
 export function groupDatasets(items: PublicDataset[]): DatasetGroup[] {
   const groups = new Map<string, DatasetGroup>();
   for (const item of items) {
-    const key = item.kind === "xjtu-sy" ? "xjtu-sy" : item.equipment + "\n" + item.split;
-    const partition=item.split==="학습용"?"Training":item.split==="검증용"?"Validation":item.split;
+    const key = item.kind === "xjtu-sy" ? "xjtu-sy" : item.equipment ?? "aihub-239";
     const title = item.kind === "xjtu-sy" ? "XJTU-SY 베어링 진동 기록"
-      : "AI-Hub 239 · " + item.equipment + " 전력 기록 · 원본 분류 " + partition;
+      : (item.equipment ?? "설비") + " 전력 기록";
     const group = groups.get(key) ?? {key, title, kind: item.kind, items: []};
     group.items.push(item);
     groups.set(key, group);
   }
-  return [...groups.values()];
+  return [...groups.values()].sort((a,b)=>Number(b.kind==="xjtu-sy")-Number(a.kind==="xjtu-sy"));
 }
 
 export function datasetName(item: PublicDataset): string {
   return item.kind === "xjtu-sy"
     ? item.assetId + (item.speedHz !== null && item.loadKn !== null ? " · " + item.speedHz + " Hz · " + item.loadKn + " kN" : "")
-    : "설비 " + item.deviceId;
+    : item.assetId;
 }
 
 export function datasetFacts(item: PublicDataset): string {
@@ -99,10 +100,18 @@ const FAILURE: Record<string, string> = {
 };
 
 /** One line for a running or finished import, in terms of what is being stored. */
-export function jobText(job: DatasetJob): string {
+export function jobText(job: DatasetJob, acquisitions?: number | null): string {
   if (job.state === "running") {
     if (job.step === "models") return "이상 탐지 모델 준비 중 · 처음 한 번만, 몇 분 걸립니다";
-    if (job.step === "replay") return "측정 기록 넣는 중 · " + job.done.toLocaleString("ko-KR") + "회";
+    if (job.step === "replay") return "측정 기록 넣는 중 · " + job.done.toLocaleString("ko-KR")
+      + (acquisitions ? " / " + acquisitions.toLocaleString("ko-KR") : "") + "회";
+    if (job.inputTotal && job.inputRead != null) {
+      if (job.inputRead >= job.inputTotal) return "마지막 저장 중";
+      const percent = Math.floor(100 * job.inputRead / job.inputTotal);
+      const remaining = job.remainingSeconds == null ? "" : job.remainingSeconds < 60
+        ? " · 약 1분 이내" : " · 약 " + Math.ceil(job.remainingSeconds / 60) + "분 남음";
+      return "원본 " + percent + "% 읽음" + remaining;
+    }
     return "측정값 저장 중 · " + job.done.toLocaleString("ko-KR") + "개";
   }
   if (job.state === "succeeded") return "가져왔습니다";

@@ -8,14 +8,14 @@
   /** 전망 그래프. 관제·조사 화면과 같은 규칙으로 측정(파랑 실선)·처음 수준(회색 점선)·처음 범위(회색 띠)·
    * 조사에서 고른 변화(노란 구간)를 그리고, 그 뒤에 예측(같은 색 점선)과 예측 범위, 관리·종료 기준선,
    * 기준에 닿는 자리를 더한다. 포인터를 올린 자리의 측정값·예측값을 위 줄에서 읽는다. */
-  let {history, future, last, baseline = null, change = null, limits, direction = "upper", reach, pace = null, unit, scale, place, unreliable = false, height = 260}: {
+  let {history, future, last, baseline = null, change = null, limits, direction = "upper", reach, pace = null, unit, scale, place, bucketMeans = false, unreliable = false, height = 260}: {
     history: OutlookPoint[]; future: OutlookFuture[]; last: number;
     baseline?: {median: number | null; low: number | null; high: number | null} | null; change?: OutlookWindow | null;
     limits: OutlookLimits; direction?: "upper" | "lower";
     reach: {management: {x: number; sure: boolean; already?: boolean} | null; end: {x: number; sure: boolean; already?: boolean} | null};
     /** 마지막 측정에서 최근 속도(x 한 칸당)를 그대로 이은 직선. 기준까지의 답이 이 읽기일 때만 그린다. */
     pace?: {rate: number; label: string} | null;
-    unit: string | null; scale: XScale; place: (x: number) => string; unreliable?: boolean; height?: number} = $props();
+    unit: string | null; scale: XScale; place: (x: number) => string; bucketMeans?: boolean; unreliable?: boolean; height?: number} = $props();
   const W = 1000;
   const view = $derived(outlookWindow(history, future, change));
   const shown = $derived(history.filter(point => point.x >= view.from));
@@ -26,7 +26,7 @@
   const y = (n: number) => height - 4 - (n - lo) / (hi - lo) * (height - 8);
   const ticks = $derived(yTicks(lo, hi, 4, height - 4, 4));
   const pct = (n: number) => Math.max(0, Math.min(100, x(n) / W * 100));
-  const measured = $derived(tracePath(shown.map(p => ({x: x(p.x), y: y(p.value), join: true}))));
+  const measured = $derived(tracePath(shown.map(p => ({x: x(p.x), y: y(p.value), join: p.join ?? true}))));
   const estimate = $derived(tracePath(future.map(p => ({x: x(p.x), y: y(p.estimate), join: true}))));
   const ranged = $derived(future.filter(p => p.lower !== null && p.upper !== null));
   const band = $derived(ranged.length > 1 ? "M" + ranged.map(p => x(p.x).toFixed(1) + " " + y(p.upper!).toFixed(1)).join(" L")
@@ -55,14 +55,15 @@
 
 <figure class="outlook-chart" class:unreliable>
   <p class="readout" aria-live="off">{#if read}
-    <span>{place(read.point.x)}{hover === null ? " · 마지막 측정" : ""}</span>
+    <span>{place(read.point.x)}{read.kind === "measured" && bucketMeans ? (hover === null ? " · 마지막 구간 평균" : " · 구간 평균")
+      : hover === null ? " · 마지막 측정" : ""}</span>
     {#if read.kind === "measured"}<b><i class="key measured"></i>{measure(read.point.value, unit)}</b>
     {:else}<b><i class="key estimate"></i>예측 {measure(read.point.estimate, unit)}</b>{#if read.point.lower !== null && read.point.upper !== null}<small>범위 {measure(read.point.lower, unit, 3)} ~ {measure(read.point.upper, unit, 3)}</small>{/if}{/if}
   {/if}</p>
   <ValueAxis {ticks} {height} {unit}>
     <div class="plot" role="presentation" onpointermove={move} onpointerleave={() => hover = null}>
       <svg viewBox={"0 0 " + W + " " + height} preserveAspectRatio="none" role="img" style:height={height + "px"}
-        aria-label={"측정과 예측 · " + place(view.from) + "부터 " + place(view.to) + "까지" + lines.map(line => " · " + line.name + " " + measure(line.value, unit)).join("")}>
+        aria-label={(future.length ? "측정과 예측" : "측정 추이") + " · " + place(view.from) + "부터 " + place(view.to) + "까지" + lines.map(line => " · " + line.name + " " + measure(line.value, unit)).join("")}>
         {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
         {#if change && change.to >= view.from}{@const start = Math.max(0, x(change.from))}
           <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>{/if}
@@ -99,11 +100,11 @@
     {#snippet footer()}<XAxis lo={view.from} hi={view.to} {scale}/>{/snippet}
   </ValueAxis>
   <figcaption class="legend">
-    <span><i class="key measured"></i>측정값</span>
+    <span><i class="key measured"></i>{bucketMeans ? "측정값의 구간 평균" : "측정값"}</span>
     {#if baseline?.median != null}<span><i class="key reference"></i>초기 수준</span>{/if}
     {#if baseline?.low != null}<span><i class="key baseline"></i>초기 범위</span>{/if}
     {#if change}<span><i class="key change"></i>조사한 변화</span>{/if}
-    <span><i class="key estimate"></i>예측</span>
+    {#if future.length}<span><i class="key estimate"></i>예측</span>{/if}
     {#if band}<span><i class="key band"></i>예측 범위</span>{/if}
     {#if paced && pace}<span><i class="key pace"></i>{pace.label}</span>{/if}
     {#if limits.management !== null && scaled.outside.management}<span>관리 기준 {measure(limits.management, unit)} · 그래프 밖</span>{/if}

@@ -11,16 +11,15 @@ const aihub = (device: string, split = "학습용", stored = false) => ({
 const xjtu = {dataset_id: "xjtu-sy:Bearing1_1", kind: "xjtu-sy", asset_id: "Bearing1_1", stored: false,
   bearing: "Bearing1_1", rotational_speed_hz: 35, radial_load_kn: 12, acquisitions: 123};
 
-test("the listing groups AI-Hub records by equipment and split before the XJTU-SY bearings", () => {
+test("the listing leads with bearings and groups power records by equipment", () => {
   const found = parsePublicDatasets({schema_version: 1, available: true, can_import: true, meaning: MEANING,
     items: [aihub("1338"), aihub("2194", "검증용"), aihub("1339", "학습용", true), xjtu],
     jobs: {"xjtu-sy:Bearing1_1": {state: "running", step: "models", done: 0, asset_id: "Bearing1_1"}}});
   assert.deepEqual(groupDatasets(found.items).map((group) => [group.title, group.items.length]), [
-    ["AI-Hub 239 · 공기압축기 전력 기록 · 원본 분류 Training", 2],
-    ["AI-Hub 239 · 공기압축기 전력 기록 · 원본 분류 Validation", 1],
     ["XJTU-SY 베어링 진동 기록", 1],
+    ["공기압축기 전력 기록", 3],
   ]);
-  assert.equal(datasetName(found.items[0]), "설비 1338");
+  assert.equal(datasetName(found.items[0]), "공기압축기 1338");
   assert.equal(datasetFacts(found.items[0]), "원천 기록 219.6 MB");
   assert.equal(datasetName(found.items[3]), "Bearing1_1 · 35 Hz · 12 kN");
   assert.equal(datasetFacts(found.items[3]), "측정 123회");
@@ -35,6 +34,9 @@ test("an import says what it is storing, and why it stopped in the reader's term
     ({state: state as "running", step, done, assetId: "x", failure, detail: null});
   assert.equal(jobText(job("running", "history", 1509725)), "측정값 저장 중 · 1,509,725개");
   assert.equal(jobText(job("running", "replay", 42)), "측정 기록 넣는 중 · 42회");
+  assert.equal(jobText(job("running", "replay", 42), 123), "측정 기록 넣는 중 · 42 / 123회");
+  assert.equal(jobText({...job("running", "history"), inputRead:20,inputTotal:100,remainingSeconds:101}), "원본 20% 읽음 · 약 2분 남음");
+  assert.equal(jobText({...job("running", "history"), inputRead:100,inputTotal:100}), "마지막 저장 중");
   assert.match(jobText(job("failed", "models", 0, "source-incomplete")), /15개가 모두 있어야/);
   assert.match(jobText(job("failed", "history", 0, "unknown")), /원인을 확인하지 못했습니다/);
   assert.match(jobText(job("interrupted", "history")), /저장된 부분은 건너뜁니다/);

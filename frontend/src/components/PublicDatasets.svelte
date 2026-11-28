@@ -14,10 +14,15 @@
   let message = $state("");
   let readUncertain = $state(false);
   let pending = $state("");
+  let search = $state("");
   const preferredKind=new URLSearchParams(location.search).get("dataset_kind");
   const groups = $derived.by(() => {
     const current: PublicDatasets | null = datasets;
-    return current ? groupDatasets(current.items).sort((a,b)=>Number(b.kind===preferredKind)-Number(a.kind===preferredKind)) : [];
+    const token=search.trim().toLowerCase();
+    return current ? groupDatasets(current.items.filter(item=>!token ||
+      [item.assetId, item.deviceId, item.equipment, item.kind, datasetName(item)]
+        .some(value=>value?.toLowerCase().includes(token))))
+      .sort((a,b)=>Number(b.kind===preferredKind)-Number(a.kind===preferredKind)) : [];
   });
   const running = $derived.by(() => {
     const current: PublicDatasets | null = datasets;
@@ -72,13 +77,13 @@
   });
 </script>
 
-{#snippet row(item: PublicDataset, named: boolean)}
+{#snippet row(item: PublicDataset, duplicate: boolean)}
   {@const job = datasets?.jobs[item.datasetId]}
   <li>
-    <strong>{named ? (item.kind === "xjtu-sy" ? "XJTU-SY " : "AI-Hub ") + datasetName(item) + (item.split ? " · " + item.split : "") : datasetName(item)}</strong>
-    <span class="facts">{named && item.kind === "aihub-239" ? item.assetId : datasetFacts(item)}</span>
+    <strong>{datasetName(item)}</strong>
+    <span class="facts">{duplicate && item.split ? item.split + " · " : ""}{datasetFacts(item)}</span>
     {#if job && job.state !== "succeeded"}
-      <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job)}</span>
+      <span class="status" class:failure={job.state === "failed"} role="status">{jobText(job,item.acquisitions)}</span>
       {#if job.state === "failed" && job.detail}<span class="status detail">오류 종류 · {job.detail} (운영 로그에 자세한 내용이 남습니다)</span>{/if}
     {/if}
     {#if item.sourceChanged}
@@ -121,16 +126,18 @@
     {#if current.length}
       <!-- What this workspace already holds or is bringing in, above the folded lists. -->
       <h3>가져온 기록</h3>
-      <ul>{#each current as item (item.datasetId)}{@render row(item, true)}{/each}</ul>
+      <ul>{#each current as item (item.datasetId)}{@render row(item, current.some(other=>other!==item&&other.assetId===item.assetId))}{/each}</ul>
     {/if}
+    <label class="search">설비 이름 또는 번호 찾기 <input type="search" bind:value={search} placeholder="예: 1306"/></label>
+    {#if !groups.length}<p class="context">검색에 맞는 설비 기록이 없습니다.</p>{/if}
     {#each groups as group (group.key)}
       <!-- Folded: the list first reads as what kinds of records there are. -->
-      <details open={group.kind===preferredKind}>
+      <details open={Boolean(search.trim()) || group.kind===preferredKind}>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
           ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다. 파형은 작업공간에 복사하지 않고 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다."
           : "설비 하나의 약 한 달 기록입니다. 원본 시각에 시간대가 없어 한국 표준시로 저장합니다."}</p>
-        <ul>{#each group.items as item (item.datasetId)}{@render row(item, false)}{/each}</ul>
+        <ul>{#each group.items as item (item.datasetId)}{@render row(item, group.items.some(other=>other!==item&&other.assetId===item.assetId))}{/each}</ul>
       </details>
     {/each}
     {#if !writable || !datasets.canImport}<p class="context">보기 전용이라 가져올 수 없습니다.</p>{/if}
@@ -144,6 +151,8 @@
   h3 { font-size: var(--font-body); }
   p { margin: 0; overflow-wrap: anywhere; }
   .context { color: var(--color-ink-muted); }
+  .search { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+  .search input { max-width: 100%; }
   details { border-top: 1px solid var(--color-border); padding-top: var(--space-2); display: grid; gap: var(--space-2); }
   summary { cursor: pointer; font-weight: 650; color: var(--color-action); padding-block: var(--space-2); }
   .count { color: var(--color-ink-muted); font-weight: 400; font-size: var(--font-small); }

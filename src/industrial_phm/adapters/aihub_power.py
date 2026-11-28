@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite
@@ -78,7 +78,9 @@ def read_power_member_identities(path: Path) -> dict[str, tuple[str, str]]:
     return identities
 
 
-def iter_power_observations(path: Path, member: str) -> Iterator[PowerObservation]:
+def iter_power_observations(
+    path: Path, member: str, *, read_progress: Callable[[int, int], None] | None = None
+) -> Iterator[PowerObservation]:
     """Read one observed source schema with bounded memory; never extract ZIP paths.
 
     The two device identifiers must precede the data array, as in the profiled
@@ -90,7 +92,12 @@ def iter_power_observations(path: Path, member: str) -> Iterator[PowerObservatio
             raise ValueError("member must identify exactly one archive entry")
         header = _member_header(archive, member, ijson)
         with archive.open(member) as stream:
+            if read_progress is not None:
+                total = archive.getinfo(member).file_size
+                read_progress(0, total)
             for index, raw in enumerate(ijson.items(stream, "data.item", use_float=True)):
+                if read_progress is not None and index % 2048 == 0:
+                    read_progress(stream.tell(), total)
                 if not isinstance(raw, dict) or not {
                     "ITEM_NAME",
                     "ITEM_VALUE",
@@ -121,3 +128,5 @@ def iter_power_observations(path: Path, member: str) -> Iterator[PowerObservatio
                     value=None if value is None else float(value),
                     raw_record_json=json.dumps(raw, ensure_ascii=False, sort_keys=True),
                 )
+            if read_progress is not None:
+                read_progress(total, total)

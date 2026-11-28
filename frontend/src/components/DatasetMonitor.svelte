@@ -125,7 +125,7 @@
     });
   });
   // 보는 신호: 고른 것, 아니면 모든 줄의 첫 읽기가 끝난 뒤 첫 줄의 묶음. 그 전에는 설비 자신의 묶음으로 읽는다.
-  const firstRead = $derived(members.length > 0 && members.every(a => cards[a.assetId]?.read || cards[a.assetId]?.error));
+  const firstRead = $derived(members.length > 0 && members.every(a => !cards[a.assetId]?.busy && (cards[a.assetId]?.read || cards[a.assetId]?.error)));
   const signal = $derived(dataset ? signals[dataset.key] ?? null : null);
   // 기본 신호는 모든 줄을 처음 읽은 순간 한 번만 정한다. 다시 읽어 줄 순서가 바뀌어도 따라 바뀌지 않는다.
   $effect(() => {
@@ -154,7 +154,10 @@
       const request = new AbortController(), like = desired.get(id) ?? null;
       loading.set(id, request);
       cards[id] = {...(cards[id] ?? blank()), busy: true, error: false};
-      void readFleet(asset, request.signal, like).then(read => {
+      void readFleet(asset, request.signal, like, read => {
+        if (request.signal.aborted || wanted.get(id) !== revision || (cards[id]?.read && cards[id].like === like)) return;
+        cards[id] = {...cards[id], read, like, found: [], analyzed: null, failedAt: null};
+      }).then(read => {
         if (request.signal.aborted || wanted.get(id) !== revision) return;
         // 묶음이 바뀌었을 수 있으니 재생 판정은 새 묶음으로 다시 한다.
         cards[id] = {...cards[id], read, like, busy: false, error: false, found: [], analyzed: null, failedAt: null};
@@ -349,7 +352,8 @@
           <MonitorRow {name} flow={asset.flow} read={card.read} {group}
             href={card.read.live ? card.read.href : investigationHref(asset.assetId, group, replay(card) ? until : null)}
             activity={pinned ?? changes.get(asset.assetId) ?? null} selected={pinned !== null}
-            replaying={replay(card)} {until} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === until}
+            replaying={replay(card)} {until} analyzed={card.analyzed} readingChanges={card.busy}
+            analysisFailed={card.error || card.failedAt !== null && card.failedAt === until}
             lo={shared?.from ?? group.record.from} hi={shared ? (clock ?? shared.to) : (until ?? group.record.from)}
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
             height={chartHeight} {playing}

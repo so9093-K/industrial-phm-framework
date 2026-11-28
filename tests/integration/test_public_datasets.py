@@ -151,14 +151,18 @@ def test_interrupted_aihub_import_can_retry_committed_batches(
     real_import = public_datasets._import_aihub
 
     def stop_after_first_commit(
-        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+        destination: OperationsWorkspace,
+        item: PublicDataset,
+        progress: Callable[[int], None],
+        *,
+        read_progress: Callable[[int, int], None] | None = None,
     ) -> None:
         def interrupted(done: int) -> None:
             progress(done)
             if done == 2000:
                 raise RuntimeError("simulated interruption after committed batch")
 
-        real_import(destination, item, interrupted)
+        real_import(destination, item, interrupted, read_progress=read_progress)
 
     monkeypatch.setattr(public_datasets, "_import_aihub", stop_after_first_commit)
     jobs = PublicDatasetJobs(workspace.root, root=root)
@@ -456,9 +460,13 @@ def test_source_change_during_import_cannot_be_recorded_as_success(
     real_import = public_datasets._import_aihub
 
     def change_after_commit(
-        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+        destination: OperationsWorkspace,
+        item: PublicDataset,
+        progress: Callable[[int], None],
+        *,
+        read_progress: Callable[[int, int], None] | None = None,
     ) -> None:
-        real_import(destination, item, progress)
+        real_import(destination, item, progress, read_progress=read_progress)
         stat = item.path.stat()
         os.utime(item.path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
 
@@ -490,7 +498,11 @@ def test_a_failed_import_keeps_what_failed_and_logs_why(
     target = list_public_datasets(workspace, root)["items"][0]
 
     def unreadable(
-        destination: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+        destination: OperationsWorkspace,
+        item: PublicDataset,
+        progress: Callable[[int], None],
+        *,
+        read_progress: Callable[[int, int], None] | None = None,
     ) -> None:
         progress(18000)
         try:

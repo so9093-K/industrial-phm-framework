@@ -17,7 +17,7 @@
   import {selectedScoreMessage} from "../analysis-messages";
   import {num} from "../format";
   import {readWriteSession} from "../session";
-  import {assetTabUrl} from "../routes";
+  import {assetTabUrl, tabSelectionUrl} from "../routes";
   import {
     loadModelBindings,loadModelTrace,loadModelRun,loadLatestScores,latestModel,loadModelPosition,modelNames,NoModelEvidence,scoreSummary,isTimeWindow,windowLabel,builtModelNote,skipReasonText,isUnjudged,
     type ModelBinding,type ModelRun,type ModelTrace,type StepPointer,
@@ -394,12 +394,11 @@
     <StatusNotice kind="failure" title="적용 모델을 불러오지 못했습니다" message={error}
       actionLabel="다시 불러오기" onAction={()=>void loadBindings()}/>
   {:else if listState==="empty"}
-    <StatusNotice kind="uncertain" title="적용한 이상 탐지 모델이 없습니다"
-      message="저장된 신호의 변화를 기록 변화 찾기에서 확인할 수 있습니다."
-      actionLabel="기록 변화 찾기" actionHref={assetTabUrl(assetId,"anomaly","baseline")}/>
-    <details><summary>이상 탐지 모델 설정</summary>
+    <p class="context">이 설비에 연결된 이상 탐지 모델이 없습니다.</p>
+    <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>
+    <p class="context"><a href={tabSelectionUrl(assetTabUrl(assetId,"anomaly","baseline"),location.href)}>모델 없이 기록 변화 찾기 →</a></p>
+    <details><summary>기존 모델 연결</summary>
       <ModelConnect {assetId} {writable} hasModel={false} onConnected={connected}/>
-      <ModelBuild {assetId} {writable} hasModel={false} onBuilt={connected}/>
     </details>
   {:else if listState==="unavailable"}
     <StatusNotice kind="uncertain" title="북마크의 모델을 찾을 수 없습니다" message={error}/>

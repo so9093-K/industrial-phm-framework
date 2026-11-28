@@ -399,6 +399,10 @@ def explore_sources(
                         "channels": list(stream.channels),
                         "start_at": stream.start_at.isoformat(),
                         "end_at": stream.end_at.isoformat(),
+                        "valued_since": {
+                            channel: None if at is None else at.isoformat()
+                            for channel, at in stream.valued_since
+                        },
                     }
                     for stream in reader.list_history_streams(asset_id)[:20]
                 ],

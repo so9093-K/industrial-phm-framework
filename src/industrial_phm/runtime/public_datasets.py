@@ -436,7 +436,11 @@ def _aihub_binding(item: PublicDataset, source_id: str) -> PowerHistoryBinding:
 
 
 def _import_aihub(
-    workspace: OperationsWorkspace, item: PublicDataset, progress: Callable[[int], None]
+    workspace: OperationsWorkspace,
+    item: PublicDataset,
+    progress: Callable[[int], None],
+    *,
+    read_progress: Callable[[int, int], None] | None = None,
 ) -> None:
     from industrial_phm.history import DuckLakeAssetHistory, DuckLakeAssetHistoryConfig
     from industrial_phm.runtime.aihub_history_import import import_history
@@ -457,7 +461,15 @@ def _import_aihub(
         )
     )
     with HISTORY_WRITE_LOCK:
-        import_history(item.path, item.member, binding, *_WHOLE_MEMBER, history, progress=progress)
+        import_history(
+            item.path,
+            item.member,
+            binding,
+            *_WHOLE_MEMBER,
+            history,
+            progress=progress,
+            read_progress=read_progress,
+        )
 
 
 def _holds_source(
@@ -731,12 +743,25 @@ class PublicDatasetJobs:
 
     def _execute(self, item: PublicDataset, previous: Mapping[str, object] | None) -> None:
         key = item.dataset_id
+        started = time.monotonic()
 
         def progress(done: int) -> None:
             self._update(key, done=done)
 
         def step(name: str) -> None:
             self._update(key, step=name, force=True)
+
+        def read_progress(read: int, total: int) -> None:
+            nonlocal started
+            if read == 0:
+                started = time.monotonic()
+            elapsed = time.monotonic() - started
+            remaining = (
+                round((total - read) / read * elapsed)
+                if 0 < read < total and read / total >= 0.05 and elapsed >= 10
+                else None
+            )
+            self._update(key, input_read=read, input_total=total, remaining_seconds=remaining)
 
         try:
             signature = self._jobs[key]["source_signature"]
@@ -746,7 +771,7 @@ class PublicDatasetJobs:
             item = replace(item, source_id=_target_source(self._workspace, item, digest, previous))
             self._update(key, force=True, source_id=item.source_id, source_digest=digest)
             if item.kind == "aihub-239":
-                _import_aihub(self._workspace, item, progress)
+                _import_aihub(self._workspace, item, progress, read_progress=read_progress)
             else:
                 _import_xjtu(self._workspace, item, progress, step)
             if _source_signature(item) != signature:

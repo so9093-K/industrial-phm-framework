@@ -22,14 +22,14 @@
   import {measure} from "../chart-axis";
   import ValueAxis from "./ValueAxis.svelte";
   import XAxis from "./XAxis.svelte";
-  import {readSignalNames,signalName,type SignalNames} from "../history";
+  import {groupHistory,MAX_TREND_WINDOW_MS,readSignalNames,readTrend,signalName,trendRange,type SignalNames} from "../history";
   import StatusNotice from "./StatusNotice.svelte";
   import {reachText} from "../reach";
   import {num} from "../format";
   import {assetTabUrl} from "../routes";
   import OutlookBriefingPanel from "./OutlookBriefingPanel.svelte";
   import OutlookChart from "./OutlookChart.svelte";
-  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary} from "../outlook-view";
+  import {crossedSince,investigatedChange,limitSuggestions,reachAt,reachSummary,type OutlookPoint} from "../outlook-view";
   import ReviewRequest from "./ReviewRequest.svelte";
   let reviewSelection: string | null = $state(null);
   import {
@@ -49,6 +49,8 @@
   let horizonNotice = $state("");
   let selectionLoading = $state(false);
   let selectionReady = $state(false);
+  let followup: OutlookPoint[] = $state([]);
+  let followupFailed = $state(false);
   const params = new URLSearchParams(location.search);
   let focus:SourceFocus|null=$state(focusFrom(params));
   let selectedRecord=$state(params.get("record_key")??"");
@@ -68,6 +70,13 @@
   let requestOptions: AbortController | null = null;
   let requestProjection: AbortController | null = null;
   const horizons: Horizon[] = ["1h", "24h", "7d", "30d"];
+  const selectedData = $derived.by(() => options?.records?.find(row=>row.key===selectedRecord));
+  const pastChange = $derived.by(() => {
+    const change = investigatedChange(params.toString(),"history",selectedData?.key);
+    const last = Date.parse(selectedData?.record.to ?? "");
+    // The end of a saved record can be exclusive and grouped departures end at a bucket edge.
+    return change && last - change.to > 60_000 ? change : null;
+  });
 
   function signalHref():string {
     const url=new URL(assetTabUrl(assetId,"signals",null,null,channel),location.origin);
@@ -158,12 +167,33 @@
     requestProjection?.abort();
     const abort=new AbortController();requestOptions=abort;
     selectionLoading=true;selectionReady=false;resultState="empty";projection=null;error="";horizonNotice="";
+    followup=[];followupFailed=false;
     try {
       const data=await loadOptions(assetId,abort.signal,{channel,trainingPoints:settings.trainingPoints,recordKey:selectedRecord||undefined,focus:selectedRecord?null:focus});
       if(abort.signal.aborted)return;
       options=data;selectionReady=true;selectedRecord=data.recordKey??"";
       const chosen=data.records?.find(row=>row.key===selectedRecord);
       if(chosen)focus={source:chosen.sourceId,point:chosen.pointId,interpretation:chosen.interpretationId};
+      if (chosen && pastChange) {
+        const last = Date.parse(chosen.record.to);
+        const from = Math.max(Date.parse(chosen.record.from), last - MAX_TREND_WINDOW_MS,
+          pastChange.from - (pastChange.to - pastChange.from));
+        try {
+          const trend = await readTrend(assetId, channel, trendRange(from, last), "latest", abort.signal, chosen.sourceId);
+          if (abort.signal.aborted) return;
+          const own = groupHistory(trend).find(group => group.sourceId === chosen.sourceId && group.pointId === chosen.pointId
+            && group.interpretationId === chosen.interpretationId);
+          const step = (trend.bucketSeconds ?? 0) * 1000;
+          followup = (own?.buckets ?? []).flatMap((bucket, index, all) => {
+            const x = Date.parse(bucket.bucketStart), previous = all[index - 1];
+            return bucket.mean === null ? [] : [{x: Date.parse(bucket.lastEventAt ?? bucket.bucketStart), value: bucket.mean,
+              join: !!previous && previous.mean !== null && x - Date.parse(previous.bucketStart) <= step + 1}];
+          });
+        } catch {
+          if (abort.signal.aborted) return;
+          followupFailed=true;
+        }
+      }
       if(!horizonChosen)horizon=suggestedHorizon(data.horizons,chosen?(Date.parse(chosen.record.to)-Date.parse(chosen.record.from))/1000:null)??horizon;
       if (data.horizons[horizon] !== null) {
         const allowed = horizons.find(key=>data.horizons[key]===null);
@@ -178,7 +208,7 @@
       }
       save();
       selectionLoading=false;
-      if (autoCalculate) await calculate();
+      if (autoCalculate && !pastChange) await calculate();
     } catch(cause:unknown) {
       if(abort.signal.aborted)return;
       resultState="failed";
@@ -227,7 +257,7 @@
       message="이 설비에는 저장된 시계열 신호가 없습니다."
       actionLabel="신호 보기" actionHref={assetTabUrl(assetId, "signals")} />
   {:else if options!==null}
-    <div class="analysis-workspace forecast-workspace" class:has-criteria={appliedCriteria}><div class="forecast-controls">
+    <div class="analysis-workspace forecast-workspace"><div class="forecast-controls">
     <div class="controls">
       <label for="projection-channel">신호
         <select id="projection-channel" value={channel}
@@ -242,7 +272,7 @@
       </label>{/if}
       <label for="projection-horizon">예측 기간
         <select id="projection-horizon" value={horizon} disabled={selectionLoading||!selectionReady}
-          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();void calculate();}}>
+          onchange={e=>{horizon=e.currentTarget.value as Horizon;horizonChosen=true;horizonNotice="";invalidate();if(!pastChange)void calculate();}}>
           {#each horizons as value (value)}
             <option value={value} disabled={options.horizons[value]!==null}>{HORIZON_LABEL[value]}
               {options.horizons[value]===null?"":" (기록이 짧아 불가)"}</option>
@@ -251,7 +281,7 @@
       </label>
       <button type="button" class="ui-button ui-button-primary"
         onclick={()=>void calculate()} disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)}>
-        계산하기
+        {pastChange ? "마지막 측정부터 전망" : "계산하기"}
       </button>
     </div>
 
@@ -262,9 +292,24 @@
     <button type="button" class="ui-button ui-button-primary" disabled={selectionLoading||!selectionReady||!horizons.some(key=>options?.horizons[key]===null)} onclick={()=>{close();void calculate();}}>적용하고 계산하기</button>
 
     {/if}{/snippet}</AnalysisControls>
-      <button type="button" class="ui-button criteria-button" onclick={() => criteriaOpen = true}>도달 기준 설정</button>
     </div>
-    <div class="analysis-body">
+    <div class="analysis-body" class:history-only={pastChange !== null && !projection}>
+    {#if pastChange && !selectionLoading && !projection && resultState !== "loading"}
+      <div class="result-head">
+        <h3>{signalName(names, channel)} · 변화 이후 실측{selectedData && Date.parse(selectedData.record.to)-pastChange.from>MAX_TREND_WINDOW_MS?" (최근 31일)":""}</h3>
+        <span class="intro">선택 구간 {clockText(pastChange.from)} ~ {clockText(pastChange.to)}</span>
+      </div>
+      {#if followup.length}
+        <OutlookChart history={followup} future={[]} last={followup.at(-1)!.x} change={pastChange}
+          limits={{management:null,end:null}} reach={{management:null,end:null}}
+          unit={selectedData?.unit??names.get(channel)?.unit??null} scale={{kind:"clock"}} place={clockText} bucketMeans/>
+      {:else if followupFailed}
+        <StatusNotice kind="failure" message="변화 이후의 실측 추이를 읽지 못했습니다."
+          actionLabel="다시 읽기" onAction={()=>void loadSelectedOptions(false)}/>
+      {:else}
+        <p class="intro">선택한 기록에서 표시할 실측값을 찾지 못했습니다.</p>
+      {/if}
+    {/if}
     {#if horizonNotice}<p class="intro" role="status">{horizonNotice}</p>{/if}
     {#if selectionLoading}<StatusNotice message="선택한 신호와 학습 범위의 예측 가능 기간을 확인하고 있습니다." />{/if}
     {#if resultState === "loading"}
@@ -382,11 +427,12 @@
         {/key}
         <p class="intro"><a href={signalHref()}>이 신호의 원본 측정 보기 →</a></p>
       </section>
-    {:else if !selectionLoading}
+    {:else if !selectionLoading && !pastChange}
       <p class="intro">신호와 예측 기간을 고르고 계산하기를 누르면 전망을 표시합니다.</p>
     {/if}
     </div>
-    {#if appliedCriteria}<aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
+    {#if !pastChange || projection}
+    <aside class="forecast-inspector" aria-label="기준 도달·예상 여유">
       <h3 class="inspector-title">기준 도달·예상 여유</h3>
 
       {#if projection}
@@ -410,13 +456,14 @@
           </div>
         {/if}
       {/if}
-    </aside>{/if}
-    <TaskDialog bind:open={criteriaOpen} title="도달 기준 설정">
-      {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>기준 제안 · 누르면 바로 적용</p>
+      {#if suggestions.length}<div class="suggest" aria-label="기준 제안"><p>{appliedCriteria?"다른 기준":"기준을 고르면 바로 계산합니다"}</p>
         {#each suggestions as item (item.label)}<button type="button" class="chip" title={item.source} aria-pressed={projection?.conditions.management===item.value&&projection?.conditions.direction===item.direction}
-          onclick={() => { criteriaOpen = false; suggest(item.value, item.direction); }}>{item.label}</button>{/each}</div>{/if}
+          onclick={() => suggest(item.value, item.direction)}>{item.label}</button>{/each}</div>{/if}
+      <button type="button" class="ui-button criteria-button" disabled={!projection} onclick={() => criteriaOpen = true}>기준값 직접 입력</button>
+    </aside>
+    {/if}
+    <TaskDialog bind:open={criteriaOpen} title="기준값 직접 입력">
       <form class="criteria" onsubmit={event=>{event.preventDefault(); criteriaOpen = false; void calculate();}}>
-        <p>기준값 직접 입력</p>
       <div class="controls">      <label for="projection-direction">기준 방향
         <select id="projection-direction" value={direction}
           onchange={e=>{direction=e.currentTarget.value as Direction;save();}}>
@@ -440,13 +487,12 @@
 </section>
 
 <style>
-  .forecast-workspace{grid-template-columns:minmax(0,1fr);gap:var(--space-5)}
-  .forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr) 260px}
+  .forecast-workspace{grid-template-columns:minmax(0,1fr) 260px;gap:var(--space-5)}
   .forecast-controls{grid-column:1/-1;grid-row:1;display:flex;align-items:end;flex-wrap:wrap;gap:var(--space-3);border-bottom:1px solid var(--color-border);padding-bottom:var(--space-3)}
   .forecast-controls>.controls{flex:1 1 500px;min-width:0;display:flex;flex-wrap:wrap;align-items:end;margin:0;gap:var(--space-3)}
   .forecast-controls>.controls>label{flex:1 1 160px;min-width:0}.forecast-controls>.controls>label:first-child{flex:1.3 1 240px}.forecast-controls>.controls>button{flex:none}
   .forecast-controls :global(.analysis-controls){flex:none;margin:0}
-  .criteria-button{min-height:40px}
+  .criteria-button{min-height:40px;justify-self:start}
 
 
   .controls>button{align-self:end;min-height:44px}
@@ -476,11 +522,12 @@
   dd { margin: var(--space-1) 0 var(--space-3); }
 
   .forecast-workspace>.analysis-body{grid-column:1;grid-row:2;min-width:0}
+  .forecast-workspace>.history-only{grid-column:1 / -1}
   .forecast-inspector{grid-column:2;grid-row:2;align-self:start;display:grid;gap:var(--space-3);border-left:1px solid var(--color-border);padding-left:var(--space-4);min-width:0}
-  .criteria{display:grid;gap:var(--space-3)}.criteria p,.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
+  .criteria{display:grid;gap:var(--space-3)}.criteria-pending{font-size:var(--font-small);margin:0;color:var(--color-ink-muted)}
   .criteria .controls{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-3);margin:0}.criteria input,.criteria select{padding:var(--space-2)}
   .forecast-inspector .tiles{grid-template-columns:minmax(0,1fr)}.criteria-pending{color:var(--color-caution-ink)}
-  @media(max-width:1000px){.forecast-workspace.has-criteria{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:1000px){.forecast-workspace{grid-template-columns:minmax(0,1fr)}.forecast-inspector{grid-column:1;grid-row:3;border-left:0;border-top:1px solid var(--color-border);padding:var(--space-4) 0 0}.criteria .controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
   .inspector-title{margin:0;font-size:var(--font-section)}
   .tiles .caveat{color:var(--color-caution-ink)}
