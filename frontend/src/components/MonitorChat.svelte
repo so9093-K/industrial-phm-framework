@@ -1,43 +1,36 @@
 <script module lang="ts">
-  import type {Pointed} from "../change-investigation";
-  import type {ChangeFollowup} from "../change-evidence";
-  import type {PlaybackScope} from "../record-playback";
-
-  export type MonitorChatTarget = {
-    assetId: string; name: string; title: string; origin: string; reviewKey: string; scope: PlaybackScope | null;
-    followup: ChangeFollowup | null; analyses: Record<string, ChangeFollowup>;
-    savedJudgment: {label: string; note: string | null} | null; compareLoad?: boolean;
-  };
-  export type MonitorChatPoint = {point: Pointed; clear: () => void};
+  export type MonitorConversation = {id: string; submitted: boolean; pending: {text: string; previous: Set<string>; done: Promise<void>} | null};
 </script>
 
 <script lang="ts">
-  import {onDestroy, tick, untrack} from "svelte";
-  import {askChange, newChangeConversation, readChangeDiscussion, withConversation, STARTERS, LOAD_QUESTION, type ChangeDiscussion} from "../change-investigation";
+  import {onDestroy, onMount, tick, untrack} from "svelte";
+  import {askChange, readChangeDiscussion, withConversation, LOAD_QUESTION, type ChangeDiscussion, type Pointed} from "../change-investigation";
   import {clockText} from "../date-format";
-  import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
   import {keepQuestionDraft, questionDraft} from "../question-drafts";
   import {answerParts, freshLink} from "../answer-text";
   import AssetName from "./AssetName.svelte";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
+  import type {MonitorQuestion} from "../monitor-activity";
 
-  let {target, pointed = null, onUnpoint, onPause, onClose}: {
-    target: MonitorChatTarget;
+  let {target, session, pointed = null, focusRequest, writable, onUnpoint, onPause}: {
+    target: MonitorQuestion; session: MonitorConversation; focusRequest: number; writable: boolean;
     /** 그래프에서 짚은 곳: 질문과 함께 보낸다. 지우면 기록 전체에 대해 묻는다. */
     pointed?: Pointed | null; onUnpoint?: () => void;
-    onPause: () => void; onClose: () => void;
+    onPause: () => void;
   } = $props();
-  const {assetId, name, title, origin, reviewKey, scope, followup, analyses, savedJudgment, compareLoad} = $derived(target);
+  const {assetId, name, signal, range, origin, reviewKey, scope, followup, analyses, savedJudgment, compareLoad} = $derived(target);
   const scopeEnd = $derived(scope
     ? (scope.kind === "history" ? clockText(scope.until) : scope.until + "번째 측정") + "까지의 기록"
     : null);
 
-  const conversation = newChangeConversation();
+  const conversation = untrack(() => session.id);
   const draftKey = untrack(() => JSON.stringify(["monitor-question", assetId, reviewKey, scope]));
-  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(questionDraft(draftKey)), error = $state("");
-  let busy = $state(false), awaiting: string | null = $state(null), remaining = 240;
-  let request: AbortController | null = null, write: AbortController | null = null, timer: ReturnType<typeof setTimeout> | null = null;
+  let records: ChangeDiscussion[] = $state([]), question = $state(questionDraft(draftKey)), error = $state("");
+  let busy = $state(untrack(() => session.submitted || session.pending !== null)), awaiting: string | null = $state(null), remaining = 240;
+  let request: AbortController | null = null, timer: ReturnType<typeof setTimeout> | null = null, disposed = false;
+  let input: HTMLTextAreaElement | undefined = $state(), focused = 0;
+  $effect(() => { if (focusRequest && writable && input && focusRequest !== focused) { focused = focusRequest; input.focus(); } });
   let previous = new Set<string>();
   const thread = $derived([...records].reverse());
   const latest = $derived(records[0] ?? null);
@@ -45,13 +38,35 @@
   const unsent = $derived(awaiting !== null && !records.some(row => row.question === awaiting && !previous.has(row.id)) ? awaiting : null);
   // 기다린 시간: 첫 답은 모델이 쉬고 있었다면 1분 가까이 걸린다. 멈춘 것과 구분되게 초를 센다.
   let since: number | null = $state(null), now = $state(Date.now());
-  const clock = setInterval(() => { if (waiting) now = Date.now(); }, 1000);
-  $effect(() => { if (waiting && since === null) untrack(() => { since = Date.now(); now = since; }); if (!waiting) since = null; });
+  $effect(() => {
+    if (!waiting) { since = null; return; }
+    const started = Date.now();
+    since = started; now = started;
+    const clock = setInterval(() => now = Date.now(), 1000);
+    return () => clearInterval(clock);
+  });
   const elapsed = $derived(since !== null ? Math.max(0, Math.round((now - since) / 1000)) : null);
   const typing = (text: string) => text + (elapsed !== null && elapsed >= 3 ? " · " + elapsed + "초" : "");
 
   function cancel() { request?.abort(); if (timer !== null) clearTimeout(timer); timer = null; }
-  onDestroy(() => { keepQuestionDraft(draftKey, question); cancel(); write?.abort(); clearInterval(clock); });
+  onDestroy(() => { disposed = true; keepQuestionDraft(draftKey, question); cancel(); });
+  onMount(() => {
+    async function resume() {
+      const pending = session.pending;
+      if (pending) {
+        awaiting = pending.text;
+        previous = pending.previous;
+        try { await pending.done; }
+        catch (cause) {
+          if (!disposed && !(cause instanceof OutcomeUnknown)) { awaiting = null; question ||= pending.text; }
+        }
+      }
+      if (disposed) return;
+      if (session.submitted) await refresh();
+      busy = false;
+    }
+    if (busy) void resume();
+  });
   async function refresh() {
     cancel();
     const pending = new AbortController(); request = pending;
@@ -77,21 +92,29 @@
     const submitted = text.trim();
     onPause(); previous = new Set(records.map(row => row.id)); awaiting = submitted; stick = true;
     if (question.trim() === submitted) question = "";
-    cancel(); const pending = new AbortController(); write = pending; busy = true; error = ""; remaining = 240;
+    cancel(); busy = true; error = ""; remaining = 240;
+    // A sent question belongs to its conversation even if another change is selected during acceptance.
+    const done = askChange(assetId, reviewKey, conversation, submitted, records.find(row => row.status === "complete" && row.answer)?.id ?? null,
+      new AbortController().signal, scope, runComparison, pointed).then(() => { session.submitted = true; }, cause => {
+      if (cause instanceof OutcomeUnknown) session.submitted = true;
+      throw cause;
+    });
+    session.pending = {text: submitted, previous, done};
     try {
-      await askChange(assetId, reviewKey, conversation, submitted, records.find(row => row.status === "complete" && row.answer)?.id ?? null, pending.signal, scope, runComparison, pointed);
-      if (!pending.signal.aborted) { busy = false; await refresh(); }
+      await done;
+      if (!disposed) { busy = false; await refresh(); }
     } catch (cause) {
-      if (pending.signal.aborted) return;
+      if (disposed) {
+        if (!(cause instanceof OutcomeUnknown) && !questionDraft(draftKey)) keepQuestionDraft(draftKey, submitted);
+        return;
+      }
       if (cause instanceof OutcomeUnknown) { busy = false; await refresh(); }
       else { awaiting = null; if (!question) question = submitted; error = cause instanceof Error ? cause.message : "질문을 보내지 못했습니다."; }
-    } finally { if (write === pending) { write = null; busy = false; } }
+    } finally {
+      if (session.pending?.done === done) session.pending = null;
+      if (!disposed) busy = false;
+    }
   }
-  $effect(() => {
-    const permission = new AbortController();
-    void readPermission(permission.signal).then(value => { if (!permission.signal.aborted) writable = value; }).catch(() => {});
-    return () => { permission.abort(); cancel(); };
-  });
   function keydown(event: KeyboardEvent) {
     // Enter로 보내고 Shift+Enter는 줄바꿈. 한글을 조합하는 중의 Enter는 글자를 확정할 뿐 보내지 않는다.
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
@@ -104,14 +127,11 @@
   });
 </script>
 
-<section class="card-chat" aria-label="AI 조사">
+<section class="card-chat" aria-label="선택한 변화의 질문">
   <header class="chat-head">
-    <div><strong>AI 조사 · <AssetName label={name}/></strong><span>{title}</span>{#if scopeEnd}<span>{scopeEnd}</span>{/if}</div>
-    <button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}>
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
-    </button>
+    <strong><AssetName label={name}/> · {signal}</strong><span>{range}</span>{#if scopeEnd}<span>{scopeEnd}</span>{/if}
   </header>
-  <div class="agent" aria-label="AI 관제 대화">
+  <div class="agent">
   {#if savedJudgment}
     <p class="saved"><b>{savedJudgment.label}</b>{savedJudgment.note ? " · " + savedJudgment.note : ""}</p>
   {/if}
@@ -134,9 +154,11 @@
       </p>
     {/if}
   </div>
-  {#if !thread.length && !unsent && writable}
-    <div class="replies">{#if compareLoad}<button type="button" onclick={() => void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>{/if}
-      {#each STARTERS as text (text)}<button type="button" onclick={() => void ask(text)}>{text}</button>{/each}</div>
+  {#if !thread.length && !waiting && writable}
+    <div class="replies">
+      {#if compareLoad}<button type="button" onclick={() => void ask(LOAD_QUESTION,true)}>{LOAD_QUESTION}</button>
+      {:else}<button type="button" onclick={() => void ask("무엇이 함께 달라졌어?")}>무엇이 함께 달라졌어?</button>{/if}
+    </div>
   {:else if latest?.status === "complete" && latest.comparison?.status !== "ready" && !latest.analysis && followup && !waiting}
     <a class="followup" href={withConversation(followup.href, conversation)} onclick={onPause}>{followup.label} →</a>
   {/if}
@@ -145,8 +167,8 @@
       {#if onUnpoint}<button type="button" aria-label="짚은 곳 지우기" onclick={onUnpoint}>×</button>{/if}</p>
   {/if}
   <div class="composer" class:disabled={!writable}>
-    <textarea rows="1" maxlength="600" aria-label="AI 관제에 질문" bind:value={question} onkeydown={keydown} onfocus={onPause} disabled={!writable}
-      placeholder={!writable ? "보기 전용" : waiting ? "답을 기다리는 동안 다음 질문을 쓸 수 있습니다" : pointed ? "짚은 곳에 대해 질문" : "이 특이사항에 대해 질문"}></textarea>
+    <textarea rows="1" maxlength="600" aria-label="이 변화에 질문하기" bind:this={input} bind:value={question} onkeydown={keydown} onfocus={onPause} disabled={!writable}
+      placeholder={!writable ? "보기 전용" : waiting ? "다음 질문을 써 둘 수 있습니다" : pointed ? "선택한 측정에 질문" : "이 변화에 질문하기"}></textarea>
     <button type="button" class="send" aria-label="질문 보내기" disabled={!writable || waiting || !question.trim()} onclick={() => void ask(question)}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5"/></svg></button>
   </div>
@@ -154,21 +176,13 @@
 </section>
 
 <style>
-  .card-chat {
-    position:sticky;top:16px;box-sizing:border-box;height:min(100%, calc(100vh - 200px));min-height:420px;
-    display:grid;grid-template-rows:auto minmax(0,1fr);gap:8px;padding:16px;
-    background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
-  }
-  .chat-head{display:flex;align-items:start;justify-content:space-between;gap:8px}
-  .chat-head div{display:grid;gap:1px;min-width:0}
+  .card-chat{display:grid;gap:8px;min-width:0}
+  .chat-head{display:grid;gap:2px;min-width:0}
   .chat-head strong{font-size:var(--font-small)}
-  .chat-head span{font-size:var(--font-label);color:var(--color-ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .close{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:none;color:var(--color-ink-muted);cursor:pointer}
-  .close:hover{background:var(--color-surface-selected);color:var(--color-ink)}
-  .close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
-  @media(max-width:1000px){.card-chat{position:static;height:480px}}
-  .agent{display:flex;flex-direction:column;gap:6px;min-height:0;height:100%;font-size:var(--font-small)}
-  .log{flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0;padding-right:2px;overscroll-behavior:contain}
+  .chat-head span{font-size:var(--font-label);color:var(--color-ink-muted);overflow-wrap:anywhere}
+  .agent{display:flex;flex-direction:column;gap:8px;min-height:0;font-size:var(--font-small)}
+  .log{display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:38dvh;padding-right:2px;overscroll-behavior:contain}
+  .log:empty{display:none}
   p{margin:0;line-height:1.5;overflow-wrap:anywhere}
   .answer b{font-weight:700;font-variant-numeric:tabular-nums}
   .msg{align-self:flex-start;max-width:96%;padding:7px 10px;border-radius:4px 12px 12px 12px;background:#f2f5f7;color:var(--color-ink)}
@@ -190,7 +204,7 @@
   .pointed{display:flex;align-items:center;gap:4px;margin:0;font-size:12px;color:var(--color-ink-muted)}.pointed b{color:var(--color-ink)}
   .pointed button{border:0;background:none;padding:0 4px;font:inherit;font-size:14px;line-height:1;color:var(--color-ink-muted);cursor:pointer}
   .error button{border:0;background:none;padding:0;text-decoration:underline;cursor:pointer}
-  .replies{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
+  .replies{display:flex;flex-wrap:wrap;gap:6px}
   .replies button{font:inherit;font-size:12px;padding:4px 10px;border:1px solid var(--color-action);border-radius:999px;background:var(--color-surface);color:var(--color-action);cursor:pointer}
   .replies button:disabled{opacity:.5;cursor:default}
   .composer{display:grid;grid-template-columns:minmax(0,1fr) 28px;align-items:end;gap:4px;padding:4px 4px 4px 10px;border:1px solid var(--color-control-border);border-radius:12px;background:var(--color-surface)}

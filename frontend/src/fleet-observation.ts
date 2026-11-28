@@ -6,7 +6,8 @@ import {readChangeReviews, type ChangeCapture} from "./change-reviews.ts";
 import {latestDecision, type ReviewDecision} from "./review-writes.ts";
 import {episodes} from "./asset-timeline.ts";
 import {groupHistory} from "./history.ts";
-import {readObservation, recentAsset} from "./observation.ts";
+import {readObservation} from "./observation.ts";
+import {originParams} from "./observation-context.ts";
 import type {Asset} from "./monitor.ts";
 import type {PublicDatasets} from "./public-datasets.ts";
 import {routeUrl} from "./routes.ts";
@@ -27,6 +28,7 @@ export type FleetGroup = {
 };
 export type FleetChange = {key: string; channel: string; label: string; from: number; to: number; up: boolean;
   before: number | null; after: number | null;
+  href?: string;
   current?: RmsReading | null;
   /** 조사 화면이 같은 변화를 고르는 열쇠(summary_change). 모니터링 중이면 그 판정 위치(record_until)의 기록에서만 맞는다. */
   ref?: string;
@@ -172,7 +174,7 @@ export function investigationHref(assetId: string, group: FleetGroup | null, unt
 
 /** 실제로 수신 중인 출처는 최근 1시간 관측(앞선 관측과 비교한 변화 포함), 그 밖에는 저장 기록 전체를 읽는다. */
 export async function readFleet(asset: Asset, signal: AbortSignal, like: string | null = null): Promise<FleetRead> {
-  if (recentAsset(asset)) {
+  if (asset.flow !== "stored-history") {
     const data = await readAssetData(asset.assetId, signal);
     const stream = [...(data.history?.streams ?? [])].sort((a, b) => Date.parse(b.endAt) - Date.parse(a.endAt))[0];
     if (stream) {
@@ -188,12 +190,27 @@ export async function readFleet(asset: Asset, signal: AbortSignal, like: string 
       url.searchParams.set("monitor_source", stream.sourceId);
       url.searchParams.set("monitor_point", stream.pointId ?? "");
       url.searchParams.set("observation_channel", channel);
+      const record = {from: Date.parse(read.trend.startAt), to: Date.parse(read.trend.endAt)};
+      const changes = (reference?.intervals ?? []).map(row => {
+        const picked = new URL(url);
+        if (read.trend.snapshotId !== undefined && row.from >= record.from && row.to <= record.to) {
+          const params = originParams(asset.assetId, stream.sourceId, stream.pointId, channel, record, row);
+          for (const [key, value] of Object.entries(params)) picked.searchParams.set(key, value);
+          picked.searchParams.set("observation_follow", "paused");
+          picked.searchParams.set("observation_snapshot", String(read.trend.snapshotId));
+          if (read.reference) {
+            picked.searchParams.set("observation_reference_from", read.reference.period.from);
+            picked.searchParams.set("observation_reference_to", read.reference.period.to);
+          }
+        }
+        return {key: channel, channel, label: channel, from: row.from, to: row.to, up: row.up,
+          before: reference?.median ?? null, after: row.value, href: picked.pathname + picked.search};
+      });
       return {live: true, href: url.pathname + url.search,
         group: {label: channel, unit: group?.unit ?? null, axis: "time", focus: channel, bucketMs: step, periodSeconds: null,
-          record: {from: Date.parse(read.trend.startAt), to: Date.parse(read.trend.endAt)},
+          record,
           series: [{key: channel, channel, label: channel, short: channel, points}]},
-        changes: (reference?.intervals ?? []).map(row => ({key: channel, channel, label: channel, from: row.from, to: row.to,
-          up: row.up, before: reference?.median ?? null, after: row.value})), others: [], companion: null};
+        changes, others: [], companion: null};
     }
   }
   const query = new URLSearchParams({asset_id: asset.assetId});

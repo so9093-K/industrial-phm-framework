@@ -133,12 +133,12 @@
   <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">{@render typing(text)}</div></div>
 {/snippet}
 
-<section class="chat" aria-label="선택한 변화의 AI 조사">
+<section class="chat" aria-label="선택한 변화의 질문">
   <header><div>
-    {#if viewTitle}<span class="what"><b>AI 조사</b></span><small class="view-title">{viewTitle}</small>
+    {#if viewTitle}<span class="what"><b>{viewTitle}에 질문</b></span>
     {:else}<span class="what"><i class="swatch" style:background={colorOf(reviewKey)??"var(--color-ink-muted)"}></i><b>{labelOf(reviewKey)??label}</b> 특이사항</span><small>{span}</small>{/if}
     </div>
-    {#if onClose}<button type="button" class="close" aria-label="AI 조사 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
+    {#if onClose}<button type="button" class="close" aria-label="질문창 닫기" onclick={onClose}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>{/if}</header>
 
   <div class="log" bind:this={log} onscroll={()=>stick=atBottom()} aria-live="polite">
     {#each thread as row,index(row.id)}
@@ -191,7 +191,6 @@
   .close svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
   .what{display:flex;align-items:center;gap:7px;font-size:var(--font-small)}
   header small{padding-left:19px;font-size:var(--font-label);color:var(--color-ink-muted);font-variant-numeric:tabular-nums}
-  header .view-title{padding-left:0}
   .log{overflow-y:auto;min-height:0;padding:14px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
   p{margin:0;font-size:var(--font-small);overflow-wrap:anywhere}
   .note{color:var(--color-ink-muted);font-size:var(--font-label);line-height:1.5}
