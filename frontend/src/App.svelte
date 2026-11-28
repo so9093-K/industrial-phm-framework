@@ -289,7 +289,7 @@
       {/if}
       {#if snapshot.truncated}<StatusNotice kind="uncertain" message="설비가 많아 일부만 표시합니다." />{/if}
       {#if route.page==="monitor"&&!route.assetId}
-        <DatasetMonitor assets={snapshot.assets} cycle={observationCycle} checkedAt={refreshedText(snapshot.assessedAt)} onRefresh={()=>void quietRefresh()}/>
+        <DatasetMonitor {snapshot} cycle={observationCycle} checkedAt={refreshedText(snapshot.assessedAt)} writable={writable === true} onRefresh={()=>void quietRefresh()}/>
       {:else}
         <AssetList assets={snapshot.assets} href={monitorHref} selected={selected?.assetId??""}/>
         {#if selected}

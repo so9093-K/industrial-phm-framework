@@ -13,7 +13,7 @@
    * 조사 화면은 처음 범위(band: 변화로 판단하지 않는 범위)와 같은 운전 수준의 값(marks)을 더 그린다.
    * spread는 첫 계열의 칸마다 최저~최고: 두 수준을 오가는 값은 평균선만으로는 실제로 없던 값처럼 보인다. */
   let {group, series, lo, hi, changes, reference = null, band = null, marks = [], spread = [], live = false, height = 150, axis = true,
-    colors = SERIES_COLORS, guide = null, endLabel = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
+    colors = SERIES_COLORS, guide = null, endLabel = false, selectedRange = false, halves = null, picked = $bindable(null), cursor = $bindable(null), onPick, onHover}: {
     group: FleetGroup; series: FleetSeries[]; lo: number; hi: number; changes: FleetChange[]; reference?: number | null;
     band?: {low: number; high: number} | null; marks?: {x: number; value: number}[]; colors?: string[];
     spread?: {x: number; low: number; high: number; join: boolean}[];
@@ -21,6 +21,7 @@
     /** 같은 시간축의 다른 그래프에서 가리킨 자리(그 세로선을 여기에도 그린다). */
     guide?: number | null;
     endLabel?: boolean;
+    selectedRange?: boolean;
     /** 변화 구간 앞 절반·뒤 절반에 움직인 양. 가운데 점선과 각 절반 위의 값으로 빨라지는지 보인다. */
     halves?: {from: number; to: number; change: number}[] | null} = $props();
   const W = 1000;
@@ -72,7 +73,7 @@
           {#each ticks as tick (tick.value)}<line x1="0" x2={W} y1={tick.y} y2={tick.y} class="grid"/>{/each}
           {#each shown as change (change.key + change.from)}
             {@const start = Math.max(0, x(change.from))}
-            <rect class="change" x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
+            <rect class="change" class:pinned={selectedRange} x={start} width={Math.max(3, Math.min(W, x(change.to)) - start)} {height}/>
           {/each}
           {#if band}<rect class="band" x="0" width={Math.min(W, x(end))} y={y(band.high)} height={Math.max(1, y(band.low) - y(band.high))}/>{/if}
           {#if reference !== null}<line class="reference" x1="0" x2={Math.min(W, x(end))} y1={y(reference)} y2={y(reference)}/>{/if}
@@ -111,6 +112,7 @@
   svg{display:block;width:100%;overflow:hidden}
   .grid{stroke:#e3eaee;stroke-width:1}
   .change{fill:var(--color-change-fill)}
+  .change.pinned{stroke:var(--color-change-line);stroke-width:1.5;vector-effect:non-scaling-stroke;fill:color-mix(in srgb,var(--color-change-fill) 86%,var(--color-change-line))}
   .onset{stroke:var(--color-change-line);stroke-width:1.5}
   .reference{stroke:var(--color-reference-line);stroke-width:1;stroke-dasharray:5 4}
   .band{fill:var(--color-reference-line);opacity:.1}

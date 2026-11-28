@@ -1,21 +1,21 @@
 <script lang="ts">
   import {equipmentRole} from "../equipment-roles";
-  import {onDestroy, onMount, untrack} from "svelte";
-  import {assetOptionLabel, type Asset} from "../monitor";
-  import {attention, focusChannel, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
+  import {onDestroy, onMount, tick, untrack} from "svelte";
+  import {assetOptionLabel, type Snapshot} from "../monitor";
+  import {attention, focusChannel, investigationHref, monitorDatasets, readFleet, readFleetChanges, sharedSpan, splitChanges, untilAt,
     type FleetChange, type FleetGroup, type FleetRead, type MonitorDataset} from "../fleet-observation";
   import {clockText} from "../date-format";
   import {elapsedText, measurementScale} from "../time-axis";
   import {readPublicDatasets, type PublicDatasets} from "../public-datasets";
-  import {recentAsset} from "../observation";
   import AssetName from "./AssetName.svelte";
   import MonitorRow from "./MonitorRow.svelte";
-  import MonitorChat, {type MonitorChatPoint, type MonitorChatTarget} from "./MonitorChat.svelte";
+  import MonitorActivityPanel from "./MonitorActivityPanel.svelte";
+  import {changeActivity, monitorActivities, monitorLead, type ChangeActivity, type MonitorChatPoint} from "../monitor-activity";
   import TaskDialog from "./TaskDialog.svelte";
   import {systemUrl} from "../routes";
 
-  /** 설비별 실제 추이를 먼저 보고, 선택한 변화에서 조사와 AI 질문을 연다. */
-  let {assets, cycle, checkedAt, onRefresh}: {assets: Asset[]; cycle: number; checkedAt: string; onRefresh: () => void} = $props();
+  let {snapshot, cycle, checkedAt, writable, onRefresh}: {snapshot: Snapshot; cycle: number; checkedAt: string; writable: boolean; onRefresh: () => void} = $props();
+  const assets = $derived(snapshot.assets);
 
   let publicData: PublicDatasets | null = $state(null), publicRead = $state(false);
   onMount(() => {
@@ -29,12 +29,34 @@
   const filters=$derived([all,...datasets]);
   const filterLabel=(row:MonitorDataset)=>({all:"전체 설비","aihub-239":"전력·운전","xjtu-sy":"베어링 진동",connected:"연결한 설비"}[row.key]??row.title);
   let guideOpen=$state(false);
-  // 대화가 보는 구간은 열었을 때 정한다. 재생과 목록 갱신은 같은 대화에 영향을 주지 않는다.
-  let chat = $state.raw<MonitorChatTarget | null>(null);
+  // The selected interval also fixes the scope of the next question.
+  let selected = $state.raw<ChangeActivity | null>(null);
   let chatPoint = $state.raw<MonitorChatPoint | null>(null);
-  function selectChat(target: MonitorChatTarget | null, point: MonitorChatPoint | null = null) {
-    chat = target;
+  let panelOpen = $state(matchMedia("(min-width: 1101px)").matches);
+  let panel: HTMLElement | undefined = $state(), rowList: HTMLOListElement | undefined = $state(), panelToggle: HTMLButtonElement | undefined = $state();
+  let focusRequest = $state(0), focusSequence = 0;
+  function clearSelection() {
+    chatPoint?.clear();
+    chatPoint = null;
+    selected = null;
+    focusRequest = 0;
+  }
+  async function selectActivity(item: ChangeActivity, point: MonitorChatPoint | null = null, question = false) {
+    playing = false;
+    if (!point) chatPoint?.clear();
+    selected = item;
     chatPoint = point;
+    panelOpen = true;
+    focusRequest = question ? ++focusSequence : 0;
+    await tick();
+    // A question button hands focus to the composer once its permission is known.
+    if (!question && selected === item) rowList?.querySelector(".row.selected")?.scrollIntoView({block: "nearest"});
+  }
+  async function setPanel(open: boolean) {
+    panelOpen = open;
+    await tick();
+    if (open) panel?.focus();
+    else panelToggle?.focus();
   }
   // 조사 화면에 다녀오면 보던 데이터셋으로 돌아온다(주소에 없으면 이 탭에서 마지막으로 본 것).
   const LAST = "phm.monitor.view.v2";
@@ -45,6 +67,7 @@
   $effect(() => { const key = dataset?.key; if (key) try { sessionStorage.setItem(LAST, key); } catch { /* 기억하지 못해도 첫 데이터셋을 연다. */ } });
   function choose(key: string) {
     playing = false;
+    if (key !== datasetKey) clearSelection();
     chosen = key;
     const url = new URL(location.href);
     url.searchParams.set("dataset", key);
@@ -67,6 +90,7 @@
   function pickSignal(like: string) {
     if (!dataset) return;
     playing = false;
+    if (like !== signal) clearSelection();
     signals = {...signals, [dataset.key]: like};
     const url = new URL(location.href);
     url.searchParams.set("dataset", dataset.key);
@@ -119,7 +143,7 @@
     const read = cards[a.assetId]?.read;
     // 이미 같은 신호 묶음을 그리고 있으면 다시 읽지 않는다.
     const like = dataset?.key === "all" ? null : signal && read?.group && !read.live && focusChannel(read.group) !== signal ? signal : cards[a.assetId]?.like ?? null;
-    return [a.assetId, (a.overviewRevision ?? JSON.stringify([a.lastObservedAt, a.lastReceivedAt, a.lastPosition])) + ":" + (recentAsset(a) ? cycle : 0) + "|" + (like ?? ""), like];
+    return [a.assetId, (a.overviewRevision ?? JSON.stringify([a.lastObservedAt, a.lastReceivedAt, a.lastPosition])) + ":" + a.flow + ":" + (a.flow === "stored-history" ? 0 : cycle) + "|" + (like ?? ""), like];
   })));
   function drain() {
     while (loading.size < 2 && queue.size && !disposed) {
@@ -167,6 +191,22 @@
     return replay(card) ? untilAt(group, fraction!, shared) : group.record.to;
   }
   const clock = $derived(shared && fraction !== null ? shared.from + (shared.to - shared.from) * fraction : null);
+
+  const changes = $derived.by(() => {
+    const found = new Map<string, ChangeActivity>();
+    for (const {asset, card} of rows) {
+      const group = card?.read?.group;
+      if (!card?.read || !group || card.error || (card.busy && card.like !== (desired.get(asset.assetId) ?? null))) continue;
+      const replaying = replay(card);
+      const lead = monitorLead(group, replaying ? card.found : card.read.changes, untilOf(card));
+      if (!lead) continue;
+      const scope = replaying && card.analyzed !== null
+        ? {kind: group.axis === "time" ? "history" as const : "vibration" as const, until: card.analyzed} : null;
+      found.set(asset.assetId, changeActivity(asset.assetId, assetOptionLabel(assets, asset.assetId), card.read, group, lead, scope, location.origin));
+    }
+    return found;
+  });
+  const activities = $derived(monitorActivities(snapshot, members, [...changes.values()], fraction !== null));
 
   // 변화 판정: 설비마다 한 번에 하나, 끝나면 그때의 재생 위치로 다시. 가장 최근 판정만 표시한다.
   const judging = new Map<string, AbortController>(), requested = new Map<string, number>(), started = new Map<string, number>();
@@ -231,17 +271,17 @@
     return () => clearInterval(id);
   });
   function play() {
-    if (fraction === null || fraction >= 1) { resetJudgement(); setFraction(0.1); }
+    if (fraction === null || fraction >= 1) { clearSelection(); resetJudgement(); setFraction(0.1); }
     playing = true;
     analyze();
   }
   function seek(value: number) {
     playing = false;
-    if (fraction !== null && value < fraction) resetJudgement();
+    if (fraction !== null && value < fraction) { clearSelection(); resetJudgement(); }
     setFraction(value);
     analyze();
   }
-  function stop() { playing = false; resetJudgement(); setFraction(null); }
+  function stop() { playing = false; clearSelection(); resetJudgement(); setFraction(null); }
   $effect(() => { datasetKey; untrack(() => { resetJudgement(); analyze(); }); });
   onDestroy(() => { disposed = true; cancelAnalysisTimer(); for (const request of [...loading.values(), ...judging.values()]) request.abort(); });
 
@@ -293,21 +333,27 @@
         </div>
       {/if}
       <button type="button" class="guide" onclick={()=>guideOpen=true}>설비·데이터 안내</button>
+      {#if !panelOpen}<button type="button" class="ui-button quiet" bind:this={panelToggle} onclick={() => void setPanel(true)}>관제 활동 열기</button>{/if}
     </div>
 
-    <div class="board" class:with-chat={chat !== null}>
-    <ol class="rows">
+    <div class="board" class:with-activity={panelOpen}>
+    <ol class="rows" bind:this={rowList}>
       {#each rows as {asset, card} (asset.assetId)}
         {@const name = assetOptionLabel(assets, asset.assetId)}
         {@const home = datasets.find(row => row.assetIds.includes(asset.assetId))}
         {@const switching = !!card?.busy && card.like !== (desired.get(asset.assetId) ?? null)}
         {#if card?.read?.group && !switching}
-          <MonitorRow assetId={asset.assetId} {name} read={card.read} group={card.read.group}
-            replaying={replay(card)} until={untilOf(card)} found={card.found} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === untilOf(card)}
-            lo={shared?.from ?? card.read.group.record.from} hi={shared ? (clock ?? shared.to) : (untilOf(card) ?? card.read.group.record.from)}
+          {@const group = card.read.group}
+          {@const until = untilOf(card)}
+          {@const pinned = selected?.assetId === asset.assetId && until !== null && selected.change.to <= until && selected.change.to >= group.record.from ? selected : null}
+          <MonitorRow {name} flow={asset.flow} read={card.read} {group}
+            href={card.read.live ? card.read.href : investigationHref(asset.assetId, group, replay(card) ? until : null)}
+            activity={pinned ?? changes.get(asset.assetId) ?? null} selected={pinned !== null}
+            replaying={replay(card)} {until} analyzed={card.analyzed} analysisFailed={card.failedAt !== null && card.failedAt === until}
+            lo={shared?.from ?? group.record.from} hi={shared ? (clock ?? shared.to) : (until ?? group.record.from)}
             role={equipmentRole(home?.key, home?.detail[asset.assetId])?.short ?? null}
-            height={chartHeight} {playing} chat={chat?.assetId === asset.assetId ? chat : null}
-            onChat={selectChat} onPoint={point => chatPoint = point}
+            height={chartHeight} {playing}
+            onQuestion={(item, point) => void selectActivity(item, point, true)} onPoint={point => chatPoint = point}
             onPause={() => playing = false} onSignal={channel=>showSignal(asset.assetId,channel)}/>
         {:else}
           <!-- 읽는 동안에도 다 읽은 줄과 비슷한 높이로 두어, 아래 줄이 출렁이지 않게 한다. -->
@@ -323,14 +369,11 @@
         {/if}
       {/each}
     </ol>
-    {#if chat}
-      <div class="chat-rail">
-        {#key chat}
-          <MonitorChat target={chat} pointed={chatPoint?.point ?? null} onUnpoint={() => { chatPoint?.clear(); chatPoint = null; }}
-            onPause={() => playing = false} onClose={() => selectChat(null)}/>
-        {/key}
-      </div>
-    {/if}
+    <aside class="activity-rail" aria-label="관제 활동" tabindex="-1" bind:this={panel} hidden={!panelOpen}>
+      <MonitorActivityPanel {activities} chosen={selected} point={chatPoint} reading={!firstRead || fraction !== null && rows.some(row => row.card?.read?.group && replay(row.card) && row.card.analyzed === null)}
+        {focusRequest} {writable} onChoose={item => void selectActivity(item)} onCollapse={() => void setPanel(false)}
+        onPause={() => playing = false} onUnpoint={() => { chatPoint?.clear(); chatPoint = null; }}/>
+    </aside>
     </div>
   {/if}
   <TaskDialog title="설비와 측정 데이터" bind:open={guideOpen}>
@@ -368,15 +411,16 @@
   .signals{display:flex;gap:2px;flex-wrap:wrap}.signals button{border:0;background:none;padding:5px 10px;border-radius:6px;font:inherit;font-size:var(--font-label);color:var(--color-ink-muted);cursor:pointer}
   .signals button[aria-checked="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .guide{margin-left:auto;border:0;background:none;color:var(--color-action);font:inherit;font-size:var(--font-label);cursor:pointer;padding:6px}
-  .board{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}.board.with-chat{grid-template-columns:minmax(0,1fr) 400px}
+  .board{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
+  .board.with-activity{grid-template-columns:minmax(0,1fr) clamp(290px,25vw,360px)}
   .rows{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin:0;padding:0;list-style:none;min-width:0;align-content:start}
-  /* 대화 내용은 목록 높이를 늘리지 않는다(길면 칸 안에서 스크롤). 설비가 하나면 칸이 들어갈 만큼만 띄운다. */
-  .board.with-chat{min-height:440px}.chat-rail{min-width:0;contain:size}
+  .activity-rail{position:sticky;top:16px;align-self:start;min-width:0;max-height:calc(100dvh - 32px);overflow:auto;scrollbar-gutter:stable}
+  .activity-rail[hidden]{display:none}
   .row{list-style:none;padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;min-width:0}
   .who{display:flex;justify-content:space-between;gap:8px}.name{font-weight:650}.detail{font-size:var(--font-label);color:var(--color-ink-muted)}
   .chart.pending{display:flex;align-items:center;justify-content:center;gap:12px;min-height:240px;font-size:var(--font-label);color:var(--color-ink-muted)}
   .data-guide{display:grid;gap:16px}.data-guide p{margin:4px 0 0;font-size:var(--font-small)}.data-guide h2{margin:0;font-size:var(--font-body)}
-  @media(max-width:1000px){.board.with-chat{grid-template-columns:minmax(0,1fr)}.chat-rail{contain:none}}
+  @media(max-width:1100px){.board.with-activity{grid-template-columns:minmax(0,1fr)}.activity-rail{position:static;max-height:none;overflow:visible}}
   @media(max-width:650px){
     .bar{align-items:flex-start;flex-wrap:wrap}.status{justify-content:start}
     .status>span{order:1;flex-basis:100%;text-align:left}

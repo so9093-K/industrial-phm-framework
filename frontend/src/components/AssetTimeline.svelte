@@ -127,7 +127,7 @@
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
       {#if assistant}<button type="button" class="ai-toggle" aria-pressed={chatting} onclick={()=>rail=chatting?"context":"assistant"}>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>{/if}
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>이 변화에 질문하기</button>{/if}
       {#if decisionAction}{@render decisionAction()}{/if}
     </div>
   </header>
@@ -176,7 +176,7 @@
     <RecordNavigator points={focused.points} {record} view={range} change={focused.interval} position={centeredAt} {scale} {place} onMove={moveWindow}/>
   </div>
   {#if chatting && assistant}
-    <aside class="dock" aria-label="AI 조사">
+    <aside class="dock" aria-label="변화에 대한 질문">
       {@render assistant({colorOf,labelOf,close:()=>rail="context"})}
     </aside>
   {:else}
