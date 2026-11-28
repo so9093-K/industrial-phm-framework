@@ -114,6 +114,13 @@
   const readout = $derived(readouts.size ? Object.assign({},...readouts.values()) as AnalysisReadout : null);
   let chatOpen = $state(untrack(() => carriedConversation(location.search) !== null));
   let chatToggle: HTMLButtonElement | null = $state(null);
+  let chatPanel: HTMLElement | null = $state(null);
+  async function toggleChat() {
+    if (chatOpen) { closeChat(); return; }
+    chatOpen = true;
+    await tick();
+    chatPanel?.focus();
+  }
   function closeChat(){
     chatOpen=false;
     const url=new URL(location.href);
@@ -224,7 +231,7 @@
           aria-current={route.tab===item.tab && (item.method===null||item.method===method)?"page":undefined}>{item.label}</a>
       {/each}
       {#if chatAvailable}
-        <button type="button" class="ui-button ai-toggle" bind:this={chatToggle} aria-pressed={chatOpen} onclick={() => {if(chatOpen)closeChat();else chatOpen=true;}}>
+        <button type="button" class="ui-button ai-toggle" bind:this={chatToggle} aria-expanded={chatOpen} aria-controls={chatOpen?"analysis-questions":undefined} onclick={toggleChat}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>이 변화에 질문하기</button>
       {/if}
     </nav>
@@ -295,7 +302,7 @@
   {/if}
     </div>
     {#if chatAvailable && chatOpen}
-      <aside class="analysis-chat" aria-label="변화에 대한 질문">
+      <aside class="analysis-chat" id="analysis-questions" aria-label="변화에 대한 질문" tabindex="-1" bind:this={chatPanel}>
         <AnalysisChat assetId={asset.assetId} view={chatView} viewTitle={analysisTitle} {readout} onClose={closeChat}/>
       </aside>
     {/if}
@@ -310,7 +317,7 @@
   .analysis-view-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px var(--space-3);padding:0;background:transparent}
   .analysis-view-head h2{margin:0;font-size:var(--font-section)}
   .analysis-view-head .choices{margin-left:auto}
-  .selection-context{order:1;flex-basis:100%;padding:2px 0 6px;font-size:12px;display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-3);min-width:0}
+  .selection-context{order:1;flex-basis:100%;padding:2px 0 6px;display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--space-3);min-width:0}
   .analysis-tabs .back{color:var(--color-action);margin-right:12px;border-right:1px solid var(--color-border);padding-right:16px}
   .analysis-tabs .back:hover{background:var(--color-surface-selected)}
   .analysis-view-body{min-width:0;display:grid;gap:var(--space-3)}
@@ -319,9 +326,9 @@
   .analysis-main{min-width:0;display:grid;gap:var(--space-3)}
   .analysis-chat{position:sticky;top:16px;height:clamp(380px,calc(100dvh - 240px),680px);min-width:0}
   .ai-toggle{margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:6px;min-height:0;height:32px;padding:0 12px;font-size:var(--font-label);font-weight:650;color:var(--color-action)}
-  .ai-toggle[aria-pressed="true"]{background:var(--color-surface-selected);border-color:var(--color-action)}
+  .ai-toggle[aria-expanded="true"]{background:var(--color-surface-selected);border-color:var(--color-action)}
   .ai-toggle svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
-  @media(max-width:1100px){.analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr)}.analysis-chat{position:static;height:560px}}
+  @media(max-width:1000px){.analysis-view-body.with-chat{grid-template-columns:minmax(0,1fr)}.analysis-chat{position:static;height:min(560px,75dvh)}}
   .analysis-tabs{order:0;display:flex;flex-wrap:wrap;flex-basis:100%;gap:var(--space-1);border-bottom:1px solid var(--color-border)}
   .analysis-tabs a{padding:var(--space-2);font-size:var(--font-small);font-weight:650;color:var(--color-ink-muted);text-decoration:none;border-bottom:3px solid transparent}
   .analysis-tabs a[aria-current="page"]{color:var(--color-action);border-bottom-color:var(--color-action)}

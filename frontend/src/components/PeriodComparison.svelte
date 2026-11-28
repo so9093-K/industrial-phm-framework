@@ -372,10 +372,8 @@
               </tbody>
             </table>
           </div>
-          </details>
-          <details>
-            <summary>기술 상세</summary>
-            <p class="context">측정 의미 ID {row.interpretation} · ‘90% 범위’는 {names.a} 값의 5~95% 범위입니다. {names.a} 값도 약 10%는 이 범위 밖에 있고, {names.a}가 정상 운전이었다는 뜻은 아닙니다.</p>
+            <p class="context">{names.a}의 90% 범위는 하위 5%와 상위 5%를 제외한 값의 범위입니다.</p>
+            <details class="source-definition"><summary>기록 식별 정보</summary><p class="context">측정 의미 ID {row.interpretation}</p></details>
           </details>
         </section>
       {/each}

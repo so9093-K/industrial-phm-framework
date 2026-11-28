@@ -280,16 +280,20 @@
           {#if explained}
             {#if moved}
               {@const delta=moved.shown.b.median-moved.shown.a.median}
-              <div>
-                <p class="relationship-summary">같은 {signalName(names,x)} 범위에서 {signalName(names,y)} 중앙값이 약 {measure(Math.abs(delta),yUnit,2)} {delta<0?"낮아졌습니다":"높아졌습니다"}.</p>
-                <p class="context">{signalName(names,x)} {relationRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}
-                  · {spanNames.a} {relationValue(moved.shown.a.median)} → {spanNames.b} {relationValue(moved.shown.b.median)}{yUnit?" "+yUnit:""}
-                  · 측정 {moved.shown.a.pairs}개 / {moved.shown.b.pairs}개</p>
+              <div class="same-range-result">
+                <div>
+                  <p class="relationship-summary">{signalName(names,y)} 중앙값이 약 {measure(Math.abs(delta),yUnit,2)} {delta<0?"낮아졌습니다":"높아졌습니다"}.</p>
+                  <p class="context">{signalName(names,x)}가 {relationRange(moved.shown.low,moved.shown.high)}{xUnit?" "+xUnit:""}인 측정끼리 비교</p>
+                </div>
+                <dl class="matched-values">
+                  <div><dt>{spanNames.a} · {moved.shown.a.pairs}개</dt><dd>{relationValue(moved.shown.a.median)}{yUnit?" "+yUnit:""}</dd></div>
+                  <div><dt>{spanNames.b} · {moved.shown.b.pairs}개</dt><dd>{relationValue(moved.shown.b.median)}{yUnit?" "+yUnit:""}</dd></div>
+                </dl>
               </div>
             {:else if common}
-              <div>
+              <div class="same-range-result">
                 <p class="relationship-summary">{message?.headline ?? "두 기간의 측정이 겹칩니다."}</p>
-                <p class="context">공통 비교 범위 · {signalName(names,x)} {relationRange(common.low,common.high)}{xUnit?" "+xUnit:""}</p>
+                <p class="context">공통 범위 {relationRange(common.low,common.high)}{xUnit?" "+xUnit:""}</p>
               </div>
             {:else}<p class="relationship-summary">{explained.headline}</p>{/if}
           {:else}<StatusNotice kind="uncertain" title="관계를 해석할 측정값이 부족합니다"
@@ -310,14 +314,14 @@
               </div>
             {/if}
           {/if}
-          <details class="coefficients"><summary>기간별 상관계수·측정 수</summary>
+          <details class="coefficients"><summary>상관계수와 비교 해석</summary>
             {#each [pair.a,pair.b] as group,i(i)}{#if group}<dl><div><dt>{spanNames[group.period]}</dt><dd>{group.pairCount.toLocaleString("ko-KR")}개 측정</dd></div>
               <div><dt>상관계수</dt><dd>{group.pearson===null?"계산 안 됨":group.pearson.toFixed(2)}</dd></div></dl>
               {#if group.sampled}<p class="context">그래프에는 {spanNames[group.period]}의 측정 일부를 표시합니다.</p>{/if}{/if}{/each}
+            {#if sameX && message}<p>{message.headline}</p>{#if message.certainty}<p class="context">{message.certainty}</p>{/if}{/if}
+            {#if explained}<AnalysisMessage message={explained} showHeadline={false}
+              boundary="두 값이 함께 변했다는 사실만으로 원인을 정하지 않습니다." />{/if}
           </details>
-          {#if explained}<details class="interpretation"><summary>관계 해석과 이어서 분석</summary><AnalysisMessage message={explained} showHeadline={false}
-            boundary="두 값이 함께 변했다는 사실만으로 원인을 정하지 않습니다." /></details>{/if}
-          {#if sameX && message}<details class="coefficient-summary"><summary>상관계수로 본 동반 변화</summary><p>{message.headline}</p>{#if message.certainty}<p>{message.certainty}</p>{/if}</details>{/if}
           {#if ranges.length}
             {@const unit=(value:string,of:string|null)=>value+(of?" "+of:"")}
             <details class="same-x">
@@ -375,11 +379,15 @@
   dl{display:flex;flex-wrap:wrap;gap:var(--space-4)}dt{color:var(--color-ink-muted);font-size:var(--font-small)}dd{margin:0;font-weight:700}
   .table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;border-bottom:1px solid var(--color-border);padding:var(--space-2)}
   caption{text-align:left;color:var(--color-ink-muted);font-size:var(--font-small)}
-  .relationship-summary{font-size:var(--font-body);font-weight:700;margin:0 0 4px;line-height:1.5}.interpretation{margin-block:12px}
+  .relationship-summary{font-size:var(--font-section);font-weight:700;margin:0 0 4px;line-height:1.35;text-wrap:pretty}
+  .same-range-result{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:var(--space-2) var(--space-6);margin-bottom:var(--space-3)}
+  .same-range-result .context{margin:0;font-size:var(--font-small)}
+  .matched-values{margin:0;gap:var(--space-4);font-variant-numeric:tabular-nums}
+  .matched-values>div+div{border-inline-start:1px solid var(--color-border);padding-inline-start:var(--space-4)}
+  .matched-values dd{font-size:var(--font-section);line-height:1.3}
   .chosen{margin-top:var(--space-3);padding:var(--space-3) var(--space-4);border:1px solid var(--color-border);
     border-left:4px solid var(--color-focus);border-radius:var(--radius-control);display:grid;gap:var(--space-1)}
   .chosen p{margin:0;overflow-wrap:anywhere}.links{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4)}
-  .coefficient-summary{margin-top:var(--space-2)}.coefficient-summary summary{cursor:pointer;font-weight:650}.coefficient-summary p{overflow-wrap:anywhere}
   .same-x{margin-top:var(--space-3)}.same-x summary{cursor:pointer;font-weight:650}tr.moved td{font-weight:650}
   .handed{margin:var(--space-4) 0 0;padding:var(--space-3);border-left:4px solid var(--color-focus);background:var(--color-surface-selected);overflow-wrap:anywhere}
 </style>

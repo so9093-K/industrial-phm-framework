@@ -178,7 +178,7 @@
       <!-- 크기는 RMS 화면들이 말한다. 이 화면은 어느 주파수에서 커졌는지를 먼저 보인다. -->
       {#if result&&channel&&band}
       <div class="spectrum-facts band-share" aria-label={channel.label+" 기간 비교 결과"}>
-        <span>{channel.label} · {frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz가 차지하는 비중</span>
+        <p><strong>{frequencyLabel(band.from)}–{frequencyLabel(band.to)} Hz</strong><span>{channel.label} 에너지에서 이 대역이 차지하는 비중</span></p>
         {#each PERIODS as name(name)}<div class={"share-row "+name}>
           <b>{names[name]}</b><span class="track"><i style:width={band[name]*100+"%"}></i></span><strong>{measure(band[name]*100,null)}%</strong>
         </div>{/each}
@@ -276,9 +276,11 @@
   .spectrum-facts{flex:1 1 500px;display:grid;gap:var(--space-1);align-items:start;max-width:760px}
   .period-controls{margin-left:auto;max-width:100%;display:grid;justify-items:end;gap:var(--space-1)}.period-controls p{margin:0;font-size:var(--font-label);color:var(--color-ink-muted)}
   .period-controls :global(.analysis-controls>button){padding:var(--space-2) var(--space-3);font-size:var(--font-small)}
-  .spectrum-facts>span{display:block;color:var(--color-ink-muted);font-size:var(--font-small);margin-bottom:var(--space-1)}
-  .share-row{display:grid;grid-template-columns:7.5rem minmax(0,1fr) 3.8rem;align-items:center;gap:var(--space-2);font-size:var(--font-small);margin-top:var(--space-1)}
-  .share-row strong{text-align:right;font-variant-numeric:tabular-nums}.track{height:8px;background:var(--color-surface-selected)}
+  .spectrum-facts>p{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px var(--space-3);margin:0 0 var(--space-1)}
+  .spectrum-facts>p strong{font-size:var(--font-section);font-variant-numeric:tabular-nums}
+  .spectrum-facts>p span{color:var(--color-ink-muted);font-size:var(--font-small)}
+  .share-row{display:grid;grid-template-columns:7.5rem minmax(0,1fr) 3.8rem;align-items:center;gap:var(--space-2);font-size:var(--font-small)}
+  .share-row strong{text-align:right;font-variant-numeric:tabular-nums}.track{height:9px;background:var(--color-surface-selected);border-radius:3px;overflow:hidden}
   .track i{display:block;height:100%;background:var(--color-ink-muted)}.b .track i{background:var(--color-action)}
   .spectrum-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);padding-block:var(--space-3);border-block:1px solid var(--color-border);margin-bottom:var(--space-4)}
   .button-group{display:flex;gap:var(--space-1)}
@@ -288,9 +290,9 @@
   .spectrum-curve h3{font-size:var(--font-small);margin:0 0 var(--space-2);font-weight:650}
   .measurement-view{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6)}.measurement-view .spectrum-curve{grid-column:2;grid-row:1}
   .measurement-view :global(.waterfall),.measurement-view .map-status{grid-column:1;grid-row:1}
-  .spectrum-key{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-1) var(--space-4);font-size:12px;color:var(--color-ink-muted);margin:var(--space-1) 0 0;min-height:24px}
+  .spectrum-key{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-1) var(--space-4);font-size:var(--font-label);color:var(--color-ink-muted);margin:var(--space-1) 0 0;min-height:24px}
   .spectrum-key i{display:inline-block;width:18px;border-top:2px solid var(--color-ink-muted);margin-right:var(--space-1);vertical-align:middle}.spectrum-key i.b{border-top:2px dashed var(--color-action)}
-  .scale{font-size:12px}.scale input{margin:0}.measurement-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-top:var(--space-4);font-size:var(--font-small)}
+  .scale{font-size:var(--font-label)}.scale input{margin:0}.measurement-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-4);margin-top:var(--space-4);font-size:var(--font-small)}
   .measurement-actions a{margin-right:auto}.use-measurement>div{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
   summary{cursor:pointer;color:var(--color-action);font-size:var(--font-small)}.analysis-details{margin-top:var(--space-3);font-size:var(--font-small);color:var(--color-ink-muted)}
   .analysis-details h4{color:var(--color-ink);margin-bottom:var(--space-1)}.selection-notice{font-size:var(--font-small);margin-block:var(--space-2);color:var(--color-action)}

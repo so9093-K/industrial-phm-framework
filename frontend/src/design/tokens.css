@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  font-family: system-ui, -apple-system, "Noto Sans KR", sans-serif;
+  font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
   font-size: 16px;
   line-height: 1.55;
 
@@ -15,7 +15,7 @@
   --color-ink-muted: #476173;
   --color-border: #c8d8e0;
   --color-control-border: #718591;
-  --font-result: clamp(1.5rem,2.4vw,2rem);
+  --font-result: clamp(1.5rem, 2.4vw, 2rem);
   --color-action: #075c75;
   --color-action-hover: #074657;
   --color-action-ink: #ffffff;
@@ -52,6 +52,7 @@
   --font-label: .8125rem;
   --font-body: 1rem;
   --font-section: 1.125rem;
+  --font-workspace-title: clamp(1.25rem, 1.6vw, 1.5rem);
   --font-page: clamp(1.6rem, 2.5vw, 2.3rem);
   --radius-control: .625rem;
   --radius-panel: .75rem;

@@ -98,7 +98,7 @@
       {#each visible as group (group.period)}
         <span><i class:a={group.period === "a"} style:--series={colors[group.period]}></i>{group.label}</span>
       {/each}
-      {#if band && zoom === null}<span class="band-key"><i></i>같은 {xLabel} 범위에서 비교</span>{/if}
+      {#if band && zoom === null}<span class="band-key"><i></i>비교한 {xLabel} 범위</span>{/if}
     </div>
     <div class="zoom" role="group" aria-label="관계 그래프 확대">
       <button type="button" aria-pressed={zoom === null} onclick={() => chooseZoom(null)}>전체 비교</button>
@@ -195,7 +195,7 @@
   .picked { fill:none; stroke:var(--color-ink); stroke-width:2; }
   .hit { fill:transparent; cursor:crosshair; }
   .time-strip { display:grid; grid-template-columns:minmax(44px,auto) minmax(0,1fr); gap:8px; margin-top:8px; }
-  .time-label { display:grid; grid-template-rows:20px 20px; align-items:center; font-size:11px; color:var(--color-ink-muted); }
+  .time-label { display:grid; grid-template-rows:20px 20px; align-items:center; font-size:var(--font-label); color:var(--color-ink-muted); }
   .time-plot { min-width:0; }
   .time-plot svg { height:40px; background:var(--color-surface-selected); border-radius:4px; }
   .time-dots { fill:none; stroke-width:2.25; stroke-linecap:round; }

@@ -21,7 +21,7 @@
 
 <style>
   .plotted { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); align-items: stretch; }
-  .labels { position: relative; font-size: 12px; color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
+  .labels { position: relative; font-size: var(--font-label); color: var(--color-ink-muted); font-variant-numeric: tabular-nums; }
   .sizer { visibility: hidden; display: block; height: 0; overflow: hidden; white-space: nowrap; }
   .tick { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; line-height: 1; }
   .area, .footer { min-width: 0; }

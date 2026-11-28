@@ -1,6 +1,7 @@
 <script lang="ts">
+  import {untrack} from "svelte";
   import {clockText} from "../date-format";
-  import {ongoing, visibleSeries, SERIES_COLORS, type FleetGroup, type FleetRead} from "../fleet-observation";
+  import {ongoing, pointInBucket, visibleSeries, SERIES_COLORS, type FleetGroup, type FleetRead} from "../fleet-observation";
   import {measure} from "../chart-axis";
   import {plainLabel} from "../change-story";
   import {flowLabel} from "../monitor";
@@ -20,11 +21,11 @@
     onPoint: (point: MonitorChatPoint | null) => void;
     onPause: () => void; onSignal: (channel: string) => void} = $props();
   let picked = $state<number | null>(null);
-  let loadPick = $state<number | null>(null);
   let hovered = $state<number | null>(null);
-  const cursor = $derived(hovered ?? picked ?? loadPick);
+  const cursor = $derived(hovered ?? picked);
   $effect(() => {
-    if (playing) { picked = null; loadPick = null; }
+    if (playing) hovered = null;
+    if (picked !== null && (playing || picked < lo || picked > hi)) untrack(() => pick(null));
   });
   const series = $derived(!replaying ? group.series : until === null ? group.series.map(row => ({...row, points: []})) : visibleSeries(group, until));
   const lead = $derived(activity?.change ?? null);
@@ -39,17 +40,14 @@
   const now = $derived(lead?.current ?? null);
   const shownBefore = $derived(now?.reference ?? lead?.before ?? null);
   const shownAfter = $derived(now?.value ?? lead?.after ?? null);
-  const reach = $derived(group.axis === "time" ? (group.bucketMs ?? 60_000) : 1);
   const lastFocus = $derived(series.find(row => row.key === group.focus)?.points.at(-1));
+  const readAt = $derived(cursor ?? lastFocus?.x ?? null);
+  const stamp = $derived(cursor === null && lastFocus && group.axis === "time"
+    ? Math.min(until ?? group.record.to, lastFocus.x + (group.bucketMs ?? 0)) : readAt);
   const other = $derived([...read.others].sort((a, b) => b.from - a.from)[0]);
 
   const short = (at: number) => group.axis === "time" ? clockText(at)
     : Math.floor(at) + "번째" + (group.periodSeconds ? " · " + elapsedText((Math.floor(at) - 1) * group.periodSeconds) : "");
-  function nearest(points: {x: number; value: number}[], at: number) {
-    let best: {x: number; value: number} | null = null;
-    for (const point of points) if (!best || Math.abs(point.x - at) < Math.abs(best.x - at)) best = point;
-    return best && Math.abs(best.x - at) <= reach ? best : null;
-  }
   // 부하 신호(전류): 전압 그래프 바로 아래 같은 시간축에. 모니터링 중이면 같은 시점까지만 그린다.
   const companion = $derived(read.companion);
   const load = $derived(!companion ? [] : !replaying ? companion.series : until === null ? companion.series.map(row => ({...row, points: []})) : visibleSeries(companion, until));
@@ -57,7 +55,10 @@
   const plotHeight = $derived(compact ? Math.min(height, 168) : height);
   const mainHeight = $derived(companion ? Math.round(plotHeight * .68) : plotHeight);
   const loadHeight = $derived(companion ? Math.max(42, plotHeight - mainHeight - 20) : 0);
-  const loadPoint = $derived(load[0] ? (cursor !== null ? nearest(load[0].points, cursor) : load[0].points.at(-1)) : null);
+  const loadPoint = $derived(readAt !== null && load[0] ? pointInBucket(load[0].points, readAt, companion?.bucketMs ?? null) : null);
+  const distinctLines = $derived(group.axis === "time" && series.length === 3);
+  const onsetLink = $derived(lead && activity && lead.from >= lo && lead.from <= hi && series.some(row => row.points.length)
+    ? {href: activity.href, label: name + " 변화 시작 · 조사", title: short(lead.from) + "부터의 변화 조사", onOpen: onPause} : undefined);
   function chatPoint(at: number | null): MonitorChatPoint | null {
     if (at === null) return null;
     const label = group.axis === "time" ? clockText(at) : Math.floor(at) + "번째 측정";
@@ -65,7 +66,9 @@
   }
   function pick(at: number | null) {
     picked = at;
+    hovered = null;
     if (selected) onPoint(chatPoint(at));
+    if (at !== null) onPause();
   }
 </script>
 
@@ -75,15 +78,7 @@
       <header class="equipment-head">
         <div class="title"><a class="name" href={activity?.href ?? href} onclick={onPause}><AssetName label={name}/></a>
           {#if role || read.live}<span class="kind">{[role, read.live ? flowLabel(flow) : null].filter(Boolean).join(" · ")}</span>{/if}</div>
-        <div class="reading"><span>{group.axis==="time"?(cursor!==null?"선택 구간 평균":read.live?"최근 구간 평균":"마지막 구간 평균"):(cursor!==null?"선택한 측정":"마지막 측정")}</span><time>{cursor!==null?short(cursor):lastFocus?short(group.axis==="time"?Math.min(until??group.record.to,lastFocus.x+(group.bucketMs??0)):lastFocus.x):"기록 시작 전"}</time>{#if picked !== null || loadPick !== null}<button type="button" class="clear-pick" onclick={() => { pick(null); loadPick = null; }}>선택 해제</button>{/if}</div>
       </header>
-      <dl class="values">
-        {#each series as row,index(row.key)}
-          {@const point=cursor!==null?nearest(row.points,cursor):row.points.at(-1)}
-          <div><dt><i style:background={SERIES_COLORS[index%SERIES_COLORS.length]}></i>{series.length>1?row.short:group.label}</dt><dd>{point?measure(point.value,group.unit,group.unit==="V"?4:3):"—"}</dd></div>
-        {/each}
-        {#if companion}<div class="load"><dt>{companion.label}</dt><dd>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
-      </dl>
       {#if lead}
         <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
@@ -95,7 +90,7 @@
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
               <small>
-                {changeRange(lead, group.axis)}{#if group.axis === "time" && lead.to > lead.from} · <span class="keep">{elapsedText((lead.to - lead.from) / 1000)}</span>{/if}
+                {changeRange(lead, group.axis)}{#if group.axis === "time" && lead.to > lead.from} <span class="keep">({elapsedText((lead.to - lead.from) / 1000)})</span>{/if}
               </small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
@@ -105,7 +100,7 @@
               <button type="button" class="ui-button ai" onclick={() => onQuestion(activity!, chatPoint(picked))}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>이 변화에 질문하기</button>
             {/if}
-            <a class="ui-button ui-button-primary investigate" href={activity?.href ?? href} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>
+            {#if !onsetLink}<a class="ui-button ui-button-primary investigate" href={activity?.href ?? href} onclick={onPause} aria-label={name + " 특이사항 조사"}>특이사항 조사 →</a>{/if}
           </div>
         </section>
       {/if}
@@ -122,17 +117,36 @@
     <div class="plot-area">
       <div class="plot-title">
         <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
-        {#if lead}<span><i class="reference"></i>초기 수준 <i class="change"></i>특이사항</span>{/if}
+        <div class="reading">
+          {#if stamp !== null}
+            <span>{group.axis === "time" ? (cursor === null ? "마지막 구간 평균" : "구간 평균")
+              : (cursor === null ? "마지막 측정" : "선택 측정")}</span>
+            <span class="stamp">{short(stamp)}</span>
+          {:else}<span>표시할 측정 없음</span>{/if}
+          {#if picked !== null}<button type="button" class="clear-pick" onclick={() => pick(null)}>선택 해제</button>{/if}
+        </div>
+        {#if lead && shownBefore !== null}<span class="reference-key"><i></i>초기 수준</span>{/if}
+      </div>
+      <div class="chart-readings">
+        <dl class="values">
+          {#each series as row,index(row.key)}
+            {@const point=readAt===null?null:pointInBucket(row.points,readAt,group.bucketMs)}
+            <div><dt><i aria-hidden="true" style:--series={SERIES_COLORS[index%SERIES_COLORS.length]}
+              class:dashed={distinctLines && index === 1} class:dotted={distinctLines && index === 2}></i>{series.length>1?row.short:group.label}</dt>
+              <dd title={point?"":"해당 구간에 측정값 없음"}>{point?measure(point.value,group.unit,group.unit==="V"?4:3):"—"}</dd></div>
+          {/each}
+          {#if companion}<div class="load"><dt><i aria-hidden="true" style:--series="var(--color-ink-muted)"></i>{companion.label}</dt><dd title={loadPoint?"":"해당 구간에 측정값 없음"}>{loadPoint?measure(loadPoint.value,companion.unit,3):"—"}</dd></div>{/if}
+        </dl>
       </div>
       <!-- 그래프에 카드와 같은 특이사항 구간을 표시한다. -->
       <TrendChart {group} {series} {lo} {hi} changes={lead ? [lead] : []} selectedRange={selected} reference={shownBefore} live={replaying && playing}
-        height={mainHeight} axis={!companion} guide={cursor} endLabel={true} onHover={at => hovered = at}
-        bind:picked={() => picked, value => { pick(value); loadPick = null; if (value !== null) onPause(); }}/>
+        height={mainHeight} axis={!companion} guide={cursor} guideSamples {distinctLines} {onsetLink} endLabel
+        formatValue={short} onHover={at => hovered = at} bind:picked={() => picked, pick}/>
       {#if companion}
         <p class="load-label">{companion.label}</p>
         <TrendChart group={companion} series={load} {lo} {hi} changes={lead ? [{...lead, key: "load:" + lead.key}] : []}
-          height={loadHeight} axis={true} colors={["var(--color-ink-muted)"]} selectedRange={selected} endLabel={true} guide={cursor} onHover={at => hovered = at}
-          bind:picked={() => loadPick, value => { loadPick = value; pick(null); if (value !== null) onPause(); }}/>
+          height={loadHeight} colors={["var(--color-ink-muted)"]} selectedRange={selected} endLabel guide={cursor} guideSamples live={replaying && playing}
+          formatValue={short} onHover={at => hovered = at} bind:picked={() => picked, pick}/>
       {/if}
     </div>
   </div>
@@ -154,7 +168,7 @@
   .name:hover { text-decoration:underline; }
   .kind,.reading { font-size:var(--font-label); color:var(--color-ink-muted); }
   .reading { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
-  .reading time { font-variant-numeric:tabular-nums; }
+  .reading .stamp { color:var(--color-ink); font-weight:600; font-variant-numeric:tabular-nums; }
   .clear-pick,.secondary-action {
     font:inherit; font-size:var(--font-label); color:var(--color-action); border:0; background:none;
     padding:0; cursor:pointer; text-decoration:none;
@@ -163,8 +177,12 @@
   .values { display:flex; flex-wrap:wrap; gap:4px 14px; margin:0; }
   .values > div,.values dt { display:flex; align-items:baseline; gap:5px; }
   .values dt { font-size:var(--font-label); color:var(--color-ink-muted); }
-  .values dt i { align-self:center; width:10px; height:3px; border-radius:2px; }
-  .values dd { margin:0; font-size:var(--font-body); font-weight:650; font-variant-numeric:tabular-nums; }
+  .values dt i { align-self:center; width:14px; border-top:2px solid var(--series); }
+  .values dt i.dashed { border-top-style:dashed; }
+  .values dt i.dotted { border-top-style:dotted; }
+  .values dd { margin:0; font-size:var(--font-small); font-weight:650; font-variant-numeric:tabular-nums; }
+  .chart-readings { margin:0 0 8px 52px; }
+  .chart-readings .values { gap:2px 12px; }
   .finding {
     display:grid; gap:10px;
     padding:10px 12px; border-left:3px solid var(--color-change-mark);
@@ -187,11 +205,10 @@
   .ai svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linejoin:round; }
   .plot-area { min-width:0; }
   .plot-area :global(.plotted) { grid-template-columns:44px minmax(0,1fr); }
-  .plot-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 7px; }
-  .plot-title h2 { margin:0; font-size:var(--font-label); }
-  .plot-title > span { display:flex; align-items:center; gap:5px; font-size:var(--font-label); color:var(--color-ink-muted); }
-  .reference { width:14px; border-top:1px dashed var(--color-reference-line); }
-  .change { width:12px; height:9px; background:var(--color-change-fill); margin-left:6px; }
+  .plot-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 12px; margin:0 0 5px; }
+  .plot-title h2 { margin:0; font-size:var(--font-small); }
+  .reference-key { display:flex; align-items:center; gap:5px; margin-inline-start:auto; font-size:var(--font-label); color:var(--color-ink-muted); }
+  .reference-key i { width:14px; border-top:1px dashed var(--color-reference-line); }
   .load-label { margin:5px 0 4px 52px; font-size:var(--font-label); color:var(--color-ink-muted); }
   .row-footer { display:flex; align-items:center; flex-wrap:wrap; min-height:20px; gap:6px 16px; font-size:var(--font-label); color:var(--color-ink-muted); }
   @media(max-width:1000px) { .card-main { grid-template-columns:minmax(0,1fr); } }

@@ -265,11 +265,11 @@
     </div></div>
     {#if analyzed.pattern.scored && coverage}
       <section class="coverage" aria-label="3상 패턴 비교 결과">
-        <p class="result-statement">비교한 {analyzed.pattern.scoredSamples.toLocaleString("ko-KR")}개 중 {coverage.different.toLocaleString("ko-KR")}개의 3상 패턴이 기준과 달랐습니다.</p>
+        <p class="result-statement">비교한 {analyzed.pattern.scoredSamples.toLocaleString("ko-KR")}개 중 {coverage.different.toLocaleString("ko-KR")}개{analyzed.pattern.percent === null ? "" : " (" + measured(analyzed.pattern.percent, "%") + ")"}의 3상 패턴이 기준과 달랐습니다.</p>
         <div class="coverage-bar" aria-hidden="true">
           {#each coverageRows as row (row.tone)}{#if row.count > 0}<i class={row.tone} style:flex-grow={row.count}></i>{/if}{/each}
         </div>
-        <ul>{#each coverageRows as row (row.tone)}<li><i class={row.tone}></i>{row.label} <strong>{row.count.toLocaleString("ko-KR")}개</strong></li>{/each}</ul>
+        <ul>{#each coverageRows as row (row.tone)}{#if row.count > 0}<li><i class={row.tone}></i>{row.label} <strong>{row.count.toLocaleString("ko-KR")}개</strong></li>{/if}{/each}</ul>
         {#if coverage.unscored > 0 && insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}
           <p class="context">{insights(analyzed).find(line=>line.includes("비교하지 않은 관측"))}</p>
         {/if}
@@ -280,9 +280,9 @@
     <div class="electrical-investigation"><div>
     <section class="block" aria-labelledby="condition-chart">
       <div class="chart-head">
-        <h3 id="condition-chart">시간별 추이</h3>
-        <div class="graph-controls"><div class="window-choice" role="group" aria-label="3상 추이 표시 범위"><button type="button" class="ui-button" aria-pressed={!wholePeriod} onclick={()=>{windowAt=selectedAt;wholePeriod=false;}}>선택 시점 주변</button><button type="button" class="ui-button" aria-pressed={wholePeriod} onclick={()=>wholePeriod=true}>전체 기간</button></div><label>그래프 값
-          <select bind:value={metric}>
+        <h3 id="condition-chart">{phased ? "상별 전류" : METRICS[metric].label} 추이</h3>
+        <div class="graph-controls"><div class="window-choice" role="group" aria-label="3상 추이 표시 범위"><button type="button" class="ui-button" aria-pressed={!wholePeriod} onclick={()=>{windowAt=selectedAt;wholePeriod=false;}}>선택 시점 주변</button><button type="button" class="ui-button" aria-pressed={wholePeriod} onclick={()=>wholePeriod=true}>전체 기간</button></div><label>
+          <select bind:value={metric} aria-label="그래프 값">
             {#each Object.entries(METRICS) as [value, info] (value)}<option {value}>{info.label}{info.unit ? " ·" + info.unit : ""}</option>{/each}
           </select>
         </label>
@@ -318,7 +318,6 @@
           <input type="range" min="0" max={visibleTimeline.length - 1} value={Math.max(0,visibleTimeline.findIndex(point=>point.at===selectedAt))}
             oninput={(event) => scrub(Number(event.currentTarget.value))} />
         </label>
-        <p class="context">그래프를 누르거나 막대를 움직이면 선택한 시각의 상별 값을 확인합니다. 시각은 한국 시각입니다.</p>
       {/if}
     </section>
 
@@ -396,11 +395,11 @@
 </section>
 
 <style>
-  .electrical-investigation{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);gap:var(--space-5);align-items:start}
+  .electrical-investigation{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(290px,1fr);gap:var(--space-5);align-items:start}
   .electrical-investigation>div{min-width:0}.electrical-inspector{display:grid;gap:var(--space-3)}
   .electrical-inspector label{display:grid;gap:var(--space-2);font-size:var(--font-small)}.electrical-inspector select{min-width:0;max-width:100%;padding:var(--space-2);font:inherit;border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-ink)}
-  @media(max-width:1000px){.electrical-investigation{grid-template-columns:minmax(0,1fr)}}
-  .condition { min-width: 0; }
+  @container (max-width:780px){.electrical-investigation{grid-template-columns:minmax(0,1fr)}}
+  .condition { min-width: 0; container-type:inline-size; }
   .stack { display: grid; gap: var(--space-4); align-content: start; }
   .range-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-4); }
   .shift .ui-button { padding: var(--space-2) var(--space-3); font-size: var(--font-small); }

@@ -103,7 +103,7 @@
   const readAt=$derived(inside(cursor)??inside(selected)??shownLast);
   const shade=(level:number,count:number)=>.18+.72*level/Math.max(1,count);
   // 보이는 구간(기록 전체·확대)이 바뀔 때마다 그 구간의 부하 추이를 다시 읽는다.
-  // 읽는 동안은 그 자리를 비워 둔다(운전 수준 띠가 잠깐 그려졌다 바뀌지 않게). 읽지 못했을 때만 띠로 대신한다.
+  // 운전 수준 띠는 전류 추이를 읽지 못했을 때 표시한다.
   let loadPoints:LoadPoint[]|null=$state(null),loadFailed=$state(false);
   $effect(()=>{
     const source=load,from=lo,to=hi;
@@ -116,7 +116,7 @@
   // 부하 값 읽기도 자기 점 간격의 1.5배 안에서만(보이는 구간을 120칸으로 읽어 전압 칸과 간격이 다르다).
   const loadReach=$derived.by(()=>{const points=loadPoints??[];const gaps=points.slice(1).map((p,i)=>p.x-points[i].x).sort((a,b)=>a-b);
     return Math.max(gaps[Math.floor(gaps.length/2)]??1,1000)*1.5;});
-  const loadGroup=$derived.by(():FleetGroup|null=>!load||!loadPoints?null:{label:load.label,unit:load.unit,axis,focus:"load",record,bucketMs:null,periodSeconds,
+  const loadGroup=$derived.by(():FleetGroup|null=>!load||!loadPoints?.length?null:{label:load.label,unit:load.unit,axis,focus:"load",record,bucketMs:null,periodSeconds,
     series:[{key:"load",channel:"load",label:load.label,short:load.label,points:loadPoints}]});
 </script>
 {#if focused}
@@ -161,9 +161,8 @@
           changes={[{key:"focus",channel:"focus",label:focused.label,from:focused.interval.from,to:focused.interval.to,up:focused.up,before:null,after:null}]}
           guide={cursor} picked={selected} onPick={at=>onSelect?.(at)} onHover={at => cursor = at}/>
       </div>
-    {:else if load&&axis==="time"&&!loadFailed}
-      <div class="lane-heading"><strong>{load.label}</strong></div>
-      <div class="load-pending" aria-busy="true"></div>
+    {:else if load&&axis==="time"&&loadPoints===null&&!loadFailed}
+      <p class="load-pending" role="status">{load.label} 추이 불러오는 중</p>
     {:else if operation}
       <div class="lane-heading"><strong>운전 수준</strong><span class="levels">{#each operation.names.levels as _,i(i)}<span><i class="level-key" style:opacity={shade(i+1,operation.names.levels.length)}></i>{bandName(operation.names,i+1)}</span>{/each}<span><i class="level-key stop"></i>정지</span></span></div>
       <!-- 칸마다 가장 오래 운전한 수준 하나를 진하기로 칠한다(진할수록 높은 전류). 부하가 바뀐 때가 띠에서 바로 보인다. -->
@@ -171,6 +170,8 @@
         {#each operation.columns.filter(c=>c.to>=lo&&c.from<=hi) as col(col.from)}{@const x0=Math.max(0,(col.from-lo)/(hi-lo)*1000)}{@const width=Math.max(1,Math.min(1000,(col.to-lo)/(hi-lo)*1000)-x0)}{@const top=col.shares.indexOf(Math.max(...col.shares))}
           <rect x={x0} {width} height="20" class="level" class:stop={top===0} style:opacity={top===0?1:shade(top,operation.names.levels.length)}/>{/each}
       </svg></div>
+    {:else if load&&axis==="time"}
+      <p class="load-pending">{loadFailed ? load.label+" 추이를 읽지 못했습니다." : "선택한 기간에 "+load.label+" 측정값이 없습니다."}</p>
     {/if}
     <div class="strip"><span></span><XAxis {lo} {hi} {scale}/></div>
     <RecordNavigator points={focused.points} {record} view={range} change={focused.interval} position={centeredAt} {scale} {place} onMove={moveWindow}/>
@@ -200,7 +201,7 @@
   .ai-toggle{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--color-control-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-action);font-size:var(--font-small);font-weight:650}
   .ai-toggle svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round}
   .ai-toggle[aria-pressed="true"]{background:var(--color-action);border-color:var(--color-action);color:var(--color-action-ink)}
-  .headline{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3)}h2{margin:0;font-size:1.3rem;line-height:1.4}.headline p{margin:4px 0 0;font-size:var(--font-small);color:var(--color-ink-muted)}
+  .headline{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:var(--space-3)}h2{margin:0;font-size:var(--font-workspace-title);line-height:1.3;text-wrap:pretty}.headline p{margin:4px 0 0;font-size:var(--font-small);color:var(--color-ink-muted)}
   .signal-choice{display:grid;gap:4px;font-size:var(--font-label);min-width:220px}.signal-choice select{padding:7px}.numbers{margin:0;font-size:var(--font-section);font-weight:650}
   .toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2) var(--space-3)}.choices{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}button{cursor:pointer;font:inherit}.choices button{padding:5px 10px;font-size:var(--font-label);border:0;background:var(--color-surface);color:var(--color-ink)}.choices button+button{border-left:1px solid var(--color-border)}.choices button[aria-pressed="true"]{background:var(--color-surface-selected);color:var(--color-action);font-weight:650}
   .legend{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:0 0 0 auto;padding:0;list-style:none;font-size:var(--font-label);color:var(--color-ink-muted)}.legend li{display:flex;align-items:center;gap:6px}
@@ -213,7 +214,7 @@
   .lane-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin-top:8px;padding-left:64px;font-size:var(--font-small)}.lane-heading.main{margin-top:0}.lane-heading .levels{color:var(--color-ink-muted);font-size:var(--font-label)}
   .readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 14px;font-variant-numeric:tabular-nums}.readout span{display:inline-flex;align-items:center;gap:5px;color:var(--color-ink-muted)}.readout i{display:inline-block;width:12px;height:3px;border-radius:2px}.readout b{color:var(--color-ink);font-weight:650}.readout small{color:var(--color-ink-muted);font-size:var(--font-label)}
   .related-context{display:grid;gap:14px;align-content:start;border-left:1px solid var(--color-border);padding-left:20px;min-width:0}
-  .load-pending{height:84px;margin-left:64px;border-radius:4px;background:repeating-linear-gradient(0deg,transparent 0 20px,#eef2f4 20px 21px)}
+  .load-pending{display:grid;align-content:center;min-height:84px;margin:0 0 0 64px;font-size:var(--font-small);color:var(--color-ink-muted)}
   .focus-values{display:grid;gap:4px;padding-bottom:12px;border-bottom:1px solid var(--color-border)}.focus-values .name{font-size:var(--font-small);font-weight:650}
   .pair{display:flex;align-items:end;gap:14px;font-variant-numeric:tabular-nums}.pair span{display:grid;gap:2px;font-size:1.35rem;font-weight:650;color:var(--color-ink-muted)}.pair small{font-size:var(--font-label);font-weight:400}.pair strong{color:var(--color-ink)}.pair b{padding-bottom:4px;color:var(--color-ink-muted);font-weight:400}.actions{border-top:1px solid var(--color-border);padding-top:12px}
   .decision{margin:0;font-size:var(--font-small);color:var(--color-action)}

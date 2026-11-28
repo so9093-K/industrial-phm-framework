@@ -54,7 +54,7 @@
       {/key}
     {:else}
       {#if chosen}<a class="inspect" href={chosen.href}>선택한 구간의 실측 보기 →</a>{/if}
-      <input aria-label="이 변화에 질문하기" placeholder={chosen ? "저장된 변화에서 질문할 수 있습니다" : "변화를 선택해 질문하세요"} disabled />
+      <p class="choose-change">{chosen ? "저장된 변화에서 질문할 수 있습니다." : "위에서 변화를 선택해 질문할 수 있습니다."}</p>
     {/if}
   </div>
 </div>
@@ -79,7 +79,6 @@
   .alert a{background:var(--color-uncertain-surface)}
   .more,.inspect{justify-self:start;padding:0;border:0;background:none;color:var(--color-action);font:inherit;font-size:var(--font-label);cursor:pointer;text-decoration:underline}
   .question{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--color-border);min-width:0}
-  input{min-width:0;width:100%;font-size:var(--font-small);background:var(--color-surface-selected)}
-  input::placeholder{opacity:1;color:var(--color-ink-muted)}
+  .choose-change{margin:0;color:var(--color-ink-muted);font-size:var(--font-small)}
   .no-activity{margin:0;padding:4px 0}
 </style>

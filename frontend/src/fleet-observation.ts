@@ -86,6 +86,17 @@ export function visibleSeries(group: FleetGroup, until: number): FleetSeries[] {
   return group.series.map(row => ({...row, points: row.points.filter(point => point.x + span <= until + span * 0.01)}));
 }
 
+/** A time reading belongs to the bucket covering it. Ordinal measurements must match exactly. */
+export function pointInBucket(points: readonly FleetPoint[], at: number, bucketMs: number | null): FleetPoint | null {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i];
+    if (point.x > at) continue;
+    const offset = at - point.x;
+    return offset === 0 || (bucketMs !== null && offset >= 0 && offset < bucketMs) ? point : null;
+  }
+  return null;
+}
+
 /** 재생 위치. 진동은 측정 번호라 정수로 내린다. */
 export function positionAt(group: FleetGroup, fraction: number): number {
   const at = group.record.from + (group.record.to - group.record.from) * Math.max(0, Math.min(1, fraction));
