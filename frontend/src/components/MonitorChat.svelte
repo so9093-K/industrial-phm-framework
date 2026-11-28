@@ -17,6 +17,7 @@
   import {clockText} from "../date-format";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
+  import {keepQuestionDraft, questionDraft} from "../question-drafts";
   import {answerParts, freshLink} from "../answer-text";
   import AssetName from "./AssetName.svelte";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
@@ -33,7 +34,8 @@
     : null);
 
   const conversation = newChangeConversation();
-  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(""), error = $state("");
+  const draftKey = untrack(() => JSON.stringify(["monitor-question", assetId, reviewKey, scope]));
+  let records: ChangeDiscussion[] = $state([]), writable = $state(false), question = $state(questionDraft(draftKey)), error = $state("");
   let busy = $state(false), awaiting: string | null = $state(null), remaining = 240;
   let request: AbortController | null = null, write: AbortController | null = null, timer: ReturnType<typeof setTimeout> | null = null;
   let previous = new Set<string>();
@@ -49,7 +51,7 @@
   const typing = (text: string) => text + (elapsed !== null && elapsed >= 3 ? " · " + elapsed + "초" : "");
 
   function cancel() { request?.abort(); if (timer !== null) clearTimeout(timer); timer = null; }
-  onDestroy(() => { cancel(); write?.abort(); clearInterval(clock); });
+  onDestroy(() => { keepQuestionDraft(draftKey, question); cancel(); write?.abort(); clearInterval(clock); });
   async function refresh() {
     cancel();
     const pending = new AbortController(); request = pending;
@@ -117,7 +119,7 @@
     {#each thread as row, index (row.id)}
       <p class="me">{row.question}{#if row.pointed}<small>{row.pointed}에서</small>{/if}</p>
       <div class="msg answer" class:charted={row.comparison?.status === "ready"}>
-        {#if row.status === "complete" && row.answer}<p>{#each answerParts(row.answer.summary) as part, at (at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>{/if}
+        {#if row.status === "complete" && row.answer}<p>{#each answerParts(row.answer.summary) as part, at (at)}{#if part.emphasis}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>{/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} {origin} {conversation} result={row.comparison}/>{/if}
         {#if row.status === "complete" && row.analysis && analyses[row.analysis] && freshLink(thread, index)}
           <a class="opened" href={withConversation(analyses[row.analysis].href, conversation)} onclick={onPause}>{analyses[row.analysis].label} →</a>{/if}

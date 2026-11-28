@@ -24,21 +24,22 @@
   const PERIODS: Record<ConditionPeriod, string> = {"1h": "최근 기록 1시간", "6h": "최근 기록 6시간", "24h": "최근 기록 24시간"};
   // The plot stretches to its box, so every label is page text rather than scaled SVG text.
   const W = 800, H = 200, LEFT = 0, RIGHT = 800, TOP = 6, BOTTOM = 194;
-  const query=new URLSearchParams(location.search),picked=pickFrom(query.get("monitor_pick"));
+  const query=new URLSearchParams(location.search),selection=pickFrom(query.get("monitor_pick"));
   const baseline=pickFrom(query.get("compare_a"));
   const inputTime = (at: number) => kstInput(at, "second");
-  const initialPeriod:ConditionPeriod=picked&&picked.to-picked.from<=3_600_000?"1h":picked&&picked.to-picked.from<=6*3_600_000?"6h":"24h";
-  const duration={"1h":3_600_000,"6h":6*3_600_000,"24h":24*3_600_000}[initialPeriod];
-  // This analysis supports references of at most 24 hours. Longer change baselines
-  // cannot be reused: show the actual preceding period, rather than submitting an invalid range.
-  const reusableBaseline=baseline&&picked&&baseline.to-baseline.from<=24*3_600_000&&baseline.to<=picked.to-duration?baseline:null;
+  const picked=selection&&inputTime(selection.from)!==inputTime(selection.to)?selection:null;
+  const day=24*3_600_000;
+  const pickedStart=picked?Math.max(picked.from,picked.to-day):null;
+  const handedStart=pickedStart!==null?inputTime(pickedStart):"";
+  const handedEnd=selection?inputTime(selection.to):"";
+  const reusableBaseline=baseline&&pickedStart!==null&&baseline.to-baseline.from<=day&&baseline.to<=pickedStart?baseline:null;
   const handedSource=query.has("monitor_source")?{sourceId:query.get("monitor_source")!,pointId:query.get("monitor_point")||null}:null;
   const handedKey=handedSource?JSON.stringify([handedSource.sourceId,handedSource.pointId]):"";
-  let period: ConditionPeriod = $state(initialPeriod);
+  let period: ConditionPeriod | "custom" = $state(picked?"custom":selection?"1h":"24h");
   let sources: ConditionSource[] = $state([]);
   let sourceKey = $state(handedKey);
   let referenceMode: "previous" | "fixed" = $state(reusableBaseline?"fixed":"previous");
-  let custom = $state({end:picked?inputTime(picked.to):"",referenceStart:reusableBaseline?inputTime(reusableBaseline.from):"",referenceEnd:reusableBaseline?inputTime(reusableBaseline.to):""});
+  let custom = $state({start:handedStart,end:handedEnd,referenceStart:reusableBaseline?inputTime(reusableBaseline.from):"",referenceEnd:reusableBaseline?inputTime(reusableBaseline.to):""});
   let condition: Condition | null = $state(null);
   let loadState: "loading" | "ready" | "failed" = $state("loading");
   let error = $state("");
@@ -57,6 +58,10 @@
     const current: Condition | null = condition;
     return current && current.analyzed ? current : null;
   });
+  const lastDayOfChange=$derived(analyzed&&picked&&pickedStart!==picked.from
+    &&inputTime(Date.parse(analyzed.targetStart))===handedStart&&inputTime(Date.parse(analyzed.targetEnd))===handedEnd);
+  const precedingReference=$derived(analyzed&&analyzed.referenceEnd===analyzed.targetStart
+    &&Date.parse(analyzed.referenceEnd)-Date.parse(analyzed.referenceStart)===Date.parse(analyzed.targetEnd)-Date.parse(analyzed.targetStart));
   const coverage = $derived(analyzed ? patternCounts(analyzed.pattern) : null);
   const coverageRows = $derived(coverage ? [
     {label:"기준과 다름", count:coverage.different, tone:"different"},
@@ -109,8 +114,9 @@
     const source = sources.find((item) => keyOf(item) === sourceKey) ?? (sourceKey===handedKey?handedSource:null);
     loadState = "loading"; condition = null; selectedAt = null; error = "";
     try {
-      const value = await readCondition(assetId, period, source, referenceMode === "fixed" ? custom
-        : {...custom, referenceStart:"", referenceEnd:""}, pending.signal);
+      const target = {...custom,start:period==="custom"?custom.start:""};
+      const value = await readCondition(assetId, period==="custom"?"24h":period, source, referenceMode === "fixed" ? target
+        : {...target, referenceStart:"", referenceEnd:""}, pending.signal);
       if (pending.signal.aborted) return;
       // Keep the chosen source by identity even when a new one changes the list order.
       sources = value.sources;
@@ -129,8 +135,14 @@
       error = failure instanceof Error ? failure.message : "분석할 데이터를 읽지 못했습니다.";
     }
   }
+  function choosePeriod(next: ConditionPeriod | "custom") {
+    period=next;
+    if(next==="custom") {
+      if(analyzed)custom={...custom,start:inputTime(Date.parse(analyzed.targetStart)),end:inputTime(Date.parse(analyzed.targetEnd))};
+    } else void analyze();
+  }
   function shift(current: Analyzed, direction: -1 | 1) {
-    custom = shiftedPeriod(current, direction, custom);
+    custom = {...custom,...shiftedPeriod(current, direction, {...custom,start:period==="custom"?custom.start:""})};
     return analyze();
   }
   async function choose(at: string, nextMetric: Metric | null = null, focus = true, recenter = false) {
@@ -196,8 +208,9 @@
   <p class="purpose">3상 전류·전압과 불평형을 앞선 기간과 비교합니다. 전류 수준은 기계적 부하의 측정값이 아닙니다.</p>
   <form class="controls" onsubmit={(event) => { event.preventDefault(); close(); void analyze(); }}>
     <label>분석 기간
-      <select value={period} onchange={(event) => { period = event.currentTarget.value as ConditionPeriod; void analyze(); }}>
+      <select value={period} onchange={(event) => choosePeriod(event.currentTarget.value as typeof period)}>
         {#each Object.entries(PERIODS) as [value, label] (value)}<option {value}>{label}</option>{/each}
+        <option value="custom">직접 지정</option>
       </select>
     </label>
     {#if sources.length > 1}
@@ -210,9 +223,10 @@
         </select>
       </label>
     {/if}
-    <details class="custom">
+    <details class="custom" open={period==="custom"}>
       <summary>분석·기준 기간 직접 지정</summary>
       <div class="times">
+        {#if period==="custom"}<label>분석 시작 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.start} /></label>{/if}
         <label>분석 끝 시각 (KST)<input type="datetime-local" step="1" bind:value={custom.end} /></label>
         <label>비교 기준<select bind:value={referenceMode}>
           <option value="previous">분석 직전 같은 길이</option><option value="fixed">직접 지정한 기준 유지</option>
@@ -220,9 +234,9 @@
         <label>기준 기간 시작 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceStart} disabled={referenceMode !== "fixed"} /></label>
         <label>기준 기간 끝 (KST)<input type="datetime-local" step="1" bind:value={custom.referenceEnd} disabled={referenceMode !== "fixed"} /></label>
       </div>
-      <p class="context">분석 끝 시각을 비우면 마지막 저장 기록까지 분석합니다. 직전 비교는 이동할 때마다 기준도 이동하고, 직접 지정한 기준은 유지합니다. 기준 기간은 분석 기간보다 앞서야 합니다.</p>
+      <p class="context">분석 기간은 최대 24시간입니다. {period==="custom"?"시작과 끝을 입력하세요.":"끝 시각을 비우면 마지막 저장 기록까지 봅니다."} 직접 정한 기준 기간은 분석 기간을 옮겨도 유지합니다.</p>
     </details>
-    <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading"}>분석하기</button>
+    <button class="ui-button ui-button-primary" type="submit" disabled={loadState === "loading" || period==="custom"&&(!custom.start||!custom.end)}>분석하기</button>
   </form>
   {/snippet}</AnalysisControls>
 {/snippet}
@@ -242,8 +256,8 @@
       actionLabel={condition.state === "no-history" || condition.state === "unsupported-signals" ? "데이터 연결 확인하기" : undefined}
       actionHref={condition.state === "no-history" || condition.state === "unsupported-signals" ? systemUrl("connections") : undefined} />
   {:else if analyzed}
-    <div class="range-row"><p class="range">분석 기간 {dateTimeRange(analyzed.targetStart,analyzed.targetEnd,"minute")}
-      <span>비교 기준 {dateTimeRange(analyzed.referenceStart,analyzed.referenceEnd,"minute")}</span></p>
+    <div class="range-row"><p class="range">{lastDayOfChange?"변화 마지막 24시간":"분석 기간"} {dateTimeRange(analyzed.targetStart,analyzed.targetEnd,"minute")}
+      <span>{precedingReference?"직전 비교 기간":"비교 기준"} {dateTimeRange(analyzed.referenceStart,analyzed.referenceEnd,"minute")}</span></p>
     <div class="shift">
       {@render settingsPanel()}
       <button type="button" class="ui-button" onclick={() => void shift(analyzed!, -1)}>← 이전 기간</button>

@@ -9,6 +9,7 @@
   import type {PlaybackScope} from "../record-playback";
   import {readPermission} from "../outlook-briefings";
   import {OutcomeUnknown} from "../writes";
+  import {keepQuestionDraft,questionDraft} from "../question-drafts";
   import ChangeLoadComparison from "./ChangeLoadComparison.svelte";
   /** 조사 화면 오른쪽의 AI 조사 창. 고른 변화 하나를 두고 대화하고, AI는 화면에 보이는 데이터를 읽고 사람에게 말하듯 답한다.
    * 지난 질문과 답이 위로 쌓이고(이 부분만 스크롤), 입력창은 아래에 고정한다. colorOf·labelOf는
@@ -32,8 +33,9 @@
   // AI가 답과 함께 여는 분석 화면(분석 이름 → 이 변화의 신호·기간으로 연 링크).
   const analyses=$derived(changeAnalyses(assetId,focus));
   const compareLoad=$derived(focus.kind==="history"&&focus.item.unit==="V"&&focus.item.band!=null);
-  let question=$state(""),records:ChangeDiscussion[]=$state([]),error=$state("");
-  onDestroy(()=>{cancel();write?.abort();clearInterval(clock);});
+  const draftKey=untrack(()=>JSON.stringify(["change-question",assetId,reviewKey,scope]));
+  let question=$state(questionDraft(draftKey)),records:ChangeDiscussion[]=$state([]),error=$state("");
+  onDestroy(()=>{keepQuestionDraft(draftKey,question||held?.text||"");cancel();write?.abort();clearInterval(clock);});
   let questionRevision=0;
   let writable=$state(false),busy=$state(false),remaining=240;
   let awaitingQuestion:string|null=$state(null);
@@ -45,17 +47,18 @@
   const thread=$derived([...records].reverse());
   // 화면 결과가 준비되기 전(이어 온 대화를 읽거나 분석을 그리는 중)에 보낸 질문은 들고 있다가 준비되면 보낸다.
   // 전에는 그동안 누른 Enter가 아무 일도 하지 않아, 질문이 입력칸에 남은 채 묻혔다.
-  let held:string|null=$state(null);
-  const unsent=$derived(held??(awaitingQuestion!==null&&!records.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id))?awaitingQuestion:null));
+  let held:{text:string;view:string|null}|null=$state(null);
+  const unsent=$derived.by(()=>held?.text??(awaitingQuestion!==null&&!records.some(row=>row.question===awaitingQuestion&&!previousIds.has(row.id))?awaitingQuestion:null));
   // 기다린 시간: 첫 답은 모델이 쉬고 있었다면 1분 가까이 걸린다. 멈춘 것과 구분되게 초를 센다.
   let since:number|null=$state(null),now=$state(Date.now());
   const clock=setInterval(()=>{if(waiting)now=Date.now();},1000);
   $effect(()=>{if(waiting&&since===null)untrack(()=>{since=Date.now();now=since;});if(!waiting)since=null;});
   const elapsed=$derived(since!==null?Math.max(0,Math.round((now-since)/1000)):null);
-  const memoOf=(row:ChangeDiscussion)=>row.answer?label+" · "+span+"\n"+row.answer.summary:"";
+  const answerText=(row:ChangeDiscussion)=>answerParts(row.answer?.summary??"").map(part=>part.text).join("");
+  const memoOf=(row:ChangeDiscussion)=>row.answer?label+" · "+span+"\n"+answerText(row):"";
   let copied:string|null=$state(null);
   async function copy(row:ChangeDiscussion){
-    try{await navigator.clipboard.writeText(row.answer?.summary??"");copied=row.id;setTimeout(()=>{if(copied===row.id)copied=null;},1500);}catch{ /* 복사를 못 해도 답은 그대로 보인다. */ }
+    try{await navigator.clipboard.writeText(answerText(row));copied=row.id;setTimeout(()=>{if(copied===row.id)copied=null;},1500);}catch{ /* 복사를 못 해도 답은 그대로 보인다. */ }
   }
   // 새 말풍선이 생기면 마지막 질문을 창 위쪽에 둔다. 답이 길어도 첫 줄부터 읽힌다.
   // 사용자가 위의 답을 읽고 있으면(바닥에서 떨어져 있으면) 그대로 둔다.
@@ -87,7 +90,7 @@
   }
   async function ask(text:string,runComparison=false){
     if(!writable||waiting||!text.trim())return;
-    if(!ready){held=text.trim();if(question.trim()===held)question="";stick=true;return;}
+    if(!ready){held={text:text.trim(),view};if(question.trim()===held.text)question="";stick=true;return;}
     const revision=questionRevision;const submitted=text.trim();
     onStart?.();stick=true;previousIds=new Set(records.map(row=>row.id));awaitingQuestion=submitted;
     if(question.trim()===submitted)question="";
@@ -102,7 +105,12 @@
     }}
     finally{if(write===pending){write=null;busy=false;}}
   }
-  $effect(()=>{if(ready&&held!==null&&!waiting)untrack(()=>{const text=held!;held=null;void ask(text);});});
+  $effect(()=>{
+    const pending=held;
+    if(!pending)return;
+    if(pending.view!==view)untrack(()=>{if(!question)question=pending.text;held=null;});
+    else if(ready&&!waiting)untrack(()=>{held=null;void ask(pending.text);});
+  });
   // 분석 화면으로 이어 온 대화는 지난 질문과 답부터 보인다.
   if(incoming)void refresh();
   function keydown(event:KeyboardEvent){
@@ -138,7 +146,7 @@
       <div class="ai"><span class="avatar" aria-hidden="true">AI</span><div class="body">
         {#if row.status==="complete"&&row.answer}
           {#if row.answerView || viewTitle}<p class="answer-scope">{row.answerView ?? "이전 답변"}{row.answerScope ? " · "+row.answerScope : ""}</p>{/if}
-          <p class="answer">{#each answerParts(row.answer.summary) as part,at(at)}{#if part.value}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>
+          <p class="answer">{#each answerParts(row.answer.summary) as part,at(at)}{#if part.emphasis}<b>{part.text}</b>{:else}{part.text}{/if}{/each}</p>
         {/if}
         {#if row.comparison}<ChangeLoadComparison {assetId} {conversation} result={row.comparison}/>{/if}
         {#if row.status==="complete"&&row.analysis&&analyses[row.analysis]&&freshLink(thread,index)}

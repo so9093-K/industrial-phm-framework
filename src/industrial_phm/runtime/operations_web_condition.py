@@ -29,6 +29,7 @@ def project_electrical_condition(
     period: str = "24h",
     source_id: str | None = None,
     point_id: str | None = None,
+    start_at: datetime | None = None,
     end_at: datetime | None = None,
     reference_start: datetime | None = None,
     reference_end: datetime | None = None,
@@ -72,14 +73,18 @@ def project_electrical_condition(
     if not stored_times:
         return {**base, "state": "unknown-event-time"}
     end = end_at or until or max(stored_times) + timedelta(seconds=1)
-    if until is not None and end > until:
-        raise ConditionSelectionError("target is after the replay position")
-    start = end - _PERIODS[period]
+    start = start_at or end - _PERIODS[period]
     reference_end = reference_end or start
-    reference_start = reference_start or reference_end - _PERIODS[period]
-    for at in (start, end, reference_start, reference_end):
+    reference_start = reference_start or reference_end - (end - start)
+    for at in (start, end, reference_start, reference_end, until):
+        if at is None:
+            continue
         if at.utcoffset() is None:
             raise ValueError("condition times require explicit timezone")
+    if not timedelta(0) < end - start <= _PERIODS["24h"]:
+        raise ConditionSelectionError("target must span more than zero and at most 24 hours")
+    if until is not None and end > until:
+        raise ConditionSelectionError("target is after the replay position")
     if not reference_start < reference_end <= start or reference_end - reference_start > timedelta(
         days=1
     ):

@@ -185,11 +185,10 @@
     background:var(--color-surface); border:1px solid var(--color-border); border-radius:10px;
   }
   .row.compact {padding-block:12px}
-  @media(min-width:1001px) { .row.compact .card-main{grid-template-columns:390px minmax(0,1fr)} }
   .row.compact .summary{gap:8px}.row.compact .finding{gap:6px;padding-block:7px}
   /* 대화 칸이 열린 줄: 오른쪽 칸이 어느 설비의 이야기인지 테두리로 잇는다. */
   .row.chatting { border-color:var(--color-action); box-shadow:0 0 0 1px var(--color-action); }
-  .card-main { display:grid; grid-template-columns:300px minmax(0,1fr); gap:12px 28px; min-width:0; align-items:start; }
+  .card-main { display:grid; grid-template-columns:clamp(215px, 34%, 300px) minmax(0,1fr); gap:12px 28px; min-width:0; align-items:start; }
   .summary { display:grid; gap:12px; min-width:0; align-content:start; }
   .equipment-head { display:grid; gap:3px; }
   .title { display:flex; align-items:baseline; gap:8px; min-width:0; }
