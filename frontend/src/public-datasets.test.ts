@@ -21,7 +21,7 @@ test("the listing leads with bearings and groups power records by equipment", ()
   ]);
   assert.equal(datasetName(found.items[0]), "공기압축기 1338");
   assert.equal(datasetFacts(found.items[0]), "원천 기록 219.6 MB");
-  assert.equal(datasetName(found.items[3]), "Bearing1_1 · 35 Hz · 12 kN");
+  assert.equal(datasetName(found.items[3]), "베어링 1-1 · 35 Hz · 12 kN");
   assert.equal(datasetFacts(found.items[3]), "측정 123회");
   assert.equal(found.items[2].stored, true);
   assert.equal(found.items[0].partial, false);

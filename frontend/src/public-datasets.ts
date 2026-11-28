@@ -2,6 +2,7 @@
  * an AI-Hub 239 member becomes one asset's stored history, an XJTU-SY bearing is replayed with
  * the two anomaly models. The server finds the files; the browser only names a dataset ID. */
 import {object, postWrite} from "./writes.ts";
+import {assetLabel} from "./monitor.ts";
 
 export type PublicDataset = {
   datasetId: string; kind: "aihub-239" | "xjtu-sy"; assetId: string; stored: boolean; partial: boolean;
@@ -81,7 +82,7 @@ export function groupDatasets(items: PublicDataset[]): DatasetGroup[] {
 
 export function datasetName(item: PublicDataset): string {
   return item.kind === "xjtu-sy"
-    ? item.assetId + (item.speedHz !== null && item.loadKn !== null ? " · " + item.speedHz + " Hz · " + item.loadKn + " kN" : "")
+    ? assetLabel([],item.assetId) + (item.speedHz !== null && item.loadKn !== null ? " · " + item.speedHz + " Hz · " + item.loadKn + " kN" : "")
     : item.assetId;
 }
 
@@ -112,7 +113,7 @@ export function jobText(job: DatasetJob, acquisitions?: number | null): string {
         ? " · 약 1분 이내" : " · 약 " + Math.ceil(job.remainingSeconds / 60) + "분 남음";
       return "원본 " + percent + "% 읽음" + remaining;
     }
-    return "측정값 저장 중 · " + job.done.toLocaleString("ko-KR") + "개";
+    return job.done ? "측정값 저장 중 · " + job.done.toLocaleString("ko-KR") + "개" : "가져올 기록 준비 중";
   }
   if (job.state === "succeeded") return "가져왔습니다";
   if (job.state === "interrupted") return "운영이 다시 시작돼 중단됐습니다" + (job.done ? "(" + storedText(job) + "까지 저장)" : "")

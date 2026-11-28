@@ -93,15 +93,17 @@
            already says so; this is for a record stored before completion was recorded. -->
       <span class="status">기존 기록 있음 · 현재 원본의 가져오기 완료 확인 전</span>
     {/if}
-    {#if item.kind === "xjtu-sy" && (item.stored || item.partial || job)}
-      <span class="status">파형은 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다.</span>
-    {/if}
     {#if item.stored && job?.state !== "running"}
       <a href={assetHref(item.assetId)}>설비 화면 보기 →</a>
     {:else if job?.state !== "running"}
       <button type="button" class="ui-button" disabled={!writable || !datasets?.canImport || running || pending !== ""}
         onclick={() => void begin(item.datasetId)}>{pending === item.datasetId ? "시작하는 중" : item.partial || job ? "다시 가져오기" : "가져오기"}</button>
       {#if item.partial}<a href={assetHref(item.assetId)}>저장된 부분 보기 →</a>{/if}
+    {/if}
+    {#if item.kind === "xjtu-sy" && (item.stored || item.partial || job)}
+      <details class="status source-note"><summary>원본 파일 보관 안내</summary>
+        <p>파형을 다시 보려면 원본 CSV를 같은 경로에 보관하세요.</p>
+      </details>
     {/if}
   </li>
 {/snippet}
@@ -119,7 +121,6 @@
     <p><a href="https://github.com/so9093-K/industrial-phm-framework/blob/main/data/README.md" target="_blank" rel="noopener noreferrer">데이터 준비 방법 · data/README.md ↗</a></p>
     <button type="button" class="ui-button" onclick={()=>void reload()}>준비한 데이터 다시 찾기</button>
   {:else}
-    <p class="context">data 폴더에 있는 AI-Hub 239 설비 전력 기록과 XJTU-SY 베어링 진동 기록입니다. 고르면 이 작업공간에 가져와 설비 화면에서 분석합니다.</p>
     {#if readUncertain}<p class="context" role="status">가져오기 상태를 잠시 읽지 못했습니다. 자동으로 다시 확인합니다.</p>{/if}
     {#if message}<p class="message" role="alert">{message}</p>{/if}
     {@const current = datasets.items.filter((item) => item.stored || item.partial || datasets?.jobs[item.datasetId])}
@@ -135,7 +136,7 @@
       <details open={Boolean(search.trim()) || group.kind===preferredKind}>
         <summary>{group.title} <span class="count">{group.items.length}개</span></summary>
         <p class="context">{group.kind === "xjtu-sy"
-          ? "모델 학습에 쓰지 않은 베어링입니다. 처음 가져올 때 이상 탐지 모델 두 개를 학습용 베어링으로 준비합니다. 파형은 작업공간에 복사하지 않고 원본 CSV에서 읽습니다. 가져온 뒤에도 원본 파일을 같은 경로에 보관하세요. 이동·삭제·내용 변경 시 파형 조회가 실패할 수 있습니다."
+          ? "실측 진동과 주파수를 살펴볼 수 있습니다. 처음 가져올 때 모델 준비에 몇 분 걸릴 수 있습니다. 파형을 다시 보려면 원본 CSV를 같은 경로에 보관하세요."
           : "설비 하나의 약 한 달 기록입니다. 원본 시각에 시간대가 없어 한국 표준시로 저장합니다."}</p>
         <ul>{#each group.items as item (item.datasetId)}{@render row(item, group.items.some(other=>other!==item&&other.assetId===item.assetId))}{/each}</ul>
       </details>
@@ -161,6 +162,8 @@
     align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border); min-width: 0; }
   .facts, .status { color: var(--color-ink-muted); font-size: var(--font-small); overflow-wrap: anywhere; }
   .status { grid-column: 1 / -1; }
+  .source-note { border: 0; padding: 0; }
+  .source-note summary { padding: 0; }
   .status.failure, .message { color: var(--color-failure-ink); }
   li a { font-weight: 650; white-space: nowrap; }
   @media (max-width: 640px) { li { grid-template-columns: minmax(0, 1fr) auto; } .facts { grid-column: 1 / -1; grid-row: 2; } }
