@@ -106,6 +106,10 @@ test("period movement preserves an explicitly chosen reference; next availabilit
   assert.equal(previous.end,"2020-11-13T12:00:00");
   assert.equal(next.referenceStart,fixed.referenceStart);
   assert.equal(previous.referenceEnd,fixed.referenceEnd);
+  const short=ready(analyzed({target_start:"2020-11-13T03:30:00+00:00"}));
+  assert.deepEqual(shiftedPeriod(short,1,{...fixed,start:"2020-11-13T12:30:00"}),{
+    ...fixed,start:"2020-11-13T13:00:00",end:"2020-11-13T13:30:00",
+  });
   assert.equal(current.nextPeriodAvailable,false);
   assert.equal(ready(analyzed({next_period_available:true})).nextPeriodAvailable,true);
 });

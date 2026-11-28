@@ -54,6 +54,18 @@ def test_condition_http_analyzes_values_and_rejects_cross_source_or_leaking_refe
         assert request(query + "&source_id=other&point_id=meter")[0] == 400
         assert request(query + "&period=24h")[0] == 400
         assert request(query + "&end_at=2020-11-13T04:00:00")[0] == 400
+        selected = query + "&start_at=2020-11-13T03:30:00Z&end_at=2020-11-13T04:00:00Z"
+        status, report = request(selected)
+        assert status == 200 and report["state"] == "analyzed"
+        assert report["target_start"] == "2020-11-13T03:30:00+00:00"
+        assert report["target"]["sample_count"] == 30
+        assert report["reference_start"] == "2020-11-13T03:00:00+00:00"
+        assert report["reference_end"] == report["target_start"]
+        assert request(selected + "&record_until=2020-11-13T03:50:00Z")[0] == 400
+        assert request(query + "&start_at=2020-11-13T03:30:00Z")[0] == 400
+        assert (
+            request(query + "&start_at=2020-11-12T03:30:00Z&end_at=2020-11-13T04:00:00Z")[0] == 400
+        )
         assert (
             request(
                 query + "&reference_start=2020-11-13T03:00:00Z&reference_end=2020-11-13T04:00:00Z"

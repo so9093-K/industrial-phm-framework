@@ -130,12 +130,15 @@ function levelSplit(pattern:Record<string,unknown>,levels:Record<string,unknown>
   return {names,parts,unscored:finite(pattern.unscored_samples)??parts.filter(part=>!part.scored).reduce((sum,part)=>sum+part.targetSamples,0)};
 }
 
+type ConditionWindow = {start?: string; end: string; referenceStart: string; referenceEnd: string};
+
 export async function readCondition(
   assetId:string,period:ConditionPeriod,source:Pick<ConditionSource,"sourceId"|"pointId">|null,
-  custom:{end:string;referenceStart:string;referenceEnd:string},signal:AbortSignal,
+  custom:ConditionWindow,signal:AbortSignal,
 ):Promise<Condition>{
   const query=new URLSearchParams({asset_id:assetId,period});
   if(source){query.set("source_id",source.sourceId);query.set("point_id",source.pointId??"");}
+  if(custom.start)query.set("start_at",kstInstant(custom.start));
   if(custom.end)query.set("end_at",kstInstant(custom.end));
   if(Boolean(custom.referenceStart)!==Boolean(custom.referenceEnd))throw new Error("기준 기간의 시작과 끝을 모두 입력하세요.");
   if(custom.referenceStart){query.set("reference_start",kstInstant(custom.referenceStart));query.set("reference_end",kstInstant(custom.referenceEnd));}
@@ -152,9 +155,9 @@ export async function readCondition(
 
 /** Move the target while keeping a user-selected reference unchanged. */
 export function shiftedPeriod(current:Extract<Condition,{analyzed:true}>,direction:-1|1,
-  custom:{end:string;referenceStart:string;referenceEnd:string}){
-  const end=Date.parse(current.targetEnd), length=end-Date.parse(current.targetStart);
-  return {...custom,end:kstInput(end + direction * length, "second")};
+  custom:ConditionWindow){
+  const start=Date.parse(current.targetStart),end=Date.parse(current.targetEnd),offset=direction*(end-start);
+  return {...custom,...(custom.start?{start:kstInput(start+offset,"second")}:{}),end:kstInput(end+offset,"second")};
 }
 
 export type Metric="currentMean"|"voltageUnbalance"|"currentUnbalance"|"patternScore";

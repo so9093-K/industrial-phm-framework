@@ -31,7 +31,7 @@
   let rail=$state<"context"|"assistant">("context");
   const chatting=$derived(rail==="assistant"&&!!assistant);
   const focused=$derived(lanes.find(lane=>lane.focus)??lanes[0]);
-  // 진동 변화가 마지막 측정까지 이어지면 크기는 지금 값으로 말한다(관제 카드와 같은 값).
+  // 마지막까지 변화가 관찰된 경우 관제 카드와 같은 마지막 측정값을 쓴다.
   const now=$derived(axis==="acquisition"&&ongoing ? focused?.values?.latest ?? null : null);
   $effect(() => {
     // 특이사항이 기록의 1/4보다 짧으면 확대해서 연다(진동 측정도 시간 기록과 같다). 전체 보기에서는 커지는 모양이 읽히지 않는다.
@@ -121,8 +121,8 @@
 </script>
 {#if focused}
 <section class="timeline" aria-label="선택한 변화">
-  <header class="headline"><div><h2>{focused.label} · {now?.ratioLabel?"지금 초기의 약 "+now.ratioLabel:focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
-    <p>{span(focused.interval)}{ongoing?" · 기록 끝까지 이어짐":""}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
+  <header class="headline"><div><h2>{focused.label} · {now?.ratioLabel?"초기의 약 "+now.ratioLabel:focused.values&&focused.values.after!==null?versusStart(focused.values.after,focused.values.before,focused.unit):"초기보다 "+(focused.up?"높음":"낮음")}</h2>
+    <p>{span(focused.interval)}{focused.condition?" · "+focused.condition+"일 때":""}</p></div>
     {#if measurementMap}<MeasurementSchematic {...measurementMap} color={focused.reviewKey ? colorOf(focused.reviewKey) ?? SERIES_COLORS[0] : SERIES_COLORS[0]}/>{/if}
     <div class="head-tools">
       <label class="signal-choice">조사할 신호<select value={focused.key} onchange={e=>onFocus?.(e.currentTarget.value)}>{#each lanes as lane(lane.key)}<option value={lane.key}>{lane.label}</option>{/each}</select></label>
@@ -181,9 +181,9 @@
     </aside>
   {:else}
     <div class="related-context">
-      {#if focused.values}<div class="focus-values" aria-label={"고른 신호의 초기와 "+(now!==null?"지금":"특이사항 구간")}>
+      {#if focused.values}<div class="focus-values" aria-label={"고른 신호의 초기와 "+(now!==null?"마지막 측정":"특이사항 구간")}>
         <span class="name">{focused.label}</span>
-        <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>{now!==null?"지금":"특이사항 구간"}</small><strong>{now!==null?measure(now.value,focused.unit):focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
+        <div class="pair"><span><small>초기</small>{focused.values.before===null?"—":measure(focused.values.before,focused.unit)}</span><b aria-hidden="true">→</b><span><small>{now!==null?"마지막 측정":"특이사항 구간"}</small><strong>{now!==null?measure(now.value,focused.unit):focused.values.after===null?"—":measure(focused.values.after,focused.unit)}</strong></span></div>
       </div>{/if}
       {#if context}{@render context()}{/if}
       {#if actions}<div class="actions">{@render actions()}</div>{/if}

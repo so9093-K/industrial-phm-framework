@@ -358,6 +358,7 @@ def create_operations_web_read_server(
                 "period",
                 "source_id",
                 "point_id",
+                "start_at",
                 "end_at",
                 "reference_start",
                 "reference_end",
@@ -377,12 +378,14 @@ def create_operations_web_read_server(
                     if value:
                         self._validate_id(value)
                         query[key] = value
-            for key in ("end_at", "reference_start", "reference_end"):
+            for key in ("start_at", "end_at", "reference_start", "reference_end"):
                 if key in params:
                     timestamp = datetime.fromisoformat(params[key][0])
                     if timestamp.utcoffset() is None:
                         raise ValueError("explicit timezone required")
                     query[key] = timestamp
+            if "start_at" in query and "end_at" not in query:
+                raise ValueError("target end required with start")
             if ("reference_start" in query) != ("reference_end" in query):
                 raise ValueError("reference start/end required together")
             query["until"] = self._replay_until(params)
@@ -560,9 +563,11 @@ def create_operations_web_read_server(
                         period=cast(str, query["period"]),
                         source_id=cast(str | None, query.get("source_id")),
                         point_id=cast(str | None, query.get("point_id")),
+                        start_at=cast(datetime | None, query.get("start_at")),
                         end_at=cast(datetime | None, query.get("end_at")),
                         reference_start=cast(datetime | None, query.get("reference_start")),
                         reference_end=cast(datetime | None, query.get("reference_end")),
+                        until=cast(datetime | None, query.get("until")),
                     )
                 elif self.path == "/api/v1/sources":
                     payload = project_web_source_setup(

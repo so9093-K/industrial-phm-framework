@@ -4,9 +4,15 @@ import {answerParts, freshLink} from "./answer-text.ts";
 
 test("measured values stand out, dates and counts do not", () => {
   const parts = answerParts("수직 진동 RMS가 0.617g에서 2.19 g으로, 약 3.5배가 됐습니다. 10월 4일 72번째 측정부터 226 V입니다.");
-  assert.deepEqual(parts.filter((part) => part.value).map((part) => part.text), ["0.617g", "2.19 g", "3.5배", "226 V"]);
+  assert.deepEqual(parts.filter((part) => part.emphasis).map((part) => part.text), ["0.617g", "2.19 g", "3.5배", "226 V"]);
   assert.equal(parts.map((part) => part.text).join(""), "수직 진동 RMS가 0.617g에서 2.19 g으로, 약 3.5배가 됐습니다. 10월 4일 72번째 측정부터 226 V입니다.");
-  assert.deepEqual(answerParts("값이 없습니다."), [{text: "값이 없습니다.", value: false}]);
+  assert.deepEqual(answerParts("값이 없습니다."), [{text: "값이 없습니다.", emphasis: false}]);
+});
+
+test("bold markers disappear from answers without changing the words or units", () => {
+  const parts = answerParts("**R상 전압**은 226 V입니다.\n\n**전류 22.7 A**");
+  assert.deepEqual(parts.filter(part => part.emphasis).map(part => part.text), ["R상 전압", "226 V", "전류 22.7 A"]);
+  assert.equal(parts.map(part => part.text).join(""), "R상 전압은 226 V입니다.\n\n전류 22.7 A");
 });
 
 test("the same analysis link is not offered twice in a row", () => {

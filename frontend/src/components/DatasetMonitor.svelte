@@ -275,7 +275,7 @@
       {#if counts.stored}
         <div class="transport" class:with-progress={fraction !== null} aria-label="저장 기록 모니터링">
           <button type="button" class="ui-button play" class:on={playing} onclick={() => playing ? playing = false : play()}>
-            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 모니터링" : "모니터링 시작"}</button>
+            <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>{playing ? "일시정지" : fraction !== null && fraction < 1 ? "이어서 재생" : "기록 재생"}</button>
           <select bind:value={seconds} aria-label="재생 속도"><option value={20}>전체 20초</option><option value={60}>전체 1분</option><option value={120}>전체 2분</option></select>
           {#if fraction !== null}
             <input type="range" aria-label="재생 시점" min="0.01" max="1" step="0.001" value={fraction} oninput={event => seek(Number(event.currentTarget.value))}/>

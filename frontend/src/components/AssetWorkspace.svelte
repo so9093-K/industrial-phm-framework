@@ -5,7 +5,7 @@
   import {defaultAnomalyMethod, defaultKind, kindsOf, methodsFor, readAssetData, type AssetData} from "../asset-data";
   import {readCapabilities, type Capabilities} from "../capabilities";
   import {
-    DATA_INFO, METHOD_INFO, TAB_INFO, routeUrl, tabSelectionUrl, usesDataKind,
+    DATA_INFO, METHOD_INFO, TAB_INFO, parseRoute, routeUrl, tabSelectionUrl, usesDataKind,
     type DataKind, type Method, type Route, type Tab,
   } from "../routes";
   import StatusNotice from "./StatusNotice.svelte";
@@ -94,11 +94,13 @@
   });
 
   function at(tab: Tab, nextMethod: Method | null = null, nextKind: DataKind | null = null): string {
-    return routeUrl({page: "assets", assetId: asset.assetId, tab, method: nextMethod, data: nextKind});
+    const href = routeUrl({page: "assets", assetId: route.assetId, tab, method: nextMethod, data: nextKind});
+    return tabSelectionUrl(href, location.href);
   }
-  function retainSelection(event: MouseEvent) {
+  function retainSelection(event: Event) {
     const link = event.currentTarget as HTMLAnchorElement;
-    link.href = tabSelectionUrl(link.href, location.href);
+    // Options within the current tab can update the address without navigating.
+    link.href = tabSelectionUrl(routeUrl(parseRoute(new URL(link.href).search)), location.href);
   }
   const analysisOpen = $derived(route.tab !== "summary");
   // 분석 화면의 AI 조사: 조사 화면에서 넘어온 특이사항이 있을 때만. 대화에서 링크로 왔으면 열어 둔다.
@@ -111,11 +113,13 @@
   });
   const readout = $derived(readouts.size ? Object.assign({},...readouts.values()) as AnalysisReadout : null);
   let chatOpen = $state(untrack(() => carriedConversation(location.search) !== null));
+  let chatToggle: HTMLButtonElement | null = $state(null);
   function closeChat(){
     chatOpen=false;
     const url=new URL(location.href);
     url.searchParams.delete("chat");
     history.replaceState(history.state,"",url);
+    chatToggle?.focus({preventScroll:true});
   }
   const analysisTitle = $derived(route.tab === "change" || route.tab === "anomaly"
     ? (method ? METHOD_INFO[method] : TAB_INFO[route.tab]) : TAB_INFO[route.tab]);
@@ -137,7 +141,11 @@
   $effect(() => {
     if (!analysisOpen) return;
     void tick().then(()=>analysisView?.focus({preventScroll:true}));
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !event.defaultPrevented && !document.querySelector("dialog[open]")) backLink?.click(); };
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented || document.querySelector("dialog[open]")) return;
+      if (chatAvailable && chatOpen) closeChat();
+      else backLink?.click();
+    };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   });
@@ -146,10 +154,11 @@
   function reloadCapability() {
     capabilityRequest?.abort();
     const request = new AbortController(); capabilityRequest = request;
-    capabilities = null; capabilityState = "loading";
+    const background = capabilityState === "ready";
+    if (!background) { capabilities = null; capabilityState = "loading"; }
     void readCapabilities(asset.assetId, request.signal).then(value => {
       if (!request.signal.aborted) {capabilities = value; capabilityState = "ready";}
-    }).catch(() => {if (!request.signal.aborted) capabilityState = "failed";});
+    }).catch(() => {if (!request.signal.aborted && !background) capabilityState = "failed";});
   }
   function reloadData(background=false) {
     dataRequest?.abort();
@@ -163,11 +172,10 @@
   // 목록을 주기적으로 다시 읽으면 asset·route가 새 객체로 들어온다. 탭 이름(문자열)이 바뀔 때만 다시 읽어야
   // 열린 분석이 처음부터 다시 계산되지 않는다.
   const tab = $derived(route.tab);
-  // A first model analysis or a new receipt can make another task available
-  // while this asset remains open. Re-read input facts when entering a tab.
+  // Re-read input facts for the same asset without taking its tabs away while they refresh.
   $effect(() => {
     tab;
-    untrack(()=>reloadData());
+    untrack(()=>reloadData(dataState==="ready"));
     return () => dataRequest?.abort();
   });
   $effect(()=>{const revision=cycle;if(tab==="summary"&&revision>0)untrack(()=>void reloadData(true));});
@@ -207,13 +215,15 @@
         </div>
       {/if}
     <nav class="analysis-tabs" aria-label="선택한 변화의 분석">
-      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}>← 변화 조사</a>
+      <a class="back" href={at("summary")} bind:this={backLink} onclick={retainSelection}
+        onauxclick={retainSelection} oncontextmenu={retainSelection}>← 변화 조사</a>
       {#each analysisTabs as item(item.label)}
         <a href={at(item.tab,item.method,item.kind)} onclick={retainSelection}
+          onauxclick={retainSelection} oncontextmenu={retainSelection}
           aria-current={route.tab===item.tab && (item.method===null||item.method===method)?"page":undefined}>{item.label}</a>
       {/each}
       {#if chatAvailable}
-        <button type="button" class="ui-button ai-toggle" aria-pressed={chatOpen} onclick={() => {if(chatOpen)closeChat();else chatOpen=true;}}>
+        <button type="button" class="ui-button ai-toggle" bind:this={chatToggle} aria-pressed={chatOpen} onclick={() => {if(chatOpen)closeChat();else chatOpen=true;}}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>AI 조사</button>
       {/if}
     </nav>

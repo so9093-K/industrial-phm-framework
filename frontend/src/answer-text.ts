@@ -1,17 +1,17 @@
-/** An AI answer split so its measured values stand out: "0.617 g", "226 V", "약 4.4배", "12%". */
-const VALUE = /[+-]?\d[\d,]*(?:\.\d+)?\s?(?:g|V|A|Hz|kW|kVA|kVar|%|배)(?![A-Za-z])/g;
+/** Show bold phrases and measured values without interpreting the rest as markup. */
+const EMPHASIS = /\*\*([^*\n]+)\*\*|[+-]?\d[\d,]*(?:\.\d+)?\s?(?:g|V|A|Hz|kW|kVA|kVar|%|배)(?![A-Za-z])/g;
 
-export type AnswerPart = {text: string; value: boolean};
+export type AnswerPart = {text: string; emphasis: boolean};
 
 export function answerParts(text: string): AnswerPart[] {
   const parts: AnswerPart[] = [];
   let at = 0;
-  for (const match of text.matchAll(VALUE)) {
-    if (match.index > at) parts.push({text: text.slice(at, match.index), value: false});
-    parts.push({text: match[0], value: true});
+  for (const match of text.matchAll(EMPHASIS)) {
+    if (match.index > at) parts.push({text: text.slice(at, match.index), emphasis: false});
+    parts.push({text: match[1] ?? match[0], emphasis: true});
     at = match.index + match[0].length;
   }
-  if (at < text.length) parts.push({text: text.slice(at), value: false});
+  if (at < text.length) parts.push({text: text.slice(at), emphasis: false});
   return parts;
 }
 
