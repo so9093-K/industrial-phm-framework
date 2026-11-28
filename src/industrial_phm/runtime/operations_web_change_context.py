@@ -143,6 +143,24 @@ def analysis_descriptions(names: list[str], *, vibration: bool) -> dict[str, str
     return {name: known[name] for name in names if name in known}
 
 
+def mentioned_analysis(answer: str, offered: dict[str, str]) -> str | None:
+    """The one offered analysis screen an answer names, when it names exactly one.
+
+    The model often points to a screen in words instead of opening it. The link under the
+    answer is then that screen, not a fixed follow-up that says something else. A screen is
+    named by the quoted name its description starts with ('주파수' 화면); the same-current
+    comparison runs a chart in the conversation and is never only pointed to.
+    """
+    found = {
+        name
+        for name, description in offered.items()
+        if name in OPENS
+        and (quoted := re.match(r"'([^']+)'", description))
+        and quoted.group(1) in answer
+    }
+    return found.pop() if len(found) == 1 else None
+
+
 # 분석 화면(대화를 연 곳)의 이름. 그 화면에서 물으면 화면이 보여 주는 수치를 함께 읽는다.
 VIEWS = {
     "compare": "기간 비교",

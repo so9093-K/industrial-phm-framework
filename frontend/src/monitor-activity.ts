@@ -43,7 +43,8 @@ export function changeActivity(assetId: string, name: string, read: FleetRead, g
   const withOrigin = (link: ChangeFollowup) => ({...link, href: investigationOriginUrl(link.href, new URL(href, origin).href)});
   const judged = change.reviewKey ? read.judgments?.[change.reviewKey] : null;
   return {kind: "change", assetId, name, id: JSON.stringify([assetId, change.ref ?? change.key, change.from, change.to]),
-    title: value ? `${title} · ${value}` : title, detail: `${scope ? "재생 기록" : read.live ? "최근 관측" : "저장 기록"} · ${range}`,
+    // 언제부터 언제까지인지만 적는다. 저장·재생·관측 같은 출처 꼬리표는 사람이 판단할 일을 바꾸지 않는다.
+    title: value ? `${title} · ${value}` : title, detail: range,
     href, change, question: change.reviewKey && !read.live ? {
       assetId, name, signal: title, range, origin: href, reviewKey: change.reviewKey, scope,
       followup: change.followup ? withOrigin(change.followup) : null,

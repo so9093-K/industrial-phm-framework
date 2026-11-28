@@ -28,7 +28,8 @@ def generate_change_answer(
     if analyses:
         guidance += (
             " 지금 주어진 데이터로 답할 수 있으면 바로 답한다. "
-            "답에 새로운 분석값이 필요한 경우에만 해당 도구 하나를 호출한다."
+            "답에 새로운 분석값이 필요한 경우에만 해당 도구 하나를 호출한다. "
+            "분석 화면은 도구 설명의 작은따옴표 속 이름으로 부른다."
         )
     if context.get("active_analysis"):
         guidance += " 지금 화면의 값을 앞선 대화에서 언급한 값과 구분해 답한다."

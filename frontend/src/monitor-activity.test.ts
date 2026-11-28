@@ -17,7 +17,7 @@ test("a replay entry follows the graph range and keeps its bounded question scop
   const lead = monitorLead(group, [change], 95)!;
   const entry = changeActivity("record", "베어링", read, group, lead, {kind: "vibration", until: 95}, "http://local");
   assert.equal(lead.to, 95);
-  assert.match(entry.detail, /재생 기록 · 76–95번째 측정/);
+  assert.equal(entry.detail, "76–95번째 측정");
   assert.equal(entry.question?.range, "76–95번째 측정");
   const href = new URL(entry.href, "http://local");
   assert.equal(href.searchParams.get("summary_change"), "selected-change");

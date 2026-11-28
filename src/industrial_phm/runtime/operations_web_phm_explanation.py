@@ -27,6 +27,7 @@ from industrial_phm.runtime.operations_web_change_context import (
     analysis_descriptions,
     asset_label,
     change_analyses,
+    mentioned_analysis,
     screen_view,
     selected_change,
     view_facts,
@@ -190,6 +191,10 @@ class ExplanationManager:
                 )
             else:
                 text = (answer["summary"] + " " + answer.get("next_step", "")).strip()
+                if opened is None and comparison is None and screen is not None:
+                    # 말로 권한 화면을 답 아래 링크로 연다.
+                    # 정해 둔 후속 링크가 다른 화면을 가리키지 않게 한다.
+                    opened = mentioned_analysis(answer["summary"], analyses)
                 if comparison is not None:
                     answer = answer | {"load_comparison": comparison}
                 if opened is not None:
