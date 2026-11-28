@@ -33,7 +33,7 @@
   const episode = $derived(latestEpisode(changes));
   const lead = $derived(group.axis === "acquisition" ? changes[0] : episode.find(row => row.key === group.focus) ?? episode[0]);
   const changeName = $derived(lead ? plainLabel(lead.label, lead.channel) : null);
-  // 지금 볼 것인지: 기록(재생 중이면 판정한 위치) 끝까지 이어지는 변화인지, 이미 끝난 변화인지.
+  // 변화 구간이 기록 끝(재생 중이면 판정한 위치)에 닿는지에 따라 강조를 조절한다.
   const judgedUntil = $derived(replaying ? analyzed ?? until ?? group.record.to : group.record.to);
   const continuing = $derived(lead ? ongoing(group, [lead], judgedUntil) : false);
   // 재생 중 판정은 화면 위치보다 늦게 도착한다. 따라오기 전에는 '없음'이라고 하지 않는다.
@@ -121,21 +121,19 @@
       {#if lead}
         <section class="finding" class:ended={!continuing} aria-label="이 그래프의 특이사항">
           <div class="change-copy">
-            <!-- 지금 볼 것인지(이어짐·끝남)는 제목 줄에 둔다. 작은 회색 줄 끝에 두었더니 가장 중요한 사실이 가장 약하게 보였다. -->
-            <span class="change-head"><strong>{changeName} <span aria-hidden="true">·</span> <span class="keep">{now ? "지금 초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
-              <span class="state" class:ongoing={continuing}>{continuing ? "이어짐" : "끝남"}</span></span>
+            <strong>{changeName} <span aria-hidden="true">·</span> <span class="keep">{now ? "초기의 약 " + now.ratioLabel : lead.up ? "초기보다 높아짐" : "초기보다 낮아짐"}</span></strong>
             <span class="change-values">
               {#if shownBefore !== null && shownAfter !== null}
                 <b>{measure(shownBefore, group.unit, 3)} → {measure(shownAfter, group.unit, 3)}</b>
               {/if}
-              <!-- 날짜·기간은 한 덩어리로 줄을 바꾼다('10월 5일 / (월) 07:31'처럼 끊기지 않게). -->
               <small>
-                {#if !continuing}
-                  {group.axis === "time" ? spanText(lead.from, lead.to) : lead.from + "–" + lead.to + "번째 측정"}
+                {#if lead.from === lead.to}
+                  {group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}
+                {:else if group.axis === "time"}
+                  {spanText(lead.from, lead.to)} · <span class="keep">{duration(lead)}</span>
                 {:else}
-                  <span class="keep">{group.axis === "time" ? clockText(lead.from) : lead.from + "번째 측정"}부터</span>
+                  {lead.from}–{lead.to}번째 측정
                 {/if}
-                · <span class="keep">{duration(lead)}</span>
               </small>
             </span>
             {#if lead.load}<small class="change-values">같은 기간 {lead.load.label} {measure(lead.load.before, null, 3)} → {measure(lead.load.after, lead.load.unit, 3)}</small>{/if}
@@ -164,8 +162,7 @@
         <h2>{plainLabel(group.label, group.focus)}{group.unit ? " · " + group.unit : ""}</h2>
         {#if lead}<span><i class="reference"></i>초기 수준 <i class="change"></i>특이사항</span>{/if}
       </div>
-      <!-- 그래프는 카드가 말하는 특이사항 하나만 표시한다. 여러 개를 겹치면 띠가 두 겹이 되고 시작선이
-           카드의 '몇 번째부터'와 달랐다. -->
+      <!-- 그래프에 카드와 같은 특이사항 구간을 표시한다. -->
       <TrendChart {group} {series} {lo} {hi} changes={lead ? [lead] : []} reference={shownBefore} live={replaying && playing}
         height={mainHeight} axis={!companion} guide={cursor} endLabel={true} onHover={at => hovered = at}
         bind:picked={() => picked, value => { pick(value); loadPick = null; if (value !== null) onPause(); }}/>
@@ -213,18 +210,13 @@
     padding:10px 12px; border-left:3px solid var(--color-change-mark);
     background:var(--color-uncertain-surface); border-radius:0 6px 6px 0;
   }
-  /* 끝난 특이사항은 지금 볼 것이 아니다: 강조를 낮춘다. */
   .finding.ended { border-left-color:var(--color-border); background:var(--color-surface-selected); }
   .change-copy { display:grid; gap:2px; min-width:0; font-size:var(--font-small); }
   .change-values { display:flex; align-items:baseline; flex-wrap:wrap; gap:2px 10px; }
   .change-values b { font-variant-numeric:tabular-nums; font-size:1rem; }
   /* 사실을 담은 글씨는 13px 아래로 내리지 않는다(한글은 11~12px에서 읽기 힘들다). */
   .change-values small { color:var(--color-ink-muted); font-size:var(--font-label); }
-  .change-head { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
   .keep { white-space:nowrap; }
-  .state { flex:none; padding:1px 8px; border-radius:999px; font-size:var(--font-label); font-weight:650;
-    color:var(--color-ink-muted); background:var(--color-surface); border:1px solid var(--color-border); }
-  .state.ongoing { color:var(--color-caution-ink); border-color:var(--color-change-mark); }
   .finding-actions { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
   .finding-actions .ui-button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:5px 12px; font-size:var(--font-label); font-weight:650; white-space:nowrap; text-decoration:none; }
   .ai { color:var(--color-action); }
